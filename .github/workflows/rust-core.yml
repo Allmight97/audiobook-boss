@@ -1,8 +1,9 @@
 name: rust core crates
 
-# Tests and lints the pure abb-*-core crates on a clean runner. They build
-# without Tauri, GUI libraries or FFmpeg, so this stays fast. The src-tauri
-# runtime suite and generated-binding checks remain local (scripts/AGENTS.md).
+# The core crates stay independent of FFmpeg. A separate macOS job proves the
+# engine's rules, its Save golden paths, and its host-API examples against
+# ABB's patched bundled FFmpeg; the real-media encode lane and Apple AAC
+# workflow proof stay local.
 
 on:
   pull_request:
@@ -12,6 +13,8 @@ on:
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
+      - scripts/check-rust-tiers.sh
+      - vendor/**
   push:
     branches: [main]
     paths:
@@ -20,6 +23,8 @@ on:
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
+      - scripts/check-rust-tiers.sh
+      - vendor/**
   workflow_dispatch:
 
 concurrency:
@@ -39,5 +44,21 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       # rust-toolchain.toml pins the compiler; rustup installs it on first use.
+      - run: bash scripts/check-rust-tiers.sh
       - run: cargo test --locked $CORE_CRATES
       - run: cargo clippy --locked $CORE_CRATES --all-targets -- -D warnings
+
+  engine:
+    name: Engine lifecycle tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - run: brew install opus pkg-config nasm
+      # The media lane encodes real audio, and the every-container Save test
+      # calls the ffmpeg command-line tool; both stay local.
+      - run: >-
+          cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --
+          --skip test_cases::integration_media
+          --skip save_updates_finished_outputs_in_every_supported_container
+      # The engine's host-API examples guard which internals hosts can reach.
+      - run: cargo test --locked -p abb-engine --features bundled-ffmpeg --doc

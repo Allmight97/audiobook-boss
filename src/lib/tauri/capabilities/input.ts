@@ -1,5 +1,5 @@
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import type { FileListInfo, SupportedAudioImportMetadata } from '../../../types/audio';
+import type { SupportedAudioImportMetadata } from '../../../types/audio';
 import { EVENTS } from '../../../types/events';
 import { tauriClient } from '../client';
 
@@ -20,10 +20,7 @@ export type InputUnlisten = UnlistenFn;
 export interface InputCapability {
 	openFiles(options?: InputOpenFileOptions): Promise<string[] | null>;
 	openDirectory(): Promise<string | null>;
-	discoverAudioImportPaths(paths: ReadonlyArray<string>): Promise<string[]>;
-	analyzeAudioFiles(paths: ReadonlyArray<string>): Promise<FileListInfo>;
 	getSupportedAudioImportMetadata(): Promise<SupportedAudioImportMetadata>;
-	takeOpenedAudioFiles(): Promise<string[]>;
 	readAudioCoverThumbnail(path: string): Promise<ReadonlyArray<number> | null | undefined>;
 	listenDragDrop(handler: (payload: NativeDropPayload) => void): Promise<InputUnlisten>;
 	listenDragEnter(handler: () => void): Promise<InputUnlisten>;
@@ -44,10 +41,7 @@ export const liveInputCapability: InputCapability = {
 				: undefined,
 		),
 	openDirectory: () => tauriClient.openDirectory(),
-	discoverAudioImportPaths: (paths) => tauriClient.discoverAudioImportPaths([...paths]),
-	analyzeAudioFiles: (paths) => tauriClient.analyzeAudioFiles([...paths]),
 	getSupportedAudioImportMetadata: () => tauriClient.getSupportedAudioImportMetadata(),
-	takeOpenedAudioFiles: () => tauriClient.takeOpenedAudioFiles(),
 	readAudioCoverThumbnail: (path) => tauriClient.readAudioCoverThumbnail(path),
 	listenDragDrop: (handler) =>
 		tauriClient.listen('tauri://drag-drop', (event) => {

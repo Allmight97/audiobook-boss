@@ -1,4 +1,4 @@
-export { createInputOwner, chapterPlansForProcessing } from './owner';
+export { createInputOwner } from './owner';
 export type { InputOwner, InputOwnerDeps } from './owner';
 export {
 	displayedArtistForFile,
@@ -14,5 +14,5 @@ export {
 	resolveFileListNavigationTarget,
 } from './keyboardNavigation';
 export { nativeDropTargetAtPoint } from './nativeIngress';
-export { toInspectorView, toInspectorViewFromInput } from './inspector';
+export { toInspectorViewFromInput } from './inspector';
 export type { InspectorView } from './inspector';

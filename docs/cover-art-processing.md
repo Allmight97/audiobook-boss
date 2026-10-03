@@ -2,18 +2,18 @@
 
 Read this when changing how covers are loaded, passed through, converted, or
 written onto an output M4B. Ordinary tag work stays in
-`src-tauri/src/metadata/AGENTS.md`.
+`crates/abb-engine/src/metadata/AGENTS.md`.
 
 ## Write contract
 
 Passthrough means keep a cover that already meets the write target. The target
 is JPEG at or under 800px. PNG, oversized JPEG, and other decodeable images are
-converted once by `optimize_cover_art` after merge. In-process and external
-encoder paths then mux and write the same JPEG through their respective
-finalization paths.
+converted once by `optimize_cover_art` after merge. Every encoder route then
+muxes and writes the same JPEG through finalization.
 
-User-picked file and URL covers are already converted at command ingress
-(`load_cover_art_file`, `load_cover_art_from_url`). Source-embedded covers are
+User-picked file and URL covers are already converted when they are loaded
+(`crates/abb-engine/src/cover_source.rs`, reached from the session's cover
+intents and the lookup's cover download). Source-embedded covers are
 not converted at import. Conversion happens at write-prep so display reads stay
 raw source truth.
 
@@ -23,7 +23,7 @@ rewrite unchanged art.
 
 ## Load policy
 
-`src-tauri/src/commands/metadata.rs` owns ingress limits. URL loads are HTTPS
+`crates/abb-engine/src/cover_source.rs` owns load limits. URL loads are HTTPS
 only; the typed host must be a domain or public IP literal at entry and on
 every redirect, resolved domains drop private addresses, environment proxies
 are ignored, and logs keep only the URL origin. Downloads cap at 10 MB and
@@ -38,22 +38,18 @@ flowchart TD
   drop --> listThumb[File-list thumbnail: bounded 64px JPEG]
   drop --> hydrate[Inspector: raw source cover for display]
   hydrate --> intent{User replaced cover?}
-  intent -->|File or URL| loadOpt[optimize_cover_art at command ingress]
+  intent -->|File or URL| loadOpt[optimize_cover_art when loaded]
   intent -->|No| plan[plan_metadata_outcome]
   loadOpt --> plan
   inspect --> plan
-  plan --> engine[Audio engine: in-process FFmpeg/FAAC or external FDK]
+  plan --> engine[Audio engine: in-process FFmpeg/FAAC]
   engine --> merge[merge_passthrough_cover_art]
   merge --> prep[prepare_output_cover_art once]
   prep -->|JPEG already at or under 800px| keep[Keep bytes]
   prep -->|PNG or oversized JPEG| jpeg[optimize_cover_art]
-  keep --> sinks{Encoder path}
-  jpeg --> sinks
-  sinks -->|Native, Apple, or FAAC| mux[Mux JPEG attached_pic during encode]
-  sinks -->|FDK| encode[Encode audio only, no cover]
-  encode --> remux[finalize_artifact_metadata remux JPEG]
+  keep --> mux[Mux JPEG attached_pic during encode]
+  jpeg --> mux
   mux --> mp4[finish_artifact_tags: mp4ameta covr/tags, chapter check]
-  remux --> mp4
   mp4 --> commit[output_artifact commit]
 ```
 
@@ -63,7 +59,7 @@ flowchart TD
 | --- | --- |
 | File-list thumbnail | Metadata thumbnail / `mp4_covr` |
 | Inspector display | Metadata read; frontend cache |
-| User-picked cover ingest | Commands call `optimize_cover_art` |
+| User-picked cover ingest | `cover_source.rs` calls `optimize_cover_art` |
 | Include vs suppress after clear | `CoverArtPassthroughPolicy` |
 | Write-ready bytes | `prepare_output_cover_art` after merge |
 | FFmpeg attached_pic mux | Metadata `embedding.rs` |

@@ -1,27 +1,37 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { InputOwner } from '../inputSession';
+import type { EngineLink } from '../engineLink';
 import type { MetadataOwner } from '../metadataSession';
 import {
 	createCoverArtPreviewScheduler,
 	type CoverArtPreviewState,
 } from '../../lib/media/coverArtPreviewScheduler';
-import { makeProductionLookupServices } from './services';
+import type { SessionIntent } from '../../types/session';
 import {
-	createMetadataLookupQueueState,
-	createMetadataLookupState,
-	snapshotMetadataLookupState,
+	toLookupState,
 	type MetadataLookupApplyMode,
 	type MetadataLookupSource,
 	type MetadataLookupState,
 } from './state';
-import { runMetadataLookupWorkflow, type MetadataLookupWorkflowAction } from './workflow';
 
+export type MetadataLookupAction =
+	| { type: 'applyResult'; index: number }
+	| { type: 'close' }
+	| { type: 'manualEntry' }
+	| { type: 'open' }
+	| { type: 'search' }
+	| { type: 'skipQueueItem' };
+
+/**
+ * The engine owns the lookup: its queue, searches, and applying a result.
+ * This owner shows the engine's snapshot, sends intents, and loads the
+ * result thumbnails the dialog displays.
+ */
 export type MetadataLookupOwner = {
 	readonly view: Accessor<MetadataLookupState>;
 	coverPreview(coverUrl: string | null | undefined): CoverArtPreviewState;
 	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
 	cancelCoverPreviews(): void;
-	run(action: MetadataLookupWorkflowAction): Promise<void>;
+	run(action: MetadataLookupAction): Promise<void>;
 	setTitleQuery(value: string): void;
 	setAuthorQuery(value: string): void;
 	setSource(value: MetadataLookupSource): void;
@@ -30,45 +40,78 @@ export type MetadataLookupOwner = {
 	reset(): void;
 };
 
+const METADATA_TITLE_INPUT_ID = 'meta-title';
+
+function intentFor(action: MetadataLookupAction): SessionIntent {
+	switch (action.type) {
+		case 'applyResult':
+			return { kind: 'lookupApply', index: action.index };
+		case 'close':
+		case 'manualEntry':
+			return { kind: 'lookupClose' };
+		case 'open':
+			return { kind: 'lookupOpen' };
+		case 'search':
+			return { kind: 'lookupSearch' };
+		case 'skipQueueItem':
+			return { kind: 'lookupSkip' };
+	}
+}
+
 export function createMetadataLookupOwner(deps: {
-	readonly input: InputOwner;
-	readonly metadata: MetadataOwner;
+	readonly link: EngineLink;
+	readonly metadata: Pick<MetadataOwner, 'capability'>;
 }): MetadataLookupOwner {
-	const lookupState = createMetadataLookupState();
-	const queueState = createMetadataLookupQueueState();
-	let pendingRequest: AbortController | undefined;
-	let snapshot = snapshotMetadataLookupState(lookupState);
-	const [viewRev, bumpView] = createSignal(0, { ownedWrite: true });
+	const { link } = deps;
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	const [previewRev, bumpPreviews] = createSignal(0, { ownedWrite: true });
+	// Query text entered and not yet confirmed by the engine.
+	type QueryEcho = { value: string; path: string | undefined; binding: number };
+	const typed: { titleQuery?: QueryEcho; authorQuery?: QueryEcho } = {};
 	const previews = createCoverArtPreviewScheduler({
 		load: (url) => deps.metadata.capability().loadCoverArtFromUrl(url),
 		onChange: () => bumpPreviews((revision) => revision + 1),
 		failureLogMessage: 'Failed to load metadata lookup cover preview:',
 	});
 
-	function publish(): void {
-		snapshot = snapshotMetadataLookupState(lookupState);
-		bumpView((n) => n + 1);
+	function changed(): void {
+		bump((n) => n + 1);
 	}
 
-	function services(signal: AbortSignal) {
-		return makeProductionLookupServices(
-			{
-				input: deps.input,
-				metadata: deps.metadata,
-				lookupState,
-				queueState,
-				coverPreviews: previews,
-				signal,
-			},
-			publish,
-		);
+	function setQuery(key: 'titleQuery' | 'authorQuery', value: string): void {
+		const entry = {
+			value,
+			path: link.lookup().queuePosition?.path,
+			binding: link.metadata().binding,
+		};
+		typed[key] = entry;
+		changed();
+		link
+			.send(
+				key === 'titleQuery'
+					? { kind: 'lookupSetTitleQuery', value }
+					: { kind: 'lookupSetAuthorQuery', value },
+			)
+			.catch((error: unknown) => console.error('Failed to record the lookup query:', error))
+			.finally(() => {
+				if (typed[key] !== entry) return;
+				delete typed[key];
+				changed();
+			});
 	}
 
 	return {
 		view: () => {
-			viewRev();
-			return snapshot;
+			rev();
+			const lookup = link.lookup();
+			const echo = (entry: QueryEcho | undefined) =>
+				entry?.path === lookup.queuePosition?.path && entry?.binding === link.metadata().binding
+					? entry?.value
+					: undefined;
+			return toLookupState(lookup, {
+				titleQuery: echo(typed.titleQuery),
+				authorQuery: echo(typed.authorQuery),
+			});
 		},
 		coverPreview(coverUrl) {
 			previewRev();
@@ -81,47 +124,36 @@ export function createMetadataLookupOwner(deps: {
 			previews.cancel();
 		},
 		async run(action) {
-			pendingRequest?.abort();
-			const request = new AbortController();
-			pendingRequest = request;
 			try {
-				await runMetadataLookupWorkflow(services(request.signal), action);
-				if (!request.signal.aborted) publish();
+				await link.send(intentFor(action));
 			} catch (error) {
-				if (request.signal.aborted) return;
 				console.error('Metadata lookup failed:', error);
-				publish();
-			} finally {
-				if (pendingRequest === request) pendingRequest = undefined;
+				return;
+			}
+			if (action.type === 'manualEntry') {
+				queueMicrotask(() => document.getElementById(METADATA_TITLE_INPUT_ID)?.focus());
 			}
 		},
 		setTitleQuery(value) {
-			lookupState.titleQuery = value;
-			publish();
+			setQuery('titleQuery', value);
 		},
 		setAuthorQuery(value) {
-			lookupState.authorQuery = value;
-			publish();
+			setQuery('authorQuery', value);
 		},
-		setSource(value) {
-			lookupState.source = value;
-			publish();
+		setSource(source) {
+			link.post({ kind: 'lookupSetSource', source });
 		},
-		setApplyMode(value) {
-			lookupState.applyMode = value;
-			publish();
+		setApplyMode(mode) {
+			link.post({ kind: 'lookupSetApplyMode', mode });
 		},
-		setReplaceCover(value) {
-			lookupState.replaceCoverArt = value;
-			publish();
+		setReplaceCover(replace) {
+			link.post({ kind: 'lookupSetReplaceCover', replace });
 		},
 		reset() {
-			pendingRequest?.abort();
-			pendingRequest = undefined;
 			previews.clear();
-			Object.assign(lookupState, createMetadataLookupState());
-			Object.assign(queueState, createMetadataLookupQueueState());
-			publish();
+			delete typed.titleQuery;
+			delete typed.authorQuery;
+			changed();
 		},
 	};
 }

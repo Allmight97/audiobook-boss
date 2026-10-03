@@ -1,0 +1,43 @@
+# Output Artifact Boundary
+
+## Public API Strip
+- This runtime strip is engine-internal. Hosts import output vocabulary and
+  use session intents; internal callers import `crate::output_artifact`, not
+  private child modules.
+- Functions: `build_output_path_preview`, `derive_output_artifact_path`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`, `commit_supplemental_output_assets_for_output`, `lock_output_file`.
+- Types: `OutputCommitRequest`, `OutputParentDirCleanup`, `FileIdentity`, `SupplementalOutputAssetsCommitRequest`, `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `ResolvedOutputPlan`.
+- Pure naming/collision/review data facts are packaged in
+  `abb-output-artifact-core`; `crates/abb-engine/src/output_artifact` owns runtime file
+  I/O and final commit behavior.
+
+## Private Cluster
+- Files: `mod.rs`, `collision.rs`, `commit.rs`, `commit_tests.rs`, `file_lock.rs`, `parent_dirs.rs`, `parent_dirs_tests.rs`, `plan.rs`, `review.rs`, `supplemental.rs`, `types.rs`, `contract_tests.rs`.
+- The cluster owns artifact path derivation, collision detection, review signatures, output-root and parent-dir creation after review plus cleanup of the empty dirs ABB created, final artifact commit behavior, destination-adjacent replacement temps, and final-sidecar Supplemental PDF commit behavior.
+- Empty folders ABB created: a title that ends without publishing removes
+  those made for it at once (`end_title`). No cleanup removes a folder that an
+  unfinished output of any run will write into (process-wide claims). The
+  same owner retains created folders across runs until the last claimant
+  ends, so cancellation of the creating run cannot strand another run's empty
+  folders. It only removes empty ABB-created paths below their existing anchor.
+- `file_lock.rs`: publication and every tag save on a published output hold
+  that file's process-wide lock, so a later export replacing the file is
+  never overwritten by an earlier export's tag save.
+
+## Edit Rules
+- Change pure output planning rules when `cargo nextest run -p abb-output-artifact-core` stays green.
+- Change private implementation files when targeted
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg` runs and Public
+  API Strip checks stay green.
+- Add behavior coverage inside this cluster when requested path, resolved path, collision, review, or commit behavior changes.
+- Successful publication fixes final artifact truth. Staged-source cleanup
+  happens afterward through the cleanup guard; failures surface a success
+  warning and remain owned for retry without deleting the published output.
+- Audio resolves the output extension before collision detection and review.
+  Naming and collision policy consume that requested path without choosing a codec.
+- Keep final artifact writes and replacement policy here; processor code should ask this boundary for artifact truth.
+- Use explicit cross-platform replacement semantics for final artifacts; do not rely on Unix-only rename-over-existing behavior.
+
+## Boundary Changes
+- Adding, removing, or renaming any Public API Strip symbol.
+- Changing collision/review semantics, source-destination overlap handling, final commit behavior, or success message truth.
+- Moving final artifact commit truth outside this boundary.

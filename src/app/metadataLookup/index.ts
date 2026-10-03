@@ -1,2 +1,2 @@
 export { createMetadataLookupOwner } from './owner';
-export type { MetadataLookupOwner } from './owner';
+export type { MetadataLookupAction, MetadataLookupOwner } from './owner';

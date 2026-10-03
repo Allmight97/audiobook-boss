@@ -1,57 +1,41 @@
-# Rust Backend Directives
+# Tauri Host
 
-## Owner Routes
+`src-tauri` is one UI host for the engine. It carries requests from the
+webview to `abb_engine::Engine`, forwards `EngineEvent`s as Tauri events, and
+owns the window, native dialogs, and quit handling (engine shutdown). Product rules live in
+the engine: `crates/abb-engine/AGENTS.md`.
 
-- Media execution crosses `crate::audio`; processor adapter selection and
-  engine internals stay private to Audio.
-- Shared lifecycle vocabulary, queue/progress events, active jobs, and terminal
-  summaries belong to `crate::processing`. Accepted operation identity,
-  snapshots, retention, and operation cancellation belong to
-  `crate::work_runtime`.
-- Durable preference schema, defaults, validation, and storage belong to
-  `crate::app_settings`; it consults runtime owners for accept/reject rules.
-- Remote provider registry, secrets, acquisition, staged files, Supplemental
-  Assets, and purge belong to `crate::remote_source`. Provider-private
-  details stay out of other owners, logs, and IPC payloads.
-- Metadata reads/writes cross `crate::metadata`. The metadata owner selects
-  container handling from actual media classification; callers request an
-  outcome rather than choosing MP4/FFmpeg strategy modules.
-- Final artifact paths, collision review, replacement, and commit truth cross
-  `crate::output_artifact`.
-- Final processing enters WorkRuntime through
-  `submit_processing_operation`. `process_audiobook_files` is direct
-  preview and requires `preview_seconds`. Read the Processing owner guidance
-  when changing either lifecycle.
+## What The Host Owns
 
-## Diagnostics
+- **Command and event contract.** `src/ipc_contract.rs` registers every
+  command and event; generated TypeScript bindings follow it. Command rules:
+  `src/commands/AGENTS.md`.
+- **Intent ordering.** The webview can deliver requests out of order, so the
+  frontend numbers each session and settings intent and `intent_order.rs`
+  runs each one after all earlier ones. `attach_frontend` starts a new
+  numbering; intents from a replaced frontend are refused. An intent stops
+  waiting for a missing earlier one after `MISSING_INTENT_WAIT`; if the
+  missing one arrives after that, it is refused (`Refused::Late`) rather than
+  applied out of order. Session and
+  settings intents are numbered separately (`FrontendLink`).
+- **Event forwarding.** `events.rs` maps each `EngineEvent` to one Tauri
+  event. It adds no state and drops nothing.
+- **Quit.** `lib.rs` holds every quit until `Engine::shutdown` has settled,
+  and asks first when `Engine::running_work` reports exports or Audible
+  downloads still running.
+  A shutdown that has not settled after `SHUTDOWN_WAIT` asks whether to keep
+  waiting; the process exits early only when the user chooses Quit Now.
 
-- `diagnostics.rs` owns the shared stage record and file snapshot format.
-  Records never change an operation result. Artifact IDs correlate paths without
-  exposing parent folders; processor handoffs link those IDs to job/session IDs.
-- Log encoding/metadata/publication transitions and cleanup at their owners.
-  Metadata diagnostics describe field actions and cover sizes/formats, not tag
-  values or artwork bytes. Keep per-packet tracing at debug level.
+## Rules
 
-## Runtime Constraints
+- A decision about audiobooks, settings, or work lifecycle goes in the engine.
+  When the host needs something the engine does not offer, add it to the
+  engine's host interface.
+- Host tests cover what the host owns: intent ordering, window sizing, the
+  quit prompt and shutdown wait, the frontend log command, and the generated
+  binding file's format. Command and
+  event shapes are proved by the binding checks and the frontend contract
+  tests. A test of product behavior belongs with the engine owner that
+  decides it.
 
-- `power::PowerManager` owns the macOS idle-sleep assertion and live opt-out.
-  Active encoding, metadata-save, Audible-acquisition, and Indexer-handoff scopes hold an
-  `ActiveWork` guard through their final writes and cleanup. Acquire after a
-  job's scheduler wait; opening ABB, browsing, and external downloader activity
-  do not acquire guards. The manager has no polling or idle OS resource.
-- Validate input audio paths at ingress with
-  `crate::audio::validate_input_audio_path()`.
-- Use `JobRegistry` for active-job tracking and cancellation.
-- Run CPU-bound encoding and heavy synchronous work through
-  `tokio::task::spawn_blocking` or an equivalent blocking-safe path.
-- Keep long-running progress and terminal outcomes observable through the
-  owning lifecycle surface.
-- Before changing production Rust `unsafe`, read
-  `docs/unsafe-code-register.md`; update it if scope, purpose, or blast radius
-  changes. Unsafe details stay inside the required FFmpeg/FFI boundary.
-- Keep Clippy allowances local and justified. Code-shape thresholds live at
-  root; lint commands and workspace posture are in `scripts/AGENTS.md` and
-  root `Cargo.toml`.
-
-Use the nearest subsystem guidance for its public interface and traps, and
-`scripts/AGENTS.md` for checks matching the changed boundary.
+Checks for a changed command, event, or binding: `scripts/AGENTS.md`.

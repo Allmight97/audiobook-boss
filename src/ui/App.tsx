@@ -22,8 +22,6 @@ import './leftColumn/leftColumn.css';
 export function App(): JSX.Element {
 	const runtime = useAppRuntime();
 	const saveMetadata = runtime.metadata.save;
-	const hydrateConcurrency = runtime.settings.hydrateConcurrency;
-	const hydrateAcquisitionPreferences = runtime.settings.hydrateAcquisitionPreferences;
 	const openSettings = runtime.settings.openDialog;
 	const initializeWork = runtime.workOperations.initialize;
 
@@ -31,8 +29,6 @@ export function App(): JSX.Element {
 		void runtime.initialize().catch((error: unknown) => {
 			console.warn('Could not load startup defaults:', error);
 		});
-		void hydrateConcurrency();
-		void hydrateAcquisitionPreferences();
 		void initializeWork();
 
 		function handleGlobalKeyDown(event: KeyboardEvent): void {

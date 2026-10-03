@@ -19,7 +19,15 @@ terminal outcomes:
 - write temporary artifact → rename/copy/replace final path;
 - spawn process → read pipes → cancel/kill/wait;
 - register cleanup → transfer or drain ownership;
-- validate path → persist or write it.
+- validate path → persist or write it;
+- metadata Save → a waiting write → the export that reads the same source
+  finishing (`crates/abb-engine/src/session/AGENTS.md`);
+- staged download → every export, submission, or Save using it finished →
+  removal and its retry (`crates/abb-engine/src/session/staged.rs`);
+- published output → a later tag save while another export replaces the
+  same file (`crates/abb-engine/src/output_artifact/file_lock.rs`);
+- unpublished title → restart or end → removal of its empty folders under
+  claims (`crates/abb-engine/src/output_artifact/parent_dirs.rs`).
 
 For each candidate, establish which resource is still alive, what touches it
 next, and whether platform behavior changes the outcome. A credible finding

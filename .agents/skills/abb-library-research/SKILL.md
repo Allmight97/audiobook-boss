@@ -1,6 +1,6 @@
 ---
 name: abb-library-research
-description: Resolve version-sensitive Effect, Solid, Tauri, Specta, tauri-specta, or FAAC behavior when ABB needs external-library evidence, including FAAC revision updates and patch retirement.
+description: Resolve version-sensitive Solid, Tauri, Specta, or tauri-specta behavior when ABB needs external-library evidence.
 ---
 
 # ABB Library Research
@@ -25,8 +25,6 @@ Load only the route card for the library involved:
 
 | Question | Reference |
 | --- | --- |
-| FAAC API, upstream updates, patch retirement, or quality/performance evaluation | [faac.md](references/faac.md) |
-| Effect workflows and APIs | [effect.md](references/effect.md) |
 | Solid rendering, reactivity, or component tests | [solid.md](references/solid.md) |
 | Tauri runtime, commands, capabilities, or bundling | [tauri.md](references/tauri.md) |
 | Installed Tauri plugins | [tauri-plugins.md](references/tauri-plugins.md) |

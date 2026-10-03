@@ -1,0 +1,185 @@
+//! Audio media module for audiobook creation
+//!
+//! This module handles file list management, audio settings, media probing,
+//! encoder selection, and the media processor engine.
+
+use crate::errors::{AppError, Result};
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::path::{Path, PathBuf};
+
+mod buffer;
+mod cleanup;
+mod constants;
+pub(crate) use constants::ALLOWED_IMAGE_EXTENSIONS;
+mod extensions;
+mod file_list;
+mod imports;
+mod metrics;
+mod path_validation;
+mod processor;
+mod settings;
+mod settings_capabilities;
+mod settings_encoder;
+
+/// Represents an audio file with metadata
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioFile {
+    /// Stable workbench/session identity for joins that must survive reorder/remove operations.
+    pub input_id: String,
+    /// File path
+    pub path: PathBuf,
+    /// File size in bytes (None if unavailable)
+    pub size: Option<f64>,
+    /// Duration in seconds (None if unavailable)
+    pub duration: Option<f64>,
+    /// Audio format (None if unavailable)
+    pub format: Option<String>,
+    /// Source audio bitrate in bits per second (None if unavailable)
+    pub bitrate: Option<u32>,
+    /// Sample rate in Hz (None if unavailable)
+    pub sample_rate: Option<u32>,
+    /// Number of channels (None if unavailable)
+    pub channels: Option<u32>,
+    /// Friendly codec label for display (None if unavailable)
+    pub codec_label: Option<String>,
+    /// Whether this source can be copied without re-encoding and whether the
+    /// source meets the automatic low-bitrate recommendation.
+    #[serde(default)]
+    pub preservation: Option<AudioPreservation>,
+    /// Friendly selected decoder label for display only (None if unavailable)
+    pub selected_decoder: Option<String>,
+    /// Title tag discovered during input analysis (None if unavailable)
+    pub tag_title: Option<String>,
+    /// Artist tag discovered during input analysis (None if unavailable)
+    pub tag_artist: Option<String>,
+    /// Chapters embedded in this individual source file, normalized to milliseconds.
+    #[serde(default)]
+    pub chapters: Vec<AudioChapter>,
+    #[serde(default)]
+    pub chapter_plan: Option<crate::metadata::ChapterPlan>,
+    #[serde(default)]
+    pub cue_source: Option<crate::metadata::CueSource>,
+    /// Validation status
+    pub is_valid: bool,
+    /// Error message if validation failed
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioPreservation {
+    pub can_preserve: bool,
+}
+
+pub type AudioChapter = crate::metadata::ChapterSpec;
+
+/// Machine-readable decoder identity paired with the friendly display label.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DecoderSelection {
+    /// Stable decoder identifier used for routing and comparisons.
+    pub decoder_id: String,
+    /// Friendly decoder label used for display only.
+    pub decoder_label: String,
+}
+
+impl fmt::Display for DecoderSelection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.decoder_label)
+    }
+}
+
+impl AudioFile {
+    /// Creates a new AudioFile instance
+    pub fn new(path: PathBuf) -> Self {
+        Self {
+            input_id: uuid::Uuid::new_v4().to_string(),
+            path,
+            size: None,
+            duration: None,
+            format: None,
+            bitrate: None,
+            sample_rate: None,
+            channels: None,
+            codec_label: None,
+            preservation: None,
+            selected_decoder: None,
+            tag_title: None,
+            tag_artist: None,
+            chapters: Vec::new(),
+            chapter_plan: None,
+            cue_source: None,
+            is_valid: false,
+            error: None,
+        }
+    }
+}
+
+/// Sample rate configuration options
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SampleRateConfig {
+    /// Automatically detect from input files
+    Auto,
+    /// Explicit sample rate in Hz
+    Explicit(u32),
+}
+
+// Audio Engine Deep Module Public API Strip.
+pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
+pub(crate) use imports::{discover_audio_import_paths, supported_audio_import_metadata};
+pub use imports::{SupportedAudioImportFormat, SupportedAudioImportMetadata};
+pub(crate) use path_validation::{validate_input_audio_path, validate_input_image_path};
+pub(crate) use processor::{execute_audio_engine, AudioExecutionRequest};
+pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
+pub(crate) use settings::{
+    validate_output_path, validate_preserved_output_path, validate_sample_rate_config,
+};
+
+pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
+    if !file.is_valid || !file.preservation.is_some_and(|value| value.can_preserve) {
+        return Err(AppError::InvalidInput(
+            "Source audio is not a supported AAC, MP3, or Opus container for preservation."
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
+pub(crate) use settings_capabilities::encoder_settings_capabilities;
+pub use settings_capabilities::{
+    EncoderAvailability, EncoderConfigurationCapability, EncoderSettingsCapabilities,
+    FaacProfileCapability,
+};
+pub(crate) use settings_encoder::{validate_encoder_settings, DEFAULT_FAAC_QUALITY};
+pub use settings_encoder::{
+    BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, FaacProfile,
+};
+
+// Crate-internal cleanup strip used by owned backend boundaries.
+pub(crate) use cleanup::CleanupGuard;
+
+pub(crate) fn processing_workspace_root(cache_dir: &Path) -> PathBuf {
+    processor::processing_workspace_root(cache_dir)
+}
+
+pub(crate) fn cleanup_abandoned_processing_workspaces(
+    cache_dir: &Path,
+) -> crate::errors::Result<()> {
+    processor::cleanup_abandoned_processing_workspaces(cache_dir)
+}
+
+#[cfg(test)]
+mod contract_tests;
+
+mod output_plan;
+pub use output_plan::{
+    AudioIntent, AudioPlanField, AudiobookFormat, TitleAudioError, TitleAudioPlan,
+    TitleAudioRequest,
+};
+
+pub(crate) use output_plan::resolve_title_audio;
+
+#[cfg(test)]
+pub(crate) use settings_encoder::resolve_encoder_name;

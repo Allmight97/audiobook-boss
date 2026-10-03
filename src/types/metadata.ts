@@ -19,17 +19,10 @@
 
 import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
-	MetadataSaveBatchResult as GeneratedMetadataSaveBatchResult,
-	MetadataSaveResultEntry as GeneratedMetadataSaveResultEntry,
-	MetadataSaveResultStatus as GeneratedMetadataSaveResultStatus,
-	MetadataLookupDiagnostic as GeneratedMetadataLookupDiagnostic,
-	MetadataLookupDiagnosticKind as GeneratedMetadataLookupDiagnosticKind,
-	MetadataLookupResponse as GeneratedMetadataLookupResponse,
 	MetadataSource as GeneratedMetadataSource,
 	OnlineMetadataResult as GeneratedOnlineMetadataResult,
 } from '../lib/generated/tauri';
 import type { NullToOptionalDeep } from './ipc';
-import type { MetadataIntentPatch } from './metadataIntent';
 
 /**
  * Represents metadata for an audiobook file
@@ -43,26 +36,3 @@ export type AudiobookMetadataMap = Record<string, AudiobookMetadata>;
 export type MetadataSource = GeneratedMetadataSource;
 
 export type OnlineMetadataResult = NullToOptionalDeep<GeneratedOnlineMetadataResult>;
-
-export type MetadataLookupDiagnosticKind = GeneratedMetadataLookupDiagnosticKind;
-
-export type MetadataLookupDiagnostic = NullToOptionalDeep<GeneratedMetadataLookupDiagnostic>;
-
-export type MetadataLookupResponse = Omit<
-	NullToOptionalDeep<GeneratedMetadataLookupResponse>,
-	'results' | 'diagnostics'
-> & {
-	results: OnlineMetadataResult[];
-	diagnostics: MetadataLookupDiagnostic[];
-};
-
-export type MetadataSaveRequest = {
-	readonly filePath: string;
-	readonly metadataPatch: MetadataIntentPatch;
-};
-
-export type MetadataSaveResultEntry = GeneratedMetadataSaveResultEntry;
-
-export type MetadataSaveBatchResult = GeneratedMetadataSaveBatchResult;
-
-export type MetadataSaveResultStatus = GeneratedMetadataSaveResultStatus;

@@ -1,6 +1,6 @@
 import type { JSX } from '@solidjs/web';
 
-import { toInspectorViewFromInput } from '../../app/inputSession/inspector';
+import { toInspectorViewFromInput } from '../../app/inputSession';
 import { useAppRuntime } from '../../app/runtime';
 import './leftColumn.css';
 
@@ -8,9 +8,7 @@ export function FileInspectorView(): JSX.Element {
 	const runtime = useAppRuntime();
 	const view = runtime.input.view;
 	const inspector = () => {
-		return toInspectorViewFromInput(view(), (inputIds) =>
-			runtime.remoteSource.companionSummary(inputIds),
-		);
+		return toInspectorViewFromInput(view(), runtime.input.companionSummary);
 	};
 
 	return (

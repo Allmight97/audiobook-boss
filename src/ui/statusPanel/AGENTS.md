@@ -3,7 +3,7 @@
 ## Scope
 
 - Solid Status Panel view under `src/ui/statusPanel/`.
-- Preview submit and status runtime live in `src/app/processing`. This owner
+- Submit (export or preview) and the status runtime live in `src/app/processing`. This owner
   renders that view.
 
 ## Public API Strip
@@ -21,10 +21,12 @@
 
 - `StatusPanelView` reads Processing `status` and submits through
   `processing.start`.
+- Cancel follows the engine preview snapshot, including preparation and queued
+  work. A native job ID is not required before offering whole-preview cancel.
 - Do not add a local status store.
 
 ## Boundary Changes
 
 - Adding, removing, or renaming a Public API Strip export.
-- Reintroducing Status Panel as a WorkRuntime consumer or a poke API for
+- Reintroducing client-authored preview lifecycle or a poke API for
   concurrency text.

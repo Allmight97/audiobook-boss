@@ -4,6 +4,74 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Saving metadata while an export is reading the same file no longer risks
+  changing the file mid-export. A file you imported from disk is updated as
+  soon as every export reading it finishes. The save shows as waiting until
+  then, and the status says when it was written or failed. An Audible
+  download is never changed; its edits go with its exports.
+- Saving metadata for a title that is exporting, or already exported, updates
+  that export's audiobook too: its tags and cover, before or after it
+  finishes. If the edit would change where an unfinished audiobook goes, the
+  title's row in Work Center offers Restart (at the new location, removing its
+  unfinished output and the empty folders made for it) or Keep Location (it
+  finishes where it is, with the new tags). A refused restart can be tried
+  again. A finished audiobook is retagged where it is and never moved.
+- A cancelled or failed title removes the empty folders made for it right
+  away, without removing a folder another export is writing into.
+- The encoder panel's Auto sample rate and channels show what the export will
+  actually use.
+- Quitting or closing the window while exports or Audible downloads are
+  running, or while metadata changes wait to be saved, asks first. Quitting
+  then cancels the exports, downloads, and any running preview cleanly and
+  saves the waiting metadata changes before ABB closes. If that takes longer
+  than about 15 seconds, ABB asks whether to keep waiting instead of closing
+  with changes unsaved.
+- An Audible download that finishes while an export is being prepared, or
+  while you choose what to do with existing files, is added to the list when
+  that ends instead of being discarded.
+- If more existing files appear while you choose what to do with them, ABB
+  asks again before overwriting anything you have not seen.
+- Exporting a downloaded title again after its first export removed the
+  download now says the download is gone and needs acquiring again.
+- An indexer release already sent to your downloader is not sent twice, even
+  when Grab is pressed twice quickly.
+- Typing into a field you set to Blank replaces the Blank with what you typed.
+- Saving metadata while a preview is running, or while an export is waiting
+  for you to resolve existing files, waits for it the same way and then
+  writes, instead of refusing the save.
+- A preview shows while it is being prepared, reviewed, queued, and run;
+  Cancel stops the actual preview; and reopening the window returns to a
+  preview still running.
+- The status-panel thumbnail shows the cover the export will use, including a
+  custom one.
+- Dropping a file that is not a supported image onto the cover explains why it
+  was not used.
+- The inspector shows the selected title's real position and source count.
+- Grabbing several indexer releases sends them in order, keeps each one's
+  outcome, and Retry resends only the ones that failed.
+- Moving titles up or down by clicking twice quickly moves the title you
+  clicked, not whichever title the first move put in its place.
+- Titles tagged with only dots ("." or "..") no longer misplace their folder.
+- Quitting while an indexer search or grab waits on a slow server no longer
+  hangs.
+- The bundled FAAC encoder is the formal FAAC 2.2 release.
+- Settings are stored in a new format. This version starts from the default
+  settings once; set your defaults again, including the Indexer URL and
+  categories (a saved Indexer API key is kept). From then on every choice
+  takes effect at once and is kept between launches. If a choice can't be
+  saved (for example, the disk is full), it stays in effect, ABB says so, and
+  it is saved on the next change, on Retry, or when ABB quits.
+
+### Removed
+
+- The external FDK AAC encoder and everything that supported it: the FDK
+  option and its profile and Afterburner controls in the encoder panel, and the
+  Settings section for the custom FFmpeg path, Recheck FDK, and Homebrew setup.
+  Encoding uses the bundled encoders: Native AAC, Apple AAC, FAAC, and Opus.
+  Auto always resolves to Native AAC. v1.13.2 is the last version with FDK.
+
 ## [1.13.2] - 2026-09-28
 
 ### Fixed

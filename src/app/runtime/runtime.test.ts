@@ -1,15 +1,8 @@
-import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import type { FileListInfo, ProcessingPreflightPlan } from '../../types/audio';
 import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
-import { liveSettingsCapability } from '../../lib/tauri/capabilities/settings';
-import type { AppSettings } from '../../types/appSettings';
-import { tauriClient } from '../../lib/tauri/client';
-import { runOutputPlanReviewWorkflow } from '../outputPlan';
+import { audioFile, createFakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime } from './index';
-import { emptyInputSession } from '../inputSession/types';
-import type { RemoteSourceWorkflowServices } from '../remoteSource/workflow';
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
@@ -21,6 +14,8 @@ function createDeferred<T>() {
 
 function runningJob(): AcquisitionJob {
 	return {
+		settled: false,
+		terminal: false,
 		jobId: 'remote-job-1',
 		providerId: 'audible',
 		status: 'acquiring',
@@ -33,72 +28,6 @@ function runningJob(): AcquisitionJob {
 		materializedFiles: [],
 		supplementalAssets: [],
 		diagnostics: [],
-	};
-}
-
-function remoteServices(status: Promise<AcquisitionJob>): RemoteSourceWorkflowServices {
-	return {
-		listProviders: vi.fn(async () => []),
-		getAccountState: vi.fn(),
-		startAuth: vi.fn(),
-		openAuthorizationUrl: vi.fn(),
-		completeAuth: vi.fn(),
-		logout: vi.fn(),
-		loadLibrary: vi.fn(),
-		searchReleases: vi.fn(),
-		grabRelease: vi.fn(),
-		startAcquisition: vi.fn(async () => runningJob()),
-		getAcquisitionStatus: vi.fn(() => status),
-		cancelAcquisition: vi.fn(),
-		purgeSession: vi.fn(),
-		importMaterializedPaths: vi.fn(),
-		sleep: vi.fn(async () => undefined),
-	};
-}
-
-function metadataFileList(path: string, title: string): FileListInfo {
-	return {
-		files: [
-			{
-				path,
-				inputId: path,
-				isValid: true,
-				duration: 60,
-				size: 1024,
-				format: 'm4b',
-				tagTitle: title,
-			},
-		],
-		selectedDecoders: [null],
-		totalDuration: 60,
-		totalSize: 1024,
-		validCount: 1,
-		invalidCount: 0,
-	};
-}
-
-function collisionPlan(): ProcessingPreflightPlan {
-	return {
-		previewSeconds: undefined,
-		collisionPolicy: 'fail',
-		audioPlans: [],
-		planSignature: 'sig-isolation',
-		outputs: [
-			{
-				inputIndex: 0,
-				inputPath: '/books/a.m4b',
-				kind: 'final',
-				requestedPath: '/tmp/out/a.m4b',
-				resolvedPath: '/tmp/out/a.m4b',
-				renameCandidate: undefined,
-				collision: {
-					kind: 'existing_file',
-					conflictingPath: '/tmp/out/a.m4b',
-					detail: 'An existing file already occupies the destination path.',
-				},
-				action: 'review_required',
-			},
-		],
 	};
 }
 
@@ -118,10 +47,9 @@ describe('app runtime', () => {
 			second.dispose();
 		};
 
-		void first.output.openCollisionReview(collisionPlan());
+		void first.output.openCollisionReview([]);
 		void first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
-		first.encoding.select('encoder', 'faac');
 		first.processing.pushTransientStatus('first runtime only');
 		void first.remoteSource.open();
 		first.remoteSource.editSearch({ titleFilter: 'first runtime only' });
@@ -132,8 +60,6 @@ describe('app runtime', () => {
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(first.lookup.view().titleQuery).toBe('stale lookup');
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(first.encoding.view().flavor).toBe('faac');
-		expect(second.encoding.view().flavor).toBe('native_aac');
 		expect(first.processing.status().statusText).toBe('first runtime only');
 		expect(second.processing.status().statusText).toBe('Idle');
 		expect(first.remoteSource.view().isOpen).toBe(true);
@@ -145,7 +71,6 @@ describe('app runtime', () => {
 		expect(second.output.collision().isOpen).toBe(false);
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(second.encoding.view().flavor).toBe('native_aac');
 		expect(second.processing.status().statusText).toBe('Idle');
 		expect(second.remoteSource.view().isOpen).toBe(false);
 
@@ -160,81 +85,6 @@ describe('app runtime', () => {
 		expect(third.encoding.view().flavor).toBe('native_aac');
 		expect(third.processing.status().statusText).toBe('Idle');
 		expect(third.remoteSource.view().isOpen).toBe(false);
-	});
-
-	it('keeps output request config and collision review isolated across live runtimes', async () => {
-		const first = createAppRuntime();
-		const second = createAppRuntime();
-		dispose = () => {
-			first.dispose();
-			second.dispose();
-		};
-
-		first.output.applyDefaults({
-			outputDirectory: '/first/out',
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: false,
-				customTemplate: '{first}',
-			},
-		});
-		second.output.applyDefaults({
-			outputDirectory: '/second/out',
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: true,
-				customTemplate: '{second}',
-			},
-		});
-
-		expect(first.output.readRequestConfig()).toEqual({
-			outputDirectory: '/first/out',
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: false,
-				customTemplate: '{first}',
-			},
-		});
-		expect(second.output.readRequestConfig()).toEqual({
-			outputDirectory: '/second/out',
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: true,
-				customTemplate: '{second}',
-			},
-		});
-
-		const preflight = vi
-			.spyOn(tauriClient, 'preflightProcessingPlan')
-			.mockResolvedValue(collisionPlan());
-		const pending = runOutputPlanReviewWorkflow(
-			{
-				payload: {
-					inputFiles: ['/books/a.m4b'],
-					outputDir: '/tmp/out',
-					audioRequests: [titleAudioRequest()],
-					outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
-				},
-				metadataIntentByPath: null,
-			},
-			first.output,
-		);
-		await vi.waitFor(() => expect(first.output.collision().isOpen).toBe(true));
-		expect(second.output.collision().isOpen).toBe(false);
-
-		first.output.cancelCollisionReview();
-		await expect(pending).resolves.toEqual({ status: 'cancelled' });
-
-		first.dispose();
-		expect(second.output.readRequestConfig()).toEqual({
-			outputDirectory: '/second/out',
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: true,
-				customTemplate: '{second}',
-			},
-		});
-		preflight.mockRestore();
 	});
 
 	it('keeps lookup cover preview cancellation and cache isolated across runtimes', async () => {
@@ -269,54 +119,45 @@ describe('app runtime', () => {
 		expect(second.lookup.coverPreview('https://covers.example/second.jpg').status).toBe('ready');
 	});
 
-	it('disposes Solid session state so later runtimes do not share it', () => {
-		const first = createAppRuntime();
-		first.input.replaceSession({
-			...emptyInputSession(),
-			errorMessage: 'stale',
-		});
-		expect(first.input.view().errorMessage).toBe('stale');
+	it('a new runtime finds the session a disposed one left, without its view-local state', async () => {
+		const engine = createFakeEngine();
+		const first = createAppRuntime({ engine });
+		engine.loadTitles([audioFile('/books/alpha.m4b')]);
+		await first.initialize();
+		first.input.setDragOver(true);
+		expect(first.input.view().isDragOver).toBe(true);
+		expect(first.input.view().fileCount).toBe(1);
+
 		first.dispose();
 
-		const second = createAppRuntime();
+		const second = createAppRuntime({ engine });
 		dispose = () => second.dispose();
-		expect(second.input.view().errorMessage).toBe('');
+		await second.initialize();
+		expect(engine.sessionIntents).not.toContainEqual({ kind: 'reset' });
+		expect(second.input.view().isDragOver).toBe(false);
+		expect(second.input.view().fileCount).toBe(1);
 	});
 
-	it('publishes nothing when startup settings finish loading after disposal', async () => {
-		const load = createDeferred<AppSettings>();
-		const runtime = createAppRuntime({
-			settings: { ...liveSettingsCapability, getAppSettings: () => load.promise },
+	it('publishes nothing when the engine answers after disposal', async () => {
+		const attached = createDeferred<void>();
+		const engine = createFakeEngine();
+		engine.change((state) => {
+			state.output.directory = '/late';
 		});
+		const attach = engine.attach.bind(engine);
+		engine.attach = async () => {
+			await attached.promise;
+			return attach();
+		};
+		const runtime = createAppRuntime({ engine });
 		const startup = runtime.initialize();
 		runtime.dispose();
-		const encodingAfterDispose = runtime.encoding.readDefaults();
-		const outputAfterDispose = runtime.output.readDefaults();
+		const outputAfterDispose = runtime.output.view();
 
-		load.resolve({
-			maxConcurrentJobs: { mode: 'auto' },
-			encoderDefaults: {
-				format: 'mp3',
-				intent: 'encode',
-				settings: {
-					encoderType: 'native_aac',
-					bitrateKbps: 128,
-					bitrateMode: { mode: 'cbr' },
-					channels: 'stereo',
-					afterburner: false,
-				},
-				sampleRate: { explicit: 48000 },
-			},
-			outputDefaults: { outputNaming: { preset: 'absDefault', includeYear: true } },
-			toolchain: {},
-			startupBehavior: 'rememberLastState',
-			keepAwakeWhileWorking: true,
-			defaultAcquisitionLane: 'audible',
-		});
+		attached.resolve();
 		await startup;
 
-		expect(runtime.encoding.readDefaults()).toEqual(encodingAfterDispose);
-		expect(runtime.output.readDefaults()).toEqual(outputAfterDispose);
+		expect(runtime.output.view()).toEqual(outputAfterDispose);
 	});
 
 	it('resets Remote Source owner state on dispose so a remount does not keep the dialog open', () => {
@@ -328,112 +169,26 @@ describe('app runtime', () => {
 		expect(runtime.remoteSource.view().statusMessage).toBe('');
 	});
 
-	it('keeps late Remote Source polling from repopulating state after disposal', async () => {
-		const lateStatus = createDeferred<AcquisitionJob>();
-		const services = remoteServices(lateStatus.promise);
-		const runtime = createAppRuntime({ remoteSource: { services } });
-		const other = createAppRuntime();
-		dispose = () => other.dispose();
-		void other.remoteSource.open();
-		other.remoteSource.editSearch({ titleFilter: 'other runtime' });
-		vi.mocked(services.getAccountState).mockResolvedValue({
-			providerId: 'audible',
-			status: 'connected',
+	it('reattaches remote progress without publishing into a disposed runtime', async () => {
+		const engine = createFakeEngine();
+		engine.change((state) => {
+			state.remote.acquisition = runningJob();
 		});
-		vi.mocked(services.loadLibrary).mockResolvedValue({
-			providerId: 'audible',
-			diagnostics: [],
-			titles: [
-				{
-					providerId: 'audible',
-					titleId: 'B000000001',
-					title: 'Book',
-					authors: [],
-					narrators: [],
-					supplementalPdfAvailable: false,
-					acquired: false,
-					availability: { acquirable: true, status: 'available', label: 'Available' },
-					unsupportedReasons: [],
-				},
-			],
-		});
-		await runtime.remoteSource.open();
-		runtime.remoteSource.toggleTitle('B000000001');
-		const acquisition = runtime.remoteSource.runAction({
-			type: 'acquireSelected',
-		});
-		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalledTimes(1));
-
+		const runtime = createAppRuntime({ engine });
+		await runtime.initialize();
+		const before = runtime.remoteSource.view().activeJob;
 		runtime.dispose();
-		lateStatus.resolve(runningJob());
-		await acquisition;
-
-		expect(runtime.remoteSource.view().activeJob).toBeNull();
-		expect(runtime.remoteSource.view().statusMessage).toBe('');
-		expect(other.remoteSource.view().isOpen).toBe(true);
-		expect(other.remoteSource.view().titleFilter).toBe('other runtime');
-	});
-
-	it('keeps metadata cache and process intents isolated across live runtimes', async () => {
-		const firstRead = vi.fn(async () => ({
-			title: 'First Alpha',
-			artist: 'Author',
-			cover_art: [1],
-		}));
-		const secondRead = vi.fn(async () => ({
-			title: 'Second Alpha',
-			artist: 'Author',
-			cover_art: [2],
-		}));
-		const first = createAppRuntime({
-			metadata: {
-				...liveMetadataCapability,
-				readAudioMetadata: firstRead,
-			},
+		const other = createAppRuntime({ engine });
+		dispose = () => other.dispose();
+		await other.initialize();
+		engine.change((state) => {
+			state.remote.acquisition = {
+				...runningJob(),
+				progress: { ...runningJob().progress, percentage: 75 },
+			};
 		});
-		const second = createAppRuntime({
-			metadata: {
-				...liveMetadataCapability,
-				readAudioMetadata: secondRead,
-			},
-		});
-		dispose = () => {
-			first.dispose();
-			second.dispose();
-		};
-
-		const files = metadataFileList('/books/alpha.m4b', 'Alpha');
-		first.input.replaceSession({
-			...emptyInputSession(),
-			files: files.files,
-			selectedIndices: [0],
-			selectedAnchor: 0,
-		});
-		await first.metadata.hydrateSelection(null);
-		first.metadata.setFieldValue({ inputId: 'meta-title', value: 'Staged On A' });
-		expect(await first.metadata.stageCurrentSelection()).toEqual({ status: 'staged' });
-		expect(first.metadata.readCached('/books/alpha.m4b')?.title).toBe('Staged On A');
-		expect(await first.metadata.intentsForProcess(['/books/alpha.m4b'])).toEqual({
-			'/books/alpha.m4b': {
-				title: { op: 'set', value: 'Staged On A' },
-				album: { op: 'set', value: 'Staged On A' },
-			},
-		});
-
-		second.input.replaceSession({
-			...emptyInputSession(),
-			files: files.files,
-			selectedIndices: [0],
-			selectedAnchor: 0,
-		});
-		await second.metadata.hydrateSelection(null);
-		expect(secondRead).toHaveBeenCalledWith('/books/alpha.m4b');
-		expect(second.metadata.readCached('/books/alpha.m4b')?.title).toBe('Second Alpha');
-		expect(await second.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
-
-		first.dispose();
-		expect(second.metadata.readCached('/books/alpha.m4b')?.title).toBe('Second Alpha');
-		expect(await second.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
-		expect(second.metadata.view().form.fields['meta-title'].value).toBe('Second Alpha');
+		expect(other.remoteSource.view().activeJob?.progress.percentage).toBe(75);
+		expect(runtime.remoteSource.view().activeJob).toEqual(before);
+		expect(runtime.remoteSource.view().isOpen).toBe(false);
 	});
 });

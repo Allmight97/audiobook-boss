@@ -4,7 +4,8 @@
 
 - Applies to the Solid file-import view under `src/ui/fileImport/`: picker
   buttons, native drop wiring, opened-file drain, and Remote Source dialog
-  mount. Import analysis and list mutation live in `src/app/inputSession`.
+  mount. The engine analyzes imports and changes the list; this view reaches
+  it through `src/app/inputSession`.
 
 ## Preferred Path
 
@@ -13,15 +14,16 @@
 - Cover-art native drops dispatch Metadata `applyCoverArtDrop`.
 - Compose `RemoteSourceAcquireView` next to the Import split button. Main click
   opens `settings.defaultAcquisitionLane`; caret picks Audible or Indexer via
-  `remoteSource.open({ lane })`. Remote session purge tracks Input file identity
-  through Remote Source.
+  `remoteSource.open({ lane })`.
 
 ## Hard Invariants
 
-- Import must not bypass backend audio path validation or `FileListInfo`
-  analysis.
-- Import must not add files while processing order is locked.
-- Do not import a leftover file-list store for Remote handoff.
+- Import goes through Input's import intents so the engine validates paths
+  and analyzes files.
+- Import must not add files while processing order is locked. The engine
+  retains and retries accepted OS-open requests after unlock; this view sends
+  the request without a second retry flag.
+- The engine imports acquired files; this view does not.
 
 ## Done Criteria
 

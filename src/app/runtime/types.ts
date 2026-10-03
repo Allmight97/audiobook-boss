@@ -1,6 +1,6 @@
+import type { EngineCapability } from '../../lib/tauri/capabilities/engine';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
-import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import type { SettingsOwner } from '../appSettings';
 import type { InputOwner } from '../inputSession';
 import type { MetadataLookupOwner } from '../metadataLookup';
@@ -12,10 +12,10 @@ import type { RemoteSourceOwner, RemoteSourceOwnerDeps } from '../remoteSource';
 import type { WorkOperationsOwner } from '../workOperations';
 
 export type RuntimeCapabilities = {
+	readonly engine?: EngineCapability;
 	readonly input?: InputCapability;
 	readonly metadata?: MetadataCapability;
-	readonly settings?: SettingsCapability;
-	readonly remoteSource?: Omit<RemoteSourceOwnerDeps, 'input'>;
+	readonly remoteSource?: Omit<RemoteSourceOwnerDeps, 'link'>;
 };
 
 export type AppRuntime = {

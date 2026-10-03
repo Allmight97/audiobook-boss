@@ -1,12 +1,19 @@
-name: frontend clean-install alarm
+name: frontend checks
 
-# Clean-runner check for frontend dependency and type drift that a warm local
-# checkout can conceal. This is an alarm after relevant main pushes, not a PR
-# gate or a broad test route.
+# Frozen installs, typechecking and frontend behavior on main and its PRs.
 
 on:
   push:
     branches: [main]
+    paths:
+      - .github/workflows/ci.yml
+      - src/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - tsconfig.json
+      - vite.config.ts
+  pull_request:
     paths:
       - .github/workflows/ci.yml
       - src/**
@@ -23,7 +30,7 @@ concurrency:
 
 jobs:
   frontend:
-    name: Typecheck (clean install)
+    name: Frontend typecheck and tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -32,3 +39,4 @@ jobs:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
+      - run: bun run test

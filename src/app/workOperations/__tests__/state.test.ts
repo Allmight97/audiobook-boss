@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tauriClient } from '../../../lib/tauri/client';
+import { publishMockMetadataSave } from '../../../test/setup';
 import type { OperationListSnapshot, OperationSnapshot } from '../../../types/workRuntime';
 import { createWorkOperationsSession, type WorkOperationsSession } from '../runtime';
-
-const settleRemoteSourceMock = vi.fn();
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
@@ -86,11 +85,7 @@ describe('Work Center state', () => {
 	let session: WorkOperationsSession;
 
 	beforeEach(() => {
-		settleRemoteSourceMock.mockReset();
-		settleRemoteSourceMock.mockResolvedValue(undefined);
-		session = createWorkOperationsSession(() => undefined, {
-			remoteSource: { settleTerminalWork: settleRemoteSourceMock },
-		});
+		session = createWorkOperationsSession(() => undefined);
 	});
 
 	afterEach(() => {
@@ -118,9 +113,7 @@ describe('Work Center state', () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 		await session.initialize();
 		for (const filePath of ['/books/alpha.m4b', '/books/beta.m4b']) {
-			await tauriClient.saveMetadataBatch([
-				{ filePath, metadataPatch: { title: { op: 'set', value: 'Edited' } } },
-			]);
+			publishMockMetadataSave([filePath]);
 		}
 		const operations = session.view().operations;
 		expect(operations).toHaveLength(2);
@@ -176,85 +169,6 @@ describe('Work Center state', () => {
 		},
 	);
 
-	it('purges every source of a completed grouped title', async () => {
-		session.applyOperationSnapshot(completedExportOperation('op-grouped-purge'));
-		await Promise.resolve();
-
-		expect(settleRemoteSourceMock).toHaveBeenCalledWith({
-			inputIds: ['input-1', 'input-2'],
-			completedInputIds: ['input-1', 'input-2'],
-		});
-	});
-
-	it('releases but keeps downloads for titles that were skipped or published without their PDF', async () => {
-		const snapshot = completedExportOperation('op-unpublished');
-		const child = snapshot.children[0];
-		session.applyOperationSnapshot({
-			...snapshot,
-			status: 'completed',
-			sourceInputIds: ['input-1', 'input-2', 'input-3'],
-			children: [
-				{ ...child, sourceInputIds: ['input-1'], status: 'skipped' },
-				{
-					...child,
-					childJobId: 'pdf-missing',
-					sourceInputIds: ['input-2'],
-					supplementalWarning: 'The PDF could not be saved.',
-				},
-				{ ...child, childJobId: 'published', sourceInputIds: ['input-3'] },
-			],
-		});
-		await Promise.resolve();
-
-		expect(settleRemoteSourceMock).toHaveBeenCalledWith({
-			inputIds: ['input-1', 'input-2', 'input-3'],
-			completedInputIds: ['input-3'],
-		});
-	});
-
-	it('settles every source of a completed title without purging a failed sibling', async () => {
-		const snapshot = completedExportOperation('op-mixed-titles');
-		const child = snapshot.children[0];
-		session.applyOperationSnapshot({
-			...snapshot,
-			kind: 'processingBatch',
-			status: 'mixed',
-			sourceInputIds: ['input-1', 'input-2', 'input-3'],
-			children: [
-				{ ...child, inputId: 'input-1', sourceInputIds: ['input-2', 'input-1'] },
-				{
-					...child,
-					childJobId: 'failed-title',
-					inputId: 'input-3',
-					sourceInputIds: ['input-3'],
-					status: 'failed',
-				},
-			],
-		});
-		await Promise.resolve();
-		expect(settleRemoteSourceMock).toHaveBeenCalledWith({
-			inputIds: ['input-1', 'input-2', 'input-3'],
-			completedInputIds: ['input-2', 'input-1'],
-		});
-	});
-
-	it('claims terminal operation purge before awaiting so duplicate terminal snapshots do not race', async () => {
-		let resolvePurge!: () => void;
-		settleRemoteSourceMock.mockReturnValueOnce(
-			new Promise<void>((resolve) => {
-				resolvePurge = resolve;
-			}),
-		);
-		const snapshot = completedExportOperation('op-merge-race');
-
-		session.applyOperationSnapshot(snapshot);
-		session.applyOperationSnapshot(snapshot);
-		await Promise.resolve();
-
-		expect(settleRemoteSourceMock).toHaveBeenCalledTimes(1);
-		resolvePurge();
-	});
-
 	it('surfaces reveal rejection without leaving an unhandled promise', async () => {
 		vi.spyOn(tauriClient, 'revealPath').mockRejectedValueOnce('file manager unavailable');
 
@@ -289,9 +203,7 @@ describe('Work Center state', () => {
 	});
 
 	it('does not share operation snapshots across sessions', () => {
-		const other = createWorkOperationsSession(() => undefined, {
-			remoteSource: { settleTerminalWork: vi.fn(async () => undefined) },
-		});
+		const other = createWorkOperationsSession(() => undefined);
 		session.applyOperationSnapshot(completedExportOperation('op-isolation'));
 		expect(session.view().operations).toHaveLength(1);
 		expect(other.view().operations).toEqual([]);

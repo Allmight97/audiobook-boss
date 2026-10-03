@@ -3,7 +3,8 @@
 Read for Rust type export, serde mapping, macros, or TypeScript generation.
 
 - Resolve `specta` and `specta-typescript` from `Cargo.lock`, including
-  their source/checksum; inspect features in `src-tauri/Cargo.toml`.
+  their source/checksum; inspect features in `crates/abb-engine/Cargo.toml`
+  and `src-tauri/Cargo.toml`.
 - Use the selected Cargo registry sources or
   `docs.rs/<crate>/<exact-version>`. Default-branch release-candidate docs
   may differ from ABB's pinned release.

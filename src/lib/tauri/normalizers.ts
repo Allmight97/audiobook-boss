@@ -8,74 +8,31 @@
  * adapter layer thin and well-typed: input drift is caught at compile time,
  * and the runtime transform is centralized in `normalizeNullish`.
  *
- * Inverse direction: `denormalize*` helpers rebuild payloads with explicit
- * `null` values for the wire (see `denormalizeMetadata`,
- * `denormalizeProcessPayload`, and `denormalizeNullish`).
+ * Inverse direction: `denormalizeNullish` rebuilds a payload with explicit
+ * `null` values for the wire.
  */
 
 import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
-	FileListInfo as GeneratedFileListInfo,
-	MetadataLookupResponse as GeneratedMetadataLookupResponse,
-	OnlineMetadataResult as GeneratedOnlineMetadataResult,
+	FrontendAttachment as GeneratedFrontendAttachment,
+	SessionReply as GeneratedSessionReply,
+	OutputSnapshot as GeneratedOutputSnapshot,
+	SessionUpdate as GeneratedSessionUpdate,
+	SettingsReply as GeneratedSettingsReply,
+	SettingsSnapshot as GeneratedSettingsSnapshot,
 	ProcessCommandResult as GeneratedProcessCommandResult,
-	ProcessPayload as GeneratedProcessPayload,
-	ProgressEvent as GeneratedProgressEvent,
-	QueueEvent as GeneratedQueueEvent,
-	RuntimeSettingsCapabilities as GeneratedRuntimeSettingsCapabilities,
 	OperationListSnapshot as GeneratedOperationListSnapshot,
 	OperationSnapshot as GeneratedOperationSnapshot,
-	WorkSubmissionAccepted as GeneratedWorkSubmissionAccepted,
 } from '../generated/tauri';
-import type {
-	FileListInfo,
-	ProcessCommandResult,
-	ProcessPayload,
-	RuntimeSettingsCapabilities,
-} from '../../types/audio';
-import type {
-	AudiobookMetadata,
-	MetadataLookupResponse,
-	OnlineMetadataResult,
-} from '../../types/metadata';
-import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
+import type { PlannedOutput, ProcessCommandResult } from '../../types/audio';
+import type { SettingsReply, SettingsSnapshot } from '../../types/appSettings';
+import type { AudiobookMetadata } from '../../types/metadata';
+import type { SessionReply, SessionUpdate, SubmissionStatus } from '../../types/session';
 import type { NullToOptionalDeep } from '../../types/ipc';
-import type {
-	OperationListSnapshot,
-	OperationSnapshot,
-	WorkSubmissionAccepted,
-} from '../../types/workRuntime';
+import type { OperationListSnapshot, OperationSnapshot } from '../../types/workRuntime';
 import { normalizeAppError } from './appError';
 
 type PlainRecord = Record<string, unknown>;
-
-const METADATA_FIELDS = [
-	'title',
-	'artist',
-	'album',
-	'composer',
-	'genre',
-	'date',
-	'track',
-	'disk',
-	'comment',
-	'description',
-	'series',
-	'series_part',
-	'subseries',
-	'subseries_part',
-	'album_sort',
-	'cover_art',
-] as const satisfies readonly (keyof GeneratedAudiobookMetadata)[];
-
-const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
-	'titleSources',
-	'inputIds',
-	'outputNaming',
-	'collisionPolicy',
-	'preflightSignature',
-	'supplementalAssetsByInputId',
-] as const satisfies readonly (keyof GeneratedProcessPayload)[];
 
 const isPlainRecord = (value: unknown): value is PlainRecord =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -150,101 +107,90 @@ export function denormalizeNullish<T>(value: T): T {
 	return value;
 }
 
-function toNullableShape<T extends PlainRecord, K extends keyof T>(
-	input: Partial<Record<K, unknown>>,
-	keys: readonly K[],
-): Pick<T, K> {
-	const output = {} as Pick<T, K>;
-	for (const key of keys) {
-		const value = input[key];
-		(output as PlainRecord)[key as string] = value === undefined ? null : denormalizeNullish(value);
-	}
-	return output;
-}
-
 export function normalizeMetadata(metadata: GeneratedAudiobookMetadata): AudiobookMetadata {
 	return normalizeNullish(metadata);
 }
 
-export function denormalizeMetadata(
-	metadata: Partial<AudiobookMetadata>,
-): GeneratedAudiobookMetadata {
-	return toNullableShape<GeneratedAudiobookMetadata, (typeof METADATA_FIELDS)[number]>(
-		metadata as Partial<Record<(typeof METADATA_FIELDS)[number], unknown>>,
-		METADATA_FIELDS,
-	) as GeneratedAudiobookMetadata;
-}
-
-export function normalizeFileList(info: GeneratedFileListInfo): FileListInfo {
-	return normalizeNullish(info);
-}
-
-export function normalizeRuntimeSettingsCapabilities(
-	capabilities: GeneratedRuntimeSettingsCapabilities,
-): RuntimeSettingsCapabilities {
-	return normalizeNullish(capabilities);
-}
-
-function normalizeLookupResult(result: GeneratedOnlineMetadataResult): OnlineMetadataResult {
-	return normalizeNullish(result);
-}
-
-export function normalizeLookupResponse(
-	response: GeneratedMetadataLookupResponse,
-): MetadataLookupResponse {
+/**
+ * Audio files and lookup results take the optional-field forms the frontend
+ * uses elsewhere. Audio requests keep their explicit nulls: a null `settings`
+ * is the request for MP3 pass-through.
+ */
+export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionUpdate {
+	const { titles, selection, metadata, lookup, audio, output, remote } = update;
 	return {
-		results: response.results.map(normalizeLookupResult),
-		diagnostics: response.diagnostics.map(normalizeNullish),
-	};
-}
-
-export function denormalizeChapterPlans(
-	plans: ProcessPayload['chapterPlans'],
-): GeneratedProcessPayload['chapterPlans'] {
-	return plans
-		? Object.fromEntries(
-				Object.entries(plans).map(([path, plan]) => [
-					path,
-					{
-						...plan,
-						chapters: plan.chapters.map((chapter) => ({
-							...chapter,
-							title: chapter.title ?? null,
+		revision: update.revision,
+		titles: titles
+			? {
+					...titles,
+					files: normalizeNullish(titles.files),
+					titleSourcesByIdentity: normalizeNullish(titles.titleSourcesByIdentity),
+				}
+			: undefined,
+		selection: selection ?? undefined,
+		remote: remote
+			? {
+					...remote,
+					acquisition: remote.acquisition ? normalizeNullish(remote.acquisition) : null,
+					indexer: {
+						...remote.indexer,
+						releases: remote.indexer.releases.map((release) => ({
+							...normalizeNullish(release),
+							categories: release.categories,
 						})),
 					},
-				]),
-			)
-		: null;
-}
-
-export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedProcessPayload {
-	const nullableFields = toNullableShape<
-		GeneratedProcessPayload,
-		(typeof PROCESS_PAYLOAD_NULLABLE_FIELDS)[number]
-	>(
-		payload as Partial<Record<(typeof PROCESS_PAYLOAD_NULLABLE_FIELDS)[number], unknown>>,
-		PROCESS_PAYLOAD_NULLABLE_FIELDS,
-	);
-	return {
-		inputFiles: payload.inputFiles,
-		audioRequests: payload.audioRequests,
-		chapterPlans: denormalizeChapterPlans(payload.chapterPlans),
-		outputDir: payload.outputDir,
-		...nullableFields,
-		titleSources: payload.titleSources
-			? Object.fromEntries(
-					Object.entries(payload.titleSources).map(([key, sources]) => [
-						key,
-						sources.map((source) => ({ path: source.path, inputId: source.inputId ?? null })),
-					]),
-				)
-			: null,
+				}
+			: undefined,
+		metadata: metadata ?? undefined,
+		lookup: lookup ? { ...lookup, results: normalizeNullish(lookup.results) } : undefined,
+		audio: audio ?? undefined,
+		output: output
+			? {
+					...output,
+					submission: normalizeSubmission(output.submission),
+				}
+			: undefined,
 	};
 }
 
-export function normalizeProcessResult(
-	result: GeneratedProcessCommandResult,
-): ProcessCommandResult {
+function normalizeSubmission(
+	submission: GeneratedOutputSnapshot['submission'],
+): SubmissionStatus | null {
+	switch (submission?.kind) {
+		case 'previewFinished':
+			return { kind: 'previewFinished', result: normalizeProcessResult(submission.result) };
+		case 'reviewRequired':
+			return { ...submission, outputs: normalizeNullish(submission.outputs) as PlannedOutput[] };
+		default:
+			return submission ?? null;
+	}
+}
+
+export function normalizeSessionReply(reply: GeneratedSessionReply): SessionReply {
+	return { outcome: reply.outcome, update: normalizeSessionUpdate(reply.update) };
+}
+
+export function normalizeSettingsSnapshot(snapshot: GeneratedSettingsSnapshot): SettingsSnapshot {
+	return normalizeNullish(snapshot) as SettingsSnapshot;
+}
+
+export function normalizeSettingsReply(reply: GeneratedSettingsReply): SettingsReply {
+	return { outcome: reply.outcome, snapshot: normalizeSettingsSnapshot(reply.snapshot) };
+}
+
+export function normalizeFrontendAttachment(attachment: GeneratedFrontendAttachment): {
+	client: number;
+	session: SessionUpdate;
+	settings: SettingsSnapshot;
+} {
+	return {
+		client: attachment.client,
+		session: normalizeSessionUpdate(attachment.session),
+		settings: normalizeSettingsSnapshot(attachment.settings),
+	};
+}
+
+function normalizeProcessResult(result: GeneratedProcessCommandResult): ProcessCommandResult {
 	const normalized = normalizeNullish(result) as ProcessCommandResult;
 	return {
 		...normalized,
@@ -255,14 +201,6 @@ export function normalizeProcessResult(
 	};
 }
 
-export function normalizeProgressEvent(payload: GeneratedProgressEvent): ProcessingProgressEvent {
-	return normalizeNullish(payload);
-}
-
-export function normalizeQueueEvent(payload: GeneratedQueueEvent): ProcessingQueueEvent {
-	return normalizeNullish(payload);
-}
-
 export function normalizeOperationSnapshot(payload: GeneratedOperationSnapshot): OperationSnapshot {
 	return normalizeNullish(payload) as OperationSnapshot;
 }
@@ -271,14 +209,4 @@ export function normalizeOperationListSnapshot(
 	payload: GeneratedOperationListSnapshot,
 ): OperationListSnapshot {
 	return normalizeNullish(payload) as OperationListSnapshot;
-}
-
-export function normalizeWorkSubmissionAccepted(
-	payload: GeneratedWorkSubmissionAccepted,
-): WorkSubmissionAccepted {
-	const normalized = normalizeNullish(payload) as WorkSubmissionAccepted;
-	return {
-		...normalized,
-		snapshot: normalizeOperationSnapshot(payload.snapshot),
-	};
 }

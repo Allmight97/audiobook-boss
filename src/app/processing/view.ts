@@ -44,7 +44,6 @@ export type StatusViewStore = {
 	setIsProcessing(isProcessing: boolean): void;
 	setCancelAllPending(isPending: boolean): void;
 	showError(message: string): void;
-	showSuccess(message: string): void;
 	showInfo(message: string): void;
 	pushTransient(message: string, ttlMs?: number): void;
 };
@@ -175,10 +174,6 @@ export function createStatusViewStore(): StatusViewStore {
 		showError(message) {
 			store.setStepText(`Error: ${message}`);
 			store.setStepColor('var(--text-error, #ef4444)');
-		},
-		showSuccess(message) {
-			store.setStepText(message);
-			store.setStepColor('var(--text-success, #10b981)');
 		},
 		showInfo(message) {
 			store.setStepText(message);

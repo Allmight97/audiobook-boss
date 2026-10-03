@@ -7,7 +7,6 @@ import type { AcquisitionLane } from '../../types/appSettings';
 import {
 	bytesLabel,
 	formatReleaseSizeBytes,
-	isAcquisitionTerminal,
 	isTitleAcquirable,
 	progressPercent,
 	progressTitleLabel,
@@ -397,7 +396,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 									<Show when={bytesLabel(progress())}>
 										{(label) => <p class="remote-progress-bytes">{label()}</p>}
 									</Show>
-									<Show when={!isAcquisitionTerminal(job())}>
+									<Show when={!job().terminal}>
 										<Button
 											class="remote-progress-cancel"
 											onClick={() => void runAction({ type: 'cancelActiveAcquisition' })}

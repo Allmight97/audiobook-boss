@@ -1,24 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@solidjs/testing-library';
 import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
-
+import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { EncoderView } from '../encoderPanel/EncoderView';
-import {
-	encoderAvailabilityFixture,
-	runtimeSettingsCapabilitiesFixture,
-} from '../../test/fixtures/runtimeSettingsCapabilities';
-
-const context = vi.hoisted(() => ({
-	getRuntimeSettingsCapabilitiesMock: vi.fn(),
-}));
-
-vi.mock('../../lib/tauri/client', () => ({
-	tauriClient: {
-		getRuntimeSettingsCapabilities: context.getRuntimeSettingsCapabilitiesMock,
-		openFile: vi.fn(),
-		updateAppSettings: vi.fn().mockResolvedValue(undefined),
-	},
-}));
 
 const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.value = value;
@@ -27,16 +11,20 @@ const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 
 describe('encoder panel encoder resolution', () => {
 	let runtime: AppRuntime | undefined;
+	let engine: FakeEngine;
 
 	afterEach(() => {
 		runtime?.dispose();
 		runtime = undefined;
 	});
 
-	function renderEncoder() {
-		runtime?.dispose();
-		runtime = createAppRuntime();
-		runtime.encoding.select('intent', 'encode');
+	async function renderEncoder() {
+		engine = createFakeEngine();
+		engine.change((state) => {
+			state.audio.defaults.choice.intent = 'encode';
+		});
+		runtime = createAppRuntime({ engine });
+		await runtime.initialize();
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<EncoderView />
@@ -44,111 +32,39 @@ describe('encoder panel encoder resolution', () => {
 		));
 	}
 
-	beforeEach(() => {
-		context.getRuntimeSettingsCapabilitiesMock.mockReset();
-	});
-
-	it('shows the resolved NMR encoder in Settings without an extra Auto choice', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						fdkAvailable: false,
-						aacAtAvailable: false,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
+	it('shows the encoder the engine resolved, with its speed, and no extra Auto choice', async () => {
+		await renderEncoder();
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.value).toBe('native_aac');
-			expect(select?.options.length).toBe(4);
+			expect(Array.from(select?.options ?? []).map((option) => option.value)).toEqual([
+				'aac_at',
+				'native_aac',
+				'faac',
+			]);
 			expect(document.getElementById('native-speed')).not.toBeNull();
 		});
 	});
 
-	it('shows NMR as the default even when FDK is available', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-
-		await vi.waitFor(() => {
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.value).toBe('native_aac');
-			expect(select?.options.length).toBe(4);
-		});
-	});
-
-	it('saves an explicit encoder choice from Settings', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-
-		await vi.waitFor(() => {
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.value).toBe('native_aac');
-		});
-
+	it('sends an explicit encoder choice and hides native speed once the engine applies it', async () => {
+		await renderEncoder();
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
-		changeSelectValue(select, 'fdk_he_aac');
 
-		await vi.waitFor(() => {
-			expect(select.value).toBe('fdk_he_aac');
-			expect(runtime?.encoding.audioRequest().settings?.encoderType).toBe('fdk_he_aac');
-		});
-	});
-
-	it('shows NMR speed when Native AAC is manually selected', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
+		changeSelectValue(select, 'faac');
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'setDefaultAudio',
+				edit: { field: 'encoder', value: 'faac' },
 			}),
 		);
-
-		renderEncoder();
-
-		await vi.waitFor(() => {
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.value).toBe('native_aac');
+		engine.change((state) => {
+			state.audio.defaults.choice.encoder = 'faac';
+			state.audio.defaults.facts.effectiveEncoder = 'faac';
 		});
-
-		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
-		changeSelectValue(select, 'fdk_he_aac');
-		changeSelectValue(select, 'native_aac');
-
 		await vi.waitFor(() => {
-			expect(select.value).toBe('native_aac');
-			expect(document.getElementById('native-speed')).not.toBeNull();
+			expect(select.value).toBe('faac');
+			expect(document.getElementById('native-speed')).toBeNull();
 		});
 	});
 });

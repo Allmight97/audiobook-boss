@@ -34,6 +34,10 @@ Import one or more titles from any supported source, adjust metadata and
 encoding preferences, and output a title my audiobook library immediately
 recognizes as correctly tagged and validly structured.
 
+Settings the user chooses are honored as chosen and kept between launches,
+including after a later release changes a setting. The user never repairs a
+settings file; a save that fails says so and is retried.
+
 When a rule, check, abstraction, or cautious step has a cost, name which part
 of this path or which hard invariant below it protects. Caution that protects
 neither earns no preference over the simpler design.
@@ -45,12 +49,16 @@ neither earns no preference over the simpler design.
   contract change includes updating its owner, callers, and focused proof;
   pause the affected action when a consequential choice or data-loss risk
   remains unresolved.
+- Working-session and settings truth live in `abb-engine`, and new product
+  rules go there. Hosts and the frontend send intents and render snapshots; a
+  rule added there would be rewritten for every future host. Tiers:
+  `crates/AGENTS.md`.
 - Runtime IPC stays centralized in `src/lib/tauri/*`.
-- Metadata intent adaptation stays at the Tauri runtime boundary.
+- The engine builds metadata intent from the session's field edits; hosts and the frontend never build or adapt it.
 - Canonical metadata validation/normalization routes through the Rust Metadata Outcome boundary.
 - Greenfield default: do not preserve internal legacy payloads or aliases without repo evidence or explicit owner request.
 - Compatibility carveout: preserve interoperability with real-world external audiobook files and tag variants.
-- External provider partial failure is handled at the owning command with explicit typed diagnostics; hard-fail when the selected contract cannot be satisfied.
+- External provider partial failure is handled at the owning engine module with explicit typed diagnostics; hard-fail when the selected contract cannot be satisfied.
 - No silent, hidden, or caller-side substitute behavior across IPC, metadata, path, or lifecycle boundaries.
 - Do not introduce new `any` escape paths across IPC or state boundaries; type safety at the runtime boundary is a contract concern, not style.
 - Solid 2 is the frontend baseline. Read `package.json` before changing Solid APIs; install and typecheck against this checkout's lockfile. Keep historical Solid-major checkouts in separate folders because Git does not isolate `node_modules`. Dependency and prerelease update policy lives in `scripts/AGENTS.md`.
@@ -74,8 +82,8 @@ neither earns no preference over the simpler design.
 - For a bug fix or a new assertion on existing behavior, prefer a failing-first test that pins it before the fix; it is a tool, not a ceremony — skip it for trivial or greenfield-adjacent work.
 - Test tier: pick the lowest tier that proves the behavior deterministically, owned by the surface that owns the logic; push a test down a tier whenever the same guarantee proves more cheaply there.
   1. Pure domain logic → its owning `abb-*-core` crate.
-  2. Runtime, command ingress, job/progress lifecycle, error/settings envelope → the `audiobook-boss` runtime crate.
-  3. TS↔Rust contract shape/parity → the contract/binding tier (commands boundary + contract tests).
+  2. Session, settings, job/progress lifecycle, file and network workflows, error envelope → `abb-engine`.
+  3. Intent ordering and TS↔Rust contract shape/parity → the host crate (`audiobook-boss`) and the contract/binding tests.
   4. DOM, Solid view, or UI-state behavior → Vitest + jsdom under `src/`.
 - Commands, verification scope, and local test placement live in `crates/AGENTS.md`, `scripts/AGENTS.md`, and each surface `AGENTS.md` — do not restate them here.
 - Let deterministic lint/typecheck own style and stale-cleanup (unused symbols, formatting, `any`): run the tools for the touched surface and fix what they report. Command menu: `scripts/AGENTS.md`.

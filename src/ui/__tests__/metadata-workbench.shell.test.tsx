@@ -1,11 +1,11 @@
 import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
+import type { SupportedAudioImportMetadata } from '../../types/audio';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
-import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
+import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { App } from '../App';
 
 const support: SupportedAudioImportMetadata = {
@@ -15,41 +15,11 @@ const support: SupportedAudioImportMetadata = {
 	supportText: 'Supports M4B audio files',
 };
 
-function analyzedFile(path: string, title: string): FileListInfo['files'][number] {
-	return {
-		path,
-		isValid: true,
-		duration: 1,
-		size: 1000,
-		format: 'm4b',
-		tagTitle: title,
-		inputId: path,
-	};
-}
-
-function analyzedList(files: FileListInfo['files']): FileListInfo {
-	return {
-		files,
-		selectedDecoders: files.map(() => null),
-		totalDuration: files.length,
-		totalSize: files.length * 1000,
-		validCount: files.length,
-		invalidCount: 0,
-	};
-}
-
 function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 	return {
 		openFiles: vi.fn(async () => ['/books/alpha.m4b']),
 		openDirectory: vi.fn(async () => null),
-		discoverAudioImportPaths: vi.fn(async (paths) => [...paths]),
-		analyzeAudioFiles: vi.fn(async (paths: ReadonlyArray<string>) =>
-			analyzedList(
-				paths.map((path) => analyzedFile(path, path.includes('beta') ? 'Beta' : 'Alpha')),
-			),
-		),
 		getSupportedAudioImportMetadata: vi.fn(async () => support),
-		takeOpenedAudioFiles: vi.fn(async () => []),
 		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
@@ -59,38 +29,16 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 	};
 }
 
-function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapability {
-	return {
-		readAudioMetadata: vi.fn(async (filePath) => ({
-			title: filePath.includes('beta') ? 'Beta' : 'Alpha',
-			cover_art: [0x89, 0x50, 0x4e, 0x47],
-		})),
-		previewAlbumSort: vi.fn(async () => null),
-		validateMetadataIntentPatch: vi.fn(async (patch) => ({
-			isValid: true,
-			metadataPatch: patch,
-			fieldErrors: [],
-		})),
-		saveMetadataBatch: vi.fn(async (items: ReadonlyArray<{ filePath: string }>) => ({
-			results: items.map((item, inputIndex) => ({
-				inputIndex,
-				filePath: item.filePath,
-				status: 'success' as const,
-			})),
-			summary: {
-				succeeded: items.length,
-				failed: 0,
-				cancelled: 0,
-				skipped: 0,
-				total: items.length,
-			},
-		})),
-		openFile: vi.fn(async () => '/covers/art.png'),
-		loadCoverArtFile: vi.fn(async () => [0x89, 0x50, 0x4e, 0x47]),
-		loadCoverArtFromUrl: vi.fn(async () => [0x89, 0x50]),
-		searchOnlineMetadata: vi.fn(async () => ({ results: [], diagnostics: [] })),
-		...overrides,
-	};
+/** An engine whose files carry a title and a PNG cover. */
+function engineWithTaggedBooks(): FakeEngine {
+	const engine = createFakeEngine();
+	engine.analyze = (paths) =>
+		paths.map((path) => {
+			const title = path.includes('beta') ? 'Beta' : 'Alpha';
+			engine.tags.set(path, { title, cover_art: [0x89, 0x50, 0x4e, 0x47] });
+			return audioFile(path, { duration: 1, size: 1000, tagTitle: title });
+		});
+	return engine;
 }
 
 function renderApp(runtime: AppRuntime) {
@@ -99,6 +47,11 @@ function renderApp(runtime: AppRuntime) {
 			<App />
 		</AppRuntimeProvider>
 	));
+}
+
+/** The last `count` intents the engine received. */
+function lastIntents(engine: FakeEngine, count: number) {
+	return engine.sessionIntents.slice(-count);
 }
 
 describe('metadata workbench shell', () => {
@@ -111,8 +64,8 @@ describe('metadata workbench shell', () => {
 	});
 
 	it('composes cover and form zones and keeps cover clear keyboard-reachable', async () => {
-		const metadata = fakeMetadata();
-		runtime = createAppRuntime({ input: fakeInput(), metadata });
+		const engine = engineWithTaggedBooks();
+		runtime = createAppRuntime({ input: fakeInput(), engine });
 		renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
@@ -140,9 +93,9 @@ describe('metadata workbench shell', () => {
 		expect(document.activeElement).toBe(clearButton);
 	});
 
-	it('edits a title and saves through the native metadata capability', async () => {
-		const metadata = fakeMetadata();
-		runtime = createAppRuntime({ input: fakeInput(), metadata });
+	it('sends a typed title and the save to the engine in that order', async () => {
+		const engine = engineWithTaggedBooks();
+		runtime = createAppRuntime({ input: fakeInput(), engine });
 		renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
@@ -152,16 +105,35 @@ describe('metadata workbench shell', () => {
 		title.focus();
 		await userEvent.clear(title);
 		await userEvent.type(title, 'Edited');
+		engine.respond = (intent) => {
+			if (intent.kind !== 'save') return undefined;
+			engine.status({
+				kind: 'saveComplete',
+				succeeded: 1,
+				failed: 0,
+				cancelled: 0,
+				waiting: 0,
+				held: 0,
+				outputs: { updated: 0, elsewhere: 0, restartOffered: 0, failed: 0 },
+			});
+			return { kind: 'applied' };
+		};
 		await userEvent.click(screen.getByTestId('metadata-save-btn'));
-		await waitFor(() => {
-			expect(metadata.saveMetadataBatch).toHaveBeenCalled();
+		await waitFor(() => expect(lastIntents(engine, 2)[1]).toEqual({ kind: 'save' }));
+		expect(lastIntents(engine, 2)[0]).toEqual({
+			kind: 'setField',
+			field: 'title',
+			value: 'Edited',
 		});
-		expect(metadata.validateMetadataIntentPatch).toHaveBeenCalled();
+		expect(title.value).toBe('Edited');
+		expect(screen.getByTestId('metadata-status-message')).toHaveTextContent(
+			'Metadata save complete: success=1, failed=0, cancelled=0',
+		);
 	});
 
 	it('saves from the global shortcut', async () => {
-		const metadata = fakeMetadata();
-		runtime = createAppRuntime({ input: fakeInput(), metadata });
+		const engine = engineWithTaggedBooks();
+		runtime = createAppRuntime({ input: fakeInput(), engine });
 		renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
@@ -170,8 +142,11 @@ describe('metadata workbench shell', () => {
 		const title = document.getElementById('meta-title') as HTMLInputElement;
 		await userEvent.type(title, ' Two');
 		window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }));
-		await waitFor(() => {
-			expect(metadata.saveMetadataBatch).toHaveBeenCalled();
-		});
+		await waitFor(() =>
+			expect(lastIntents(engine, 2)).toEqual([
+				{ kind: 'setField', field: 'title', value: 'Alpha Two' },
+				{ kind: 'save' },
+			]),
+		);
 	});
 });

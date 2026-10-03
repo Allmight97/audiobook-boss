@@ -2,60 +2,28 @@
 
 ## Ownership And Public Strip
 
-- Owns accepted preferences, automatic persistence and durability state,
-  startup hydration, dialog intents, pinned-defaults capture, and reset.
-- Import `createSettingsOwner` and owner types
-  from `src/app/appSettings`. `owner.ts`, `dialog.ts`, and
-  `startupDefaults.ts` are private implementation files.
-- Views and sibling owners dispatch semantic Settings intents. Runtime
-  composition injects `rememberEncoderDefaults` and `rememberOutputDefaults`;
-  views do not call settings IPC or own persistence helpers.
+- The engine owns the settings in effect, their validation, and whether they
+  are saved (`crates/abb-engine/src/app_settings/AGENTS.md`). This owner shows
+  the engine's `SettingsSnapshot`, holds the Settings dialog's state, and sends
+  `SettingsIntent`s through `engineLink`.
+- Import `createSettingsOwner` and owner types from `src/app/appSettings`;
+  `owner.ts` is private.
+- Views dispatch semantic Settings intents; they do not call settings IPC.
+  Audio and output defaults are not set here: the session records them when
+  they change, and announces the settings with a `settings-update` event.
 
-- `recheckFdk` and toolchain path-save refresh Settings availability and the
-  composed Encoding owner using the same fetched capability result. `openFdkSetup` reports handoff state; only an actual
-  capability recheck can report FDK ready. Installation state is not persisted.
+## What Stays Here
 
-## Acceptance And Durability
-
-- Ask the runtime owner to accept behavior before recording its preference.
-  Runtime rejection preserves the previous accepted choice and exposes an
-  error. Storage failure retains the accepted session value and exposes
-  non-durable state with an explicit retry.
-- Coalesce pending defaults by field, serialize writes, and retry the newest
-  accepted values. Older completions cannot claim newer choices are saved.
-  Persistence retries do not reconfigure concurrency.
-- Concurrency's Auto option displays the backend capability's `autoEffective`,
-  independently of the currently accepted fixed job count.
-- Reset waits for in-flight writes and supersedes older pending defaults only
-  when it succeeds. Accepted changes requested after reset remain applied and
-  pending until their own write succeeds. Reset reflects the runtime's
-  accepted concurrency before later queued requests run; panel appliers do not
-  reconfigure it. Failed reset leaves unsaved values retryable. Disposal
-  invalidates pending publications and follow-on hydration.
-- Store backend/request-shaped preferences. UI-only disclosure, detected text,
-  previews, and visibility stay outside durable settings.
-
-## Startup And Capture
-
-- Each consuming owner hydrates its own settings slice; one owner's hydration
-  failure does not block another's.
-- Hydration and capability clamping never persist. Startup source selection
-  lives in `startupDefaults.ts`; `loadStartupDefaults` feeds Runtime.initialize.
-  The runtime shares that initialization with Input import and ignores completion
-  after disposal, so OS-opened and remote imports receive stored audio defaults.
-- Audio edits in Settings record top-level defaults for future imports; title edits do not persist. Output and concurrency edits record their accepted values. Capture ("Use
-  current settings as defaults") copies those values to `pinnedDefaults` after
-  pending preferences are durable. A save failure blocks stale-default capture.
-- Reopening Settings must preserve an accepted acquisition choice after a
-  storage failure.
-- `recoverEncoderDefaults` applies the backend-reviewed recovery through the
-  settings write queue, then retries pending accepted preferences. It preserves
-  current session choices and reports the backup even if a later reload fails.
+- Wording and display: durability state from `save_error`, the concurrency
+  view (Auto shows the capability's `autoEffective`, independently of the
+  current fixed count), and dialog visibility and controls.
+- UI-only disclosure, detected text, previews, and visibility stay outside
+  durable settings.
 
 ## Proof
 
-- `appSettings.test.ts` exercises acceptance, durability, newest-value retry,
-  capture/reset ordering, and disposal through the composed App Runtime.
-- `startupDefaults.test.ts` pins startup source selection.
+- `owner.test.ts`: what the dialog shows and which intents it sends, against
+  the fake engine. Write ordering, retry, and reset rules are proved in the
+  engine's `runtime_tests.rs`.
 - `runtime-api-contract.test.ts` independently pins the owner export strip.
 - Visible failure/retry and dialog interactions live in `src/ui/appSettings`.

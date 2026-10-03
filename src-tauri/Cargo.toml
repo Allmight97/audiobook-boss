@@ -16,11 +16,6 @@ name = "export_bindings"
 path = "src/bin/export_bindings.rs"
 required-features = ["binding-export"]
 
-[[bin]]
-name = "verify_aac_decoder_contract"
-path = "src/bin/verify_aac_decoder_contract.rs"
-required-features = ["decoder-contract"]
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -40,58 +35,22 @@ doctest = false
 tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
-abb-audible-core = { path = "../crates/abb-audible-core" }
-abb-media-core = { path = "../crates/abb-media-core" }
-abb-metadata-core = { path = "../crates/abb-metadata-core" }
-abb-output-artifact-core = { path = "../crates/abb-output-artifact-core" }
-abb-processing-core = { path = "../crates/abb-processing-core" }
-abb-remote-source-core = { path = "../crates/abb-remote-source-core" }
+abb-engine = { path = "../crates/abb-engine" }
 tauri = { version = "2.11.5", features = [] }
 tauri-plugin-opener = "2.5.4"
 tauri-plugin-dialog = "2.7.2"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-thiserror = "2.0.18"
-tokio = { version = "1.52.1", features = ["full"] }
-uuid = { version = "1.23.1", features = ["v4"] }
 log = "0.4.29"
 env_logger = "0.11.10"
-ffmpeg-next = "9.0.0"
-ffmpeg-sys-next = { version = "9.0.0", default-features = false }
-faac-sys = { path = "../vendor/faac-sys" }
-image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
-reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "stream", "json", "query", "form"] }
-# audible_api currently accepts reqwest 0.12 request values. Keep this renamed
-# dependency private to the Audible provider until that upstream surface changes.
-audible-reqwest = { package = "reqwest", version = "0.12.28", features = ["json"] }
-mp4ameta = "0.13.0"
-bogon = "0.3"
-# Typed URL hosts for the cover-fetch SSRF policy; same version reqwest resolves.
-url = "2.5.8"
+tokio = { version = "1.52.1", features = ["sync", "time"] }
 # Exact pins: a prerelease family whose generated TS contract can change between
-# RCs. Bump together, deliberately, and regenerate bindings.
+# RCs. Bump together with the engine crate, deliberately, and regenerate bindings.
 specta = "=2.0.0-rc.25"
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }
-keyring-core = "1.0.0"
-secrecy = "0.10.3"
-sha2 = "0.11.0"
-audible_api = "0.1.0"
 
-# Platform-native OS credential stores, registered directly through keyring-core
-# (see remote_source/vault.rs). Replaces the `keyring` umbrella crate, whose
-# unconditional `db-keystore` backend dragged in turso + tantivy + memmap2 (a
-# SQLite rewrite and a full-text search engine) that ABB never used — it only
-# ever selects the native OS keychain.
-[target.'cfg(target_os = "macos")'.dependencies]
-apple-native-keyring-store = { version = "1.0.0", features = ["keychain"] }
-keepawake = "0.6.1"
-
-[target.'cfg(target_os = "windows")'.dependencies]
-windows-native-keyring-store = "1.1.0"
-
-[target.'cfg(target_os = "linux")'.dependencies]
-linux-keyutils-keyring-store = "1.0.0"
+[dev-dependencies]
+tokio = { version = "1.52.1", features = ["macros", "rt-multi-thread", "sync", "test-util", "time"] }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
@@ -101,27 +60,8 @@ custom-protocol = ["tauri/custom-protocol"]
 # Default features - now minimal with only essential Tauri features
 default = []
 binding-export = []
-decoder-contract = []
-bundled-ffmpeg = [
-    "ffmpeg-next/build",
-    "ffmpeg-sys-next/build-audiotoolbox",
-    "ffmpeg-sys-next/build-lib-opus",
-]
-bundled-ffmpeg-portable = [
-    "bundled-ffmpeg",
-    "ffmpeg-sys-next/build-portable",
-]
-
-[dev-dependencies]
-tempfile = "3.27.0"
-tauri = { version = "2.11.5", features = ["test"] }
-base64 = "0.23.1"
-# Media-lane fixture synthesis (e.g. MP3 via libmp3lame). Same version as the
-# main dependency, so this adds zero extra compilation.
-ffmpeg-next = "9.0.0"
-# Local TLS stub for the Audible download harness (no real Audible account).
-rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "pem"] }
-tokio-rustls = { version = "0.26.4", default-features = false, features = ["aws_lc_rs"] }
+bundled-ffmpeg = ["abb-engine/bundled-ffmpeg"]
+bundled-ffmpeg-portable = ["abb-engine/bundled-ffmpeg-portable"]
 
 [lints]
 workspace = true

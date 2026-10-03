@@ -97,7 +97,6 @@
       "signingIdentity": "-"
     },
     "resources": {
-      "src/audio/toolchain/fdk-setup.command": "fdk-setup.command",
       "../vendor/faac-sys/upstream/COPYING": "licenses/FAAC-LGPL-2.1.txt",
       "../vendor/faac-sys/ABB-PROVENANCE.md": "licenses/FAAC-source.md",
       "../vendor/opus/COPYING": "licenses/Opus-BSD.txt",

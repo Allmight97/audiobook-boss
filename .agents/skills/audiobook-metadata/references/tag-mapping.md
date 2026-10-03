@@ -7,11 +7,11 @@ are relative to the ABB root.
 
 | Question | Source to inspect |
 | --- | --- |
-| Supported fields, read aliases, clear groups, FFmpeg keys | `src-tauri/src/metadata/field_schema.rs` |
-| Series key families and precedence | `src-tauri/src/metadata/tag_registry.rs` |
-| Field fan-outs, tuples, series/subseries projection | `src-tauri/src/metadata/metadata_ops.rs` |
-| Actual container writes and atom-level tests | `src-tauri/src/metadata/metadata_sinks.rs` |
-| MP4 reads, album sort, movement cleanup, artwork | `src-tauri/src/metadata/mp4ameta_bridge.rs` |
+| Supported fields, read aliases, clear groups, FFmpeg keys | `crates/abb-engine/src/metadata/field_schema.rs` |
+| Series key families and precedence | `crates/abb-engine/src/metadata/tag_registry.rs` |
+| Field fan-outs, tuples, series/subseries projection | `crates/abb-engine/src/metadata/metadata_ops.rs` |
+| Actual container writes and atom-level tests | `crates/abb-engine/src/metadata/metadata_sinks.rs` |
+| MP4 reads, album sort, movement cleanup, artwork | `crates/abb-engine/src/metadata/mp4ameta_bridge.rs` |
 | Date and series validation/normalization | `crates/abb-metadata-core/src/lib.rs` |
 
 The schema describes ABB's supported fields. A field recognized by an external
@@ -37,7 +37,7 @@ The MP4 bridge removes movement fields when series-family writes apply.
 Adopting movement tags as a series mechanism requires player evidence and an
 explicit product decision.
 
-For MP4 finalization, follow `src-tauri/src/metadata/AGENTS.md`: its
+For MP4 finalization, follow `crates/abb-engine/src/metadata/AGENTS.md`: its
 container-aware handoff owns preservation of tags the mov muxer drops. A bare
 FFmpeg command setting arbitrary dictionary keys is not equivalent evidence.
 

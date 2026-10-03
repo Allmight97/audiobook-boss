@@ -4,7 +4,7 @@
 
 - `index.ts` exports `RemoteSourceAcquireView`; File Import composes it.
 - Nonvisual consumers use the App Runtime Remote Source owner from
-  `src/app/remoteSource`. Session assets and acquisition lifecycle stay there.
+  `src/app/remoteSource`. The acquisition dialog's state and lifecycle stay there.
 
 ## Private Cluster
 
@@ -25,5 +25,5 @@ Selection, Grab, and details accessible names include the source indexer to
 distinguish mirrored releases with the same title.
 Acquisition progress renders only in the Audible lane.
 
-Remote source IPC routes through `src/lib/tauri/client.ts`. Materialized audio
-imports through Input Session; processing remains user-triggered.
+Remote source IPC routes through `src/lib/tauri/client.ts`. The engine imports
+finished downloads into the session; processing remains user-triggered.

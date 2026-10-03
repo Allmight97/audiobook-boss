@@ -1,0 +1,85 @@
+//! execute.rs
+//!
+//! Execution stage for audio processing.
+//!
+//! This module owns the conversion/merge boundary in the processing pipeline:
+//! it transitions progress into `Converting`, builds a `MediaProcessingPlan`,
+//! dispatches to the selected processor implementation, and performs
+//! cancellation checks before returning the merged output path.
+
+use std::path::{Path, PathBuf};
+
+use crate::audio::constants::TEMP_MERGED_FILENAME;
+use crate::audio::AudioFile;
+use crate::errors::{AppError, Result};
+use crate::processing::ProcessingContext;
+
+use super::engine;
+use super::plan::MediaProcessingPlan;
+use super::ProcessingWorkflow;
+
+/// Executes core audio processing operations (merge / convert).
+pub(crate) fn execute_processing(
+    context: &ProcessingContext,
+    workflow: &ProcessingWorkflow,
+    files: &[AudioFile],
+    metadata: Option<&crate::metadata::AudiobookMetadata>,
+    passthrough: Option<&crate::metadata::PassthroughMetadata>,
+) -> Result<PathBuf> {
+    log::info!(
+        "Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k",
+        workflow.total_duration,
+        context.effective_bitrate_kbps()
+    );
+
+    let merged_output = merge_audio_files_with_context(
+        &workflow.temp_dir,
+        context,
+        workflow.total_duration,
+        files,
+        metadata,
+        passthrough,
+    )?;
+
+    if context.is_cancelled() {
+        return Err(AppError::cancelled());
+    }
+
+    Ok(merged_output)
+}
+
+/// Merges audio files with context-based progress tracking.
+pub(crate) fn merge_audio_files_with_context(
+    temp_dir: &Path,
+    context: &ProcessingContext,
+    total_duration: f64,
+    files: &[AudioFile],
+    metadata: Option<&crate::metadata::AudiobookMetadata>,
+    passthrough: Option<&crate::metadata::PassthroughMetadata>,
+) -> Result<PathBuf> {
+    let temp_output = temp_dir
+        .join(TEMP_MERGED_FILENAME)
+        .with_extension(context.output.final_path().extension().unwrap_or_default());
+
+    let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
+    let plan = MediaProcessingPlan::new(
+        temp_output.clone(),
+        context.required_encoder_settings()?.clone(),
+        context.sample_rate,
+        file_paths,
+        total_duration,
+    );
+
+    log::info!(
+        "media_job session_id={} job_id={} artifact={} encoder={:?}",
+        context.session.id(),
+        context.job_id.as_deref().unwrap_or("unscoped"),
+        crate::diagnostics::artifact_id(&temp_output),
+        context.required_encoder_settings()?.encoder_type
+    );
+    crate::diagnostics::stage("encode_mux", &temp_output, || {
+        engine::execute(&plan, context, metadata, passthrough)
+    })?;
+
+    Ok(temp_output)
+}

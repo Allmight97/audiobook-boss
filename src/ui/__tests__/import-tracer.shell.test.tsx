@@ -1,7 +1,8 @@
-import { cleanup, render, screen } from '@solidjs/testing-library';
+import { cleanup, render, screen, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
+import type { SupportedAudioImportMetadata } from '../../types/audio';
+import { audioFile, createFakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
@@ -14,36 +15,11 @@ const metadata: SupportedAudioImportMetadata = {
 	supportText: 'Supports M4B audio files',
 };
 
-function analyzedFile(path: string): FileListInfo {
-	return {
-		files: [
-			{
-				path,
-				isValid: true,
-				duration: 300,
-				size: 15 * 1024 * 1024,
-				format: 'm4b',
-				tagTitle: 'Chapter One',
-				tagArtist: 'Narrator',
-				inputId: 'input-1',
-			},
-		],
-		selectedDecoders: [null],
-		totalDuration: 300,
-		totalSize: 15 * 1024 * 1024,
-		validCount: 1,
-		invalidCount: 0,
-	};
-}
-
 function fakeInput(): InputCapability {
 	return {
 		openFiles: vi.fn(async () => ['/books/chapter.m4b']),
 		openDirectory: vi.fn(async () => null),
-		discoverAudioImportPaths: vi.fn(async (paths) => [...paths]),
-		analyzeAudioFiles: vi.fn(async () => analyzedFile('/books/chapter.m4b')),
 		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
-		takeOpenedAudioFiles: vi.fn(async () => []),
 		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
@@ -63,7 +39,18 @@ describe('Solid import tracer shell', () => {
 
 	it('renders an analyzed local import row from picker intent', async () => {
 		const user = userEvent.setup();
-		runtime = createAppRuntime({ input: fakeInput() });
+		const engine = createFakeEngine();
+		engine.analyze = (paths) =>
+			paths.map((path) =>
+				audioFile(path, {
+					inputId: 'input-1',
+					duration: 300,
+					size: 15 * 1024 * 1024,
+					tagTitle: 'Chapter One',
+					tagArtist: 'Narrator',
+				}),
+			);
+		runtime = createAppRuntime({ input: fakeInput(), engine });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />
@@ -71,8 +58,8 @@ describe('Solid import tracer shell', () => {
 		));
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
-		expect(await screen.findByRole('option', { name: 'chapter.m4b' })).toBeInTheDocument();
-		expect(screen.getByText('Chapter One')).toBeInTheDocument();
+		const row = await screen.findByRole('option', { name: 'chapter.m4b' });
+		expect(within(row).getByText('Chapter One')).toBeInTheDocument();
 		expect(document.querySelector('.file-details')?.textContent).toMatch(/Narrator/);
 		expect(screen.getByRole('region', { name: 'Input and File Order' })).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Selected File Properties' })).toBeInTheDocument();

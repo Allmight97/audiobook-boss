@@ -1,0 +1,596 @@
+use crate::audio;
+use crate::audio::{AudioExecutionRequest, EncoderSettings, FileListInfo};
+use crate::errors::{AppErrorEnvelope, Result};
+use crate::host::Host;
+use crate::metadata::CoverArtPassthroughPolicy;
+use crate::output_artifact::{
+    commit_supplemental_output_assets_for_output, OutputKind, ResolvedOutputPlan,
+    SupplementalOutputAssetsCommitRequest,
+};
+use crate::processing::context::processing::ProgressEventListener;
+use crate::processing::job_registry::{CancellationChecker, JobId};
+use crate::processing::{
+    AudioHandling, OperationKind, OutputConfig, PreviewConfig, ProcessPayload, ProcessResultEntry,
+    ProcessResultStatus, ProcessingContext, ProcessingSession, SupplementalProcessingAsset,
+};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::OwnedSemaphorePermit;
+
+use crate::processing::terminal_outcomes::{
+    classify_processing_error, terminal_failure_result, ProcessingJobTerminalOutcome,
+};
+
+pub(crate) struct ProcessingJobRequest {
+    pub(crate) host: Host,
+    pub(crate) registry: crate::ManagedJobRegistry,
+    pub(crate) workspace_root: PathBuf,
+    pub(crate) encoder_settings: Option<EncoderSettings>,
+    pub(crate) audio_handling: AudioHandling,
+    pub(crate) audio_request: audio::TitleAudioRequest,
+    pub(crate) audio_reason: Option<String>,
+    pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
+    pub(crate) sample_rate: audio::SampleRateConfig,
+    pub(crate) input_index: usize,
+    pub(crate) operation_kind: OperationKind,
+    pub(crate) operation_id: Option<String>,
+    /// This title's cancel flag; set by title or whole-operation cancel.
+    pub(crate) title_cancel: Option<Arc<AtomicBool>>,
+    pub(crate) output_plan: ResolvedOutputPlan,
+    pub(crate) file_info: FileListInfo,
+    pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
+    pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
+    pub(crate) preview_seconds: Option<f64>,
+    pub(crate) supplemental_assets: Vec<SupplementalProcessingAsset>,
+    pub(crate) progress_listener: Option<ProgressEventListener>,
+    pub(crate) title_output: Option<Arc<crate::processing::TitleOutput>>,
+}
+
+#[allow(clippy::too_many_lines)] // Keep registration, execution, and terminal cleanup in one lifecycle.
+pub(crate) async fn run_processing_job(
+    request: ProcessingJobRequest,
+) -> Result<ProcessResultEntry> {
+    let operation_id = request.operation_id.clone();
+    let RegisteredProcessingJob {
+        job_id,
+        permit: _permit,
+        cancellation_checker,
+        lifecycle_log,
+    } = register_job_and_validate_output(
+        &request.registry,
+        &request.output_plan.resolved_path,
+        request.title_cancel.clone(),
+        ProcessingJobLogContext {
+            operation_id: operation_id.clone(),
+            input_index: request.input_index,
+            operation_kind: request.operation_kind,
+        },
+        request.audio_handling,
+    )
+    .await?;
+    log_audio_decision(&request, job_id);
+    let _active_work = request.host.begin_active_work();
+
+    let (context, preview_seconds_resolved) = build_processing_context(ProcessingContextRequest {
+        cancellation_checker,
+        job_id,
+        encoder_settings: request.encoder_settings.clone(),
+        sample_rate: request.sample_rate,
+        input_index: Some(request.input_index),
+        operation_kind: request.operation_kind,
+        operation_id,
+        progress_listener: request.progress_listener,
+        title_output: request.title_output.clone(),
+        output_plan: request.output_plan.clone(),
+        workspace_root: request.workspace_root,
+        preview_seconds: request.preview_seconds,
+    });
+    context
+        .new_emitter()
+        .emit_analyzing_start("Preparing audio job...");
+    let output_path = Some(request.output_plan.resolved_path.display().to_string());
+    let audio_result = audio::execute_audio_engine(
+        AudioExecutionRequest::new(
+            context,
+            request.file_info,
+            request.metadata,
+            request.cover_art_passthrough,
+        )
+        .with_handling(request.audio_handling)
+        .with_metadata_intent(request.metadata_intent),
+    )
+    .await;
+    let result = title_outcome(audio_result, output_path, preview_seconds_resolved, || {
+        commit_supplemental_assets(
+            request.output_plan.kind,
+            &request.supplemental_assets,
+            &request.output_plan.resolved_path,
+        )
+    });
+
+    match result {
+        ProcessingJobTerminalOutcome::Success {
+            message,
+            output_path,
+            preview_actual_seconds,
+            supplemental_warning,
+        } => {
+            request.registry.complete_job(job_id).await;
+            lifecycle_log.log_terminal(ProcessingJobLogStatus::Success);
+            Ok(ProcessResultEntry {
+                input_index: request.input_index,
+                status: ProcessResultStatus::Success,
+                message,
+                error: None,
+                output_path,
+                preview_actual_seconds,
+                job_id: Some(job_id.to_string()),
+                supplemental_warning,
+            })
+        }
+        ProcessingJobTerminalOutcome::Cancelled(error) => {
+            request.registry.complete_job(job_id).await;
+            lifecycle_log.log_terminal(ProcessingJobLogStatus::Cancelled);
+            Err(error)
+        }
+        ProcessingJobTerminalOutcome::Failed(envelope) => {
+            request
+                .registry
+                .fail_job(job_id, envelope.message.clone())
+                .await;
+            lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
+            Ok(terminal_failure_result(
+                request.input_index,
+                Some(job_id.to_string()),
+                envelope,
+            ))
+        }
+    }
+}
+
+fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
+    let reason = request
+        .audio_reason
+        .as_deref()
+        .unwrap_or(match request.audio_handling {
+            AudioHandling::Preserve => "Source audio can be copied into the selected output.",
+            AudioHandling::Encode if request.preview_seconds.is_some() => {
+                "Preview requires encoding."
+            }
+            AudioHandling::Encode => "Encoding settings were explicitly selected.",
+        });
+    log::info!(
+        "audio_decision operation_id={} job_id={} input_index={:?} request={:?} action={:?} resolved_settings={:?} resolved_rate={:?} reason={:?} output_path={:?}",
+        request.operation_id.as_deref().unwrap_or("foreground"), job_id,
+        request.input_index, request.audio_request, request.audio_handling,
+        request.encoder_settings, request.sample_rate, reason, request.output_plan.resolved_path
+    );
+    log::info!(
+        "metadata_intent job_id={} input_index={} intent={}",
+        job_id,
+        request.input_index,
+        describe_requested_fields(request.metadata_intent.as_ref())
+    );
+    for (index, source) in request.file_info.files.iter().enumerate() {
+        log::info!(
+            "audio_source job_id={} source_index={} source_path={:?}",
+            job_id,
+            index,
+            source.path
+        );
+    }
+}
+
+/// Lists the field ops processing applies, without tag values, e.g.
+/// `title=set,album_sort=set`: the user's edits plus the derived album sort.
+/// Fields absent here keep the source tag; `metadata_plan` lines cannot tell the two apart.
+fn describe_requested_fields(patch: Option<&crate::metadata::MetadataIntentPatch>) -> String {
+    // Drop cover bytes first: only the op name is logged, and serializing a
+    // cover would build one JSON value per byte.
+    let fields = patch
+        .map(|patch| {
+            let mut ops = patch.clone();
+            if let Some(crate::metadata::PatchOp::Set(bytes)) = ops.cover_art.as_mut() {
+                bytes.clear();
+            }
+            ops
+        })
+        .and_then(|patch| serde_json::to_value(patch).ok())
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+    let described = fields
+        .iter()
+        .map(|(field, op)| format!("{field}={}", op["op"].as_str().unwrap_or("?")))
+        .collect::<Vec<_>>();
+    if described.is_empty() {
+        "none".to_string()
+    } else {
+        described.join(",")
+    }
+}
+
+pub(crate) fn supplemental_assets_for_input(
+    payload: &ProcessPayload,
+    index: usize,
+) -> Vec<SupplementalProcessingAsset> {
+    payload
+        .sources_for(index)
+        .into_iter()
+        .filter_map(|source| source.input_id)
+        .flat_map(|input_id| {
+            payload
+                .supplemental_assets_by_input_id
+                .as_ref()
+                .and_then(|assets| assets.get(&input_id))
+                .cloned()
+                .unwrap_or_default()
+        })
+        .collect()
+}
+
+pub(crate) fn commit_supplemental_assets(
+    output_kind: OutputKind,
+    assets: &[SupplementalProcessingAsset],
+    output_path: &Path,
+) -> Result<()> {
+    let request = assets.iter().fold(
+        SupplementalOutputAssetsCommitRequest::new(output_kind, output_path),
+        |request, asset| request.with_asset(&asset.path, asset.size_bytes, &asset.sha256),
+    );
+    commit_supplemental_output_assets_for_output(request)
+}
+
+/// Maps audio execution to the title's outcome. Companions commit only after
+/// the audiobook is published, so a companion failure stays a warning on a
+/// successful title rather than failing it.
+pub(crate) fn title_outcome(
+    audio: Result<String>,
+    output_path: Option<String>,
+    preview_actual_seconds: Option<f64>,
+    publish_companions: impl FnOnce() -> Result<()>,
+) -> ProcessingJobTerminalOutcome {
+    let message = match audio {
+        Ok(message) => message,
+        Err(error) => return classify_processing_error(error),
+    };
+    let supplemental_warning = publish_companions().err().map(|error| {
+        log::warn!("supplemental_pdf_commit status=failed title_status=success");
+        AppErrorEnvelope::from(&error).message
+    });
+    ProcessingJobTerminalOutcome::Success {
+        message,
+        output_path,
+        preview_actual_seconds,
+        supplemental_warning,
+    }
+}
+
+/// Job identity known before registration, used for lifecycle records.
+pub(crate) struct ProcessingJobLogContext {
+    pub(crate) operation_id: Option<String>,
+    pub(crate) input_index: usize,
+    pub(crate) operation_kind: OperationKind,
+}
+
+pub(crate) struct RegisteredProcessingJob {
+    pub(crate) job_id: JobId,
+    pub(crate) permit: OwnedSemaphorePermit,
+    pub(crate) cancellation_checker: CancellationChecker,
+    pub(crate) lifecycle_log: ProcessingJobLifecycleLog,
+}
+
+pub(crate) async fn register_job_and_validate_output(
+    registry: &crate::ManagedJobRegistry,
+    output_path: &Path,
+    title_cancel: Option<Arc<AtomicBool>>,
+    log_context: ProcessingJobLogContext,
+    audio_handling: AudioHandling,
+) -> Result<RegisteredProcessingJob> {
+    let (job_id, permit) = registry
+        .register_job_with_external_cancel(title_cancel.clone())
+        .await?;
+    let cancellation_checker = CancellationChecker::new(title_cancel);
+    let lifecycle_log = ProcessingJobLifecycleLog::start(ProcessingJobLogIdentity {
+        operation_id: log_context.operation_id,
+        job_id: job_id.to_string(),
+        input_index: log_context.input_index,
+        operation_kind: log_context.operation_kind,
+    });
+
+    let validation = match audio_handling {
+        AudioHandling::Encode => crate::audio::validate_output_path(output_path),
+        AudioHandling::Preserve => crate::audio::validate_preserved_output_path(output_path),
+    };
+    if let Err(error) = validation {
+        let envelope = AppErrorEnvelope::from(&error);
+        lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
+        registry.fail_job(job_id, error.to_string()).await;
+        return Err(error);
+    }
+
+    Ok(RegisteredProcessingJob {
+        job_id,
+        permit,
+        cancellation_checker,
+        lifecycle_log,
+    })
+}
+
+struct ProcessingContextRequest {
+    cancellation_checker: crate::processing::job_registry::CancellationChecker,
+    job_id: crate::processing::job_registry::JobId,
+    encoder_settings: Option<EncoderSettings>,
+    sample_rate: audio::SampleRateConfig,
+    input_index: Option<usize>,
+    operation_kind: OperationKind,
+    operation_id: Option<String>,
+    progress_listener: Option<ProgressEventListener>,
+    title_output: Option<Arc<crate::processing::TitleOutput>>,
+    output_plan: ResolvedOutputPlan,
+    workspace_root: PathBuf,
+    preview_seconds: Option<f64>,
+}
+
+fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingContext, Option<f64>) {
+    let session =
+        ProcessingSession::with_cancellation(request.job_id.0, request.cancellation_checker);
+    let mut context = ProcessingContext::new_with_workspace_root(
+        std::sync::Arc::new(session),
+        request.encoder_settings,
+        request.sample_rate,
+        OutputConfig::from_plan(request.output_plan),
+        request.workspace_root,
+    );
+    context.job_id = Some(request.job_id.to_string());
+    context.operation_id = request.operation_id;
+    context.input_index = request.input_index;
+    context.operation_kind = request.operation_kind;
+    context.progress_listener = request.progress_listener;
+    context.title_output = request.title_output;
+
+    let preview_seconds_resolved = request.preview_seconds;
+    if let Some(seconds) = preview_seconds_resolved {
+        context.preview = Some(PreviewConfig::new(seconds));
+        log::info!("Preview requested: total_seconds={:.3}", seconds);
+    }
+
+    (context, preview_seconds_resolved)
+}
+
+pub(crate) struct ProcessingJobLogIdentity {
+    operation_id: Option<String>,
+    job_id: String,
+    input_index: usize,
+    operation_kind: OperationKind,
+}
+
+pub(crate) struct ProcessingJobLifecycleLog {
+    identity: ProcessingJobLogIdentity,
+    started_at: Instant,
+}
+
+#[cfg(test)]
+mod registration_tests {
+    use super::*;
+    use crate::processing::OperationKind;
+    use tempfile::TempDir;
+
+    fn log_context() -> ProcessingJobLogContext {
+        ProcessingJobLogContext {
+            operation_id: None,
+            input_index: 0,
+            operation_kind: OperationKind::ProcessingBatch,
+        }
+    }
+
+    #[tokio::test]
+    async fn preserve_registration_accepts_supported_extensions() {
+        let temp_dir = TempDir::new().expect("temp output directory");
+        let existing = temp_dir.path().join(".audiobook_boss_write_test");
+        std::fs::write(&existing, b"existing library file").expect("existing file");
+        let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(1));
+        for extension in ["m4b", "m4a", "mp3"] {
+            let output = temp_dir.path().join(format!("output.{extension}"));
+            let registered = register_job_and_validate_output(
+                &registry,
+                &output,
+                None,
+                log_context(),
+                AudioHandling::Preserve,
+            )
+            .await
+            .expect("preserve extension should be accepted");
+            registry.complete_job(registered.job_id).await;
+        }
+        assert_eq!(
+            std::fs::read(existing).expect("read untouched library file"),
+            b"existing library file"
+        );
+    }
+}
+
+impl ProcessingJobLifecycleLog {
+    fn start(identity: ProcessingJobLogIdentity) -> Self {
+        log::info!(
+            "{}",
+            format_processing_job_record(
+                &identity,
+                ProcessingJobLogEvent::Started,
+                ProcessingJobLogStatus::Running,
+                None,
+            )
+        );
+        Self {
+            identity,
+            started_at: Instant::now(),
+        }
+    }
+
+    fn log_terminal(&self, status: ProcessingJobLogStatus<'_>) {
+        let record = format_processing_job_record(
+            &self.identity,
+            ProcessingJobLogEvent::Terminal,
+            status,
+            Some(self.started_at.elapsed().as_millis()),
+        );
+        match status {
+            ProcessingJobLogStatus::Running | ProcessingJobLogStatus::Success => {
+                log::info!("{record}");
+            }
+            ProcessingJobLogStatus::Cancelled => log::warn!("{record}"),
+            ProcessingJobLogStatus::Failed(_) => log::error!("{record}"),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ProcessingJobLogEvent {
+    Started,
+    Terminal,
+}
+
+#[derive(Clone, Copy)]
+enum ProcessingJobLogStatus<'a> {
+    Running,
+    Success,
+    Cancelled,
+    Failed(&'a AppErrorEnvelope),
+}
+
+fn format_processing_job_record(
+    identity: &ProcessingJobLogIdentity,
+    event: ProcessingJobLogEvent,
+    status: ProcessingJobLogStatus<'_>,
+    elapsed_ms: Option<u128>,
+) -> String {
+    let operation_id = identity.operation_id.as_deref().unwrap_or("foreground");
+    let mut record = format!(
+        "processing_job event={} operation_id={} job_id={} input_index={} kind={} status={}",
+        processing_job_event_label(event),
+        operation_id,
+        identity.job_id,
+        identity.input_index,
+        crate::processing::operation_kind_log_label(identity.operation_kind),
+        processing_job_status_label(status),
+    );
+    if let Some(elapsed_ms) = elapsed_ms {
+        record.push_str(&format!(" elapsed_ms={elapsed_ms}"));
+    }
+    if let ProcessingJobLogStatus::Failed(failure) = status {
+        record.push_str(&format!(
+            " code={} category={}",
+            failure.code.log_label(),
+            failure.category.log_label(),
+        ));
+    }
+    record
+}
+
+fn processing_job_event_label(event: ProcessingJobLogEvent) -> &'static str {
+    match event {
+        ProcessingJobLogEvent::Started => "started",
+        ProcessingJobLogEvent::Terminal => "terminal",
+    }
+}
+
+fn processing_job_status_label(status: ProcessingJobLogStatus<'_>) -> &'static str {
+    match status {
+        ProcessingJobLogStatus::Running => "running",
+        ProcessingJobLogStatus::Success => "success",
+        ProcessingJobLogStatus::Cancelled => "cancelled",
+        ProcessingJobLogStatus::Failed(_) => "failed",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::errors::{AppErrorCategory, AppErrorCode};
+
+    fn log_identity(
+        operation_id: Option<&str>,
+        job_id: &str,
+        input_index: usize,
+        operation_kind: OperationKind,
+    ) -> ProcessingJobLogIdentity {
+        ProcessingJobLogIdentity {
+            operation_id: operation_id.map(str::to_string),
+            job_id: job_id.to_string(),
+            input_index,
+            operation_kind,
+        }
+    }
+
+    #[test]
+    fn processing_job_record_format_pins_started_and_terminal_contracts() {
+        assert_eq!(
+            format_processing_job_record(
+                &log_identity(None, "job-123", 0, OperationKind::ProcessingBatch),
+                ProcessingJobLogEvent::Started,
+                ProcessingJobLogStatus::Running,
+                None,
+            ),
+            "processing_job event=started operation_id=foreground job_id=job-123 input_index=0 kind=processing_batch status=running"
+        );
+
+        assert_eq!(
+            format_processing_job_record(
+                &log_identity(
+                    Some("operation-123"),
+                    "job-456",
+                    4,
+                    OperationKind::ProcessingBatch,
+                ),
+                ProcessingJobLogEvent::Terminal,
+                ProcessingJobLogStatus::Success,
+                Some(321),
+            ),
+            "processing_job event=terminal operation_id=operation-123 job_id=job-456 input_index=4 kind=processing_batch status=success elapsed_ms=321"
+        );
+
+        assert_eq!(
+            format_processing_job_record(
+                &log_identity(
+                    Some("operation-123"),
+                    "job-789",
+                    5,
+                    OperationKind::ProcessingBatch,
+                ),
+                ProcessingJobLogEvent::Terminal,
+                ProcessingJobLogStatus::Cancelled,
+                Some(654),
+            ),
+            "processing_job event=terminal operation_id=operation-123 job_id=job-789 input_index=5 kind=processing_batch status=cancelled elapsed_ms=654"
+        );
+    }
+
+    #[test]
+    fn failed_processing_job_record_includes_stable_typed_error_fields() {
+        let failure = AppErrorEnvelope::new(
+            AppErrorCode::FfmpegError,
+            AppErrorCategory::Toolchain,
+            "path-free failure",
+            None,
+        );
+
+        let record = format_processing_job_record(
+            &log_identity(
+                Some("operation-123"),
+                "job-456",
+                2,
+                OperationKind::ProcessingBatch,
+            ),
+            ProcessingJobLogEvent::Terminal,
+            ProcessingJobLogStatus::Failed(&failure),
+            Some(987),
+        );
+
+        assert_eq!(
+            record,
+            "processing_job event=terminal operation_id=operation-123 job_id=job-456 input_index=2 kind=processing_batch status=failed elapsed_ms=987 code=ffmpeg_error category=toolchain"
+        );
+        assert!(!record.contains(&failure.message));
+    }
+}

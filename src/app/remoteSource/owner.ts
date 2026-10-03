@@ -1,14 +1,7 @@
-import { createSignal, type Accessor } from 'solid-js';
+import { createSignal, onCleanup, type Accessor } from 'solid-js';
 import type { AcquisitionLane } from '../../types/appSettings';
-import type { AudioFile, SupplementalProcessingAsset } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import type { RemoteRelease } from '../../types/remoteSource';
-import {
-	releaseKey,
-	toggledRemoteTitleSelection,
-	toggledSupplementalPdfPreference,
-} from './selection';
-import type { InputOwner } from '../inputSession';
 import {
 	createCoverArtPreviewScheduler,
 	type CoverArtPreviewState,
@@ -17,11 +10,8 @@ import {
 	createIndexerConnectionSettings,
 	type IndexerConnectionSettingsView,
 } from './indexerConnection';
-import {
-	makeProductionIndexerConnectionServices,
-	makeProductionRemoteSourceServices,
-} from './services';
-import { createRemoteSourceSessionAssets, type CompanionAssetSummary } from './sessionAssets';
+import { makeProductionRemoteSourceServices } from './services';
+import type { EngineLink } from '../engineLink';
 import { createRemoteSourceStateStore } from './state';
 import type { RemoteSourceView } from './types';
 import {
@@ -30,7 +20,15 @@ import {
 	type RemoteSourceWorkflowServices,
 } from './workflow';
 
-type InputId = string | undefined;
+/** What the Acquire view asks for: an engine intent, or one of the workflow's
+ * own account and library reads. */
+export type RemoteSourceAction =
+	| Exclude<RemoteSourceWorkflowAction, { type: 'enterLane' | 'refreshAccount' }>
+	| { readonly type: 'searchReleases' }
+	| { readonly type: 'grabSelectedReleases' }
+	| { readonly type: 'grabRelease'; readonly release: Pick<RemoteRelease, 'guid' | 'indexerId'> }
+	| { readonly type: 'acquireSelected' }
+	| { readonly type: 'cancelActiveAcquisition' };
 
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
@@ -60,22 +58,10 @@ export type RemoteSourceOwner = {
 		release: Pick<RemoteRelease, 'guid' | 'indexerId'>,
 		options?: { multi: boolean },
 	): void;
-	runAction(
-		action: Exclude<RemoteSourceWorkflowAction, { type: 'enterLane' | 'refreshAccount' }>,
-	): Promise<void>;
+	runAction(action: RemoteSourceAction): Promise<void>;
 	coverPreview(coverUrl: string | null | undefined): CoverArtPreviewState;
 	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
 	cancelCoverPreviews(): void;
-	companionSummary(inputIds: readonly InputId[]): CompanionAssetSummary;
-	hasCompanions(inputId: InputId): boolean;
-	processingAssets(
-		inputIds: readonly InputId[],
-	): Record<string, SupplementalProcessingAsset[]> | undefined;
-	withSubmissionRetention<T>(inputIds: readonly InputId[], submit: () => Promise<T>): Promise<T>;
-	settleTerminalWork(input: {
-		readonly inputIds: readonly string[];
-		readonly completedInputIds: readonly string[];
-	}): Promise<void>;
 	loadIndexerConnectionSettings(): Promise<void>;
 	patchIndexerConnectionSettings(
 		patch: Partial<
@@ -84,63 +70,67 @@ export type RemoteSourceOwner = {
 	): void;
 	saveIndexerConnectionSettings(): Promise<void>;
 	testIndexerConnection(): Promise<void>;
-	reconcileWithInput(files: ReadonlyArray<AudioFile>): Promise<void>;
 	reset(): void;
 };
 
 export type RemoteSourceOwnerDeps = {
-	readonly input: InputOwner;
+	readonly link: EngineLink;
 	readonly services?: RemoteSourceWorkflowServices;
 	readonly loadCoverArtFromUrl?: (url: string) => Promise<number[]>;
 };
 
 export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSourceOwner {
-	let snapshot: RemoteSourceView;
 	const [viewRev, bumpView] = createSignal(0, { ownedWrite: true });
-	const [assetRev, bumpAssets] = createSignal(0, { ownedWrite: true });
 	const [previewRev, bumpPreviews] = createSignal(0, { ownedWrite: true });
-	const state = createRemoteSourceStateStore(() => {
-		snapshot = state.snapshot();
-		bumpView((revision) => revision + 1);
-	});
-	snapshot = state.snapshot();
-	const indexerConnection = createIndexerConnectionSettings({
-		services: makeProductionIndexerConnectionServices,
-	});
+	const state = createRemoteSourceStateStore(
+		() => bumpView((revision) => revision + 1),
+		() => deps.link.remote(),
+	);
+	const indexerConnection = createIndexerConnectionSettings(deps.link);
 
-	const services =
-		deps.services ??
-		makeProductionRemoteSourceServices({
-			inputView: () => deps.input.view(),
-			importPaths: (paths) => deps.input.importIntent({ type: 'importPaths', paths }),
-		});
-	const assets = createRemoteSourceSessionAssets({
-		purgeSession: services.purgeSession,
-		onChange: () => bumpAssets((revision) => revision + 1),
-	});
+	const services = deps.services ?? makeProductionRemoteSourceServices();
 	const previews = createCoverArtPreviewScheduler({
 		load: deps.loadCoverArtFromUrl ?? tauriClient.loadCoverArtFromUrl,
 		onChange: () => bumpPreviews((revision) => revision + 1),
 		failureLogMessage: 'Failed to load remote source cover preview:',
 	});
-	const workflow = createRemoteSourceWorkflow({
-		services,
-		state,
-		registerSupplementalAssets: assets.register,
+	let generation = 0;
+	let disposed = false;
+	onCleanup(() => {
+		disposed = true;
+		generation += 1;
 	});
+	const workflow = createRemoteSourceWorkflow({ services, state });
 
 	return {
 		view: () => {
 			viewRev();
-			return snapshot;
+			return state.snapshot();
 		},
 		indexerConnection: indexerConnection.view,
 		async open(options) {
+			const started = generation;
 			state.patch({ isOpen: true });
-			await workflow.run({ type: 'enterLane', lane: options?.lane ?? 'audible' });
+			const lane = options?.lane ?? deps.link.remote().lane;
+			try {
+				await deps.link.send({ kind: 'remote', intent: { kind: 'selectLane', lane } });
+				if (disposed || started !== generation) return;
+				await workflow.run({ type: 'enterLane', lane });
+			} catch (error) {
+				if (!disposed && started === generation)
+					state.setAcquisitionError(error, 'Could not open Remote Source.', lane);
+			}
 		},
-		selectLane(lane) {
-			return workflow.run({ type: 'enterLane', lane });
+		async selectLane(lane) {
+			const started = generation;
+			try {
+				await deps.link.send({ kind: 'remote', intent: { kind: 'selectLane', lane } });
+				if (disposed || started !== generation) return;
+				await workflow.run({ type: 'enterLane', lane });
+			} catch (error) {
+				if (!disposed && started === generation)
+					state.setAcquisitionError(error, 'Could not change Remote Source.', lane);
+			}
 		},
 		close() {
 			state.patch({ isOpen: false });
@@ -149,58 +139,62 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			state.patch(patch);
 		},
 		toggleTitle(titleId) {
-			const current = state.current();
-			const title = current.titles.find((item) => item.titleId === titleId);
-			if (title)
-				state.patch({
-					selectedTitleIds: toggledRemoteTitleSelection(current.selectedTitleIds, title),
-				});
+			deps.link.post({ kind: 'remote', intent: { kind: 'toggleTitle', titleId } });
 		},
 		clearTitleSelection() {
-			state.patch({ selectedTitleIds: new Set() });
+			deps.link.post({ kind: 'remote', intent: { kind: 'clearTitles' } });
 		},
 		toggleSupplementalPdf(titleId) {
-			const current = state.current();
-			if (
-				current.titles.some((title) => title.titleId === titleId && title.supplementalPdfAvailable)
-			) {
-				state.patch({
-					includePdfByTitleId: toggledSupplementalPdfPreference(
-						current.includePdfByTitleId,
-						titleId,
-					),
-				});
-			}
+			deps.link.post({ kind: 'remote', intent: { kind: 'togglePdf', titleId } });
 		},
 		selectRelease(identity, options) {
-			const current = state.current();
-			const key = releaseKey(identity);
-			if (!current.releases.some((release) => releaseKey(release) === key)) return;
-			const selected = options?.multi ? new Set(current.selectedReleaseKeys) : new Set<string>();
-			if (options?.multi && selected.has(key)) selected.delete(key);
-			else selected.add(key);
-			state.patch({ selectedReleaseKeys: selected });
+			deps.link.post({
+				kind: 'remote',
+				intent: {
+					kind: 'selectRelease',
+					indexerId: identity.indexerId,
+					guid: identity.guid,
+					multi: options?.multi ?? false,
+				},
+			});
 		},
 		async runAction(action) {
-			if (
-				indexerConnection.isSaving() &&
-				(action.type === 'searchReleases' ||
-					action.type === 'grabRelease' ||
-					action.type === 'grabSelectedReleases')
-			) {
-				state.patch(
-					{
-						statusMessage:
-							'Wait for the Indexer connection save to finish before searching or grabbing.',
-					},
-					'indexer',
-				);
-				return;
-			}
+			const providerId = state.current().providerId;
+			state.clearError(providerId);
 			try {
-				await workflow.run(action);
+				if (action.type === 'searchReleases') {
+					const view = state.current();
+					await deps.link.send({
+						kind: 'remote',
+						intent: {
+							kind: 'searchReleases',
+							author: view.indexerAuthorQuery,
+							title: view.indexerTitleQuery,
+						},
+					});
+				} else if (action.type === 'grabSelectedReleases') {
+					await deps.link.send({ kind: 'remote', intent: { kind: 'grabSelected' } });
+				} else if (action.type === 'grabRelease') {
+					await deps.link.send({
+						kind: 'remote',
+						intent: {
+							kind: 'grabRelease',
+							indexerId: action.release.indexerId,
+							guid: action.release.guid,
+						},
+					});
+				} else if (action.type === 'acquireSelected') {
+					await deps.link.send({ kind: 'remote', intent: { kind: 'acquireSelected' } });
+				} else if (action.type === 'cancelActiveAcquisition') {
+					const job = deps.link.remote().acquisition;
+					if (job)
+						await deps.link.send({
+							kind: 'remote',
+							intent: { kind: 'cancelAcquisition', jobId: job.jobId },
+						});
+				} else await workflow.run(action);
 			} catch (error) {
-				console.error('Remote source workflow failed:', error);
+				state.setAcquisitionError(error, 'Remote source request failed.', providerId);
 			}
 		},
 		coverPreview(coverUrl) {
@@ -213,23 +207,6 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		cancelCoverPreviews() {
 			previews.cancel();
 		},
-		companionSummary(inputIds) {
-			assetRev();
-			return assets.companionSummary(inputIds);
-		},
-		hasCompanions(inputId) {
-			assetRev();
-			return assets.hasCompanions(inputId);
-		},
-		processingAssets(inputIds) {
-			return assets.processingAssets(inputIds);
-		},
-		withSubmissionRetention(inputIds, submit) {
-			return assets.withSubmissionRetention(inputIds, submit);
-		},
-		settleTerminalWork(input) {
-			return assets.settleTerminalWork(input);
-		},
 		loadIndexerConnectionSettings() {
 			return indexerConnection.load();
 		},
@@ -238,19 +215,14 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		},
 		async saveIndexerConnectionSettings() {
 			if (indexerConnection.isSaving()) return;
-			if (state.current().isGrabbing) {
-				await indexerConnection.save(
-					'Wait for the current Grab batch to finish before saving the Indexer connection.',
-				);
-				return;
-			}
-			workflow.clearIndexerResults();
+
 			const saved = await indexerConnection.save();
-			if (saved)
+			if (saved) {
 				state.patch(
 					{ statusMessage: 'Indexer connection saved. Search again before grabbing.' },
 					'indexer',
 				);
+			}
 			if (saved && state.current().isOpen && state.current().providerId === 'indexer') {
 				await workflow.run({ type: 'refreshAccount' });
 			}
@@ -258,13 +230,10 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		testIndexerConnection() {
 			return indexerConnection.testConnection();
 		},
-		reconcileWithInput(files) {
-			return assets.reconcileInput(files);
-		},
 		reset() {
+			generation += 1;
 			workflow.invalidate();
 			previews.clear();
-			assets.reset();
 			indexerConnection.reset();
 			state.reset();
 		},

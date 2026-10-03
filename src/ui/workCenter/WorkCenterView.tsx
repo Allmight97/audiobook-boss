@@ -85,8 +85,38 @@ function summaryText(operation: OperationSnapshot): string {
 	return operation.progress.message;
 }
 
+/** Why a title failed, or what to know about a finished one: a companion
+ * warning and the latest tag edit's outcome both show. */
+function childReason(child: ChildJobSnapshot): string | null {
+	if (child.status === 'failed') return child.message ?? null;
+	const notes = [child.supplementalWarning, outputUpdateText(child)].filter(Boolean);
+	return notes.length > 0 ? notes.join(' ') : null;
+}
+
+/** How a Save's edit to this title's output went, when there was one. */
+function outputUpdateText(child: ChildJobSnapshot): string | null {
+	const status = child.outputUpdate?.status;
+	switch (status?.kind) {
+		case 'waiting':
+			return 'Tag edit waiting to be written.';
+		case 'applied':
+			return 'Tags updated.';
+		case 'failed':
+			return `Tags not updated: ${status.message}`;
+		default:
+			return null;
+	}
+}
+
 export function WorkCenterView(): JSX.Element {
-	const workOperations = useAppRuntime().workOperations;
+	const runtime = useAppRuntime();
+	const workOperations = runtime.workOperations;
+	const offerFor = (operation: OperationSnapshot, child: ChildJobSnapshot) =>
+		runtime.processing
+			.restartOffers()
+			.find(
+				(offer) => offer.operationId === operation.operationId && offer.titleId === child.inputId,
+			);
 	const view = workOperations.view;
 
 	return (
@@ -193,6 +223,28 @@ export function WorkCenterView(): JSX.Element {
 																Cancel
 															</button>
 														</Show>
+														<Show when={offerFor(operation, child)}>
+															{(offer) => (
+																<>
+																	<button
+																		class="work-child-action"
+																		type="button"
+																		title={`Restart at ${offer().to}`}
+																		onClick={() => void runtime.processing.restart(offer())}
+																	>
+																		Restart
+																	</button>
+																	<button
+																		class="work-child-action"
+																		type="button"
+																		title={`Keep ${offer().from} and apply the latest tags`}
+																		onClick={() => void runtime.processing.keepLocation(offer())}
+																	>
+																		Keep Location
+																	</button>
+																</>
+															)}
+														</Show>
 														<Show when={child.status === 'completed' && child.outputPath}>
 															<button
 																class="work-child-action"
@@ -204,11 +256,7 @@ export function WorkCenterView(): JSX.Element {
 															</button>
 														</Show>
 													</div>
-													<Show
-														when={
-															child.status === 'failed' ? child.message : child.supplementalWarning
-														}
-													>
+													<Show when={childReason(child)}>
 														{(reason) => (
 															<div class="work-child-reason" title={reason()}>
 																{reason()}

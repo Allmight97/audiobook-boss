@@ -1,7 +1,13 @@
-import type { AudiobookMetadata } from '../../types/metadata';
+import type {
+	FieldAction,
+	MetadataField,
+	MetadataFormSnapshot,
+	SeriesPartWarning,
+	SubseriesPartWarning,
+} from '../../types/session';
 
 type MetadataFormMode = 'single' | 'multi';
-export type MetadataFieldAction = 'keep' | 'blank';
+export type MetadataFieldAction = FieldAction;
 export type MetadataFieldId =
 	| 'meta-title'
 	| 'meta-author'
@@ -13,44 +19,34 @@ export type MetadataFieldId =
 	| 'meta-subseries'
 	| 'meta-subseries-part'
 	| 'meta-description';
-type MetadataActionId =
-	| 'meta-title-action'
-	| 'meta-author-action'
-	| 'meta-narrator-action'
-	| 'meta-year-action'
-	| 'meta-genre-action'
-	| 'meta-series-action'
-	| 'meta-series-part-action'
-	| 'meta-subseries-action'
-	| 'meta-subseries-part-action'
-	| 'meta-description-action';
+type MetadataActionId = `${MetadataFieldId}-action`;
 
 type MetadataFieldDefinition = {
 	readonly inputId: MetadataFieldId;
 	readonly actionId: MetadataActionId;
-	readonly key: keyof AudiobookMetadata;
+	/** The engine's name for this field. */
+	readonly field: MetadataField;
 	readonly placeholder: string;
 	readonly label: string;
 	readonly span: 1 | 2 | 3 | 4;
 	readonly kind: 'input' | 'textarea';
-	readonly mapToAlbum?: boolean;
 };
 
+/** How each engine field is laid out and labelled in the form. */
 export const METADATA_FIELD_DEFINITIONS = [
 	{
 		inputId: 'meta-title',
 		actionId: 'meta-title-action',
-		key: 'title',
+		field: 'title',
 		placeholder: 'Book title',
 		label: 'Book Title',
 		span: 3,
 		kind: 'input',
-		mapToAlbum: true,
 	},
 	{
 		inputId: 'meta-year',
 		actionId: 'meta-year-action',
-		key: 'date',
+		field: 'date',
 		placeholder: 'YYYY or YYYY-MM',
 		label: 'Publication Date',
 		span: 1,
@@ -59,7 +55,7 @@ export const METADATA_FIELD_DEFINITIONS = [
 	{
 		inputId: 'meta-author',
 		actionId: 'meta-author-action',
-		key: 'artist',
+		field: 'author',
 		placeholder: 'Author',
 		label: 'Author',
 		span: 2,
@@ -68,7 +64,7 @@ export const METADATA_FIELD_DEFINITIONS = [
 	{
 		inputId: 'meta-narrator',
 		actionId: 'meta-narrator-action',
-		key: 'composer',
+		field: 'narrator',
 		placeholder: 'Narrator',
 		label: 'Narrator',
 		span: 2,
@@ -77,7 +73,7 @@ export const METADATA_FIELD_DEFINITIONS = [
 	{
 		inputId: 'meta-series',
 		actionId: 'meta-series-action',
-		key: 'series',
+		field: 'series',
 		placeholder: 'Series name',
 		label: 'Series',
 		span: 2,
@@ -86,7 +82,7 @@ export const METADATA_FIELD_DEFINITIONS = [
 	{
 		inputId: 'meta-series-part',
 		actionId: 'meta-series-part-action',
-		key: 'series_part',
+		field: 'seriesPart',
 		placeholder: '#',
 		label: 'Book #',
 		span: 1,
@@ -95,7 +91,7 @@ export const METADATA_FIELD_DEFINITIONS = [
 	{
 		inputId: 'meta-subseries',
 		actionId: 'meta-subseries-action',
-		key: 'subseries',
+		field: 'subseries',
 		placeholder: 'Sub-series name',
 		label: 'Sub-series',
 		span: 2,
@@ -104,7 +100,7 @@ export const METADATA_FIELD_DEFINITIONS = [
 	{
 		inputId: 'meta-subseries-part',
 		actionId: 'meta-subseries-part-action',
-		key: 'subseries_part',
+		field: 'subseriesPart',
 		placeholder: '#',
 		label: 'Sub-series #',
 		span: 1,
@@ -113,7 +109,7 @@ export const METADATA_FIELD_DEFINITIONS = [
 	{
 		inputId: 'meta-genre',
 		actionId: 'meta-genre-action',
-		key: 'genre',
+		field: 'genre',
 		placeholder: 'Genre',
 		label: 'Genre',
 		span: 1,
@@ -122,7 +118,7 @@ export const METADATA_FIELD_DEFINITIONS = [
 	{
 		inputId: 'meta-description',
 		actionId: 'meta-description-action',
-		key: 'description',
+		field: 'description',
 		placeholder: 'Description',
 		label: 'Description',
 		span: 4,
@@ -136,8 +132,6 @@ type MetadataFieldState = {
 	readonly dirty: boolean;
 	readonly mixed: boolean;
 	readonly placeholder: string;
-	/** Value shown when the selection was hydrated; Keep restores it. */
-	readonly hydrated: { readonly value: string; readonly mixed: boolean };
 };
 
 type MetadataWarningState = {
@@ -153,62 +147,76 @@ export type MetadataFormState = {
 	readonly subseriesPartWarning: MetadataWarningState;
 };
 
-const EMPTY_WARNING_STATE: MetadataWarningState = {
-	message: '',
-	visible: false,
-};
+const NO_WARNING: MetadataWarningState = { message: '', visible: false };
 
-function createEmptyFieldState(definition: MetadataFieldDefinition): MetadataFieldState {
-	return {
-		value: '',
-		action: 'keep',
-		dirty: false,
-		mixed: false,
-		placeholder: definition.placeholder,
-		hydrated: { value: '', mixed: false },
-	};
+function seriesPartWarningText(warning: SeriesPartWarning | null): MetadataWarningState {
+	switch (warning?.kind) {
+		case undefined:
+			return NO_WARNING;
+		case 'invalid':
+			return { message: warning.message, visible: true };
+		case 'matchesSubseriesPart':
+			return {
+				message:
+					'Book # matches sub-series #. Keep them aligned only when both series use the same sequence.',
+				visible: true,
+			};
+		case 'missingBookNumber':
+			return {
+				message: 'Series detected - add Book # (series sequence) for ABS ordering.',
+				visible: true,
+			};
+	}
 }
 
-function createEmptyFieldsState(): Record<MetadataFieldId, MetadataFieldState> {
+function subseriesPartWarningText(warning: SubseriesPartWarning | null): MetadataWarningState {
+	switch (warning?.kind) {
+		case undefined:
+			return NO_WARNING;
+		case 'invalid':
+			return { message: warning.message, visible: true };
+		case 'missingNumber':
+			return {
+				message: 'Sub-series detected - add sub-series # (series sequence) for ABS ordering.',
+				visible: true,
+			};
+	}
+}
+
+/**
+ * The form as the views render it. `typed` holds text the user has entered
+ * that the engine has not confirmed yet; it shows in place of the engine's
+ * value so typing never lags.
+ */
+export function toFormState(
+	snapshot: MetadataFormSnapshot,
+	typed: ReadonlyMap<MetadataField, string>,
+): MetadataFormState {
 	const fields = {} as Record<MetadataFieldId, MetadataFieldState>;
 	for (const definition of METADATA_FIELD_DEFINITIONS) {
-		fields[definition.inputId] = createEmptyFieldState(definition);
+		const reported = snapshot.fields.find((field) => field.field === definition.field);
+		const pending = typed.get(definition.field);
+		fields[definition.inputId] = {
+			value: pending ?? reported?.value ?? '',
+			action: reported?.action ?? 'keep',
+			dirty: pending !== undefined || (reported?.dirty ?? false),
+			mixed: pending === undefined && (reported?.mixed ?? false),
+			placeholder: definition.placeholder,
+		};
 	}
-	return fields;
-}
-
-export function createEmptyFormState(): MetadataFormState {
 	return {
-		mode: 'single',
-		selectionCount: 0,
-		fields: createEmptyFieldsState(),
-		seriesPartWarning: EMPTY_WARNING_STATE,
-		subseriesPartWarning: EMPTY_WARNING_STATE,
+		mode: snapshot.mode,
+		selectionCount: snapshot.selectionCount,
+		fields,
+		seriesPartWarning: seriesPartWarningText(snapshot.seriesPartWarning),
+		subseriesPartWarning: subseriesPartWarningText(snapshot.subseriesPartWarning),
 	};
 }
 
-export function getMetadataFieldDefinitionByInputId(
-	inputId: string,
-): MetadataFieldDefinition | undefined {
-	return METADATA_FIELD_DEFINITIONS.find((definition) => definition.inputId === inputId);
+export function fieldForInputId(inputId: string): MetadataField | undefined {
+	return METADATA_FIELD_DEFINITIONS.find((definition) => definition.inputId === inputId)?.field;
 }
 
-export function getMetadataFieldDefinitionByActionId(
-	actionId: string,
-): MetadataFieldDefinition | undefined {
-	return METADATA_FIELD_DEFINITIONS.find((definition) => definition.actionId === actionId);
-}
-
-export function replaceField(
-	form: MetadataFormState,
-	inputId: MetadataFieldId,
-	patch: Partial<MetadataFieldState>,
-): MetadataFormState {
-	return {
-		...form,
-		fields: {
-			...form.fields,
-			[inputId]: { ...form.fields[inputId], ...patch },
-		},
-	};
+export function fieldForActionId(actionId: string): MetadataField | undefined {
+	return METADATA_FIELD_DEFINITIONS.find((definition) => definition.actionId === actionId)?.field;
 }

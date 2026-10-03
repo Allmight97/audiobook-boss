@@ -1,18 +1,11 @@
-import type { AcquisitionLane } from '../../types/appSettings';
-import type { AudioFile } from '../../types/audio';
 import type {
+	AcquisitionJob,
 	ProviderId,
 	RemoteRelease,
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
 	RemoteTitle,
 } from '../../types/remoteSource';
-import type { AcquisitionJobWithProgress } from './display';
-
-export type RemoteInputHandoffResult =
-	| { readonly status: 'imported'; readonly files: readonly AudioFile[] }
-	| { readonly status: 'blocked'; readonly message: string }
-	| { readonly status: 'failed'; readonly message: string };
 
 export type ReleaseGrabState = {
 	status: 'queued' | 'sending' | 'sent' | 'error';
@@ -39,8 +32,7 @@ export type AcquisitionState = {
 	selectedReleaseKeys: Set<string>;
 	releaseGrabs: Record<string, ReleaseGrabState>;
 	statusMessage: string;
-	activeJob: AcquisitionJobWithProgress | null;
-	lastJob: AcquisitionJobWithProgress | null;
+	activeJob: AcquisitionJob | null;
 };
 
 export type RemoteSourceState = Omit<AcquisitionState, 'statusMessage'> & {
@@ -57,46 +49,34 @@ export type RemoteSourceView = Omit<
 	statusMessage: string;
 };
 
-export type RemoteSourcePatch = Partial<RemoteSourceState> & { statusMessage?: string };
-
-export function providerIdFromLane(lane: AcquisitionLane): ProviderId {
-	return lane;
-}
-
-export function createInitialAcquisitionState(): AcquisitionState {
+type EngineFields =
+	| 'selectedTitleIds'
+	| 'includePdfByTitleId'
+	| 'releases'
+	| 'selectedReleaseKeys'
+	| 'releaseGrabs'
+	| 'isGrabbing'
+	| 'isAcquiring'
+	| 'activeJob';
+export type RemoteSourceLocalState = Omit<RemoteSourceState, EngineFields>;
+export type RemoteSourcePatch = Partial<RemoteSourceLocalState> & { statusMessage?: string };
+export function createInitialRemoteSourceState(): RemoteSourceLocalState {
 	return {
 		isBusy: false,
 		providerId: 'audible',
 		providers: [],
 		accountState: null,
 		titles: [],
-		selectedTitleIds: new Set(),
-		includePdfByTitleId: {},
 		titleFilter: '',
 		showSupplementalPdfOnly: false,
 		hideUnavailableTitles: false,
 		handoffPath: '',
 		indexerAuthorQuery: '',
 		indexerTitleQuery: '',
-		releases: [],
 		releaseFilter: '',
 		releaseSort: 'seeders',
-		selectedReleaseKeys: new Set(),
-		releaseGrabs: {},
-		statusMessage: '',
-		activeJob: null,
-		lastJob: null,
-	};
-}
-
-export function createInitialRemoteSourceState(): RemoteSourceState {
-	const { statusMessage, ...initial } = createInitialAcquisitionState();
-	return {
-		...initial,
 		isOpen: false,
-		isGrabbing: false,
-		isAcquiring: false,
-		statusByProvider: { audible: statusMessage, indexer: '' },
+		statusByProvider: { audible: '', indexer: '' },
 	};
 }
 
@@ -118,17 +98,12 @@ export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourc
 
 export function laneSelectionResetPatch(): Partial<AcquisitionState> {
 	return {
-		selectedTitleIds: new Set(),
-		includePdfByTitleId: {},
 		titleFilter: '',
 		showSupplementalPdfOnly: false,
 		hideUnavailableTitles: false,
 		indexerAuthorQuery: '',
 		indexerTitleQuery: '',
-		releases: [],
 		releaseFilter: '',
 		releaseSort: 'seeders',
-		selectedReleaseKeys: new Set(),
-		releaseGrabs: {},
 	};
 }

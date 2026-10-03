@@ -18,9 +18,10 @@ the writer, reader, and player behavior actually verified.
   ABB's naming owner and external scanner documentation.
 
 Repository paths in these references are relative to the ABB root. Metadata
-intent, validation, write planning, and runtime adaptation stay under
-`src-tauri/src/metadata/AGENTS.md` and `src/lib/tauri/AGENTS.md`. Output path
-policy stays under `src-tauri/src/output_artifact/AGENTS.md`.
+intent, validation, and write planning stay under
+`crates/abb-engine/src/metadata/AGENTS.md`; the session builds intent from
+field edits (`crates/abb-engine/src/session/AGENTS.md`, Edit intent). Output path
+policy stays under `crates/abb-engine/src/output_artifact/AGENTS.md`.
 
 ## Verify The Changed Handoff
 

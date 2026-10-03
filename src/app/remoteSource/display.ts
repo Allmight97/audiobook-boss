@@ -1,21 +1,30 @@
+import { toUserMessage } from '../../lib/tauri/appError';
 import type { AcquisitionJob, AcquisitionProgress, RemoteTitle } from '../../types/remoteSource';
-
-export type AcquisitionJobWithProgress = AcquisitionJob & {
-	progress?: AcquisitionProgress;
-};
 
 export type RemoteSourceDiagnostic = AcquisitionJob['diagnostics'][number];
 
-export const acquisitionPollDelayMs = 100;
+const STAGED_FILES_REMOVED_SUFFIX = 'Staged remote files were removed.';
 
-export function isAcquisitionTerminal(job: AcquisitionJobWithProgress): boolean {
-	return (
-		job.progress?.terminal === true ||
-		job.status === 'failed' ||
-		job.status === 'cancelled' ||
-		job.status === 'validated' ||
-		job.status === 'importedToFileList'
-	);
+/** Words how a settled job's files reached the session; `null` when it never got that far. */
+export function handoffMessage(job: AcquisitionJob): string | null {
+	const handoff = job.handoff;
+	if (!handoff) {
+		if (job.status === 'failed' || job.status === 'cancelled') return null;
+		return (
+			uniqueDiagnosticMessage(job.diagnostics) ||
+			'Audible acquisition did not materialize an importable file.'
+		);
+	}
+	if (handoff.kind === 'imported') {
+		return `${handoff.count} acquired title${handoff.count === 1 ? '' : 's'} imported.`;
+	}
+	const reason = handoff.reason;
+	switch (reason.kind) {
+		case 'importFailed':
+			return `${toUserMessage(reason.error)} ${STAGED_FILES_REMOVED_SUFFIX}`;
+		case 'nothingAdded':
+			return `Acquired titles were not added to the input session. ${STAGED_FILES_REMOVED_SUFFIX}`;
+	}
 }
 
 export function uniqueDiagnosticMessage(diagnostics: RemoteSourceDiagnostic[]): string {
@@ -30,23 +39,15 @@ export function uniqueDiagnosticMessage(diagnostics: RemoteSourceDiagnostic[]): 
 	return uniqueMessages.join(' ');
 }
 
-export function statusFromAcquisitionJob(job: AcquisitionJobWithProgress): string {
+export function statusFromAcquisitionJob(job: AcquisitionJob): string {
 	const diagnostics = uniqueDiagnosticMessage(job.diagnostics);
 	if (job.progress?.terminal && diagnostics) return diagnostics;
 	if (job.progress?.message) return job.progress.message;
 	return diagnostics || 'Audible acquisition is running.';
 }
 
-export function progressPercent(job: AcquisitionJobWithProgress): number {
+export function progressPercent(job: AcquisitionJob): number {
 	return Math.max(0, Math.min(100, job.progress?.percentage ?? 0));
-}
-
-export function withClearedHandoffJob(job: AcquisitionJobWithProgress): AcquisitionJobWithProgress {
-	return {
-		...job,
-		materializedFiles: [],
-		supplementalAssets: [],
-	};
 }
 
 export function formatReleaseSizeBytes(sizeBytes: number): string {

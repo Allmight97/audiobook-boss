@@ -28,7 +28,6 @@ export function FileListView(props: {
 }): JSX.Element {
 	const runtime = useAppRuntime();
 	const input = runtime.input;
-	const remoteSource = runtime.remoteSource;
 	const metadataView = runtime.metadata.view;
 	const view = input.view;
 	const capability = input.capability;
@@ -313,7 +312,7 @@ export function FileListView(props: {
 														<span class="title-source-count">{sources().length} files</span>
 													</Show>
 												</button>
-												{sources().some((source) => remoteSource.hasCompanions(source.inputId)) ? (
+												{sources().some((source) => input.hasCompanions(source.inputId)) ? (
 													<span class="companion-chip" title="Supplemental PDF attached">
 														PDF
 													</span>
@@ -429,7 +428,7 @@ export function FileListView(props: {
 											disabled={view().orderLocked}
 											onClick={(event) => {
 												event.stopPropagation();
-												void removeFile(index());
+												void removeFile(file);
 											}}
 										>
 											×

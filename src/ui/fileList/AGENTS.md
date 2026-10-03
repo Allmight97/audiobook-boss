@@ -18,13 +18,11 @@
 `AudioHandlingControl` owns its transient hover/focus disclosure, pointer
 travel grace, outside dismissal, and Escape cleanup. Its portal overlays the
 list without changing row height. Hover/focus opens its audio-plan dialog; click
-pins it. The dialog calls the shared Rust planner and ignores stale results. Its cache
-key includes Encoding’s capability revision; rechecks clear successful plans
-and estimates even for unchanged title requests, without querying closed rows.
+pins it. The dialog shows the plan the engine resolved for the title
+(`Encoding.plan`): pending, resolved, failed with a reason, or needing a choice.
 Settings, per-title and selected-title controls reuse EncoderView.
-The title row reads Output Plan's per-title size estimate beside its audio
-summary. Default waits for the existing backend title preview; unknown
-plans stay hidden until resolved; quality-based VBR shows Output Plan’s rough estimate or “Size varies with audio”.
+The title row shows the engine's size estimate, worded by Output Plan, beside
+its audio summary; no estimate shows until the engine has one.
 `SelectedAudioSettings` owns only its toolbar editor disclosure and closes when
 selection changes or input locks. Bulk changes dispatch Encoding intents;
 Apply App Settings copies the current defaults into the explicitly targeted titles. A copied plan uses a check and
@@ -32,22 +30,21 @@ explicit copy as well as blue. Source rows expose facts and order; audio
 choices belong to the title. Locking input closes the dialog.
 Title text selects and expands/collapses sources. `TitleSources` reuses the same
 pointer reorder helper as the outer list, with a hit test scoped to that title.
-List membership, source order, and persisted audio choices remain Input truth.
+List membership, source order, and audio choices are engine truth.
 
 ## Preferred Path
 
 - `FileListView` reads Input `view` and dispatches Input Session intents.
   Row click/removal, keyboard Select all, Escape clear-highlight, and toolbar
   Clear go through awaitable `selectFile`, `removeFile`, `selectAll`,
-  `clearSelection`, and `clearAllFiles` intents so the metadata draft gate runs.
+  `clearSelection`, and `clearAllFiles` intents so the engine's draft gate
+  runs. Removal passes the row’s title identity, never its shifting position.
 - Cover thumbnails are a presentation resource, not list truth. Each
   `FileListView` owns a private thumbnail resource with its loader, reactive
   reads, bounded cache, and queue; dispose it with the view. Scheduling an
   empty list clears only that resource.
-- PDF companion chips use the runtime Remote Source owner's reactive
-  `hasCompanions` read; supplemental changes can arrive after Input publishes.
-- Remote session purge tracks Input file identity through Remote Source. Do
-  not dual-purge from this view.
+- PDF companion chips use Input's `hasCompanions`, which reads the engine's
+  titles part.
 
 ## Hard Invariants
 
@@ -60,6 +57,7 @@ List membership, source order, and persisted audio choices remain Input truth.
 ## Done Criteria
 
 - Thumbnail and pointer-reorder changes have focused Vitest coverage.
-- List mutation behavior is proved in `src/app/inputSession`.
+- List rules are proved in the engine's session tests; what the list shows
+  and sends is proved in `src/app/inputSession`.
 - Lifetime migration proves two mounted File List views cannot cancel, clear,
   or publish thumbnail state into one another.

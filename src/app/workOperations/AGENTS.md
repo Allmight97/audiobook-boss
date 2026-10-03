@@ -4,8 +4,7 @@
 
 - Owns the frontend read model for WorkRuntime operations, operation and
   title cancel (`cancel(operationId, childJobId?)`), revealing a completed
-  title's exported file (`revealOutput`), and
-  purge-tombstone retention under `src/app/workOperations/`. Only
+  title's exported file (`revealOutput`) under `src/app/workOperations/`. Only
   whole-operation cancels track pending state; title cancels are idempotent
   in the backend and appear in the returned snapshot.
 - Solid view lives in `src/ui/workCenter`. It renders this owner; it does not
@@ -14,7 +13,7 @@
 ## Public API Strip
 
 - Import `createWorkOperationsOwner` and owner/view types from
-  `src/app/workOperations`. Merge helpers and retention constants are private.
+  `src/app/workOperations`. Merge helpers are private.
 - Workbench callers that only need the composed UI strip import
   `src/ui/workCenter` instead.
 - `index.ts` is the export surface. Do not import `runtime.ts` or `model.ts`
@@ -26,8 +25,8 @@
   (`work-operation-snapshot`, `work-operation-list-snapshot`). The
   `OperationSnapshot` is the sole progress source for accepted background
   operations.
-- Do not subscribe to `processing-progress` or apply client-authored progress
-  overlays for background work.
+- WorkRuntime snapshots are the only progress source; do not apply
+  client-authored progress overlays.
 - Terminal operation status is backend-canonical through
   `abb_processing_core::classify_run_terminal`. Do not recalculate success,
   mixed, failed, skipped, or cancelled outcomes.
@@ -36,25 +35,14 @@
   after a list's membership revision and reject late resurrection of removed
   members. Terminal effects use accepted model truth. Reset invalidates pending
   responses before a new session can publish.
-- `PURGED_OPERATION_TOMBSTONE_CAP` must stay strictly larger than backend
-  `TERMINAL_OPERATIONS_CAP`. The contract test pins both sites.
-- Keep terminal Input projection and the operation-id tombstone here, then call
-  the injected Remote Source owner's `settleTerminalWork` once. Do not import
-  private Remote session files or reproduce retain/release/purge sequencing.
-- Terminal cleanup projects every child's `sourceInputIds`, including hidden
-  members of a title stack. Every terminal operation releases all its sources
-  and purges only sources of children that completed without a
-  `supplementalWarning`. Skipped titles and titles whose companion PDF was not
-  published keep their downloads until the title leaves Input, logout, or
-  relaunch cleanup.
+- What happens to staged downloads when an export ends is the engine's
+  (`crates/abb-engine/src/session/AGENTS.md`); this owner only renders.
 - Do not own processing submission, metadata staging, output-plan review, or
   provider auth.
 
 ## Testing
 
-- `retention-caps.contract.test.ts` pins the frontend tombstone against the
-  backend cap.
-- `state.test.ts` pins listener dispose, terminal purge races, and reveal
+- `state.test.ts` pins listener dispose, list/event merging, and reveal
   rejection.
 - Work Center UI strip is pinned by
   `src/ui/workCenter/__tests__/runtime-api-contract.test.ts`.
@@ -63,6 +51,4 @@
 ## Boundary Changes
 
 - Adding, removing, or renaming a public export.
-- Reintroducing `processing-progress` overlay consumption for background
-  operations.
-- Moving the purge tombstone or shrinking it to the backend cap.
+- Adding a progress source beside WorkRuntime snapshots.

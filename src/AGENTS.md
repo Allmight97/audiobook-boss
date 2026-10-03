@@ -2,25 +2,27 @@
 
 ## Routing
 
-- Application interfaces, session state, and workflow lifetime follow
-  `src/app/AGENTS.md`; read it when changing frontend session truth.
+- The Rust engine owns the working session and settings, and new product
+  rules go there; the frontend renders snapshots and sends intents. Application interfaces,
+  the engine link, and workflow lifetime follow `src/app/AGENTS.md`.
 - Runtime command/event/plugin adaptation follows `src/lib/tauri/AGENTS.md`.
   UI/runtime callers use `tauriClient`; generated invokers stay inside that
   boundary. Regenerate `src/lib/generated/tauri.ts` through the binding scripts.
 - The metadata batch save runs as a WorkRuntime operation rendered by Work
   Center; read `src/app/workOperations/AGENTS.md` when changing its display.
-- For Effect workflow or kernel changes, read `src/lib/effect/AGENTS.md`.
-- Durable preference hydration, acceptance, and persistence follow
-  `src/app/appSettings/AGENTS.md`.
-- Remote acquisition belongs to `src/app/remoteSource`; its Solid dialog is
-  under `src/ui/remoteSource`. Materialized audio enters through Input's public
-  strip. Provider secrets and raw provider payloads stay backend-only.
+- Settings acceptance and persistence belong to the engine
+  (`crates/abb-engine/src/app_settings/AGENTS.md`); the Settings dialog
+  follows `src/app/appSettings/AGENTS.md`.
+- The remote-source dialog belongs to `src/app/remoteSource` and
+  `src/ui/remoteSource`; the engine imports acquired audio into the session
+  and decides when downloads go. Provider secrets and raw provider payloads
+  stay backend-only.
 
 ## UI And State
 
-- Keep business logic in TypeScript owners; Solid views render owner state and
-  dispatch semantic intent. Capability accept/reject facts come from their
-  Rust owner, including encoder and concurrency settings.
+- Solid views render owner state and dispatch semantic intent. Capability
+  accept/reject facts come from their Rust owner, including encoder and
+  concurrency settings.
 - Keep `src/ui/App.tsx` and `src/main.tsx` declarative composition surfaces.
 - `src/styles.css` loads the foundation and owns app-shell layout. Shared
   visual primitives and semantic tokens belong to `src/ui/foundation`; read

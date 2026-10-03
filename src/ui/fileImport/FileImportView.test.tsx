@@ -1,68 +1,17 @@
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AppSettings } from '../../types/appSettings';
-import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
-import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
+import { createFakeEngine, defaultAppSettings } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import { FileImportView } from './FileImportView';
 
-function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
-	return {
-		maxConcurrentJobs: { mode: 'auto' },
-		defaultAcquisitionLane: 'audible',
-		encoderDefaults: {
-			format: 'm4b',
-			intent: 'auto',
-			settings: {
-				encoderType: 'auto',
-				bitrateKbps: 64,
-				bitrateMode: { mode: 'vbr', value: 3 },
-				channels: 'auto',
-				afterburner: true,
-			},
-			sampleRate: 'auto',
-		},
-		outputDefaults: {
-			outputNaming: {
-				preset: 'absDefault',
-				includeYear: false,
-			},
-		},
-		toolchain: {},
-		startupBehavior: 'rememberLastState',
-		keepAwakeWhileWorking: true,
-		...overrides,
-	};
-}
-
-function fakeSettings(initial: Partial<AppSettings> = {}): SettingsCapability {
-	let current = settingsFixture(initial);
-	return {
-		openFdkSetup: vi.fn(async () => undefined),
-		getAppSettingsRecovery: vi.fn(async () => null),
-		recoverAppSettings: vi.fn(async () => ({
-			backupFileName: 'backup.json',
-			settings: settingsFixture(),
-		})),
-		getAppSettings: vi.fn(async () => current),
-		updateAppSettings: vi.fn(async (patch) => {
-			current = settingsFixture({
-				...current,
-				defaultAcquisitionLane:
-					patch.defaultAcquisitionLane ?? current.defaultAcquisitionLane ?? 'audible',
-			});
-			return current;
-		}),
-		resetAppSettings: vi.fn(async () => {
-			current = settingsFixture();
-			return current;
-		}),
-		openFile: vi.fn(async () => null),
-		getMaxConcurrentJobs: vi.fn(async () => 4),
-		setMaxConcurrentJobs: vi.fn(async (value) => value ?? 4),
-		getRuntimeSettingsCapabilities: vi.fn(async () => runtimeSettingsCapabilitiesFixture()),
-	};
+/** A runtime whose saved default lane is Indexer. */
+async function runtimeDefaultingToIndexer(): Promise<AppRuntime> {
+	const runtime = createAppRuntime({
+		engine: createFakeEngine({ ...defaultAppSettings(), defaultAcquisitionLane: 'indexer' }),
+	});
+	await runtime.initialize();
+	return runtime;
 }
 
 describe('FileImportView import split button', () => {
@@ -76,10 +25,7 @@ describe('FileImportView import split button', () => {
 	});
 
 	it('opens the default acquisition lane from settings on main click', async () => {
-		runtime = createAppRuntime({
-			settings: fakeSettings({ defaultAcquisitionLane: 'indexer' }),
-		});
-		await runtime.settings.hydrateAcquisitionPreferences();
+		runtime = await runtimeDefaultingToIndexer();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<FileImportView />
@@ -89,14 +35,11 @@ describe('FileImportView import split button', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
 
 		expect(runtime.remoteSource.view().isOpen).toBe(true);
-		expect(runtime.remoteSource.view().providerId).toBe('indexer');
+		await vi.waitFor(() => expect(runtime!.remoteSource.view().providerId).toBe('indexer'));
 	});
 
 	it('opens Audible from the caret when default lane is Indexer', async () => {
-		runtime = createAppRuntime({
-			settings: fakeSettings({ defaultAcquisitionLane: 'indexer' }),
-		});
-		await runtime.settings.hydrateAcquisitionPreferences();
+		runtime = await runtimeDefaultingToIndexer();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<FileImportView />
@@ -104,14 +47,14 @@ describe('FileImportView import split button', () => {
 		));
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
-		expect(runtime.remoteSource.view().providerId).toBe('indexer');
+		await vi.waitFor(() => expect(runtime!.remoteSource.view().providerId).toBe('indexer'));
 		runtime.remoteSource.close();
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
 		await fireEvent.click(document.getElementById('import-split-caret') as Element);
 		await fireEvent.click(screen.getByTestId('import-lane-audible'));
 
 		expect(runtime.remoteSource.view().isOpen).toBe(true);
-		expect(runtime.remoteSource.view().providerId).toBe('audible');
+		await vi.waitFor(() => expect(runtime!.remoteSource.view().providerId).toBe('audible'));
 		expect(document.getElementById('import-split-caret')).toHaveAttribute('aria-expanded', 'false');
 	});
 });

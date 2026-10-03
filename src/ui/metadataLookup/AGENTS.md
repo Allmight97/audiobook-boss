@@ -2,16 +2,16 @@
 
 ## Scope
 
-- Applies to the Solid lookup dialog under `src/ui/metadataLookup/`. Search,
-  queue, apply, and cover-preview scheduling live in
-  `src/app/metadataLookup`.
+- Applies to the Solid lookup dialog under `src/ui/metadataLookup/`. The
+  engine owns search, queue, and apply; `src/app/metadataLookup` shows them
+  and schedules cover previews.
 
 ## Public API Strip
 
 - Import `MetadataLookupView` from `src/ui/metadataLookup`.
-- Result application writes Lookup values into the runtime Metadata owner's
-  form (`applyLookupMetadata`); queue advance stages them through Metadata's
-  draft gate. Do not add a lookup-private staging path.
+- Applying a result and advancing the queue are lookup intents; the engine
+  puts applied values in the form and stages them through the draft gate. Do
+  not add a view-side apply or staging path.
 
 ## Hard Invariants
 
@@ -34,7 +34,7 @@
 
 ## Done Criteria
 
-- Preview scheduler and apply workflow stay covered by
-  `src/app/metadataLookup` tests. Dialog focus/containment stays covered by
+- Apply and queue rules are proved in the engine's session tests; the
+  preview scheduler in its own test. Dialog focus/containment stays covered by
   the view modal test.
 - Two-runtime preview isolation is owned by `src/app/runtime/runtime.test.ts`.

@@ -5,7 +5,7 @@ relative to the ABB root.
 
 ## ABB Naming Owner
 
-`build_output_path_preview` in `src-tauri/src/output_artifact/mod.rs` adapts the public preview call to
+`build_output_path_preview` in `crates/abb-engine/src/output_artifact/mod.rs` adapts the public preview call to
 `crates/abb-output-artifact-core/src/lib.rs`. The core owns ABS-default and
 custom-template rendering, optional series/subseries folders, year insertion,
 sanitization, fallback names, and template safety. Read its implementation and
@@ -13,7 +13,7 @@ focused tests before changing naming; do not copy a sanitizer or template
 parser into a caller.
 
 Requested/resolved path safety, collision review, and final writes follow
-`src-tauri/src/output_artifact/AGENTS.md`. Folder compatibility does not
+`crates/abb-engine/src/output_artifact/AGENTS.md`. Folder compatibility does not
 replace that runtime authority.
 
 ## Scanner Evidence

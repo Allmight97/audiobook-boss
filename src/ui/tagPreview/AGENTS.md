@@ -3,7 +3,8 @@
 ## Scope
 
 - Applies to the Solid tag-preview grid under `src/ui/tagPreview/`.
-- Tag values are derived by Metadata Session. This owner renders them.
+- The engine derives the tag values (`MetadataSnapshot.tags`); Metadata
+  Session maps them to row names. This owner renders them.
 
 ## Public API Strip
 
@@ -17,9 +18,9 @@
 ## Cross-Strip Coupling
 
 - `TagPreviewView` reads Metadata Session `view().tags`.
-- Tag-field projection lives in `src/app/metadataSession/tags.ts`; the TSOA
-  value comes from Rust (`preview_album_sort`) through Metadata Session. Do not
-  compute TSOA here. With several titles selected the TSOA row omits each
+- `src/app/metadataSession/tags.ts` maps the engine's tag preview to row
+  names; title-to-album, author-to-album-artist, and TSOA are the engine's.
+  With several titles selected the TSOA row omits each
   title's source value, so it can show blank where outputs keep their own. Do
   not add a local tag store, refresh function, or listener
   that copies those values.

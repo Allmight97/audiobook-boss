@@ -16,7 +16,7 @@ const TERMINAL_OPERATION_STATUSES = new Set<WorkOperationStatus>([
 	'mixed',
 ]);
 
-export function isTerminalOperationStatus(status: WorkOperationStatus): boolean {
+function isTerminalOperationStatus(status: WorkOperationStatus): boolean {
 	return TERMINAL_OPERATION_STATUSES.has(status);
 }
 

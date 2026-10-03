@@ -26,13 +26,11 @@ bun install
 bun run app:dev:log
 ```
 
-Requires: macOS (Apple Silicon), Bun 1.4.0, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback) or an optional external-FDK encoder.
+Requires: macOS (Apple Silicon), Bun 1.4.0, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
 
 **AAC runtime contract**: output encoder and input decoder are separate. Auto
-selects Native NMR, then FDK; Apple AAC and bundled FAAC are explicit choices.
+selects Native NMR; Apple AAC and bundled FAAC are explicit choices.
 Native AAC uses the bundled NMR coder with a numeric target and speed control.
-FDK offers Auto or manual AAC-LC/HE-AAC v1/HE-AAC v2 profiles; Auto follows
-VBR quality. Supported stereo settings show rough, content-dependent size estimates.
 Apple AAC uses a numeric target. Bundled FAAC offers Auto, AAC-LC, and HE-AAC v1
 profiles with ABR or VBR. FAAC defaults to profile Auto and ABR; the shared
 target defaults to 65 kbps, and sample rate/channels retain their Auto behavior.
@@ -40,15 +38,11 @@ FAAC chooses Auto’s profile from the requested output settings when encoding
 opens. VBR offers Smaller (50), Standard (100), and Higher (200); size varies
 with the audio, so use ABR for a bitrate target. Explicit HE supports 32, 44.1,
 and 48 kHz; Auto and LC also support the other available output rates. Saved
-HE/ABR preferences retain that intent. FDK AAC keeps its quality control
-through an external FFmpeg/`libfdk_aac` adapter. Normal processing uses the
-in-process Audio engine; the external adapter may force `aac_at` or
-`libfdk_aac` when the default decoder cannot handle the source. Bundled source
-revisions and wrapper changes are recorded under `vendor/`. ABB-produced FAAC
-HE files retain Apple-compatible gapless timing; ABB accounts for native decoder
-priming when reading them back, including through the external FDK route. Mono
-FDK output explicitly declares that parametric stereo is absent so Apple and
-FFmpeg both read it as mono.
+HE/ABR preferences retain that intent. All processing runs in the in-process
+Audio engine; on macOS it uses `aac_at` to decode AAC sources the default
+decoder cannot handle. Bundled source revisions and wrapper changes are
+recorded under `vendor/`. ABB-produced FAAC HE files retain Apple-compatible
+gapless timing; ABB accounts for native decoder priming when reading them back.
 FAAC's LGPL license and source provenance ship with the app; its corresponding
 source and build configuration live in `vendor/faac-sys/`. Each public release
 provides the corresponding ABB source, including the selected FAAC source and
@@ -76,8 +70,7 @@ closure, and low-battery sleep remain controlled by macOS.
 
 ## Development
 
-Run targeted validation from the script guide for the owner or risk surface you
-touched. There is no default broad review command.
+Run the checks in the script guide for what you changed.
 
 ### Install a local build
 
@@ -97,16 +90,10 @@ recipient Mac.
 
 ## Script Guide
 
-Human index for common commands. `package.json` owns shortcuts and
-`scripts/AGENTS.md` owns the exact fresh-agent verification command menu. ABB
-currently uses direct native commands, not a custom verification runner or a
-default broad review route.
+Index of common commands; `package.json` holds the shortcuts.
 
 - Core dev: `bun run app:dev:log` (bundled FFmpeg). `bun run build` is the
   frontend production bundle only.
-- Verification is owner-scoped. Run the smallest native command that proves the
-  touched owner, then escalate only when the change crosses owners or a safety,
-  data, or contract invariant requires it.
 - Frontend checks: `bun run typecheck`,
   `bun run test -- <test files>`, plus `bun run fmt:check` / `bun run lint:check`
   when formatting or lint is in scope.
@@ -117,22 +104,26 @@ default broad review route.
   `cargo nextest run -p abb-output-artifact-core`,
   `cargo nextest run -p abb-processing-core`,
   `cargo nextest run -p abb-remote-source-core`,
-  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --lib`, or
-  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests`.
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`,
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`, or
+  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg` (Tauri host).
+- Engine without a window: `cargo run -p abb-engine --features bundled-ffmpeg
+  --bin abb-dev -- <file-or-folder>... [--set field=value] [--save]
+  [--out folder --export] [--json]` imports files into an engine session and
+  can edit and save tags, choose audio and naming, export or preview with
+  progress, cancel a title, and read back the exported tags. `--help` lists
+  every option. It keeps its own state and never touches the app's settings.
 - IPC/boundary checks: `bun run bindings:check:local` and
   `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
   release-critical drift confidence is required.
-- Dependency hygiene: `bun run audit`
-  It is not part of the normal review path.
-- CI: GitHub runs Pages for `site/**`, a path-narrowed frontend clean-install
-  alarm (frozen install, typecheck) after relevant `main` pushes, and the Rust
-  core crates' tests and Clippy on PRs and `main` pushes that touch those crates
-  or their workspace/toolchain configuration. The
-  `src-tauri` runtime suite, media lane, and generated-binding checks stay
-  local or release-owned; a passing PR check list does not mean those ran.
-- Tooling policy: Bun is the package manager/script runner/test runner.
-  Keep Vite scripts on the standard Vite CLI unless a validated tooling
-  decision changes that.
+- Dependency hygiene: `bun run audit`.
+- CI: GitHub runs Pages for `site/**`; frontend typecheck and Vitest on
+  relevant PRs and `main` pushes; and, for Rust changes, the core crates'
+  tests and Clippy, the crate tier check, and the engine tests on macOS
+  (Save golden paths and host-API examples included). The real-media lane,
+  the every-container Save test, the Tauri host suite, and the generated-binding
+  check stay local; a passing PR check list does not mean those ran.
+- Bun is the package manager, script runner, and test runner.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Build timing: use direct Cargo timing commands such as `cargo build --timings`
   when investigating compile cost.
@@ -143,7 +134,7 @@ default broad review route.
   native repo-local `.app`; `bun run app:build:dmg` builds a portable,
   noninteractive public DMG and rebuilds the AAXClean helper from current source.
   `bun scripts/resolve-release-dmg.ts --version <version>` resolves the artifact;
-  `gh release verify-asset` proves the uploaded file matches that local DMG.
+  download the uploaded asset and compare its `shasum -a 256` with the local DMG.
 
 ## Project Operation
 

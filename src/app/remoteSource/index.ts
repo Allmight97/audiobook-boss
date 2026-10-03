@@ -3,7 +3,6 @@ export type { RemoteSourceOwner, RemoteSourceOwnerDeps } from './owner';
 export {
 	bytesLabel,
 	formatReleaseSizeBytes,
-	isAcquisitionTerminal,
 	isTitleAcquirable,
 	progressPercent,
 	progressTitleLabel,
@@ -15,5 +14,4 @@ export {
 	visibleRemoteReleases,
 	visibleRemoteTitles,
 } from './selection';
-export { providerIdFromLane } from './types';
 export type { RemoteSourceView } from './types';

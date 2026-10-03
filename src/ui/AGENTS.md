@@ -2,9 +2,9 @@
 
 Each UI surface under `src/ui/<owner>/` keeps its own nested `AGENTS.md` where
 it has view-local interaction, presentation-resource lifetime, or contract
-truth. Nested guidance narrows the inherited rules. Application session/workflow
-truth lives under `src/app`; this file owns only rules shared by thin composition
-shells.
+truth. Nested guidance narrows the inherited rules. Session truth lives in the
+engine and workflow owners under `src/app`; this file owns only rules shared by
+thin composition shells.
 
 ## Composition-only Shells
 

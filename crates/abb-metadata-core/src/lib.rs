@@ -20,7 +20,7 @@ pub enum MetadataCoreError {
 
 pub type Result<T> = std::result::Result<T, MetadataCoreError>;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct AudiobookMetadata {
     pub title: Option<String>,
     pub artist: Option<String>,
@@ -46,6 +46,46 @@ impl AudiobookMetadata {
     /// `clippy::field_reassign_with_default`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Folds a fresh read into what is already known: every field the read
+    /// carries replaces the known value; fields it lacks keep theirs.
+    pub fn fill_from(&mut self, read: AudiobookMetadata) {
+        macro_rules! fill {
+            ($($field:ident),+) => {$(
+                if read.$field.is_some() {
+                    self.$field = read.$field;
+                }
+            )+};
+        }
+        fill!(
+            title,
+            artist,
+            album,
+            composer,
+            genre,
+            date,
+            track,
+            disk,
+            comment,
+            description,
+            series,
+            series_part,
+            subseries,
+            subseries_part,
+            album_sort,
+            cover_art
+        );
+    }
+
+    /// Whether this read says anything about the file's text tags. A read
+    /// that carries nothing, or only a cover, is not a complete baseline.
+    pub fn has_text_tags(&self) -> bool {
+        let without_cover = Self {
+            cover_art: None,
+            ..self.clone()
+        };
+        without_cover != Self::default()
     }
 }
 
@@ -244,6 +284,94 @@ impl MetadataWritePlan {
 }
 
 impl MetadataIntentPatch {
+    /// Whether the patch asks for at least one change.
+    pub fn is_actionable(&self) -> bool {
+        self != &Self::default()
+    }
+
+    /// Folds `next` over this patch: a later request for a field replaces the
+    /// earlier one; fields `next` omits keep theirs.
+    pub fn merge(&mut self, next: &Self) {
+        macro_rules! merge {
+            ($($field:ident),+) => {$(
+                if next.$field.is_some() {
+                    self.$field = next.$field.clone();
+                }
+            )+};
+        }
+        merge!(
+            title,
+            artist,
+            album,
+            composer,
+            genre,
+            date,
+            description,
+            series,
+            series_part,
+            subseries,
+            subseries_part,
+            album_sort,
+            cover_art,
+            comment,
+            track,
+            disk
+        );
+    }
+
+    /// The patch that turns tags reading `from` into tags reading `to`: a set
+    /// for each field whose value changed, a clear for each that is now
+    /// absent, and nothing for a field that is the same.
+    pub fn between(from: &AudiobookMetadata, to: &AudiobookMetadata) -> Self {
+        fn op<T: Clone + PartialEq>(from: &Option<T>, to: &Option<T>) -> Option<PatchOp<T>> {
+            match (from, to) {
+                (from, to) if from == to => None,
+                (_, Some(value)) => Some(PatchOp::Set(value.clone())),
+                (_, None) => Some(PatchOp::Clear),
+            }
+        }
+        Self {
+            title: op(&from.title, &to.title),
+            artist: op(&from.artist, &to.artist),
+            album: op(&from.album, &to.album),
+            composer: op(&from.composer, &to.composer),
+            genre: op(&from.genre, &to.genre),
+            date: op(&from.date, &to.date),
+            description: op(&from.description, &to.description),
+            series: op(&from.series, &to.series),
+            series_part: op(&from.series_part, &to.series_part),
+            subseries: op(&from.subseries, &to.subseries),
+            subseries_part: op(&from.subseries_part, &to.subseries_part),
+            album_sort: op(&from.album_sort, &to.album_sort).map(|op| match op {
+                PatchOp::Set(value) => AlbumSortPatchOp::Set(value),
+                PatchOp::Clear => AlbumSortPatchOp::Clear,
+            }),
+            cover_art: op(&from.cover_art, &to.cover_art),
+            comment: op(&from.comment, &to.comment),
+            track: op(&from.track, &to.track),
+            disk: op(&from.disk, &to.disk),
+        }
+    }
+
+    /// What `base` shows with this patch applied, without validating it. Used
+    /// to project pending edits over known tags; `Recompute` leaves the album
+    /// sort as it is because only a write resolves it.
+    pub fn overlay(&self, base: &AudiobookMetadata) -> AudiobookMetadata {
+        let mut metadata = base.clone();
+        // Processing semantics never fail: set assigns and clear removes.
+        let _ = apply_shared_metadata_patch_fields(
+            self,
+            &mut metadata,
+            PatchFieldSemantics::Processing,
+        );
+        match &self.album_sort {
+            Some(AlbumSortPatchOp::Set(value)) => metadata.album_sort = Some(value.clone()),
+            Some(AlbumSortPatchOp::Clear) => metadata.album_sort = None,
+            Some(AlbumSortPatchOp::Recompute) | None => {}
+        }
+        metadata
+    }
+
     pub fn clears_cover_art(&self) -> bool {
         matches!(self.cover_art, Some(PatchOp::Clear))
     }
@@ -742,6 +870,108 @@ pub use chapters::{parse_cue, validate_chapters, ChapterSpec, CueInterpretation,
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn merge_keeps_earlier_fields_and_lets_later_requests_win() {
+        let mut pending = MetadataIntentPatch {
+            title: Some(PatchOp::Set("First".into())),
+            artist: Some(PatchOp::Set("Author".into())),
+            ..Default::default()
+        };
+        pending.merge(&MetadataIntentPatch {
+            title: Some(PatchOp::Clear),
+            cover_art: Some(PatchOp::Set(vec![1, 2])),
+            ..Default::default()
+        });
+
+        assert_eq!(pending.title, Some(PatchOp::Clear));
+        assert_eq!(pending.artist, Some(PatchOp::Set("Author".into())));
+        assert_eq!(pending.cover_art, Some(PatchOp::Set(vec![1, 2])));
+        assert!(pending.is_actionable());
+        assert!(!MetadataIntentPatch::default().is_actionable());
+    }
+
+    #[test]
+    fn between_sets_changed_fields_clears_removed_ones_and_reapplies_to_the_target() {
+        let from = AudiobookMetadata {
+            title: Some("Old".into()),
+            genre: Some("Fantasy".into()),
+            album_sort: Some("Series 1 - Old".into()),
+            cover_art: Some(vec![1]),
+            track: Some((1, None)),
+            ..Default::default()
+        };
+        let to = AudiobookMetadata {
+            title: Some("New".into()),
+            series: Some("Series".into()),
+            album_sort: Some("Series 1 - New".into()),
+            cover_art: Some(vec![2]),
+            track: Some((1, None)),
+            ..Default::default()
+        };
+
+        let patch = MetadataIntentPatch::between(&from, &to);
+        assert_eq!(patch.title, Some(PatchOp::Set("New".into())));
+        assert_eq!(patch.genre, Some(PatchOp::Clear));
+        assert_eq!(patch.series, Some(PatchOp::Set("Series".into())));
+        assert_eq!(
+            patch.album_sort,
+            Some(AlbumSortPatchOp::Set("Series 1 - New".into()))
+        );
+        assert_eq!(patch.cover_art, Some(PatchOp::Set(vec![2])));
+        assert_eq!(patch.track, None, "an unchanged field is left alone");
+        assert_eq!(patch.overlay(&from), to);
+        assert!(!MetadataIntentPatch::between(&to, &to).is_actionable());
+    }
+
+    #[test]
+    fn overlay_sets_and_clears_without_validating_and_leaves_recompute_alone() {
+        let base = AudiobookMetadata {
+            title: Some("Old".into()),
+            genre: Some("Fantasy".into()),
+            album_sort: Some("Old Sort".into()),
+            series_part: Some("1".into()),
+            ..Default::default()
+        };
+        let shown = MetadataIntentPatch {
+            title: Some(PatchOp::Set("New".into())),
+            genre: Some(PatchOp::Clear),
+            // Invalid for a write, but a projection must still show it.
+            series_part: Some(PatchOp::Set("1/2".into())),
+            album_sort: Some(AlbumSortPatchOp::Recompute),
+            ..Default::default()
+        }
+        .overlay(&base);
+
+        assert_eq!(shown.title.as_deref(), Some("New"));
+        assert_eq!(shown.genre, None);
+        assert_eq!(shown.series_part.as_deref(), Some("1/2"));
+        assert_eq!(shown.album_sort.as_deref(), Some("Old Sort"));
+    }
+
+    #[test]
+    fn a_read_fills_known_tags_and_only_text_tags_make_it_a_baseline() {
+        let mut known = AudiobookMetadata {
+            title: Some("Saved".into()),
+            artist: Some("Saved Author".into()),
+            ..Default::default()
+        };
+        known.fill_from(AudiobookMetadata {
+            title: Some("From File".into()),
+            cover_art: Some(vec![9]),
+            ..Default::default()
+        });
+
+        assert_eq!(known.title.as_deref(), Some("From File"));
+        assert_eq!(known.artist.as_deref(), Some("Saved Author"));
+        assert!(known.has_text_tags());
+        assert!(!AudiobookMetadata::default().has_text_tags());
+        assert!(!AudiobookMetadata {
+            cover_art: Some(vec![9]),
+            ..Default::default()
+        }
+        .has_text_tags());
+    }
+
     use super::*;
 
     #[test]

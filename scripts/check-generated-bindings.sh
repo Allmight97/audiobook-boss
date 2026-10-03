@@ -72,7 +72,7 @@ has_contract_related_changes() {
       fi
       continue
     fi
-    if [[ "$file" == "crates/abb-"*"-core/Cargo.toml" || "$file" == "crates/abb-"*"-core/"*".rs" ]]; then
+    if [[ "$file" == "crates/abb-"*"/Cargo.toml" || "$file" == "crates/abb-"*"/"*".rs" ]]; then
       return 0
     fi
     if [[ "$file" == "src-tauri/build.rs" || "$file" == "src-tauri/src/"*".rs" ]]; then

@@ -1,63 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { AcquisitionJob } from '../../types/remoteSource';
-import { isAcquisitionTerminal, releaseProtocolLabel, uniqueDiagnosticMessage } from './display';
-
-function job(overrides: Partial<AcquisitionJob> = {}): AcquisitionJob {
-	return {
-		jobId: 'remote-job-1',
-		providerId: 'audible',
-		status: 'acquiring',
-		progress: {
-			stage: 'download',
-			percentage: 40,
-			message: 'Downloading.',
-			bytesDownloaded: undefined,
-			bytesTotal: undefined,
-			currentTitleId: 'B000000001',
-			currentItemIndex: 1,
-			totalItems: 1,
-			terminal: false,
-		},
-		materializedFiles: [
-			{
-				inputId: 'provider-input-1',
-				titleId: 'B000000001',
-				path: '/session/book.m4b',
-				sizeBytes: 1024,
-				sha256: 'audio-sha',
-			},
-		],
-		supplementalAssets: [],
-		diagnostics: [],
-		...overrides,
-	};
-}
+import { releaseProtocolLabel, uniqueDiagnosticMessage } from './display';
 
 describe('remote source acquisition display', () => {
-	it('keeps polling while a job is neither terminal nor a finished status', () => {
-		expect(isAcquisitionTerminal(job())).toBe(false);
-		expect(isAcquisitionTerminal(job({ status: 'failed' }))).toBe(true);
-		expect(isAcquisitionTerminal(job({ status: 'cancelled' }))).toBe(true);
-		expect(
-			isAcquisitionTerminal(
-				job({
-					status: 'acquiring',
-					progress: {
-						stage: 'download',
-						percentage: 100,
-						message: 'Done.',
-						bytesDownloaded: undefined,
-						bytesTotal: undefined,
-						currentTitleId: 'B000000001',
-						currentItemIndex: 1,
-						totalItems: 1,
-						terminal: true,
-					},
-				}),
-			),
-		).toBe(true);
-	});
-
 	it('does not leak duplicate diagnostic text into the status line', () => {
 		const message = uniqueDiagnosticMessage([
 			{ kind: 'downloadFailed', titleId: undefined, message: ' Token expired. ' },

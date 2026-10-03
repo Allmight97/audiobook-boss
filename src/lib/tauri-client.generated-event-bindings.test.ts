@@ -5,13 +5,12 @@ import type {
 	AcquisitionProgress,
 	ChapterSpec,
 	ChildJobSnapshot,
-	FileListInfo,
 	MaterializedSourceFile,
 	MaxConcurrentJobsCapabilities,
-	MetadataSaveResultEntry,
 	OperationSnapshot,
-	ProgressEvent,
 	ProgressSnapshot,
+	SelectionSnapshot,
+	SessionUpdate,
 } from './generated/tauri';
 
 describe('tauriClient generated event bindings', () => {
@@ -26,12 +25,6 @@ describe('tauriClient generated event bindings', () => {
 		const tauriListen = vi.mocked(listen);
 		const { tauriClient } = await import('./tauri/client');
 
-		await tauriClient.listen(EVENTS.PROGRESS, () => {
-			/* no-op */
-		});
-		await tauriClient.listen(EVENTS.QUEUE, () => {
-			/* no-op */
-		});
 		await tauriClient.listen(EVENTS.OPENED_AUDIO_FILES, () => {
 			/* no-op */
 		});
@@ -42,32 +35,29 @@ describe('tauriClient generated event bindings', () => {
 			/* no-op */
 		});
 
-		expect(tauriListen).toHaveBeenNthCalledWith(1, EVENTS.PROGRESS, expect.any(Function));
-		expect(tauriListen).toHaveBeenNthCalledWith(2, EVENTS.QUEUE, expect.any(Function));
-		expect(tauriListen).toHaveBeenNthCalledWith(3, EVENTS.OPENED_AUDIO_FILES, expect.any(Function));
+		expect(tauriListen).toHaveBeenNthCalledWith(1, EVENTS.OPENED_AUDIO_FILES, expect.any(Function));
 		expect(tauriListen).toHaveBeenNthCalledWith(
-			4,
+			2,
 			EVENTS.WORK_OPERATION_SNAPSHOT,
 			expect.any(Function),
 		);
 		expect(tauriListen).toHaveBeenNthCalledWith(
-			5,
+			3,
 			EVENTS.WORK_OPERATION_LIST_SNAPSHOT,
 			expect.any(Function),
 		);
-		expect(tauriListen).toHaveBeenCalledTimes(5);
+		expect(tauriListen).toHaveBeenCalledTimes(3);
 	});
 
 	it('keeps bounded wide Rust values in the numeric IPC contract', () => {
 		expectTypeOf<AcquisitionProgress['percentage']>().toEqualTypeOf<number>();
 		expectTypeOf<ChapterSpec['startMs']>().toEqualTypeOf<number>();
 		expectTypeOf<MaterializedSourceFile['sizeBytes']>().toEqualTypeOf<number>();
-		expectTypeOf<MetadataSaveResultEntry['inputIndex']>().toEqualTypeOf<number>();
 		expectTypeOf<OperationSnapshot['sequence']>().toEqualTypeOf<number>();
 		expectTypeOf<ChildJobSnapshot['startedAtMs']>().toEqualTypeOf<number | null>();
 		expectTypeOf<ChildJobSnapshot['finishedAtMs']>().toEqualTypeOf<number | null>();
-		expectTypeOf<FileListInfo['totalDuration']>().toEqualTypeOf<number>();
-		expectTypeOf<ProgressEvent['percentage']>().toEqualTypeOf<number>();
+		expectTypeOf<SessionUpdate['revision']>().toEqualTypeOf<number>();
+		expectTypeOf<SelectionSnapshot['selectedIndices']>().toEqualTypeOf<number[]>();
 		expectTypeOf<ProgressSnapshot['percentage']>().toEqualTypeOf<number>();
 		expectTypeOf<ProgressSnapshot['bytesDownloaded']>().toEqualTypeOf<number | null>();
 		expectTypeOf<MaxConcurrentJobsCapabilities['fixedMax']>().toEqualTypeOf<number>();

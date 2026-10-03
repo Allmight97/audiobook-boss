@@ -1,26 +1,20 @@
 import type {
 	AcquisitionLane as GeneratedAcquisitionLane,
 	AppSettings as GeneratedAppSettings,
-	AppSettingsPatch as GeneratedAppSettingsPatch,
-	AppSettingsRecoveryPlan as GeneratedAppSettingsRecoveryPlan,
-	AppSettingsRecoveryResult as GeneratedAppSettingsRecoveryResult,
 	ConcurrencyPreference as GeneratedConcurrencyPreference,
 	EncoderDefaults as GeneratedEncoderDefaults,
 	OutputDefaults as GeneratedOutputDefaults,
+	SettingsIntent as GeneratedSettingsIntent,
+	SettingsOutcome as GeneratedSettingsOutcome,
+	SettingsSnapshot as GeneratedSettingsSnapshot,
 	StartupBehavior as GeneratedStartupBehavior,
-	ToolchainPreferences as GeneratedToolchainPreferences,
 } from '../lib/generated/tauri';
-import type { EncoderSettings, OutputNamingConfig } from './audio';
+import type { EncoderSettings } from './audio';
 import type { NullToOptionalDeep } from './ipc';
 
 export type ConcurrencyPreference = GeneratedConcurrencyPreference;
 export type AcquisitionLane = GeneratedAcquisitionLane;
-export type AppSettingsRecoveryPlan = GeneratedAppSettingsRecoveryPlan;
-export type AppSettingsRecoveryResult = Omit<GeneratedAppSettingsRecoveryResult, 'settings'> & {
-	settings: AppSettings;
-};
 export type StartupBehavior = GeneratedStartupBehavior;
-export type ToolchainPreferences = NullToOptionalDeep<GeneratedToolchainPreferences>;
 export type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
 	settings: EncoderSettings;
 };
@@ -39,15 +33,22 @@ export type AppSettings = Omit<
 	pinnedDefaults?: PinnedDefaults;
 };
 
-export type AppSettingsPatch = Partial<{
-	maxConcurrentJobs: GeneratedAppSettingsPatch['maxConcurrentJobs'];
-	encoderDefaults: EncoderDefaults | null;
-	outputDefaults:
-		| (Omit<OutputDefaults, 'outputNaming'> & { outputNaming: OutputNamingConfig })
-		| null;
-	toolchain: ToolchainPreferences | null;
-	startupBehavior: StartupBehavior | null;
-	defaultAcquisitionLane: AcquisitionLane | null;
-	keepAwakeWhileWorking: boolean | null;
-	pinnedDefaults: PinnedDefaults | null;
-}>;
+/** The settings in effect and whether they are saved. Rust owns the shape. */
+export type SettingsSnapshot = Omit<
+	NullToOptionalDeep<GeneratedSettingsSnapshot>,
+	'settings' | 'startupDefaults'
+> & {
+	settings?: AppSettings;
+	startupDefaults?: PinnedDefaults;
+};
+
+export type SettingsIntent =
+	| Exclude<GeneratedSettingsIntent, { kind: 'remember' }>
+	| {
+			kind: 'remember';
+			encoderDefaults?: EncoderDefaults;
+			outputDefaults?: OutputDefaults;
+			defaultAcquisitionLane?: AcquisitionLane;
+	  };
+export type SettingsOutcome = GeneratedSettingsOutcome;
+export type SettingsReply = { outcome: SettingsOutcome; snapshot: SettingsSnapshot };

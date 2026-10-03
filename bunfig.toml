@@ -6,7 +6,6 @@ minimumReleaseAge = 864000
 
 # Keep unrelated transitive resolutions gated during explicit prerelease updates.
 minimumReleaseAgeExcludes = [
-  "effect",
   "solid-js",
   "@solidjs/web",
   "@solidjs/signals",

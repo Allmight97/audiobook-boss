@@ -2,8 +2,11 @@
 
 ## Scope
 
-- Owns preview submit, processing request composition, and Status Panel
-  runtime under `src/app/processing/`.
+- The engine builds, reviews, and runs exports and previews
+  (`crates/abb-engine/src/session/AGENTS.md`). This owner starts them with the
+  session's `submit` and `preview` intents, asks the Output collision dialog
+  when the engine reports existing outputs, words the outcome, and runs the
+  Status Panel for previews.
 - Solid views live in `src/ui/statusPanel` and `src/ui/previewAudio`. They
   render this owner; they do not keep a second status or preview store.
 
@@ -12,67 +15,49 @@
 - Import `createProcessingOwner` and owner types from `src/app/processing`.
 - Workbench callers that only need the composed UI strip import
   `src/ui/statusPanel` instead.
-- `index.ts` is the export surface. Do not import `runtime.ts`, `workflow.ts`,
-  `view.ts`, `workflow.deps.ts`, `domain/`, or `services/` from outside this
-  owner.
-- Keep the Effect fake layer private: workflow tests import
-  `makeProcessingWorkflowServicesLayer` from `workflow.ts`. Do not re-export
-  `readProcessingRequestConfig` or the status-view store.
+- `index.ts` is the export surface. Do not import private `owner.ts`, `submit.ts`, `render.ts`, or
+  `view.ts` from outside this owner.
 
 ## Hard Invariants
 
-- Compose submit config inside the runtime Processing owner from injected
-  Encoding Configuration and Output owners. Capture `encoding.audioRequest(title)`
-  in the same valid-title order as paths and IDs before asynchronous preparation.
-  The backend resolves copying versus encoding; the frontend submits intent.
-  Collision review calls `runOutputPlanReviewWorkflow(request, output)` with
-  that same owner. Do not add a process-wide encoding/output getter.
-- Title membership, ordered sources, and audio choices come from Input.
-  The workbench submits a batch of output titles; grouping is not a global mode. Concurrency enable/disable uses
-  Settings. Metadata staging uses the Metadata public strip. Do not read
-  leftover file-list or job-control stores.
-- Preview execution is direct `process_audiobook_files` with `previewSeconds`.
-  It does not enter WorkRuntime, and command ingress rejects an omitted preview
-  duration. Background export submits through WorkRuntime with a title naming its books; Status Panel
-  is not a WorkRuntime consumer.
-- `processing-progress` and `processing-queue` are direct-preview events with
-  no operation-id discriminator. Do not consume them as background-operation
-  state; Work Operations consumes WorkRuntime snapshots instead.
-- Foreground cancel settles the local render only. Operation-scoped cancel
-  lives in Work Operations.
-- Consume the backend-owned terminal verdict (`RunTerminalClass` on
-  `ProcessCommandResult`) for preview completion. Do not re-derive terminal
-  precedence from per-job rows.
+- Which titles go, their sources, audio, chapters, naming, and pending edits
+  are the engine's. `submit.ts` sends intents and reads
+  `output.submission`; it never builds a payload or decides a refusal.
+- A `reviewRequired` status loops through the Output dialog, including a held
+  review received when a replacement frontend attaches: the chosen policy
+  goes back as `chooseCollisionPolicy`, a cancel as `cancelCollisionReview`.
+- Each `output.restartOffers` entry is asked once in a native dialog, one at
+  a time: Restart runs `restartTitle` through the same submission flow, Keep
+  Location posts `keepTitleLocation`. Work Center also offers these actions
+  on the matching operation/title row so a refused restart can be retried.
+- Preview identity, progress, queue rows, cancellation, and terminal truth come
+  from `output.previewRun`. Render its operation snapshot; do not aggregate
+  progress or listen for separate processing events.
+- Cancel posts `cancelPreview` with the current run identity and optional child
+  identity. The engine stops the corresponding work; disposal does not cancel it.
+- Artwork is read by run identity after `artworkReady`. Ignore a cover reply for
+  another run or a disposed view. A finished preview opens only the path the
+  engine grants through `takePreviewOutput`; an accepted claim still opens if
+  the requesting frontend is disposed before its reply arrives.
 - Preview duration lives in `PreviewAudioControls` screen-local Solid state.
   Submit goes through Processing `start`.
-- Supplemental payload assets come from the injected Remote Source owner.
-  Background submission retains every source identity, including hidden stack
-  members, inside `withSubmissionRetention`;
-  Processing must not reproduce retain/release/purge ordering.
 - Each Processing owner instance owns its status view store and
-  `StatusPanelRuntime`. Two live App Runtimes isolate preview status.
-  Disposing A cannot publish into B.
-- Input's `chapterPlansForProcessing(sources)` takes one title's ordered sources and owns confirmation/Ignore gating. Processing
-  includes the returned plans in the immutable submission; runtime validates
-  the source fingerprint and chapter intervals. Do not rediscover CUE in an
-  encoder adapter or reinterpret timestamps in the frontend.
+  publisher. Disposing one runtime cannot publish into another.
 
 ## Testing
 
-- Workflow tests inject `makeProcessingWorkflowServicesLayer`; they do not mock
-  leftover file-list or job-control modules.
+- `submit.test.ts` covers the review loop, refusal wording, cancellation, and
+  terminal wording against a stub link. `preview.test.tsx` covers snapshot
+  reattachment, accepted artwork, run cancellation, and the output claim.
 - `remote-source-boundary.test.ts` pins the visual Remote UI strip and proves
   production Processing does not import UI or private Remote implementation
   files.
 - `runtime-api-contract.test.ts` pins this owner's public export strip.
 - Status UI strip is pinned by `src/ui/statusPanel/__tests__/runtime-api-contract.test.ts`.
-- Two-runtime preview-status isolation lives in `src/app/runtime/runtime.test.ts`.
 
 ## Boundary Changes
 
 - Adding, removing, or renaming a public export.
-- Reading leftover file-list, job-control, encoder, or output private state to
-  build a process payload.
-- Converting Status Panel into a WorkRuntime consumer without a documented
-  architecture decision.
+- Building any part of an export request here instead of in the engine.
+- Reintroducing frontend progress or terminal policy.
 - Adding a module-global status publisher.

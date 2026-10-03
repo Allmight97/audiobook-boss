@@ -25,6 +25,8 @@ only styling language.
 - No `sx`, style-object, or public utility catalog.
 - A primitive stays only if deleting it redistributes real behavior across
   owners. Field and Surface fail that test today.
+- `SplitButton.disabled` disables both triggers and hides an open menu so an
+  engine refusal state cannot leave a second submission path available.
 - Theme follows `prefers-color-scheme`. Do not add TypeScript theme props.
 
 ## Proof

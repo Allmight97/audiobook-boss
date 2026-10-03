@@ -1,6 +1,7 @@
 import { createRoot, runWithOwner } from 'solid-js';
 import { createSettingsOwner } from '../appSettings';
 import { createEncodingOwner } from '../encoding';
+import { createEngineLink } from '../engineLink';
 import { createInputOwner } from '../inputSession';
 import { createMetadataLookupOwner } from '../metadataLookup';
 import { createMetadataOwner } from '../metadataSession';
@@ -18,80 +19,24 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 	const runtime = runWithOwner(null, () =>
 		createRoot((dispose) => {
 			disposeRoot = dispose;
-			const selectionGate: { check?: (signal?: AbortSignal) => Promise<boolean> } = {};
-			const input = createInputOwner({
-				capability: capabilities.input,
-				audioDefaults: () => encoding.audioRequest(),
-				beforeImport: () => initialize(),
-				beforeSelectionChange: (signal) => selectionGate.check?.(signal) ?? true,
-			});
-			const settings = createSettingsOwner({
-				capability: capabilities.settings,
-				onToolchainChanged: async (capabilities): Promise<void> => {
-					await encoding.reloadCapabilities(capabilities);
-				},
-			});
-			const processingHolder: { current?: ReturnType<typeof createProcessingOwner> } = {};
-			const metadata = createMetadataOwner({
-				input,
-				capability: capabilities.metadata,
-				isForegroundProcessing: () => processingHolder.current?.isProcessing() ?? false,
-			});
-			selectionGate.check = (signal) => metadata.canChangeSelection(signal);
-			const encoding = createEncodingOwner({
-				input,
-				loadCapabilities: async () =>
-					(await settings.capability().getRuntimeSettingsCapabilities()).encoder ?? null,
-				persistDefaults: settings.rememberEncoderDefaults,
-				onFdkSetupRequested: () => {
-					void settings.openDialog();
-				},
-			});
-			const output = createOutputOwner({
-				input,
-				metadataView: metadata.view,
-				encoding,
-				persistDefaults: settings.rememberOutputDefaults,
-				onMetadataValidation: (validation) => metadata.applyDraftValidation(validation),
-			});
-			const lookup = createMetadataLookupOwner({ input, metadata });
-			const remoteSource = createRemoteSourceOwner({
-				...capabilities.remoteSource,
-				input,
-			});
-			const processing = createProcessingOwner({
-				input,
-				metadata,
-				settings,
-				encoding,
-				output,
-				remoteSource,
-			});
-			processingHolder.current = processing;
-			const workOperations = createWorkOperationsOwner({ remoteSource });
-			let startup: Promise<void> | undefined;
+			const link = createEngineLink(capabilities.engine);
+			const input = createInputOwner({ link, capability: capabilities.input });
+			const settings = createSettingsOwner({ link });
+			const metadata = createMetadataOwner({ link, capability: capabilities.metadata });
+			const encoding = createEncodingOwner({ link });
+			const output = createOutputOwner({ link });
+			const lookup = createMetadataLookupOwner({ link, metadata });
+			const remoteSource = createRemoteSourceOwner({ link, ...capabilities.remoteSource });
+			const processing = createProcessingOwner({ link, settings, output });
+			const workOperations = createWorkOperationsOwner();
+			/** Resolves once the engine's session and settings have arrived. */
 			function initialize(): Promise<void> {
-				if (startup) return startup;
-				const initialOutput = JSON.stringify(output.readDefaults());
-				startup = settings
-					.loadStartupDefaults()
-					.then((defaults) => {
-						if (disposed) return;
-						encoding.hydrateDefaults(defaults.encoderDefaults);
-						if (JSON.stringify(output.readDefaults()) === initialOutput)
-							output.applyDefaults(defaults.outputDefaults);
-					})
-					.catch((error: unknown) => {
-						startup = undefined;
-						throw error;
-					});
-				return startup;
+				return link.ready().catch((error: unknown) => {
+					if (!disposed) throw error;
+				});
 			}
-			settings.bindAfterReset((defaults) => {
-				output.applyDefaults(defaults.outputDefaults);
-				encoding.applyDefaults(defaults.encoderDefaults);
-			});
 			return {
+				link,
 				initialize,
 				input,
 				metadata,
@@ -105,8 +50,9 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			};
 		}),
 	);
+	const { link, ...owners } = runtime;
 	return {
-		...runtime,
+		...owners,
 		dispose(): void {
 			if (disposed) {
 				return;
@@ -121,6 +67,7 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			runtime.lookup.reset();
 			runtime.metadata.reset();
 			runtime.input.reset();
+			link.dispose();
 			disposeRoot();
 		},
 	};

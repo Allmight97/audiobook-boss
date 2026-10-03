@@ -90,8 +90,6 @@ function formatEncoderType(encoderType: string): string {
 	switch (encoderType) {
 		case 'auto':
 			return 'Auto';
-		case 'fdk_he_aac':
-			return 'FDK HE-AAC';
 		case 'aac_at':
 			return 'Apple AAC';
 		case 'native_aac':
@@ -112,17 +110,6 @@ function formatEncoderDefaults(settings: Pick<AppSettings, 'encoderDefaults'>): 
 
 function formatOutputDefaults(settings: Pick<AppSettings, 'outputDefaults'>): string {
 	return settings.outputDefaults.outputDirectory ?? 'Not set';
-}
-
-function formatFdkSource(source: string): string {
-	switch (source) {
-		case 'user_configured':
-			return 'user-configured path';
-		case 'detected':
-			return 'auto-detected';
-		default:
-			return 'unavailable';
-	}
 }
 
 function IndexerConnectionHelp(props: {
@@ -181,11 +168,12 @@ export function AppSettingsDialogView(): JSX.Element {
 	const settings = runtime.settings;
 	const remoteSource = runtime.remoteSource;
 	const state = settings.dialog;
-	let fdkSection: HTMLElement | undefined;
+	let audioDefaultsSection: HTMLElement | undefined;
 	createEffect(
-		() => state().isOpen && !state().loading,
+		() => state().isOpen,
 		(ready) => {
-			if (ready && fdkSection?.parentElement) fdkSection.parentElement.scrollTop = 0;
+			if (ready && audioDefaultsSection?.parentElement)
+				audioDefaultsSection.parentElement.scrollTop = 0;
 		},
 	);
 	const isOpen = createMemo(() => state().isOpen);
@@ -267,447 +255,314 @@ export function AppSettingsDialogView(): JSX.Element {
 			</Dialog.Header>
 			<Dialog.Body class="app-settings-body">
 				<SettingsPersistenceNotice />
-				<Show when={state().recovery}>
-					<section
-						class="app-settings-section app-settings-recovery"
-						aria-label="Recover saved encoder defaults"
-					>
-						<h4 class="app-settings-section-title">Recover saved encoder defaults</h4>
-						<p>This version cannot use these saved encoders:</p>
-						<ul>
-							{state().recovery?.incompatibleEncoders.map((entry) => (
-								<li>
-									{entry.scope === 'pinned' ? 'Pinned defaults' : 'Last-used defaults'}:{' '}
-									<code>{entry.encoderType}</code>
-								</li>
-							))}
-						</ul>
-						<p>
-							Reset the affected encoder settings to Auto defaults. Output folders and other
-							preferences will be preserved. ABB will back up the original settings file first.
-						</p>
-						<Button
-							disabled={state().saveState === 'saving' || state().loading}
-							onClick={() => void settings.recoverEncoderDefaults()}
-						>
-							{state().saveState === 'saving' ? 'Recovering…' : 'Back up and recover defaults'}
-						</Button>
-						<Show when={state().saveError}>
-							<p class="app-settings-status app-settings-status-error" role="alert">
-								{state().saveError}
-							</p>
-						</Show>
-					</section>
-				</Show>
-				<Show when={state().recoveryBackup}>
-					<p class="app-settings-status app-settings-recovery" role="status">
-						Saved defaults recovered. Your current session choices still apply. Backup saved beside
-						the settings file: <code>{state().recoveryBackup}</code>
+				<section
+					class="app-settings-section"
+					ref={audioDefaultsSection}
+					aria-label="Audio defaults"
+				>
+					<h4 class="app-settings-section-title">Audio defaults</h4>
+					<p class="muted-text">
+						Used for newly imported titles. Existing titles keep their settings.
 					</p>
-				</Show>
-				<Show when={!state().loading} fallback={<p class="muted-text">Loading settings…</p>}>
-					<section class="app-settings-section" ref={fdkSection} aria-label="Audio defaults">
-						<h4 class="app-settings-section-title">Audio defaults</h4>
-						<p class="muted-text">
-							Used for newly imported titles. Existing titles keep their settings.
-						</p>
-						<EncoderView />
-					</section>
-					<section class="app-settings-section">
-						<h4 class="app-settings-section-title">External FFmpeg (FDK AAC)</h4>
-						<p class="muted-text">
-							FDK AAC is optional. ABB includes its standard audio tools; FDK requires a separate
-							FFmpeg executable built with libfdk_aac.
-						</p>
-						<div class="app-settings-fdk-actions">
-							<Button
-								disabled={state().checkingFdk || state().saveState === 'saving'}
-								onClick={() => void settings.recheckFdk()}
-							>
-								{state().checkingFdk ? 'Checking FDK…' : 'Recheck FDK'}
-							</Button>
-						</div>
-						<Show when={state().fdkCheckError}>
-							<p class="app-settings-status app-settings-status-error" role="alert">
-								{state().fdkCheckError}
-							</p>
-						</Show>
-						<Show when={state().encoderAvailability?.fdkSetupSupported}>
-							<details class="app-settings-fdk-setup">
-								<summary>Check Homebrew FDK setup…</summary>
+					<EncoderView />
+				</section>
+				<Show when={state().settings}>
+					{(_) => (
+						<>
+							<section class="app-settings-section">
+								<h4 class="app-settings-section-title">Power</h4>
+								<label class="checkbox-label" data-testid="app-settings-keep-awake-toggle">
+									<input
+										type="checkbox"
+										data-testid="app-settings-keep-awake-checkbox"
+										checked={state().settings?.keepAwakeWhileWorking ?? true}
+										disabled={state().powerSaveState === 'saving'}
+										onChange={(event) =>
+											void settings.setKeepAwakeWhileWorking(Boolean(event.currentTarget.checked))
+										}
+									/>
+									<span class="option-label">Keep computer awake while working</span>
+								</label>
 								<p class="muted-text">
-									Opens Terminal to check whether the community homebrew-ffmpeg formula still offers
-									FDK AAC. If it does, Homebrew can install or update it. Building can take several
-									minutes.
+									During encoding, Audible acquisition, Indexer handoff, and metadata saves. The
+									display can sleep normally; ABB being open and idle does not keep the computer
+									awake.
 								</p>
-								<p class="muted-text">
-									A fresh Mac may first need Apple Command Line Tools and Homebrew; setup will guide
-									you. An existing conflicting FFmpeg requires your review before it can be
-									replaced. For a custom installation, use its original package manager to update
-									it.
-								</p>
-								<Button
-									disabled={state().setupState === 'opening'}
-									onClick={() => void settings.openFdkSetup()}
-								>
-									Continue in Terminal
-								</Button>
-								<Show when={state().setupMessage}>
+								<Show when={state().powerSaveState === 'error'}>
 									<p
-										class={`app-settings-status${state().setupState === 'error' ? ' app-settings-status-error' : ''}`}
-										role="status"
+										class="app-settings-status app-settings-status-error"
+										data-testid="app-settings-power-error"
+										role="alert"
 									>
-										{state().setupMessage}
+										{state().powerSaveError}
 									</p>
 								</Show>
-							</details>
-						</Show>
-						<label for="app-settings-ffmpeg-path" class="app-settings-path-label">
-							Custom FFmpeg path (optional)
-						</label>
-						<div class="app-settings-path-row">
-							<input
-								id="app-settings-ffmpeg-path"
-								class="app-settings-path-input"
-								data-testid="app-settings-ffmpeg-path"
-								type="text"
-								placeholder="/opt/homebrew/bin/ffmpeg"
-								value={state().ffmpegPathDraft}
-								onInput={(event) => settings.setFfmpegPathDraft(event.currentTarget.value)}
-							/>
-							<Button
-								data-testid="app-settings-ffmpeg-browse"
-								onClick={() => void settings.browseForFfmpegBinary()}
-							>
-								Browse…
-							</Button>
-							<Button
-								data-testid="app-settings-ffmpeg-clear"
-								onClick={() => settings.clearFfmpegPathDraft()}
-							>
-								Clear
-							</Button>
-							<Button
-								tone="primary"
-								data-testid="app-settings-ffmpeg-save"
-								disabled={state().saveState === 'saving' || state().checkingFdk}
-								onClick={() => void settings.saveToolchainPreference()}
-							>
-								{state().saveState === 'saving' ? 'Saving…' : 'Save'}
-							</Button>
-						</div>
-						<Show when={state().saveState === 'error' && !state().recovery}>
-							<p
-								class="app-settings-status app-settings-status-error"
-								data-testid="app-settings-error"
-							>
-								{state().saveError}
-							</p>
-						</Show>
-						<Show when={state().encoderAvailability}>
-							{(availability) => (
-								<p class="app-settings-status" data-testid="app-settings-toolchain-status">
-									{availability().statusMessage}
-									<Show when={availability().fdkAvailable}>
-										{` (${formatFdkSource(availability().fdkSource)})`}
-										<code class="app-settings-detected-path">
-											{availability().detectedToolchainPath}
-										</code>
+							</section>
+							<section class="app-settings-section">
+								<h4 class="app-settings-section-title">Import</h4>
+								<p class="muted-text">
+									Choose which source the Import button opens by default. Use the caret to pick
+									the other source any time.
+								</p>
+								<div
+									class="app-settings-startup-options"
+									role="radiogroup"
+									aria-label="Default acquisition lane"
+								>
+									<label class="app-settings-radio">
+										<input
+											type="radio"
+											name="app-settings-default-acquisition-lane"
+											value="audible"
+											data-testid="app-settings-default-lane-audible"
+											checked={defaultAcquisitionLane() === 'audible'}
+											onChange={() => void settings.setDefaultAcquisitionLane('audible')}
+										/>
+										Audible
+									</label>
+									<label class="app-settings-radio">
+										<input
+											type="radio"
+											name="app-settings-default-acquisition-lane"
+											value="indexer"
+											data-testid="app-settings-default-lane-indexer"
+											checked={defaultAcquisitionLane() === 'indexer'}
+											onChange={() => void settings.setDefaultAcquisitionLane('indexer')}
+										/>
+										Indexer
+									</label>
+								</div>
+							</section>
+							<section class="app-settings-section">
+								<div class="app-settings-connection-heading">
+									<h4 class="app-settings-section-title">Indexer connection</h4>
+									<IndexerConnectionHelp open={indexerHelpOpen()} setOpen={setIndexerHelpOpen} />
+								</div>
+								<p class="muted-text">
+									Your API key is stored in your operating system’s credential store.
+								</p>
+								<div class="app-settings-path-row">
+									<label class="app-settings-field-label" for="app-settings-indexer-url">
+										URL
+									</label>
+									<input
+										id="app-settings-indexer-url"
+										class="app-settings-path-input"
+										data-testid="app-settings-indexer-url"
+										type="text"
+										placeholder="https://prowlarr.example.com"
+										aria-describedby="app-settings-connection-security"
+										value={indexerConnection().baseUrlDraft}
+										onInput={(event) =>
+											remoteSource.patchIndexerConnectionSettings({
+												baseUrlDraft: event.currentTarget.value,
+											})
+										}
+									/>
+								</div>
+								<p id="app-settings-connection-security" class="app-settings-connection-security">
+									<Show when={usesHttp()} fallback="HTTPS recommended.">
+										<strong>HTTP is unencrypted.</strong> Your API key, searches, and results
+										could be read or modified by someone able to intercept this connection.
 									</Show>
 								</p>
-							)}
-						</Show>
-					</section>
-					<Show when={state().settings}>
-						{(_) => (
-							<>
-								<section class="app-settings-section">
-									<h4 class="app-settings-section-title">Power</h4>
-									<label class="checkbox-label" data-testid="app-settings-keep-awake-toggle">
-										<input
-											type="checkbox"
-											data-testid="app-settings-keep-awake-checkbox"
-											checked={state().settings?.keepAwakeWhileWorking ?? true}
-											disabled={state().powerSaveState === 'saving'}
-											onChange={(event) =>
-												void settings.setKeepAwakeWhileWorking(Boolean(event.currentTarget.checked))
-											}
-										/>
-										<span class="option-label">Keep computer awake while working</span>
+								<div class="app-settings-path-row">
+									<label class="app-settings-field-label" for="app-settings-indexer-category">
+										Categories
 									</label>
-									<p class="muted-text">
-										During encoding, Audible acquisition, Indexer handoff, and metadata saves. The
-										display can sleep normally; ABB being open and idle does not keep the computer
-										awake.
-									</p>
-									<Show when={state().powerSaveState === 'error'}>
-										<p
-											class="app-settings-status app-settings-status-error"
-											data-testid="app-settings-power-error"
-											role="alert"
-										>
-											{state().powerSaveError}
-										</p>
-									</Show>
-								</section>
-								<section class="app-settings-section">
-									<h4 class="app-settings-section-title">Import</h4>
-									<p class="muted-text">
-										Choose which source the Import button opens by default. Use the caret to pick
-										the other source any time.
-									</p>
-									<div
-										class="app-settings-startup-options"
-										role="radiogroup"
-										aria-label="Default acquisition lane"
+									<IndexerCategoryPicker
+										selected={indexerConnection().categoryIdsDraft}
+										onChange={(categoryIdsDraft) =>
+											remoteSource.patchIndexerConnectionSettings({ categoryIdsDraft })
+										}
+									/>
+								</div>
+								<div class="app-settings-path-row">
+									<label class="app-settings-field-label" for="app-settings-indexer-api-key">
+										API key
+									</label>
+									<input
+										id="app-settings-indexer-api-key"
+										class="app-settings-path-input"
+										data-testid="app-settings-indexer-api-key"
+										type="password"
+										placeholder={
+											indexerConnection().apiKeyConfigured
+												? 'Replace stored API key'
+												: 'Enter API key'
+										}
+										value={indexerConnection().apiKeyDraft}
+										onInput={(event) =>
+											remoteSource.patchIndexerConnectionSettings({
+												apiKeyDraft: event.currentTarget.value,
+											})
+										}
+									/>
+								</div>
+								<div class="app-settings-path-row">
+									<Button
+										tone="primary"
+										data-testid="app-settings-indexer-save"
+										disabled={indexerConnection().saveState === 'saving'}
+										onClick={() => void remoteSource.saveIndexerConnectionSettings()}
 									>
-										<label class="app-settings-radio">
-											<input
-												type="radio"
-												name="app-settings-default-acquisition-lane"
-												value="audible"
-												data-testid="app-settings-default-lane-audible"
-												checked={defaultAcquisitionLane() === 'audible'}
-												onChange={() => void settings.setDefaultAcquisitionLane('audible')}
-											/>
-											Audible
-										</label>
-										<label class="app-settings-radio">
-											<input
-												type="radio"
-												name="app-settings-default-acquisition-lane"
-												value="indexer"
-												data-testid="app-settings-default-lane-indexer"
-												checked={defaultAcquisitionLane() === 'indexer'}
-												onChange={() => void settings.setDefaultAcquisitionLane('indexer')}
-											/>
-											Indexer
-										</label>
-									</div>
-								</section>
-								<section class="app-settings-section">
-									<div class="app-settings-connection-heading">
-										<h4 class="app-settings-section-title">Indexer connection</h4>
-										<IndexerConnectionHelp open={indexerHelpOpen()} setOpen={setIndexerHelpOpen} />
-									</div>
-									<p class="muted-text">
-										Your API key is stored in your operating system’s credential store.
+										{indexerConnection().saveState === 'saving' ? 'Saving…' : 'Save'}
+									</Button>
+									<Button
+										data-testid="app-settings-indexer-test"
+										disabled={indexerConnection().testState === 'testing'}
+										onClick={() => void remoteSource.testIndexerConnection()}
+									>
+										{indexerConnection().testState === 'testing' ? 'Testing…' : 'Test'}
+									</Button>
+								</div>
+								<Show when={indexerConnection().saveState === 'error'}>
+									<p
+										class="app-settings-status app-settings-status-error"
+										data-testid="app-settings-indexer-save-error"
+									>
+										{indexerConnection().saveError}
 									</p>
-									<div class="app-settings-path-row">
-										<label class="app-settings-field-label" for="app-settings-indexer-url">
-											URL
-										</label>
+								</Show>
+								<Show
+									when={
+										indexerConnection().testState === 'success' ||
+										indexerConnection().testState === 'error'
+									}
+								>
+									<p
+										class={`app-settings-status${indexerConnection().testState === 'error' ? ' app-settings-status-error' : ''}`}
+										data-testid="app-settings-indexer-test-status"
+									>
+										{indexerConnection().testMessage}
+									</p>
+								</Show>
+								<Show when={indexerConnection().apiKeyConfigured}>
+									<p class="muted-text" data-testid="app-settings-indexer-key-configured">
+										An API key is configured. Enter a new key only to replace it.
+									</p>
+								</Show>
+							</section>
+							<section class="app-settings-section">
+								<h4 class="app-settings-section-title">Startup settings</h4>
+								<p class="muted-text">
+									The encoder, output, and job controls save as you change them. This chooses what
+									the app restores on launch.
+								</p>
+								<div
+									class="app-settings-startup-options"
+									role="radiogroup"
+									aria-label="On launch"
+								>
+									<label class="app-settings-radio">
 										<input
-											id="app-settings-indexer-url"
-											class="app-settings-path-input"
-											data-testid="app-settings-indexer-url"
-											type="text"
-											placeholder="https://prowlarr.example.com"
-											aria-describedby="app-settings-connection-security"
-											value={indexerConnection().baseUrlDraft}
-											onInput={(event) =>
-												remoteSource.patchIndexerConnectionSettings({
-													baseUrlDraft: event.currentTarget.value,
-												})
-											}
+											type="radio"
+											name="app-settings-startup-behavior"
+											value="rememberLastState"
+											data-testid="app-settings-startup-last"
+											checked={startupBehavior() === 'rememberLastState'}
+											onChange={() => void settings.setStartupBehavior('rememberLastState')}
 										/>
-									</div>
-									<p id="app-settings-connection-security" class="app-settings-connection-security">
-										<Show when={usesHttp()} fallback="HTTPS recommended.">
-											<strong>HTTP is unencrypted.</strong> Your API key, searches, and results
-											could be read or modified by someone able to intercept this connection.
+										Remember my last settings
+									</label>
+									<label class="app-settings-radio">
+										<input
+											type="radio"
+											name="app-settings-startup-behavior"
+											value="pinnedDefaults"
+											data-testid="app-settings-startup-pinned"
+											checked={startupBehavior() === 'pinnedDefaults'}
+											disabled={!pinnedDefaults()}
+											onChange={() => void settings.setStartupBehavior('pinnedDefaults')}
+										/>
+										Use my pinned defaults
+										<Show when={!pinnedDefaults()}>
+											<span class="muted-text">(pin defaults first)</span>
 										</Show>
+									</label>
+								</div>
+								<div class="app-settings-path-row">
+									<Button
+										data-testid="app-settings-pin-defaults"
+										disabled={state().startupSaveState === 'saving'}
+										onClick={() => void settings.saveCurrentSettingsAsPinnedDefaults()}
+									>
+										Use current settings as defaults
+									</Button>
+								</div>
+								<Show when={state().startupSaveState === 'error'}>
+									<p
+										class="app-settings-status app-settings-status-error"
+										data-testid="app-settings-startup-error"
+									>
+										{state().startupSaveError}
 									</p>
-									<div class="app-settings-path-row">
-										<label class="app-settings-field-label" for="app-settings-indexer-category">
-											Categories
-										</label>
-										<IndexerCategoryPicker
-											selected={indexerConnection().categoryIdsDraft}
-											onChange={(categoryIdsDraft) =>
-												remoteSource.patchIndexerConnectionSettings({ categoryIdsDraft })
-											}
-										/>
-									</div>
-									<div class="app-settings-path-row">
-										<label class="app-settings-field-label" for="app-settings-indexer-api-key">
-											API key
-										</label>
-										<input
-											id="app-settings-indexer-api-key"
-											class="app-settings-path-input"
-											data-testid="app-settings-indexer-api-key"
-											type="password"
-											placeholder={
-												indexerConnection().apiKeyConfigured
-													? 'Replace stored API key'
-													: 'Enter API key'
-											}
-											value={indexerConnection().apiKeyDraft}
-											onInput={(event) =>
-												remoteSource.patchIndexerConnectionSettings({
-													apiKeyDraft: event.currentTarget.value,
-												})
-											}
-										/>
-									</div>
-									<div class="app-settings-path-row">
-										<Button
-											tone="primary"
-											data-testid="app-settings-indexer-save"
-											disabled={indexerConnection().saveState === 'saving'}
-											onClick={() => void remoteSource.saveIndexerConnectionSettings()}
-										>
-											{indexerConnection().saveState === 'saving' ? 'Saving…' : 'Save'}
-										</Button>
-										<Button
-											data-testid="app-settings-indexer-test"
-											disabled={indexerConnection().testState === 'testing'}
-											onClick={() => void remoteSource.testIndexerConnection()}
-										>
-											{indexerConnection().testState === 'testing' ? 'Testing…' : 'Test'}
-										</Button>
-									</div>
-									<Show when={indexerConnection().saveState === 'error'}>
-										<p
-											class="app-settings-status app-settings-status-error"
-											data-testid="app-settings-indexer-save-error"
-										>
-											{indexerConnection().saveError}
-										</p>
-									</Show>
+								</Show>
+								<dl class="app-settings-summary" data-testid="app-settings-summary">
 									<Show
-										when={
-											indexerConnection().testState === 'success' ||
-											indexerConnection().testState === 'error'
+										when={pinnedDefaults()}
+										fallback={
+											<>
+												<dt>Pinned defaults</dt>
+												<dd data-testid="app-settings-no-pin">Not pinned yet</dd>
+											</>
 										}
 									>
-										<p
-											class={`app-settings-status${indexerConnection().testState === 'error' ? ' app-settings-status-error' : ''}`}
-											data-testid="app-settings-indexer-test-status"
-										>
-											{indexerConnection().testMessage}
-										</p>
+										{(pinned) => (
+											<>
+												<dt>Pinned max jobs</dt>
+												<dd>{formatConcurrency(pinned())}</dd>
+												<dt>Pinned encoder</dt>
+												<dd>{formatEncoderDefaults(pinned())}</dd>
+												<dt>Pinned output folder</dt>
+												<dd>{formatOutputDefaults(pinned())}</dd>
+											</>
+										)}
 									</Show>
-									<Show when={indexerConnection().apiKeyConfigured}>
-										<p class="muted-text" data-testid="app-settings-indexer-key-configured">
-											An API key is configured. Enter a new key only to replace it.
-										</p>
-									</Show>
-								</section>
-								<section class="app-settings-section">
-									<h4 class="app-settings-section-title">Startup settings</h4>
-									<p class="muted-text">
-										The encoder, output, and job controls save as you change them. This chooses what
-										the app restores on launch.
-									</p>
-									<div
-										class="app-settings-startup-options"
-										role="radiogroup"
-										aria-label="On launch"
-									>
-										<label class="app-settings-radio">
-											<input
-												type="radio"
-												name="app-settings-startup-behavior"
-												value="rememberLastState"
-												data-testid="app-settings-startup-last"
-												checked={startupBehavior() === 'rememberLastState'}
-												onChange={() => void settings.setStartupBehavior('rememberLastState')}
-											/>
-											Remember my last settings
-										</label>
-										<label class="app-settings-radio">
-											<input
-												type="radio"
-												name="app-settings-startup-behavior"
-												value="pinnedDefaults"
-												data-testid="app-settings-startup-pinned"
-												checked={startupBehavior() === 'pinnedDefaults'}
-												disabled={!pinnedDefaults()}
-												onChange={() => void settings.setStartupBehavior('pinnedDefaults')}
-											/>
-											Use my pinned defaults
-											<Show when={!pinnedDefaults()}>
-												<span class="muted-text">(pin defaults first)</span>
-											</Show>
-										</label>
-									</div>
-									<div class="app-settings-path-row">
-										<Button
-											data-testid="app-settings-pin-defaults"
-											disabled={state().startupSaveState === 'saving'}
-											onClick={() => void settings.saveCurrentSettingsAsPinnedDefaults()}
-										>
-											Use current settings as defaults
-										</Button>
-									</div>
-									<Show when={state().startupSaveState === 'error'}>
-										<p
-											class="app-settings-status app-settings-status-error"
-											data-testid="app-settings-startup-error"
-										>
-											{state().startupSaveError}
-										</p>
-									</Show>
-									<dl class="app-settings-summary" data-testid="app-settings-summary">
-										<Show
-											when={pinnedDefaults()}
-											fallback={
-												<>
-													<dt>Pinned defaults</dt>
-													<dd data-testid="app-settings-no-pin">Not pinned yet</dd>
-												</>
-											}
-										>
-											{(pinned) => (
-												<>
-													<dt>Pinned max jobs</dt>
-													<dd>{formatConcurrency(pinned())}</dd>
-													<dt>Pinned encoder</dt>
-													<dd>{formatEncoderDefaults(pinned())}</dd>
-													<dt>Pinned output folder</dt>
-													<dd>{formatOutputDefaults(pinned())}</dd>
-												</>
-											)}
-										</Show>
-									</dl>
-								</section>
-							</>
-						)}
-					</Show>
-					<section class="app-settings-section">
-						<h4 class="app-settings-section-title">Reset</h4>
-						<div class="app-settings-path-row" data-testid="app-settings-reset-row">
-							<Show
-								when={resetConfirming()}
-								fallback={
-									<Button
-										data-testid="app-settings-reset"
-										disabled={state().saveState === 'saving'}
-										onClick={requestResetConfirm}
-									>
-										Reset all settings to defaults
-									</Button>
-								}
-							>
-								<span class="muted-text" data-testid="app-settings-reset-confirm-prompt">
-									Reset all settings?
-								</span>
-								<Button
-									data-testid="app-settings-reset-confirm"
-									disabled={state().saveState === 'saving'}
-									onClick={confirmReset}
-								>
-									Reset
-								</Button>
-								<Button data-testid="app-settings-reset-cancel" onClick={cancelResetConfirm}>
-									Cancel
-								</Button>
-							</Show>
-						</div>
-					</section>
+								</dl>
+							</section>
+						</>
+					)}
 				</Show>
+				<section class="app-settings-section">
+					<h4 class="app-settings-section-title">Reset</h4>
+					<div class="app-settings-path-row" data-testid="app-settings-reset-row">
+						<Show
+							when={resetConfirming()}
+							fallback={
+								<Button
+									data-testid="app-settings-reset"
+									disabled={state().saveState === 'saving'}
+									onClick={requestResetConfirm}
+								>
+									Reset all settings to defaults
+								</Button>
+							}
+						>
+							<span class="muted-text" data-testid="app-settings-reset-confirm-prompt">
+								Reset all settings?
+							</span>
+							<Button
+								data-testid="app-settings-reset-confirm"
+								disabled={state().saveState === 'saving'}
+								onClick={confirmReset}
+							>
+								Reset
+							</Button>
+							<Button data-testid="app-settings-reset-cancel" onClick={cancelResetConfirm}>
+								Cancel
+							</Button>
+						</Show>
+					</div>
+					<Show when={state().saveState === 'error'}>
+						<p
+							class="app-settings-status app-settings-status-error"
+							data-testid="app-settings-error"
+						>
+							{state().saveError}
+						</p>
+					</Show>
+				</section>
 			</Dialog.Body>
 		</Dialog>
 	);

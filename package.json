@@ -27,21 +27,20 @@
 		"app:install-local:existing": "bun scripts/install-local-app.ts --skip-build",
 		"clean": "rm -rf target/release dist node_modules/.vite tools/abb-aaxclean-helper/.publish",
 		"bindings:generate": "cargo run --manifest-path src-tauri/Cargo.toml --features bundled-ffmpeg,binding-export --bin export_bindings",
-		"aac-decoder-contract:check": "cargo run --manifest-path src-tauri/Cargo.toml --features bundled-ffmpeg,decoder-contract --bin verify_aac_decoder_contract",
 		"bindings:check": "scripts/check-generated-bindings.sh --mode verify",
 		"bindings:check:local": "scripts/check-generated-bindings.sh --mode local",
 		"bindings:check:runtime-boundary": "bun scripts/check-tauri-runtime-boundary.ts",
+		"check:rust-tiers": "bash scripts/check-rust-tiers.sh",
 		"bindings:sync": "scripts/check-generated-bindings.sh --mode sync",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"update:rc": "bun add --exact effect@rc solid-js@next @solidjs/web@next && bun add --dev --exact @solidjs/vite-plugin@latest @solidjs/testing-library@next"
+		"update:rc": "bun add --exact solid-js@next @solidjs/web@next && bun add --dev --exact @solidjs/vite-plugin@latest @solidjs/testing-library@next"
 	},
 	"dependencies": {
 		"@solidjs/web": "2.0.0-rc.10",
 		"@tauri-apps/api": "^2.11.1",
 		"@tauri-apps/plugin-dialog": "^2.7.3",
 		"@tauri-apps/plugin-opener": "^2.5.5",
-		"effect": "4.0.0-rc.118",
 		"solid-js": "2.0.0-rc.10"
 	},
 	"devDependencies": {
