@@ -12,6 +12,9 @@ mod session_lifecycle;
 mod staging;
 mod types;
 mod ui;
+
+/// How long Amazon may take to register a completed sign-in.
+const AUTH_REGISTRATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 pub use ui::{
     IndexerDraftSnapshot, IndexerWorkSnapshot, ReleaseGrabSnapshot, ReleaseGrabStatus,
     RemoteAuthStatus, RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiIntent, RemoteUiSnapshot,
@@ -173,6 +176,9 @@ impl RemoteSourceRuntime {
     ) -> Result<RemoteAccountState> {
         match request.provider_id {
             RemoteProviderId::Audible => {
+                // A handoff path that can't be read keeps the sign-in, so the
+                // user can correct the path without a new browser round trip.
+                let response_url = read_handoff_url(request.response_url_handoff_path)?;
                 let pending = self
                     .inner
                     .pending_audible_auth
@@ -184,12 +190,21 @@ impl RemoteSourceRuntime {
                             "Start Audible auth before completing the handoff.".to_string(),
                         )
                     })?;
-                let response_url = read_handoff_url(request.response_url_handoff_path)?;
-                let auth = self
-                    .inner
-                    .tasks
-                    .until_closing(AudibleProvider::register_auth(pending, &response_url))
-                    .await?;
+                // Registration has no timeout of its own; a stalled Amazon
+                // endpoint must not hold the remote surface until quit.
+                let registration = async {
+                    tokio::time::timeout(
+                        AUTH_REGISTRATION_TIMEOUT,
+                        AudibleProvider::register_auth(pending, &response_url),
+                    )
+                    .await
+                    .map_err(|_| {
+                        AppError::General(
+                            "Amazon did not finish the sign-in in time. Connect again.".into(),
+                        )
+                    })?
+                };
+                let auth = self.inner.tasks.until_closing(registration).await?;
                 // Registration is cancellable; the accepted durable write is
                 // awaited by EngineTasks and must finish once started.
                 let runtime = self.clone();
@@ -225,11 +240,13 @@ impl RemoteSourceRuntime {
             state.disconnected(provider_id);
             state.account_disconnected(account.as_ref().ok().cloned());
         }
-        *self
-            .inner
-            .pending_audible_auth
-            .lock()
-            .map_err(|_| AppError::General("Remote auth state lock failed".into()))? = None;
+        if provider_id == RemoteProviderId::Audible {
+            *self
+                .inner
+                .pending_audible_auth
+                .lock()
+                .map_err(|_| AppError::General("Remote auth state lock failed".into()))? = None;
+        }
         self.inner
             .lifecycle
             .cleanup_logout_sessions_without_handoff()?;
@@ -880,7 +897,9 @@ pub(crate) mod tests {
         }
 
         runtime
-            .ui_begin(RemoteUiIntent::Disconnect)
+            .ui_begin(RemoteUiIntent::Disconnect {
+                provider: ProviderId::Audible,
+            })
             .finish()
             .await
             .expect("logout should preserve handoff session");

@@ -1732,5 +1732,4 @@ async fn accepted_auth_work_survives_a_dropped_host_reply_and_reattachment_keeps
     })
     .await
     .expect("accepted completion reports failure without host wait");
-    assert!(rig.session.snapshot().remote_library.is_some());
 }

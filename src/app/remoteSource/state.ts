@@ -29,6 +29,10 @@ function requestFailure(remote: RemoteUiSnapshot): string {
 }
 
 function audibleStatus(remote: RemoteUiSnapshot, library: RemoteLibrarySnapshot): string {
+	const job = remote.acquisition;
+	// A download outranks an earlier library-load failure; the rows it came from are still shown.
+	if (job && remote.auth.kind !== 'failed' && remote.accountStatus.kind !== 'failed')
+		return (job.settled ? handoffMessage(job) : null) || statusFromAcquisitionJob(job);
 	const failure = requestFailure(remote);
 	if (failure) return failure;
 	if (remote.auth.kind === 'starting') return 'Starting Audible authorization.';
@@ -36,9 +40,7 @@ function audibleStatus(remote: RemoteUiSnapshot, library: RemoteLibrarySnapshot)
 	if (remote.accountStatus.kind === 'running') return 'Updating connection.';
 	if (remote.libraryStatus.kind === 'running') return 'Loading Audible library.';
 	if (remote.auth.kind === 'awaitingHandoff')
-		return 'Complete Audible authorization in your browser, then enter the handoff path.';
-	const job = remote.acquisition;
-	if (job) return (job.settled ? handoffMessage(job) : null) || statusFromAcquisitionJob(job);
+		return 'Complete Audible authorization in your browser, then enter the handoff path, or Connect again.';
 	if (remote.libraryStatus.kind === 'succeeded') {
 		return (
 			uniqueDiagnosticMessage(library.diagnostics) ||

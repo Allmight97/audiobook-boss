@@ -45,7 +45,7 @@
 
 ## Proof
 
-- `workflow.test.ts` covers intent routing, snapshot reattachment, handoff wording,
+- `owner.test.ts` covers intent routing, snapshot reattachment, handoff wording,
   auth browser opening, restored library rows, and refusal visibility.
   `engineLink/link.test.ts` guards independent library revisions.
   `indexerConnection.test.ts` covers engine draft rendering and write-only input echo.

@@ -34,7 +34,7 @@ function accountIntent(
 		case 'completeAuth':
 			return { kind: 'completeAuth', responseUrlHandoffPath: handoffPath.trim() || null };
 		case 'logout':
-			return { kind: 'disconnect' };
+			return { kind: 'disconnect', provider: 'audible' };
 		case 'loadLibrary':
 			return { kind: 'refreshLibrary' };
 	}

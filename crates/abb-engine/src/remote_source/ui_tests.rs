@@ -425,7 +425,9 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
         .await
         .is_err());
     assert!(runtime
-        .ui_begin(RemoteUiIntent::Disconnect)
+        .ui_begin(RemoteUiIntent::Disconnect {
+            provider: ProviderId::Indexer
+        })
         .finish()
         .await
         .is_err());
@@ -835,10 +837,13 @@ async fn accepted_disconnect_blocks_acquisition_and_shutdown_waits_for_credentia
             title_id: "selected".into(),
         })
         .expect("select title");
-    let disconnect = runtime
-        .inner
-        .tasks
-        .spawn(runtime.ui_begin(RemoteUiIntent::Disconnect).finish());
+    let disconnect = runtime.inner.tasks.spawn(
+        runtime
+            .ui_begin(RemoteUiIntent::Disconnect {
+                provider: ProviderId::Audible,
+            })
+            .finish(),
+    );
     entered.await.expect("delete entered vault");
     assert_eq!(
         runtime.ui_snapshot().account_status,
@@ -898,7 +903,9 @@ async fn failed_credential_deletion_preserves_library_choices_and_reports_failur
         })
         .expect("select title");
     assert!(runtime
-        .ui_begin(RemoteUiIntent::Disconnect)
+        .ui_begin(RemoteUiIntent::Disconnect {
+            provider: ProviderId::Audible
+        })
         .finish()
         .await
         .is_err());
@@ -951,7 +958,9 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
     assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Completing);
     for intent in [
         RemoteUiIntent::StartAuth,
-        RemoteUiIntent::Disconnect,
+        RemoteUiIntent::Disconnect {
+            provider: ProviderId::Audible,
+        },
         RemoteUiIntent::RefreshLibrary,
         RemoteUiIntent::SelectLane {
             lane: ProviderId::Indexer,
@@ -993,7 +1002,9 @@ async fn a_library_failure_after_lane_replacement_or_disconnect_is_superseded() 
         .expect("Audible lane");
     let stale = runtime.ui_begin(RemoteUiIntent::RefreshLibrary);
     runtime
-        .ui_begin(RemoteUiIntent::Disconnect)
+        .ui_begin(RemoteUiIntent::Disconnect {
+            provider: ProviderId::Audible,
+        })
         .finish()
         .await
         .expect("disconnect");
@@ -1042,4 +1053,21 @@ async fn starting_auth_clears_previous_read_failures_and_supersedes_pending_libr
     assert_eq!(snapshot.auth, RemoteAuthStatus::AwaitingHandoff);
     assert_eq!(snapshot.account_status, RemoteDraftStatus::Idle);
     assert_eq!(snapshot.library_status, RemoteDraftStatus::Idle);
+}
+
+#[tokio::test]
+async fn disconnect_naming_another_provider_than_the_lane_is_refused() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let runtime = super::super::tests::test_runtime(&root);
+    assert_eq!(runtime.ui_snapshot().lane, ProviderId::Audible);
+
+    let refused = runtime
+        .ui_begin(RemoteUiIntent::Disconnect {
+            provider: ProviderId::Indexer,
+        })
+        .finish()
+        .await;
+
+    assert!(refused.is_err());
+    assert!(!runtime.ui().disconnecting);
 }

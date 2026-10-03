@@ -19,7 +19,10 @@ pub enum RemoteUiIntent {
     CompleteAuth {
         response_url_handoff_path: Option<String>,
     },
-    Disconnect,
+    /// Disconnects `provider`; refused unless it is the lane on screen.
+    Disconnect {
+        provider: ProviderId,
+    },
     RefreshLibrary,
     SelectLane {
         lane: ProviderId,
@@ -345,9 +348,9 @@ impl UiState {
     pub(super) fn disconnected(&mut self, provider: ProviderId) {
         self.library_request += 1;
         self.account_request += 1;
-        self.snapshot.auth = RemoteAuthStatus::Idle;
         self.snapshot.library_status = RemoteDraftStatus::Idle;
         if provider == ProviderId::Audible {
+            self.snapshot.auth = RemoteAuthStatus::Idle;
             self.snapshot.acquisition = None;
             self.library_loaded(Vec::new());
         }
@@ -436,7 +439,7 @@ impl UiState {
                 response_url_handoff_path,
             } => return self.begin_auth_completion(response_url_handoff_path),
 
-            RemoteUiIntent::Disconnect => return self.begin_disconnect(),
+            RemoteUiIntent::Disconnect { provider } => return self.begin_disconnect(provider),
 
             RemoteUiIntent::RefreshLibrary => return self.refresh_library(),
 
@@ -516,14 +519,17 @@ impl UiState {
     }
 
     fn select_lane(&mut self, lane: ProviderId) -> Result<UiAction> {
-        if self.disconnecting
-            || matches!(
-                self.snapshot.auth,
-                RemoteAuthStatus::Starting | RemoteAuthStatus::Completing
-            )
-        {
+        if self.disconnecting {
             return Err(AppError::InvalidInput(
                 "Wait for disconnect to finish.".into(),
+            ));
+        }
+        if matches!(
+            self.snapshot.auth,
+            RemoteAuthStatus::Starting | RemoteAuthStatus::Completing
+        ) {
+            return Err(AppError::InvalidInput(
+                "Wait for Audible sign-in to finish.".into(),
             ));
         }
         if self.snapshot.indexer.grabbing {
@@ -580,8 +586,12 @@ impl UiState {
         Ok(UiAction::Library(request))
     }
 
-    fn begin_disconnect(&mut self) -> Result<UiAction> {
-        let provider = self.snapshot.lane;
+    fn begin_disconnect(&mut self, provider: ProviderId) -> Result<UiAction> {
+        if provider != self.snapshot.lane {
+            return Err(AppError::InvalidInput(
+                "That account is no longer the one shown. Try again.".into(),
+            ));
+        }
         self.disconnect_allowed(provider)?;
         self.disconnecting = true;
         self.account_request += 1;
@@ -1055,7 +1065,7 @@ impl RemoteSourceRuntime {
     pub(crate) fn ui_begin(&self, intent: RemoteUiIntent) -> RemoteUiRun {
         let action = {
             let mut state = self.ui();
-            if matches!(intent, RemoteUiIntent::Disconnect)
+            if matches!(intent, RemoteUiIntent::Disconnect { .. })
                 && self.inner.lifecycle.has_unsettled_acquisition()
             {
                 Err(AppError::InvalidInput(

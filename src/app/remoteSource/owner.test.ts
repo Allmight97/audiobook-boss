@@ -200,7 +200,7 @@ it('routes authentication, library refresh, and disconnect intents and opens the
 		{ kind: 'remote', intent: { kind: 'startAuth' } },
 		{ kind: 'remote', intent: { kind: 'completeAuth', responseUrlHandoffPath: '/handoff' } },
 		{ kind: 'remote', intent: { kind: 'refreshLibrary' } },
-		{ kind: 'remote', intent: { kind: 'disconnect' } },
+		{ kind: 'remote', intent: { kind: 'disconnect', provider: 'audible' } },
 	]);
 	engine.change((state) => {
 		state.remote.auth = { kind: 'awaitingHandoff' };
