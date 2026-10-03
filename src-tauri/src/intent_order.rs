@@ -85,12 +85,19 @@ impl IntentOrder {
         self.position.send_if_modified(|position| {
             position.client == client && position.waiting.insert(sequence)
         });
-        let outcome = self.wait_for_turn(client, sequence).await;
+        let mut outcome = self.wait_for_turn(client, sequence).await;
+        // Checked and claimed in one step, so a reload between the wait and
+        // the claim cannot hand an old frontend's intent a turn.
         self.position.send_if_modified(|position| {
-            let mine = position.client == client;
-            if mine {
-                position.waiting.remove(&sequence);
-                if outcome.is_ok() {
+            if position.client != client {
+                outcome = Err(Refused::Replaced);
+                return false;
+            }
+            position.waiting.remove(&sequence);
+            if outcome.is_ok() {
+                if position.next > sequence {
+                    outcome = Err(Refused::Late);
+                } else {
                     position.running = true;
                 }
             }
@@ -133,13 +140,6 @@ impl IntentOrder {
                     });
                 }
             }
-        }
-        let position = self.position.borrow();
-        if position.client != client {
-            return Err(Refused::Replaced);
-        }
-        if position.next > sequence {
-            return Err(Refused::Late);
         }
         Ok(())
     }

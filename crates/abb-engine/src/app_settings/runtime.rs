@@ -128,9 +128,6 @@ struct State {
     /// Whether the settings in effect have changed since they last reached disk.
     unsaved: bool,
     save_error: Option<AppErrorEnvelope>,
-    /// The concurrency choice in effect. A launch from pinned defaults takes
-    /// the pinned choice without rewriting the last-used one.
-    concurrency: ConcurrencyPreference,
 }
 
 /// The defaults a launch starts from.
@@ -158,8 +155,14 @@ impl SettingsRuntime {
         config_dir: PathBuf,
         power: PowerManager,
     ) -> (Self, ManagedJobRegistry, PinnedDefaults) {
-        let accepted = get_app_settings(&config_dir);
+        let mut accepted = get_app_settings(&config_dir);
         let startup = startup_defaults(&accepted);
+        // The defaults on screen are the ones in effect: after a launch from
+        // pinned defaults, a later pin or save starts from those, not from the
+        // last-used values the launch set aside.
+        accepted.max_concurrent_jobs = startup.max_concurrent_jobs;
+        accepted.encoder_defaults = startup.encoder_defaults.clone();
+        accepted.output_defaults = startup.output_defaults.clone();
         let jobs: ManagedJobRegistry = Arc::new(match startup.max_concurrent_jobs {
             ConcurrencyPreference::Fixed(value) => JobRegistry::new(value),
             ConcurrencyPreference::Auto => JobRegistry::auto(),
@@ -170,7 +173,6 @@ impl SettingsRuntime {
         );
         power.set_enabled(accepted.keep_awake_while_working);
         let state = State {
-            concurrency: startup.max_concurrent_jobs,
             accepted,
             ..State::default()
         };
@@ -196,7 +198,7 @@ impl SettingsRuntime {
             settings: state.accepted.clone(),
             save_error: state.save_error.clone(),
             concurrency: ConcurrencySnapshot {
-                preference: state.concurrency,
+                preference: state.accepted.max_concurrent_jobs,
                 effective: self.inner.jobs.max_concurrent(),
                 capabilities: JobRegistry::max_concurrent_jobs_capabilities(),
             },
@@ -415,7 +417,6 @@ impl SettingsRuntime {
             Err(error) => return rejected(&error),
         };
         let accepted = preference.accepted(effective);
-        state.concurrency = accepted;
         self.accept(
             state,
             AppSettingsPatch {
@@ -455,7 +456,6 @@ impl SettingsRuntime {
         let settings = AppSettings::default();
         *state = State {
             revision: state.revision,
-            concurrency: settings.max_concurrent_jobs,
             accepted: settings,
             unsaved: true,
             save_error: None,

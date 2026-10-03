@@ -66,6 +66,24 @@ fn the_developer_tool_imports_edits_and_saves_a_real_file() {
     assert_eq!(genre(&source).as_deref(), Some("Mystery"));
 }
 
+#[cfg(unix)]
+#[test]
+fn the_developer_tool_fails_when_a_save_cannot_write() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::TempDir::new().expect("state root");
+    let source = book(root.path());
+    std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o444))
+        .expect("make the book read-only");
+    let result = Command::new(env!("CARGO_BIN_EXE_abb-dev"))
+        .arg(&source)
+        .args(["--set", "genre=Mystery", "--save", "--state-dir"])
+        .arg(root.path().join("tool-state"))
+        .output()
+        .expect("run developer host");
+    assert!(!result.status.success(), "a failed Save must fail the run");
+    assert_eq!(genre(&source).as_deref(), Some("Fantasy"));
+}
+
 #[test]
 fn the_developer_tool_exports_with_the_edited_tags() {
     let root = tempfile::TempDir::new().expect("state root");

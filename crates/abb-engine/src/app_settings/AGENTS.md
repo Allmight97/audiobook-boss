@@ -33,7 +33,8 @@ default the session records reaches hosts as `EngineEvent::Settings`.
 - Concurrency is accepted by the job scheduler before it is recorded; a fixed
   choice is recorded as the count the scheduler settled on. At engine start
   the scheduler takes the startup defaults' concurrency (pinned, if the user
-  chose to start from pinned defaults).
+  chose to start from pinned defaults). A launch from pinned defaults puts
+  them in effect, so a later pin or save starts from what is on screen.
 - Reset is refused while exports run; otherwise it puts the defaults in
   effect and writes them like any change.
 - `keep_awake_while_working` defaults on. Applying it updates

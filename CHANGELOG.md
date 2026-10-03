@@ -4,6 +4,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- After launching from pinned defaults, pinning again saves the defaults on
+  screen instead of older ones from before the launch.
+
 ## [1.14.0] - 2026-10-02
 
 ### Changed

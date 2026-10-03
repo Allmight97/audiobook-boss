@@ -322,6 +322,30 @@ async fn pinning_captures_the_current_defaults() {
     assert_eq!(pinned.output_defaults, output_in("/current"));
 }
 
+#[tokio::test]
+async fn pinning_after_a_pinned_launch_keeps_the_defaults_on_screen() {
+    let rig = start_with(AppSettingsPatch {
+        encoder_defaults: Some(mp3_defaults()),
+        output_defaults: Some(output_in("/last-used")),
+        startup_behavior: Some(StartupBehavior::PinnedDefaults),
+        pinned_defaults: Some(PinnedDefaults {
+            max_concurrent_jobs: ConcurrencyPreference::Fixed(2),
+            encoder_defaults: EncoderDefaults::default(),
+            output_defaults: output_in("/pinned"),
+        }),
+        ..Default::default()
+    });
+
+    // Only the output changes; the encoder on screen is still the pinned one.
+    rig.send(remember_output("/edited")).await;
+    rig.send(SettingsIntent::PinCurrentDefaults).await;
+
+    let pinned = rig.on_disk().pinned_defaults.expect("pinned");
+    assert_eq!(pinned.encoder_defaults, EncoderDefaults::default());
+    assert_eq!(pinned.output_defaults, output_in("/edited"));
+    assert_eq!(pinned.max_concurrent_jobs, ConcurrencyPreference::Fixed(2));
+}
+
 // ---- Reset ----
 
 #[tokio::test]
