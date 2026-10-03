@@ -1683,3 +1683,54 @@ async fn moves_name_the_title_so_a_second_click_moves_the_same_title_again() {
         .collect();
     assert_eq!(order, ["gamma", "alpha", "beta"]);
 }
+
+#[tokio::test]
+async fn accepted_auth_work_survives_a_dropped_host_reply_and_reattachment_keeps_status() {
+    use crate::remote_source::{RemoteAuthStatus, RemoteUiIntent};
+    let rig = rig();
+    drop(rig.session.begin(SessionIntent::Remote {
+        intent: RemoteUiIntent::StartAuth,
+    }));
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while rig
+            .session
+            .snapshot()
+            .remote
+            .expect("remote attachment")
+            .auth
+            != RemoteAuthStatus::AwaitingHandoff
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("accepted start completed without host wait");
+    drop(
+        rig.session.begin(SessionIntent::Remote {
+            intent: RemoteUiIntent::CompleteAuth {
+                response_url_handoff_path: Some(
+                    rig._config
+                        .path()
+                        .join("missing-auth-handoff")
+                        .to_string_lossy()
+                        .into_owned(),
+                ),
+            },
+        }),
+    );
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !matches!(
+            rig.session
+                .snapshot()
+                .remote
+                .expect("remote attachment")
+                .auth,
+            RemoteAuthStatus::Failed { .. }
+        ) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("accepted completion reports failure without host wait");
+    assert!(rig.session.snapshot().remote_library.is_some());
+}

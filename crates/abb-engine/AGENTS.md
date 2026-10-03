@@ -11,8 +11,9 @@ the same code.
   `Engine::start` clears working files a previous run abandoned, so two
   engines must not share those folders.
 - A host calls `Engine` methods and receives `EngineEvent`s; `engine.rs` lists
-  the methods. Remote sources are the exception: a host reaches them through
-  `Engine::remote_source()`, whose strip is in `remote_source/AGENTS.md`.
+  the methods. Remote account, auth, library, and acquisition work uses
+  session intents and snapshots; its owned vocabulary is in
+  `remote_source/AGENTS.md`.
 - The engine runs on the host's tokio runtime: `Engine::start` and every
   async method must be called inside one. A host with no runtime builds one.
 - The working session and the settings each take typed intents and return
@@ -24,7 +25,9 @@ the same code.
   `Engine::shutdown`: it refuses new exports and acquisitions, cancels running
   ones, a running preview, and any submission waiting at collision review,
   and waits for every background task and for the Saves, submissions, and
-  settings writes already under way, so saves waiting on them are written.
+  settings writes already under way, accepted remote disconnects and credential
+  writes, and started keychain reads, so saves waiting on them are written.
+  Remote registration and network reads stop before credential persistence.
   Metadata Saves are not cancelled. `Engine::running_work` tells a host what
   quitting would stop.
 - Every background task the engine starts runs on its one `EngineTasks` owner over a `TaskTracker`

@@ -50,6 +50,12 @@ export type RemoteSourceView = Omit<
 };
 
 type EngineFields =
+	| 'isBusy'
+	| 'providerId'
+	| 'providers'
+	| 'accountState'
+	| 'titles'
+	| 'statusByProvider'
 	| 'selectedTitleIds'
 	| 'includePdfByTitleId'
 	| 'releases'
@@ -59,14 +65,9 @@ type EngineFields =
 	| 'isAcquiring'
 	| 'activeJob';
 export type RemoteSourceLocalState = Omit<RemoteSourceState, EngineFields>;
-export type RemoteSourcePatch = Partial<RemoteSourceLocalState> & { statusMessage?: string };
+export type RemoteSourcePatch = Partial<RemoteSourceLocalState>;
 export function createInitialRemoteSourceState(): RemoteSourceLocalState {
 	return {
-		isBusy: false,
-		providerId: 'audible',
-		providers: [],
-		accountState: null,
-		titles: [],
 		titleFilter: '',
 		showSupplementalPdfOnly: false,
 		hideUnavailableTitles: false,
@@ -76,7 +77,6 @@ export function createInitialRemoteSourceState(): RemoteSourceLocalState {
 		releaseFilter: '',
 		releaseSort: 'seeders',
 		isOpen: false,
-		statusByProvider: { audible: '', indexer: '' },
 	};
 }
 
@@ -85,7 +85,10 @@ export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourc
 	return {
 		...view,
 		statusMessage: statusByProvider[state.providerId],
-		isBusy: state.isBusy || isGrabbing || (state.providerId === 'audible' && isAcquiring),
+		isBusy:
+			state.isBusy ||
+			(state.providerId === 'indexer' && isGrabbing) ||
+			(state.providerId === 'audible' && isAcquiring),
 		selectedTitleIds: new Set(state.selectedTitleIds),
 		selectedReleaseKeys: new Set(state.selectedReleaseKeys),
 		releaseGrabs: { ...state.releaseGrabs },
@@ -93,17 +96,5 @@ export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourc
 		titles: [...state.titles],
 		providers: [...state.providers],
 		releases: [...state.releases],
-	};
-}
-
-export function laneSelectionResetPatch(): Partial<AcquisitionState> {
-	return {
-		titleFilter: '',
-		showSupplementalPdfOnly: false,
-		hideUnavailableTitles: false,
-		indexerAuthorQuery: '',
-		indexerTitleQuery: '',
-		releaseFilter: '',
-		releaseSort: 'seeders',
 	};
 }

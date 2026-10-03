@@ -117,7 +117,7 @@ export function normalizeMetadata(metadata: GeneratedAudiobookMetadata): Audiobo
  * is the request for MP3 pass-through.
  */
 export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionUpdate {
-	const { titles, selection, metadata, lookup, audio, output, remote } = update;
+	const { titles, selection, metadata, lookup, audio, output, remote, remoteLibrary } = update;
 	return {
 		revision: update.revision,
 		titles: titles
@@ -131,6 +131,7 @@ export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionU
 		remote: remote
 			? {
 					...remote,
+					account: remote.account ? normalizeNullish(remote.account) : null,
 					acquisition: remote.acquisition ? normalizeNullish(remote.acquisition) : null,
 					indexer: {
 						...remote.indexer,
@@ -139,6 +140,13 @@ export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionU
 							categories: release.categories,
 						})),
 					},
+				}
+			: undefined,
+		remoteLibrary: remoteLibrary
+			? {
+					...remoteLibrary,
+					titles: normalizeNullish(remoteLibrary.titles),
+					diagnostics: normalizeNullish(remoteLibrary.diagnostics),
 				}
 			: undefined,
 		metadata: metadata ?? undefined,

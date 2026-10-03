@@ -63,3 +63,68 @@ describe('tauriClient generated event bindings', () => {
 		expectTypeOf<MaxConcurrentJobsCapabilities['fixedMax']>().toEqualTypeOf<number>();
 	});
 });
+
+describe('remote snapshot normalization', () => {
+	it('normalizes cached library title optionals and preserves meaningful empty account/job snapshots', async () => {
+		const { normalizeSessionUpdate } = await import('./tauri/normalizers');
+		const { fakeRemote } = await import('../test/fixtures/fakeEngine');
+		const seed = fakeRemote();
+		const remote = {
+			...seed,
+			account: null,
+			acquisition: null,
+			indexer: { ...seed.indexer, releases: [] },
+		};
+		const update = normalizeSessionUpdate({
+			revision: 3,
+			titles: null,
+			selection: null,
+			metadata: null,
+			lookup: null,
+			audio: null,
+			output: null,
+			remote,
+			remoteLibrary: {
+				revision: 2,
+				titles: [
+					{
+						providerId: 'audible',
+						titleId: 'book',
+						title: 'Book',
+						authors: [],
+						narrators: [],
+						durationSeconds: null,
+						coverUrl: null,
+						supplementalPdfAvailable: false,
+						acquired: false,
+						availability: {
+							status: 'available',
+							acquirable: true,
+							label: 'Available',
+							detail: null,
+						},
+						unsupportedReasons: [],
+					},
+				],
+				diagnostics: [{ kind: 'validationFailed', titleId: null, message: 'Partial library' }],
+			},
+		});
+		expect(update.remote?.account).toBeNull();
+		expect(update.remote?.acquisition).toBeNull();
+		expect(update.remoteLibrary?.titles[0]).not.toHaveProperty('coverUrl');
+		expect(update.remoteLibrary?.titles[0].availability).not.toHaveProperty('detail');
+		expect(update.remoteLibrary?.diagnostics[0]).not.toHaveProperty('titleId');
+		const progressOnly = normalizeSessionUpdate({
+			revision: 4,
+			titles: null,
+			selection: null,
+			metadata: null,
+			lookup: null,
+			audio: null,
+			output: null,
+			remote,
+			remoteLibrary: null,
+		});
+		expect(progressOnly.remoteLibrary).toBeUndefined();
+	});
+});

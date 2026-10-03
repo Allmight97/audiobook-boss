@@ -75,11 +75,10 @@ impl AudibleProvider {
         ))
     }
 
-    pub(in crate::remote_source) async fn complete_auth(
-        vault: &dyn SecretVault,
+    pub(in crate::remote_source) async fn register_auth(
         pending: PendingAudibleAuth,
         response_url: &str,
-    ) -> Result<RemoteSourceAccountState> {
+    ) -> Result<Auth> {
         let authorization_code = extract_audible_auth_code(response_url)?;
         let registration = register(
             &authorization_code,
@@ -98,7 +97,7 @@ impl AudibleProvider {
             authorization_code,
             code_verifier: pending.code_verifier,
         };
-        Self::persist_auth(vault, &auth)
+        Ok(auth)
     }
 
     /// Serialize the Audible auth and persist it to the secure vault, then

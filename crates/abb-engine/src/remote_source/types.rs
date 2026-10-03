@@ -41,13 +41,19 @@ pub struct RemoteSourceAccountState {
     pub message: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteAuthStartResponse {
     pub provider_id: ProviderId,
     pub authorization_url: String,
     pub handoff_path_hint: String,
     pub message: String,
+}
+
+impl std::fmt::Debug for RemoteAuthStartResponse {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("RemoteAuthStartResponse (authorization redacted)")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]

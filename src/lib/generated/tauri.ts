@@ -31,12 +31,6 @@ export const commands = {
 	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**  Returns backend-owned supported local audio import metadata for picker UI. */
 	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
-	listRemoteSourceProviders: () => typedError<RemoteSourceProviderCapabilities[], AppErrorEnvelope>(__TAURI_INVOKE("list_remote_source_providers")),
-	getRemoteSourceAccountState: (providerId: ProviderId) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_account_state", { providerId })),
-	startRemoteSourceAuth: (providerId: ProviderId) => typedError<RemoteAuthStartResponse, AppErrorEnvelope>(__TAURI_INVOKE("start_remote_source_auth", { providerId })),
-	completeRemoteSourceAuth: (request: RemoteAuthCompletionRequest) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("complete_remote_source_auth", { request })),
-	logoutRemoteSourceAccount: (providerId: ProviderId) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("logout_remote_source_account", { providerId })),
-	loadRemoteSourceLibrary: (providerId: ProviderId) => typedError<RemoteLibraryResponse, AppErrorEnvelope>(__TAURI_INVOKE("load_remote_source_library", { providerId })),
 	listWorkOperations: () => typedError<OperationListSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	cancelWorkOperation: (operationId: OperationId, childJobId: string | null) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId, childJobId })),
 	logFrontend: (entry: FrontendLogEntry) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("log_frontend", { entry })),
@@ -904,17 +898,14 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
 
 export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
 
-export type RemoteAuthCompletionRequest = {
-	providerId: ProviderId,
-	responseUrlHandoffPath: string | null,
-};
-
 export type RemoteAuthStartResponse = {
 	providerId: ProviderId,
 	authorizationUrl: string,
 	handoffPathHint: string,
 	message: string,
 };
+
+export type RemoteAuthStatus = { kind: "idle" } | { kind: "starting" } | { kind: "awaitingHandoff" } | { kind: "completing" } | { kind: "failed"; error: AppErrorEnvelope };
 
 export type RemoteDraftStatus = { kind: "idle" } | { kind: "running" } | { kind: "succeeded" } | { kind: "failed"; error: AppErrorEnvelope };
 
@@ -923,8 +914,8 @@ export type RemoteIndexerConnectionTestResult = {
 	message: string,
 };
 
-export type RemoteLibraryResponse = {
-	providerId: ProviderId,
+export type RemoteLibrarySnapshot = {
+	revision: number,
 	titles: RemoteTitle[],
 	diagnostics: RemoteSourceDiagnostic[],
 };
@@ -990,11 +981,16 @@ export type RemoteTitleAvailability = {
 
 export type RemoteTitleAvailabilityStatus = "available" | "catalogOnly" | "revoked" | "providerUnavailable";
 
-export type RemoteUiIntent = { kind: "selectLane"; lane: ProviderId } | { kind: "toggleTitle"; titleId: string } | { kind: "clearTitles" } | { kind: "togglePdf"; titleId: string } | { kind: "acquireSelected" } | { kind: "cancelAcquisition"; jobId: string } | { kind: "searchReleases"; author: string; title: string } | { kind: "selectRelease"; indexerId: number; guid: string; multi: boolean } | { kind: "grabSelected" } | { kind: "grabRelease"; indexerId: number; guid: string } | { kind: "loadConnection" } | { kind: "editConnection"; baseUrl: string | null; categoryIds: number[] | null; apiKey: string | null } | { kind: "saveConnection" } | { kind: "testConnection" };
+export type RemoteUiIntent = { kind: "startAuth" } | { kind: "completeAuth"; responseUrlHandoffPath: string | null } | { kind: "disconnect" } | { kind: "refreshLibrary" } | { kind: "selectLane"; lane: ProviderId } | { kind: "toggleTitle"; titleId: string } | { kind: "clearTitles" } | { kind: "togglePdf"; titleId: string } | { kind: "acquireSelected" } | { kind: "cancelAcquisition"; jobId: string } | { kind: "searchReleases"; author: string; title: string } | { kind: "selectRelease"; indexerId: number; guid: string; multi: boolean } | { kind: "grabSelected" } | { kind: "grabRelease"; indexerId: number; guid: string } | { kind: "loadConnection" } | { kind: "editConnection"; baseUrl: string | null; categoryIds: number[] | null; apiKey: string | null } | { kind: "saveConnection" } | { kind: "testConnection" };
 
 export type RemoteUiSnapshot = {
 	revision: number,
 	lane: ProviderId,
+	providers: RemoteSourceProviderCapabilities[],
+	account: RemoteSourceAccountState | null,
+	accountStatus: RemoteDraftStatus,
+	auth: RemoteAuthStatus,
+	libraryStatus: RemoteDraftStatus,
 	selectedTitleIds: string[],
 	includePdfByTitleId: { [key in string]: boolean },
 	indexer: IndexerWorkSnapshot,
@@ -1098,7 +1094,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 { kind: "save" } | { kind: "lookupOpen" } | { kind: "lookupClose" } | { kind: "lookupSearch" } | { kind: "lookupApply"; index: number } | { kind: "lookupSkip" } | { kind: "lookupSetTitleQuery"; value: string } | { kind: "lookupSetAuthorQuery"; value: string } | { kind: "lookupSetSource"; source: LookupSource } | { kind: "lookupSetApplyMode"; mode: LookupApplyMode } | { kind: "lookupSetReplaceCover"; replace: boolean };
 
 /**  Whether an intent took effect. Details a user needs are in the snapshot. */
-export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } |
+export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } | { kind: "remoteAuthStarted"; authorization: RemoteAuthStartResponse } |
 /**  The engine could not accept or complete the request. */
 { kind: "rejected"; error: AppErrorEnvelope } |
 /**
@@ -1129,6 +1125,7 @@ export type SessionUpdate = {
 	audio: AudioSnapshot | null,
 	output: OutputSnapshot | null,
 	remote: RemoteUiSnapshot | null,
+	remoteLibrary: RemoteLibrarySnapshot | null,
 };
 
 /**

@@ -2,7 +2,6 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import type { RemoteSourceWorkflowServices } from './workflow';
 
 const runtimes: AppRuntime[] = [];
 afterEach(() => {
@@ -24,27 +23,15 @@ const job: AcquisitionJob = {
 	supplementalAssets: [],
 	diagnostics: [],
 };
-function services(): RemoteSourceWorkflowServices {
-	return {
-		listProviders: vi.fn(async () => []),
-		getAccountState: vi.fn(async (providerId) => ({ providerId, status: 'connected' as const })),
-		startAuth: vi.fn(),
-		openAuthorizationUrl: vi.fn(),
-		completeAuth: vi.fn(),
-		logout: vi.fn(),
-		loadLibrary: vi.fn(async () => ({
-			providerId: 'audible' as const,
-			titles: [],
-			diagnostics: [],
-		})),
-	};
-}
-async function open(engine: FakeEngine = createFakeEngine(), capability = services()) {
-	const runtime = createAppRuntime({ engine, remoteSource: { services: capability } });
+async function open(
+	engine: FakeEngine = createFakeEngine(),
+	openAuthorizationUrl = vi.fn(async (_url: string) => undefined),
+) {
+	const runtime = createAppRuntime({ engine, remoteSource: { openAuthorizationUrl } });
 	runtimes.push(runtime);
 	await runtime.initialize();
 	await runtime.remoteSource.open();
-	return { runtime, engine, services: capability, owner: runtime.remoteSource };
+	return { runtime, engine, openAuthorizationUrl, owner: runtime.remoteSource };
 }
 it('renders acquisition progress from the attached session and Close leaves it running', async () => {
 	const engine = createFakeEngine();
@@ -82,6 +69,9 @@ it('words the engine handoff and keeps Indexer status independent of an Audible 
 	expect(owner.view().statusMessage).toBe('2 acquired titles imported.');
 	await owner.selectLane('indexer');
 	engine.change((state) => {
+		state.remote.lane = 'indexer';
+	});
+	engine.change((state) => {
 		state.remote.indexer.message = 'Sending one release';
 		state.remote.indexer.grabbing = true;
 	});
@@ -99,6 +89,9 @@ it('passes title, PDF, search, and batch choices as intents while showing engine
 		}),
 	);
 	await owner.selectLane('indexer');
+	engine.change((state) => {
+		state.remote.lane = 'indexer';
+	});
 	owner.editSearch({ indexerAuthorQuery: 'Writer', indexerTitleQuery: 'Book' });
 	await owner.runAction({ type: 'searchReleases' });
 	await owner.runAction({ type: 'grabSelectedReleases' });
@@ -117,12 +110,13 @@ it('passes title, PDF, search, and batch choices as intents while showing engine
 	expect([...owner.view().selectedTitleIds]).toEqual(['book-1']);
 	expect(owner.view().includePdfByTitleId['book-1']).toBe(false);
 });
-it('hydrates the selected provider and scans only connected Audible libraries', async () => {
-	const { owner, services: capability } = await open();
-	expect(capability.loadLibrary).toHaveBeenCalledExactlyOnceWith('audible');
+it('routes opening and lane selection only through the lane intent', async () => {
+	const { owner, engine } = await open();
 	await owner.selectLane('indexer');
-	expect(capability.getAccountState).toHaveBeenLastCalledWith('indexer');
-	expect(capability.loadLibrary).toHaveBeenCalledTimes(1);
+	expect(engine.sessionIntents).toEqual([
+		{ kind: 'remote', intent: { kind: 'selectLane', lane: 'audible' } },
+		{ kind: 'remote', intent: { kind: 'selectLane', lane: 'indexer' } },
+	]);
 });
 
 it('shows a new engine refusal instead of hiding it under an older acquisition result', async () => {
@@ -150,4 +144,140 @@ it('shows a new engine refusal instead of hiding it under an older acquisition r
 			: undefined;
 	await owner.runAction({ type: 'acquireSelected' });
 	expect(owner.view().statusMessage).toBe('Select Audible titles before acquiring.');
+});
+
+const title = {
+	providerId: 'audible' as const,
+	titleId: 'book-1',
+	title: 'Restored book',
+	authors: ['Writer'],
+	narrators: [],
+	supplementalPdfAvailable: false,
+	acquired: false,
+	availability: { status: 'available' as const, acquirable: true, label: 'Available' },
+	unsupportedReasons: [],
+};
+
+it('restores cached library rows and selections during accepted acquisition without requesting a library load', async () => {
+	const engine = createFakeEngine();
+	engine.change((state) => {
+		state.remote.account = { providerId: 'audible', status: 'connected' };
+		state.remote.selectedTitleIds = [title.titleId];
+		state.remote.acquisition = job;
+		state.remoteLibrary.titles = [title];
+	});
+	const first = await open(engine);
+	first.owner.close();
+	first.runtime.dispose();
+	const replacement = await open(engine);
+	expect(replacement.owner.view().titles).toEqual([title]);
+	expect([...replacement.owner.view().selectedTitleIds]).toEqual([title.titleId]);
+	expect(engine.sessionIntents).toEqual([
+		{ kind: 'remote', intent: { kind: 'selectLane', lane: 'audible' } },
+		{ kind: 'remote', intent: { kind: 'selectLane', lane: 'audible' } },
+	]);
+});
+
+it('routes authentication, library refresh, and disconnect intents and opens the initiating auth reply once', async () => {
+	const { owner, engine, runtime, openAuthorizationUrl } = await open();
+	const authorization = {
+		providerId: 'audible' as const,
+		authorizationUrl: 'https://auth.test',
+		handoffPathHint: '/handoff',
+		message: 'Authorize Audible',
+	};
+	engine.respond = (intent) =>
+		intent.kind === 'remote' && intent.intent.kind === 'startAuth'
+			? { kind: 'remoteAuthStarted', authorization }
+			: undefined;
+	await owner.runAction({ type: 'startAuth' });
+	expect(openAuthorizationUrl).toHaveBeenCalledExactlyOnceWith('https://auth.test');
+	owner.editSearch({ handoffPath: ' /handoff ' });
+	await owner.runAction({ type: 'completeAuth' });
+	await owner.runAction({ type: 'loadLibrary' });
+	await owner.runAction({ type: 'logout' });
+	expect(engine.sessionIntents.slice(1)).toEqual([
+		{ kind: 'remote', intent: { kind: 'startAuth' } },
+		{ kind: 'remote', intent: { kind: 'completeAuth', responseUrlHandoffPath: '/handoff' } },
+		{ kind: 'remote', intent: { kind: 'refreshLibrary' } },
+		{ kind: 'remote', intent: { kind: 'disconnect' } },
+	]);
+	engine.change((state) => {
+		state.remote.auth = { kind: 'awaitingHandoff' };
+	});
+	runtime.dispose();
+	const replacement = await open(engine, openAuthorizationUrl);
+	expect(openAuthorizationUrl).toHaveBeenCalledTimes(1);
+	expect(replacement.owner.view().statusMessage).toContain('authorization');
+});
+
+it.each(['dispose', 'reset'] as const)(
+	'does not open a late authorization reply after %s',
+	async (end) => {
+		const { owner, runtime, engine, openAuthorizationUrl } = await open();
+		const dispatch = engine.sessionDispatch.bind(engine);
+		let finish!: () => void;
+		engine.sessionDispatch = async (client, sequence, intent) => {
+			if (intent.kind === 'remote' && intent.intent.kind === 'startAuth') {
+				await new Promise<void>((resolve) => {
+					finish = resolve;
+				});
+			}
+			return dispatch(client, sequence, intent);
+		};
+		engine.respond = () => ({
+			kind: 'remoteAuthStarted',
+			authorization: {
+				providerId: 'audible',
+				authorizationUrl: 'https://auth.test',
+				handoffPathHint: '',
+				message: 'Authorize',
+			},
+		});
+		const pending = owner.runAction({ type: 'startAuth' });
+		await vi.waitFor(() => expect(finish).toBeDefined());
+		if (end === 'dispose') runtime.dispose();
+		else owner.reset();
+		finish();
+		await pending;
+		expect(openAuthorizationUrl).not.toHaveBeenCalled();
+	},
+);
+
+it('keeps Audible auth and library failures out of the Indexer lane', async () => {
+	const { engine, owner } = await open();
+	engine.change((state) => {
+		state.remote.lane = 'indexer';
+		state.remote.auth = {
+			kind: 'failed',
+			error: {
+				category: 'resource',
+				message: 'Audible auth failed',
+				code: 'io_error',
+				detail: null,
+			},
+		};
+		state.remote.libraryStatus = { kind: 'running' };
+		state.remote.indexer.message = 'Indexer ready';
+	});
+	expect(owner.view().statusMessage).toBe('Indexer ready');
+	expect(owner.view().isBusy).toBe(false);
+});
+
+it('clears a previous frontend account-read failure when reopening retries the lane intent', async () => {
+	const { owner, engine } = await open();
+	engine.respond = () => ({
+		kind: 'rejected',
+		error: {
+			category: 'io',
+			code: 'io_error',
+			message: 'Account read failed',
+			detail: null,
+		},
+	});
+	await owner.open();
+	expect(owner.view().statusMessage).toBe('Account read failed');
+	engine.respond = () => undefined;
+	await owner.open();
+	expect(owner.view().statusMessage).toBe('');
 });

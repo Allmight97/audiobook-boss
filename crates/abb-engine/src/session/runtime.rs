@@ -257,6 +257,9 @@ pub enum SessionIntent {
 pub enum SessionOutcome {
     Applied,
     RemoteSaved,
+    RemoteAuthStarted {
+        authorization: crate::remote_source::RemoteAuthStartResponse,
+    },
     /// The engine could not accept or complete the request.
     Rejected {
         error: AppErrorEnvelope,
@@ -389,7 +392,7 @@ pub struct SessionRun {
     session: Session,
     /// The session revision before the intent began.
     since: u64,
-    remote_since: u64,
+    remote_since: (u64, u64),
     reply: tokio::sync::oneshot::Receiver<SessionOutcome>,
 }
 
@@ -471,9 +474,8 @@ impl SessionRun {
                 ))),
             });
         let mut update = session.lock().update_since(Some(self.since));
-        if session.inner.deps.remote.ui_revision() > self.remote_since {
-            update.remote = Some(session.inner.deps.remote.ui_snapshot());
-        }
+        (update.remote, update.remote_library) =
+            session.inner.deps.remote.ui_parts(Some(self.remote_since));
         SessionReply { outcome, update }
     }
 }
@@ -485,6 +487,10 @@ impl Session {
             Rest::Remote(run) => match run.finish().await {
                 Ok(crate::remote_source::RemoteUiResult::Applied) => SessionOutcome::Applied,
                 Ok(crate::remote_source::RemoteUiResult::Saved) => SessionOutcome::RemoteSaved,
+                Ok(crate::remote_source::RemoteUiResult::Superseded) => SessionOutcome::Superseded,
+                Ok(crate::remote_source::RemoteUiResult::AuthStarted(authorization)) => {
+                    SessionOutcome::RemoteAuthStarted { authorization }
+                }
                 Err(error) => SessionOutcome::Rejected {
                     error: (&error).into(),
                 },
@@ -717,7 +723,7 @@ impl Session {
     /// Applies the intent's immediate effect. Intents begun in order take
     /// effect in order, whatever work each still has to finish.
     pub(crate) fn begin(&self, intent: SessionIntent) -> SessionRun {
-        let remote_since = self.inner.deps.remote.ui_revision();
+        let remote_since = self.inner.deps.remote.ui_revisions();
         let since = self.lock().revision();
         let submission = matches!(
             &intent,
@@ -817,7 +823,7 @@ impl Session {
 
     pub(crate) fn snapshot(&self) -> SessionUpdate {
         let mut snapshot = self.lock().update_since(None);
-        snapshot.remote = Some(self.inner.deps.remote.ui_snapshot());
+        (snapshot.remote, snapshot.remote_library) = self.inner.deps.remote.ui_parts(None);
         snapshot
     }
 

@@ -5,7 +5,6 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
-import { tauriClient } from '../../lib/tauri/client';
 import type {
 	AcquisitionJob,
 	RemoteSourceProviderCapabilities,
@@ -73,15 +72,12 @@ async function openConnected(
 	lane: 'audible' | 'indexer',
 	releases?: RemoteRelease[],
 ) {
-	vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue(providerCapabilities());
-	vi.spyOn(tauriClient, 'getRemoteSourceAccountState').mockImplementation(async (providerId) => ({
-		providerId,
-		status: 'connected',
-	}));
-	vi.spyOn(tauriClient, 'loadRemoteSourceLibrary').mockResolvedValue({
-		providerId: 'audible',
-		titles: [remoteTitle()],
-		diagnostics: [],
+	fakeEngine().change((state) => {
+		state.remote.lane = lane;
+		state.remote.providers = providerCapabilities();
+		state.remote.account = { providerId: lane, status: 'connected' };
+		state.remote.libraryStatus = { kind: 'succeeded' };
+		state.remoteLibrary.titles = [remoteTitle()];
 	});
 	await runtime.remoteSource.open({ lane });
 	if (releases) {
@@ -135,12 +131,18 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		await openConnected(runtime, 'audible');
 		fakeEngine().change((state) => {
 			state.remote.acquisition = acquisitionJob(40);
+			state.remote.selectedTitleIds = [remoteTitle().titleId];
 		});
 		flush();
 		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toHaveAttribute(
 			'aria-valuenow',
 			'40',
 		);
+		expect(screen.getByRole('option', { name: new RegExp(remoteTitle().title) })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
+		expect(screen.getByRole('button', { name: 'Refresh Library' })).toBeDisabled();
 		expect(screen.getByRole('button', { name: 'Cancel Acquisition' })).toBeEnabled();
 		await fireEvent.click(screen.getByRole('button', { name: 'Cancel Acquisition' }));
 		await vi.waitFor(() =>
@@ -155,8 +157,16 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		flush();
 		const user = userEvent.setup();
 		await user.selectOptions(screen.getByLabelText('Source'), 'indexer');
+		fakeEngine().change((state) => {
+			state.remote.lane = 'indexer';
+		});
+		flush();
 		expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
 		await user.selectOptions(screen.getByLabelText('Source'), 'audible');
+		fakeEngine().change((state) => {
+			state.remote.lane = 'audible';
+		});
+		flush();
 		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toHaveAttribute(
 			'aria-valuenow',
 			'100',
@@ -188,13 +198,6 @@ describe('RemoteSourceAcquireView close wiring', () => {
 	});
 
 	it('switches source lanes from the enabled provider control', async () => {
-		vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue(providerCapabilities());
-		vi.spyOn(tauriClient, 'getRemoteSourceAccountState').mockResolvedValue({
-			providerId: 'indexer',
-			status: 'needsAuth',
-			message: 'Configure Indexer URL and API key in Settings before searching.',
-		});
-
 		runtime = createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -202,11 +205,19 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			</AppRuntimeProvider>
 		));
 		await openConnected(runtime, 'audible');
-		vi.mocked(tauriClient.getRemoteSourceAccountState).mockResolvedValue({
-			providerId: 'indexer',
-			status: 'needsAuth',
-			message: 'Configure Indexer URL and API key in Settings before searching.',
-		});
+		fakeEngine().respond = (intent) => {
+			if (intent.kind === 'remote' && intent.intent.kind === 'selectLane') {
+				fakeEngine().change((state) => {
+					state.remote.lane = 'indexer';
+					state.remote.account = {
+						providerId: 'indexer',
+						status: 'needsAuth',
+						message: 'Configure Indexer URL and API key in Settings before searching.',
+					};
+				});
+			}
+			return undefined;
+		};
 		await Promise.resolve();
 
 		const user = userEvent.setup();
@@ -217,6 +228,48 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			timeout: 2000,
 		});
 		expect(screen.getByTestId('remote-indexer-settings-needed')).toBeInTheDocument();
+	});
+
+	it('renders engine auth busy and failures while preserving the handoff input for retry', async () => {
+		runtime = createAppRuntime();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		fakeEngine().change((state) => {
+			state.remote.providers = providerCapabilities();
+			state.remote.account = { providerId: 'audible', status: 'needsAuth' };
+			state.remote.auth = { kind: 'starting' };
+		});
+		await runtime.remoteSource.open();
+		expect(screen.getByRole('button', { name: 'Connect Audible' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Complete Auth' })).toBeDisabled();
+		await fireEvent.input(screen.getByLabelText('Auth Handoff'), {
+			target: { value: '/auth/handoff' },
+		});
+		fakeEngine().change((state) => {
+			state.remote.auth = {
+				kind: 'failed',
+				error: {
+					category: 'io',
+					code: 'io_error',
+					message: 'Authorization failed; retry.',
+					detail: null,
+				},
+			};
+		});
+		flush();
+		expect(screen.getByRole('button', { name: 'Connect Audible' })).toBeEnabled();
+		expect(screen.getByText('Authorization failed; retry.')).toBeInTheDocument();
+		expect(screen.getByLabelText('Auth Handoff')).toHaveValue('/auth/handoff');
+		await fireEvent.click(screen.getByRole('button', { name: 'Complete Auth' }));
+		await vi.waitFor(() =>
+			expect(fakeEngine().sessionIntents).toContainEqual({
+				kind: 'remote',
+				intent: { kind: 'completeAuth', responseUrlHandoffPath: '/auth/handoff' },
+			}),
+		);
 	});
 
 	it('shows indexer search controls when the lane is connected', async () => {
