@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-10-02
+
 ### Changed
 
 - Saving metadata while an export is reading the same file no longer risks
