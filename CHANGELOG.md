@@ -57,6 +57,12 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Quitting while an indexer search or grab waits on a slow server no longer
   hangs.
 - The bundled FAAC encoder is the formal FAAC 2.2 release.
+- Settings are stored in a new format. This version starts from the default
+  settings once; set your defaults again, including the Indexer URL and
+  categories (a saved Indexer API key is kept). From then on every choice
+  takes effect at once and is kept between launches. If a choice can't be
+  saved (for example, the disk is full), it stays in effect, ABB says so, and
+  it is saved on the next change, on Retry, or when ABB quits.
 
 ### Removed
 
@@ -65,8 +71,6 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   Settings section for the custom FFmpeg path, Recheck FDK, and Homebrew setup.
   Encoding uses the bundled encoders: Native AAC, Apple AAC, FAAC, and Opus.
   Auto always resolves to Native AAC. v1.13.2 is the last version with FDK.
-  Settings saved with FDK-era encoder choices no longer load; reset App
-  Settings once to start from the current defaults.
 
 ## [1.13.2] - 2026-09-28
 

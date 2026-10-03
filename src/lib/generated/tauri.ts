@@ -112,13 +112,13 @@ export type AppErrorEnvelope = {
 };
 
 export type AppSettings = {
-	keepAwakeWhileWorking?: boolean,
+	keepAwakeWhileWorking: boolean,
 	maxConcurrentJobs: ConcurrencyPreference,
 	encoderDefaults: EncoderDefaults,
 	outputDefaults: OutputDefaults,
-	startupBehavior?: StartupBehavior,
-	pinnedDefaults?: PinnedDefaults | null,
-	defaultAcquisitionLane?: AcquisitionLane,
+	startupBehavior: StartupBehavior,
+	pinnedDefaults: PinnedDefaults | null,
+	defaultAcquisitionLane: AcquisitionLane,
 };
 
 export type AudioChoice = {
@@ -387,8 +387,8 @@ export type EncoderConfigurationCapability = {
 };
 
 export type EncoderDefaults = {
-	format?: AudiobookFormat,
-	intent?: AudioIntent,
+	format: AudiobookFormat,
+	intent: AudioIntent,
 	settings: EncoderSettings,
 	sampleRate: SampleRateConfig,
 };
@@ -1151,9 +1151,7 @@ export type SettingsIntent =
 /**  Writes accepted changes that an earlier write failed to save. */
 { kind: "retry" } |
 /**  Returns every setting to its default. Refused while exports run. */
-{ kind: "reset" } |
-/**  Reads the saved settings again after a failed load. */
-{ kind: "reload" };
+{ kind: "reset" };
 
 export type SettingsOutcome = { kind: "applied" } |
 /**  Nothing changed. */
@@ -1166,10 +1164,8 @@ export type SettingsReply = {
 
 export type SettingsSnapshot = {
 	revision: number,
-	/**  The settings in effect. Absent while the saved file cannot be read. */
-	settings: AppSettings | null,
-	/**  Why the saved file could not be read. */
-	loadError: AppErrorEnvelope | null,
+	/**  The settings in effect. */
+	settings: AppSettings,
 	/**  Why accepted changes are not on disk yet. Absent when all are saved. */
 	saveError: AppErrorEnvelope | null,
 	concurrency: ConcurrencySnapshot,
@@ -1177,7 +1173,7 @@ export type SettingsSnapshot = {
 	 *  The defaults a host shows at launch: the pinned ones when the user
 	 *  chose that and has pinned some, otherwise the last used.
 	 */
-	startupDefaults: PinnedDefaults | null,
+	startupDefaults: PinnedDefaults,
 	defaultAcquisitionLane: AcquisitionLane,
 };
 

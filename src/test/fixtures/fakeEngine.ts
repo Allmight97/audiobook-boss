@@ -108,12 +108,10 @@ export type FakeEngine = EngineCapability & {
 	 * to an accepted export, a finished preview, and a cancelled review.
 	 */
 	answerSubmission: (intent: SessionIntent) => SubmissionStatus;
-	/** Rejects the next settings writes, as a full disk would. */
+	/** Fails the next settings writes, as a full disk would. */
 	settingsWriteError?: Rejection;
 	/** Refuses the next concurrency change, as running jobs would. */
 	concurrencyError?: Rejection;
-	/** Makes the saved settings unreadable until reset. */
-	breakSettings(): void;
 	/** Records settings the way the engine does after a session edit, and announces them. */
 	recordSettings(patch: Partial<AppSettings>): void;
 	/**
@@ -369,10 +367,8 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	}
 
 	let settingsRevision = 0;
-	let settingsValue: AppSettings | undefined = structuredClone(initialSettings);
-	let unsaved: Partial<AppSettings> = {};
+	let settingsValue: AppSettings = structuredClone(initialSettings);
 	let saveError: SettingsSnapshot['saveError'];
-	let loadError: SettingsSnapshot['loadError'];
 	let concurrency = initialSettings.maxConcurrentJobs;
 
 	const engine = {} as FakeEngine;
@@ -619,11 +615,11 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	}
 
 	function settingsSnapshot(): SettingsSnapshot {
-		const settings = settingsValue ? { ...settingsValue, ...unsaved } : undefined;
+		const settings = settingsValue;
 		const startup =
-			settings?.startupBehavior === 'pinnedDefaults' && settings.pinnedDefaults
+			settings.startupBehavior === 'pinnedDefaults' && settings.pinnedDefaults
 				? settings.pinnedDefaults
-				: settings && {
+				: {
 						maxConcurrentJobs: settings.maxConcurrentJobs,
 						encoderDefaults: settings.encoderDefaults,
 						outputDefaults: settings.outputDefaults,
@@ -631,7 +627,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		return structuredClone({
 			revision: settingsRevision,
 			settings,
-			loadError,
 			saveError,
 			concurrency: {
 				preference: concurrency,
@@ -645,32 +640,18 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				},
 			},
 			startupDefaults: startup,
-			defaultAcquisitionLane:
-				unsaved.defaultAcquisitionLane ?? settings?.defaultAcquisitionLane ?? 'audible',
+			defaultAcquisitionLane: settings.defaultAcquisitionLane,
 		});
 	}
 
-	function write(patch: Partial<AppSettings>, mustSave: boolean): SettingsOutcome {
-		if (engine.settingsWriteError) {
-			const refused = rejection(engine.settingsWriteError);
-			if (mustSave) return refused;
-			unsaved = { ...unsaved, ...patch };
-			saveError =
-				refused.kind === 'rejected'
-					? { ...refused.error, detail: refused.error.detail ?? undefined }
-					: undefined;
-			return { kind: 'applied' };
-		}
-		if (!settingsValue) {
-			unsaved = { ...unsaved, ...patch };
-			saveError = loadError;
-			return mustSave && loadError
-				? { kind: 'rejected', error: { ...loadError, detail: loadError.detail ?? null } }
-				: { kind: 'applied' };
-		}
-		settingsValue = { ...settingsValue, ...unsaved, ...patch };
-		unsaved = {};
-		saveError = undefined;
+	/** Puts `patch` in effect; a failed write leaves it in effect and unsaved. */
+	function write(patch: Partial<AppSettings>): SettingsOutcome {
+		settingsValue = { ...settingsValue, ...patch };
+		const failed = engine.settingsWriteError && rejection(engine.settingsWriteError);
+		saveError =
+			failed && failed.kind === 'rejected'
+				? { ...failed.error, detail: failed.error.detail ?? undefined }
+				: undefined;
 		return { kind: 'applied' };
 	}
 
@@ -680,43 +661,30 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				const { kind: _kind, ...patch } = intent;
 				return write(
 					Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
-					false,
 				);
 			}
 			case 'setConcurrency':
 				if (engine.concurrencyError) return rejection(engine.concurrencyError);
 				concurrency = intent.preference;
-				return write({ maxConcurrentJobs: intent.preference }, false);
+				return write({ maxConcurrentJobs: intent.preference });
 			case 'setKeepAwake':
-				return write({ keepAwakeWhileWorking: intent.enabled }, true);
+				return write({ keepAwakeWhileWorking: intent.enabled });
 			case 'setStartupBehavior':
-				return write({ startupBehavior: intent.behavior }, true);
-			case 'pinCurrentDefaults': {
-				const saved = write({}, true);
-				if (saved.kind !== 'applied' || !settingsValue) return saved;
-				return write(
-					{
-						pinnedDefaults: {
-							maxConcurrentJobs: settingsValue.maxConcurrentJobs,
-							encoderDefaults: settingsValue.encoderDefaults,
-							outputDefaults: settingsValue.outputDefaults,
-						},
+				return write({ startupBehavior: intent.behavior });
+			case 'pinCurrentDefaults':
+				return write({
+					pinnedDefaults: {
+						maxConcurrentJobs: settingsValue.maxConcurrentJobs,
+						encoderDefaults: settingsValue.encoderDefaults,
+						outputDefaults: settingsValue.outputDefaults,
 					},
-					true,
-				);
-			}
+				});
 			case 'retry':
-				return write({}, false);
+				return write({});
 			case 'reset':
-				if (engine.settingsWriteError) return rejection(engine.settingsWriteError);
 				settingsValue = defaultAppSettings();
-				unsaved = {};
-				saveError = undefined;
-				loadError = undefined;
 				concurrency = { mode: 'auto' };
-				return { kind: 'applied' };
-			case 'reload':
-				return { kind: 'applied' };
+				return write({});
 		}
 	}
 
@@ -798,19 +766,10 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			return () => settingsListeners.delete(handler);
 		},
 		recordSettings(patch: Partial<AppSettings>) {
-			write(patch, false);
+			write(patch);
 			settingsRevision += 1;
 			const snapshot = settingsSnapshot();
 			for (const listener of settingsListeners) listener(snapshot);
-		},
-		breakSettings() {
-			settingsValue = undefined;
-			loadError = {
-				code: 'invalid_input',
-				category: 'validation',
-				message: 'App settings file could not be read by this version.',
-			};
-			settingsRevision += 1;
 		},
 		loadTitles(files: AudioFile[], selected: number[] = []) {
 			appendFiles(files);

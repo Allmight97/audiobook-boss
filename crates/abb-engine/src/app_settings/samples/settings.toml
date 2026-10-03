@@ -1,0 +1,54 @@
+# A settings file as ABB saves it, with every setting chosen. Keep it loading:
+# contract_tests.rs checks that each value comes back as the user chose it.
+
+[general]
+keep_awake_while_working = false
+max_concurrent_jobs = 2
+default_acquisition_lane = "indexer"
+
+[audio]
+format = "mp3"
+intent = "encode"
+sample_rate = 44100
+
+[audio.encoder]
+type = "faac"
+bitrate_kbps = 96
+bitrate_mode = "abr"
+channels = "mono"
+native_aac_speed = 2
+faac_profile = "aac_lc"
+
+[output]
+folder = "/Books/Library"
+
+[output.naming]
+preset = "customTemplate"
+include_year = true
+custom_template = "{author}/{title}"
+
+[startup]
+behavior = "pinnedDefaults"
+
+[startup.pinned]
+max_concurrent_jobs = 3
+
+[startup.pinned.audio]
+format = "mkaOpus"
+intent = "preserve"
+sample_rate = "auto"
+
+[startup.pinned.audio.encoder]
+type = "opus"
+bitrate_kbps = 48
+bitrate_mode = "vbr_target"
+channels = "stereo"
+native_aac_speed = 0
+faac_profile = "auto"
+
+[startup.pinned.output]
+folder = "/Books/Pinned"
+
+[startup.pinned.output.naming]
+preset = "absDefault"
+include_year = false

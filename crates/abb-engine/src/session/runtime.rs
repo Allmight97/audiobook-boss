@@ -497,7 +497,7 @@ impl Session {
             Rest::ImportOpened { resets } => session.import_opened(resets).await,
             Rest::Import { paths, resets } => session.import(paths, resets).await,
             Rest::Remember(run) => {
-                let (reply, _) = run.finish().await;
+                let reply = run.finish().await;
                 session
                     .inner
                     .deps
@@ -780,8 +780,8 @@ impl Session {
         });
     }
 
-    /// Replaces the defaults and output choices after the settings changed
-    /// them. Loaded titles keep their own audio choices.
+    /// The edit counts a settings Reset compares against, so a default the
+    /// user changed while the Reset ran is kept.
     pub(crate) fn defaults_checkpoint(&self) -> (u64, u64) {
         let _state = self.lock();
         (
@@ -790,12 +790,13 @@ impl Session {
         )
     }
 
+    /// Replaces the defaults and output choices after a settings Reset.
+    /// Loaded titles keep their own audio choices.
     pub(crate) fn replace_defaults(
         &self,
         defaults: &PinnedDefaults,
         checkpoint: (u64, u64),
         revision: u64,
-        reset: bool,
     ) {
         self.transition(|state| {
             if revision <= self.inner.settings_applied.load(Ordering::SeqCst) {
@@ -804,14 +805,10 @@ impl Session {
             self.inner
                 .settings_applied
                 .store(revision, Ordering::SeqCst);
-            if self.inner.audio_edits.load(Ordering::SeqCst) == checkpoint.0
-                && (reset || checkpoint.0 == 0)
-            {
+            if self.inner.audio_edits.load(Ordering::SeqCst) == checkpoint.0 {
                 state.audio.replace(&defaults.encoder_defaults);
             }
-            if self.inner.output_edits.load(Ordering::SeqCst) == checkpoint.1
-                && (reset || checkpoint.1 == 0)
-            {
+            if self.inner.output_edits.load(Ordering::SeqCst) == checkpoint.1 {
                 state.output = OutputPlan::from_defaults(&defaults.output_defaults);
             }
         });
@@ -902,7 +899,7 @@ impl Session {
                 );
                 let host = self.inner.deps.host.clone();
                 self.inner.deps.tasks.spawn(async move {
-                    let (reply, _) = run.finish().await;
+                    let reply = run.finish().await;
                     host.emit(EngineEvent::Settings(Box::new(reply.snapshot)));
                 });
                 Rest::Done(SessionOutcome::Applied)

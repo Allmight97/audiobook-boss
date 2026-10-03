@@ -32,7 +32,8 @@ fn start() -> Rig {
 /// Starts over settings a previous run saved.
 fn start_with(saved: AppSettingsPatch) -> Rig {
     let root = TempDir::new().expect("temp dir");
-    update_app_settings(&config_dir(&root), saved).expect("seed settings");
+    let settings = AppSettings::default().merge(saved).expect("valid seed");
+    save_app_settings(&config_dir(&root), &settings).expect("seed settings");
     start_in(root)
 }
 
@@ -74,7 +75,7 @@ impl Rig {
     }
 
     fn on_disk(&self) -> AppSettings {
-        get_app_settings(&config_dir(&self.root)).expect("read saved settings")
+        get_app_settings(&config_dir(&self.root))
     }
 }
 
@@ -158,37 +159,24 @@ async fn a_launch_applies_the_saved_concurrency_without_rewriting_it() {
 }
 
 #[tokio::test]
-async fn unreadable_settings_leave_runtime_defaults_until_reset() {
+async fn a_file_damaged_outside_abb_starts_from_defaults_and_the_next_save_replaces_it() {
     let root = TempDir::new().expect("temp dir");
     std::fs::create_dir_all(config_dir(&root)).expect("config dir");
     std::fs::write(
-        config_dir(&root).join("app-settings.json"),
-        serde_json::json!({
-            "maxConcurrentJobs": { "mode": "fixed", "value": 1 },
-            "encoderDefaults": {
-                "settings": { "encoderType": "retired_encoder" },
-                "sampleRate": "auto"
-            },
-            "outputDefaults": { "outputNaming": OutputDefaults::default().output_naming }
-        })
-        .to_string(),
+        config_dir(&root).join("settings.toml"),
+        include_str!("samples/settings.toml").replace("type = \"faac\"", "type = \"retired\""),
     )
-    .expect("write unreadable settings");
+    .expect("write damaged settings");
     let rig = start_in(root);
 
     let snapshot = rig.settings.snapshot().await;
-    assert!(snapshot.settings.is_none() && snapshot.startup_defaults.is_none());
-    assert!(snapshot.load_error.is_some());
+    assert_eq!(snapshot.settings, AppSettings::default());
+    assert_eq!(rig.jobs.max_concurrent(), JobRegistry::default_max());
 
-    // A choice made while the file is unreadable stays in effect and unsaved.
     let reply = rig.send(remember_output("/chosen")).await;
     assert_eq!(reply.outcome, SettingsOutcome::Applied);
-    assert!(reply.snapshot.save_error.is_some());
-
-    let reply = rig.send(SettingsIntent::Reset).await;
-    assert_eq!(reply.outcome, SettingsOutcome::Applied);
-    assert!(reply.snapshot.load_error.is_none());
-    assert_eq!(reply.snapshot.settings, Some(AppSettings::default()));
+    assert!(reply.snapshot.save_error.is_none());
+    assert_eq!(rig.on_disk().output_defaults, output_in("/chosen"));
 }
 
 // ---- Acceptance and durability ----
@@ -258,7 +246,7 @@ async fn retry_writes_the_newest_accepted_defaults() {
         .await;
 
     // Accepted values are in effect although nothing reached disk.
-    let accepted = reply.snapshot.settings.expect("settings in effect");
+    let accepted = reply.snapshot.settings;
     assert_eq!(accepted.output_defaults, output_in("/second"));
     assert_eq!(
         reply.snapshot.default_acquisition_lane,
@@ -293,34 +281,31 @@ async fn defaults_that_do_not_validate_are_refused_and_change_nothing() {
         .await;
 
     assert!(matches!(reply.outcome, SettingsOutcome::Rejected { .. }));
-    assert_eq!(reply.snapshot.settings, Some(AppSettings::default()));
+    assert_eq!(reply.snapshot.settings, AppSettings::default());
     assert!(reply.snapshot.save_error.is_none());
 }
 
 #[tokio::test]
-async fn a_dialog_choice_applies_only_when_it_reaches_disk() {
+async fn a_choice_that_cannot_be_saved_stays_in_effect_and_saves_on_retry() {
     let rig = start();
     rig.set_writable(false);
 
-    let reply = rig
+    let keep_awake = rig
         .send(SettingsIntent::SetKeepAwake { enabled: false })
         .await;
+    let pinned = rig.send(SettingsIntent::PinCurrentDefaults).await;
 
-    assert!(matches!(reply.outcome, SettingsOutcome::Rejected { .. }));
-    assert!(
-        reply
-            .snapshot
-            .settings
-            .expect("settings")
-            .keep_awake_while_working
-    );
+    assert_eq!(keep_awake.outcome, SettingsOutcome::Applied);
+    assert_eq!(pinned.outcome, SettingsOutcome::Applied);
+    assert!(!pinned.snapshot.settings.keep_awake_while_working);
+    assert!(pinned.snapshot.settings.pinned_defaults.is_some());
+    assert!(pinned.snapshot.save_error.is_some());
 
     rig.set_writable(true);
-    let reply = rig
-        .send(SettingsIntent::SetKeepAwake { enabled: false })
-        .await;
-    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    let retried = rig.send(SettingsIntent::Retry).await;
+    assert!(retried.snapshot.save_error.is_none());
     assert!(!rig.on_disk().keep_awake_while_working);
+    assert!(rig.on_disk().pinned_defaults.is_some());
 }
 
 // ---- Pinning ----
@@ -337,28 +322,6 @@ async fn pinning_captures_the_current_defaults() {
     assert_eq!(pinned.output_defaults, output_in("/current"));
 }
 
-#[tokio::test]
-async fn pinning_is_refused_while_current_settings_cannot_be_saved() {
-    let rig = start();
-    rig.set_writable(false);
-    rig.send(remember_output("/unsaved")).await;
-
-    let reply = rig.send(SettingsIntent::PinCurrentDefaults).await;
-
-    let SettingsOutcome::Rejected { error } = reply.outcome else {
-        panic!("pinning must be refused");
-    };
-    assert!(
-        error
-            .message
-            .contains("Save current settings before pinning defaults."),
-        "{}",
-        error.message
-    );
-    rig.set_writable(true);
-    assert!(rig.on_disk().pinned_defaults.is_none());
-}
-
 // ---- Reset ----
 
 #[tokio::test]
@@ -373,7 +336,7 @@ async fn reset_restores_defaults_and_automatic_concurrency() {
     let reply = rig.send(SettingsIntent::Reset).await;
 
     assert_eq!(reply.outcome, SettingsOutcome::Applied);
-    assert_eq!(reply.snapshot.settings, Some(AppSettings::default()));
+    assert_eq!(reply.snapshot.settings, AppSettings::default());
     assert_eq!(
         reply.snapshot.concurrency.preference,
         ConcurrencyPreference::Auto
@@ -408,27 +371,20 @@ async fn reset_during_an_export_explains_why_and_changes_nothing() {
 }
 
 #[tokio::test]
-async fn a_failed_reset_restores_concurrency_and_keeps_unsaved_choices_retryable() {
+async fn a_reset_that_cannot_be_saved_still_applies_and_saves_on_retry() {
     let rig = start();
-    rig.send(SettingsIntent::SetConcurrency {
-        preference: ConcurrencyPreference::Fixed(1),
-    })
-    .await;
+    rig.send(remember_output("/custom")).await;
     rig.set_writable(false);
-    rig.send(remember_output("/unsaved")).await;
 
     let reply = rig.send(SettingsIntent::Reset).await;
 
-    assert!(matches!(reply.outcome, SettingsOutcome::Rejected { .. }));
-    assert_eq!(rig.jobs.max_concurrent(), 1);
-    assert_eq!(
-        reply.snapshot.concurrency.preference,
-        ConcurrencyPreference::Fixed(1)
-    );
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert_eq!(reply.snapshot.settings, AppSettings::default());
+    assert!(reply.snapshot.save_error.is_some());
 
     rig.set_writable(true);
     rig.send(SettingsIntent::Retry).await;
-    assert_eq!(rig.on_disk().output_defaults, output_in("/unsaved"));
+    assert_eq!(rig.on_disk(), AppSettings::default());
 }
 
 #[tokio::test]
@@ -445,35 +401,6 @@ async fn reset_follows_earlier_template_typing_and_preserves_a_later_choice() {
     reset.finish().await;
     before.finish().await;
     assert_eq!(rig.on_disk().output_defaults, output_in("/after-reset"));
-}
-
-#[tokio::test]
-async fn reload_merges_unsaved_choices_and_applies_the_loaded_concurrency() {
-    let root = TempDir::new().expect("root");
-    std::fs::create_dir_all(config_dir(&root)).expect("folder");
-    let file = config_dir(&root).join("app-settings.json");
-    std::fs::write(&file, "unreadable settings").expect("unreadable startup");
-    let rig = start_in(root);
-    let remembered = rig.send(remember_output("/chosen-before-reload")).await;
-    assert!(remembered.snapshot.save_error.is_some());
-    let saved = AppSettings {
-        max_concurrent_jobs: ConcurrencyPreference::Fixed(1),
-        ..Default::default()
-    };
-    std::fs::write(&file, serde_json::to_vec(&saved).expect("settings JSON"))
-        .expect("repair settings");
-    let reply = rig.send(SettingsIntent::Reload).await;
-    assert_eq!(reply.outcome, SettingsOutcome::Applied);
-    assert_eq!(
-        reply.snapshot.settings.expect("loaded").output_defaults,
-        output_in("/chosen-before-reload")
-    );
-    assert_eq!(
-        rig.on_disk().output_defaults,
-        output_in("/chosen-before-reload")
-    );
-    assert_eq!(rig.jobs.max_concurrent(), 1);
-    assert!(reply.snapshot.save_error.is_none());
 }
 
 #[tokio::test]

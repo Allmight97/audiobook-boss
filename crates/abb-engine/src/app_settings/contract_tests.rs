@@ -1,470 +1,192 @@
 use super::*;
-use crate::audio::{BitrateMode, EncoderType, SampleRateConfig};
-use crate::errors::AppError;
+use crate::audio::{
+    AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
+    FaacProfile, SampleRateConfig,
+};
+use crate::output_artifact::{NamingPreset, OutputNamingConfig};
 use tempfile::TempDir;
 
-#[test]
-fn fresh_settings_are_defaults_and_preserve_an_explicit_encoder_choice() {
-    let temp = TempDir::new().expect("temp dir");
-
-    let settings = get_app_settings(temp.path()).expect("load defaults");
-
-    assert_eq!(settings, AppSettings::default());
-    let mut encoder_defaults = settings.encoder_defaults;
-    encoder_defaults.settings.native_aac_speed = 2;
-    update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            encoder_defaults: Some(encoder_defaults),
-            ..Default::default()
-        },
-    )
-    .expect("save explicit encoder choice");
-    assert_eq!(
-        get_app_settings(temp.path())
-            .expect("reload settings")
-            .encoder_defaults
-            .settings
-            .native_aac_speed,
-        2
-    );
-}
-
-#[test]
-fn awake_preference_defaults_on_and_persists_explicit_opt_out() {
-    let temp = TempDir::new().expect("temp dir");
-    let mut original =
-        serde_json::to_value(AppSettings::default()).expect("settings preference operation");
-    original
-        .as_object_mut()
-        .expect("settings preference operation")
-        .remove("keepAwakeWhileWorking");
-    std::fs::write(temp.path().join("app-settings.json"), original.to_string())
-        .expect("settings preference operation");
-    assert!(
-        get_app_settings(temp.path())
-            .expect("settings preference operation")
-            .keep_awake_while_working
-    );
-
-    update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            keep_awake_while_working: Some(false),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect("settings preference operation");
-    assert!(
-        !get_app_settings(temp.path())
-            .expect("settings preference operation")
-            .keep_awake_while_working
-    );
-    assert!(
-        reset_app_settings(temp.path())
-            .expect("settings preference operation")
-            .keep_awake_while_working
-    );
-}
-
-#[test]
-fn update_merges_top_level_patch_and_persists() {
-    let temp = TempDir::new().expect("temp dir");
-    let patch = AppSettingsPatch {
-        max_concurrent_jobs: Some(ConcurrencyPreference::Fixed(3)),
-        ..AppSettingsPatch::default()
-    };
-
-    let updated = update_app_settings(temp.path(), patch).expect("update settings");
-    let reloaded = get_app_settings(temp.path()).expect("reload settings");
-
-    assert_eq!(updated.max_concurrent_jobs, ConcurrencyPreference::Fixed(3));
-    assert_eq!(
-        reloaded.max_concurrent_jobs,
-        ConcurrencyPreference::Fixed(3)
-    );
-    assert_eq!(
-        reloaded.encoder_defaults,
-        AppSettings::default().encoder_defaults
-    );
-}
-
-#[test]
-fn encoder_specific_controls_survive_settings_reload() {
-    let temp = TempDir::new().expect("create isolated test directory");
-    let mut defaults = EncoderDefaults::default();
-    defaults.settings.encoder_type = EncoderType::NativeAac;
-    defaults.settings.bitrate_mode = BitrateMode::Cbr;
-    defaults.settings.native_aac_speed = 4;
-    defaults.settings.bitrate_kbps = 193;
-    let mut faac = defaults.clone();
-    faac.settings.encoder_type = EncoderType::Faac;
-    faac.settings.faac_profile = crate::audio::FaacProfile::AacLc;
-    faac.settings.bitrate_mode = BitrateMode::Vbr(200);
-    for expected in [defaults, faac] {
-        update_app_settings(
-            temp.path(),
-            AppSettingsPatch {
-                encoder_defaults: Some(expected.clone()),
-                ..AppSettingsPatch::default()
+/// Every setting at a value other than its default, so a field that stops
+/// loading cannot hide behind a default.
+fn chosen_settings() -> AppSettings {
+    AppSettings {
+        keep_awake_while_working: false,
+        max_concurrent_jobs: ConcurrencyPreference::Fixed(2),
+        default_acquisition_lane: AcquisitionLane::Indexer,
+        encoder_defaults: EncoderDefaults {
+            format: AudiobookFormat::Mp3,
+            intent: AudioIntent::Encode,
+            sample_rate: SampleRateConfig::Explicit(44100),
+            settings: EncoderSettings {
+                encoder_type: EncoderType::Faac,
+                bitrate_kbps: 96,
+                bitrate_mode: BitrateMode::Abr,
+                channels: ChannelConfig::Mono,
+                native_aac_speed: 2,
+                faac_profile: FaacProfile::AacLc,
             },
-        )
-        .expect("persist encoder controls");
-        assert_eq!(
-            get_app_settings(temp.path())
-                .expect("reload persisted encoder settings")
-                .encoder_defaults,
-            expected
-        );
+        },
+        output_defaults: OutputDefaults {
+            output_directory: Some("/Books/Library".to_string()),
+            output_naming: OutputNamingConfig {
+                preset: NamingPreset::CustomTemplate,
+                include_year: true,
+                custom_template: Some("{author}/{title}".to_string()),
+            },
+        },
+        startup_behavior: StartupBehavior::PinnedDefaults,
+        pinned_defaults: Some(PinnedDefaults {
+            max_concurrent_jobs: ConcurrencyPreference::Fixed(3),
+            encoder_defaults: EncoderDefaults {
+                format: AudiobookFormat::MkaOpus,
+                intent: AudioIntent::Preserve,
+                sample_rate: SampleRateConfig::Auto,
+                settings: EncoderSettings {
+                    encoder_type: EncoderType::Opus,
+                    bitrate_kbps: 48,
+                    bitrate_mode: BitrateMode::VbrTarget,
+                    channels: ChannelConfig::Stereo,
+                    native_aac_speed: 0,
+                    faac_profile: FaacProfile::Auto,
+                },
+            },
+            output_defaults: OutputDefaults {
+                output_directory: Some("/Books/Pinned".to_string()),
+                output_naming: OutputNamingConfig::default(),
+            },
+        }),
     }
 }
 
+// A saved file must keep meaning what it meant. Changing how a setting is
+// saved fails here; keep the sample loading, or the change says what each
+// saved choice becomes.
 #[test]
-fn reset_removes_persisted_settings() {
+fn the_sample_settings_file_loads_every_choice_it_holds() {
     let temp = TempDir::new().expect("temp dir");
-    update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            max_concurrent_jobs: Some(ConcurrencyPreference::Fixed(2)),
-            ..AppSettingsPatch::default()
-        },
+    std::fs::write(
+        temp.path().join("settings.toml"),
+        include_str!("samples/settings.toml"),
     )
-    .expect("persist settings");
+    .expect("write sample");
 
-    let reset = reset_app_settings(temp.path()).expect("reset settings");
-    let reloaded = get_app_settings(temp.path()).expect("reload after reset");
-
-    assert_eq!(reset, AppSettings::default());
-    assert_eq!(reloaded, AppSettings::default());
+    assert_eq!(get_app_settings(temp.path()), chosen_settings());
 }
 
 #[test]
-fn malformed_settings_file_fails_explicitly() {
+fn saved_settings_load_back_exactly() {
     let temp = TempDir::new().expect("temp dir");
-    std::fs::write(temp.path().join("app-settings.json"), "{ nope").expect("write malformed");
+    save_app_settings(temp.path(), &chosen_settings()).expect("save");
 
-    let error = get_app_settings(temp.path()).expect_err("malformed settings should fail");
-
-    assert!(error
-        .to_string()
-        .contains("Reset app settings to restore defaults"));
+    assert_eq!(get_app_settings(temp.path()), chosen_settings());
 }
 
 #[test]
-fn invalid_encoder_defaults_are_rejected() {
+fn no_file_and_a_damaged_file_both_load_as_defaults() {
     let temp = TempDir::new().expect("temp dir");
-    let mut encoder_defaults = AppSettings::default().encoder_defaults;
-    encoder_defaults.settings.encoder_type = EncoderType::NativeAac;
-    encoder_defaults.settings.bitrate_mode = BitrateMode::Vbr(3);
+    assert_eq!(get_app_settings(temp.path()), AppSettings::default());
 
-    let error = update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            encoder_defaults: Some(encoder_defaults),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect_err("invalid encoder combo should fail");
-
-    assert!(error.to_string().contains("not supported"));
+    std::fs::write(temp.path().join("settings.toml"), "[general\nnope").expect("damage");
+    assert_eq!(get_app_settings(temp.path()), AppSettings::default());
 }
 
 #[test]
-fn invalid_sample_rate_defaults_are_rejected() {
+fn a_failed_save_leaves_no_temporary_file() {
     let temp = TempDir::new().expect("temp dir");
-    let mut encoder_defaults = AppSettings::default().encoder_defaults;
-    encoder_defaults.sample_rate = SampleRateConfig::Explicit(12345);
+    std::fs::create_dir(temp.path().join("settings.toml")).expect("block the destination");
 
-    let error = update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            encoder_defaults: Some(encoder_defaults),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect_err("invalid sample rate should fail");
+    save_app_settings(temp.path(), &AppSettings::default()).expect_err("save must fail");
 
-    assert!(error.to_string().contains("Unsupported sample rate"));
-}
-
-#[test]
-fn invalid_fixed_concurrency_is_rejected() {
-    let temp = TempDir::new().expect("temp dir");
-
-    let error = update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            max_concurrent_jobs: Some(ConcurrencyPreference::Fixed(0)),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect_err("invalid fixed concurrency should fail");
-
-    assert!(error.to_string().contains("Max concurrent jobs"));
-}
-
-#[test]
-fn fixed_concurrency_uses_job_registry_capability_bounds() {
-    let temp = TempDir::new().expect("temp dir");
-    let capabilities = crate::processing::JobRegistry::max_concurrent_jobs_capabilities();
-
-    let settings = update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            max_concurrent_jobs: Some(ConcurrencyPreference::Fixed(capabilities.fixed_max)),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect("max supported fixed concurrency should persist");
-
-    assert_eq!(
-        settings.max_concurrent_jobs,
-        ConcurrencyPreference::Fixed(capabilities.fixed_max)
-    );
-}
-
-#[test]
-fn blank_output_path_normalizes_to_empty_preference() {
-    let temp = TempDir::new().expect("temp dir");
-    let mut output_defaults = AppSettings::default().output_defaults;
-    output_defaults.output_directory = Some("   ".to_string());
-
-    let settings = update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            output_defaults: Some(output_defaults),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect("normalize blank paths");
-
-    assert_eq!(settings.output_defaults.output_directory, None);
-}
-
-#[test]
-fn save_failure_removes_temp_file() {
-    let temp = TempDir::new().expect("temp dir");
-    std::fs::create_dir(temp.path().join("app-settings.json"))
-        .expect("create destination directory");
-
-    let error = storage::save(temp.path(), &AppSettings::default())
-        .expect_err("directory destination should fail");
-
-    assert!(matches!(error, AppError::Io(_)));
-    let leaked_temp_files = std::fs::read_dir(temp.path())
+    let leftovers = std::fs::read_dir(temp.path())
         .expect("read config dir")
-        .filter_map(|entry| entry.ok())
         .filter(|entry| {
             entry
-                .file_name()
-                .to_string_lossy()
-                .starts_with(".app-settings-")
+                .as_ref()
+                .is_ok_and(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
         })
         .count();
-    assert_eq!(leaked_temp_files, 0);
+    assert_eq!(leftovers, 0);
+}
+
+fn rejection(patch: AppSettingsPatch) -> String {
+    AppSettings::default()
+        .merge(patch)
+        .expect_err("change must be refused")
+        .to_string()
 }
 
 #[test]
-fn settings_file_without_newer_fields_loads_with_defaults() {
-    let temp = TempDir::new().expect("temp dir");
-    // A settings file written before later fields existed must keep loading.
-    let legacy = serde_json::json!({
-        "maxConcurrentJobs": {"mode": "auto"},
-        "encoderDefaults": serde_json::to_value(EncoderDefaults::default()).expect("encoder json"),
-        "outputDefaults": serde_json::to_value(OutputDefaults::default()).expect("output json"),
-    });
-    std::fs::write(
-        temp.path().join("app-settings.json"),
-        serde_json::to_string_pretty(&legacy).expect("legacy json"),
-    )
-    .expect("write legacy settings");
-
-    let settings = get_app_settings(temp.path()).expect("load legacy settings");
-
-    // Pre-pinned-defaults files load with today's behavior and no pin.
-    assert_eq!(
-        settings.startup_behavior,
-        StartupBehavior::RememberLastState
-    );
-    assert_eq!(settings.pinned_defaults, None);
-}
-
-#[test]
-fn pinned_defaults_and_startup_behavior_persist_and_round_trip() {
-    let temp = TempDir::new().expect("temp dir");
-    let pinned = PinnedDefaults {
-        max_concurrent_jobs: ConcurrencyPreference::Fixed(2),
-        encoder_defaults: EncoderDefaults::default(),
-        output_defaults: OutputDefaults {
-            output_directory: Some("/books/out".to_string()),
-            ..OutputDefaults::default()
-        },
-    };
-
-    let updated = update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            pinned_defaults: Some(pinned.clone()),
-            startup_behavior: Some(StartupBehavior::PinnedDefaults),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect("update settings");
-    let reloaded = get_app_settings(temp.path()).expect("reload settings");
-
-    assert_eq!(updated.startup_behavior, StartupBehavior::PinnedDefaults);
-    assert_eq!(updated.pinned_defaults, Some(pinned));
-    assert_eq!(reloaded.startup_behavior, updated.startup_behavior);
-    assert_eq!(reloaded.pinned_defaults, updated.pinned_defaults);
-
-    // Switching back to remember-last must not unpin.
-    let reverted = update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            startup_behavior: Some(StartupBehavior::RememberLastState),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect("revert startup behavior");
-    assert_eq!(
-        reverted.startup_behavior,
-        StartupBehavior::RememberLastState
-    );
-    assert!(
-        reverted.pinned_defaults.is_some(),
-        "pin survives the toggle"
-    );
-}
-
-#[test]
-fn invalid_pinned_defaults_are_rejected_by_shared_validators() {
-    let temp = TempDir::new().expect("temp dir");
+fn invalid_choices_are_refused_in_last_used_and_pinned_defaults() {
     let mut encoder_defaults = EncoderDefaults::default();
-    // NativeAac with VBR is the same invalid combination the live-value test
-    // uses; the pinned snapshot must hit the identical validator.
     encoder_defaults.settings.encoder_type = EncoderType::NativeAac;
     encoder_defaults.settings.bitrate_mode = BitrateMode::Vbr(3);
+    assert!(rejection(AppSettingsPatch {
+        encoder_defaults: Some(encoder_defaults.clone()),
+        ..Default::default()
+    })
+    .contains("not supported"));
+    assert!(rejection(AppSettingsPatch {
+        pinned_defaults: Some(PinnedDefaults {
+            max_concurrent_jobs: ConcurrencyPreference::Auto,
+            encoder_defaults,
+            output_defaults: OutputDefaults::default(),
+        }),
+        ..Default::default()
+    })
+    .contains("not supported"));
 
-    let error = update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            pinned_defaults: Some(PinnedDefaults {
-                max_concurrent_jobs: ConcurrencyPreference::Auto,
-                encoder_defaults,
-                output_defaults: OutputDefaults::default(),
+    let odd_rate = EncoderDefaults {
+        sample_rate: SampleRateConfig::Explicit(12345),
+        ..Default::default()
+    };
+    assert!(rejection(AppSettingsPatch {
+        encoder_defaults: Some(odd_rate),
+        ..Default::default()
+    })
+    .contains("Unsupported sample rate"));
+
+    let opus_into_m4b = EncoderDefaults {
+        format: AudiobookFormat::M4aOpus,
+        ..Default::default()
+    };
+    assert!(rejection(AppSettingsPatch {
+        encoder_defaults: Some(opus_into_m4b),
+        ..Default::default()
+    })
+    .contains("must match"));
+
+    assert!(rejection(AppSettingsPatch {
+        max_concurrent_jobs: Some(ConcurrencyPreference::Fixed(0)),
+        ..Default::default()
+    })
+    .contains("Max concurrent jobs"));
+}
+
+#[test]
+fn fixed_concurrency_accepts_the_scheduler_maximum() {
+    let max = crate::processing::JobRegistry::max_concurrent_jobs_capabilities().fixed_max;
+    let settings = AppSettings::default()
+        .merge(AppSettingsPatch {
+            max_concurrent_jobs: Some(ConcurrencyPreference::Fixed(max)),
+            ..Default::default()
+        })
+        .expect("maximum accepted");
+    assert_eq!(
+        settings.max_concurrent_jobs,
+        ConcurrencyPreference::Fixed(max)
+    );
+}
+
+#[test]
+fn a_blank_output_folder_means_no_folder() {
+    let settings = AppSettings::default()
+        .merge(AppSettingsPatch {
+            output_defaults: Some(OutputDefaults {
+                output_directory: Some("   ".to_string()),
+                ..OutputDefaults::default()
             }),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect_err("invalid pinned encoder defaults must be rejected");
-
-    assert!(error.to_string().contains("not supported"));
-    let reloaded = get_app_settings(temp.path()).expect("reload settings");
-    assert_eq!(reloaded.pinned_defaults, None, "rejected pin is not stored");
-}
-
-#[test]
-fn default_acquisition_lane_defaults_to_audible_and_persists() {
-    let temp = TempDir::new().expect("temp dir");
-
-    let settings = get_app_settings(temp.path()).expect("load defaults");
-    assert_eq!(settings.default_acquisition_lane, AcquisitionLane::Audible);
-
-    let updated = update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            default_acquisition_lane: Some(AcquisitionLane::Indexer),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect("update lane");
-    let reloaded = get_app_settings(temp.path()).expect("reload settings");
-
-    assert_eq!(updated.default_acquisition_lane, AcquisitionLane::Indexer);
-    assert_eq!(reloaded.default_acquisition_lane, AcquisitionLane::Indexer);
-}
-
-#[test]
-fn settings_file_without_default_acquisition_lane_loads_with_default() {
-    let temp = TempDir::new().expect("temp dir");
-    let legacy = serde_json::json!({
-        "maxConcurrentJobs": {"mode": "auto"},
-        "encoderDefaults": serde_json::to_value(EncoderDefaults::default()).expect("encoder json"),
-        "outputDefaults": serde_json::to_value(OutputDefaults::default()).expect("output json"),
-    });
-    std::fs::write(
-        temp.path().join("app-settings.json"),
-        serde_json::to_string_pretty(&legacy).expect("legacy json"),
-    )
-    .expect("write legacy settings");
-
-    let settings = get_app_settings(temp.path()).expect("load legacy settings");
-
-    assert_eq!(settings.default_acquisition_lane, AcquisitionLane::Audible);
-}
-
-#[test]
-fn saved_audio_defaults_upgrade_and_persist_format_and_intent() {
-    use crate::audio::{AudioIntent, AudiobookFormat};
-    let temp = TempDir::new().expect("settings directory");
-    let path = temp.path().join("app-settings.json");
-    let mut saved =
-        serde_json::to_value(AppSettings::default()).expect("serialize settings fixture");
-    saved["encoderDefaults"]
-        .as_object_mut()
-        .expect("encoder defaults object")
-        .remove("format");
-    saved["encoderDefaults"]
-        .as_object_mut()
-        .expect("encoder defaults object")
-        .remove("intent");
-    std::fs::write(&path, saved.to_string()).expect("write legacy settings");
-    let loaded = get_app_settings(temp.path()).expect("load persisted audio defaults");
-    assert_eq!(loaded.encoder_defaults.format, AudiobookFormat::M4b);
-    assert_eq!(loaded.encoder_defaults.intent, AudioIntent::Auto);
-    let mut defaults = loaded.encoder_defaults;
-    defaults.format = AudiobookFormat::Mp3;
-    defaults.intent = AudioIntent::Preserve;
-    update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            encoder_defaults: Some(defaults.clone()),
             ..Default::default()
-        },
-    )
-    .expect("persist audio defaults");
-    assert_eq!(
-        get_app_settings(temp.path())
-            .expect("load persisted audio defaults")
-            .encoder_defaults,
-        defaults
-    );
-    defaults.format = AudiobookFormat::M4aOpus;
-    assert!(
-        update_app_settings(
-            temp.path(),
-            AppSettingsPatch {
-                encoder_defaults: Some(defaults.clone()),
-                ..Default::default()
-            }
-        )
-        .is_err(),
-        "AAC settings cannot be saved as Opus output"
-    );
-    defaults.settings.encoder_type = EncoderType::Opus;
-    defaults.settings.bitrate_mode = BitrateMode::VbrTarget;
-    update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            encoder_defaults: Some(defaults.clone()),
-            ..Default::default()
-        },
-    )
-    .expect("persist audio defaults");
-    assert_eq!(
-        get_app_settings(temp.path())
-            .expect("load persisted audio defaults")
-            .encoder_defaults,
-        defaults
-    );
+        })
+        .expect("blank folder accepted");
+    assert_eq!(settings.output_defaults.output_directory, None);
 }

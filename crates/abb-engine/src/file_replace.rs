@@ -1,5 +1,33 @@
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+
+/// Writes `content` to a synced temporary file beside `path`, then moves it
+/// into place, so a crash leaves the old file or the new one, never a torn one.
+pub(crate) fn write_atomically(path: &Path, content: &[u8]) -> io::Result<()> {
+    let parent = path.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "write destination has no parent directory",
+        )
+    })?;
+    std::fs::create_dir_all(parent)?;
+    let temp_path = parent.join(format!(".abb_write_{}.tmp", uuid::Uuid::new_v4()));
+    let result = (|| {
+        let mut file = std::fs::File::create(&temp_path)?;
+        file.write_all(content)?;
+        file.sync_all()?;
+        drop(file);
+        if path.exists() {
+            replace_file(&temp_path, path)
+        } else {
+            std::fs::rename(&temp_path, path)
+        }
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp_path);
+    }
+    result
+}
 
 fn backup_path_for(destination: &Path) -> io::Result<PathBuf> {
     let parent = destination.parent().ok_or_else(|| {

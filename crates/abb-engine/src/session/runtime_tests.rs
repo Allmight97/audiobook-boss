@@ -1028,7 +1028,7 @@ async fn a_default_audio_edit_is_recorded_in_the_settings_and_announced() {
     .await;
 
     let settings = rig.session.inner.deps.settings.snapshot().await;
-    let saved = settings.settings.expect("settings").encoder_defaults;
+    let saved = settings.settings.encoder_defaults;
     assert_eq!(saved.settings.bitrate_kbps, 96);
     assert_eq!(saved.intent, AudioIntent::Encode);
     let announced = rig.events.1.lock().expect("events").last().cloned();
@@ -1142,7 +1142,6 @@ async fn output_choices_are_recorded_and_template_typing_once_it_pauses() {
             .snapshot()
             .await
             .settings
-            .expect("settings")
             .output_defaults
     };
 

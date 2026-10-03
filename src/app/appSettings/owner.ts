@@ -30,7 +30,6 @@ export type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 export type AppSettingsDialogState = {
 	isOpen: boolean;
-	loading: boolean;
 	settings: AppSettings | null;
 	saveState: SettingsSaveState;
 	saveError: string;
@@ -54,7 +53,7 @@ export type SettingsOwner = {
 	setConcurrencySelection(value: string): Promise<void>;
 	setDefaultAcquisitionLane(lane: AcquisitionLane): Promise<void>;
 	setControlsEnabled(enabled: boolean): void;
-	openDialog(): Promise<void>;
+	openDialog(): void;
 	closeDialog(): void;
 	setDialogOpen(open: boolean): void;
 	setKeepAwakeWhileWorking(enabled: boolean): Promise<void>;
@@ -75,7 +74,6 @@ type ProgressKey = 'save' | 'powerSave' | 'startupSave';
 function idleDialog(): DialogProgress {
 	return {
 		isOpen: false,
-		loading: false,
 		saveState: 'idle',
 		saveError: '',
 		powerSaveState: 'idle',
@@ -197,16 +195,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		defaultAcquisitionLane: () => link.settings().defaultAcquisitionLane,
 		dialog: () => {
 			rev();
-			const snapshot = link.settings();
-			const unreadable = !snapshot.settings && snapshot.loadError;
-			return {
-				...dialog,
-				settings: snapshot.settings ?? null,
-				// Unreadable settings are the dialog's error; Reset restores defaults.
-				saveState: unreadable && dialog.saveState === 'idle' ? 'error' : dialog.saveState,
-				saveError:
-					unreadable && !dialog.saveError ? describe(snapshot.loadError) : dialog.saveError,
-			};
+			return { ...dialog, settings: link.settings().settings ?? null };
 		},
 		async setConcurrencySelection(value) {
 			const started = generation;
@@ -223,12 +212,8 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			controlsEnabled = enabled;
 			changed();
 		},
-		async openDialog() {
-			const started = generation;
-			updateDialog(started, { ...idleDialog(), isOpen: true, loading: true });
-			// Settings that failed to load are read again each time the dialog opens.
-			await send({ kind: 'reload' });
-			updateDialog(started, { loading: false });
+		openDialog() {
+			updateDialog(generation, { ...idleDialog(), isOpen: true });
 		},
 		closeDialog() {
 			updateDialog(generation, { isOpen: false });

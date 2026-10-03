@@ -70,37 +70,21 @@ describe('settings owner', () => {
 		expect(engine.settings().settings?.encoderDefaults.intent).toBe('preserve');
 	});
 
-	it('shows unreadable saved settings as the dialog error', async () => {
-		const app = open((engine) => engine.breakSettings());
-
-		await app.settings.openDialog();
-		expect(app.settings.dialog()).toMatchObject({
-			isOpen: true,
-			loading: false,
-			settings: null,
-			saveState: 'error',
-			saveError: 'App settings file could not be read by this version.',
-		});
-	});
-
-	it('tracks each dialog control on its own through a reset', async () => {
+	it('keeps a dialog choice that could not be saved in effect and reports the save once', async () => {
 		const app = open();
 		await app.initialize();
-		await app.settings.openDialog();
+		app.settings.openDialog();
 
 		engine.settingsWriteError = { message: 'Read-only' };
 		await app.settings.setStartupBehavior('pinnedDefaults');
-		expect(app.settings.dialog()).toMatchObject({
-			startupSaveState: 'error',
-			startupSaveError: 'Read-only',
-			powerSaveState: 'idle',
-			saveState: 'idle',
-		});
+		expect(app.settings.dialog().settings?.startupBehavior).toBe('pinnedDefaults');
+		expect(app.settings.dialog().startupSaveState).not.toBe('error');
+		expect(app.settings.durability()).toEqual({ state: 'error', message: 'Read-only' });
 
 		engine.settingsWriteError = undefined;
 		await app.settings.saveCurrentSettingsAsPinnedDefaults();
-		expect(app.settings.dialog().startupSaveState).toBe('saved');
 		expect(app.settings.dialog().settings?.pinnedDefaults).toBeDefined();
+		expect(app.settings.durability().state).toBe('saved');
 
 		await app.settings.resetAllAppSettings();
 		expect(app.settings.dialog().saveState).toBe('saved');

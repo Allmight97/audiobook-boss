@@ -66,7 +66,6 @@ async fn defaults_are_saved_in_acceptance_order_even_when_replies_are_awaited_ba
             .settings_snapshot()
             .await
             .settings
-            .expect("settings")
             .output_defaults
             .output_directory
             .as_deref(),
@@ -533,12 +532,7 @@ async fn audio_and_output_defaults_are_saved_and_return_after_a_settings_reset()
     })
     .await;
 
-    let saved = desk
-        .engine
-        .settings_snapshot()
-        .await
-        .settings
-        .expect("settings");
+    let saved = desk.engine.settings_snapshot().await.settings;
     assert_eq!(saved.encoder_defaults.format, AudiobookFormat::MkaOpus);
     assert_eq!(
         saved.output_defaults.output_directory.as_deref(),
@@ -827,7 +821,6 @@ async fn a_choice_made_while_reset_is_waiting_stays_on_screen_and_on_disk() {
             .settings_snapshot()
             .await
             .settings
-            .expect("settings")
             .output_defaults
             .output_directory
             .as_deref(),

@@ -34,6 +34,10 @@ Import one or more titles from any supported source, adjust metadata and
 encoding preferences, and output a title my audiobook library immediately
 recognizes as correctly tagged and validly structured.
 
+Settings the user chooses are honored as chosen and kept between launches,
+including after a later release changes a setting. The user never repairs a
+settings file; a save that fails says so and is retried.
+
 When a rule, check, abstraction, or cautious step has a cost, name which part
 of this path or which hard invariant below it protects. Caution that protects
 neither earns no preference over the simpler design.

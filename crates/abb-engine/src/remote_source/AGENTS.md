@@ -52,8 +52,12 @@ or infer provider-private Audible internals.
   release GUIDs/URLs, and raw response bodies out of those entries.
 - Release detail URLs are optional source-provided HTTP(S) links without embedded
   credentials; never infer them from a release GUID.
-- Indexer connection URLs reject embedded credentials on load, save, and draft
-  testing; invalid saved URLs never reach IPC or provider requests.
+- Indexer connection URLs reject embedded credentials on save and draft
+  testing. The URL and categories live in `indexer.toml` under App Settings'
+  storage rules: written crash-safe, a failed write logged and reported; a
+  file damaged outside ABB (including a URL with credentials) loads as not
+  configured and is never sent to IPC or a provider. API keys stay in the
+  credential store.
 - The private connection owner resolves URL, categories, and the host's key for
   search/grab together; its credential-bearing result never crosses IPC.
 - Indexer credentials are scoped to the normalized server URL in the vault;

@@ -24,7 +24,6 @@ describe('tauriClient', () => {
 			snapshot: {
 				revision: 3,
 				settings: null,
-				loadError: null,
 				saveError: null,
 				concurrency: {
 					preference: { mode: 'auto' },

@@ -5,15 +5,14 @@
 //! lock serializes every change, so an older write can never report a newer
 //! choice as saved.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
 use super::{
-    get_app_settings, reset_app_settings, update_app_settings, AcquisitionLane, AppSettings,
-    AppSettingsPatch, ConcurrencyPreference, EncoderDefaults, OutputDefaults, PinnedDefaults,
-    StartupBehavior,
+    get_app_settings, save_app_settings, AcquisitionLane, AppSettings, AppSettingsPatch,
+    ConcurrencyPreference, EncoderDefaults, OutputDefaults, PinnedDefaults, StartupBehavior,
 };
 use crate::errors::{AppError, AppErrorEnvelope};
 use crate::power::PowerManager;
@@ -48,8 +47,6 @@ pub enum SettingsIntent {
     Retry,
     /// Returns every setting to its default. Refused while exports run.
     Reset,
-    /// Reads the saved settings again after a failed load.
-    Reload,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -75,16 +72,14 @@ pub struct ConcurrencySnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct SettingsSnapshot {
     pub revision: u64,
-    /// The settings in effect. Absent while the saved file cannot be read.
-    pub settings: Option<AppSettings>,
-    /// Why the saved file could not be read.
-    pub load_error: Option<AppErrorEnvelope>,
+    /// The settings in effect.
+    pub settings: AppSettings,
     /// Why accepted changes are not on disk yet. Absent when all are saved.
     pub save_error: Option<AppErrorEnvelope>,
     pub concurrency: ConcurrencySnapshot,
     /// The defaults a host shows at launch: the pinned ones when the user
     /// chose that and has pinned some, otherwise the last used.
-    pub startup_defaults: Option<PinnedDefaults>,
+    pub startup_defaults: PinnedDefaults,
     pub default_acquisition_lane: AcquisitionLane,
 }
 
@@ -102,20 +97,17 @@ pub(crate) struct SettingsRuntime {
 
 pub(crate) struct SettingsRun {
     settings: SettingsRuntime,
-    reply: tokio::task::JoinHandle<(SettingsReply, bool)>,
+    reply: tokio::task::JoinHandle<SettingsReply>,
 }
 
 impl SettingsRun {
-    pub(crate) async fn finish(self) -> (SettingsReply, bool) {
+    pub(crate) async fn finish(self) -> SettingsReply {
         match self.reply.await {
             Ok(reply) => reply,
-            Err(error) => (
-                SettingsReply {
-                    outcome: rejected(&AppError::General(format!("Settings work failed: {error}"))),
-                    snapshot: self.settings.snapshot().await,
-                },
-                false,
-            ),
+            Err(error) => SettingsReply {
+                outcome: rejected(&AppError::General(format!("Settings work failed: {error}"))),
+                snapshot: self.settings.snapshot().await,
+            },
         }
     }
 }
@@ -132,15 +124,13 @@ struct Inner {
 #[derive(Default)]
 struct State {
     revision: u64,
-    accepted: Option<AppSettings>,
-    load_error: Option<AppErrorEnvelope>,
-    /// Accepted changes not yet on disk.
-    unsaved: AppSettingsPatch,
+    accepted: AppSettings,
+    /// Whether the settings in effect have changed since they last reached disk.
+    unsaved: bool,
     save_error: Option<AppErrorEnvelope>,
     /// The concurrency choice in effect. A launch from pinned defaults takes
     /// the pinned choice without rewriting the last-used one.
-    concurrency: Option<ConcurrencyPreference>,
-    hydration_pending: bool,
+    concurrency: ConcurrencyPreference,
 }
 
 /// The defaults a launch starts from.
@@ -161,65 +151,29 @@ fn rejected(error: &AppError) -> SettingsOutcome {
     }
 }
 
-impl State {
-    fn load(&mut self, config_dir: &Path) {
-        match get_app_settings(config_dir) {
-            Ok(settings) => {
-                match settings.merge(self.unsaved.clone()) {
-                    Ok(settings) => self.accepted = Some(settings),
-                    Err(error) => {
-                        self.load_error = Some(AppErrorEnvelope::from(&error));
-                        return;
-                    }
-                }
-                self.load_error = None;
-                self.hydration_pending = true;
-            }
-            Err(error) => {
-                self.accepted = None;
-                self.load_error = Some(AppErrorEnvelope::from(&error));
-            }
-        }
-    }
-}
-
 impl SettingsRuntime {
     /// Loads the saved settings and builds the job scheduler they ask for.
-    /// Settings that cannot be read leave the runtime defaults in effect.
-    /// Also returns the defaults this launch starts from, when settings loaded.
+    /// Also returns the defaults this launch starts from.
     pub(crate) fn start(
         config_dir: PathBuf,
         power: PowerManager,
-    ) -> (Self, ManagedJobRegistry, Option<PinnedDefaults>) {
-        let mut state = State::default();
-        state.load(&config_dir);
-        if let Some(error) = &state.load_error {
-            log::warn!(
-                "Startup app settings hydration failed; using runtime defaults: {}",
-                error.message
-            );
-        }
-        let startup = state.accepted.as_ref().map(startup_defaults);
-        let jobs: ManagedJobRegistry = Arc::new(
-            match startup
-                .as_ref()
-                .map(|defaults| defaults.max_concurrent_jobs)
-            {
-                Some(ConcurrencyPreference::Fixed(value)) => JobRegistry::new(value),
-                Some(ConcurrencyPreference::Auto) | None => JobRegistry::auto(),
-            },
-        );
+    ) -> (Self, ManagedJobRegistry, PinnedDefaults) {
+        let accepted = get_app_settings(&config_dir);
+        let startup = startup_defaults(&accepted);
+        let jobs: ManagedJobRegistry = Arc::new(match startup.max_concurrent_jobs {
+            ConcurrencyPreference::Fixed(value) => JobRegistry::new(value),
+            ConcurrencyPreference::Auto => JobRegistry::auto(),
+        });
         log::info!(
             "Job registry initialized: max_concurrent = {}",
             jobs.max_concurrent()
         );
-        state.concurrency = startup
-            .as_ref()
-            .map(|defaults| defaults.max_concurrent_jobs);
-        if let Some(settings) = &state.accepted {
-            power.set_enabled(settings.keep_awake_while_working);
-        }
-        state.hydration_pending = false;
+        power.set_enabled(accepted.keep_awake_while_working);
+        let state = State {
+            concurrency: startup.max_concurrent_jobs,
+            accepted,
+            ..State::default()
+        };
         let runtime = Self {
             inner: Arc::new(Inner {
                 config_dir,
@@ -240,22 +194,14 @@ impl SettingsRuntime {
         SettingsSnapshot {
             revision: state.revision,
             settings: state.accepted.clone(),
-            load_error: state.load_error.clone(),
             save_error: state.save_error.clone(),
             concurrency: ConcurrencySnapshot {
-                preference: state.concurrency.unwrap_or(ConcurrencyPreference::Auto),
+                preference: state.concurrency,
                 effective: self.inner.jobs.max_concurrent(),
                 capabilities: JobRegistry::max_concurrent_jobs_capabilities(),
             },
-            startup_defaults: state.accepted.as_ref().map(startup_defaults),
-            default_acquisition_lane: state
-                .unsaved
-                .default_acquisition_lane
-                .or(state
-                    .accepted
-                    .as_ref()
-                    .map(|settings| settings.default_acquisition_lane))
-                .unwrap_or_default(),
+            startup_defaults: startup_defaults(&state.accepted),
+            default_acquisition_lane: state.accepted.default_acquisition_lane,
         }
     }
 
@@ -264,7 +210,6 @@ impl SettingsRuntime {
         self.begin(intent, &crate::engine::EngineTasks::default())
             .finish()
             .await
-            .0
     }
 
     /// Reserves its turn synchronously, so async replies cannot reorder writes.
@@ -325,13 +270,10 @@ impl SettingsRuntime {
                 latest.load(std::sync::atomic::Ordering::SeqCst) != revision
             });
             let reply = if superseded {
-                (
-                    SettingsReply {
-                        outcome: SettingsOutcome::Applied,
-                        snapshot: settings.snapshot().await,
-                    },
-                    false,
-                )
+                SettingsReply {
+                    outcome: SettingsOutcome::Applied,
+                    snapshot: settings.snapshot().await,
+                }
             } else {
                 settings.apply_ordered(intent).await
             };
@@ -344,20 +286,15 @@ impl SettingsRuntime {
         }
     }
 
-    async fn apply_ordered(&self, intent: SettingsIntent) -> (SettingsReply, bool) {
+    async fn apply_ordered(&self, intent: SettingsIntent) -> SettingsReply {
         // Held for the whole intent: changes apply and write in the order asked.
         let mut state = self.inner.state.lock().await;
-        let before = self.snapshot_of(&state).startup_defaults;
-        let pending = state.hydration_pending;
         let outcome = self.apply(&mut state, intent).await;
         state.revision += 1;
-        let reply = SettingsReply {
+        SettingsReply {
             outcome,
             snapshot: self.snapshot_of(&state),
-        };
-        let changed =
-            reply.snapshot.startup_defaults != before || (pending && !state.hydration_pending);
-        (reply, changed)
+        }
     }
 
     async fn apply(&self, state: &mut State, intent: SettingsIntent) -> SettingsOutcome {
@@ -382,7 +319,7 @@ impl SettingsRuntime {
                 self.set_concurrency(state, preference).await
             }
             SettingsIntent::SetKeepAwake { enabled } => {
-                self.write_now(
+                self.accept(
                     state,
                     AppSettingsPatch {
                         keep_awake_while_working: Some(enabled),
@@ -392,7 +329,7 @@ impl SettingsRuntime {
                 .await
             }
             SettingsIntent::SetStartupBehavior { behavior } => {
-                self.write_now(
+                self.accept(
                     state,
                     AppSettingsPatch {
                         startup_behavior: Some(behavior),
@@ -403,119 +340,63 @@ impl SettingsRuntime {
             }
             SettingsIntent::PinCurrentDefaults => self.pin_current_defaults(state).await,
             SettingsIntent::Retry => {
-                self.write_unsaved(state).await;
+                self.write(state).await;
                 SettingsOutcome::Applied
             }
             SettingsIntent::Reset => self.reset(state).await,
-            SettingsIntent::Reload => {
-                if state.accepted.is_none() {
-                    state.load(&self.inner.config_dir);
-                }
-                if state.hydration_pending {
-                    if let Err(error) = self.apply_loaded_runtime(state).await {
-                        return rejected(&error);
-                    }
-                    self.write_unsaved(state).await;
-                }
-                SettingsOutcome::Applied
-            }
         }
     }
 
-    /// Puts `patch` in effect, then tries to save it. A failed write leaves
-    /// it in effect and unsaved.
+    /// Puts `patch` in effect, then tries to save the settings in effect. A
+    /// failed write leaves the change in effect and reported as unsaved.
     async fn accept(&self, state: &mut State, patch: AppSettingsPatch) -> SettingsOutcome {
-        if let Some(accepted) = &state.accepted {
-            match accepted.clone().merge(patch.clone()) {
-                Ok(next) => state.accepted = Some(next),
-                Err(error) => return rejected(&error),
-            }
+        match state.accepted.clone().merge(patch) {
+            Ok(next) => state.accepted = next,
+            Err(error) => return rejected(&error),
         }
-        state.unsaved.absorb(patch);
-        self.write_unsaved(state).await;
+        self.apply_to_runtime(state);
+        state.unsaved = true;
+        self.write(state).await;
         SettingsOutcome::Applied
     }
 
-    /// Runs settings file I/O on a blocking thread; the caller still holds
-    /// the settings turn, so writes stay in order.
-    async fn on_disk<T: Send + 'static>(
-        &self,
-        work: impl FnOnce(&std::path::Path) -> crate::errors::Result<T> + Send + 'static,
-    ) -> crate::errors::Result<T> {
-        let config_dir = self.inner.config_dir.clone();
-        tokio::task::spawn_blocking(move || work(&config_dir))
-            .await
-            .map_err(|error| AppError::General(format!("Settings write failed: {error}")))?
-    }
-
-    async fn write_unsaved(&self, state: &mut State) {
-        if state.unsaved.is_empty() {
-            state.save_error = None;
+    /// Writes the settings in effect if any change has not reached disk. The
+    /// caller holds the settings turn, so writes stay in order.
+    async fn write(&self, state: &mut State) {
+        if !state.unsaved {
             return;
         }
-        let unsaved = state.unsaved.clone();
-        match self
-            .on_disk(move |dir| update_app_settings(dir, unsaved))
-            .await
-        {
-            Ok(settings) => {
-                state.accepted = Some(settings);
-                state.unsaved = AppSettingsPatch::default();
+        let config_dir = self.inner.config_dir.clone();
+        let settings = state.accepted.clone();
+        let written =
+            tokio::task::spawn_blocking(move || save_app_settings(&config_dir, &settings))
+                .await
+                .unwrap_or_else(|error| {
+                    Err(AppError::General(format!("Settings write failed: {error}")))
+                });
+        match written {
+            Ok(()) => {
+                state.unsaved = false;
                 state.save_error = None;
-                state.load_error = None;
-                self.apply_to_runtime(state);
             }
-            Err(error) => state.save_error = Some(AppErrorEnvelope::from(&error)),
+            Err(error) => {
+                log::warn!("App settings were not saved: {error}");
+                state.save_error = Some(AppErrorEnvelope::from(&error));
+            }
         }
     }
 
-    /// Applies `patch` only if it reaches disk, together with anything still
-    /// unsaved.
-    async fn write_now(&self, state: &mut State, patch: AppSettingsPatch) -> SettingsOutcome {
-        let mut write = state.unsaved.clone();
-        write.absorb(patch);
-        match self
-            .on_disk(move |dir| update_app_settings(dir, write))
-            .await
-        {
-            Ok(settings) => {
-                state.accepted = Some(settings);
-                state.unsaved = AppSettingsPatch::default();
-                state.save_error = None;
-                state.load_error = None;
-                self.apply_to_runtime(state);
-                SettingsOutcome::Applied
-            }
-            Err(error) => rejected(&error),
-        }
+    /// Writes anything still unsaved, as ABB closes.
+    pub(crate) async fn flush(&self) {
+        let mut state = self.inner.state.lock().await;
+        self.write(&mut state).await;
     }
 
-    /// The runtime side of settings that reached disk.
+    /// The runtime side of the settings in effect.
     fn apply_to_runtime(&self, state: &State) {
-        if let Some(settings) = &state.accepted {
-            self.inner
-                .power
-                .set_enabled(settings.keep_awake_while_working);
-        }
-    }
-
-    async fn apply_loaded_runtime(&self, state: &mut State) -> crate::errors::Result<()> {
-        let Some(settings) = &state.accepted else {
-            return Ok(());
-        };
-        let preference = state
-            .concurrency
-            .unwrap_or_else(|| startup_defaults(settings).max_concurrent_jobs);
-        let requested = preference.requested_value(JobRegistry::default_max());
-        let effective = if self.inner.jobs.max_concurrent() == requested {
-            requested
-        } else {
-            self.inner.jobs.update_max_concurrent(requested).await?
-        };
-        state.concurrency = Some(preference.accepted(effective));
-        self.apply_to_runtime(state);
-        state.hydration_pending = false;
-        Ok(())
+        self.inner
+            .power
+            .set_enabled(state.accepted.keep_awake_while_working);
     }
 
     /// Asks the scheduler to accept the change before recording it. A fixed
@@ -534,7 +415,7 @@ impl SettingsRuntime {
             Err(error) => return rejected(&error),
         };
         let accepted = preference.accepted(effective);
-        state.concurrency = Some(accepted);
+        state.concurrency = accepted;
         self.accept(
             state,
             AppSettingsPatch {
@@ -545,30 +426,15 @@ impl SettingsRuntime {
         .await
     }
 
-    /// Pinning captures what is on disk, so unsaved changes must save first.
+    /// Captures the defaults in effect as the ones a later launch starts from.
     async fn pin_current_defaults(&self, state: &mut State) -> SettingsOutcome {
-        self.write_unsaved(state).await;
-        if let Some(error) = &state.save_error {
-            return rejected(&AppError::InvalidInput(format!(
-                "Save current settings before pinning defaults. {}",
-                error.message
-            )));
-        }
-        let Some(current) = &state.accepted else {
-            return SettingsOutcome::Rejected {
-                error: state.load_error.clone().unwrap_or_else(|| {
-                    AppErrorEnvelope::from(&AppError::General(
-                        "App settings are not loaded.".to_string(),
-                    ))
-                }),
-            };
-        };
+        let current = &state.accepted;
         let pinned = PinnedDefaults {
             max_concurrent_jobs: current.max_concurrent_jobs,
             encoder_defaults: current.encoder_defaults.clone(),
             output_defaults: current.output_defaults.clone(),
         };
-        self.write_now(
+        self.accept(
             state,
             AppSettingsPatch {
                 pinned_defaults: Some(pinned),
@@ -578,38 +444,25 @@ impl SettingsRuntime {
         .await
     }
 
-    /// Resets saved settings and returns concurrency to automatic. A failed
-    /// reset restores the previous concurrency and keeps unsaved changes
-    /// retryable.
+    /// Returns every setting to its default and concurrency to automatic.
     async fn reset(&self, state: &mut State) -> SettingsOutcome {
-        let jobs = &self.inner.jobs;
-        let previous = jobs.max_concurrent();
-        if jobs.reset_to_auto().await.is_err() {
+        if self.inner.jobs.reset_to_auto().await.is_err() {
             return rejected(&AppError::InvalidInput(
                 "Settings can't be reset while exports are running. Try again when they finish."
                     .to_string(),
             ));
         }
-        match self.on_disk(reset_app_settings).await {
-            Ok(settings) => {
-                *state = State {
-                    revision: state.revision,
-                    concurrency: Some(settings.max_concurrent_jobs),
-                    accepted: Some(settings),
-                    ..State::default()
-                };
-                self.apply_to_runtime(state);
-                SettingsOutcome::Applied
-            }
-            Err(error) => {
-                if let Err(rollback) = jobs.update_max_concurrent(previous).await {
-                    log::warn!(
-                        "Failed to roll back max concurrency after settings reset failed: {rollback}"
-                    );
-                }
-                rejected(&error)
-            }
-        }
+        let settings = AppSettings::default();
+        *state = State {
+            revision: state.revision,
+            concurrency: settings.max_concurrent_jobs,
+            accepted: settings,
+            unsaved: true,
+            save_error: None,
+        };
+        self.apply_to_runtime(state);
+        self.write(state).await;
+        SettingsOutcome::Applied
     }
 }
 

@@ -14,14 +14,13 @@ pub(super) fn api_key_vault_key(base_url: &str) -> String {
 }
 pub(super) const DEFAULT_CATEGORY_IDS: &[u32] = &[3000, 3030];
 
-const CONNECTION_FILE_NAME: &str = "remote-source-indexer-connection.json";
+const CONNECTION_FILE_NAME: &str = "indexer.toml";
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 struct StoredIndexerConnection {
-    #[serde(default)]
+    #[serde(rename = "url")]
     base_url: Option<String>,
-    #[serde(default = "default_category_ids")]
+    #[serde(rename = "categories")]
     category_ids: Vec<u32>,
 }
 
@@ -53,7 +52,7 @@ pub(super) fn get_connection(
     config_dir: &Path,
     vault: &dyn SecretVault,
 ) -> Result<RemoteIndexerConnection> {
-    let stored = load_stored_connection(config_dir)?;
+    let stored = load_stored_connection(config_dir);
     Ok(RemoteIndexerConnection {
         base_url: stored.base_url.clone(),
         category_ids: stored.category_ids,
@@ -66,7 +65,7 @@ pub(super) fn update_connection(
     vault: &dyn SecretVault,
     update: RemoteIndexerConnectionUpdate,
 ) -> Result<RemoteIndexerConnection> {
-    let previous = load_stored_connection(config_dir)?;
+    let previous = load_stored_connection(config_dir);
     let mut stored = previous.clone();
     if let Some(base_url) = update.base_url {
         stored.base_url = normalize_base_url(base_url)?;
@@ -127,7 +126,7 @@ pub(super) fn configured_connection(
     config_dir: &Path,
     vault: &dyn SecretVault,
 ) -> Result<ConfiguredIndexerConnection> {
-    let stored = load_stored_connection(config_dir)?;
+    let stored = load_stored_connection(config_dir);
     let base_url = stored.base_url.ok_or_else(|| {
         AppError::InvalidInput("Configure Indexer URL in Settings before continuing.".to_string())
     })?;
@@ -157,7 +156,7 @@ pub(super) fn draft_credentials(
 ) -> Result<(String, SecretString)> {
     let base_url = match update.base_url {
         Some(url) => normalize_base_url(url)?,
-        None => load_stored_connection(config_dir)?.base_url,
+        None => load_stored_connection(config_dir).base_url,
     }
     .ok_or_else(|| AppError::InvalidInput("Configure Indexer URL before testing.".to_string()))?;
     let api_key = match update.api_key {
@@ -176,58 +175,45 @@ pub(super) fn draft_credentials(
     Ok((base_url, api_key))
 }
 
-fn load_stored_connection(config_dir: &Path) -> Result<StoredIndexerConnection> {
-    let path = connection_path(config_dir);
-    let content = match std::fs::read_to_string(&path) {
+/// The saved connection, or none configured. A file damaged outside ABB is
+/// not used, so a stored URL is never exposed or contacted unchecked.
+fn load_stored_connection(config_dir: &Path) -> StoredIndexerConnection {
+    let content = match std::fs::read_to_string(connection_path(config_dir)) {
         Ok(content) => content,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return Ok(StoredIndexerConnection::default());
+            return StoredIndexerConnection::default();
         }
-        Err(error) => return Err(AppError::Io(error)),
+        Err(error) => {
+            log::warn!("Indexer settings could not be read; using none: {error}");
+            return StoredIndexerConnection::default();
+        }
     };
-
-    let mut stored: StoredIndexerConnection = serde_json::from_str(&content).map_err(|error| {
-        AppError::InvalidInput(format!(
-            "Indexer connection settings are invalid. Remove remote-source-indexer-connection.json from the app configuration folder, then configure Indexer again. ({error})"
-        ))
-    })?;
-    stored.base_url = stored
-        .base_url
-        .map(normalize_base_url)
-        .transpose()
-        .map_err(|error| {
-            AppError::InvalidInput(format!(
-                "Stored Indexer URL is invalid: {error} Remove remote-source-indexer-connection.json from the app configuration folder, then configure Indexer again."
-            ))
-        })?
-        .flatten();
-    stored.category_ids = normalize_category_ids(stored.category_ids);
-    Ok(stored)
+    let stored = toml::from_str::<StoredIndexerConnection>(&content)
+        .map_err(|error| error.to_string())
+        .and_then(|stored| {
+            let base_url = stored
+                .base_url
+                .map(normalize_base_url)
+                .transpose()
+                .map_err(|error| error.to_string())?
+                .flatten();
+            Ok(StoredIndexerConnection {
+                base_url,
+                category_ids: normalize_category_ids(stored.category_ids),
+            })
+        });
+    stored.unwrap_or_else(|error| {
+        log::warn!("Indexer settings were not usable; using none: {error}");
+        StoredIndexerConnection::default()
+    })
 }
 
 fn save_stored_connection(config_dir: &Path, stored: &StoredIndexerConnection) -> Result<()> {
-    std::fs::create_dir_all(config_dir)?;
-    let path = connection_path(config_dir);
-    let temp_path = config_dir.join(format!(".indexer-connection-{}.tmp", uuid::Uuid::new_v4()));
-    let content = serde_json::to_string_pretty(stored).map_err(|error| {
-        AppError::General(format!("Failed to serialize indexer connection: {error}"))
-    })?;
-
-    let write_and_replace = || -> Result<()> {
-        std::fs::write(&temp_path, &content)?;
-        if path.exists() {
-            crate::file_replace::replace_file(&temp_path, &path)?;
-        } else {
-            std::fs::rename(&temp_path, &path)?;
-        }
-        Ok(())
-    };
-
-    let result = write_and_replace();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&temp_path);
-    }
-    result
+    let content = toml::to_string(stored)
+        .map_err(|error| AppError::General(format!("Failed to write Indexer settings: {error}")))?;
+    crate::file_replace::write_atomically(&connection_path(config_dir), content.as_bytes())
+        .inspect_err(|error| log::warn!("Indexer settings were not saved: {error}"))?;
+    Ok(())
 }
 
 fn connection_path(config_dir: &Path) -> PathBuf {
@@ -376,27 +362,18 @@ mod tests {
     }
 
     #[test]
-    fn rejects_persisted_url_credentials_before_exposing_or_using_them() {
+    fn a_stored_url_with_credentials_is_never_exposed_or_used() {
         let temp = TempDir::new().expect("temp dir");
         let vault = TestVault::default();
         std::fs::write(
             connection_path(temp.path()),
-            r#"{"baseUrl":"https://user:old-password@indexer.test","categoryIds":[3030]}"#,
+            "url = \"https://user:old-password@indexer.test\"\ncategories = [3030]\n",
         )
-        .expect("write previously accepted connection");
+        .expect("write a connection edited outside ABB");
 
-        let errors = [
-            get_connection(temp.path(), &vault).expect_err("do not expose stored credentials"),
-            draft_credentials(temp.path(), &vault, update(None, Some("api-key")))
-                .expect_err("do not use stored credentials for a connection test"),
-        ];
-        for error in errors {
-            let message = error.to_string();
-            assert!(message.contains("must not contain credentials"));
-            assert!(message.contains("remote-source-indexer-connection.json"));
-            assert!(!message.contains("old-password"));
-            assert!(!message.contains("indexer.test"));
-        }
+        let connection = get_connection(temp.path(), &vault).expect("connection");
+        assert_eq!(connection.base_url, None);
+        assert!(draft_credentials(temp.path(), &vault, update(None, Some("api-key"))).is_err());
         assert!(configured_connection(temp.path(), &vault).is_err());
         assert_eq!(*vault.reads.lock().expect("read counter lock"), 0);
     }
@@ -452,7 +429,7 @@ mod tests {
         assert_eq!(saved.base_url.as_deref(), Some("http://one.test/proxy"));
         assert!(saved.api_key_configured);
         let disk = std::fs::read_to_string(connection_path(temp.path()))
-            .expect("read persisted connection JSON");
+            .expect("read persisted connection");
         assert!(!disk.contains("secret-one"));
         assert!(!serde_json::to_string(&saved)
             .expect("serialize public connection")

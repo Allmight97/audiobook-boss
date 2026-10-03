@@ -23,7 +23,8 @@ describe('AppSettingsDialogView', () => {
 		engine = createFakeEngine();
 		prepare(engine);
 		runtime = createAppRuntime({ engine });
-		await runtime.settings.openDialog();
+		await runtime.initialize();
+		runtime.settings.openDialog();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<AppSettingsDialogView />
@@ -35,15 +36,6 @@ describe('AppSettingsDialogView', () => {
 	function sent(kind: string): number {
 		return engine.settingsIntents.filter((intent) => intent.kind === kind).length;
 	}
-
-	it('shows unreadable settings as an error and keeps the confirmed reset reachable', async () => {
-		await renderOpenDialog((engine) => engine.breakSettings());
-		expect(screen.getByTestId('app-settings-error')).toBeInTheDocument();
-		await fireEvent.click(screen.getByTestId('app-settings-reset'));
-		expect(sent('reset')).toBe(0);
-		await fireEvent.click(screen.getByTestId('app-settings-reset-confirm'));
-		await vi.waitFor(() => expect(sent('reset')).toBe(1));
-	});
 
 	it('requires a second activation before resetting all settings', async () => {
 		await renderOpenDialog();
@@ -149,7 +141,7 @@ describe('AppSettingsDialogView', () => {
 		});
 	});
 
-	it('shows the awake preference the engine holds and keeps the old choice when a change is refused', async () => {
+	it('shows the awake preference the engine holds and keeps a choice that could not be saved', async () => {
 		await renderOpenDialog();
 
 		let awake = screen.getByTestId('app-settings-keep-awake-checkbox');
@@ -162,18 +154,14 @@ describe('AppSettingsDialogView', () => {
 		expect(engine.settingsIntents).toContainEqual({ kind: 'setKeepAwake', enabled: false });
 
 		runtime!.settings.closeDialog();
-		await runtime!.settings.openDialog();
+		runtime!.settings.openDialog();
 		awake = screen.getByTestId('app-settings-keep-awake-checkbox');
 		expect(awake).not.toBeChecked();
 
-		engine.settingsWriteError = { message: 'Settings file is read-only' };
+		engine.settingsWriteError = { message: 'Disk full' };
 		await fireEvent.click(awake);
-		await vi.waitFor(() =>
-			expect(screen.getByTestId('app-settings-power-error')).toHaveTextContent(
-				'Settings file is read-only',
-			),
-		);
-		expect(awake).not.toBeChecked();
+		await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Disk full'));
+		expect(awake).toBeChecked();
 	});
 
 	it('lets the user enable both audiobook categories from the collapsed picker', async () => {

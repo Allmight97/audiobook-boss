@@ -15,20 +15,12 @@ pub use types::{
     OutputDefaults, PinnedDefaults, StartupBehavior,
 };
 
-fn get_app_settings(config_dir: &Path) -> Result<AppSettings> {
+fn get_app_settings(config_dir: &Path) -> AppSettings {
     storage::load(config_dir)
 }
 
-fn update_app_settings(config_dir: &Path, patch: AppSettingsPatch) -> Result<AppSettings> {
-    let current = storage::load(config_dir)?;
-    let settings = current.merge(patch)?;
-    storage::save(config_dir, &settings)?;
-    Ok(settings)
-}
-
-fn reset_app_settings(config_dir: &Path) -> Result<AppSettings> {
-    storage::reset(config_dir)?;
-    Ok(AppSettings::default())
+fn save_app_settings(config_dir: &Path, settings: &AppSettings) -> Result<()> {
+    storage::save(config_dir, settings)
 }
 
 #[cfg(test)]

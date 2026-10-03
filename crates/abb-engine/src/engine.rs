@@ -173,10 +173,7 @@ impl Engine {
             },
         });
         remote_source.set_handoff(session.handoff());
-        session.start_from_defaults(
-            startup.as_ref(),
-            Some(audio::encoder_settings_capabilities()),
-        );
+        session.start_from_defaults(Some(&startup), Some(audio::encoder_settings_capabilities()));
         Ok(Self {
             inner: Arc::new(EngineInner {
                 host,
@@ -218,6 +215,8 @@ impl Engine {
         }
         self.inner.remote_source.abort_acquisitions();
         self.inner.tasks.wait().await;
+        // A choice whose write failed gets one more attempt before ABB exits.
+        self.inner.settings.flush().await;
     }
 
     // ---- Settings ----
@@ -225,25 +224,18 @@ impl Engine {
     /// Applies one intent to the settings and returns the settings in effect.
     pub async fn settings_dispatch(&self, intent: SettingsIntent) -> SettingsReply {
         let reset = matches!(intent, SettingsIntent::Reset);
-        // Reloading a file that could not be read can bring in the defaults
-        // the session started without.
-        let reloads = matches!(intent, SettingsIntent::Reload);
         let accepted = self.inner.tasks.admit(|| {
             let checkpoint = self.inner.session.defaults_checkpoint();
             let run = self.inner.settings.begin(intent, &self.inner.tasks);
             let engine = self.clone();
             self.inner.tasks.spawn(async move {
-                let (reply, defaults_changed) = run.finish().await;
-                let applied = reply.outcome == SettingsOutcome::Applied;
-                if applied && (reset || (reloads && defaults_changed)) {
-                    if let Some(defaults) = &reply.snapshot.startup_defaults {
-                        engine.inner.session.replace_defaults(
-                            defaults,
-                            checkpoint,
-                            reply.snapshot.revision,
-                            reset,
-                        );
-                    }
+                let reply = run.finish().await;
+                if reset && reply.outcome == SettingsOutcome::Applied {
+                    engine.inner.session.replace_defaults(
+                        &reply.snapshot.startup_defaults,
+                        checkpoint,
+                        reply.snapshot.revision,
+                    );
                 }
                 engine
                     .inner

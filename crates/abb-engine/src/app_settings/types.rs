@@ -5,10 +5,6 @@ use crate::audio::{
 use crate::errors::{AppError, Result};
 use crate::output_artifact::OutputNamingConfig;
 
-fn default_keep_awake() -> bool {
-    true
-}
-
 #[derive(
     Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
 )]
@@ -22,16 +18,12 @@ pub enum AcquisitionLane {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
-    #[serde(default = "default_keep_awake")]
     pub keep_awake_while_working: bool,
     pub max_concurrent_jobs: ConcurrencyPreference,
     pub encoder_defaults: EncoderDefaults,
     pub output_defaults: OutputDefaults,
-    #[serde(default)]
     pub startup_behavior: StartupBehavior,
-    #[serde(default)]
     pub pinned_defaults: Option<PinnedDefaults>,
-    #[serde(default)]
     pub default_acquisition_lane: AcquisitionLane,
 }
 
@@ -47,33 +39,6 @@ pub struct AppSettingsPatch {
     /// back to `RememberLastState`, never unpinning.
     pub pinned_defaults: Option<PinnedDefaults>,
     pub default_acquisition_lane: Option<AcquisitionLane>,
-}
-
-impl AppSettingsPatch {
-    pub(super) fn is_empty(&self) -> bool {
-        self == &Self::default()
-    }
-
-    /// Folds `newer` over this patch: a later value for a field replaces the
-    /// earlier one; fields `newer` omits keep theirs.
-    pub(super) fn absorb(&mut self, newer: Self) {
-        macro_rules! absorb {
-            ($($field:ident),+) => {$(
-                if newer.$field.is_some() {
-                    self.$field = newer.$field;
-                }
-            )+};
-        }
-        absorb!(
-            keep_awake_while_working,
-            max_concurrent_jobs,
-            encoder_defaults,
-            output_defaults,
-            startup_behavior,
-            pinned_defaults,
-            default_acquisition_lane
-        );
-    }
 }
 
 /// What launch hydration restores into the panels. The panels always keep
@@ -104,9 +69,7 @@ pub struct PinnedDefaults {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderDefaults {
-    #[serde(default)]
     pub format: AudiobookFormat,
-    #[serde(default)]
     pub intent: AudioIntent,
     pub settings: EncoderSettings,
     pub sample_rate: SampleRateConfig,
@@ -121,9 +84,12 @@ pub struct OutputDefaults {
     pub output_naming: OutputNamingConfig,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
+#[derive(
+    Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
+)]
 #[serde(tag = "mode", content = "value", rename_all = "camelCase")]
 pub enum ConcurrencyPreference {
+    #[default]
     Auto,
     Fixed(usize),
 }
