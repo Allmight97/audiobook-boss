@@ -316,11 +316,9 @@ export type ChildJobStatus = "queued" | "running" | "completed" | "skipped" | "c
 
 export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip_existing";
 
-/**  The exact collision question awaiting a user answer, independent of later refusals. */
 export type CollisionReview = {
 	reviewId: number,
 	outputs: PlannedOutput[],
-	preview: boolean,
 };
 
 export type ConcurrencyPreference = { mode: "auto" } | { mode: "fixed"; value: number };
@@ -784,7 +782,7 @@ export type OutputSnapshot = {
 	submission: SubmissionStatus | null,
 	/**  Accepted preparation, review, restart, or preview still holds the session. */
 	submissionInProgress: boolean,
-	/**  The held question survives a later request's refusal and frontend replacement. */
+	/**  The question awaiting an answer; a later refusal does not replace it. */
 	collisionReview: CollisionReview | null,
 	/**  Exported titles a Save would move, each awaiting Restart or Keep. */
 	restartOffers: RestartOffer[],
@@ -1207,8 +1205,8 @@ export type StartupBehavior =
 
 /**  How the latest submission or preview is going. */
 export type SubmissionStatus = { kind: "preparing"; preview: boolean } | { kind: "refused"; reason: SubmitRefusal } |
-/**  Some outputs already exist; the user chooses what to do with them. */
-{ kind: "reviewRequired"; reviewId: number; outputs: PlannedOutput[]; preview: boolean } |
+/**  Some outputs already exist; `OutputSnapshot::collision_review` holds the question. */
+{ kind: "reviewRequired" } |
 /**  The output plan cannot proceed; `message` says why. */
 { kind: "blocked"; message: string } | { kind: "failed"; error: AppErrorEnvelope } | { kind: "submitted"; operationId: OperationId; title: string } | { kind: "previewing" } | { kind: "previewFinished"; result: ProcessCommandResult } |
 /**  The user cancelled the collision review. */

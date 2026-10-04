@@ -120,7 +120,6 @@ describe('tauriClient', () => {
 					submissionInProgress: true,
 					collisionReview: {
 						reviewId: 42,
-						preview: false,
 						outputs: [
 							{
 								inputIndex: 0,

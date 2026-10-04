@@ -2,7 +2,6 @@ import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
 import type { SubmissionStatus, SubmitRefusal } from '../../types/session';
 import type { ProcessingStatus } from './state';
 
-/** Presentation of engine outcomes, not a submission continuation. */
 export interface SubmissionDisplay {
 	updateStatus: (status: ProcessingStatus) => void;
 	setProcessingState: (active: boolean) => void;
@@ -41,7 +40,6 @@ function refusalText(reason: SubmitRefusal): string {
 	}
 }
 
-/** Updates arriving after attachment or a dialog answer use the same presentation. */
 export function renderSubmission(
 	display: SubmissionDisplay,
 	status: SubmissionStatus | null,
@@ -87,7 +85,5 @@ export function renderSubmission(
 		case 'cancelled':
 			display.resetToIdle();
 			return;
-		default:
-		// Preparation, held review and preview lifecycle are rendered from snapshots.
 	}
 }

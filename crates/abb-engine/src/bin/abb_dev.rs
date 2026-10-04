@@ -16,8 +16,8 @@ use std::time::Duration;
 use abb_engine::audio::{AudioIntent, AudiobookFormat};
 use abb_engine::output_artifact::{CollisionPolicy, NamingPreset};
 use abb_engine::session::{
-    AudioEdit, MetadataField, MetadataStatus, SessionIntent, SessionOutcome, SessionUpdate,
-    SubmissionStatus,
+    AudioEdit, CollisionReview, MetadataField, MetadataStatus, SessionIntent, SessionOutcome,
+    SessionUpdate, SubmissionStatus,
 };
 use abb_engine::work_runtime::{
     ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus,
@@ -244,6 +244,13 @@ fn submission(engine: &Engine) -> Option<SubmissionStatus> {
         .and_then(|output| output.submission)
 }
 
+fn collision_review(engine: &Engine) -> Option<CollisionReview> {
+    engine
+        .session_snapshot()
+        .output
+        .and_then(|output| output.collision_review)
+}
+
 /// Chooses audio and output for every title.
 async fn plan(engine: &Engine, options: &Options) -> Result<(), String> {
     let title_ids: Vec<String> = engine
@@ -301,20 +308,14 @@ async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, 
     };
     send(engine, intent).await?;
     let status = submission(engine).ok_or("the engine did not answer the submission")?;
-    let SubmissionStatus::ReviewRequired {
-        review_id, outputs, ..
-    } = &status
-    else {
+    if status != SubmissionStatus::ReviewRequired {
         return Ok(status);
-    };
+    }
+    let CollisionReview {
+        review_id, outputs, ..
+    } = collision_review(engine).ok_or("the engine did not hold the review")?;
     let Some(policy) = options.on_collision else {
-        send(
-            engine,
-            SessionIntent::CancelCollisionReview {
-                review_id: *review_id,
-            },
-        )
-        .await?;
+        send(engine, SessionIntent::CancelCollisionReview { review_id }).await?;
         let paths: Vec<String> = outputs
             .iter()
             .map(|output| output.resolved_path.clone())
@@ -326,10 +327,7 @@ async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, 
     };
     send(
         engine,
-        SessionIntent::ChooseCollisionPolicy {
-            review_id: *review_id,
-            policy,
-        },
+        SessionIntent::ChooseCollisionPolicy { review_id, policy },
     )
     .await?;
     submission(engine).ok_or_else(|| "the engine did not answer the review".to_string())

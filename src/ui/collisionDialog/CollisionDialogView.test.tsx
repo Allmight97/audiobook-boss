@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
+import type { PlannedOutput } from '../../types/audio';
 import { CollisionDialogView } from './CollisionDialogView';
 
 const offer = {
@@ -10,6 +11,15 @@ const offer = {
 	revision: 3,
 	from: '/a/Old.m4b',
 	to: '/a/New.m4b',
+};
+const existingOutput: PlannedOutput = {
+	inputIndex: 0,
+	inputPath: '/books/b.m4b',
+	kind: 'final',
+	requestedPath: '/out/b.m4b',
+	resolvedPath: '/out/b.m4b',
+	collision: { kind: 'existing_file', conflictingPath: '/out/b.m4b', detail: 'exists' },
+	action: 'review_required',
 };
 const runtimes: AppRuntime[] = [];
 afterEach(() => {
@@ -30,7 +40,7 @@ async function mount(engine: FakeEngine) {
 function seed(engine: FakeEngine, kind: 'collision' | 'restart'): void {
 	engine.change((state) => {
 		if (kind === 'collision') {
-			state.output.collisionReview = { reviewId: 7, outputs: [], preview: false };
+			state.output.collisionReview = { reviewId: 7, outputs: [existingOutput] };
 			state.output.submissionInProgress = true;
 		} else {
 			state.output.restartOffers = [{ ...offer, titleId: 'alpha' }, offer];
@@ -71,6 +81,32 @@ describe('engine decision dialogs', () => {
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents).toEqual([
 				{ kind: 'chooseCollisionPolicy', reviewId: 7, policy },
+			]),
+		);
+	});
+
+	it('keeps an answer bound to the review it was shown with and drops a repeat press', async () => {
+		const engine = createFakeEngine();
+		seed(engine, 'collision');
+		await mount(engine);
+		expect(screen.getByRole('dialog')).toHaveTextContent('1 file with the same name');
+		fireEvent.click(screen.getByRole('button', { name: 'Overwrite Existing' }));
+		await vi.waitFor(() => expect(engine.sessionIntents).toHaveLength(1));
+		expect(screen.getByRole('dialog')).toHaveTextContent('b.m4b');
+
+		engine.change((state) => {
+			state.output.collisionReview = {
+				reviewId: 8,
+				outputs: [existingOutput, { ...existingOutput, resolvedPath: '/out/c.m4b' }],
+			};
+		});
+		await vi.waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('2 files'));
+		fireEvent.click(screen.getByRole('button', { name: 'Overwrite Existing' }), { detail: 2 });
+		fireEvent.click(screen.getByRole('button', { name: 'Skip Existing' }));
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents).toEqual([
+				{ kind: 'chooseCollisionPolicy', reviewId: 7, policy: 'replace_existing' },
+				{ kind: 'chooseCollisionPolicy', reviewId: 8, policy: 'skip_existing' },
 			]),
 		);
 	});

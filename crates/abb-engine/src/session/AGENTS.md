@@ -98,7 +98,8 @@ attachment.
   its exports; any other file is written at once and never moved. Two writes
   to one file never overlap.
 - **Decision presentation.** `output.collision_review` is the held question, independent
-  of a later request's refusal. Its `review_id` advances for each review and
+  of a later request's refusal; `SubmissionStatus::ReviewRequired` carries no
+  copy of it. Its `review_id` advances for each review and
   survives Reset; choice and cancel intents must name it, and stale/duplicate
   answers are `Superseded`. Frontend teardown is not a user cancellation.
   `output.submission_in_progress` owns the preparation/review/restart/preview

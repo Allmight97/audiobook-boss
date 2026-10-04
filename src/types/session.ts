@@ -88,12 +88,9 @@ export type SessionSelection = GeneratedSelectionSnapshot;
 export type SessionMetadata = GeneratedMetadataSnapshot;
 /** The audio part keeps the generated shape: an MP3 request's null settings are meaningful. */
 export type SessionAudio = GeneratedAudioSnapshot;
-/** Planned outputs and a finished preview's result take the frontend's optional-field forms. */
+/** A finished preview's result takes the frontend's optional-field form. */
 export type SubmissionStatus =
-	| Exclude<GeneratedSubmissionStatus, { kind: 'previewFinished' | 'reviewRequired' }>
-	| (Omit<Extract<GeneratedSubmissionStatus, { kind: 'reviewRequired' }>, 'outputs'> & {
-			outputs: PlannedOutput[];
-	  })
+	| Exclude<GeneratedSubmissionStatus, { kind: 'previewFinished' }>
 	| { kind: 'previewFinished'; result: ProcessCommandResult };
 export type CollisionReview = Omit<GeneratedCollisionReview, 'outputs'> & {
 	outputs: PlannedOutput[];

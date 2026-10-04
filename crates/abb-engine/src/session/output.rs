@@ -50,7 +50,7 @@ pub struct OutputSnapshot {
     pub submission: Option<SubmissionStatus>,
     /// Accepted preparation, review, restart, or preview still holds the session.
     pub submission_in_progress: bool,
-    /// The held question survives a later request's refusal and frontend replacement.
+    /// The question awaiting an answer; a later refusal does not replace it.
     pub collision_review: Option<super::submission::CollisionReview>,
     /// Exported titles a Save would move, each awaiting Restart or Keep.
     pub restart_offers: Vec<super::exports::RestartOffer>,

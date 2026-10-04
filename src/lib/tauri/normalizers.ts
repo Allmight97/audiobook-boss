@@ -178,8 +178,6 @@ function normalizeSubmission(
 	switch (submission?.kind) {
 		case 'previewFinished':
 			return { kind: 'previewFinished', result: normalizeProcessResult(submission.result) };
-		case 'reviewRequired':
-			return { ...submission, outputs: normalizeNullish(submission.outputs) as PlannedOutput[] };
 		default:
 			return submission ?? null;
 	}

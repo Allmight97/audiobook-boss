@@ -49,13 +49,11 @@ pub enum SubmitRefusal {
     RestartStale,
 }
 
-/// The exact collision question awaiting a user answer, independent of later refusals.
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CollisionReview {
     pub review_id: u64,
     pub outputs: Vec<PlannedOutput>,
-    pub preview: bool,
 }
 
 pub(crate) struct PendingReview {
@@ -73,13 +71,8 @@ pub enum SubmissionStatus {
     Refused {
         reason: SubmitRefusal,
     },
-    /// Some outputs already exist; the user chooses what to do with them.
-    #[serde(rename_all = "camelCase")]
-    ReviewRequired {
-        review_id: u64,
-        outputs: Vec<PlannedOutput>,
-        preview: bool,
-    },
+    /// Some outputs already exist; `OutputSnapshot::collision_review` holds the question.
+    ReviewRequired,
     /// The output plan cannot proceed; `message` says why.
     Blocked {
         message: String,

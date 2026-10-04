@@ -73,7 +73,6 @@ struct Ticket {
     /// The output folder and naming the offer was computed under.
     directory: Option<String>,
     naming: OutputNamingConfig,
-    /// An answer suppresses automatic prompting, even if Restart was refused.
     answered: bool,
 }
 
@@ -254,7 +253,6 @@ impl Exports {
         link.ok_or(RestartStale::Stale)
     }
 
-    /// One unhandled, current question. Hosts need no asked set or product queue.
     pub(crate) fn next_prompt(
         &self,
         directory: Option<&String>,

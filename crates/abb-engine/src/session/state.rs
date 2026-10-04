@@ -276,7 +276,6 @@ pub(crate) struct SessionState {
     /// `finish_submission`. Kept apart from `submission`, which a refusal of
     /// a later request overwrites.
     submitting: bool,
-    /// Keep Location may retag a published file before the next prompt is eligible.
     keeping_locations: usize,
     /// Sources a submission being prepared will read; Save treats them as busy.
     reserved: Vec<PathBuf>,
@@ -736,7 +735,6 @@ impl SessionState {
                 return None;
             }
         };
-        // An explicit answer is asked once; a refused restart remains retryable in history.
         self.exports.acknowledge_prompt(title_id, revision);
         let draft = self.begin_submission_of(None, Some(title_id))?;
         self.exports.consume_offer(title_id);
@@ -832,14 +830,9 @@ impl SessionState {
         self.review_serial += 1;
         let view = super::submission::CollisionReview {
             review_id: self.review_serial,
-            preview: draft.preview(),
             outputs,
         };
-        self.submission = Some(SubmissionStatus::ReviewRequired {
-            review_id: view.review_id,
-            outputs: view.outputs.clone(),
-            preview: view.preview,
-        });
+        self.submission = Some(SubmissionStatus::ReviewRequired);
         self.pending_review = Some(super::submission::PendingReview { view, draft });
     }
 
@@ -854,7 +847,6 @@ impl SessionState {
         }
     }
 
-    /// Only the question the user saw may be cancelled.
     pub(crate) fn cancel_review_named(&mut self, review_id: u64) -> bool {
         if !self.review_matches(review_id) {
             return false;

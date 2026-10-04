@@ -2,19 +2,16 @@ import type { CollisionReview } from '../../types/session';
 import type { PlannedOutput } from '../../types/audio';
 
 export type CollisionView = {
-	readonly isOpen: boolean;
 	readonly reviewId: number | null;
 	readonly outputs: ReadonlyArray<PlannedOutput>;
 	readonly title: string;
 	readonly body: string;
 };
 
-/** Presentation only: a held engine question has no frontend continuation. */
 export function collisionView(review: CollisionReview | null): CollisionView {
 	const outputs = review?.outputs ?? [];
 	const count = outputs.length;
 	return {
-		isOpen: review !== null,
 		reviewId: review?.reviewId ?? null,
 		outputs,
 		title: 'Resolve Existing File Conflicts',

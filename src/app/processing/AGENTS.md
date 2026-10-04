@@ -29,8 +29,7 @@
   exposes retained offers for Work Center retry. Restart sends `restartTitle`,
   Keep Location sends `keepTitleLocation`, both with the shown title/revision.
   The engine owns which question comes next and whether an answered offer is
-  automatically asked again; teardown sends neither answer. Snapshot-driven
-  dialogs avoid a native prompt surviving replacement with a stale continuation.
+  automatically asked again; teardown sends neither answer.
 - Preview identity, progress, queue rows, cancellation, and terminal truth come
   from `output.previewRun`. Render its operation snapshot; do not aggregate
   progress or listen for separate processing events.
