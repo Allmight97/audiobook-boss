@@ -165,7 +165,11 @@ impl Engine {
         let power = PowerManager::default();
         let host = Host::new(config.events, power.clone());
         let tasks = EngineTasks::default();
-        audio::cleanup_abandoned_processing_workspaces(&config.cache_dir)?;
+        // Leftover working files never stop ABB from starting; the next
+        // start tries again.
+        if let Err(error) = audio::cleanup_abandoned_processing_workspaces(&config.cache_dir) {
+            log::warn!("Abandoned processing files were left in place: {error}");
+        }
         let remote_source = RemoteSourceRuntime::new(RemoteSourceConfig {
             cache_dir: config.cache_dir.clone(),
             config_dir: config.config_dir.clone(),
@@ -175,7 +179,9 @@ impl Engine {
             aaxclean_helper: config.aaxclean_helper,
             tasks: tasks.clone(),
         })?;
-        remote_source.cleanup_abandoned_sessions()?;
+        if let Err(error) = remote_source.cleanup_abandoned_sessions() {
+            log::warn!("Abandoned remote downloads were left in place: {error}");
+        }
 
         let (settings, jobs, startup) = SettingsRuntime::start(config.config_dir, power.clone());
         let work = WorkRuntime::new(tasks.clone());

@@ -893,7 +893,12 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
  *  staging source could not be purged. Non-blocking: the startup session
  *  sweep removes it on next launch.
  */
-"protectedSourcePurgeFailed" | "validationFailed" | "supplementalPdfFailed" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
+"protectedSourcePurgeFailed" | "validationFailed" | "supplementalPdfFailed" |
+/**
+ *  The user asked for the title's Supplemental PDF and Audible offers
+ *  none. Non-blocking: the audiobook is imported without it.
+ */
+"supplementalPdfUnavailable" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
 
 export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
 

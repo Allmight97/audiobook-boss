@@ -741,6 +741,32 @@ fn vault_gate() -> (
 }
 
 #[tokio::test]
+async fn no_keychain_read_starts_once_abb_is_closing() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let (gate, mut entered, _release) = vault_gate();
+    let runtime = super::super::tests::test_runtime_with(
+        &root,
+        Some(Box::new(ScriptedVault {
+            read: Some(gate),
+            delete: None,
+            fail_delete: false,
+        })),
+        None,
+    );
+    runtime.inner.tasks.close();
+
+    assert!(runtime
+        .refresh_ui_account(ProviderId::Audible, 0)
+        .await
+        .is_err());
+    assert_eq!(
+        entered.try_recv(),
+        Err(tokio::sync::oneshot::error::TryRecvError::Empty),
+        "the vault was not read"
+    );
+}
+
+#[tokio::test]
 async fn a_late_account_failure_is_superseded_after_a_lane_change() {
     let root = tempfile::TempDir::new().expect("temp dir");
     let (gate, entered, release) = vault_gate();

@@ -74,6 +74,29 @@ async fn defaults_are_saved_in_acceptance_order_even_when_replies_are_awaited_ba
     desk.engine.shutdown().await;
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn leftover_downloads_that_cannot_be_removed_do_not_stop_abb_from_starting() {
+    let root = TempDir::new().expect("engine root");
+    let outside = root.path().join("outside");
+    fs::create_dir_all(outside.join("kept")).expect("outside folder");
+    let sessions = root.path().join("cache/remote-source/sessions");
+    fs::create_dir_all(sessions.parent().expect("staging root")).expect("staging root");
+    std::os::unix::fs::symlink(&outside, &sessions).expect("unremovable sessions root");
+
+    let engine = Engine::start(EngineConfig {
+        cache_dir: root.path().join("cache"),
+        config_dir: root.path().join("config"),
+        app_identifier: "com.audiobook-boss.test".to_string(),
+        events: Arc::new(abb_engine::DiscardEvents),
+        aaxclean_helper: None,
+    })
+    .expect("ABB starts and leaves the folder in place");
+
+    assert!(outside.join("kept").exists());
+    engine.shutdown().await;
+}
+
 /// One engine over its own throwaway roots, with one tagged audiobook.
 struct Desk {
     root: TempDir,

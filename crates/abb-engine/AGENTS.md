@@ -8,8 +8,8 @@ the same code.
 
 - A host builds one `Engine` with `EngineConfig`: a cache folder, a config
   folder, an identity that scopes stored credentials, and an `EventSink`.
-  `Engine::start` clears working files a previous run abandoned, so two
-  engines must not share those folders.
+  `Engine::start` clears working files a previous run abandoned (logging, not
+  failing, when it cannot), so two engines must not share those folders.
 - A host calls `Engine` methods and receives `EngineEvent`s; `engine.rs` lists
   the methods. Remote account, auth, library, and acquisition work uses
   session intents and snapshots; its owned vocabulary is in
@@ -26,7 +26,8 @@ the same code.
   ones, a running preview, and any submission waiting at collision review,
   and waits for every background task and for the Saves, submissions, and
   settings writes already under way, accepted remote disconnects and credential
-  writes, and started keychain reads, so saves waiting on them are written.
+  writes, and keychain reads started before closing (none starts after), so
+  saves waiting on them are written.
   Remote registration and network reads stop before credential persistence.
   Metadata Saves are not cancelled. `Engine::running_work` tells a host what
   quitting would stop (exports being prepared, reviewed, or running; waiting

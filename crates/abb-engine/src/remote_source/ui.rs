@@ -314,12 +314,13 @@ impl UiState {
                 "Wait for the current account change to finish.".into(),
             ));
         }
-        if self.snapshot.acquiring
-            || self
-                .snapshot
-                .acquisition
-                .as_ref()
-                .is_some_and(|job| !job.settled)
+        if provider == ProviderId::Audible
+            && (self.snapshot.acquiring
+                || self
+                    .snapshot
+                    .acquisition
+                    .as_ref()
+                    .is_some_and(|job| !job.settled))
         {
             return Err(AppError::InvalidInput(
                 "Wait for the Audible acquisition and handoff before disconnecting.".into(),
@@ -1065,8 +1066,12 @@ impl RemoteSourceRuntime {
     pub(crate) fn ui_begin(&self, intent: RemoteUiIntent) -> RemoteUiRun {
         let action = {
             let mut state = self.ui();
-            if matches!(intent, RemoteUiIntent::Disconnect { .. })
-                && self.inner.lifecycle.has_unsettled_acquisition()
+            if matches!(
+                intent,
+                RemoteUiIntent::Disconnect {
+                    provider: ProviderId::Audible
+                }
+            ) && self.inner.lifecycle.has_unsettled_acquisition()
             {
                 Err(AppError::InvalidInput(
                     "Wait for the Audible acquisition and handoff before disconnecting.".into(),
@@ -1186,6 +1191,11 @@ impl RemoteSourceRuntime {
     }
 
     async fn refresh_ui_account(&self, lane: ProviderId, request: u64) -> Result<RemoteUiResult> {
+        // A keychain read can wait on a system prompt; one started now would
+        // hold shutdown behind it.
+        if self.inner.tasks.is_closed() {
+            return Err(AppError::General("ABB is closing.".into()));
+        }
         let runtime = self.clone();
         // Once the keychain read starts, await its blocking worker so shutdown
         // cannot return while it still uses the vault.

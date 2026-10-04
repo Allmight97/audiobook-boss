@@ -90,21 +90,24 @@ impl RemoteAcquisitionLifecycle {
         self.staging.cleanup_abandoned_sessions()
     }
 
-    pub(super) fn clear_jobs(&self) -> Result<()> {
+    pub(super) fn clear_jobs(&self, provider_id: RemoteProviderId) -> Result<()> {
         self.jobs
             .lock()
             .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
-            .clear();
+            .retain(|_, job| job.provider_id != provider_id);
         Ok(())
     }
 
-    pub(super) fn cleanup_logout_sessions_without_handoff(&self) -> Result<()> {
+    pub(super) fn cleanup_logout_sessions_without_handoff(
+        &self,
+        provider_id: RemoteProviderId,
+    ) -> Result<()> {
         let mut job_ids = self
             .jobs
             .lock()
             .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
             .values()
-            .filter(|job| job.materialized_files.is_empty())
+            .filter(|job| job.provider_id == provider_id && job.materialized_files.is_empty())
             .map(|job| job.job_id.clone())
             .collect::<Vec<_>>();
         job_ids.sort();
@@ -481,11 +484,15 @@ impl RemoteAcquisitionLifecycle {
         Ok(cancelled_job)
     }
 
+    /// Removes a download the session released, and the job's record with
+    /// it; hosts already hold the job's last snapshot.
     fn purge_session(&self, job_id: &str) -> Result<()> {
         self.abort_acquisition_task(job_id);
-        // The job's record stays: its handoff outcome may still be on its
-        // way to hosts, and logout clears records.
-        self.staging.purge_session(job_id)
+        self.staging.purge_session(job_id)?;
+        if let Ok(mut jobs) = self.jobs.lock() {
+            jobs.remove(job_id);
+        }
+        Ok(())
     }
 }
 

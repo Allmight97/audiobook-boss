@@ -232,7 +232,7 @@ impl RemoteSourceRuntime {
             }
         }
         // Once credentials are removed, reflect disconnection even if a
-        // staging cleanup fails. Failed jobs remain in the lifecycle registry;
+        // staging cleanup fails. Only this provider's jobs are cleaned up;
         // startup's abandoned-session sweep is the cleanup backstop.
         let account = self.account_state(provider_id);
         {
@@ -249,8 +249,8 @@ impl RemoteSourceRuntime {
         }
         self.inner
             .lifecycle
-            .cleanup_logout_sessions_without_handoff()?;
-        self.inner.lifecycle.clear_jobs()?;
+            .cleanup_logout_sessions_without_handoff(provider_id)?;
+        self.inner.lifecycle.clear_jobs(provider_id)?;
         account
     }
 
@@ -847,6 +847,64 @@ pub(crate) mod tests {
         );
     }
 
+    #[test]
+    fn disconnecting_the_indexer_leaves_audible_downloads_and_records() {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        let job_id = "audible-download";
+        let job_dir = runtime
+            .inner
+            .lifecycle
+            .staging
+            .create_job_dir(job_id)
+            .expect("job dir");
+        runtime
+            .inner
+            .lifecycle
+            .jobs
+            .lock()
+            .expect("jobs lock")
+            .insert(
+                job_id.to_string(),
+                acquisition_job(job_id, types::RemoteAcquisitionStatus::Acquiring),
+            );
+
+        runtime
+            .disconnect_credentials(RemoteProviderId::Indexer)
+            .expect("indexer disconnect");
+
+        assert!(job_dir.exists());
+        assert!(runtime.acquisition_status(job_id).is_ok());
+    }
+
+    #[test]
+    fn releasing_a_download_forgets_its_job() {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        let job_id = "released-download";
+        let job_dir = runtime
+            .inner
+            .lifecycle
+            .staging
+            .create_job_dir(job_id)
+            .expect("job dir");
+        runtime
+            .inner
+            .lifecycle
+            .jobs
+            .lock()
+            .expect("jobs lock")
+            .insert(
+                job_id.to_string(),
+                acquisition_job(job_id, types::RemoteAcquisitionStatus::ImportedToFileList),
+            );
+
+        runtime.purge_session(job_id).expect("download removed");
+
+        assert!(!job_dir.exists());
+        assert!(runtime.acquisition_status(job_id).is_err());
+    }
+
     #[tokio::test]
     async fn logout_keeps_materialized_handoff_sessions_but_purges_unmaterialized_sessions() {
         let root = TempDir::new().expect("temp root");
@@ -961,7 +1019,7 @@ pub(crate) mod tests {
         let error = runtime
             .inner
             .lifecycle
-            .cleanup_logout_sessions_without_handoff()
+            .cleanup_logout_sessions_without_handoff(RemoteProviderId::Audible)
             .expect_err("bad session should report cleanup error");
 
         assert!(error
