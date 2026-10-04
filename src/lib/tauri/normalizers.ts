@@ -161,6 +161,12 @@ export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionU
 			? {
 					...output,
 					submission: normalizeSubmission(output.submission),
+					collisionReview: output.collisionReview
+						? {
+								...output.collisionReview,
+								outputs: normalizeNullish(output.collisionReview.outputs) as PlannedOutput[],
+							}
+						: null,
 				}
 			: undefined,
 	};

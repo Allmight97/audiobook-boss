@@ -101,6 +101,63 @@ describe('tauriClient', () => {
 		expect(reply.update.selection).toBeUndefined();
 	});
 
+	it('carries identified decisions and preserves nullable held-question facts', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const { tauriClient } = await import('./tauri/client');
+		vi.mocked(invoke).mockResolvedValueOnce({
+			outcome: { kind: 'superseded' },
+			update: {
+				revision: 4,
+				output: {
+					revision: 4,
+					directory: null,
+					preset: 'absDefault',
+					includeYear: false,
+					template: '',
+					naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
+					preview: { kind: 'noDirectory' },
+					submission: null,
+					submissionInProgress: true,
+					collisionReview: {
+						reviewId: 42,
+						preview: false,
+						outputs: [
+							{
+								inputIndex: 0,
+								inputPath: '/source.m4b',
+								kind: 'final',
+								requestedPath: '/out.m4b',
+								resolvedPath: '/out.m4b',
+								renameCandidate: null,
+								collision: null,
+								action: 'review_required',
+								review: null,
+							},
+						],
+					},
+					restartOffers: [],
+					restartPrompt: null,
+					previewRun: null,
+				},
+			},
+		});
+		const reply = await tauriClient.sessionDispatch(7, 2, {
+			kind: 'chooseCollisionPolicy',
+			reviewId: 41,
+			policy: 'replace_existing',
+		});
+		expect(invoke).toHaveBeenLastCalledWith('session_dispatch', {
+			client: 7,
+			sequence: 2,
+			intent: { kind: 'chooseCollisionPolicy', reviewId: 41, policy: 'replace_existing' },
+		});
+		expect(reply.outcome).toEqual({ kind: 'superseded' });
+		expect(reply.update.output?.collisionReview?.reviewId).toBe(42);
+		expect(reply.update.output?.collisionReview?.outputs[0].renameCandidate).toBeUndefined();
+		expect(reply.update.output?.restartPrompt).toBeNull();
+		expect(reply.update.output?.submissionInProgress).toBe(true);
+	});
+
 	describe('dialog helpers', () => {
 		it('sets single-file dialog options at the boundary', async () => {
 			const { open } = await import('@tauri-apps/plugin-dialog');

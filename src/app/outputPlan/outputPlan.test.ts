@@ -4,7 +4,6 @@ import type { SessionOutcome } from '../../types/session';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { createAppRuntime, type AppRuntime } from '../runtime';
-import type { CollisionView } from './collision';
 
 // Naming, the path preview, and size estimates are the engine's. These tests
 // cover what this owner adds: wording, the intents it sends, the template
@@ -113,43 +112,73 @@ describe('output plan owner', () => {
 	});
 });
 
-describe('collision review', () => {
-	let runtime: ReturnType<typeof createAppRuntime> | undefined;
-
+describe('engine collision questions', () => {
+	const runtimes: AppRuntime[] = [];
 	afterEach(() => {
-		runtime?.dispose();
-		runtime = undefined;
+		for (const runtime of runtimes.splice(0)) runtime.dispose();
 	});
 
-	function collision(): CollisionView {
-		return runtime!.output.collision();
+	async function attach(engine: FakeEngine): Promise<AppRuntime> {
+		const runtime = createAppRuntime({ engine });
+		runtimes.push(runtime);
+		await runtime.initialize();
+		return runtime;
+	}
+	function seed(engine: FakeEngine, reviewId: number): void {
+		engine.change((state) => {
+			state.output.collisionReview = { reviewId, outputs: collidedOutputs(), preview: false };
+			state.output.submissionInProgress = true;
+		});
 	}
 
-	it('cancel resolves null and closes the dialog', async () => {
-		runtime = createAppRuntime();
-		const result = runtime.output.openCollisionReview(collidedOutputs());
-		runtime.output.cancelCollisionReview();
-		await expect(result).resolves.toBeNull();
-		expect(collision().isOpen).toBe(false);
-		expect(collision().outputs).toEqual([]);
+	it('renders the held question and sends its identity without deciding it locally', async () => {
+		const engine = createFakeEngine();
+		seed(engine, 7);
+		const runtime = await attach(engine);
+		expect(runtime.output.collision()).toMatchObject({ isOpen: true, reviewId: 7 });
+		expect(runtime.output.collision().outputs[0]?.inputPath).toBe('/books/b.m4b');
+		expect(runtime.output.collision().body).toContain('1 file with the same name');
+		runtime.output.chooseCollisionPolicy(7, 'rename_new');
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'chooseCollisionPolicy',
+				reviewId: 7,
+				policy: 'rename_new',
+			}),
+		);
+		// The test engine has not answered the held decision. No local store closes it.
+		expect(runtime.output.collision().isOpen).toBe(true);
 	});
 
-	it('opening a second dialog resolves the first as cancelled', async () => {
-		runtime = createAppRuntime();
-		const first = runtime.output.openCollisionReview(collidedOutputs());
-		const second = runtime.output.openCollisionReview(collidedOutputs());
-		await expect(first).resolves.toBeNull();
-		runtime.output.chooseCollisionPolicy('rename_new');
-		await expect(second).resolves.toBe('rename_new');
-		expect(collision().isOpen).toBe(false);
+	it('disposal never answers a question and replacement restores the engine review', async () => {
+		const engine = createFakeEngine();
+		seed(engine, 8);
+		const first = await attach(engine);
+		first.dispose();
+		await Promise.resolve();
+		expect(engine.sessionIntents).toEqual([]);
+		expect(first.output.collision().isOpen).toBe(false);
+		const replacement = await attach(engine);
+		expect(replacement.output.collision()).toMatchObject({ isOpen: true, reviewId: 8 });
+		replacement.output.cancelCollisionReview(8);
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents).toEqual([{ kind: 'cancelCollisionReview', reviewId: 8 }]),
+		);
 	});
 
-	it('words how many outputs already exist', () => {
-		runtime = createAppRuntime();
-		void runtime.output.openCollisionReview(collidedOutputs());
-		expect(collision().outputs[0]?.inputPath).toBe('/books/b.m4b');
-		expect(collision().body).toBe(
-			'1 file with the same name already exists in the target output folder. How do you want to resolve the conflict?',
+	it('a newer question does not cancel the old one or retarget a captured answer', async () => {
+		const engine = createFakeEngine();
+		seed(engine, 9);
+		const runtime = await attach(engine);
+		const seen = runtime.output.collision().reviewId!;
+		seed(engine, 10);
+		expect(runtime.output.collision().reviewId).toBe(10);
+		expect(engine.sessionIntents).toEqual([]);
+		runtime.output.chooseCollisionPolicy(seen, 'replace_existing');
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents).toEqual([
+				{ kind: 'chooseCollisionPolicy', reviewId: 9, policy: 'replace_existing' },
+			]),
 		);
 	});
 });

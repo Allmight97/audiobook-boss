@@ -159,7 +159,7 @@ export function StatusPanelView(): JSX.Element {
 					<Button
 						id="process-button"
 						tone="primary"
-						disabled={view().isProcessing}
+						disabled={processing.isProcessing()}
 						onClick={() => void startProcessing(undefined)}
 					>
 						Start Processing

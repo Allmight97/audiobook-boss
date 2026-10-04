@@ -630,7 +630,16 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
         "{:?}",
         submission(&desk)
     );
+    let review_id = desk
+        .engine
+        .session_snapshot()
+        .output
+        .expect("output")
+        .collision_review
+        .expect("review")
+        .review_id;
     desk.send(SessionIntent::ChooseCollisionPolicy {
+        review_id,
         policy: CollisionPolicy::RenameNew,
     })
     .await;
@@ -750,7 +759,12 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
     let moved = desk.root.path().join("set-aside.m4b");
     fs::rename(&exported[1], &moved).expect("set one output aside");
     desk.send(SessionIntent::Submit).await;
-    let Some(SubmissionStatus::ReviewRequired { outputs: seen, .. }) = submission(&desk) else {
+    let Some(SubmissionStatus::ReviewRequired {
+        review_id,
+        outputs: seen,
+        ..
+    }) = submission(&desk)
+    else {
         panic!("review: {:?}", submission(&desk));
     };
     assert_eq!(seen.len(), 1);
@@ -758,13 +772,37 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
     // The other appears before the user chooses.
     fs::rename(&moved, &exported[1]).expect("put it back");
     desk.send(SessionIntent::ChooseCollisionPolicy {
+        review_id,
         policy: CollisionPolicy::ReplaceExisting,
     })
     .await;
-    let Some(SubmissionStatus::ReviewRequired { outputs: now, .. }) = submission(&desk) else {
+    let Some(SubmissionStatus::ReviewRequired {
+        review_id: next_review,
+        outputs: now,
+        ..
+    }) = submission(&desk)
+    else {
         panic!("back to review: {:?}", submission(&desk));
     };
     assert_eq!(now.len(), 2);
+    assert_ne!(next_review, review_id);
+    for intent in [
+        SessionIntent::ChooseCollisionPolicy {
+            review_id,
+            policy: CollisionPolicy::ReplaceExisting,
+        },
+        SessionIntent::CancelCollisionReview { review_id },
+    ] {
+        assert_eq!(desk.send(intent).await, SessionOutcome::Superseded);
+        let output = desk.engine.session_snapshot().output.expect("output");
+        assert_eq!(
+            output.collision_review.expect("held review").review_id,
+            next_review
+        );
+        assert!(output.submission_in_progress);
+    }
+    // No stale answer replaced either existing audiobook.
+    assert_eq!(outputs(&desk), exported);
 }
 
 /// Every file under `dir`, sorted.

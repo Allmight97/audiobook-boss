@@ -1,10 +1,10 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile, CollisionPolicy, PlannedOutput } from '../../types/audio';
+import type { AudioFile, CollisionPolicy } from '../../types/audio';
 import { formatFileSize } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import type { OutputPreview } from '../../types/session';
 import type { EngineLink } from '../engineLink';
-import { createCollisionReview, type CollisionView } from './collision';
+import { collisionView, type CollisionView } from './collision';
 import {
 	EMPTY_PREVIEW_TEXT,
 	EMPTY_PREVIEW_TITLE,
@@ -26,10 +26,8 @@ export type OutputPlanOwner = {
 	selectNamingPreset(value: string): void;
 	setAbsIncludeYear(value: boolean): void;
 	editNamingTemplate(value: string): void;
-	/** Asks the user what to do with outputs that already exist; `null` cancels. */
-	openCollisionReview(outputs: readonly PlannedOutput[]): Promise<CollisionPolicy | null>;
-	chooseCollisionPolicy(policy: CollisionPolicy): void;
-	cancelCollisionReview(): void;
+	chooseCollisionPolicy(reviewId: number, policy: CollisionPolicy): void;
+	cancelCollisionReview(reviewId: number): void;
 	reset(): void;
 };
 
@@ -52,7 +50,7 @@ function previewText(preview: OutputPreview, directory: string | null): string {
 
 export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	const { link } = deps;
-	const collisionReview = createCollisionReview();
+	let disposed = false;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	// The template as typed, shown until the engine confirms it.
 	let typedTemplate: { readonly value: string } | undefined;
@@ -85,7 +83,10 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 				? `Est. ~ ${formatFileSize(estimate.bytes)}`
 				: 'Size varies with audio';
 		},
-		collision: collisionReview.view,
+		collision: () => {
+			rev();
+			return collisionView(disposed ? null : link.output().collisionReview);
+		},
 		async browseDirectory() {
 			try {
 				const directory = await tauriClient.openDirectory({ title: 'Select Output Directory' });
@@ -114,18 +115,16 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 					bump((n) => n + 1);
 				});
 		},
-		openCollisionReview(outputs) {
-			return collisionReview.open(outputs);
+		chooseCollisionPolicy(reviewId, policy) {
+			if (!disposed) link.post({ kind: 'chooseCollisionPolicy', reviewId, policy });
 		},
-		chooseCollisionPolicy(policy) {
-			collisionReview.choose(policy);
-		},
-		cancelCollisionReview() {
-			collisionReview.cancel();
+		cancelCollisionReview(reviewId) {
+			if (!disposed) link.post({ kind: 'cancelCollisionReview', reviewId });
 		},
 		reset() {
-			collisionReview.reset();
+			disposed = true;
 			typedTemplate = undefined;
+			bump((n) => n + 1);
 		},
 	};
 }

@@ -316,6 +316,13 @@ export type ChildJobStatus = "queued" | "running" | "completed" | "skipped" | "c
 
 export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip_existing";
 
+/**  The exact collision question awaiting a user answer, independent of later refusals. */
+export type CollisionReview = {
+	reviewId: number,
+	outputs: PlannedOutput[],
+	preview: boolean,
+};
+
 export type ConcurrencyPreference = { mode: "auto" } | { mode: "fixed"; value: number };
 
 export type ConcurrencySnapshot = {
@@ -775,8 +782,14 @@ export type OutputSnapshot = {
 	preview: OutputPreview,
 	/**  How the latest submission or preview is going. */
 	submission: SubmissionStatus | null,
+	/**  Accepted preparation, review, restart, or preview still holds the session. */
+	submissionInProgress: boolean,
+	/**  The held question survives a later request's refusal and frontend replacement. */
+	collisionReview: CollisionReview | null,
 	/**  Exported titles a Save would move, each awaiting Restart or Keep. */
 	restartOffers: RestartOffer[],
+	/**  One unanswered offer to ask now; absent while a decision's work settles. */
+	restartPrompt: RestartOffer | null,
 	previewRun: PreviewSnapshot | null,
 };
 
@@ -1057,7 +1070,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 /**  Renders the first `seconds` of each valid title, in the foreground. */
 { kind: "preview"; seconds: number | null } |
 /**  Continues a submission held for review with the user's choice. */
-{ kind: "chooseCollisionPolicy"; policy: CollisionPolicy } | { kind: "cancelCollisionReview" } |
+{ kind: "chooseCollisionPolicy"; reviewId: number; policy: CollisionPolicy } | { kind: "cancelCollisionReview"; reviewId: number } |
 /**
  *  Restarts an exported title at the location a Save offered
  *  (`OutputSnapshot::restart_offers`): cancels it, removes its empty
@@ -1195,7 +1208,7 @@ export type StartupBehavior =
 /**  How the latest submission or preview is going. */
 export type SubmissionStatus = { kind: "preparing"; preview: boolean } | { kind: "refused"; reason: SubmitRefusal } |
 /**  Some outputs already exist; the user chooses what to do with them. */
-{ kind: "reviewRequired"; outputs: PlannedOutput[]; preview: boolean } |
+{ kind: "reviewRequired"; reviewId: number; outputs: PlannedOutput[]; preview: boolean } |
 /**  The output plan cannot proceed; `message` says why. */
 { kind: "blocked"; message: string } | { kind: "failed"; error: AppErrorEnvelope } | { kind: "submitted"; operationId: OperationId; title: string } | { kind: "previewing" } | { kind: "previewFinished"; result: ProcessCommandResult } |
 /**  The user cancelled the collision review. */

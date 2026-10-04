@@ -78,6 +78,7 @@ describe('engine preview adapter', () => {
 		const engine = createFakeEngine();
 		engine.change((state) => {
 			state.output.previewRun = preview();
+			state.output.submissionInProgress = true;
 		});
 		engine.respond = (intent) =>
 			intent.kind === 'readPreviewCover' ? { kind: 'previewCover', bytes: [1, 2, 3] } : undefined;
@@ -142,6 +143,7 @@ describe('engine preview adapter', () => {
 		cancelled.artworkReady = false;
 		engine.change((state) => {
 			state.output.previewRun = cancelled;
+			state.output.submissionInProgress = false;
 		});
 		expect(app.processing.isProcessing()).toBe(false);
 		expect(open).toHaveBeenCalledTimes(1);

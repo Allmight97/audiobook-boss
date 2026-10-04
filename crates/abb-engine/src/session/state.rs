@@ -269,11 +269,15 @@ pub(crate) struct SessionState {
     /// How the latest submission or preview is going.
     submission: Option<SubmissionStatus>,
     /// A submission waiting for the user's collision choice.
-    pending_review: Option<Draft>,
+    pending_review: Option<super::submission::PendingReview>,
+    /// Never reset: a delayed answer must not name a later question.
+    review_serial: u64,
     /// A submission or preview is between `begin_submission` and
     /// `finish_submission`. Kept apart from `submission`, which a refusal of
     /// a later request overwrites.
     submitting: bool,
+    /// Keep Location may retag a published file before the next prompt is eligible.
+    keeping_locations: usize,
     /// Sources a submission being prepared will read; Save treats them as busy.
     reserved: Vec<PathBuf>,
     /// Downloads the session imported, and when they may be removed.
@@ -346,7 +350,9 @@ impl Default for SessionState {
             plans_seen: (u64::MAX, u64::MAX),
             submission: None,
             pending_review: None,
+            review_serial: 0,
             submitting: false,
+            keeping_locations: 0,
             reserved: Vec::new(),
             staged: StagedSources::default(),
             removing: Vec::new(),
@@ -521,12 +527,28 @@ impl SessionState {
         });
         let preview = self.output.preview(title);
         OutputSnapshot {
+            submission_in_progress: self.submitting,
+            collision_review: self
+                .pending_review
+                .as_ref()
+                .map(|review| review.view.clone()),
             restart_offers: self.exports.offers(),
+            restart_prompt: self.next_restart_prompt(),
             preview_run: self.preview.snapshot(),
             ..self
                 .output
                 .snapshot(revision, preview, self.submission.clone())
         }
+    }
+
+    fn next_restart_prompt(&self) -> Option<super::exports::RestartOffer> {
+        if self.submitting || self.keeping_locations > 0 || self.save_in_progress {
+            return None;
+        }
+        self.exports.next_prompt(
+            self.output.naming_directory().as_ref(),
+            &self.output.naming(),
+        )
     }
 
     // ---- Submission ----
@@ -714,7 +736,8 @@ impl SessionState {
                 return None;
             }
         };
-        // A refused submission leaves the offer for another try.
+        // An explicit answer is asked once; a refused restart remains retryable in history.
+        self.exports.acknowledge_prompt(title_id, revision);
         let draft = self.begin_submission_of(None, Some(title_id))?;
         self.exports.consume_offer(title_id);
         Some((draft, link))
@@ -725,15 +748,27 @@ impl SessionState {
         self.exports.decline(title_id, revision);
     }
 
-    pub(crate) fn location_offer(&self, title_id: &str, revision: u64) -> Option<ExportLink> {
-        self.exports
+    pub(crate) fn begin_keep_location(
+        &mut self,
+        title_id: &str,
+        revision: u64,
+    ) -> Option<ExportLink> {
+        let link = self
+            .exports
             .offered(
                 title_id,
                 revision,
                 self.output.naming_directory().as_ref(),
                 &self.output.naming(),
             )
-            .ok()
+            .ok()?;
+        self.exports.acknowledge_prompt(title_id, revision);
+        self.keeping_locations += 1;
+        Some(link)
+    }
+
+    pub(crate) fn finish_keep_location(&mut self) {
+        self.keeping_locations -= 1;
     }
 
     // ---- Staged downloads ----
@@ -794,11 +829,18 @@ impl SessionState {
     ) {
         draft.payload.collision_policy = None;
         draft.reviewed = Some(super::submission::collisions(&outputs));
-        self.submission = Some(SubmissionStatus::ReviewRequired {
-            outputs,
+        self.review_serial += 1;
+        let view = super::submission::CollisionReview {
+            review_id: self.review_serial,
             preview: draft.preview(),
+            outputs,
+        };
+        self.submission = Some(SubmissionStatus::ReviewRequired {
+            review_id: view.review_id,
+            outputs: view.outputs.clone(),
+            preview: view.preview,
         });
-        self.pending_review = Some(draft);
+        self.pending_review = Some(super::submission::PendingReview { view, draft });
     }
 
     pub(crate) fn refuse_submission(&mut self, reason: SubmitRefusal) {
@@ -807,20 +849,42 @@ impl SessionState {
 
     /// Drops a submission held for review.
     pub(crate) fn cancel_review(&mut self) {
-        if let Some(draft) = self.pending_review.take() {
-            self.finish_submission(&draft, SubmissionStatus::Cancelled);
+        if let Some(review) = self.pending_review.take() {
+            self.finish_submission(&review.draft, SubmissionStatus::Cancelled);
         }
     }
 
+    /// Only the question the user saw may be cancelled.
+    pub(crate) fn cancel_review_named(&mut self, review_id: u64) -> bool {
+        if !self.review_matches(review_id) {
+            return false;
+        }
+        self.cancel_review();
+        true
+    }
+
+    fn review_matches(&self, review_id: u64) -> bool {
+        self.pending_review
+            .as_ref()
+            .is_some_and(|review| review.view.review_id == review_id)
+    }
+
     pub(crate) fn cancel_preview_review(&mut self) {
-        if self.pending_review.as_ref().is_some_and(Draft::preview) {
+        if self
+            .pending_review
+            .as_ref()
+            .is_some_and(|review| review.draft.preview())
+        {
             self.cancel_review();
         }
     }
 
     /// The submission waiting for a collision choice, if any.
-    pub(crate) fn take_review(&mut self) -> Option<Draft> {
-        let draft = self.pending_review.take()?;
+    pub(crate) fn take_review(&mut self, review_id: u64) -> Option<Draft> {
+        if !self.review_matches(review_id) {
+            return None;
+        }
+        let draft = self.pending_review.take()?.draft;
         self.submission = Some(SubmissionStatus::Preparing {
             preview: draft.preview(),
         });

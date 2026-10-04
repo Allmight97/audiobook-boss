@@ -301,11 +301,20 @@ async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, 
     };
     send(engine, intent).await?;
     let status = submission(engine).ok_or("the engine did not answer the submission")?;
-    let SubmissionStatus::ReviewRequired { outputs, .. } = &status else {
+    let SubmissionStatus::ReviewRequired {
+        review_id, outputs, ..
+    } = &status
+    else {
         return Ok(status);
     };
     let Some(policy) = options.on_collision else {
-        send(engine, SessionIntent::CancelCollisionReview).await?;
+        send(
+            engine,
+            SessionIntent::CancelCollisionReview {
+                review_id: *review_id,
+            },
+        )
+        .await?;
         let paths: Vec<String> = outputs
             .iter()
             .map(|output| output.resolved_path.clone())
@@ -315,7 +324,14 @@ async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, 
             paths.join(", ")
         ));
     };
-    send(engine, SessionIntent::ChooseCollisionPolicy { policy }).await?;
+    send(
+        engine,
+        SessionIntent::ChooseCollisionPolicy {
+            review_id: *review_id,
+            policy,
+        },
+    )
+    .await?;
     submission(engine).ok_or_else(|| "the engine did not answer the review".to_string())
 }
 

@@ -27,7 +27,7 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			const output = createOutputOwner({ link });
 			const lookup = createMetadataLookupOwner({ link, metadata });
 			const remoteSource = createRemoteSourceOwner({ link, ...capabilities.remoteSource });
-			const processing = createProcessingOwner({ link, settings, output });
+			const processing = createProcessingOwner({ link, settings });
 			const workOperations = createWorkOperationsOwner();
 			/** Resolves once the engine's session and settings have arrived. */
 			function initialize(): Promise<void> {

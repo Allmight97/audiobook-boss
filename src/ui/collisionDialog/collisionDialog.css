@@ -9,6 +9,17 @@
 	justify-content: flex-start;
 }
 
+.restart-dialog-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	margin-top: 1rem;
+}
+
+.restart-dialog-paths {
+	overflow-wrap: anywhere;
+}
+
 .collision-dialog-paths {
 	min-width: 0;
 	display: flex;

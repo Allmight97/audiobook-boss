@@ -48,8 +48,14 @@ pub struct OutputSnapshot {
     pub preview: OutputPreview,
     /// How the latest submission or preview is going.
     pub submission: Option<SubmissionStatus>,
+    /// Accepted preparation, review, restart, or preview still holds the session.
+    pub submission_in_progress: bool,
+    /// The held question survives a later request's refusal and frontend replacement.
+    pub collision_review: Option<super::submission::CollisionReview>,
     /// Exported titles a Save would move, each awaiting Restart or Keep.
     pub restart_offers: Vec<super::exports::RestartOffer>,
+    /// One unanswered offer to ask now; absent while a decision's work settles.
+    pub restart_prompt: Option<super::exports::RestartOffer>,
     pub preview_run: Option<super::preview::PreviewSnapshot>,
 }
 
@@ -178,7 +184,10 @@ impl OutputPlan {
             naming: self.naming(),
             preview,
             submission,
+            submission_in_progress: false,
+            collision_review: None,
             restart_offers: Vec::new(),
+            restart_prompt: None,
             preview_run: None,
         }
     }
