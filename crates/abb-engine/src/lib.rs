@@ -42,6 +42,7 @@
 
 pub mod app_settings;
 pub mod audio;
+mod cover_service;
 mod cover_source;
 mod diagnostics;
 mod engine;

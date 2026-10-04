@@ -42,7 +42,6 @@ export type EngineLink = {
 	 * is truthful before then. */
 	readonly attachment: Accessor<Attachment>;
 	sendSettings(intent: SettingsIntent): Promise<SettingsOutcome>;
-	coverArt(): Promise<number[] | null>;
 	/** Resolves once the engine's current state has been received. */
 	ready(): Promise<void>;
 	dispose(): void;
@@ -66,6 +65,7 @@ function emptyTitles(): SessionTitles {
 		notice: null,
 		orderDiffersFromImport: false,
 		companions: {},
+		coversRevision: 0,
 	};
 }
 
@@ -474,7 +474,6 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 					return reply.outcome;
 				});
 		},
-		coverArt: () => capability.sessionCoverArt(),
 		ready: () => attached.then(() => undefined),
 		dispose() {
 			disposed = true;

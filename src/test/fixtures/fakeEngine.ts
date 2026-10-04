@@ -322,6 +322,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			notice: null,
 			orderDiffersFromImport: false,
 			companions: {},
+			coversRevision: 0,
 		} as SessionTitles,
 		selection: { revision: 0, selectedIndices: [], selectedAnchor: null } as SessionSelection,
 		metadata: {
@@ -740,11 +741,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			const outcome = applySettings(intent);
 			settingsRevision += 1;
 			return { outcome, snapshot: settingsSnapshot() };
-		},
-		async sessionCoverArt() {
-			if (chosenCover) return chosenCover;
-			const [file] = selectedFiles();
-			return file ? (effectiveTags(file).cover_art ?? null) : null;
 		},
 		seedGroup(sources: AudioFile[], options = {}) {
 			const [anchor] = sources;

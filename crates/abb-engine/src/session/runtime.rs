@@ -165,10 +165,6 @@ pub enum SessionIntent {
     TakePreviewOutput {
         run_id: String,
     },
-    #[serde(rename_all = "camelCase")]
-    ReadPreviewCover {
-        run_id: String,
-    },
 
     // ---- Output ----
     /// Where exports are written; recorded in the settings.
@@ -275,9 +271,6 @@ pub enum SessionOutcome {
     PreviewOutput {
         path: Option<String>,
     },
-    PreviewCover {
-        bytes: Option<Vec<u8>>,
-    },
     /// A newer request or a reset replaced this one before it finished.
     Superseded,
 }
@@ -296,12 +289,12 @@ type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 /// without a network.
 pub(crate) struct Network {
     pub(crate) search: Box<SearchFn>,
-    pub(crate) cover_from_url: Box<CoverFromUrlFn>,
+    /// Every remote and embedded cover the session shows or applies.
+    pub(crate) covers: crate::cover_service::CoverService,
 }
 
 type SearchFn =
     dyn Fn(String, Vec<MetadataSource>) -> BoxFuture<Result<MetadataLookupResponse>> + Send + Sync;
-type CoverFromUrlFn = dyn Fn(String) -> BoxFuture<Result<Vec<u8>>> + Send + Sync;
 
 impl Network {
     fn live() -> Self {
@@ -313,9 +306,7 @@ impl Network {
                     Some(RESULT_LIMIT),
                 ))
             }),
-            cover_from_url: Box::new(|url| {
-                Box::pin(crate::cover_source::load_cover_art_from_url(url))
-            }),
+            covers: crate::cover_service::CoverService::live(),
         }
     }
 }
@@ -409,10 +400,6 @@ enum Rest {
     },
     /// Record a choice in the settings, unless they were reset since `resets`.
     Remember(SettingsRun),
-    PreviewCover {
-        run_id: String,
-        artwork: super::preview::PreviewArtwork,
-    },
     /// Preflight, review, then export or preview.
     Submit(Box<Draft>),
     /// Continue a reviewed submission under `policy`.
@@ -516,25 +503,6 @@ impl Session {
                         SessionOutcome::Rejected { error }
                     }
                     _ => SessionOutcome::Applied,
-                }
-            }
-            Rest::PreviewCover { run_id, artwork } => {
-                let bytes = match artwork {
-                    super::preview::PreviewArtwork::None => Ok(None),
-                    super::preview::PreviewArtwork::Bytes(bytes) => Ok(Some(bytes)),
-                    super::preview::PreviewArtwork::Source(path) => {
-                        blocking(move || crate::metadata::read_audio_cover_thumbnail(&path)).await
-                    }
-                };
-                if !session.lock().preview.matches(&run_id) {
-                    SessionOutcome::Superseded
-                } else {
-                    match bytes {
-                        Ok(bytes) => SessionOutcome::PreviewCover { bytes },
-                        Err(error) => SessionOutcome::Rejected {
-                            error: (&error).into(),
-                        },
-                    }
                 }
             }
             Rest::Submit(draft) => session.submit(*draft).await,
@@ -833,6 +801,7 @@ impl Session {
         snapshot
     }
 
+    #[cfg(test)]
     pub(crate) fn cover_art(&self) -> Option<Vec<u8>> {
         self.lock().displayed_cover()
     }
@@ -977,19 +946,6 @@ impl Session {
             I::TakePreviewOutput { run_id } => Rest::Done(SessionOutcome::PreviewOutput {
                 path: self.transition(|state| state.preview.take_output(&run_id)),
             }),
-            I::ReadPreviewCover { run_id } => {
-                let artwork = {
-                    let state = self.lock();
-                    state
-                        .preview
-                        .matches(&run_id)
-                        .then(|| state.preview.artwork.clone())
-                };
-                match artwork {
-                    Some(artwork) => Rest::PreviewCover { run_id, artwork },
-                    None => Rest::Done(SessionOutcome::Superseded),
-                }
-            }
             I::ChooseCollisionPolicy { review_id, policy } => {
                 match self.transition(|state| state.take_review(review_id)) {
                     Some(draft) => Rest::Reviewed {
@@ -1640,9 +1596,13 @@ impl Session {
         }
         let result = match source {
             CoverSource::File(path) => crate::cover_source::load_cover_art_file(path).await,
-            CoverSource::Url(url) => {
-                (self.inner.network.cover_from_url)(url.trim().to_string()).await
-            }
+            CoverSource::Url(url) => self
+                .inner
+                .network
+                .covers
+                .remote_full(url.trim())
+                .await
+                .map(|cover| cover.to_vec()),
         };
         self.transition(|state| {
             // The image was chosen for a selection that is no longer bound,
@@ -2139,7 +2099,14 @@ impl Session {
         let mut cover = None;
         let mut cover_failed = false;
         if let Some(url) = result.cover_url.clone().filter(|_| replace_cover) {
-            match (self.inner.network.cover_from_url)(url).await {
+            match self
+                .inner
+                .network
+                .covers
+                .remote_full(&url)
+                .await
+                .map(|cover| cover.to_vec())
+            {
                 Ok(bytes) => cover = Some(bytes),
                 Err(error) => {
                     log::warn!("Failed to load cover art from lookup: {error}");
@@ -2356,6 +2323,9 @@ async fn read_all(tickets: Vec<ReadTicket>) -> Vec<(ReadTicket, Result<Audiobook
     }
     finished
 }
+
+#[path = "cover_request.rs"]
+mod cover_request;
 
 #[cfg(test)]
 #[path = "runtime_tests.rs"]

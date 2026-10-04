@@ -1038,6 +1038,14 @@ impl RemoteSourceRuntime {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
+    /// Whether a library title shows the cover at `url`.
+    pub(crate) fn library_offers_cover(&self, url: &str) -> bool {
+        self.ui()
+            .library
+            .titles
+            .iter()
+            .any(|title| title.cover_url.as_deref() == Some(url))
+    }
     pub(crate) fn ui_revisions(&self) -> (u64, u64) {
         let state = self.ui();
         (state.snapshot.revision, state.library.revision)

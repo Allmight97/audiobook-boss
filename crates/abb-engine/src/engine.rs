@@ -375,9 +375,14 @@ impl Engine {
         self.inner.session.snapshot()
     }
 
-    /// The cover image the session currently shows.
-    pub fn session_cover_art(&self) -> Option<Vec<u8>> {
-        self.inner.session.cover_art()
+    /// A cover a view shows, named by the request path of its cover address
+    /// (`session/cover_request.rs`); `None` when its source has no cover.
+    /// Only covers the session handed out are served. Stops at closing.
+    pub async fn cover(&self, request: &str) -> Result<Option<std::sync::Arc<[u8]>>> {
+        self.inner
+            .tasks
+            .until_closing(self.inner.session.cover(request))
+            .await
     }
 
     // ---- Import ----
@@ -406,21 +411,6 @@ impl Engine {
         })
         .await
         .map_err(|e| AppError::General(format!("Metadata read task failed: {e}")))?
-    }
-
-    /// Reads an audio file's embedded cover as a bounded JPEG thumbnail.
-    pub async fn read_audio_cover_thumbnail(&self, file_path: String) -> Result<Option<Vec<u8>>> {
-        tokio::task::spawn_blocking(move || {
-            let validated_path = audio::validate_input_audio_path(&PathBuf::from(&file_path))?;
-            crate::metadata::read_audio_cover_thumbnail(&validated_path)
-        })
-        .await
-        .map_err(|error| AppError::General(format!("Cover thumbnail read task failed: {error}")))?
-    }
-
-    /// Loads a cover image from an HTTPS URL as write-ready JPEG bytes.
-    pub async fn load_cover_art_from_url(&self, url: String) -> Result<Vec<u8>> {
-        crate::cover_source::load_cover_art_from_url(url).await
     }
 
     // ---- Output and processing ----

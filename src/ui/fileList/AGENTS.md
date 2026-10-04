@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Applies to the Solid file-list view, pointer reorder, and cover thumbnails
-  under `src/ui/fileList/`. List truth, selection, and import live in
+- Applies to the Solid file-list view and pointer reorder under
+  `src/ui/fileList/`. List truth, selection, and import live in
   `src/app/inputSession`.
 
 ## Public API Strip
@@ -13,7 +13,7 @@
 ## Private Cluster
 
 - Files: `FileListView.tsx`, `AudioHandlingControl.tsx`, `fileList.css`,
-  `pointerReorder.ts`, `coverThumbnails.ts`, `TitleSources.tsx`, `SelectedAudioSettings.tsx`.
+  `pointerReorder.ts`, `TitleSources.tsx`, `SelectedAudioSettings.tsx`.
 
 `AudioHandlingControl` owns its transient hover/focus disclosure, pointer
 travel grace, outside dismissal, and Escape cleanup. Its portal overlays the
@@ -39,10 +39,9 @@ List membership, source order, and audio choices are engine truth.
   Clear go through awaitable `selectFile`, `removeFile`, `selectAll`,
   `clearSelection`, and `clearAllFiles` intents so the engine's draft gate
   runs. Removal passes the row’s title identity, never its shifting position.
-- Cover thumbnails are a presentation resource, not list truth. Each
-  `FileListView` owns a private thumbnail resource with its loader, reactive
-  reads, bounded cache, and queue; dispose it with the view. Scheduling an
-  empty list clears only that resource.
+- A row's thumbnail is its source's embedded cover at its `coverSrc` address
+  (with the titles part's `coversRevision`); the engine loads and caches it,
+  and the image loads as its row nears the screen.
 - PDF companion chips use Input's `hasCompanions`, which reads the engine's
   titles part.
 
@@ -56,8 +55,6 @@ List membership, source order, and audio choices are engine truth.
 
 ## Done Criteria
 
-- Thumbnail and pointer-reorder changes have focused Vitest coverage.
+- Pointer-reorder changes have focused Vitest coverage.
 - List rules are proved in the engine's session tests; what the list shows
   and sends is proved in `src/app/inputSession`.
-- Lifetime migration proves two mounted File List views cannot cancel, clear,
-  or publish thumbnail state into one another.

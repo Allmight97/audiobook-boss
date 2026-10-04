@@ -13,7 +13,6 @@ export interface EngineCapability {
 		sequence: number,
 		intent: SettingsIntent,
 	): Promise<SettingsReply>;
-	sessionCoverArt(): Promise<number[] | null>;
 	listenSessionUpdates(handler: (update: SessionUpdate) => void): Promise<UnlistenFn>;
 	/** Settings changed by something other than a settings intent. */
 	listenSettingsUpdates(handler: (snapshot: SettingsSnapshot) => void): Promise<UnlistenFn>;
@@ -25,7 +24,6 @@ export const liveEngineCapability: EngineCapability = {
 		tauriClient.sessionDispatch(client, sequence, intent),
 	settingsDispatch: (client, sequence, intent) =>
 		tauriClient.settingsDispatch(client, sequence, intent),
-	sessionCoverArt: () => tauriClient.sessionCoverArt(),
 	listenSessionUpdates: (handler) =>
 		tauriClient.listen(EVENTS.SESSION_UPDATE, (event) => {
 			handler(event.payload);

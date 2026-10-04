@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
+import { coverSrc } from '../../lib/tauri/coverSrc';
 import { createFakeEngine } from '../../test/fixtures/fakeEngine';
 import { MetadataLookupView } from '../metadataLookup/MetadataLookupView';
 
@@ -30,7 +31,7 @@ describe('MetadataLookup cover preview', () => {
 		runtime = undefined;
 	});
 
-	it('eagerly loads cover previews through the backend without exposing provider URLs', async () => {
+	it('loads result covers through the engine, never from the provider host', async () => {
 		const engine = createFakeEngine();
 		engine.respond = (intent) => {
 			if (intent.kind !== 'lookupOpen') return undefined;
@@ -45,10 +46,9 @@ describe('MetadataLookup cover preview', () => {
 			});
 			return { kind: 'applied' };
 		};
-		const loadCoverArtFromUrl = vi.fn(async () => [0xff, 0xd8, 0xff]);
 		runtime = createAppRuntime({
 			engine,
-			metadata: { openFile: vi.fn(async () => null), loadCoverArtFromUrl },
+			metadata: { openFile: vi.fn(async () => null) },
 		});
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -63,24 +63,21 @@ describe('MetadataLookup cover preview', () => {
 		await runtime.lookup.run({ type: 'open' });
 
 		await waitFor(() => {
-			expect(loadCoverArtFromUrl).toHaveBeenCalledWith(
-				'https://covers.example.com/private-cover.jpg',
-			);
-			expect(loadCoverArtFromUrl).toHaveBeenCalledWith(
-				'https://covers.example.com/loopback-cover.jpg',
-			);
-		});
-
-		await waitFor(() => {
 			const images = document.querySelectorAll<HTMLImageElement>(
 				'[data-testid="metadata-lookup-cover-image"]',
 			);
-			expect(images).toHaveLength(2);
-			for (const image of images)
-				expect(image.src.startsWith('data:image/jpeg;base64,')).toBe(true);
+			expect([...images].map((image) => image.getAttribute('src'))).toEqual(
+				['private', 'loopback'].map((name) =>
+					coverSrc({
+						kind: 'remote',
+						url: `https://covers.example.com/${name}-cover.jpg`,
+						size: 'small',
+					}),
+				),
+			);
 		});
 		for (const source of document.querySelectorAll('[src]')) {
-			expect(source.getAttribute('src')).not.toContain('covers.example.com');
+			expect(source.getAttribute('src')?.startsWith('abb-cover://')).toBe(true);
 		}
 	});
 });

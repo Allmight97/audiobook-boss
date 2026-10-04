@@ -283,6 +283,8 @@ pub(crate) struct SessionState {
     submitting: Option<Submitting>,
     /// Why the latest title audio edit changed nothing.
     audio_refusal: Option<AudioRefusal>,
+    /// Covers a Save has written into sources; see `TitlesSnapshot::covers_revision`.
+    covers_written: u64,
     keeping_locations: usize,
     /// Sources a submission being prepared will read; Save treats them as busy.
     reserved: Vec<PathBuf>,
@@ -361,6 +363,7 @@ impl Default for SessionState {
             review_serial: 0,
             submitting: None,
             audio_refusal: None,
+            covers_written: 0,
             keeping_locations: 0,
             reserved: Vec::new(),
             staged: StagedSources::default(),
@@ -405,10 +408,12 @@ impl SessionState {
         let companions = self.staged.companions();
         if self.working_set.titles_changes() != self.parts.titles_changes
             || companions != self.parts.titles.companions
+            || self.covers_written != self.parts.titles.covers_revision
         {
             self.parts.titles_changes = self.working_set.titles_changes();
             self.parts.titles = TitlesSnapshot {
                 companions,
+                covers_revision: self.covers_written,
                 ..self.working_set.titles(next)
             };
             changed = true;
@@ -1405,8 +1410,33 @@ impl SessionState {
             .map(|file| file.path.clone())
     }
 
+    #[cfg(test)]
     pub(crate) fn displayed_cover(&self) -> Option<Vec<u8>> {
         self.cover.displayed.clone()
+    }
+
+    /// The cover on screen while it is still the one at `revision`.
+    pub(crate) fn displayed_cover_at(&self, revision: u64) -> Option<Vec<u8>> {
+        (self.cover.image_revision == revision)
+            .then(|| self.cover.displayed.clone())
+            .flatten()
+    }
+
+    pub(crate) fn lookup_offers_cover(&self, url: &str) -> bool {
+        self.lookup
+            .results
+            .iter()
+            .any(|result| result.cover_url.as_deref() == Some(url))
+    }
+
+    /// Whether `path` is a source of a listed title.
+    pub(crate) fn lists_source(&self, path: &std::path::Path) -> bool {
+        self.working_set.files().iter().any(|file| {
+            self.working_set
+                .sources_for(file)
+                .iter()
+                .any(|source| source.path == path)
+        })
     }
 
     fn set_cover_notice(&mut self, notice: CoverNotice) {
@@ -1629,6 +1659,7 @@ impl SessionState {
         for item in saved {
             self.exports.acknowledge(&item.path, &item.patch);
             let cover_was_submitted = item.patch.cover_art.is_some();
+            self.covers_written += u64::from(cover_was_submitted);
             self.tags
                 .commit_saved(&item.path, &item.patch, item.revision);
             // A cover changed while the save ran is still unsaved.
@@ -1746,6 +1777,7 @@ impl SessionState {
             }
             if *written {
                 self.exports.acknowledge(&item.path, &item.patch);
+                self.covers_written += u64::from(item.patch.cover_art.is_some());
             }
             if !loaded.contains(&item.path) {
                 // Not loaded: nothing on screen describes this file.

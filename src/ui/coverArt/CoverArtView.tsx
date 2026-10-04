@@ -61,7 +61,7 @@ export function CoverArtView(): JSX.Element {
 	});
 
 	const cover = () => view().cover;
-	const hasImage = () => Boolean(cover().imageDataUrl);
+	const hasImage = () => Boolean(cover().imageSrc);
 
 	return (
 		<div class="cover-art">
@@ -99,7 +99,7 @@ export function CoverArtView(): JSX.Element {
 			>
 				{!hasImage() && <div class="placeholder-text">Click or Drag Image</div>}
 				<img
-					src={cover().imageDataUrl ?? ''}
+					src={cover().imageSrc ?? undefined}
 					alt="Book Cover Art"
 					id="cover-art-img"
 					hidden={!hasImage()}

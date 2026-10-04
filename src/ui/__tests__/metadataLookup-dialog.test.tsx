@@ -41,7 +41,6 @@ function fakeInput(): InputCapability {
 		openFiles: vi.fn(async () => ['/books/alpha.m4b', '/books/beta.m4b']),
 		openDirectory: vi.fn(async () => null),
 		getSupportedAudioImportMetadata: vi.fn(async () => support),
-		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),

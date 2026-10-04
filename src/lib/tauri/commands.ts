@@ -104,12 +104,6 @@ export const commandSpecs = {
 			),
 			normalizeSettingsReply,
 		),
-	session_cover_art: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.sessionCoverArt()),
-	load_cover_art_from_url: (args: { url: string }) =>
-		runGeneratedCommand(generatedCommands.loadCoverArtFromUrl(args.url)),
-	read_audio_cover_thumbnail: (args: { filePath: string }) =>
-		runGeneratedCommand(generatedCommands.readAudioCoverThumbnail(args.filePath)),
 	get_supported_audio_import_metadata: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.getSupportedAudioImportMetadata()),
 	list_work_operations: (_args?: undefined) =>

@@ -6,7 +6,7 @@ import { toUserMessage } from '../../lib/tauri/appError';
 import type { RestartOffer, SessionIntent } from '../../types/session';
 import { renderSubmission } from './submit';
 import { renderConcurrencyStatus, renderPreview, renderStatus } from './render';
-import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
+import { coverSrc } from '../../lib/tauri/coverSrc';
 import { createStatusViewStore, DEFAULT_STATUS_VIEW, type StatusView } from './view';
 
 /**
@@ -76,25 +76,9 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			const key = `${id}:${preview.artworkReady}`;
 			if (artworkKey !== key) {
 				artworkKey = key;
-				statusView.setCoverArtDataUrl(null);
-				if (preview.artworkReady) {
-					void deps.link
-						.send({ kind: 'readPreviewCover', runId: id })
-						.then((reply) => {
-							if (
-								!disposed &&
-								deps.link.output().previewRun?.operation.operationId === id &&
-								reply.kind === 'previewCover'
-							) {
-								statusView.setCoverArtDataUrl(
-									reply.bytes ? coverArtBytesToDataUrl(reply.bytes) : null,
-								);
-							}
-						})
-						.catch((error: unknown) => {
-							if (!disposed) console.warn('Preview artwork could not be read:', error);
-						});
-				}
+				statusView.setCoverArtSrc(
+					preview.artworkReady ? coverSrc({ kind: 'preview', runId: id }) : null,
+				);
 			}
 			if (preview.openReady && claiming !== id) {
 				claiming = id;

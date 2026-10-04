@@ -55,6 +55,7 @@ impl From<MetadataCoreError> for AppError {
 
 pub use reader::{display_tags_from_ffmpeg_dict, read_metadata};
 pub use thumbnail::read_audio_cover_thumbnail;
+pub(crate) use thumbnail::render_display_thumbnail;
 pub(crate) use thumbnail::{optimize_cover_art, prepare_cover_art_for_write};
 
 pub use cover_art::{add_cover_art_stream_pre_header, write_cover_art_packet_post_header};

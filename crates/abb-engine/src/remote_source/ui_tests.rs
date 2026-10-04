@@ -615,7 +615,8 @@ fn a_category_edit_that_chooses_none_is_refused_and_the_draft_keeps_its_categori
     };
 
     ui.begin(edit(vec![3030])).expect("one category");
-    ui.begin(edit(Vec::new())).expect("refusal is reported, not an error");
+    ui.begin(edit(Vec::new()))
+        .expect("refusal is reported, not an error");
     let connection = ui.snapshot().connection;
     assert_eq!(connection.category_ids, [3030]);
     assert!(connection.empty_categories_refused);

@@ -6,11 +6,11 @@ import {
 import { interpretFileListKeyDown } from '../../app/inputSession/keyboardNavigation';
 import { pathBasename } from '../../lib/path/basename';
 import { useAppRuntime } from '../../app/runtime';
-import { Button } from '../foundation';
+import { coverSrc } from '../../lib/tauri/coverSrc';
+import { Button, CoverImage } from '../foundation';
 import { createSignal, createEffect, Show, For, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
-import { createFileListCoverThumbnails } from './coverThumbnails';
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 import { TitleSources } from './TitleSources';
 import { AudioHandlingControl } from './AudioHandlingControl';
@@ -30,7 +30,6 @@ export function FileListView(props: {
 	const input = runtime.input;
 	const metadataView = runtime.metadata.view;
 	const view = input.view;
-	const capability = input.capability;
 	const selectFile = input.selectFile;
 	const selectAll = input.selectAll;
 	const clearSelection = input.clearSelection;
@@ -40,9 +39,6 @@ export function FileListView(props: {
 	const toggleSort = input.toggleSort;
 	const restoreImportOrder = input.restoreImportOrder;
 	const clearAllFiles = input.clearAllFiles;
-	const thumbnails = createFileListCoverThumbnails((path) =>
-		capability().readAudioCoverThumbnail(path),
-	);
 	const [dragState, setDragState] = createSignal<FileListDragState>({
 		draggedIndex: null,
 		hoveredIndex: null,
@@ -58,17 +54,6 @@ export function FileListView(props: {
 	});
 
 	onCleanup(() => reorderHandlers.dispose());
-	onCleanup(thumbnails.dispose);
-
-	createEffect(
-		() => {
-			const validPaths = view()
-				.files.filter((file) => file.isValid)
-				.map((file) => file.path);
-			return validPaths;
-		},
-		(validPaths) => thumbnails.schedule(validPaths),
-	);
 
 	createEffect(
 		() => view().selectedIndices,
@@ -212,9 +197,6 @@ export function FileListView(props: {
 							const sources = () => input.sourcesFor(file);
 							const grouped = () => sources().length > 1;
 							const invalidSource = () => sources().find((source) => !source.isValid);
-							const thumbnail = () => {
-								return thumbnails.read(file.path);
-							};
 							return (
 								// biome-ignore lint/a11y/useKeyWithClickEvents: listbox owns keyboard; rows are not tab stops
 								// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 JSX types expose tabindex, not tabIndex
@@ -251,14 +233,19 @@ export function FileListView(props: {
 											⋮⋮
 										</button>
 										<div class="file-cover-thumbnail" aria-hidden="true">
-											{(() => {
-												const thumb = thumbnail();
-												return thumb.status === 'ready' ? (
-													<img src={thumb.dataUrl} alt="" />
-												) : (
-													<span>Art</span>
-												);
-											})()}
+											<CoverImage
+												src={
+													file.isValid
+														? coverSrc({
+																kind: 'audio',
+																path: file.path,
+																revision: view().coversRevision,
+															})
+														: null
+												}
+												alt=""
+												missing={<span>Art</span>}
+											/>
 										</div>
 										<div
 											class={`file-status ${!invalidSource() ? 'file-status-valid' : 'file-status-invalid'}`}

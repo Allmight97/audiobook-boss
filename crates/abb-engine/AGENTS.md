@@ -61,7 +61,8 @@ the same code.
 - The titles being prepared, their metadata drafts, lookup, Save, and
   submission belong to `crate::session`. It writes tags through `metadata_save.rs` (one WorkRuntime
   operation per batch, with crate-internal request/result types) and loads user-picked covers through `cover_source.rs`,
-  which owns the URL and file limits.
+  which owns the URL and file limits. `cover_service.rs` is the one loader of
+  every cover a view shows: single-flight, bounded, sized for display.
 - Online metadata search belongs to `crate::metadata_lookup`. A provider that
   fails while others answer leaves the usable results plus typed diagnostics;
   the search fails only when no selected source can answer

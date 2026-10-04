@@ -20,6 +20,9 @@ the engine: `crates/abb-engine/AGENTS.md`.
   settings intents are numbered separately (`FrontendLink`).
 - **Event forwarding.** `events.rs` maps each `EngineEvent` to one Tauri
   event. It adds no state and drops nothing.
+- **Covers.** `cover_protocol.rs` serves the `abb-cover` scheme: it passes each
+  request path to `Engine::cover` and maps the answer to an HTTP response
+  (JPEG and cacheable, or an uncached not-found or bad-gateway).
 - **Quit.** `lib.rs` holds every quit until `Engine::shutdown` has settled.
   It asks `Engine::close_for_quit`; when that returns running work, the host
   shows it and, on Quit Anyway, asks again with that work's consent, so work

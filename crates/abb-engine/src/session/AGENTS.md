@@ -11,7 +11,7 @@ attachment.
 
 - Hosts reach the session through `Engine::session_dispatch`,
   `Engine::session_begin`, `Engine::session_snapshot`, and
-  `Engine::session_cover_art`, and receive `EngineEvent::Session`.
+  `Engine::cover`, and receive `EngineEvent::Session`.
 - Types are the `pub use` list in `mod.rs`: the intent, outcome, reply, and
   update types, each snapshot part, and the typed statuses and notices.
 - `Session`, `SessionDeps`, and the state modules are engine-internal.
@@ -36,9 +36,14 @@ attachment.
 - The metadata part carries `binding`, which advances whenever the form binds
   to a different selection. A host showing typing the engine has not yet
   confirmed shows it only on the form it was typed into.
-- The cover image is not in a snapshot. The metadata part carries
-  `image_revision`; a host fetches the bytes with `Engine::session_cover_art`
-  when that changes.
+- Covers are not in a snapshot. `Engine::cover` serves the ones the session
+  shows by request (`cover_request.rs`): a lookup result's or a library
+  title's URL, a listed source's embedded cover (the titles part's
+  `covers_revision` advances when a Save writes one), the cover on screen at
+  the metadata part's `image_revision`, and the running preview's artwork.
+  Anything else is refused. Every remote and embedded cover, Lookup Apply and
+  a typed cover URL included, loads through one `CoverService`
+  (`crate::cover_service`): each once, sized for display, in a bounded cache.
 - Reasons and statuses are typed (`InputNotice`, `MetadataStatus`,
   `LookupStatus`, `CoverNotice`, `SubmissionStatus`). The host words them.
 

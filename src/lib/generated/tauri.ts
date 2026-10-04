@@ -18,12 +18,6 @@ export const commands = {
 	 *  Settings intents run one at a time in `sequence` order.
 	 */
 	settingsDispatch: (client: number, sequence: number, intent: SettingsIntent) => typedError<SettingsReply, AppErrorEnvelope>(__TAURI_INVOKE("settings_dispatch", { client, sequence, intent })),
-	/**  The cover image the session currently shows. */
-	sessionCoverArt: () => __TAURI_INVOKE<number[] | null>("session_cover_art"),
-	/**  Loads cover art from a remote HTTPS URL and returns write-ready JPEG bytes. */
-	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
-	/**  Reads an audio file's embedded cover as a bounded JPEG thumbnail. */
-	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**  Returns backend-owned supported local audio import metadata for picker UI. */
 	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
 	listWorkOperations: () => typedError<WorkOperationsSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
@@ -1083,7 +1077,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 /**  Keeps an exported title where it is; its export continues unchanged. */
 { kind: "keepTitleLocation"; titleId: string; revision: number } |
 /**  Cancels the identified preview, including preparation and queued titles. */
-{ kind: "cancelPreview"; runId: string; childJobId: string | null } | { kind: "takePreviewOutput"; runId: string } | { kind: "readPreviewCover"; runId: string } |
+{ kind: "cancelPreview"; runId: string; childJobId: string | null } | { kind: "takePreviewOutput"; runId: string } |
 /**  Where exports are written; recorded in the settings. */
 { kind: "setOutputDirectory"; directory: string } | { kind: "setNamingPreset"; preset: NamingPreset } | { kind: "setIncludeYear"; includeYear: boolean } |
 /**  The custom naming template as typed; recorded once typing pauses. */
@@ -1111,7 +1105,7 @@ export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } | { k
  *  The edits on screen were not accepted, so nothing changed. `message`
  *  is absent when a save in progress is what blocked the change.
  */
-{ kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } | { kind: "previewOutput"; path: string | null } | { kind: "previewCover"; bytes: number[] | null } |
+{ kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } | { kind: "previewOutput"; path: string | null } |
 /**  A newer request or a reset replaced this one before it finished. */
 { kind: "superseded" };
 
@@ -1354,6 +1348,11 @@ export type TitlesSnapshot = {
 	orderDiffersFromImport: boolean,
 	/**  Companion PDF names of downloaded titles, by input id. */
 	companions: { [key in string]: string[] },
+	/**
+	 *  Advances whenever a Save writes a cover into a source, so an address
+	 *  for a source's cover names its current image.
+	 */
+	coversRevision: number,
 };
 
 export type WorkOperationStatus = "accepted" | "running" | "cancelling" | "completed" | "cancelled" | "failed" | "mixed";

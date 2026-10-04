@@ -4,6 +4,7 @@
 #![warn(clippy::too_many_lines)]
 
 pub mod commands;
+mod cover_protocol;
 mod events;
 mod intent_order;
 pub mod ipc_contract;
@@ -335,6 +336,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(specta_builder.invoke_handler())
+        .register_asynchronous_uri_scheme_protocol(cover_protocol::SCHEME, cover_protocol::handle)
         .setup(move |app| {
             specta_builder.mount_events(app);
             log::info!(

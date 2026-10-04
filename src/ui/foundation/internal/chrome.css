@@ -34,3 +34,19 @@
 	height: 100%;
 	object-fit: cover;
 }
+
+/* A cover fades in once loaded; its container is the placeholder until then. */
+.abb-cover-image {
+	opacity: 0;
+	transition: opacity 160ms ease-out;
+}
+
+.abb-cover-image[data-state="ready"] {
+	opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.abb-cover-image {
+		transition: none;
+	}
+}

@@ -37,7 +37,6 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 		openFiles: vi.fn(async () => []),
 		openDirectory: vi.fn(async () => null),
 		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
-		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async (handler) => {
 			listeners.drop = handler;
 			return () => {

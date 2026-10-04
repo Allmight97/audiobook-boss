@@ -177,6 +177,8 @@ export function publishMockMetadataSave(filePaths: string[]): void {
 
 // Mock Tauri's invoke API
 vi.mock('@tauri-apps/api/core', () => ({
+	convertFileSrc: (path: string, protocol: string) =>
+		`${protocol}://localhost/${encodeURIComponent(path)}`,
 	invoke: vi.fn().mockImplementation((cmd: string, _args?: unknown) => {
 		const engineArgs = _args as {
 			client: number;
@@ -200,8 +202,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 					engineArgs.sequence,
 					engineArgs.intent,
 				);
-			case 'session_cover_art':
-				return fakeEngine().sessionCoverArt();
 			case 'get_supported_audio_import_metadata':
 				return Promise.resolve({
 					formats: [

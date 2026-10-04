@@ -16,7 +16,6 @@ function fakeInput(): InputCapability {
 			formatsText: '',
 			supportText: '',
 		})),
-		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),

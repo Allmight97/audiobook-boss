@@ -1,6 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { audioFile, createFakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime } from './index';
 
@@ -80,38 +79,6 @@ describe('app runtime', () => {
 		expect(third.encoding.view().flavor).toBe('native_aac');
 		expect(third.processing.status().statusText).toBe('Idle');
 		expect(third.remoteSource.view().isOpen).toBe(false);
-	});
-
-	it('keeps lookup cover preview cancellation and cache isolated across runtimes', async () => {
-		const firstLoad = createDeferred<number[]>();
-		const first = createAppRuntime({
-			metadata: {
-				...liveMetadataCapability,
-				loadCoverArtFromUrl: () => firstLoad.promise,
-			},
-		});
-		const second = createAppRuntime({
-			metadata: {
-				...liveMetadataCapability,
-				loadCoverArtFromUrl: async () => [0xff, 0xd8, 0xff],
-			},
-		});
-		dispose = () => {
-			first.dispose();
-			second.dispose();
-		};
-
-		first.lookup.scheduleCoverPreviews(['https://covers.example/first.jpg']);
-		second.lookup.scheduleCoverPreviews(['https://covers.example/second.jpg']);
-		await vi.waitFor(() =>
-			expect(second.lookup.coverPreview('https://covers.example/second.jpg').status).toBe('ready'),
-		);
-
-		first.dispose();
-		firstLoad.resolve([0xff, 0xd8, 0xff]);
-		await Promise.resolve();
-		expect(first.lookup.coverPreview('https://covers.example/first.jpg').status).toBe('idle');
-		expect(second.lookup.coverPreview('https://covers.example/second.jpg').status).toBe('ready');
 	});
 
 	it('a new runtime finds the session a disposed one left, without its view-local state', async () => {

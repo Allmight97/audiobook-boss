@@ -4,15 +4,12 @@ import { tauriClient, TAURI_APP_EVENT_NAMES, TAURI_COMMAND_NAMES } from './tauri
 
 const EXPECTED_COMMAND_NAMES = [
 	'attach_frontend',
-	'session_cover_art',
 	'session_dispatch',
 	'settings_dispatch',
 	'cancel_work_operation',
 	'get_supported_audio_import_metadata',
 	'list_work_operations',
 	'log_frontend',
-	'load_cover_art_from_url',
-	'read_audio_cover_thumbnail',
 ] as const;
 
 const EXPECTED_APP_EVENT_NAMES = [
@@ -23,7 +20,6 @@ const EXPECTED_APP_EVENT_NAMES = [
 
 const EXPECTED_TAURI_CLIENT_METHODS = [
 	'attachFrontend',
-	'sessionCoverArt',
 	'sessionDispatch',
 	'settingsDispatch',
 	'cancelWorkOperation',
@@ -31,7 +27,6 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'listen',
 	'listWorkOperations',
 	'logFrontend',
-	'loadCoverArtFromUrl',
 	'open',
 	'openDirectory',
 	'openFile',
@@ -39,7 +34,6 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'openPath',
 	'revealPath',
 	'openUrl',
-	'readAudioCoverThumbnail',
 ] as const;
 
 describe('Tauri Runtime Boundary public API contract', () => {

@@ -84,6 +84,9 @@ pub struct TitlesSnapshot {
     pub order_differs_from_import: bool,
     /// Companion PDF names of downloaded titles, by input id.
     pub companions: BTreeMap<String, Vec<String>>,
+    /// Advances whenever a Save writes a cover into a source, so an address
+    /// for a source's cover names its current image.
+    pub covers_revision: u64,
 }
 
 /// Which titles are selected, as positions in [`TitlesSnapshot::files`].
@@ -130,6 +133,7 @@ impl WorkingSet {
             notice: self.notice.clone(),
             order_differs_from_import: self.order_differs_from_import(),
             companions: BTreeMap::new(),
+            covers_revision: 0,
         }
     }
 

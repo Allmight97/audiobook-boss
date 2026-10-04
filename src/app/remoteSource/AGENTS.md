@@ -6,14 +6,15 @@
   Settings. The engine owns title/PDF/release choices, connection drafts,
   accepted account/authentication/library state, searches and sequential Grab
   batches, acquisition progress, and handoff (`crates/abb-engine/src/remote_source/AGENTS.md`).
-- Screen-local state holds dialog visibility, filters/sort, search text, auth
-  handoff text, and cover thumbnail resources.
+- Screen-local state holds dialog visibility, filters/sort, search text, and
+  auth handoff text. Title covers load from their `coverSrc` address; the
+  engine loads and caches them.
   Product acceptance rules go in the engine.
 
 ## Public API Strip
 
-- `index.ts` exposes the composed `RemoteSourceOwner`; state,
-  connection echo, and cover previews remain private.
+- `index.ts` exposes the composed `RemoteSourceOwner`; state and connection
+  echo remain private.
 - `open` and `selectLane` send only the lane intent; the engine refreshes
   account and library facts.
   Title/PDF/release selection, Search, Grab, Acquire, and Cancel send session
@@ -28,7 +29,7 @@
 ## Lifetime And Display
 
 - Close leaves accepted work running. Disposal invalidates local authorization
-  browser-opening replies and thumbnails, while a replacement frontend reads
+  browser-opening replies, while a replacement frontend reads
   current remote account/auth/library facts, progress and choices from its
   session attachment.
 - Render acquisition `settled` and `handoff` facts. Do not infer terminal
@@ -39,8 +40,8 @@
 - Visible filtering/sorting preserves engine selection. Release rows use the
   `(indexerId, guid)` pair, including for Grab and Retry. Sent describes provider
   acceptance, not download completion.
-- Preserve per-instance lifetime for authorization browser opening, password
-  echo, and thumbnail resources. None may publish into a replacement owner.
+- Preserve per-instance lifetime for authorization browser opening and
+  password echo. Neither may publish into a replacement owner.
 
 - Authorization URLs occur only in the initiating intent outcome; snapshots
   never reopen a browser.

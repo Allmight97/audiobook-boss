@@ -20,7 +20,6 @@ function fakeInput(): InputCapability {
 		openFiles: vi.fn(async () => ['/books/chapter.m4b']),
 		openDirectory: vi.fn(async () => null),
 		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
-		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),

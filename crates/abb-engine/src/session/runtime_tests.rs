@@ -50,6 +50,8 @@ struct Rig {
     /// empty result.
     replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>>,
     cover: Arc<StdMutex<Result<Vec<u8>>>>,
+    /// How many times a cover was fetched from the network.
+    cover_fetches: Arc<std::sync::atomic::AtomicUsize>,
     /// Acquisition jobs whose downloads the session removed.
     removed: Arc<StdMutex<Vec<String>>>,
     /// Removals that fail before one succeeds.
@@ -68,6 +70,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
     let replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>> =
         Arc::default();
     let cover: Arc<StdMutex<Result<Vec<u8>>>> = Arc::new(StdMutex::new(Ok(vec![4, 2])));
+    let cover_fetches: Arc<std::sync::atomic::AtomicUsize> = Arc::default();
     let network = Network {
         search: Box::new({
             let searches = Arc::clone(&searches);
@@ -83,10 +86,12 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
                 })
             }
         }),
-        cover_from_url: Box::new({
+        covers: crate::cover_service::CoverService::new(Box::new({
             let cover = Arc::clone(&cover);
+            let cover_fetches = Arc::clone(&cover_fetches);
             let pending = StdMutex::new(pending);
             move |_url| {
+                cover_fetches.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let pending = pending.lock().expect("cover reply").take();
                 let result = match &*cover.lock().expect("cover") {
                     Ok(bytes) => Ok(bytes.clone()),
@@ -99,7 +104,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
                     }
                 })
             }
-        }),
+        })),
     };
     let removed: Arc<StdMutex<Vec<String>>> = Arc::default();
     let failing_removals: Arc<std::sync::atomic::AtomicUsize> = Arc::default();
@@ -148,6 +153,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
         searches,
         replies,
         cover,
+        cover_fetches,
         removed,
         failing_removals,
         _config: config,
@@ -593,6 +599,32 @@ async fn replacing_the_cover_stages_the_result_image_with_the_text() {
     );
     assert_eq!(rig.session.cover_art(), Some(vec![4, 2]));
     assert_eq!(rig.title_shown(), "Found");
+}
+
+#[tokio::test]
+async fn applying_a_result_reuses_the_cover_its_preview_downloaded() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.answer_next_search(Ok(found(&["Found"])));
+    rig.send(SessionIntent::LookupOpen).await;
+    let shown = rig
+        .session
+        .cover("remote/full/0/https%253A%252F%252Fexample.com%252Fcover.jpg")
+        .await
+        .expect("a result's cover is served")
+        .expect("it has bytes");
+    assert_eq!(shown.to_vec(), vec![4, 2]);
+
+    rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
+        .await;
+    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+
+    assert_eq!(rig.session.cover_art(), Some(vec![4, 2]));
+    assert_eq!(
+        rig.cover_fetches.load(std::sync::atomic::Ordering::SeqCst),
+        1
+    );
 }
 
 #[tokio::test]
@@ -1170,6 +1202,42 @@ async fn a_batch_audio_edit_applies_to_every_title_or_none() {
     assert_eq!(audio(&rig).refusal, Some(AudioRefusal::Locked));
 }
 
+#[tokio::test]
+async fn covers_are_served_only_for_what_the_session_shows() {
+    let rig = rig();
+    let folder = tempfile::TempDir::new().expect("temp dir");
+    let listed = staged_wav(folder.path(), "listed");
+    let unlisted = staged_wav(folder.path(), "unlisted");
+    rig.send(SessionIntent::Import {
+        paths: vec![listed.to_string_lossy().into_owned()],
+    })
+    .await;
+    let request = |path: &std::path::Path| {
+        let value = percent_encoding::utf8_percent_encode(
+            &path.canonicalize().expect("canonical").to_string_lossy(),
+            percent_encoding::NON_ALPHANUMERIC,
+        )
+        .to_string();
+        format!("audio/small/0/{value}")
+    };
+
+    assert_eq!(
+        rig.session.cover(&request(&listed)).await.expect("listed"),
+        None,
+        "a listed source with no cover has none"
+    );
+    assert!(rig.session.cover(&request(&unlisted)).await.is_err());
+    assert!(rig
+        .session
+        .cover("remote/small/0/https%3A%2F%2Fcovers.test%2Fnever-shown.jpg")
+        .await
+        .is_err());
+    assert_eq!(
+        rig.session.cover("session/full/0/").await.expect("session"),
+        None
+    );
+}
+
 // ---- Output and plans ----
 
 fn output(rig: &Rig) -> crate::session::OutputSnapshot {
@@ -1639,12 +1707,15 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
         .operation
         .operation_id;
     wait_preview(&rig, crate::work_runtime::WorkOperationStatus::Running).await;
+    let shown = rig
+        .session
+        .cover(&format!("preview/small/0/{id}"))
+        .await
+        .expect("the running preview's artwork")
+        .expect("a custom cover");
     assert_eq!(
-        rig.send(SessionIntent::ReadPreviewCover {
-            run_id: id.to_string()
-        })
-        .await,
-        SessionOutcome::PreviewCover { bytes: Some(cover) }
+        shown.to_vec(),
+        crate::metadata::render_display_thumbnail(&cover).expect("thumbnail")
     );
     assert_eq!(
         rig.send(SessionIntent::CancelPreview {

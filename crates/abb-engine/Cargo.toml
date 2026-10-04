@@ -41,6 +41,8 @@ mp4ameta = "0.13.0"
 bogon = "0.3"
 # Typed URL hosts for the cover-fetch SSRF policy; same version reqwest resolves.
 url = "2.5.8"
+# Decodes cover request paths; the version url already resolves.
+percent-encoding = "2.3.2"
 # Exact pins: a prerelease family whose generated TS contract can change between
 # RCs. Bump together with the host crate, deliberately, and regenerate bindings.
 specta = "=2.0.0-rc.25"

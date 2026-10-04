@@ -22,8 +22,8 @@
   event adapters.
 
 ## Frontend Utility Surface
-- `appError.ts` and `subscriptionGroup.ts` are deliberate frontend utilities that
-  Solid views may import directly from `src/lib/tauri/*`. They are not IPC
+- `appError.ts`, `subscriptionGroup.ts`, and `coverSrc.ts` are deliberate
+  frontend utilities that Solid views may import directly from `src/lib/tauri/*`. They are not IPC
   command/event adapters and not `tauriClient` methods.
 - `appError.ts` is the single owner of error normalization and presentation:
   `normalizeAppError`, `toUserMessage`, `isCancellation`, `isAppErrorCategory`,
@@ -32,9 +32,12 @@
 - `subscriptionGroup.ts` (`createSubscriptionGroup`) is the single owner of Tauri
   event-unlisten teardown and the dispose / late-arrival race. Views collect
   unlisteners through a group, not bespoke arrays/flags.
+- `coverSrc.ts` builds the `abb-cover` address of every cover a view shows; the
+  host serves the scheme through `Engine::cover`. Covers never cross IPC as
+  bytes.
 - These utilities are NOT pinned by `src/lib/tauri-public-api.contract.test.ts`
   (which guards the `tauriClient` IPC strip); each carries its own focused module
-  test (`appError.test.ts`, `subscriptionGroup.test.ts`).
+  test (`appError.test.ts`, `subscriptionGroup.test.ts`, `coverSrc.test.ts`).
 
 ## Private Cluster
 - Files: `client.ts`, `commands.ts`, `normalizers.ts`, `AGENTS.md`.
