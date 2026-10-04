@@ -378,11 +378,13 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
     })
     .await;
 
-    assert_eq!(
-        desk.export_status(&export),
-        WorkOperationStatus::Completed,
-        "the write waited for the export"
-    );
+    // The write lands once the export stops reading the source, which can
+    // be just before the export reports finishing.
+    desk.wait_until("the export finishes", |desk| {
+        finished(desk.export_status(&export))
+    })
+    .await;
+    assert_eq!(desk.export_status(&export), WorkOperationStatus::Completed);
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
     assert!(!desk.metadata().has_pending_edits);
     assert_eq!(desk.engine.running_work().waiting_writes, 0);
