@@ -82,7 +82,8 @@ attachment.
   anchors on the first selected title; conflicting audio requests require an
   explicit choice. Drafts for hidden sources survive grouping, and a grouped
   title's draft is kept for its output and never written into a source.
-- **Import.** One import runs at a time. A Reset drops an import still
+- **Import.** One import runs at a time, in the order the imports were
+  accepted (`import_order.rs`), whatever order their tasks start. A Reset drops an import still
   running, including its failure notice. Files the OS opened
   (`Engine::open_audio_files`) are imported by the engine with no host asking;
   while the list is locked that import waits and appends after unlock instead

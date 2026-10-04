@@ -26,6 +26,8 @@ the engine: `crates/abb-engine/AGENTS.md`.
   that started while the dialog was open is asked about too.
   A shutdown that has not settled after `SHUTDOWN_WAIT` asks whether to keep
   waiting; the process exits early only when the user chooses Quit Now.
+  A shutdown that reports `SettingsUnsaved` offers Retry (shutdown again) or
+  Quit Anyway.
 
 ## Rules
 

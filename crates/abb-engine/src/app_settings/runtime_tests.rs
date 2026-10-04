@@ -202,6 +202,22 @@ async fn a_change_the_scheduler_refuses_keeps_the_previous_concurrency() {
 }
 
 #[tokio::test]
+async fn closing_reports_settings_it_could_not_save_and_a_retry_saves_them() {
+    let rig = start();
+    rig.set_writable(false);
+    rig.send(remember_output("/custom")).await;
+
+    assert!(
+        rig.settings.flush().await.is_some(),
+        "the failure is reported"
+    );
+
+    rig.set_writable(true);
+    assert_eq!(rig.settings.flush().await, None);
+    assert_eq!(rig.on_disk().output_defaults, output_in("/custom"));
+}
+
+#[tokio::test]
 async fn an_accepted_concurrency_survives_a_failed_write_and_retry_only_saves() {
     let rig = start();
     rig.set_writable(false);

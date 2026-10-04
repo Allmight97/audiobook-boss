@@ -1469,7 +1469,12 @@ async fn reset_supersedes_an_acquired_handoff_waiting_for_an_earlier_import() {
     let rig = rig();
     let staging = tempfile::TempDir::new().expect("staging");
     let audio = staged_wav(staging.path(), "book");
-    let in_order = rig.session.inner.imports.lock().await;
+    let in_order = rig
+        .session
+        .inner
+        .imports
+        .wait(rig.session.inner.imports.take())
+        .await;
     let mut handoff = Box::pin(
         rig.session
             .import_acquired(acquired("job-before-reset", &audio)),

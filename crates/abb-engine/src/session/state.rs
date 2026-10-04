@@ -598,6 +598,11 @@ impl SessionState {
         if self.submitting.is_some() {
             return Err(SubmitRefusal::Busy);
         }
+        if preview_seconds
+            .is_some_and(|seconds| !crate::processing::is_valid_preview_length(seconds))
+        {
+            return Err(SubmitRefusal::InvalidPreviewLength);
+        }
         let writing = !self.writing.is_empty()
             || self
                 .deferred

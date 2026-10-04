@@ -29,7 +29,8 @@ default the session records reaches hosts as `EngineEvent::Settings`.
 - The settings in memory are the truth; a write saves them whole and never
   reads the file first. Every change takes effect at once. A failed write
   keeps it in effect, logs it, reports `save_error`, and is written again by
-  the next change, `Retry`, or `Engine::shutdown`.
+  the next change, `Retry`, or `Engine::shutdown`, which returns
+  `ShutdownOutcome::SettingsUnsaved` when that last write fails too.
 - Concurrency is accepted by the job scheduler before it is recorded; a fixed
   choice is recorded as the count the scheduler settled on. At engine start
   the scheduler takes the startup defaults' concurrency (pinned, if the user

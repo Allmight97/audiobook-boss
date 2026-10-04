@@ -117,27 +117,43 @@ struct Quit {
 const SHUTDOWN_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
 
 /// Awaits `shutdown`, asking after each `SHUTDOWN_WAIT` whether to keep
-/// waiting. Returns whether it settled; `false` only when the user chose to
-/// quit anyway.
-async fn settle_or_ask<A>(
-    shutdown: impl std::future::Future<Output = ()>,
+/// waiting. Returns its outcome; `None` only when the user chose to quit
+/// anyway.
+async fn settle_or_ask<T, A>(
+    shutdown: impl std::future::Future<Output = T>,
     mut keep_waiting: impl FnMut() -> A,
-) -> bool
+) -> Option<T>
 where
     A: std::future::Future<Output = bool>,
 {
     tokio::pin!(shutdown);
     loop {
-        if tokio::time::timeout(SHUTDOWN_WAIT, &mut shutdown)
-            .await
-            .is_ok()
-        {
-            return true;
+        if let Ok(outcome) = tokio::time::timeout(SHUTDOWN_WAIT, &mut shutdown).await {
+            return Some(outcome);
         }
         if !keep_waiting().await {
-            return false;
+            return None;
         }
     }
+}
+
+/// Asks whether to retry saving settings that could not be written.
+async fn ask_to_retry_settings_save(app: tauri::AppHandle, reason: String) -> bool {
+    let (answer, answered) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .message(format!(
+            "ABB could not save your settings: {reason} Quitting now loses the changes \
+             made since they were last saved."
+        ))
+        .title("Settings not saved")
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Retry".to_string(),
+            "Quit Anyway".to_string(),
+        ))
+        .show(move |retry| {
+            let _ = answer.send(retry);
+        });
+    answered.await.unwrap_or(false)
 }
 
 /// Asks whether to keep waiting for a shutdown that has not settled.
@@ -171,10 +187,20 @@ fn shut_down_then_exit(app: &tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         if let Some(engine) = app.try_state::<abb_engine::Engine>() {
             let engine = engine.inner().clone();
-            let settled =
-                settle_or_ask(engine.shutdown(), || ask_to_keep_waiting(app.clone())).await;
-            if !settled {
-                log::warn!("Quit before the engine settled, at the user's choice");
+            loop {
+                match settle_or_ask(engine.shutdown(), || ask_to_keep_waiting(app.clone())).await {
+                    Some(abb_engine::ShutdownOutcome::Settled) => break,
+                    Some(abb_engine::ShutdownOutcome::SettingsUnsaved { error }) => {
+                        if !ask_to_retry_settings_save(app.clone(), error.message).await {
+                            log::warn!("Quit with unsaved settings, at the user's choice");
+                            break;
+                        }
+                    }
+                    None => {
+                        log::warn!("Quit before the engine settled, at the user's choice");
+                        break;
+                    }
+                }
             }
         }
         app.state::<Quit>().done.store(true, Ordering::SeqCst);
@@ -439,7 +465,7 @@ mod quit_tests {
             async move { times < 2 }
         })
         .await;
-        assert!(!settled);
+        assert!(settled.is_none());
         assert_eq!(asked.load(Ordering::SeqCst), 2);
     }
 
@@ -449,6 +475,6 @@ mod quit_tests {
             panic!("asked although shutdown settled")
         })
         .await;
-        assert!(settled);
+        assert!(settled.is_some());
     }
 }

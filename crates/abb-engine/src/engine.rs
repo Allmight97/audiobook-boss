@@ -141,6 +141,18 @@ pub struct RunningWork {
     pub consent: QuitConsent,
 }
 
+/// How [`Engine::shutdown`] ended.
+#[must_use]
+#[derive(Debug, Clone, PartialEq)]
+pub enum ShutdownOutcome {
+    Settled,
+    /// Accepted settings could not be written. Calling `shutdown` again
+    /// retries the write.
+    SettingsUnsaved {
+        error: crate::AppErrorEnvelope,
+    },
+}
+
 /// The work a user agreed quitting may stop.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct QuitConsent(BTreeSet<StoppedWork>);
@@ -265,7 +277,8 @@ impl Engine {
     /// running ones, and waits for every background task to settle, so the
     /// engine's folders can be reused or removed. Saves that were waiting for
     /// a cancelled export are written once it stops reading their files.
-    pub async fn shutdown(&self) {
+    /// Repeating it after it settled only retries an unsaved settings write.
+    pub async fn shutdown(&self) -> ShutdownOutcome {
         self.inner.tasks.close();
         self.inner.session.cancel_review();
         self.inner.session.cancel_preview();
@@ -281,7 +294,10 @@ impl Engine {
         self.inner.remote_source.abort_acquisitions();
         self.inner.tasks.wait().await;
         // A choice whose write failed gets one more attempt before ABB exits.
-        self.inner.settings.flush().await;
+        match self.inner.settings.flush().await {
+            None => ShutdownOutcome::Settled,
+            Some(error) => ShutdownOutcome::SettingsUnsaved { error },
+        }
     }
 
     // ---- Settings ----

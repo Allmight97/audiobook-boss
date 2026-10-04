@@ -9,6 +9,7 @@
 mod audio;
 mod audio_choice;
 mod exports;
+mod import_order;
 mod lookup;
 mod metadata_form;
 mod output;

@@ -16,7 +16,7 @@ use abb_engine::session::{
     SessionIntent, SessionOutcome, SubmissionStatus, SubmitRefusal,
 };
 use abb_engine::work_runtime::WorkOperationStatus;
-use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig};
+use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig, ShutdownOutcome};
 use tempfile::TempDir;
 
 use super::integration_media_execution_tests::MediaLane;
@@ -35,7 +35,7 @@ async fn shutdown_finishes_an_accepted_save_without_a_host_waiting_for_its_reply
     .await;
     let reply = desk.engine.session_begin(SessionIntent::Save);
     drop(reply);
-    desk.engine.shutdown().await;
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
     assert_eq!(
         read_metadata(source.to_str().expect("path"))
             .expect("tags")
@@ -71,7 +71,7 @@ async fn defaults_are_saved_in_acceptance_order_even_when_replies_are_awaited_ba
             .as_deref(),
         Some("/second")
     );
-    desk.engine.shutdown().await;
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 }
 
 #[cfg(unix)]
@@ -94,7 +94,7 @@ async fn leftover_downloads_that_cannot_be_removed_do_not_stop_abb_from_starting
     .expect("ABB starts and leaves the folder in place");
 
     assert!(outside.join("kept").exists());
-    engine.shutdown().await;
+    assert_eq!(engine.shutdown().await, ShutdownOutcome::Settled);
 }
 
 /// One engine over its own throwaway roots, with one tagged audiobook.
@@ -584,9 +584,10 @@ async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_w
     let running = desk.engine.running_work();
     assert_eq!((running.exports, running.waiting_writes), (1, 1));
 
-    tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
+    let outcome = tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
         .await
         .expect("shutdown settles");
+    assert_eq!(outcome, ShutdownOutcome::Settled);
 
     assert!(finished(desk.export_status(&export)));
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
@@ -627,7 +628,7 @@ async fn quit_consent_survives_finished_work_and_closes_admission() {
             reason: SubmitRefusal::Closing
         })
     );
-    desk.engine.shutdown().await;
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 }
 
 #[tokio::test]
@@ -676,7 +677,7 @@ async fn quit_consent_names_work_not_counts_and_follows_an_export_from_review_to
     desk.engine
         .close_for_quit(&asked_for_second.consent)
         .expect("the reviewed export is the same work once it runs");
-    desk.engine.shutdown().await;
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 }
 
 fn submission(desk: &Desk) -> Option<abb_engine::session::SubmissionStatus> {
@@ -810,9 +811,10 @@ async fn shutdown_answers_a_pending_collision_review_so_a_waiting_save_lands() {
     let metadata = desk.edit_genre_and_save().await;
     assert_eq!(metadata.waiting_writes.len(), 1);
 
-    tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
+    let outcome = tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
         .await
         .expect("shutdown does not wait on an unanswered review");
+    assert_eq!(outcome, ShutdownOutcome::Settled);
 
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
 }
@@ -968,7 +970,7 @@ async fn a_choice_made_while_reset_is_waiting_stays_on_screen_and_on_disk() {
             .as_deref(),
         Some("/after-reset")
     );
-    desk.engine.shutdown().await;
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 }
 
 /// Every supported final container must accept a later Save on its published output.
@@ -1053,7 +1055,7 @@ async fn save_updates_finished_outputs_in_every_supported_container() {
             "{format:?}"
         );
         assert_ne!(before.as_deref(), Some("Mystery"));
-        desk.engine.shutdown().await;
+        assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
     }
 }
 
@@ -1098,7 +1100,7 @@ async fn save_updates_a_grouped_output_without_writing_its_individual_sources() 
     for source in [&first, &second] {
         assert_eq!(genre_on_disk(source).as_deref(), Some("Fantasy"));
     }
-    desk.engine.shutdown().await;
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 }
 
 #[tokio::test]
@@ -1117,7 +1119,7 @@ async fn shutdown_closes_admission_before_an_accepted_submission_finishes_prefli
     let accepted = desk.engine.session_begin(SessionIntent::Submit);
     // No yield between admission and shutdown: preflight has not registered
     // its export when shutdown closes and enumerates running operations.
-    desk.engine.shutdown().await;
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
     accepted.finish().await;
     assert!(desk
         .engine
@@ -1188,5 +1190,5 @@ async fn keep_location_writes_the_latest_offered_tags_to_the_original_export_pat
         !Path::new(&offer.to).exists(),
         "Keep does not move the output"
     );
-    desk.engine.shutdown().await;
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 }

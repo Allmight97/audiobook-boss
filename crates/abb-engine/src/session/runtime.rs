@@ -361,8 +361,8 @@ struct SessionInner {
     state: Mutex<SessionState>,
     deps: SessionDeps,
     network: Network,
-    /// One import runs at a time, in the order requested.
-    imports: tokio::sync::Mutex<()>,
+    /// One import runs at a time, in the order accepted.
+    imports: super::import_order::ImportOrder,
     /// Advances on reset; an import that started earlier is dropped.
     resets: AtomicU64,
     /// The revision the last event carried.
@@ -405,6 +405,7 @@ enum Rest {
     Import {
         paths: Vec<String>,
         resets: u64,
+        turn: super::import_order::Turn,
     },
     /// Record a choice in the settings, unless they were reset since `resets`.
     Remember(SettingsRun),
@@ -498,7 +499,11 @@ impl Session {
                 session.complete_reads(bound).await;
                 SessionOutcome::Applied
             }
-            Rest::Import { paths, resets } => session.import(paths, resets).await,
+            Rest::Import {
+                paths,
+                resets,
+                turn,
+            } => session.import(paths, resets, turn).await,
             Rest::Remember(run) => {
                 let reply = run.finish().await;
                 session
@@ -571,7 +576,7 @@ impl Session {
                 state: Mutex::new(SessionState::default()),
                 deps,
                 network,
-                imports: tokio::sync::Mutex::new(()),
+                imports: super::import_order::ImportOrder::default(),
                 resets: AtomicU64::new(0),
                 published: AtomicU64::new(0),
                 deferred_writer_running: AtomicBool::new(false),
@@ -1100,6 +1105,7 @@ impl Session {
         Rest::Import {
             paths,
             resets: self.inner.resets.load(Ordering::SeqCst),
+            turn: self.inner.imports.take(),
         }
     }
 
@@ -1107,14 +1113,16 @@ impl Session {
     /// asking. Unlike a user's import it is not refused while the list is
     /// locked: it appends once the list unlocks, and a Reset meanwhile drops it.
     pub(crate) fn import_opened(&self, paths: Vec<PathBuf>) -> Result<()> {
-        let rest = Rest::Import {
-            paths: paths
-                .into_iter()
-                .map(|path| path.to_string_lossy().into_owned())
-                .collect(),
-            resets: self.inner.resets.load(Ordering::SeqCst),
-        };
+        let paths = paths
+            .into_iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect();
         self.inner.deps.tasks.admit(|| {
+            let rest = Rest::Import {
+                paths,
+                resets: self.inner.resets.load(Ordering::SeqCst),
+                turn: self.inner.imports.take(),
+            };
             let session = self.clone();
             self.inner.deps.tasks.spawn(async move {
                 session.complete(rest).await;
@@ -1122,8 +1130,13 @@ impl Session {
         })
     }
 
-    async fn import(&self, paths: Vec<String>, resets: u64) -> SessionOutcome {
-        let _in_order = self.inner.imports.lock().await;
+    async fn import(
+        &self,
+        paths: Vec<String>,
+        resets: u64,
+        turn: super::import_order::Turn,
+    ) -> SessionOutcome {
+        let _in_order = self.inner.imports.wait(turn).await;
         // A Reset since this import began drops it, success or failure.
         let superseded = || self.inner.resets.load(Ordering::SeqCst) != resets;
         let failed = |notice| {
@@ -1222,7 +1235,7 @@ impl Session {
 
     async fn import_acquired_files(&self, job: &AcquisitionJob) -> AcquisitionHandoff {
         let resets = self.inner.resets.load(Ordering::SeqCst);
-        let _in_order = self.inner.imports.lock().await;
+        let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
         let removed = |reason| AcquisitionHandoff::Removed { reason };
         if self.inner.resets.load(Ordering::SeqCst) != resets {
             return removed(HandoffRefusal::NothingAdded);

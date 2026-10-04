@@ -1696,6 +1696,26 @@ fn a_save_still_writing_after_a_reset_keeps_its_file_busy() {
 }
 
 #[test]
+fn a_preview_with_no_usable_length_is_refused_and_holds_nothing() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state.output.set_directory("/library".to_string());
+    for seconds in [0.0, -5.0, f64::NAN, f64::INFINITY] {
+        assert!(
+            desk.state.begin_submission(Some(seconds)).is_none(),
+            "{seconds}"
+        );
+        assert_eq!(
+            desk.state.output_snapshot(0).submission,
+            Some(SubmissionStatus::Refused {
+                reason: SubmitRefusal::InvalidPreviewLength
+            })
+        );
+        assert!(!desk.state.working_set.order_locked());
+    }
+    assert!(desk.state.begin_submission(Some(30.0)).is_some());
+}
+
+#[test]
 fn a_refused_second_submission_does_not_let_a_third_through() {
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     desk.state.output.set_directory("/library".to_string());

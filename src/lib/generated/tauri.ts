@@ -1232,6 +1232,8 @@ export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | {
 { kind: "saveInProgress" } |
 /**  Another submission or a preview is still running. */
 { kind: "busy" } |
+/**  A preview length that is not a positive number of seconds. */
+{ kind: "invalidPreviewLength" } |
 /**  A downloaded source is being removed after its export finished. */
 { kind: "sourceRemoved" } | { kind: "closing" } |
 /**
