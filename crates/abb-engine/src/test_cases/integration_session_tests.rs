@@ -754,6 +754,10 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
     let outputs = |desk: &Desk| -> Vec<PathBuf> { walk(&desk.root.path().join("exports")) };
     let exported = outputs(&desk);
     assert_eq!(exported.len(), 2, "{exported:?}");
+    let existing_bytes: Vec<_> = exported
+        .iter()
+        .map(|path| fs::read(path).expect("read existing audiobook"))
+        .collect();
 
     // Only one output exists when the user reviews.
     let moved = desk.root.path().join("set-aside.m4b");
@@ -801,8 +805,14 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
         );
         assert!(output.submission_in_progress);
     }
-    // No stale answer replaced either existing audiobook.
+    // Path equality alone would miss an in-place overwrite.
     assert_eq!(outputs(&desk), exported);
+    for (path, original) in exported.iter().zip(existing_bytes) {
+        assert!(
+            fs::read(path).expect("read preserved audiobook") == original,
+            "held collision review changed {path:?}"
+        );
+    }
 }
 
 /// Every file under `dir`, sorted.

@@ -94,18 +94,51 @@ describe('engine decision dialogs', () => {
 		},
 	);
 
-	it('Escape keeps the identified restart location, rather than cancelling file work', async () => {
+	it('replaces a settled restart question only when the engine supplies the next one', async () => {
 		const engine = createFakeEngine();
 		seed(engine, 'restart');
 		await mount(engine);
+		engine.change((state) => {
+			state.output.restartPrompt = null;
+		});
 		await vi.waitFor(() =>
-			expect(screen.getByRole('dialog', { name: 'Restart this export?' })).toBeVisible(),
+			expect(
+				screen.queryByRole('dialog', { name: 'Restart this export?' }),
+			).not.toBeInTheDocument(),
 		);
-		fireEvent.keyDown(document, { key: 'Escape' });
+		engine.change((state) => {
+			state.output.restartPrompt = { ...offer, titleId: 'alpha', revision: 4, to: '/a/Next.m4b' };
+		});
+		await vi.waitFor(() =>
+			expect(screen.getByRole('dialog', { name: 'Restart this export?' })).toHaveTextContent(
+				'/a/Next.m4b',
+			),
+		);
+		fireEvent.click(screen.getByRole('button', { name: 'Restart' }));
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents).toEqual([
-				{ kind: 'keepTitleLocation', titleId: 'beta', revision: 3 },
+				{ kind: 'restartTitle', titleId: 'alpha', revision: 4 },
 			]),
 		);
 	});
+
+	it.each(['collision', 'restart'] as const)(
+		'Escape answers only the identified %s question',
+		async (kind) => {
+			const engine = createFakeEngine();
+			seed(engine, kind);
+			await mount(engine);
+			const title =
+				kind === 'collision' ? 'Resolve Existing File Conflicts' : 'Restart this export?';
+			await vi.waitFor(() => expect(screen.getByRole('dialog', { name: title })).toBeVisible());
+			fireEvent.keyDown(document, { key: 'Escape' });
+			await vi.waitFor(() =>
+				expect(engine.sessionIntents).toEqual([
+					kind === 'collision'
+						? { kind: 'cancelCollisionReview', reviewId: 7 }
+						: { kind: 'keepTitleLocation', titleId: 'beta', revision: 3 },
+				]),
+			);
+		},
+	);
 });

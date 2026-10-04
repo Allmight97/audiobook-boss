@@ -24,7 +24,6 @@ const EXPECTED_APP_EVENT_NAMES = [
 ] as const;
 
 const EXPECTED_TAURI_CLIENT_METHODS = [
-	'ask',
 	'attachFrontend',
 	'sessionCoverArt',
 	'sessionDispatch',

@@ -21,8 +21,8 @@
 ## Hard Invariants
 
 - Which titles go, their sources, audio, chapters, naming, and pending edits
-  are the engine's. `submit.ts` sends intents and reads
-  `output.submission`; it never builds a payload or decides a refusal.
+  are the engine's. `owner.ts` sends intents; `submit.ts` words
+  `output.submission`. Neither builds a payload or decides a refusal.
 - Collision presentation reads the Output owner's held question. There is no
   frontend review loop or submission gate; busy facts and continuation are engine-owned.
 - `restartPrompt` renders the engine's one eligible question, while `restartOffers`
