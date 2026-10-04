@@ -242,36 +242,6 @@ describe('tauriClient nullish adapters', () => {
 		vi.clearAllMocks();
 	});
 
-	it('normalizes nullable metadata fields from backend responses', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({
-			title: 'Book A',
-			artist: null,
-			album: null,
-			composer: null,
-			genre: null,
-			date: null,
-			track: null,
-			disk: null,
-			comment: null,
-			description: null,
-			series: null,
-			series_part: null,
-			subseries: null,
-			subseries_part: null,
-			album_sort: null,
-			cover_art: null,
-		});
-
-		const { tauriClient } = await import('./tauri/client');
-		const metadata = await tauriClient.readAudioMetadata('/books/a.m4b');
-		expect(metadata.title).toBe('Book A');
-		expect(metadata.artist).toBeUndefined();
-		expect(metadata.series).toBeUndefined();
-		expect(metadata.cover_art).toBeUndefined();
-	});
-
 	it('normalizes a finished preview carried in the session output', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		vi.mocked(invoke).mockResolvedValueOnce({

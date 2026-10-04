@@ -55,6 +55,7 @@ describe('Solid import tracer shell', () => {
 				<App />
 			</AppRuntimeProvider>
 		));
+		await screen.findByTestId('left-column');
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
 		const row = await screen.findByRole('option', { name: 'chapter.m4b' });

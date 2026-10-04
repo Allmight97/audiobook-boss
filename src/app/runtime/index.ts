@@ -11,7 +11,7 @@ import { createRemoteSourceOwner } from '../remoteSource';
 import { createWorkOperationsOwner } from '../workOperations';
 import type { AppRuntime, RuntimeCapabilities } from './types';
 
-export type { AppRuntime, RuntimeCapabilities } from './types';
+export type { AppRuntime, EngineStatus, RuntimeCapabilities } from './types';
 
 export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRuntime {
 	let disposeRoot = (): void => {};
@@ -37,6 +37,11 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			}
 			return {
 				link,
+				engine: {
+					attachment: link.attachment,
+					refusal: link.refusal,
+					dismissRefusal: link.dismissRefusal,
+				},
 				initialize,
 				input,
 				metadata,

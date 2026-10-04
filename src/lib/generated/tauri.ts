@@ -20,11 +20,6 @@ export const commands = {
 	settingsDispatch: (client: number, sequence: number, intent: SettingsIntent) => typedError<SettingsReply, AppErrorEnvelope>(__TAURI_INVOKE("settings_dispatch", { client, sequence, intent })),
 	/**  The cover image the session currently shows. */
 	sessionCoverArt: () => __TAURI_INVOKE<number[] | null>("session_cover_art"),
-	/**
-	 *  Reads metadata from an audio file
-	 *  Returns metadata as JSON-serializable struct
-	 */
-	readAudioMetadata: (filePath: string) => typedError<AudiobookMetadata, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_metadata", { filePath })),
 	/**  Loads cover art from a remote HTTPS URL and returns write-ready JPEG bytes. */
 	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
 	/**  Reads an audio file's embedded cover as a bounded JPEG thumbnail. */
@@ -239,25 +234,6 @@ export type AudioSnapshot = {
 };
 
 export type AudiobookFormat = "m4b" | "mp3" | "m4aOpus" | "mkaOpus";
-
-export type AudiobookMetadata = {
-	title: string | null,
-	artist: string | null,
-	album: string | null,
-	composer: string | null,
-	genre: string | null,
-	date: string | null,
-	track: [number, number | null] | null,
-	disk: [number, number | null] | null,
-	comment: string | null,
-	description: string | null,
-	series: string | null,
-	series_part: string | null,
-	subseries: string | null,
-	subseries_part: string | null,
-	album_sort: string | null,
-	cover_art: number[] | null,
-};
 
 /**  Bitrate/quality control mode per encoder */
 export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "abr" } | { mode: "vbr"; value: number } |

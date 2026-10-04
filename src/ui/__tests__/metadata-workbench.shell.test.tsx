@@ -40,12 +40,15 @@ function engineWithTaggedBooks(): FakeEngine {
 	return engine;
 }
 
-function renderApp(runtime: AppRuntime) {
-	return render(() => (
+/** Renders the app and waits for the engine's first snapshot. */
+async function renderApp(runtime: AppRuntime) {
+	const rendered = render(() => (
 		<AppRuntimeProvider runtime={runtime}>
 			<App />
 		</AppRuntimeProvider>
 	));
+	await screen.findByTestId('left-column');
+	return rendered;
 }
 
 /** The last `count` intents the engine received. */
@@ -65,7 +68,7 @@ describe('metadata workbench shell', () => {
 	it('composes cover and form zones and keeps cover clear keyboard-reachable', async () => {
 		const engine = engineWithTaggedBooks();
 		runtime = createAppRuntime({ input: fakeInput(), engine });
-		renderApp(runtime);
+		await renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
 			expect(screen.getByTestId('metadata-manager')).toBeTruthy();
@@ -95,7 +98,7 @@ describe('metadata workbench shell', () => {
 	it('sends a typed title and the save to the engine in that order', async () => {
 		const engine = engineWithTaggedBooks();
 		runtime = createAppRuntime({ input: fakeInput(), engine });
-		renderApp(runtime);
+		await renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
 			expect((document.getElementById('meta-title') as HTMLInputElement).value).toBe('Alpha');
@@ -133,7 +136,7 @@ describe('metadata workbench shell', () => {
 	it('saves from the global shortcut', async () => {
 		const engine = engineWithTaggedBooks();
 		runtime = createAppRuntime({ input: fakeInput(), engine });
-		renderApp(runtime);
+		await renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
 			expect((document.getElementById('meta-title') as HTMLInputElement).value).toBe('Alpha');

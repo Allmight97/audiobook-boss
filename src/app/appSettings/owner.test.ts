@@ -22,16 +22,8 @@ describe('settings owner', () => {
 		return runtime;
 	}
 
-	it('shows the engine concurrency and nothing before the engine has answered', async () => {
+	it('shows the engine concurrency', async () => {
 		const app = open();
-		expect(app.settings.concurrency()).toMatchObject({
-			selection: 'auto',
-			effective: null,
-			autoEffective: null,
-			fixedOptions: [],
-			effectiveLabel: '',
-		});
-
 		await app.initialize();
 
 		expect(app.settings.concurrency()).toMatchObject({

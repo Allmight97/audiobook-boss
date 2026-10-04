@@ -145,18 +145,9 @@ export function toUserMessage(
 	return normalized.message || fallback;
 }
 
-/**
- * True when a cause represents a cancellation. Prefers the typed
- * `category: 'cancellation'`, and keeps a message fallback because cancellations
- * can still arrive un-enveloped (a raw error normalizes to category `unknown`).
- * Proving cancellations are always typed is owned by the lifecycle-truth work
- * (#376); until then this is the single owner of that dual check.
- */
+/** True when a cause carries the engine's typed cancellation category. */
 export function isCancellation(cause: unknown): boolean {
-	const normalized = normalizeAppError(cause);
-	return (
-		normalized.category === 'cancellation' || normalized.message.toLowerCase().includes('cancelled')
-	);
+	return normalizeAppError(cause).category === 'cancellation';
 }
 
 /**

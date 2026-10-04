@@ -13,7 +13,6 @@ const EXPECTED_COMMAND_NAMES = [
 	'log_frontend',
 	'load_cover_art_from_url',
 	'read_audio_cover_thumbnail',
-	'read_audio_metadata',
 ] as const;
 
 const EXPECTED_APP_EVENT_NAMES = [
@@ -40,7 +39,6 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'openPath',
 	'revealPath',
 	'openUrl',
-	'readAudioMetadata',
 	'readAudioCoverThumbnail',
 ] as const;
 

@@ -16,7 +16,6 @@ import type {
 } from '../../types/appSettings';
 import type { AudioFile, ProcessCommandResult, TitleAudioRequest } from '../../types/audio';
 import { runtimeSettingsCapabilitiesFixture } from './runtimeSettingsCapabilities';
-import type { AudiobookMetadata } from '../../types/metadata';
 import type {
 	CoverNotice,
 	FieldSnapshot,
@@ -37,7 +36,22 @@ import type {
 	SubmissionStatus,
 } from '../../types/session';
 
-const FIELD_TAGS: ReadonlyArray<readonly [MetadataField, keyof AudiobookMetadata]> = [
+/** A file's tags as the fake engine keeps them, keyed by tag name. */
+type FileTags = {
+	readonly title?: string;
+	readonly date?: string;
+	readonly artist?: string;
+	readonly composer?: string;
+	readonly series?: string;
+	readonly series_part?: string;
+	readonly subseries?: string;
+	readonly subseries_part?: string;
+	readonly genre?: string;
+	readonly description?: string;
+	readonly cover_art?: number[];
+};
+
+const FIELD_TAGS: ReadonlyArray<readonly [MetadataField, keyof FileTags]> = [
 	['title', 'title'],
 	['date', 'date'],
 	['author', 'artist'],
@@ -96,7 +110,7 @@ export type FakeEngine = EngineCapability & {
 	readonly sessionIntents: SessionIntent[];
 	readonly settingsIntents: SettingsIntent[];
 	/** What reading each file's tags yields. */
-	readonly tags: Map<string, Partial<AudiobookMetadata>>;
+	readonly tags: Map<string, FileTags>;
 	/** What importing a set of paths yields. Defaults to one valid file per path. */
 	analyze: (paths: readonly string[]) => AudioFile[];
 	/** Answers an intent in place of the fake's default behavior. */
@@ -388,7 +402,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			.filter((file): file is AudioFile => Boolean(file));
 	}
 
-	function effectiveTags(file: AudioFile): Partial<AudiobookMetadata> {
+	function effectiveTags(file: AudioFile): FileTags {
 		return { ...engine.tags.get(file.path) };
 	}
 

@@ -38,8 +38,10 @@
 
 ## Private Cluster
 - Files: `client.ts`, `commands.ts`, `normalizers.ts`, `AGENTS.md`.
-- `normalizers.ts` keeps explicit nulls the engine sends (for example an audio
-  request's MP3 pass-through settings) and drops only absent optionals.
+- `normalizers.ts` turns `null` into an absent field for the snapshot families
+  it names (for example title files, remote account and acquisition, settings)
+  and passes every other field through unchanged, so meaningful nulls such as
+  an audio request's MP3 pass-through settings survive.
 - Generated bindings live at `src/lib/generated/tauri.ts`; do not hand-edit them.
 
 ## Edit Rules

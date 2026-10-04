@@ -1,4 +1,4 @@
-import { cleanup, render, waitFor } from '@solidjs/testing-library';
+import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupportedAudioImportMetadata } from '../../types/audio';
@@ -121,6 +121,7 @@ describe('metadata lookup dialog', () => {
 				<App />
 			</AppRuntimeProvider>
 		));
+		await screen.findByTestId('left-column');
 		await userEvent.click(
 			document.querySelector<HTMLButtonElement>('[aria-label="Add audio files"]') as HTMLElement,
 		);

@@ -64,12 +64,15 @@ function runtimeFor(
 	return createAppRuntime({ input: fakeInput(options.input), engine });
 }
 
-function renderApp(runtime: AppRuntime) {
-	return render(() => (
+/** Renders the app and waits for the engine's first snapshot. */
+async function renderApp(runtime: AppRuntime) {
+	const rendered = render(() => (
 		<AppRuntimeProvider runtime={runtime}>
 			<App />
 		</AppRuntimeProvider>
 	));
+	await screen.findByTestId('left-column');
+	return rendered;
 }
 
 describe('Solid input workbench', () => {
@@ -96,7 +99,7 @@ describe('Solid input workbench', () => {
 				}),
 			],
 		});
-		renderApp(runtime);
+		await renderApp(runtime);
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
 		const row = await screen.findByRole('option', { name: 'file1.mp3' });
@@ -112,7 +115,7 @@ describe('Solid input workbench', () => {
 			analyzedFile(`/books/${name}`),
 		);
 		runtime = runtimeFor({ files });
-		renderApp(runtime);
+		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
@@ -179,7 +182,7 @@ describe('Solid input workbench', () => {
 		const user = userEvent.setup();
 		const file = analyzedFile('/books/estimate.m4b');
 		runtime = runtimeFor({ files: [file] });
-		renderApp(runtime);
+		await renderApp(runtime);
 		await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
 		expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
 
@@ -220,7 +223,7 @@ describe('Solid input workbench', () => {
 			analyzedFile('/books/broken.m4b', { isValid: false, error: 'Broken audio source' }),
 		];
 		runtime = runtimeFor({ files });
-		renderApp(runtime);
+		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
@@ -236,7 +239,7 @@ describe('Solid input workbench', () => {
 	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {
 		const files = [analyzedFile('/books/part1.m4b'), analyzedFile('/books/part2.m4b')];
 		runtime = runtimeFor({ files });
-		renderApp(runtime);
+		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
@@ -257,7 +260,7 @@ describe('Solid input workbench', () => {
 			analyzedFile(`/books/${name}`, { sampleRate: 44100, channels: 1, codecLabel: 'MP3' }),
 		);
 		runtime = runtimeFor({ files });
-		renderApp(runtime);
+		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
@@ -305,7 +308,7 @@ describe('Solid input workbench', () => {
 		runtime = runtimeFor({
 			files: [analyzedFile('/books/alpha.m4b'), analyzedFile('/books/bravo.m4b')],
 		});
-		renderApp(runtime);
+		await renderApp(runtime);
 		void runtime.input.importIntent({
 			type: 'importPaths',
 			paths: ['/books/alpha.m4b', '/books/bravo.m4b'],
@@ -346,7 +349,7 @@ describe('Solid input workbench', () => {
 				toJSON: () => ({}),
 			}) as DOMRect;
 
-		renderApp(runtime);
+		await renderApp(runtime);
 		await waitFor(() => {
 			expect(listeners.drop).toBeTypeOf('function');
 		});
@@ -382,7 +385,7 @@ describe('Solid input workbench', () => {
 
 	it('blocks import while order is locked and surfaces the lock banner', async () => {
 		runtime = runtimeFor();
-		renderApp(runtime);
+		await renderApp(runtime);
 		engine.change((state) => {
 			state.titles.orderLocked = true;
 		});

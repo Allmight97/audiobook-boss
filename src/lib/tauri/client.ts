@@ -146,8 +146,6 @@ export const tauriClient = {
 		commandSpecs.settings_dispatch({ client, sequence, intent }),
 	sessionCoverArt: (): Promise<CommandResult<'session_cover_art'>> =>
 		commandSpecs.session_cover_art(),
-	readAudioMetadata: (filePath: string): Promise<CommandResult<'read_audio_metadata'>> =>
-		commandSpecs.read_audio_metadata({ filePath }),
 	loadCoverArtFromUrl: (url: string): Promise<CommandResult<'load_cover_art_from_url'>> =>
 		commandSpecs.load_cover_art_from_url({ url }),
 	readAudioCoverThumbnail: (

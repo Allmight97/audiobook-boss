@@ -18,8 +18,8 @@ export type SettingsDurability = {
 export type ConcurrencyView = {
 	readonly errorMessage: string;
 	readonly selection: string;
-	readonly effective: number | null;
-	readonly autoEffective: number | null;
+	readonly effective: number;
+	readonly autoEffective: number;
 	readonly effectiveLabel: string;
 	readonly controlsEnabled: boolean;
 	readonly allowAuto: boolean;
@@ -174,22 +174,16 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			rev();
 			const snapshot = link.settings();
 			const { preference, effective, capabilities } = snapshot.concurrency;
-			// Before the engine has answered there is nothing truthful to show.
-			const known = snapshot.revision >= 0;
 			const selection = selectionOf(preference);
 			return {
 				errorMessage: concurrencyError,
 				selection,
-				effective: known ? effective : null,
-				autoEffective: known ? capabilities.autoEffective : null,
-				effectiveLabel: !known
-					? ''
-					: selection === 'auto'
-						? `Auto → ${effective}`
-						: `Max ${effective}`,
+				effective,
+				autoEffective: capabilities.autoEffective,
+				effectiveLabel: selection === 'auto' ? `Auto → ${effective}` : `Max ${effective}`,
 				controlsEnabled,
 				allowAuto: capabilities.allowAuto,
-				fixedOptions: known ? capabilities.fixedOptions : [],
+				fixedOptions: capabilities.fixedOptions,
 			};
 		},
 		defaultAcquisitionLane: () => link.settings().defaultAcquisitionLane,

@@ -22,7 +22,6 @@ const native = vi.hoisted(() => ({
 	getSupportedAudioImportMetadata: vi.fn(),
 	readAudioCoverThumbnail: vi.fn(),
 	listen: vi.fn(),
-	readAudioMetadata: vi.fn(),
 	openFile: vi.fn(),
 	loadCoverArtFromUrl: vi.fn(),
 	listWorkOperations: vi.fn(),
@@ -111,11 +110,6 @@ describe('UI Workflow Smoke Test', () => {
 		});
 		native.readAudioCoverThumbnail.mockResolvedValue(null);
 		native.listen.mockResolvedValue(() => undefined);
-		native.readAudioMetadata.mockResolvedValue({
-			title: 'Dune (old tags)',
-			artist: 'Old Author',
-			cover_art: [1, 1, 1],
-		});
 		native.loadCoverArtFromUrl.mockResolvedValue(COVER_BYTES);
 		native.listWorkOperations.mockResolvedValue({ revision: 0, order: [], operations: [] });
 

@@ -22,7 +22,8 @@
   Escape dismisses it before dismissing Settings.
 - Reset requires the existing second activation. Reset controls remain
   disabled while a dialog save is pending.
-- Settings that cannot load show as the dialog's error, and the confirmed
-  full reset stays reachable.
+- The engine always starts with settings in effect (an unreadable file
+  starts from defaults), so the dialog has no load error; the confirmed full
+  reset stays reachable.
 - `AppSettingsDialogView.test.tsx` owns dialog interactions and visible automatic
   save failure/retry. `runtime-api-contract.test.ts` pins this UI export strip.

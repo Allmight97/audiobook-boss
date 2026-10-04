@@ -8,7 +8,6 @@ import { collisionView, type CollisionView } from './collision';
 import {
 	EMPTY_PREVIEW_TEXT,
 	EMPTY_PREVIEW_TITLE,
-	namingHintText,
 	PREVIEW_UNAVAILABLE_TEXT,
 	type OutputView,
 } from './types';
@@ -66,8 +65,6 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			absIncludeYear: output.includeYear,
 			previewText: text,
 			previewTitle: output.preview.kind === 'noDirectory' ? EMPTY_PREVIEW_TITLE : text,
-			absHintText: namingHintText(output.preset, output.includeYear),
-			absHintHidden: output.preset !== 'absDefault',
 			templateRowHidden: output.preset !== 'customTemplate',
 			displayDirectory: output.directory || EMPTY_PREVIEW_TEXT,
 		};
