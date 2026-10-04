@@ -117,7 +117,7 @@ describe('UI Workflow Smoke Test', () => {
 			cover_art: [1, 1, 1],
 		});
 		native.loadCoverArtFromUrl.mockResolvedValue(COVER_BYTES);
-		native.listWorkOperations.mockResolvedValue({ membershipRevision: 0, operations: [] });
+		native.listWorkOperations.mockResolvedValue({ revision: 0, order: [], operations: [] });
 
 		// The engine holds the session: the file's tags, the lookup, and its edits.
 		const engine = createFakeEngine(settings);

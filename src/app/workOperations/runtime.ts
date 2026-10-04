@@ -1,10 +1,6 @@
 import { tauriClient } from '../../lib/tauri/client';
 import { EVENTS } from '../../types/events';
-import type {
-	OperationId,
-	OperationSnapshot,
-	WorkOperationsUpdate,
-} from '../../types/workRuntime';
+import type { OperationId, OperationSnapshot, WorkOperationsUpdate } from '../../types/workRuntime';
 import {
 	applyOperationSnapshot as mergeOperationSnapshot,
 	applyWorkOperations,

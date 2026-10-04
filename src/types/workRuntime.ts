@@ -33,6 +33,9 @@ export type WorkOperationsSnapshot = Omit<
 > & {
 	operations: OperationSnapshot[];
 };
-export type WorkOperationsUpdate = Omit<NullToOptionalDeep<GeneratedWorkOperationsUpdate>, 'changed'> & {
+export type WorkOperationsUpdate = Omit<
+	NullToOptionalDeep<GeneratedWorkOperationsUpdate>,
+	'changed'
+> & {
 	changed: OperationSnapshot;
 };

@@ -1,6 +1,4 @@
-import type {
-	OpenedAudioFilesEvent as GeneratedOpenedAudioFilesEvent,
-} from '../lib/generated/tauri';
+import type { OpenedAudioFilesEvent as GeneratedOpenedAudioFilesEvent } from '../lib/generated/tauri';
 import type { NullToOptionalDeep } from './ipc';
 import type { SettingsSnapshot } from './appSettings';
 import type { SessionUpdate } from './session';

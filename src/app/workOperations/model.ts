@@ -51,7 +51,11 @@ export function applyOperationSnapshot(
 	model: WorkCenterModel,
 	snapshot: OperationSnapshot,
 ): WorkCenterModel {
-	return applyWorkOperations(model, { revision: model.revision, order: model.order, changed: snapshot });
+	return applyWorkOperations(model, {
+		revision: model.revision,
+		order: model.order,
+		changed: snapshot,
+	});
 }
 
 export function visibleOperations(model: WorkCenterModel): OperationSnapshot[] {

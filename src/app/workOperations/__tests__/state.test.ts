@@ -96,8 +96,7 @@ describe('Work Center state', () => {
 	it('disposes registered listeners when initial operation listing fails', async () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 		const updateUnlisten = vi.fn();
-		vi.spyOn(tauriClient, 'listen')
-.mockResolvedValueOnce(updateUnlisten);
+		vi.spyOn(tauriClient, 'listen').mockResolvedValueOnce(updateUnlisten);
 		vi.spyOn(tauriClient, 'listWorkOperations').mockRejectedValueOnce(new Error('list failed'));
 
 		await expect(session.initialize()).rejects.toThrow('list failed');
@@ -179,8 +178,7 @@ describe('Work Center state', () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 		const updateUnlisten = vi.fn();
 		const listDeferred = createDeferred<WorkOperationsSnapshot>();
-		vi.spyOn(tauriClient, 'listen')
-.mockResolvedValueOnce(updateUnlisten);
+		vi.spyOn(tauriClient, 'listen').mockResolvedValueOnce(updateUnlisten);
 		vi.spyOn(tauriClient, 'listWorkOperations').mockReturnValueOnce(
 			listDeferred.promise as ReturnType<typeof tauriClient.listWorkOperations>,
 		);
