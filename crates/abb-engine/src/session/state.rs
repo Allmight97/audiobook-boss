@@ -393,6 +393,12 @@ impl SessionState {
     /// revision. The runtime calls this once after every transition.
     pub(crate) fn settle(&mut self) {
         self.refresh_displayed_cover();
+        // A refusal answers the titles and lock it was made for.
+        if self.working_set.order_locked() != self.parts.titles.order_locked
+            || self.working_set.selected_indices() != self.parts.selection.selected_indices
+        {
+            self.audio_refusal = None;
+        }
         let next = self.parts.revision + 1;
         let mut changed = false;
 
@@ -1229,7 +1235,7 @@ impl SessionState {
     /// refusal. A title already at the value takes it.
     pub(crate) fn edit_title_audio(&mut self, title_ids: &[String], edit: AudioEdit) {
         let mut next = Vec::new();
-        let mut refusing = Vec::new();
+        let mut refusing: Vec<String> = Vec::new();
         for id in title_ids {
             let Some(request) = self.working_set.audio_request(id) else {
                 continue;
@@ -1244,8 +1250,19 @@ impl SessionState {
         } else if refusing.is_empty() {
             None
         } else {
+            let labels = refusing
+                .iter()
+                .filter_map(|id| {
+                    self.working_set
+                        .files()
+                        .iter()
+                        .find(|file| &file.input_id == id)
+                })
+                .map(super::submission::title_label)
+                .collect();
             Some(AudioRefusal::NotAccepted {
                 title_ids: refusing,
+                labels,
             })
         };
         self.apply_title_audio(refusal, next);
@@ -1706,7 +1723,6 @@ impl SessionState {
             .any(|write| write.phase == DeferredPhase::Waiting)
     }
 
-    /// Files with a Save accepted and not yet written.
     /// Whether `file`'s output will carry a title: the pending edit's, else
     /// the file's own tag. Without a read of the file's tags this session,
     /// analysis is what is known of them.
@@ -1735,6 +1751,7 @@ impl SessionState {
             .map(|submitting| &submitting.operation_id)
     }
 
+    /// Files with a Save accepted and not yet written.
     pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
         let mut paths: Vec<PathBuf> = self
             .deferred

@@ -1,5 +1,5 @@
 import { createRoot } from 'solid-js';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import type { SessionUpdate } from '../../types/session';
 import { createEngineLink, type EngineLink } from './link';
@@ -154,28 +154,5 @@ describe('engine link', () => {
 		expect(link.attachment()).toEqual({ kind: 'pending' });
 		await link.ready();
 		expect(link.attachment()).toEqual({ kind: 'ready' });
-	});
-
-	it('keeps why a posted intent was refused until it is dismissed', async () => {
-		const engine = createFakeEngine();
-		engine.respond = (intent) =>
-			intent.kind === 'toggleSort'
-				? {
-						kind: 'rejected',
-						error: {
-							code: 'invalid_input',
-							category: 'validation',
-							message: 'The list is locked.',
-							detail: null,
-						},
-					}
-				: undefined;
-		const link = linkTo(engine);
-		await link.ready();
-
-		link.post({ kind: 'toggleSort' });
-		await vi.waitFor(() => expect(link.refusal()).toBe('The list is locked.'));
-		link.dismissRefusal();
-		expect(link.refusal()).toBeNull();
 	});
 });

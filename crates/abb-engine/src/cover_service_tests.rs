@@ -75,13 +75,18 @@ async fn a_failed_fetch_is_tried_again_on_the_next_request() {
 }
 
 #[test]
-fn the_cache_keeps_the_most_recent_covers_only() {
+fn the_cache_keeps_the_most_recently_used_covers() {
+    let key = |index: usize| Key::RemoteFull(format!("https://covers.test/{index}.jpg"));
     let mut entries = Entries::default();
-    for index in 0..=CACHED_COVERS {
-        entries.slot(Key::RemoteFull(format!("https://covers.test/{index}.jpg")));
+    for index in 0..CACHED_COVERS {
+        entries.slot(key(index));
     }
+    entries.slot(key(0));
+    entries.slot(key(CACHED_COVERS));
     assert_eq!(entries.slots.len(), CACHED_COVERS);
-    assert!(!entries
-        .slots
-        .contains_key(&Key::RemoteFull("https://covers.test/0.jpg".into())));
+    assert!(entries.slots.contains_key(&key(0)), "used again, so kept");
+    assert!(
+        !entries.slots.contains_key(&key(1)),
+        "least recently used goes"
+    );
 }

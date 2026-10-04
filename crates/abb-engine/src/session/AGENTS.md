@@ -142,8 +142,8 @@ attachment.
   choice are edited with typed `AudioEdit`s checked against the encoder
   capabilities (`audio_choice.rs`); a refused edit changes nothing. A title
   edit applies to every named title or none: one title that refuses it, or a
-  locked list, changes nothing and sets `audio.refusal`; a title already at the
-  value takes it. `audio.selection` combines the selected titles: the first
+  locked list, changes nothing and sets `audio.refusal` until the selection
+  or the lock changes; a title already at the value takes it. `audio.selection` combines the selected titles: the first
   one's choice, only the options every one accepts, and the fields that differ.
   MP3 copies its source; editing how audio is encoded selects Encode. A defaults edit is
   recorded in the settings; a title edit is not, and is refused while the
@@ -179,9 +179,9 @@ attachment.
   (`submission.rs`). An invalid standalone title is left out; a grouped title
   with an invalid source, an unresolved audio choice, a CUE awaiting review,
   no output folder, a Save writing, or another submission in progress refuses
-  it with a `SubmitRefusal`. So does a valid title with no title tag and no
-  typed title (`MissingTitle`, naming it); the file name is never used as a
-  title. From acceptance until the export is registered
+  it with a `SubmitRefusal`. An export also refuses a valid title with no
+  title tag and no typed title (`MissingTitle`, naming it); the file name is
+  never used as a title. A preview needs no title. From acceptance until the export is registered
   with WorkRuntime (or the preview ends) its sources are held and the list is
   locked. Outputs that already exist hold it at `ReviewRequired` until
   identified `ChooseCollisionPolicy` or `CancelCollisionReview`. The choice applies only

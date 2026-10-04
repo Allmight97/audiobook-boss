@@ -769,6 +769,28 @@ fn with_nothing_selected_the_first_valid_title_cover_shows() {
 }
 
 #[test]
+fn a_saved_cover_gives_source_covers_a_new_address_and_a_tag_edit_does_not() {
+    let covers_revision = |desk: &mut Desk| {
+        desk.state.settle();
+        desk.state
+            .update_since(None)
+            .titles
+            .expect("titles")
+            .covers_revision
+    };
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    let before = covers_revision(&mut desk);
+
+    desk.type_into(MetadataField::Genre, "Mystery");
+    desk.save(&[]).expect("tag save");
+    assert_eq!(covers_revision(&mut desk), before);
+
+    desk.state.apply_cover(vec![1]);
+    desk.save(&[]).expect("cover save");
+    assert!(covers_revision(&mut desk) > before);
+}
+
+#[test]
 fn a_cover_changed_while_a_save_ran_is_still_unsaved_afterward() {
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     desk.state.apply_cover(vec![1]);
@@ -1733,6 +1755,10 @@ fn an_export_needs_a_title_from_its_tag_or_the_form() {
             reason: SubmitRefusal::MissingTitle { .. }
         })
     ));
+    assert!(
+        blanked.state.begin_submission(Some(30.0)).is_some(),
+        "a preview needs no title"
+    );
 }
 
 #[test]

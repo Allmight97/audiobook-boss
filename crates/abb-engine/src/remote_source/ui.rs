@@ -742,11 +742,11 @@ impl UiState {
         };
         self.snapshot.connection.draft_error = None;
         self.url_edited |= url.is_some();
-        let category_ids = category_ids.filter(|ids| {
-            let refused = ids.iter().all(|id| *id == 0);
-            self.snapshot.connection.empty_categories_refused = refused;
-            !refused
-        });
+        let refused = category_ids
+            .as_ref()
+            .is_some_and(|ids| ids.iter().all(|id| *id == 0));
+        self.snapshot.connection.empty_categories_refused = refused;
+        let category_ids = category_ids.filter(|_| !refused);
         self.categories_edited |= category_ids.is_some();
         self.edit_revision += 1;
         if let Some(url) = url {

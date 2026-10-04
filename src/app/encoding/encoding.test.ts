@@ -152,10 +152,14 @@ describe('encoding owner', () => {
 		const app = await open();
 		const [alpha, beta] = titles(app);
 		engine.change((state) => {
-			state.audio.refusal = { kind: 'notAccepted', titleIds: [beta!.inputId!] };
+			state.audio.refusal = {
+				kind: 'notAccepted',
+				titleIds: [beta!.inputId!],
+				labels: ['Beta Book'],
+			};
 		});
 		expect(app.encoding.refusal([alpha!, beta!])).toBe(
-			`${beta!.path.split('/').pop()} can't take that change, so no title changed.`,
+			"Beta Book can't take that change, so no title changed.",
 		);
 		expect(app.encoding.refusal([alpha!])).toBeNull();
 

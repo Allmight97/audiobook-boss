@@ -83,9 +83,13 @@ pub enum AudioField {
 pub enum AudioRefusal {
     /// A submission holds the list.
     Locked,
-    /// These titles cannot take the edit, so no title took it.
+    /// These titles cannot take the edit, so no title took it. `labels`
+    /// are what the title list shows for them, in the same order.
     #[serde(rename_all = "camelCase")]
-    NotAccepted { title_ids: Vec<String> },
+    NotAccepted {
+        title_ids: Vec<String>,
+        labels: Vec<String>,
+    },
 }
 
 /// The selected titles' audio as one choice. `titles` are in list order.

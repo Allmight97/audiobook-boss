@@ -1,7 +1,6 @@
 import type { Accessor } from 'solid-js';
 import type { AudioFile, TitleAudioRequest } from '../../types/audio';
 import type { AudioChoiceView, TitlePlan } from '../../types/session';
-import { pathBasename } from '../../lib/path/basename';
 import type { EngineLink } from '../engineLink';
 import { editFor, projectView, type EncodingField, type EncodingView } from './project';
 
@@ -102,12 +101,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			if (refusal.kind === 'locked') {
 				return "Audio can't change while an export is being prepared.";
 			}
-			const names = link
-				.titles()
-				.files.filter(
-					(file) => refusal.titleIds.includes(titleId(file)) && shown.has(titleId(file)),
-				)
-				.map((file) => pathBasename(file.path, { fallback: 'path' }));
+			const names = refusal.labels.filter((_, index) => shown.has(refusal.titleIds[index] ?? ''));
 			if (names.length === 0) return null;
 			return `${names.join(', ')} can't take that change, so no title changed.`;
 		},

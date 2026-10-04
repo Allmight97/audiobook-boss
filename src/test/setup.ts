@@ -216,8 +216,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 					formatsText: 'MP3, M4A/M4B, AAC, WAV, and FLAC',
 					supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
 				} satisfies SupportedAudioImportMetadata);
-			case 'read_audio_cover_thumbnail':
-				return Promise.resolve(null);
 			case 'list_work_operations':
 				return Promise.resolve(mockOperationList());
 			case 'cancel_work_operation': {

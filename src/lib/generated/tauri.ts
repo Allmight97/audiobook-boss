@@ -224,8 +224,11 @@ export type AudioPreservation = {
 export type AudioRefusal =
 /**  A submission holds the list. */
 { kind: "locked" } |
-/**  These titles cannot take the edit, so no title took it. */
-{ kind: "notAccepted"; titleIds: string[] };
+/**
+ *  These titles cannot take the edit, so no title took it. `labels`
+ *  are what the title list shows for them, in the same order.
+ */
+{ kind: "notAccepted"; titleIds: string[]; labels: string[] };
 
 /**  The audio part of the session. */
 export type AudioSnapshot = {

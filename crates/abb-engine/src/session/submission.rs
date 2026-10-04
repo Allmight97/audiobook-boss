@@ -186,7 +186,13 @@ pub(crate) fn build_draft(
     if valid.iter().any(|title| title.choice_required) {
         return Err(SubmitRefusal::AudioChoiceRequired);
     }
-    if let Some(untitled) = valid.iter().find(|title| !title.has_title) {
+    // A preview is a listening check, not the export; only an export needs one.
+    let untitled = inputs
+        .preview_seconds
+        .is_none()
+        .then(|| valid.iter().find(|title| !title.has_title))
+        .flatten();
+    if let Some(untitled) = untitled {
         return Err(SubmitRefusal::MissingTitle {
             title_id: untitled.anchor.input_id.clone(),
             label: label(untitled.anchor),

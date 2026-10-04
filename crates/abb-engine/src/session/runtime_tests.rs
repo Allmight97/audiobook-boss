@@ -1177,7 +1177,8 @@ async fn a_batch_audio_edit_applies_to_every_title_or_none() {
     assert_eq!(
         after.refusal,
         Some(AudioRefusal::NotAccepted {
-            title_ids: vec!["alpha".to_string()]
+            title_ids: vec!["alpha".to_string()],
+            labels: vec!["alpha.m4b".to_string()],
         })
     );
 
@@ -1200,6 +1201,8 @@ async fn a_batch_audio_edit_applies_to_every_title_or_none() {
     rig.send(SessionIntent::ApplyDefaultAudio { title_ids: both })
         .await;
     assert_eq!(audio(&rig).refusal, Some(AudioRefusal::Locked));
+    rig.lock_order(false);
+    assert_eq!(audio(&rig).refusal, None, "unlocking answers the refusal");
 }
 
 #[tokio::test]
