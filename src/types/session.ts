@@ -8,6 +8,7 @@
 
 import type {
 	AudioSnapshot as GeneratedAudioSnapshot,
+	CollisionReview as GeneratedCollisionReview,
 	LookupSnapshot as GeneratedLookupSnapshot,
 	OutputSnapshot as GeneratedOutputSnapshot,
 	SubmissionStatus as GeneratedSubmissionStatus,
@@ -87,13 +88,16 @@ export type SessionSelection = GeneratedSelectionSnapshot;
 export type SessionMetadata = GeneratedMetadataSnapshot;
 /** The audio part keeps the generated shape: an MP3 request's null settings are meaningful. */
 export type SessionAudio = GeneratedAudioSnapshot;
-/** Planned outputs and a finished preview's result take the frontend's optional-field forms. */
+/** A finished preview's result takes the frontend's optional-field form. */
 export type SubmissionStatus =
-	| Exclude<GeneratedSubmissionStatus, { kind: 'previewFinished' | 'reviewRequired' }>
-	| { kind: 'reviewRequired'; outputs: PlannedOutput[]; preview: boolean }
+	| Exclude<GeneratedSubmissionStatus, { kind: 'previewFinished' }>
 	| { kind: 'previewFinished'; result: ProcessCommandResult };
-export type SessionOutput = Omit<GeneratedOutputSnapshot, 'submission'> & {
+export type CollisionReview = Omit<GeneratedCollisionReview, 'outputs'> & {
+	outputs: PlannedOutput[];
+};
+export type SessionOutput = Omit<GeneratedOutputSnapshot, 'submission' | 'collisionReview'> & {
 	submission: SubmissionStatus | null;
+	collisionReview: CollisionReview | null;
 };
 export type SessionLookup = Omit<GeneratedLookupSnapshot, 'results'> & {
 	results: OnlineMetadataResult[];

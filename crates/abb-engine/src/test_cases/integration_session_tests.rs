@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use abb_engine::audio::{AudioIntent, AudiobookFormat, EncoderType};
 use abb_engine::session::{
-    AudioEdit, MetadataField, MetadataSnapshot, MetadataStatus, OutputEdits, SessionIntent,
-    SessionOutcome, SubmissionStatus, SubmitRefusal,
+    AudioEdit, CollisionReview, MetadataField, MetadataSnapshot, MetadataStatus, OutputEdits,
+    SessionIntent, SessionOutcome, SubmissionStatus, SubmitRefusal,
 };
 use abb_engine::work_runtime::WorkOperationStatus;
 use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig};
@@ -586,6 +586,15 @@ fn submission(desk: &Desk) -> Option<abb_engine::session::SubmissionStatus> {
         .submission
 }
 
+fn collision_review(desk: &Desk) -> abb_engine::session::CollisionReview {
+    desk.engine
+        .session_snapshot()
+        .output
+        .expect("output part")
+        .collision_review
+        .expect("held collision review")
+}
+
 #[tokio::test]
 async fn submit_exports_the_session_reviews_a_collision_and_previews() {
     use abb_engine::output_artifact::CollisionPolicy;
@@ -623,14 +632,13 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
     // The same export again collides with the first output.
     desk.send(SessionIntent::Submit).await;
     assert!(
-        matches!(
-            submission(&desk),
-            Some(SubmissionStatus::ReviewRequired { .. })
-        ),
+        matches!(submission(&desk), Some(SubmissionStatus::ReviewRequired)),
         "{:?}",
         submission(&desk)
     );
+    let review_id = collision_review(&desk).review_id;
     desk.send(SessionIntent::ChooseCollisionPolicy {
+        review_id,
         policy: CollisionPolicy::RenameNew,
     })
     .await;
@@ -694,10 +702,7 @@ async fn shutdown_answers_a_pending_collision_review_so_a_waiting_save_lands() {
     // The same export again waits for a collision choice, holding its source.
     desk.send(SessionIntent::Submit).await;
     assert!(
-        matches!(
-            submission(&desk),
-            Some(SubmissionStatus::ReviewRequired { .. })
-        ),
+        matches!(submission(&desk), Some(SubmissionStatus::ReviewRequired)),
         "{:?}",
         submission(&desk)
     );
@@ -745,26 +750,62 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
     let outputs = |desk: &Desk| -> Vec<PathBuf> { walk(&desk.root.path().join("exports")) };
     let exported = outputs(&desk);
     assert_eq!(exported.len(), 2, "{exported:?}");
+    let existing_bytes: Vec<_> = exported
+        .iter()
+        .map(|path| fs::read(path).expect("read existing audiobook"))
+        .collect();
 
     // Only one output exists when the user reviews.
     let moved = desk.root.path().join("set-aside.m4b");
     fs::rename(&exported[1], &moved).expect("set one output aside");
     desk.send(SessionIntent::Submit).await;
-    let Some(SubmissionStatus::ReviewRequired { outputs: seen, .. }) = submission(&desk) else {
-        panic!("review: {:?}", submission(&desk));
-    };
+    assert_eq!(submission(&desk), Some(SubmissionStatus::ReviewRequired));
+    let CollisionReview {
+        review_id,
+        outputs: seen,
+        ..
+    } = collision_review(&desk);
     assert_eq!(seen.len(), 1);
 
     // The other appears before the user chooses.
     fs::rename(&moved, &exported[1]).expect("put it back");
     desk.send(SessionIntent::ChooseCollisionPolicy {
+        review_id,
         policy: CollisionPolicy::ReplaceExisting,
     })
     .await;
-    let Some(SubmissionStatus::ReviewRequired { outputs: now, .. }) = submission(&desk) else {
-        panic!("back to review: {:?}", submission(&desk));
-    };
+    assert_eq!(submission(&desk), Some(SubmissionStatus::ReviewRequired));
+    let CollisionReview {
+        review_id: next_review,
+        outputs: now,
+        ..
+    } = collision_review(&desk);
     assert_eq!(now.len(), 2);
+    assert_ne!(next_review, review_id);
+    for intent in [
+        SessionIntent::ChooseCollisionPolicy {
+            review_id,
+            policy: CollisionPolicy::ReplaceExisting,
+        },
+        SessionIntent::CancelCollisionReview { review_id },
+    ] {
+        assert_eq!(desk.send(intent).await, SessionOutcome::Superseded);
+        assert_eq!(collision_review(&desk).review_id, next_review);
+        assert!(
+            desk.engine
+                .session_snapshot()
+                .output
+                .expect("output")
+                .submission_in_progress
+        );
+    }
+    assert_eq!(outputs(&desk), exported);
+    for (path, original) in exported.iter().zip(existing_bytes) {
+        assert!(
+            fs::read(path).expect("read preserved audiobook") == original,
+            "held collision review changed {path:?}"
+        );
+    }
 }
 
 /// Every file under `dir`, sorted.

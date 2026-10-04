@@ -39,7 +39,7 @@ describe('app runtime', () => {
 		dispose = undefined;
 	});
 
-	it('does not share product-owner state across live runtimes', () => {
+	it('does not share view-local state across live runtimes', () => {
 		const first = createAppRuntime();
 		const second = createAppRuntime();
 		dispose = () => {
@@ -47,15 +47,12 @@ describe('app runtime', () => {
 			second.dispose();
 		};
 
-		void first.output.openCollisionReview([]);
 		void first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
 		first.processing.pushTransientStatus('first runtime only');
 		void first.remoteSource.open();
 		first.remoteSource.editSearch({ titleFilter: 'first runtime only' });
 
-		expect(first.output.collision().isOpen).toBe(true);
-		expect(second.output.collision().isOpen).toBe(false);
 		expect(first.settings.dialog().isOpen).toBe(true);
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(first.lookup.view().titleQuery).toBe('stale lookup');
@@ -68,7 +65,6 @@ describe('app runtime', () => {
 
 		first.dispose();
 		first.processing.pushTransientStatus('after dispose');
-		expect(second.output.collision().isOpen).toBe(false);
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(second.lookup.view().titleQuery).toBe('');
 		expect(second.processing.status().statusText).toBe('Idle');
@@ -79,7 +75,6 @@ describe('app runtime', () => {
 			second.dispose();
 			third.dispose();
 		};
-		expect(third.output.collision().isOpen).toBe(false);
 		expect(third.settings.dialog().isOpen).toBe(false);
 		expect(third.lookup.view().titleQuery).toBe('');
 		expect(third.encoding.view().flavor).toBe('native_aac');

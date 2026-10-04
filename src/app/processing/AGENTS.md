@@ -4,8 +4,8 @@
 
 - The engine builds, reviews, and runs exports and previews
   (`crates/abb-engine/src/session/AGENTS.md`). This owner starts them with the
-  session's `submit` and `preview` intents, asks the Output collision dialog
-  when the engine reports existing outputs, words the outcome, and runs the
+  session's `submit` and `preview` intents, renders the engine's decision facts,
+  words outcomes arriving in snapshots, and runs the
   Status Panel for previews.
 - Solid views live in `src/ui/statusPanel` and `src/ui/previewAudio`. They
   render this owner; they do not keep a second status or preview store.
@@ -21,15 +21,15 @@
 ## Hard Invariants
 
 - Which titles go, their sources, audio, chapters, naming, and pending edits
-  are the engine's. `submit.ts` sends intents and reads
-  `output.submission`; it never builds a payload or decides a refusal.
-- A `reviewRequired` status loops through the Output dialog, including a held
-  review received when a replacement frontend attaches: the chosen policy
-  goes back as `chooseCollisionPolicy`, a cancel as `cancelCollisionReview`.
-- Each `output.restartOffers` entry is asked once in a native dialog, one at
-  a time: Restart runs `restartTitle` through the same submission flow, Keep
-  Location posts `keepTitleLocation`. Work Center also offers these actions
-  on the matching operation/title row so a refused restart can be retried.
+  are the engine's. `owner.ts` sends intents; `submit.ts` words
+  `output.submission`. Neither builds a payload or decides a refusal.
+- Collision presentation reads the Output owner's held question. There is no
+  frontend review loop or submission gate; busy facts and continuation are engine-owned.
+- `restartPrompt` renders the engine's one eligible question, while `restartOffers`
+  exposes retained offers for Work Center retry. Restart sends `restartTitle`,
+  Keep Location sends `keepTitleLocation`, both with the shown title/revision.
+  The engine owns which question comes next and whether an answered offer is
+  automatically asked again; teardown sends neither answer.
 - Preview identity, progress, queue rows, cancellation, and terminal truth come
   from `output.previewRun`. Render its operation snapshot; do not aggregate
   progress or listen for separate processing events.
@@ -46,8 +46,10 @@
 
 ## Testing
 
-- `submit.test.ts` covers the review loop, refusal wording, cancellation, and
-  terminal wording against a stub link. `preview.test.tsx` covers snapshot
+- `submit.test.ts` covers snapshot outcome presentation, busy facts and intent
+  routing. Decision ordering/staleness is proved in engine session tests;
+  `src/ui/collisionDialog/CollisionDialogView.test.tsx` covers answer wiring and
+  teardown/reattachment without an implicit answer. `preview.test.tsx` covers snapshot
   reattachment, accepted artwork, run cancellation, and the output claim.
 - `remote-source-boundary.test.ts` pins the visual Remote UI strip and proves
   production Processing does not import UI or private Remote implementation

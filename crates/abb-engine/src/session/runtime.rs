@@ -132,10 +132,15 @@ pub enum SessionIntent {
         seconds: f64,
     },
     /// Continues a submission held for review with the user's choice.
+    #[serde(rename_all = "camelCase")]
     ChooseCollisionPolicy {
+        review_id: u64,
         policy: CollisionPolicy,
     },
-    CancelCollisionReview,
+    #[serde(rename_all = "camelCase")]
+    CancelCollisionReview {
+        review_id: u64,
+    },
     /// Restarts an exported title at the location a Save offered
     /// (`OutputSnapshot::restart_offers`): cancels it, removes its empty
     /// folders, and submits it again through collision review.
@@ -546,7 +551,11 @@ impl Session {
                 title_id,
                 revision,
                 link,
-            } => session.keep_location(title_id, revision, *link).await,
+            } => {
+                let outcome = session.keep_location(title_id, revision, *link).await;
+                session.transition(SessionState::finish_keep_location);
+                outcome
+            }
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
             Rest::LookupSearch { request } => session.lookup_search(request, None).await,
             Rest::LookupApply { request, chosen } => session.lookup_apply(request, *chosen).await,
@@ -986,21 +995,29 @@ impl Session {
                     None => Rest::Done(SessionOutcome::Superseded),
                 }
             }
-            I::ChooseCollisionPolicy { policy } => match self.transition(SessionState::take_review)
-            {
-                Some(draft) => Rest::Reviewed {
-                    draft: Box::new(draft),
-                    policy,
-                },
-                None => Rest::Done(SessionOutcome::Applied),
-            },
-            I::CancelCollisionReview => {
-                self.cancel_review();
-                Rest::Done(SessionOutcome::Applied)
+            I::ChooseCollisionPolicy { review_id, policy } => {
+                match self.transition(|state| state.take_review(review_id)) {
+                    Some(draft) => Rest::Reviewed {
+                        draft: Box::new(draft),
+                        policy,
+                    },
+                    None => Rest::Done(SessionOutcome::Superseded),
+                }
+            }
+            I::CancelCollisionReview { review_id } => {
+                let cancelled = self.transition(|state| state.cancel_review_named(review_id));
+                if cancelled {
+                    self.sources_released();
+                }
+                Rest::Done(if cancelled {
+                    SessionOutcome::Applied
+                } else {
+                    SessionOutcome::Superseded
+                })
             }
             I::RestartTitle { title_id, revision } => self.begin_restart(&title_id, revision),
             I::KeepTitleLocation { title_id, revision } => {
-                match self.lock().location_offer(&title_id, revision) {
+                match self.transition(|state| state.begin_keep_location(&title_id, revision)) {
                     Some(link) => Rest::KeepLocation {
                         title_id,
                         revision,

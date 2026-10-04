@@ -97,6 +97,20 @@ attachment.
   remote-source staging root) is never written and its edit stays pending for
   its exports; any other file is written at once and never moved. Two writes
   to one file never overlap.
+- **Decision presentation.** `output.collision_review` is the held question, independent
+  of a later request's refusal; `SubmissionStatus::ReviewRequired` carries no
+  copy of it. Its `review_id` advances for each review and
+  survives Reset; choice and cancel intents must name it, and stale/duplicate
+  answers are `Superseded`. Frontend teardown is not a user cancellation.
+  `output.submission_in_progress` owns the preparation/review/restart/preview
+  busy fact. `output.restart_prompt` selects one unanswered current offer in
+  title-id order only after the preceding answer's work settles; answering
+  suppresses that offer's automatic question for the engine session, even if
+  Restart or Keep fails. Unanswered questions reattach; retained offers remain
+  retryable in Work Center. Changing naming makes the old question ineligible.
+  Hosts render questions; they do not own an asked set, a review loop, or a
+  restart queue. The snapshots keep presentation lifetime separate from accepted
+  source holds, so a replaced frontend cannot release file work.
 - **Exported titles.** A title links to its latest export's output
   (`exports.rs`) while it stays listed. Every Save sends each linked output
   the edit it should carry: what was written to the title's source since the
@@ -158,7 +172,7 @@ attachment.
   it with a `SubmitRefusal`. From acceptance until the export is registered
   with WorkRuntime (or the preview ends) its sources are held and the list is
   locked. Outputs that already exist hold it at `ReviewRequired` until
-  `ChooseCollisionPolicy` or `CancelCollisionReview`. The choice applies only
+  identified `ChooseCollisionPolicy` or `CancelCollisionReview`. The choice applies only
   to the collisions the user saw: one that appears meanwhile sends the
   submission back to review, and execution still rejects a plan whose
   signature changed after approval. After `Engine::shutdown` a submission is

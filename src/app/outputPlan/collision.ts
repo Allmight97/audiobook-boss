@@ -1,83 +1,24 @@
-import { createSignal, type Accessor } from 'solid-js';
-import type { CollisionPolicy, PlannedOutput } from '../../types/audio';
+import type { CollisionReview } from '../../types/session';
+import type { PlannedOutput } from '../../types/audio';
 
 export type CollisionView = {
-	readonly isOpen: boolean;
+	readonly reviewId: number | null;
 	readonly outputs: ReadonlyArray<PlannedOutput>;
 	readonly title: string;
 	readonly body: string;
 };
 
-function emptyCollisionView(): CollisionView {
-	return {
-		isOpen: false,
-		outputs: [],
-		title: 'Resolve Existing File Conflicts',
-		body: '',
-	};
-}
-
-function collisionBody(outputs: ReadonlyArray<PlannedOutput>): string {
+export function collisionView(review: CollisionReview | null): CollisionView {
+	const outputs = review?.outputs ?? [];
 	const count = outputs.length;
-	if (count === 1) {
-		return '1 file with the same name already exists in the target output folder. How do you want to resolve the conflict?';
-	}
-	return `${count} files with the same name already exist in the target output folders. How do you want to resolve the conflicts?`;
-}
-
-export type CollisionReview = {
-	readonly view: Accessor<CollisionView>;
-	/** Shows the outputs that already exist; resolves with the user's choice, `null` on cancel. */
-	open(outputs: readonly PlannedOutput[]): Promise<CollisionPolicy | null>;
-	choose(policy: CollisionPolicy): void;
-	cancel(): void;
-	reset(): void;
-};
-
-export function createCollisionReview(): CollisionReview {
-	let collision = emptyCollisionView();
-	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	let pendingResolve: ((policy: CollisionPolicy | null) => void) | null = null;
-
-	function publish(next: CollisionView): void {
-		collision = next;
-		bump((n) => n + 1);
-	}
-
-	function settle(policy: CollisionPolicy | null): void {
-		const resolve = pendingResolve;
-		pendingResolve = null;
-		publish(emptyCollisionView());
-		resolve?.(policy);
-	}
-
 	return {
-		view: () => {
-			rev();
-			return collision;
-		},
-		open(outputs) {
-			if (pendingResolve) {
-				pendingResolve(null);
-			}
-			publish({
-				isOpen: true,
-				outputs,
-				title: 'Resolve Existing File Conflicts',
-				body: collisionBody(outputs),
-			});
-			return new Promise<CollisionPolicy | null>((resolve) => {
-				pendingResolve = resolve;
-			});
-		},
-		choose(policy) {
-			settle(policy);
-		},
-		cancel() {
-			settle(null);
-		},
-		reset() {
-			settle(null);
-		},
+		reviewId: review?.reviewId ?? null,
+		outputs,
+		title: 'Resolve Existing File Conflicts',
+		body: !review
+			? ''
+			: count === 1
+				? '1 file with the same name already exists in the target output folder. How do you want to resolve the conflict?'
+				: `${count} files with the same name already exist in the target output folders. How do you want to resolve the conflicts?`,
 	};
 }

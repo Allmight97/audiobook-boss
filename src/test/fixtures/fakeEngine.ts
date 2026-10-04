@@ -198,7 +198,10 @@ export function fakeOutput(): SessionOutput {
 		naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
 		preview: { kind: 'noDirectory' },
 		submission: null,
+		submissionInProgress: false,
+		collisionReview: null,
 		restartOffers: [],
+		restartPrompt: null,
 		previewRun: null,
 	};
 }

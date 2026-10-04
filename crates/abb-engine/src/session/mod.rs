@@ -39,7 +39,7 @@ pub use runtime::{SessionIntent, SessionOutcome, SessionReply, SessionRun};
 pub use state::{
     CoverNotice, CoverSnapshot, MetadataSnapshot, MetadataStatus, SessionUpdate, TagPreview,
 };
-pub use submission::{SubmissionStatus, SubmitRefusal};
+pub use submission::{CollisionReview, SubmissionStatus, SubmitRefusal};
 pub use working_set::{
     CueChoice, InputNotice, MoveDirection, SelectionModifiers, SelectionSnapshot, SortDirection,
     TitlesSnapshot,

@@ -5,6 +5,8 @@
   `src/lib/tauri-public-api.contract.test.ts` independently pins it. Inspect
   those sources for the exact exports and methods before changing the strip.
 - Runtime UI modules call `tauriClient`; generated command/event invokers stay private to `src/lib/tauri`.
+- Frontend native-dialog methods select files/folders only. Session questions render
+  identified snapshots; a native question cannot be dismissed on frontend replacement.
 - Encoder settings validation travels through a session audio edit or a
   settings intent; there is no standalone encoder-validation command.
 - `capabilities/*` are the narrow interfaces owners take as dependencies

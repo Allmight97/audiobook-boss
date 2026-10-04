@@ -161,6 +161,12 @@ export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionU
 			? {
 					...output,
 					submission: normalizeSubmission(output.submission),
+					collisionReview: output.collisionReview
+						? {
+								...output.collisionReview,
+								outputs: normalizeNullish(output.collisionReview.outputs) as PlannedOutput[],
+							}
+						: null,
 				}
 			: undefined,
 	};
@@ -172,8 +178,6 @@ function normalizeSubmission(
 	switch (submission?.kind) {
 		case 'previewFinished':
 			return { kind: 'previewFinished', result: normalizeProcessResult(submission.result) };
-		case 'reviewRequired':
-			return { ...submission, outputs: normalizeNullish(submission.outputs) as PlannedOutput[] };
 		default:
 			return submission ?? null;
 	}
