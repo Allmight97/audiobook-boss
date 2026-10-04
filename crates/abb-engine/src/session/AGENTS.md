@@ -10,8 +10,8 @@ attachment.
 ## Public API Strip
 
 - Hosts reach the session through `Engine::session_dispatch`,
-  `Engine::session_begin`, `Engine::session_snapshot`, and
-  `Engine::cover`, and receive `EngineEvent::Session`.
+  `Engine::session_begin`, `Engine::session_snapshot`, `Engine::cover`, and
+  `Engine::open_audio_files`, and receive `EngineEvent::Session`.
 - Types are the `pub use` list in `mod.rs`: the intent, outcome, reply, and
   update types, each snapshot part, and the typed statuses and notices.
 - `Session`, `SessionDeps`, and the state modules are engine-internal.
@@ -41,9 +41,8 @@ attachment.
   title's URL, a listed source's embedded cover (the titles part's
   `covers_revision` advances when a Save writes one), the cover on screen at
   the metadata part's `image_revision`, and the running preview's artwork.
-  Anything else is refused. Every remote and embedded cover, Lookup Apply and
-  a typed cover URL included, loads through one `CoverService`
-  (`crate::cover_service`): each once, sized for display, in a bounded cache.
+  Anything else is refused. Loading is `crate::cover_service`'s
+  (`crates/abb-engine/AGENTS.md`).
 - Reasons and statuses are typed (`InputNotice`, `MetadataStatus`,
   `LookupStatus`, `CoverNotice`, `SubmissionStatus`). The host words them.
 
@@ -88,8 +87,8 @@ attachment.
   explicit choice. Drafts for hidden sources survive grouping, and a grouped
   title's draft is kept for its output and never written into a source.
 - **Import.** One import runs at a time, in the order the imports were
-  accepted (`import_order.rs`), whatever order their tasks start. A Reset drops an import still
-  running, including its failure notice. Files the OS opened
+  accepted (`import_order.rs`), whatever order their tasks start. A Reset
+  drops an import still running, including its failure notice. Files the OS opened
   (`Engine::open_audio_files`) are imported by the engine with no host asking;
   while the list is locked that import waits and appends after unlock instead
   of being refused. Analysis that overlaps a submission waits before appending
@@ -146,8 +145,7 @@ attachment.
   locked list, changes nothing and sets `audio.refusal`; a title already at the
   value takes it. `audio.selection` combines the selected titles: the first
   one's choice, only the options every one accepts, and the fields that differ.
-  MP3 copies
-  its source; editing how audio is encoded selects Encode. A defaults edit is
+  MP3 copies its source; editing how audio is encoded selects Encode. A defaults edit is
   recorded in the settings; a title edit is not, and is refused while the
   list is locked. A settings reset returns the defaults and output choices to
   the reset settings; loaded titles keep their choices.

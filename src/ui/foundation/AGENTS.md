@@ -8,7 +8,8 @@ only styling language.
 ## Public API Strip
 
 - Import from `src/ui/foundation`.
-- Exports: `Button`, `CoverImage`, `CoverThumb`, `Dialog`, `Progress`, `SplitButton`, and their prop types.
+- Exports: `Button`, `CoverImage`, `CoverThumb`, `Dialog`, `Progress`,
+  `SplitButton`, and their prop types.
 - `CoverImage` is the one way a cover is shown: its container is the
   placeholder while it loads, it fades in, it loads lazily unless `eager`, and
   a failed load shows a state, never a broken image.

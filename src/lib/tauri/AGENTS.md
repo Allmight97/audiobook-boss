@@ -34,7 +34,8 @@
   unlisteners through a group, not bespoke arrays/flags.
 - `coverSrc.ts` builds the `abb-cover` address of every cover a view shows; the
   host serves the scheme through `Engine::cover`. Covers never cross IPC as
-  bytes.
+  bytes. Its path format mirrors `crates/abb-engine/src/session/cover_request.rs`
+  by hand; change both, with their tests, together.
 - These utilities are NOT pinned by `src/lib/tauri-public-api.contract.test.ts`
   (which guards the `tauriClient` IPC strip); each carries its own focused module
   test (`appError.test.ts`, `subscriptionGroup.test.ts`, `coverSrc.test.ts`).

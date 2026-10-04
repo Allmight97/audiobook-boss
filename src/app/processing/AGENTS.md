@@ -35,8 +35,8 @@
   progress or listen for separate processing events.
 - Cancel posts `cancelPreview` with the current run identity and optional child
   identity. The engine stops the corresponding work; disposal does not cancel it.
-- Artwork is read by run identity after `artworkReady`. Ignore a cover reply for
-  another run or a disposed view. A finished preview opens only the path the
+- After `artworkReady`, the preview's artwork shows from its run's `coverSrc`
+  address. A finished preview opens only the path the
   engine grants through `takePreviewOutput`; an accepted claim still opens if
   the requesting frontend is disposed before its reply arrives.
 - Preview duration lives in `PreviewAudioControls` screen-local Solid state.

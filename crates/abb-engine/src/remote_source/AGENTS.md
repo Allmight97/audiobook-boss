@@ -123,8 +123,8 @@ diagnostic.
   Failed. Successful deletion updates account truth before staging cleanup, so
   cleanup failure cannot leave a Connected account. Cleanup covers only the
   disconnected provider's jobs. Failed unmaterialized jobs remain in the
-  lifecycle registry; startup abandoned-session cleanup retries their paths,
-  and a start that cannot remove them logs it and starts anyway. Materialized handoff files remain session-owned.
+  lifecycle registry; startup abandoned-session cleanup retries their paths.
+  Materialized handoff files remain session-owned.
 - Available PDFs start included; refresh preserves explicit exclusion while
   pruning titles that cannot be acquired. A Grab batch captures its releases,
   sends sequentially, and keeps per-release failures for explicit retry. Its

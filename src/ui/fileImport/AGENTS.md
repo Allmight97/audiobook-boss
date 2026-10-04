@@ -4,8 +4,9 @@
 
 - Applies to the Solid file-import view under `src/ui/fileImport/`: picker
   buttons, native drop wiring, and Remote Source dialog mount. Files the OS
-  opens are imported by the engine without this view. The engine analyzes imports and changes the list; this view reaches
-  it through `src/app/inputSession`.
+  opens are imported by the engine without this view. The engine analyzes
+  imports and changes the list; this view reaches it through
+  `src/app/inputSession`.
 
 ## Preferred Path
 
@@ -20,9 +21,7 @@
 
 - Import goes through Input's import intents so the engine validates paths
   and analyzes files.
-- Import must not add files while processing order is locked. The engine
-  retains and retries accepted OS-open requests after unlock; this view sends
-  the request without a second retry flag.
+- Import must not add files while processing order is locked.
 - The engine imports acquired files; this view does not.
 
 ## Done Criteria

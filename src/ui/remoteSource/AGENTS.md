@@ -13,8 +13,8 @@ and event wiring. The Source control switches Audible library and Indexer
 search/Grab in one dialog. User edits and selections dispatch owner intents;
 the view does not hydrate account state or construct selection-state patches.
 
-Cover-preview scheduling follows the visible titles and is cancelled when the
-view no longer needs it. Resources and caches remain private to the owner.
+Title covers render through `CoverImage` at their `coverSrc` address; the view
+keeps no cover resources.
 Indexer results are a list with separate selection buttons, per-row Grab, and
 source-page links. Row Grab sits immediately left of View details and acts on
 that row independently of selection. Command/Ctrl-click toggles individual

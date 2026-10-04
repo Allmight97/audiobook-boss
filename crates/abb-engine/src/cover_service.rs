@@ -1,5 +1,5 @@
-//! One loader per cover. Every view that shows a cover, and Lookup Apply,
-//! read it here: each cover is fetched or read once, sized for display, and
+//! One loader per cover. Every view that shows a cover, Lookup Apply, and a
+//! typed cover URL read it here: each cover is fetched or read once, sized for display, and
 //! kept in a bounded cache. Concurrent requests for one cover share its load.
 
 use std::collections::{HashMap, VecDeque};

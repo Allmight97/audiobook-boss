@@ -38,7 +38,8 @@ the engine: `crates/abb-engine/AGENTS.md`.
   When the host needs something the engine does not offer, add it to the
   engine's host interface.
 - Host tests cover what the host owns: intent ordering, window sizing, the
-  quit prompt and shutdown wait, the frontend log command, and the generated
+  quit prompt and shutdown wait, the `abb-cover` response mapping, the
+  frontend log command, and the generated
   binding file's format. Command and
   event shapes are proved by the binding checks and the frontend contract
   tests. A test of product behavior belongs with the engine owner that
