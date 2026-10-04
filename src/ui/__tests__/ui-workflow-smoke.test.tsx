@@ -20,10 +20,8 @@ const native = vi.hoisted(() => ({
 	openFiles: vi.fn(),
 	openDirectory: vi.fn(),
 	getSupportedAudioImportMetadata: vi.fn(),
-	readAudioCoverThumbnail: vi.fn(),
 	listen: vi.fn(),
 	openFile: vi.fn(),
-	loadCoverArtFromUrl: vi.fn(),
 	listWorkOperations: vi.fn(),
 	cancelWorkOperation: vi.fn(),
 	openPath: vi.fn(),
@@ -108,9 +106,7 @@ describe('UI Workflow Smoke Test', () => {
 			formatsText: 'M4B',
 			supportText: 'Supports M4B audio files',
 		});
-		native.readAudioCoverThumbnail.mockResolvedValue(null);
 		native.listen.mockResolvedValue(() => undefined);
-		native.loadCoverArtFromUrl.mockResolvedValue(COVER_BYTES);
 		native.listWorkOperations.mockResolvedValue({ revision: 0, order: [], operations: [] });
 
 		// The engine holds the session: the file's tags, the lookup, and its edits.

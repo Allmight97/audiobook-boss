@@ -37,16 +37,11 @@ fn default_category_ids() -> Vec<u32> {
     DEFAULT_CATEGORY_IDS.to_vec()
 }
 
-fn normalize_category_ids(ids: Vec<u32>) -> Vec<u32> {
-    let mut normalized: Vec<u32> = ids.into_iter().filter(|id| *id > 0).collect();
-    normalized.sort_unstable();
-    normalized.dedup();
-    normalized
-}
-
 /// The categories a search uses: at least one, or nothing can be searched.
 fn chosen_category_ids(ids: Vec<u32>) -> Result<Vec<u32>> {
-    let chosen = normalize_category_ids(ids);
+    let mut chosen: Vec<u32> = ids.into_iter().filter(|id| *id > 0).collect();
+    chosen.sort_unstable();
+    chosen.dedup();
     if chosen.is_empty() {
         return Err(AppError::InvalidInput(
             "Choose at least one Indexer category.".to_string(),
