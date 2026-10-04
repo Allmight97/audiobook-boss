@@ -1235,6 +1235,11 @@ export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | {
 { kind: "busy" } |
 /**  A preview length that is not a positive number of seconds. */
 { kind: "invalidPreviewLength" } |
+/**
+ *  This title has no title tag and none was typed; its output would
+ *  carry no title. `label` is what the title list shows for it.
+ */
+{ kind: "missingTitle"; titleId: string; label: string } |
 /**  A downloaded source is being removed after its export finished. */
 { kind: "sourceRemoved" } | { kind: "closing" } |
 /**

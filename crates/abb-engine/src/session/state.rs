@@ -649,6 +649,7 @@ impl SessionState {
                     |request| self.audio.title_view(request).request,
                 ),
                 choice_required: required.contains(&file.input_id),
+                has_title: self.has_title(file),
             })
             .collect();
         let supplemental_assets = self.staged.assets_for(
@@ -1675,6 +1676,25 @@ impl SessionState {
     }
 
     /// Files with a Save accepted and not yet written.
+    /// Whether `file`'s output will carry a title: the pending edit's, else
+    /// the file's own tag. Without a read of the file's tags this session,
+    /// analysis is what is known of them.
+    fn has_title(&self, file: &AudioFile) -> bool {
+        let pending = self
+            .tags
+            .pending(&file.path)
+            .and_then(|pending| pending.patch.title.clone());
+        let title = match pending {
+            Some(crate::metadata::PatchOp::Set(title)) => Some(title),
+            Some(crate::metadata::PatchOp::Clear) => None,
+            None if self.tags.has_source_read(&file.path) => {
+                self.tags.effective(&file.path).and_then(|tags| tags.title)
+            }
+            None => file.tag_title.clone(),
+        };
+        title.is_some_and(|title| !title.trim().is_empty())
+    }
+
     /// The export being prepared or reviewed. Its identity becomes the
     /// accepted export's, so quit consent survives the handoff.
     pub(crate) fn export_in_preparation(&self) -> Option<&OperationId> {

@@ -43,6 +43,13 @@ pub enum SubmitRefusal {
     Busy,
     /// A preview length that is not a positive number of seconds.
     InvalidPreviewLength,
+    /// This title has no title tag and none was typed; its output would
+    /// carry no title. `label` is what the title list shows for it.
+    #[serde(rename_all = "camelCase")]
+    MissingTitle {
+        title_id: String,
+        label: String,
+    },
     /// A downloaded source is being removed after its export finished.
     SourceRemoved,
     Closing,
@@ -137,6 +144,8 @@ pub(crate) struct SubmittedTitle<'a> {
     pub(crate) sources: &'a [AudioFile],
     pub(crate) request: crate::audio::TitleAudioRequest,
     pub(crate) choice_required: bool,
+    /// Whether the output will carry a title: typed, or the source's tag.
+    pub(crate) has_title: bool,
 }
 
 /// Everything a draft needs besides the titles.
@@ -176,6 +185,12 @@ pub(crate) fn build_draft(
     }
     if valid.iter().any(|title| title.choice_required) {
         return Err(SubmitRefusal::AudioChoiceRequired);
+    }
+    if let Some(untitled) = valid.iter().find(|title| !title.has_title) {
+        return Err(SubmitRefusal::MissingTitle {
+            title_id: untitled.anchor.input_id.clone(),
+            label: label(untitled.anchor),
+        });
     }
     let Some(output_dir) = inputs.output_directory else {
         return Err(SubmitRefusal::NoOutputDirectory);

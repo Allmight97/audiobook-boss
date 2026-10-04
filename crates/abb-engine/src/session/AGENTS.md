@@ -176,7 +176,9 @@ attachment.
   (`submission.rs`). An invalid standalone title is left out; a grouped title
   with an invalid source, an unresolved audio choice, a CUE awaiting review,
   no output folder, a Save writing, or another submission in progress refuses
-  it with a `SubmitRefusal`. From acceptance until the export is registered
+  it with a `SubmitRefusal`. So does a valid title with no title tag and no
+  typed title (`MissingTitle`, naming it); the file name is never used as a
+  title. From acceptance until the export is registered
   with WorkRuntime (or the preview ends) its sources are held and the list is
   locked. Outputs that already exist hold it at `ReviewRequired` until
   identified `ChooseCollisionPolicy` or `CancelCollisionReview`. The choice applies only

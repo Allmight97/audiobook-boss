@@ -29,6 +29,7 @@ fn title<'a>(anchor: &'a AudioFile, sources: &'a [AudioFile]) -> SubmittedTitle<
         sources,
         request: request(),
         choice_required: false,
+        has_title: true,
     }
 }
 
@@ -47,6 +48,29 @@ fn inputs() -> DraftInputs {
 
 fn no_edits(_: &[String]) -> HashMap<String, MetadataIntentPatch> {
     HashMap::new()
+}
+
+#[test]
+fn a_title_that_would_export_with_no_title_is_refused_and_named() {
+    let alpha = file("alpha", true);
+    let untitled = file("untitled", true);
+    let titles = [
+        title(&alpha, std::slice::from_ref(&alpha)),
+        SubmittedTitle {
+            has_title: false,
+            ..title(&untitled, std::slice::from_ref(&untitled))
+        },
+    ];
+
+    let refused = build_draft(&titles, inputs(), no_edits, title_label);
+
+    assert_eq!(
+        refused.err(),
+        Some(SubmitRefusal::MissingTitle {
+            title_id: "untitled".to_string(),
+            label: "untitled.m4b".to_string(),
+        })
+    );
 }
 
 #[test]

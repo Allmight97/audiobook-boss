@@ -1483,6 +1483,11 @@ async fn a_download_goes_once_its_title_is_exported_and_nothing_imported_is_refu
         directory: output.path().to_string_lossy().into_owned(),
     })
     .await;
+    rig.send(SessionIntent::SetField {
+        field: MetadataField::Title,
+        value: "Book".to_string(),
+    })
+    .await;
     rig.send(SessionIntent::Submit).await;
     assert!(
         matches!(
@@ -1594,7 +1599,12 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
     let rig = rig();
     let lane =
         crate::test_cases::integration_media_execution_tests::MediaLane::with_fixtures(&[0.2]);
-    let source = lane.process(None).await;
+    let source = lane
+        .process(Some(AudiobookMetadata {
+            title: Some("Preview".to_string()),
+            ..Default::default()
+        }))
+        .await;
     std::fs::create_dir_all(rig._config.path().join("previews")).expect("preview folder");
     rig.send(SessionIntent::Import {
         paths: vec![source.to_string_lossy().into_owned()],
