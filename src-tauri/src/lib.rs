@@ -105,10 +105,9 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
     })
 }
 
-/// How quitting is going: asked (and answered), engine shutting down, done.
+/// How quitting is going: engine shutting down, done.
 #[derive(Default)]
 struct Quit {
-    confirmed: AtomicBool,
     shutting_down: AtomicBool,
     done: AtomicBool,
 }
@@ -243,17 +242,25 @@ fn hold_quit(app: &tauri::AppHandle) -> bool {
     if quit.done.load(Ordering::SeqCst) {
         return false;
     }
-    if quit.shutting_down.load(Ordering::SeqCst) {
-        return true;
+    if !quit.shutting_down.load(Ordering::SeqCst) {
+        quit_with_consent(app, &abb_engine::QuitConsent::default());
     }
-    let running = app
+    true
+}
+
+/// Quits when the engine closes for the work `consent` covers; otherwise
+/// asks about the work quitting would stop now, and asks again if that
+/// changes before the user answers.
+fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) {
+    let closed = app
         .try_state::<abb_engine::Engine>()
-        .map(|engine| engine.running_work())
-        .unwrap_or_default();
-    let prompt = quit_prompt(&running);
-    let Some((title, message)) = prompt.filter(|_| !quit.confirmed.load(Ordering::SeqCst)) else {
-        shut_down_then_exit(app);
-        return true;
+        .map_or(Ok(()), |engine| engine.close_for_quit(consent));
+    let running = match closed {
+        Ok(()) => return shut_down_then_exit(app),
+        Err(running) => running,
+    };
+    let Some((title, message)) = quit_prompt(&running) else {
+        return shut_down_then_exit(app);
     };
     let app = app.clone();
     app.dialog()
@@ -267,12 +274,10 @@ fn hold_quit(app: &tauri::AppHandle) -> bool {
             let app = app.clone();
             move |quit| {
                 if quit {
-                    app.state::<Quit>().confirmed.store(true, Ordering::SeqCst);
-                    shut_down_then_exit(&app);
+                    quit_with_consent(&app, &running.consent);
                 }
             }
         });
-    true
 }
 
 /// Hands OS-opened files to the engine and tells the frontend to collect them.
@@ -411,8 +416,8 @@ mod quit_tests {
     fn quitting_asks_first_when_it_would_stop_downloads_or_exports() {
         let running = |exports, acquisitions| abb_engine::RunningWork {
             exports,
-            waiting_writes: 0,
             acquisitions,
+            ..Default::default()
         };
         assert_eq!(quit_prompt(&running(0, 0)), None);
         let (title, message) = quit_prompt(&running(0, 1)).expect("asks about the download");
@@ -425,9 +430,8 @@ mod quit_tests {
         assert_eq!(title, "Work is still running");
         assert!(message.contains("2 exports are") && message.contains("2 Audible downloads are"));
         let waiting = abb_engine::RunningWork {
-            exports: 0,
             waiting_writes: 1,
-            acquisitions: 0,
+            ..Default::default()
         };
         let (title, message) = quit_prompt(&waiting).expect("asks about the waiting save");
         assert_eq!(title, "Saves are still waiting");

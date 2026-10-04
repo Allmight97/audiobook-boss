@@ -840,6 +840,10 @@ impl Session {
         self.lock().displayed_cover()
     }
 
+    pub(crate) fn export_in_preparation(&self) -> Option<crate::work_runtime::OperationId> {
+        self.lock().export_in_preparation().cloned()
+    }
+
     /// Source files with a Save accepted and not yet written.
     pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
         self.lock().waiting_write_paths()
@@ -1362,8 +1366,7 @@ impl Session {
             Err(error) => return self.end_submission(&draft, failed(&error)),
         };
         if draft
-            .preview_id
-            .as_ref()
+            .preview_id()
             .is_some_and(|id| self.lock().preview.cancelled(id))
         {
             return self.end_submission(&draft, SubmissionStatus::Cancelled);
@@ -1438,6 +1441,7 @@ impl Session {
                 deps.jobs.clone(),
                 deps.workspace_root.clone(),
                 SubmitProcessingOperationRequest {
+                    operation_id: draft.operation_id.clone(),
                     payload: draft.payload.clone(),
                     metadata: draft.metadata.clone(),
                     title: draft.title.clone(),
@@ -1485,10 +1489,7 @@ impl Session {
         let cancels: Vec<Arc<AtomicBool>> = (0..draft.payload.input_files.len())
             .map(|_| Arc::default())
             .collect();
-        let id = draft
-            .preview_id
-            .clone()
-            .expect("preview draft has an identity");
+        let id = draft.operation_id.clone();
         *self.preview_cancels() = cancels.clone();
         if let Some(preview) = self.lock().preview.snapshot() {
             for child in &preview.operation.children {

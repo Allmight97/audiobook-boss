@@ -578,6 +578,84 @@ async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_w
     );
 }
 
+#[tokio::test]
+async fn quit_consent_survives_finished_work_and_closes_admission() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    desk.import(&book).await;
+    let export = desk.export().await;
+    let asked = desk.engine.running_work();
+    assert_eq!(asked.exports, 1);
+    desk.wait_until("the export finishes", |desk| {
+        finished(desk.export_status(&export))
+    })
+    .await;
+
+    desk.engine
+        .close_for_quit(&asked.consent)
+        .expect("finished work does not need new consent");
+
+    desk.send(SessionIntent::Submit).await;
+    assert_eq!(
+        submission(&desk),
+        Some(SubmissionStatus::Refused {
+            reason: SubmitRefusal::Closing
+        })
+    );
+    desk.engine.shutdown().await;
+}
+
+#[tokio::test]
+async fn quit_consent_names_work_not_counts_and_follows_an_export_from_review_to_running() {
+    use abb_engine::output_artifact::CollisionPolicy;
+
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    desk.import(&book).await;
+    let first = desk.export().await;
+    let asked_for_first = desk
+        .engine
+        .close_for_quit(&abb_engine::QuitConsent::default())
+        .expect_err("work that started after the question needs consent");
+    assert_eq!(asked_for_first.exports, 1);
+    desk.wait_until("the first export finishes", |desk| {
+        finished(desk.export_status(&first))
+    })
+    .await;
+
+    desk.send(SessionIntent::Submit).await;
+    assert!(matches!(
+        submission(&desk),
+        Some(SubmissionStatus::ReviewRequired)
+    ));
+    let in_review = desk.engine.running_work();
+    assert_eq!(in_review.exports, asked_for_first.exports);
+    let asked_for_second = desk
+        .engine
+        .close_for_quit(&asked_for_first.consent)
+        .expect_err("a different export with the same count needs new consent");
+    assert_eq!(asked_for_second, in_review);
+
+    let review_id = collision_review(&desk).review_id;
+    desk.send(SessionIntent::ChooseCollisionPolicy {
+        review_id,
+        policy: CollisionPolicy::RenameNew,
+    })
+    .await;
+    assert!(matches!(
+        submission(&desk),
+        Some(SubmissionStatus::Submitted { .. })
+    ));
+    desk.engine
+        .close_for_quit(&asked_for_second.consent)
+        .expect("the reviewed export is the same work once it runs");
+    desk.engine.shutdown().await;
+}
+
 fn submission(desk: &Desk) -> Option<abb_engine::session::SubmissionStatus> {
     desk.engine
         .session_snapshot()

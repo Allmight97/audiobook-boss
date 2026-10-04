@@ -241,6 +241,11 @@ struct Cover {
     request: u64,
 }
 
+struct Submitting {
+    operation_id: OperationId,
+    preview: bool,
+}
+
 struct Parts {
     revision: u64,
     titles: TitlesSnapshot,
@@ -272,10 +277,10 @@ pub(crate) struct SessionState {
     pending_review: Option<super::submission::PendingReview>,
     /// Never reset: a delayed answer must not name a later question.
     review_serial: u64,
-    /// A submission or preview is between `begin_submission` and
+    /// The submission or preview between `begin_submission` and
     /// `finish_submission`. Kept apart from `submission`, which a refusal of
     /// a later request overwrites.
-    submitting: bool,
+    submitting: Option<Submitting>,
     keeping_locations: usize,
     /// Sources a submission being prepared will read; Save treats them as busy.
     reserved: Vec<PathBuf>,
@@ -350,7 +355,7 @@ impl Default for SessionState {
             submission: None,
             pending_review: None,
             review_serial: 0,
-            submitting: false,
+            submitting: None,
             keeping_locations: 0,
             reserved: Vec::new(),
             staged: StagedSources::default(),
@@ -526,7 +531,7 @@ impl SessionState {
         });
         let preview = self.output.preview(title);
         OutputSnapshot {
-            submission_in_progress: self.submitting,
+            submission_in_progress: self.submitting.is_some(),
             collision_review: self
                 .pending_review
                 .as_ref()
@@ -541,7 +546,7 @@ impl SessionState {
     }
 
     fn next_restart_prompt(&self) -> Option<super::exports::RestartOffer> {
-        if self.submitting || self.keeping_locations > 0 || self.save_in_progress {
+        if self.submitting.is_some() || self.keeping_locations > 0 || self.save_in_progress {
             return None;
         }
         self.exports.next_prompt(
@@ -567,7 +572,10 @@ impl SessionState {
         match self.prepare_submission(preview_seconds, only) {
             Ok(draft) => {
                 self.preview.begin(&draft);
-                self.submitting = true;
+                self.submitting = Some(Submitting {
+                    operation_id: draft.operation_id.clone(),
+                    preview: draft.preview(),
+                });
                 self.reserved.extend(draft.sources.iter().cloned());
                 self.working_set.set_order_locked(true);
                 self.submission = Some(SubmissionStatus::Preparing {
@@ -587,7 +595,7 @@ impl SessionState {
         preview_seconds: Option<f64>,
         only: Option<&str>,
     ) -> Result<Draft, SubmitRefusal> {
-        if self.submitting {
+        if self.submitting.is_some() {
             return Err(SubmitRefusal::Busy);
         }
         let writing = !self.writing.is_empty()
@@ -900,7 +908,7 @@ impl SessionState {
         if self.reserved.is_empty() {
             self.working_set.set_order_locked(false);
         }
-        self.submitting = false;
+        self.submitting = None;
         self.submission = Some(status);
     }
 
@@ -1217,7 +1225,7 @@ impl SessionState {
         // keeps its sources until it ends.
         self.cancel_review();
         self.working_set.reset();
-        if self.submitting {
+        if self.submitting.is_some() {
             self.working_set.set_order_locked(true);
         }
         self.lookup = LookupState {
@@ -1614,6 +1622,15 @@ impl SessionState {
     }
 
     /// Files with a Save accepted and not yet written.
+    /// The export being prepared or reviewed. Its identity becomes the
+    /// accepted export's, so quit consent survives the handoff.
+    pub(crate) fn export_in_preparation(&self) -> Option<&OperationId> {
+        self.submitting
+            .as_ref()
+            .filter(|submitting| !submitting.preview)
+            .map(|submitting| &submitting.operation_id)
+    }
+
     pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
         let mut paths: Vec<PathBuf> = self
             .deferred

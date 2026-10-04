@@ -104,7 +104,8 @@ pub(crate) struct Draft {
     pub(crate) payload: ProcessPayload,
     pub(crate) metadata: Option<HashMap<String, MetadataIntentPatch>>,
     pub(crate) preview_seconds: Option<f64>,
-    pub(crate) preview_id: Option<OperationId>,
+    /// The export's or preview's identity from acceptance on.
+    pub(crate) operation_id: OperationId,
     pub(crate) title: String,
     pub(crate) sources: Vec<PathBuf>,
     /// The collisions the user saw when choosing a policy.
@@ -114,6 +115,10 @@ pub(crate) struct Draft {
 impl Draft {
     pub(crate) fn preview(&self) -> bool {
         self.preview_seconds.is_some()
+    }
+
+    pub(crate) fn preview_id(&self) -> Option<&OperationId> {
+        self.preview().then_some(&self.operation_id)
     }
 
     /// The draft approved under `policy` for the plan signed `signature`.
@@ -226,7 +231,7 @@ pub(crate) fn build_draft(
             supplemental_assets_by_input_id: inputs.supplemental_assets,
         },
         metadata: (!metadata.is_empty()).then_some(metadata),
-        preview_id: inputs.preview_seconds.map(|_| OperationId::new()),
+        operation_id: OperationId::new(),
         preview_seconds: inputs.preview_seconds,
         title,
         sources,

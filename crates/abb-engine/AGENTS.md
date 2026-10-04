@@ -29,7 +29,11 @@ the same code.
   writes, and started keychain reads, so saves waiting on them are written.
   Remote registration and network reads stop before credential persistence.
   Metadata Saves are not cancelled. `Engine::running_work` tells a host what
-  quitting would stop.
+  quitting would stop (exports being prepared, reviewed, or running; waiting
+  writes; downloads), with a consent naming that work. `Engine::close_for_quit`
+  closes admission only while no work outside that consent has started, so a
+  quit never stops work the user was not asked about; finished work needs no
+  new consent. An export keeps one identity from submission to running.
 - Every background task the engine starts runs on its one `EngineTasks` owner over a `TaskTracker`
   (`tokio_util`), never a bare `tokio::spawn`, so shutdown can wait for it.
   Short scoped tasks joined before their caller returns are the exception.

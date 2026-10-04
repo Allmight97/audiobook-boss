@@ -20,9 +20,10 @@ the engine: `crates/abb-engine/AGENTS.md`.
   settings intents are numbered separately (`FrontendLink`).
 - **Event forwarding.** `events.rs` maps each `EngineEvent` to one Tauri
   event. It adds no state and drops nothing.
-- **Quit.** `lib.rs` holds every quit until `Engine::shutdown` has settled,
-  and asks first when `Engine::running_work` reports exports or Audible
-  downloads still running.
+- **Quit.** `lib.rs` holds every quit until `Engine::shutdown` has settled.
+  It asks `Engine::close_for_quit`; when that returns running work, the host
+  shows it and, on Quit Anyway, asks again with that work's consent, so work
+  that started while the dialog was open is asked about too.
   A shutdown that has not settled after `SHUTDOWN_WAIT` asks whether to keep
   waiting; the process exits early only when the user chooses Quit Now.
 

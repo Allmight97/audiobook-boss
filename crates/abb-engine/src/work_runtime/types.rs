@@ -219,6 +219,9 @@ pub struct WorkSubmissionAccepted {
 #[derive(Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SubmitProcessingOperationRequest {
+    /// Chosen when the submission was accepted, so it names the same work
+    /// before and after the export registers.
+    pub operation_id: OperationId,
     pub payload: ProcessPayload,
     pub metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
     /// Names the submitted books so concurrent operations stay distinguishable.

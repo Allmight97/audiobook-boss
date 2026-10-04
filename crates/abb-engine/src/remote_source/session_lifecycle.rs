@@ -402,19 +402,23 @@ impl RemoteAcquisitionLifecycle {
     }
     /// Downloads still in progress, by job state: a task handle can outlive
     /// a job that failed before its handle was stored.
-    pub(super) fn running_acquisitions(&self) -> usize {
-        self.jobs.lock().map_or(0, |jobs| {
-            jobs.values()
-                .filter(|job| {
-                    matches!(
-                        job.status,
-                        types::RemoteAcquisitionStatus::Planned
-                            | types::RemoteAcquisitionStatus::Acquiring
-                            | types::RemoteAcquisitionStatus::Materialized
-                    )
-                })
-                .count()
-        })
+    pub(super) fn running_acquisitions(&self) -> Vec<String> {
+        self.jobs.lock().map_or_else(
+            |_| Vec::new(),
+            |jobs| {
+                jobs.iter()
+                    .filter(|(_, job)| {
+                        matches!(
+                            job.status,
+                            types::RemoteAcquisitionStatus::Planned
+                                | types::RemoteAcquisitionStatus::Acquiring
+                                | types::RemoteAcquisitionStatus::Materialized
+                        )
+                    })
+                    .map(|(job_id, _)| job_id.clone())
+                    .collect()
+            },
+        )
     }
 
     pub(super) fn abort_all_acquisition_tasks(&self) {

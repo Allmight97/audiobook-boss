@@ -127,7 +127,7 @@ impl RemoteSourceRuntime {
     }
 
     /// Downloads `abort_acquisitions` would stop.
-    pub(crate) fn running_acquisitions(&self) -> usize {
+    pub(crate) fn running_acquisitions(&self) -> Vec<String> {
         self.inner.lifecycle.running_acquisitions()
     }
 
@@ -593,7 +593,7 @@ pub(crate) mod tests {
                 job_id.to_string(),
                 acquisition_job(job_id, types::RemoteAcquisitionStatus::Acquiring),
             );
-        assert_eq!(runtime.running_acquisitions(), 1);
+        assert_eq!(runtime.running_acquisitions().len(), 1);
 
         // A job that ended counts no longer, whatever task handle remains.
         runtime.inner.lifecycle.mark_job_failed(
@@ -601,7 +601,7 @@ pub(crate) mod tests {
             RemoteProviderId::Audible,
             "failed at once".to_string(),
         );
-        assert_eq!(runtime.running_acquisitions(), 0);
+        assert!(runtime.running_acquisitions().is_empty());
     }
 
     #[test]

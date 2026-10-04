@@ -1,5 +1,6 @@
 //! The engine's host-facing interface and lifetime.
 
+use std::collections::BTreeSet;
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -45,12 +46,23 @@ impl EngineTasks {
     }
 
     pub(crate) fn close(&self) {
+        let _ = self.close_if(|| Ok::<(), ()>(()));
+    }
+
+    /// Closes admission only when `check` passes, in the same turn, so no
+    /// work can be admitted between the check and the close.
+    fn close_if<E>(
+        &self,
+        check: impl FnOnce() -> std::result::Result<(), E>,
+    ) -> std::result::Result<(), E> {
         let _turn = self
             .admission
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
+        check()?;
         self.tracker.close();
         self.closing.cancel();
+        Ok(())
     }
 
     /// Runs `work` unless shutdown begins first; then it is dropped.
@@ -121,12 +133,25 @@ struct EngineInner {
 /// Work still running that quitting would stop.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RunningWork {
-    /// Accepted exports that have not finished.
+    /// Exports being prepared, awaiting collision review, or running.
     pub exports: usize,
     /// Files with a Save waiting for an export to finish reading them.
     pub waiting_writes: usize,
     /// Audible downloads in progress.
     pub acquisitions: usize,
+    /// Names exactly this work, for [`Engine::close_for_quit`].
+    pub consent: QuitConsent,
+}
+
+/// The work a user agreed quitting may stop.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct QuitConsent(BTreeSet<StoppedWork>);
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum StoppedWork {
+    Export(String),
+    WaitingWrite(PathBuf),
+    Acquisition(String),
 }
 
 impl RunningWork {
@@ -189,11 +214,50 @@ impl Engine {
 
     /// What quitting now would stop.
     pub fn running_work(&self) -> RunningWork {
+        let mut exports: BTreeSet<String> = self
+            .inner
+            .work
+            .unfinished_exports()
+            .into_iter()
+            .map(|operation| operation.0)
+            .collect();
+        exports.extend(
+            self.inner
+                .session
+                .export_in_preparation()
+                .map(|operation| operation.0),
+        );
+        let waiting_writes = self.inner.session.waiting_write_paths();
+        let acquisitions = self.inner.remote_source.running_acquisitions();
         RunningWork {
-            exports: self.inner.work.unfinished_exports().len(),
-            waiting_writes: self.inner.session.waiting_write_paths().len(),
-            acquisitions: self.inner.remote_source.running_acquisitions(),
+            exports: exports.len(),
+            waiting_writes: waiting_writes.len(),
+            acquisitions: acquisitions.len(),
+            consent: QuitConsent(
+                exports
+                    .into_iter()
+                    .map(StoppedWork::Export)
+                    .chain(waiting_writes.into_iter().map(StoppedWork::WaitingWrite))
+                    .chain(acquisitions.into_iter().map(StoppedWork::Acquisition))
+                    .collect(),
+            ),
         }
+    }
+
+    /// Refuses new work when quitting would stop only what `consent` names;
+    /// work that finished since does not matter. Otherwise nothing closes and
+    /// the error is what quitting would stop now, to ask about again. The
+    /// check and the close share one admission turn, so no work starts
+    /// between them. A host then calls [`Engine::shutdown`].
+    pub fn close_for_quit(&self, consent: &QuitConsent) -> std::result::Result<(), RunningWork> {
+        self.inner.tasks.close_if(|| {
+            let running = self.running_work();
+            if running.consent.0.is_subset(&consent.0) {
+                Ok(())
+            } else {
+                Err(running)
+            }
+        })
     }
 
     /// Stops the engine: refuses new exports and acquisitions, cancels the
