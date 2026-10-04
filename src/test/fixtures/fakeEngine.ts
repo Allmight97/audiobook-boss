@@ -271,6 +271,8 @@ function fakeAudio(): SessionAudio {
 			request: { format: 'm4b', intent: 'auto', settings, sampleRate: 'auto' },
 		},
 		titles: {},
+		selection: null,
+		refusal: null,
 	};
 }
 

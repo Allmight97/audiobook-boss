@@ -136,7 +136,12 @@ attachment.
   not retry repeatedly in the background.
 - **Audio choice.** The defaults new titles start from and each title's own
   choice are edited with typed `AudioEdit`s checked against the encoder
-  capabilities (`audio_choice.rs`); a refused edit changes nothing. MP3 copies
+  capabilities (`audio_choice.rs`); a refused edit changes nothing. A title
+  edit applies to every named title or none: one title that refuses it, or a
+  locked list, changes nothing and sets `audio.refusal`; a title already at the
+  value takes it. `audio.selection` combines the selected titles: the first
+  one's choice, only the options every one accepts, and the fields that differ.
+  MP3 copies
   its source; editing how audio is encoded selects Encode. A defaults edit is
   recorded in the settings; a title edit is not, and is refused while the
   list is locked. A settings reset returns the defaults and output choices to

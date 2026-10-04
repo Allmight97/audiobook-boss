@@ -11,7 +11,7 @@ use std::time::Instant;
 
 use serde::Serialize;
 
-use super::audio::{AudioDefaults, AudioSnapshot, TitleAudio};
+use super::audio::{AudioDefaults, AudioRefusal, AudioSnapshot, TitleAudio};
 use super::audio_choice::AudioEdit;
 use super::exports::{ExportLink, Exports, OutputEdit, OutputEdits, RestartStale};
 use super::lookup::{LookupSnapshot, LookupState, QueuedTitle};
@@ -281,6 +281,8 @@ pub(crate) struct SessionState {
     /// `finish_submission`. Kept apart from `submission`, which a refusal of
     /// a later request overwrites.
     submitting: Option<Submitting>,
+    /// Why the latest title audio edit changed nothing.
+    audio_refusal: Option<AudioRefusal>,
     keeping_locations: usize,
     /// Sources a submission being prepared will read; Save treats them as busy.
     reserved: Vec<PathBuf>,
@@ -338,6 +340,8 @@ impl Default for SessionState {
                 capabilities: None,
                 defaults: AudioDefaults::default().defaults_view(),
                 titles: Default::default(),
+                selection: None,
+                refusal: None,
             },
             output: OutputPlan::default().snapshot(0, OutputPreview::NoDirectory, None),
         };
@@ -356,6 +360,7 @@ impl Default for SessionState {
             pending_review: None,
             review_serial: 0,
             submitting: None,
+            audio_refusal: None,
             keeping_locations: 0,
             reserved: Vec::new(),
             staged: StagedSources::default(),
@@ -485,11 +490,21 @@ impl SessionState {
                     },
                 ))
             })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let files = self.working_set.files();
+        let selected: Vec<_> = self
+            .working_set
+            .selected_indices()
+            .iter()
+            .filter_map(|index| files.get(*index))
+            .filter_map(|file| titles.get_key_value(&file.input_id))
             .collect();
         AudioSnapshot {
             revision,
             capabilities: self.audio.capabilities().cloned(),
             defaults: self.audio.defaults_view(),
+            selection: super::audio::selection_audio(&selected),
+            refusal: self.audio_refusal.clone(),
             titles,
         }
     }
@@ -1203,24 +1218,56 @@ impl SessionState {
 
     // ---- Audio ----
 
-    /// Edits each named title's audio choice; refused edits and a locked list
-    /// change nothing.
+    /// Edits every named title's audio choice, or none: a locked list or a
+    /// title that refuses the edit changes nothing and is recorded as the
+    /// refusal. A title already at the value takes it.
     pub(crate) fn edit_title_audio(&mut self, title_ids: &[String], edit: AudioEdit) {
+        let mut next = Vec::new();
+        let mut refusing = Vec::new();
         for id in title_ids {
             let Some(request) = self.working_set.audio_request(id) else {
                 continue;
             };
-            if let Some(next) = self.audio.edit_title(request, edit) {
-                self.working_set.set_audio_request(id, next);
+            match self.audio.edit_title(request, edit) {
+                Some(request) => next.push((id, request)),
+                None => refusing.push(id.clone()),
             }
         }
+        let refusal = if self.working_set.order_locked() {
+            Some(AudioRefusal::Locked)
+        } else if refusing.is_empty() {
+            None
+        } else {
+            Some(AudioRefusal::NotAccepted {
+                title_ids: refusing,
+            })
+        };
+        self.apply_title_audio(refusal, next);
     }
 
+    /// Gives every named title the default audio choice, unless the list is
+    /// locked.
     pub(crate) fn apply_default_audio(&mut self, title_ids: &[String]) {
         let request = self.audio.request();
-        for id in title_ids {
-            self.working_set.set_audio_request(id, request.clone());
+        let refusal = self
+            .working_set
+            .order_locked()
+            .then_some(AudioRefusal::Locked);
+        let next = title_ids.iter().map(|id| (id, request.clone())).collect();
+        self.apply_title_audio(refusal, next);
+    }
+
+    fn apply_title_audio(
+        &mut self,
+        refusal: Option<AudioRefusal>,
+        next: Vec<(&String, crate::audio::TitleAudioRequest)>,
+    ) {
+        if refusal.is_none() {
+            for (id, request) in next {
+                self.working_set.set_audio_request(id, request);
+            }
         }
+        self.audio_refusal = refusal;
     }
 
     /// Returns the session to empty. Writes already waiting on an export stay
@@ -1230,6 +1277,7 @@ impl SessionState {
         // keeps its sources until it ends.
         self.cancel_review();
         self.working_set.reset();
+        self.audio_refusal = None;
         if self.submitting.is_some() {
             self.working_set.set_order_locked(true);
         }

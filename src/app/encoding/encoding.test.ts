@@ -131,17 +131,40 @@ describe('encoding owner', () => {
 		expect(autoLabel(app.encoding.view(), 'sampleRateOptions')).toBe('Auto · Source audio');
 	});
 
-	it('marks fields that differ across selected titles', async () => {
+	it('shows the selection the engine combined, blanking the fields it names as mixed', async () => {
 		const app = await open();
 		const [alpha, beta] = titles(app);
 		engine.change((state) => {
-			const id = beta.inputId ?? '';
-			state.audio.titles[id] = structuredClone(state.audio.titles[id]);
-			state.audio.titles[id].choice.channels = 'mono';
+			const first = state.audio.titles[alpha!.inputId!]!;
+			state.audio.selection = {
+				titleIds: [alpha!.inputId!, beta!.inputId!],
+				choice: first.choice,
+				facts: { ...first.facts, downmixWarning: true },
+				mixed: ['channels'],
+			};
 		});
 
-		expect(app.encoding.titleView(beta).channels).toBe('mono');
-		expect(app.encoding.selectionView([alpha, beta]).mixedFields).toEqual(['channels']);
+		const view = app.encoding.selectionView([alpha!, beta!]);
+		expect(view?.mixedFields).toEqual(['channels']);
+		expect(view?.channelsHint).toBe('Surround downmix omits bass effects (LFE).');
+	});
+	it('names the titles that refused an edit, and says when the list is locked', async () => {
+		const app = await open();
+		const [alpha, beta] = titles(app);
+		engine.change((state) => {
+			state.audio.refusal = { kind: 'notAccepted', titleIds: [beta!.inputId!] };
+		});
+		expect(app.encoding.refusal([alpha!, beta!])).toBe(
+			`${beta!.path.split('/').pop()} can't take that change, so no title changed.`,
+		);
+		expect(app.encoding.refusal([alpha!])).toBeNull();
+
+		engine.change((state) => {
+			state.audio.refusal = { kind: 'locked' };
+		});
+		expect(app.encoding.refusal([alpha!])).toBe(
+			"Audio can't change while an export is being prepared.",
+		);
 	});
 	it('renders the engine downmix warning even when the anchor alone is stereo', async () => {
 		const app = await open();
@@ -156,15 +179,5 @@ describe('encoding owner', () => {
 			state.audio.titles[alpha.inputId!]!.facts.downmixWarning = false;
 		});
 		expect(app.encoding.titleView(alpha).channelsHint).toBeNull();
-	});
-	it('warns about a downmix when any selected title needs one, not only the first', async () => {
-		const app = await open();
-		const [alpha, beta] = titles(app);
-		engine.change((state) => {
-			state.audio.titles[beta!.inputId!]!.facts.downmixWarning = true;
-		});
-		expect(app.encoding.selectionView([alpha!, beta!]).channelsHint).toBe(
-			'Surround downmix omits bass effects (LFE).',
-		);
 	});
 });

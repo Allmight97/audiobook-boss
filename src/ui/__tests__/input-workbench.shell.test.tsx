@@ -141,6 +141,13 @@ describe('Solid input workbench', () => {
 					faacProfiles: ['auto', 'aac_lc', 'he_aac_v1'],
 				};
 			}
+			// The engine's answer for the two selected titles.
+			state.audio.selection = {
+				titleIds: [files[0]!.path, files[1]!.path],
+				choice: first.choice,
+				facts: first.facts,
+				mixed: ['faacProfile', 'channels'],
+			};
 		});
 		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
 		await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });

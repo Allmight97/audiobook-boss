@@ -171,6 +171,9 @@ export type AudioEdit = { field: "format"; value: AudiobookFormat } | { field: "
 /**  Target kbps for the format's encoder, across all channels. */
 { field: "bitrate"; value: number } | { field: "sampleRate"; value: SampleRateConfig } | { field: "channels"; value: ChannelConfig };
 
+/**  One part of an audio choice, named as its `AudioEdit` is. */
+export type AudioField = "format" | "intent" | "encoder" | "faacProfile" | "rateControl" | "quality" | "nativeSpeed" | "bitrate" | "sampleRate" | "channels";
+
 /**  Represents an audio file with metadata */
 export type AudioFile = {
 	/**  Stable workbench/session identity for joins that must survive reorder/remove operations. */
@@ -223,6 +226,13 @@ export type AudioPreservation = {
 	canPreserve: boolean,
 };
 
+/**  Why a title audio edit changed nothing. */
+export type AudioRefusal =
+/**  A submission holds the list. */
+{ kind: "locked" } |
+/**  These titles cannot take the edit, so no title took it. */
+{ kind: "notAccepted"; titleIds: string[] };
+
 /**  The audio part of the session. */
 export type AudioSnapshot = {
 	revision: number,
@@ -231,6 +241,10 @@ export type AudioSnapshot = {
 	defaults: AudioChoiceView,
 	/**  Each title's audio, by title identity. */
 	titles: { [key in string]: TitleAudio },
+	/**  The selected titles' audio as one choice; absent with no selection. */
+	selection: SelectionAudio | null,
+	/**  Why the latest title audio edit changed nothing. */
+	refusal: AudioRefusal | null,
 };
 
 export type AudiobookFormat = "m4b" | "mp3" | "m4aOpus" | "mkaOpus";
@@ -1006,6 +1020,17 @@ export type SampleRateConfig =
 "auto" |
 /**  Explicit sample rate in Hz */
 { explicit: number };
+
+/**  The selected titles' audio, edited together. */
+export type SelectionAudio = {
+	/**  The titles this describes, in list order. */
+	titleIds: string[],
+	/**  The first title's choice; `mixed` names where the others differ. */
+	choice: AudioChoice,
+	/**  Only what every selected title accepts is offered. */
+	facts: AudioChoiceFacts,
+	mixed: AudioField[],
+};
 
 export type SelectionModifiers = {
 	multi: boolean,
