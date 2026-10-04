@@ -31,7 +31,7 @@ export const commands = {
 	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**  Returns backend-owned supported local audio import metadata for picker UI. */
 	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
-	listWorkOperations: () => typedError<OperationListSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
+	listWorkOperations: () => typedError<WorkOperationsSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	cancelWorkOperation: (operationId: OperationId, childJobId: string | null) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId, childJobId })),
 	logFrontend: (entry: FrontendLogEntry) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("log_frontend", { entry })),
 };
@@ -41,8 +41,7 @@ export const events = {
 	openedAudioFiles: makeEvent<OpenedAudioFilesEvent>("opened-audio-files"),
 	sessionUpdate: makeEvent<SessionUpdateEvent>("session-update"),
 	settingsUpdate: makeEvent<SettingsUpdateEvent>("settings-update"),
-	workOperationListSnapshot: makeEvent<WorkOperationListSnapshotEvent>("work-operation-list-snapshot"),
-	workOperationSnapshot: makeEvent<WorkOperationSnapshotEvent>("work-operation-snapshot"),
+	workOperationsUpdate: makeEvent<WorkOperationsUpdateEvent>("work-operations-update"),
 };
 
 /* Types */
@@ -663,11 +662,6 @@ export type OperationId = string;
 
 export type OperationKind = "processingBatch" | "remoteAcquisition" | "metadataSave";
 
-export type OperationListSnapshot = {
-	membershipRevision: number,
-	operations: OperationSnapshot[],
-};
-
 /**
  *  Bounded per-operation activity tail rendered by the Work Center's op-card
  *  log box. Authored only where snapshot state changes (progress application,
@@ -693,8 +687,6 @@ export type OperationSnapshot = {
 	sequence: number,
 	/**  Monotonic within this operation; authored under the state lock. */
 	revision: number,
-	/**  Membership revision when this operation entered the retained set. */
-	createdRevision: number,
 	kind: OperationKind,
 	status: WorkOperationStatus,
 	title: string,
@@ -1341,16 +1333,32 @@ export type TitlesSnapshot = {
 	companions: { [key in string]: string[] },
 };
 
-export type WorkOperationListSnapshotEvent = {
-	membershipRevision: number,
+export type WorkOperationStatus = "accepted" | "running" | "cancelling" | "completed" | "cancelled" | "failed" | "mixed";
+
+/**
+ *  The operations a host shows, in display order. Active operations come
+ *  first, then accepted ones, then finished ones; newest first within each.
+ */
+export type WorkOperationsSnapshot = {
+	/**  Advances with every change to any operation or to the order. */
+	revision: number,
+	order: OperationId[],
 	operations: OperationSnapshot[],
 };
 
-export type WorkOperationSnapshotEvent = {
-	snapshot: OperationSnapshot,
+/**
+ *  One change. A host keeps the newest `changed` per operation (by its own
+ *  `revision`) and the `order` with the highest `revision`, so updates may
+ *  arrive in any order; an operation missing from that order is not shown.
+ */
+export type WorkOperationsUpdate = {
+	revision: number,
+	order: OperationId[],
+	changed: OperationSnapshot,
 };
 
-export type WorkOperationStatus = "accepted" | "running" | "cancelling" | "completed" | "cancelled" | "failed" | "mixed";
+/**  An accepted operation changed, with the display order as of then. */
+export type WorkOperationsUpdateEvent = WorkOperationsUpdate;
 
 export type WorkProgressStage = "pending" | "analyzing" | "converting" | "writing" | "downloading" | "decrypting" | "committing" | "cleaning" | "complete" | "failed" | "cancelled";
 

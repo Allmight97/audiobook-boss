@@ -3,7 +3,7 @@
 
 use abb_engine::app_settings::SettingsSnapshot;
 use abb_engine::session::SessionUpdate;
-use abb_engine::work_runtime::OperationSnapshot;
+use abb_engine::work_runtime::WorkOperationsUpdate;
 use abb_engine::{EngineEvent, EventSink};
 use serde::Serialize;
 use tauri::Emitter;
@@ -11,25 +11,13 @@ use tauri::Emitter;
 // Rust does not allow implementing `tauri_specta::Event` here for a type the
 // engine defines, so each engine payload gets a host-owned event type.
 
+/// An accepted operation changed, with the display order as of then.
 #[derive(Clone, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkOperationSnapshotEvent {
-    pub snapshot: OperationSnapshot,
-}
+#[serde(transparent)]
+pub struct WorkOperationsUpdateEvent(pub WorkOperationsUpdate);
 
-impl tauri_specta::Event for WorkOperationSnapshotEvent {
-    const NAME: &'static str = "work-operation-snapshot";
-}
-
-#[derive(Clone, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkOperationListSnapshotEvent {
-    pub membership_revision: u64,
-    pub operations: Vec<OperationSnapshot>,
-}
-
-impl tauri_specta::Event for WorkOperationListSnapshotEvent {
-    const NAME: &'static str = "work-operation-list-snapshot";
+impl tauri_specta::Event for WorkOperationsUpdateEvent {
+    const NAME: &'static str = "work-operations-update";
 }
 
 /// What changed in the working session without the frontend asking, or
@@ -73,13 +61,7 @@ impl TauriEvents {
 impl EventSink for TauriEvents {
     fn emit(&self, event: EngineEvent) {
         match event {
-            EngineEvent::WorkOperationSnapshot(snapshot) => {
-                self.send(WorkOperationSnapshotEvent { snapshot });
-            }
-            EngineEvent::WorkOperationList(list) => self.send(WorkOperationListSnapshotEvent {
-                membership_revision: list.membership_revision,
-                operations: list.operations,
-            }),
+            EngineEvent::WorkOperations(update) => self.send(WorkOperationsUpdateEvent(update)),
             EngineEvent::Session(update) => self.send(SessionUpdateEvent(update)),
             EngineEvent::Settings(snapshot) => self.send(SettingsUpdateEvent(*snapshot)),
         }

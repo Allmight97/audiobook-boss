@@ -177,9 +177,10 @@ struct PrintProgress {
 
 impl EventSink for PrintProgress {
     fn emit(&self, event: EngineEvent) {
-        let EngineEvent::WorkOperationSnapshot(operation) = event else {
+        let EngineEvent::WorkOperations(update) = event else {
             return;
         };
+        let operation = update.changed;
         let Ok(mut seen) = self.seen.lock() else {
             return;
         };

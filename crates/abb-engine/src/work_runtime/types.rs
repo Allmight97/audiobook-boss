@@ -169,8 +169,6 @@ pub struct OperationSnapshot {
     pub sequence: u64,
     /// Monotonic within this operation; authored under the state lock.
     pub revision: u64,
-    /// Membership revision when this operation entered the retained set.
-    pub created_revision: u64,
     pub kind: OperationKind,
     pub status: WorkOperationStatus,
     pub title: String,
@@ -188,11 +186,26 @@ pub struct OperationSnapshot {
     pub log_tail: Vec<OperationLogEntry>,
 }
 
+/// The operations a host shows, in display order. Active operations come
+/// first, then accepted ones, then finished ones; newest first within each.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct OperationListSnapshot {
-    pub membership_revision: u64,
+pub struct WorkOperationsSnapshot {
+    /// Advances with every change to any operation or to the order.
+    pub revision: u64,
+    pub order: Vec<OperationId>,
     pub operations: Vec<OperationSnapshot>,
+}
+
+/// One change. A host keeps the newest `changed` per operation (by its own
+/// `revision`) and the `order` with the highest `revision`, so updates may
+/// arrive in any order; an operation missing from that order is not shown.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkOperationsUpdate {
+    pub revision: u64,
+    pub order: Vec<OperationId>,
+    pub changed: OperationSnapshot,
 }
 
 #[derive(Debug, Clone)]

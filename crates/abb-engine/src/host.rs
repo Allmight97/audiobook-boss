@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::app_settings::SettingsSnapshot;
 use crate::power::{ActiveWork, PowerManager};
 use crate::session::SessionUpdate;
-use crate::work_runtime::{OperationListSnapshot, OperationSnapshot};
+use crate::work_runtime::WorkOperationsUpdate;
 
 /// A fact the engine publishes without being asked. Hosts forward each to
 /// their UI; a host with no UI may ignore them.
@@ -16,10 +16,8 @@ use crate::work_runtime::{OperationListSnapshot, OperationSnapshot};
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum EngineEvent {
-    /// One accepted operation changed.
-    WorkOperationSnapshot(OperationSnapshot),
-    /// The set of accepted operations changed.
-    WorkOperationList(OperationListSnapshot),
+    /// An accepted operation changed; carries the display order as of then.
+    WorkOperations(WorkOperationsUpdate),
     /// The working session changed without the host asking, or before a
     /// requested change finished.
     Session(SessionUpdate),

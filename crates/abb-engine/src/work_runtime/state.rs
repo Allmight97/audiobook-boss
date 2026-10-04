@@ -1,6 +1,7 @@
 use super::types::{
-    ChildJobStatus, OperationId, OperationListSnapshot, OperationLogEntry, OperationSnapshot,
-    OperationTerminalSummary, WorkOperationStatus, WorkProgressStage, OPERATION_LOG_TAIL_CAP,
+    ChildJobStatus, OperationId, OperationLogEntry, OperationSnapshot, OperationTerminalSummary,
+    WorkOperationStatus, WorkOperationsSnapshot, WorkOperationsUpdate, WorkProgressStage,
+    OPERATION_LOG_TAIL_CAP,
 };
 use crate::errors::{AppError, Result};
 use crate::processing::ProgressEvent;
@@ -62,7 +63,9 @@ const TERMINAL_OPERATIONS_CAP: usize = 20;
 #[derive(Default)]
 pub(crate) struct WorkRuntimeState {
     operations: BTreeMap<String, OperationSnapshot>,
-    membership_revision: u64,
+    /// Advances each time a change is published, so hosts can tell which
+    /// order is newest.
+    revision: u64,
     /// Operation ids in the order they terminalized (runtime-internal, never
     /// serialized). Pruning follows this order — not submission `sequence` —
     /// so a long-running operation that finishes late is the NEWEST terminal
@@ -75,21 +78,50 @@ impl WorkRuntimeState {
         &mut self,
         mut snapshot: OperationSnapshot,
     ) -> OperationSnapshot {
-        self.membership_revision += 1;
-        snapshot.created_revision = self.membership_revision;
         snapshot.revision = 1;
         self.operations
             .insert(snapshot.operation_id.0.clone(), snapshot.clone());
         snapshot
     }
 
-    pub(crate) fn list(&self) -> OperationListSnapshot {
-        let mut operations = self.operations.values().cloned().collect::<Vec<_>>();
-        operations.sort_by_key(|operation| std::cmp::Reverse(operation.sequence));
-        OperationListSnapshot {
-            membership_revision: self.membership_revision,
-            operations,
+    pub(crate) fn list(&self) -> WorkOperationsSnapshot {
+        let operations = self.ordered();
+        WorkOperationsSnapshot {
+            revision: self.revision,
+            order: operations.iter().map(|o| o.operation_id.clone()).collect(),
+            operations: operations.into_iter().cloned().collect(),
         }
+    }
+
+    /// Records that `changed` is being published and returns it with the
+    /// order as of now.
+    pub(crate) fn publish(&mut self, changed: OperationSnapshot) -> WorkOperationsUpdate {
+        self.revision += 1;
+        WorkOperationsUpdate {
+            revision: self.revision,
+            order: self
+                .ordered()
+                .into_iter()
+                .map(|o| o.operation_id.clone())
+                .collect(),
+            changed,
+        }
+    }
+
+    /// Active first, then accepted, then finished; newest first within each.
+    fn ordered(&self) -> Vec<&OperationSnapshot> {
+        let mut operations = self.operations.values().collect::<Vec<_>>();
+        operations.sort_by_key(|operation| {
+            let bucket = if is_terminal(operation.status) {
+                2
+            } else if operation.status == WorkOperationStatus::Accepted {
+                1
+            } else {
+                0
+            };
+            (bucket, std::cmp::Reverse(operation.sequence))
+        });
+        operations
     }
 
     pub(crate) fn operation(&self, operation_id: &str) -> Option<&OperationSnapshot> {
@@ -526,7 +558,6 @@ impl WorkRuntimeState {
         while self.terminal_order.len() > TERMINAL_OPERATIONS_CAP {
             let oldest = self.terminal_order.remove(0);
             self.operations.remove(&oldest);
-            self.membership_revision += 1;
         }
     }
 }

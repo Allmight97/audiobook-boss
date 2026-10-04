@@ -19,21 +19,19 @@ import {
 	type OpenedAudioFilesEvent,
 	type SessionUpdateEvent,
 	type SettingsUpdateEvent,
-	type WorkOperationListSnapshotEvent,
-	type WorkOperationSnapshotEvent,
+	type WorkOperationsUpdateEvent,
 } from '../../types/events';
 import type { SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { SessionIntent } from '../../types/session';
 import type {
 	OperationId,
-	OperationListSnapshot,
 	OperationSnapshot,
+	WorkOperationsSnapshot,
 } from '../../types/workRuntime';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import {
-	normalizeOperationListSnapshot,
-	normalizeOperationSnapshot,
+	normalizeWorkOperationsUpdate,
 	normalizeSessionUpdate,
 	normalizeSettingsSnapshot,
 } from './normalizers';
@@ -41,10 +39,7 @@ import {
 type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
 type RuntimeEventName = Exclude<EventName, AppEventName>;
 type OpenedAudioFilesHandler = (event: { payload: OpenedAudioFilesEvent }) => void;
-type WorkOperationSnapshotHandler = (event: { payload: WorkOperationSnapshotEvent }) => void;
-type WorkOperationListSnapshotHandler = (event: {
-	payload: WorkOperationListSnapshotEvent;
-}) => void;
+type WorkOperationsUpdateHandler = (event: { payload: WorkOperationsUpdateEvent }) => void;
 type SessionUpdateHandler = (event: { payload: SessionUpdateEvent }) => void;
 type SettingsUpdateHandler = (event: { payload: SettingsUpdateEvent }) => void;
 
@@ -56,21 +51,11 @@ async function listenOpenedAudioFiles(handler: OpenedAudioFilesHandler): Promise
 	});
 }
 
-async function listenWorkOperationSnapshot(
-	handler: WorkOperationSnapshotHandler,
+async function listenWorkOperationsUpdate(
+	handler: WorkOperationsUpdateHandler,
 ): Promise<UnlistenFn> {
-	return generatedEvents.workOperationSnapshot.listen((event) => {
-		handler({ payload: { snapshot: normalizeOperationSnapshot(event.payload.snapshot) } });
-	});
-}
-
-async function listenWorkOperationListSnapshot(
-	handler: WorkOperationListSnapshotHandler,
-): Promise<UnlistenFn> {
-	return generatedEvents.workOperationListSnapshot.listen((event) => {
-		handler({
-			payload: normalizeOperationListSnapshot(event.payload),
-		});
+	return generatedEvents.workOperationsUpdate.listen((event) => {
+		handler({ payload: normalizeWorkOperationsUpdate(event.payload) });
 	});
 }
 
@@ -91,12 +76,8 @@ function listen(
 	handler: OpenedAudioFilesHandler,
 ): Promise<UnlistenFn>;
 function listen(
-	event: typeof EVENTS.WORK_OPERATION_SNAPSHOT,
-	handler: WorkOperationSnapshotHandler,
-): Promise<UnlistenFn>;
-function listen(
-	event: typeof EVENTS.WORK_OPERATION_LIST_SNAPSHOT,
-	handler: WorkOperationListSnapshotHandler,
+	event: typeof EVENTS.WORK_OPERATIONS_UPDATE,
+	handler: WorkOperationsUpdateHandler,
 ): Promise<UnlistenFn>;
 function listen(
 	event: typeof EVENTS.SESSION_UPDATE,
@@ -114,8 +95,7 @@ function listen(
 	event: EventName,
 	handler:
 		| OpenedAudioFilesHandler
-		| WorkOperationSnapshotHandler
-		| WorkOperationListSnapshotHandler
+		| WorkOperationsUpdateHandler
 		| SessionUpdateHandler
 		| SettingsUpdateHandler
 		| ((event: { payload: ApplicationEvents[RuntimeEventName] }) => void),
@@ -124,12 +104,8 @@ function listen(
 		return listenOpenedAudioFiles(handler as OpenedAudioFilesHandler);
 	}
 
-	if (event === EVENTS.WORK_OPERATION_SNAPSHOT) {
-		return listenWorkOperationSnapshot(handler as WorkOperationSnapshotHandler);
-	}
-
-	if (event === EVENTS.WORK_OPERATION_LIST_SNAPSHOT) {
-		return listenWorkOperationListSnapshot(handler as WorkOperationListSnapshotHandler);
+	if (event === EVENTS.WORK_OPERATIONS_UPDATE) {
+		return listenWorkOperationsUpdate(handler as WorkOperationsUpdateHandler);
 	}
 
 	if (event === EVENTS.SESSION_UPDATE) {
@@ -204,7 +180,7 @@ export const tauriClient = {
 	getSupportedAudioImportMetadata: (): Promise<
 		CommandResult<'get_supported_audio_import_metadata'>
 	> => commandSpecs.get_supported_audio_import_metadata(),
-	listWorkOperations: (): Promise<OperationListSnapshot> => commandSpecs.list_work_operations(),
+	listWorkOperations: (): Promise<WorkOperationsSnapshot> => commandSpecs.list_work_operations(),
 	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancelWorkOperation: (
 		operationId: OperationId,
@@ -229,8 +205,7 @@ export const TAURI_COMMAND_NAMES = Object.freeze(
 
 export const TAURI_APP_EVENT_NAMES = Object.freeze([
 	'opened-audio-files',
-	'work-operation-snapshot',
-	'work-operation-list-snapshot',
+	'work-operations-update',
 	'session-update',
 	'settings-update',
 ] as const);

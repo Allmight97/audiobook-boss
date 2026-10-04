@@ -26,7 +26,6 @@ function preview(): NonNullable<SessionOutput['previewRun']> {
 			operationId: 'preview-1',
 			sequence: 0,
 			revision: 2,
-			createdRevision: 1,
 			kind: 'processingBatch',
 			status: 'running',
 			title: 'Edited book',

@@ -28,25 +28,17 @@ describe('tauriClient generated event bindings', () => {
 		await tauriClient.listen(EVENTS.OPENED_AUDIO_FILES, () => {
 			/* no-op */
 		});
-		await tauriClient.listen(EVENTS.WORK_OPERATION_SNAPSHOT, () => {
-			/* no-op */
-		});
-		await tauriClient.listen(EVENTS.WORK_OPERATION_LIST_SNAPSHOT, () => {
+		await tauriClient.listen(EVENTS.WORK_OPERATIONS_UPDATE, () => {
 			/* no-op */
 		});
 
 		expect(tauriListen).toHaveBeenNthCalledWith(1, EVENTS.OPENED_AUDIO_FILES, expect.any(Function));
 		expect(tauriListen).toHaveBeenNthCalledWith(
 			2,
-			EVENTS.WORK_OPERATION_SNAPSHOT,
+			EVENTS.WORK_OPERATIONS_UPDATE,
 			expect.any(Function),
 		);
-		expect(tauriListen).toHaveBeenNthCalledWith(
-			3,
-			EVENTS.WORK_OPERATION_LIST_SNAPSHOT,
-			expect.any(Function),
-		);
-		expect(tauriListen).toHaveBeenCalledTimes(3);
+		expect(tauriListen).toHaveBeenCalledTimes(2);
 	});
 
 	it('keeps bounded wide Rust values in the numeric IPC contract', () => {

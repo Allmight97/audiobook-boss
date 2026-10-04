@@ -3,12 +3,13 @@ import type {
 	ChildJobStatus as GeneratedChildJobStatus,
 	OperationId as GeneratedOperationId,
 	OperationKind as GeneratedOperationKind,
-	OperationListSnapshot as GeneratedOperationListSnapshot,
 	OperationSnapshot as GeneratedOperationSnapshot,
 	OperationTerminalSummary as GeneratedOperationTerminalSummary,
 	ProgressSnapshot as GeneratedProgressSnapshot,
 	ResourceLane as GeneratedResourceLane,
 	WorkOperationStatus as GeneratedWorkOperationStatus,
+	WorkOperationsSnapshot as GeneratedWorkOperationsSnapshot,
+	WorkOperationsUpdate as GeneratedWorkOperationsUpdate,
 	WorkProgressStage as GeneratedWorkProgressStage,
 } from '../lib/generated/tauri';
 import type { NullToOptionalDeep } from './ipc';
@@ -26,9 +27,15 @@ export type OperationTerminalSummary = NullToOptionalDeep<GeneratedOperationTerm
 export type OperationSnapshot = Omit<NullToOptionalDeep<GeneratedOperationSnapshot>, 'children'> & {
 	children: ChildJobSnapshot[];
 };
-export type OperationListSnapshot = Omit<
-	NullToOptionalDeep<GeneratedOperationListSnapshot>,
+export type WorkOperationsSnapshot = Omit<
+	NullToOptionalDeep<GeneratedWorkOperationsSnapshot>,
 	'operations'
 > & {
 	operations: OperationSnapshot[];
+};
+export type WorkOperationsUpdate = Omit<
+	NullToOptionalDeep<GeneratedWorkOperationsUpdate>,
+	'changed'
+> & {
+	changed: OperationSnapshot;
 };

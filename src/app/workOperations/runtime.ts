@@ -1,11 +1,13 @@
 import { tauriClient } from '../../lib/tauri/client';
 import { EVENTS } from '../../types/events';
-import type {
-	OperationId,
-	OperationListSnapshot,
-	OperationSnapshot,
-} from '../../types/workRuntime';
-import { replaceOperations, upsertOperation, type WorkCenterModel } from './model';
+import type { OperationId, OperationSnapshot, WorkOperationsUpdate } from '../../types/workRuntime';
+import {
+	applyOperationSnapshot as mergeOperationSnapshot,
+	applyWorkOperations,
+	emptyWorkCenterModel,
+	visibleOperations,
+	type WorkCenterModel,
+} from './model';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { createSubscriptionGroup, type SubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
 
@@ -16,7 +18,8 @@ export type WorkOperationsView = {
 	readonly errorMessage: string | null;
 };
 
-interface WorkCenterState extends WorkCenterModel {
+interface WorkCenterState {
+	model: WorkCenterModel;
 	initialized: boolean;
 	cancelPendingByOperationId: Record<string, boolean>;
 	errorMessage: string | null;
@@ -27,9 +30,8 @@ const CANCEL_ERROR_PREFIX = 'Failed to cancel';
 
 function emptyWorkCenterState(): WorkCenterState {
 	return {
-		membershipRevision: 0,
+		model: emptyWorkCenterModel(),
 		initialized: false,
-		operations: [],
 		cancelPendingByOperationId: {},
 		errorMessage: null,
 	};
@@ -48,7 +50,7 @@ export type WorkOperationsSession = {
 	readonly view: () => WorkOperationsView;
 	initialize(): Promise<void>;
 	dispose(): void;
-	applyOperationSnapshot(snapshot: OperationSnapshot): void;
+	applyUpdate(update: WorkOperationsUpdate): void;
 	cancel(operationId: OperationId, childJobId?: string): Promise<void>;
 	revealOutput(child: { outputPath?: string | null }): Promise<void>;
 };
@@ -72,7 +74,7 @@ export function createWorkOperationsSession(
 	function snapshot(): WorkOperationsView {
 		return {
 			initialized: state.initialized,
-			operations: state.operations,
+			operations: visibleOperations(state.model),
 			cancelPendingByOperationId: state.cancelPendingByOperationId,
 			errorMessage: state.errorMessage,
 		};
@@ -99,18 +101,18 @@ export function createWorkOperationsSession(
 		}
 	}
 
-	function applyOperationSnapshot(next: OperationSnapshot): void {
-		const model = upsertOperation(state, next);
-		if (model === state) return;
-		Object.assign(state, model);
+	function apply(model: WorkCenterModel): void {
+		if (model === state.model) return;
+		state.model = model;
 		commit();
 	}
 
-	function applyOperationListSnapshot(list: OperationListSnapshot): void {
-		const model = replaceOperations(state, list);
-		if (model === state) return;
-		Object.assign(state, model);
-		commit();
+	function applyOperationSnapshot(next: OperationSnapshot): void {
+		apply(mergeOperationSnapshot(state.model, next));
+	}
+
+	function applyUpdate(update: WorkOperationsUpdate): void {
+		apply(applyWorkOperations(state.model, update));
 	}
 
 	return {
@@ -128,21 +130,14 @@ export function createWorkOperationsSession(
 			subscriptions = group;
 			initializationPromise = (async () => {
 				await group.add(
-					tauriClient.listen(EVENTS.WORK_OPERATION_SNAPSHOT, ({ payload }) => {
-						applyOperationSnapshot(payload.snapshot);
-					}),
-				);
-				await group.add(
-					tauriClient.listen(EVENTS.WORK_OPERATION_LIST_SNAPSHOT, ({ payload }) => {
-						applyOperationListSnapshot(payload);
-					}),
+					tauriClient.listen(EVENTS.WORK_OPERATIONS_UPDATE, ({ payload }) => applyUpdate(payload)),
 				);
 
 				const list = await tauriClient.listWorkOperations();
 				if (group.disposed) {
 					return;
 				}
-				applyOperationListSnapshot(list);
+				apply(applyWorkOperations(state.model, list));
 				state.initialized = true;
 				state.errorMessage = null;
 				commit();
@@ -164,13 +159,12 @@ export function createWorkOperationsSession(
 			subscriptions = null;
 			initializationPromise = null;
 			state.initialized = false;
-			state.operations = [];
-			state.membershipRevision = 0;
+			state.model = emptyWorkCenterModel();
 			state.cancelPendingByOperationId = {};
 			state.errorMessage = null;
 			commit();
 		},
-		applyOperationSnapshot,
+		applyUpdate,
 		async cancel(operationId, childJobId) {
 			// A title cancel is idempotent in the backend and its snapshot shows
 			// the request at once, so only whole-operation cancels track pending.

@@ -18,7 +18,6 @@ function completedOperation(): OperationSnapshot {
 		operationId: 'batch',
 		sequence: 1,
 		revision: 1,
-		createdRevision: 1,
 		kind: 'processingBatch',
 		status: 'completed',
 		title: 'Batch encode (2 files)',
