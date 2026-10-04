@@ -492,6 +492,11 @@ export type IndexerDraftSnapshot = {
 	 *  before; Save and Test refuse until an edit is accepted.
 	 */
 	draftError: AppErrorEnvelope | null,
+	/**
+	 *  The last category edit chose none and was refused; the draft keeps
+	 *  its categories. A search needs at least one.
+	 */
+	emptyCategoriesRefused: boolean,
 };
 
 export type IndexerWorkSnapshot = {

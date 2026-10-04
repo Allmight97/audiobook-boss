@@ -98,6 +98,9 @@ pub struct IndexerDraftSnapshot {
     /// Why the last edit was refused. The draft keeps the values it accepted
     /// before; Save and Test refuse until an edit is accepted.
     pub draft_error: Option<AppErrorEnvelope>,
+    /// The last category edit chose none and was refused; the draft keeps
+    /// its categories. A search needs at least one.
+    pub empty_categories_refused: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -209,6 +212,7 @@ impl Default for UiState {
                     api_key_configured: false,
                     api_key_entered: false,
                     draft_error: None,
+                    empty_categories_refused: false,
                     save: RemoteDraftStatus::Idle,
                     test: RemoteDraftStatus::Idle,
                     test_result: None,
@@ -738,6 +742,11 @@ impl UiState {
         };
         self.snapshot.connection.draft_error = None;
         self.url_edited |= url.is_some();
+        let category_ids = category_ids.filter(|ids| {
+            let refused = ids.iter().all(|id| *id == 0);
+            self.snapshot.connection.empty_categories_refused = refused;
+            !refused
+        });
         self.categories_edited |= category_ids.is_some();
         self.edit_revision += 1;
         if let Some(url) = url {

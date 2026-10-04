@@ -18,8 +18,10 @@
   account and library facts.
   Title/PDF/release selection, Search, Grab, Acquire, and Cancel send session
   intents through `engineLink`.
-- Connection editing sends write-only key/URL/category intents. Only unconfirmed
-  typing and the entered key's visual echo remain local; keys never come back
+- Connection editing sends write-only key/URL/category intents. Categories show
+  the engine's draft as it stands; the dialog sends the user's choice unchanged
+  and words the engine's refusal of none. Only unconfirmed URL typing and the
+  entered key's visual echo remain local; keys never come back
   from the engine. Save/Test status comes from the engine snapshot.
 - Input companion summaries read validated assets from engine titles.
 

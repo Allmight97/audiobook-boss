@@ -605,6 +605,28 @@ fn a_connection_that_loads_after_typing_keeps_the_typed_fields_and_fills_the_res
 }
 
 #[test]
+fn a_category_edit_that_chooses_none_is_refused_and_the_draft_keeps_its_categories() {
+    let mut ui = UiState::default();
+    assert_eq!(ui.snapshot().connection.category_ids, [3000, 3030]);
+    let edit = |ids: Vec<u32>| RemoteUiIntent::EditConnection {
+        base_url: None,
+        category_ids: Some(ids),
+        api_key: None,
+    };
+
+    ui.begin(edit(vec![3030])).expect("one category");
+    ui.begin(edit(Vec::new())).expect("refusal is reported, not an error");
+    let connection = ui.snapshot().connection;
+    assert_eq!(connection.category_ids, [3030]);
+    assert!(connection.empty_categories_refused);
+
+    ui.begin(edit(vec![3000, 3030])).expect("two categories");
+    let connection = ui.snapshot().connection;
+    assert_eq!(connection.category_ids, [3000, 3030]);
+    assert!(!connection.empty_categories_refused);
+}
+
+#[test]
 fn release_keys_keep_the_format_the_frontend_builds() {
     // `src/app/remoteSource/selection.ts` builds the same key with
     // `JSON.stringify([indexerId, guid])` to look rows up.

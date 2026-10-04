@@ -190,6 +190,7 @@ export function fakeRemote(): import('../../types/session').RemoteUiSnapshot {
 		connection: {
 			baseUrl: '',
 			categoryIds: [3000, 3030],
+			emptyCategoriesRefused: false,
 			apiKeyConfigured: false,
 			apiKeyEntered: false,
 			save: { kind: 'idle' },

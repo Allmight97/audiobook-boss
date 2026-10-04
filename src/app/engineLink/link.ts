@@ -220,6 +220,7 @@ function emptyRemote(): import('../../types/session').RemoteUiSnapshot {
 		connection: {
 			baseUrl: '',
 			categoryIds: [],
+			emptyCategoriesRefused: false,
 			apiKeyConfigured: false,
 			apiKeyEntered: false,
 			save: { kind: 'idle' },

@@ -61,6 +61,10 @@ or infer provider-private Audible internals.
   credential store.
 - The private connection owner resolves URL, categories, and the host's key for
   search/grab together; its credential-bearing result never crosses IPC.
+- Indexer categories default to Audio (3000) and Audiobooks (3030); a search
+  uses exactly the saved choice. An edit or save that chooses none is refused
+  (`empty_categories_refused` on the draft), and a file with none loads as the
+  default.
 - Indexer credentials are scoped to the normalized server URL in the vault;
   connection JSON never contains a key. Save persists changed JSON before
   changing that URL's key, and reports partial persistence if the vault fails.
