@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tauriClient } from '../../../lib/tauri/client';
 import { publishMockMetadataSave } from '../../../test/setup';
-import type { OperationListSnapshot, OperationSnapshot } from '../../../types/workRuntime';
+import type { OperationSnapshot, WorkOperationsSnapshot } from '../../../types/workRuntime';
 import { createWorkOperationsSession, type WorkOperationsSession } from '../runtime';
 
 function createDeferred<T>() {
@@ -19,7 +19,6 @@ function completedExportOperation(operationId: string): OperationSnapshot {
 		operationId,
 		sequence: 1,
 		revision: 1,
-		createdRevision: 1,
 		kind: 'processingBatch',
 		status: 'completed',
 		title: 'Tidy First',
@@ -96,17 +95,14 @@ describe('Work Center state', () => {
 
 	it('disposes registered listeners when initial operation listing fails', async () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
-		const snapshotUnlisten = vi.fn();
-		const listUnlisten = vi.fn();
+		const updateUnlisten = vi.fn();
 		vi.spyOn(tauriClient, 'listen')
-			.mockResolvedValueOnce(snapshotUnlisten)
-			.mockResolvedValueOnce(listUnlisten);
+.mockResolvedValueOnce(updateUnlisten);
 		vi.spyOn(tauriClient, 'listWorkOperations').mockRejectedValueOnce(new Error('list failed'));
 
 		await expect(session.initialize()).rejects.toThrow('list failed');
 
-		expect(snapshotUnlisten).toHaveBeenCalledTimes(1);
-		expect(listUnlisten).toHaveBeenCalledTimes(1);
+		expect(updateUnlisten).toHaveBeenCalledTimes(1);
 	});
 
 	it('retains successive metadata operations and their terminal updates through the Tauri mock', async () => {
@@ -125,21 +121,21 @@ describe('Work Center state', () => {
 
 	it('keeps event state when a delayed initial listing arrives', async () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
-		const list = createDeferred<OperationListSnapshot>();
+		const list = createDeferred<WorkOperationsSnapshot>();
 		vi.spyOn(tauriClient, 'listen').mockResolvedValue(() => undefined);
 		const listCall = vi.spyOn(tauriClient, 'listWorkOperations').mockReturnValue(list.promise);
 		const initialize = session.initialize();
 		await vi.waitFor(() => expect(listCall).toHaveBeenCalled());
 		const completed = completedExportOperation('op-finished');
-		session.applyOperationSnapshot(completed);
-		list.resolve({ membershipRevision: 0, operations: [] });
+		session.applyUpdate({ revision: 1, order: [completed.operationId], changed: completed });
+		list.resolve({ revision: 0, order: [], operations: [] });
 		await initialize;
 		expect(session.view().operations).toEqual([completed]);
 	});
 
 	it('ignores an initial-list rejection after the session is disposed', async () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
-		const list = createDeferred<OperationListSnapshot>();
+		const list = createDeferred<WorkOperationsSnapshot>();
 		vi.spyOn(tauriClient, 'listen').mockResolvedValue(() => undefined);
 		const listCall = vi.spyOn(tauriClient, 'listWorkOperations').mockReturnValue(list.promise);
 		const initializing = session.initialize();
@@ -161,7 +157,7 @@ describe('Work Center state', () => {
 			vi.spyOn(tauriClient, 'cancelWorkOperation').mockReturnValue(response.promise);
 			const completed = { ...completedExportOperation('op-cancel'), revision: 3 };
 			const cancel = session.cancel(completed.operationId);
-			session.applyOperationSnapshot(completed);
+			session.applyUpdate({ revision: 1, order: [completed.operationId], changed: completed });
 			if (disposed) session.dispose();
 			response.resolve({ ...completed, revision: 2, status: 'cancelling' });
 			await cancel;
@@ -181,12 +177,10 @@ describe('Work Center state', () => {
 
 	it('does not mark initialized or retain listeners when disposed mid-initialization', async () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
-		const snapshotUnlisten = vi.fn();
-		const listUnlisten = vi.fn();
-		const listDeferred = createDeferred<{ membershipRevision: number; operations: never[] }>();
+		const updateUnlisten = vi.fn();
+		const listDeferred = createDeferred<WorkOperationsSnapshot>();
 		vi.spyOn(tauriClient, 'listen')
-			.mockResolvedValueOnce(snapshotUnlisten)
-			.mockResolvedValueOnce(listUnlisten);
+.mockResolvedValueOnce(updateUnlisten);
 		vi.spyOn(tauriClient, 'listWorkOperations').mockReturnValueOnce(
 			listDeferred.promise as ReturnType<typeof tauriClient.listWorkOperations>,
 		);
@@ -194,17 +188,17 @@ describe('Work Center state', () => {
 		const initPromise = session.initialize();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		session.dispose();
-		listDeferred.resolve({ membershipRevision: 0, operations: [] });
+		listDeferred.resolve({ revision: 0, order: [], operations: [] });
 		await initPromise.catch(() => {});
 
-		expect(snapshotUnlisten).toHaveBeenCalledTimes(1);
-		expect(listUnlisten).toHaveBeenCalledTimes(1);
+		expect(updateUnlisten).toHaveBeenCalledTimes(1);
 		expect(session.view().initialized).toBe(false);
 	});
 
 	it('does not share operation snapshots across sessions', () => {
 		const other = createWorkOperationsSession(() => undefined);
-		session.applyOperationSnapshot(completedExportOperation('op-isolation'));
+		const isolated = completedExportOperation('op-isolation');
+		session.applyUpdate({ revision: 1, order: [isolated.operationId], changed: isolated });
 		expect(session.view().operations).toHaveLength(1);
 		expect(other.view().operations).toEqual([]);
 		other.dispose();

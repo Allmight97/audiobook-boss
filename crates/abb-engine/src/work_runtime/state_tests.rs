@@ -21,12 +21,10 @@ fn accepted_state() -> (WorkRuntimeState, OperationId) {
 }
 
 #[test]
-fn snapshots_revision_each_operation_independently_and_stamp_membership() {
+fn snapshots_revision_each_operation_independently() {
     let (mut state, operation_id) = accepted_state();
     let accepted = state.get(&operation_id).expect("accepted snapshot");
-    let initial_list = state.list();
     assert_eq!(accepted.revision, 1);
-    assert_eq!(accepted.created_revision, initial_list.membership_revision);
 
     let running = state.mark_running(&operation_id, 150).expect("start");
     let progress = state
@@ -43,11 +41,6 @@ fn snapshots_revision_each_operation_independently_and_stamp_membership() {
     assert!(progress.revision < cancelling.revision);
     assert!(cancelling.revision < terminal.revision);
     assert_eq!(terminal.sequence, accepted.sequence);
-    assert_eq!(terminal.created_revision, accepted.created_revision);
-    assert_eq!(
-        state.list().membership_revision,
-        initial_list.membership_revision
-    );
     assert_eq!(state.list().operations[0].revision, terminal.revision);
 
     let next = state.insert_operation(new_metadata_save_snapshot(
@@ -58,7 +51,6 @@ fn snapshots_revision_each_operation_independently_and_stamp_membership() {
         180,
     ));
     assert_eq!(next.revision, 1);
-    assert!(next.created_revision > initial_list.membership_revision);
     assert_eq!(
         state
             .get(&operation_id)
@@ -739,10 +731,6 @@ fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
 
     let list = state.list();
     assert_eq!(list.operations.len(), 21, "20 terminal + 1 running");
-    assert!(
-        list.membership_revision > 26,
-        "pruning advances membership beyond insertions"
-    );
     assert!(state.get(&running_id).is_ok());
 
     // Oldest 5 terminal ops (sequence 1..=5) were pruned; the 20 most recent
@@ -963,4 +951,39 @@ fn cancellation_and_failure_terminalize_queued_child_progress_for_reattachment()
             assert!(!child.cancellable);
         }
     }
+}
+
+// Hosts take the order from the update with the highest revision, so each
+// publish must advance it and carry the order as of that moment.
+#[test]
+fn each_published_change_advances_the_revision_and_orders_active_work_first() {
+    let (mut state, finished) = accepted_state();
+    let done = state
+        .fail(&finished, "boom".to_string(), 120)
+        .expect("terminal");
+    let first = state.publish(done);
+
+    let running = OperationId("op-2".to_string());
+    state.insert_operation(new_metadata_save_snapshot(
+        running.clone(),
+        2,
+        "Tags".to_string(),
+        &["/tmp/new.m4b".to_string()],
+        130,
+    ));
+    let queued = OperationId("op-3".to_string());
+    state.insert_operation(new_metadata_save_snapshot(
+        queued.clone(),
+        3,
+        "Tags".to_string(),
+        &["/tmp/other.m4b".to_string()],
+        140,
+    ));
+    let started = state.mark_running(&running, 150).expect("running");
+    let second = state.publish(started);
+
+    assert!(second.revision > first.revision);
+    assert_eq!(second.order, vec![running, queued, finished]);
+    assert_eq!(state.list().order, second.order);
+    assert_eq!(state.list().revision, second.revision);
 }

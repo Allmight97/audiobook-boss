@@ -21,7 +21,8 @@ import type {
 	SettingsReply as GeneratedSettingsReply,
 	SettingsSnapshot as GeneratedSettingsSnapshot,
 	ProcessCommandResult as GeneratedProcessCommandResult,
-	OperationListSnapshot as GeneratedOperationListSnapshot,
+	WorkOperationsSnapshot as GeneratedWorkOperationsSnapshot,
+	WorkOperationsUpdate as GeneratedWorkOperationsUpdate,
 	OperationSnapshot as GeneratedOperationSnapshot,
 } from '../generated/tauri';
 import type { PlannedOutput, ProcessCommandResult } from '../../types/audio';
@@ -29,7 +30,11 @@ import type { SettingsReply, SettingsSnapshot } from '../../types/appSettings';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { SessionReply, SessionUpdate, SubmissionStatus } from '../../types/session';
 import type { NullToOptionalDeep } from '../../types/ipc';
-import type { OperationListSnapshot, OperationSnapshot } from '../../types/workRuntime';
+import type {
+	OperationSnapshot,
+	WorkOperationsSnapshot,
+	WorkOperationsUpdate,
+} from '../../types/workRuntime';
 import { normalizeAppError } from './appError';
 
 type PlainRecord = Record<string, unknown>;
@@ -213,8 +218,14 @@ export function normalizeOperationSnapshot(payload: GeneratedOperationSnapshot):
 	return normalizeNullish(payload) as OperationSnapshot;
 }
 
-export function normalizeOperationListSnapshot(
-	payload: GeneratedOperationListSnapshot,
-): OperationListSnapshot {
-	return normalizeNullish(payload) as OperationListSnapshot;
+export function normalizeWorkOperationsSnapshot(
+	payload: GeneratedWorkOperationsSnapshot,
+): WorkOperationsSnapshot {
+	return normalizeNullish(payload) as WorkOperationsSnapshot;
+}
+
+export function normalizeWorkOperationsUpdate(
+	payload: GeneratedWorkOperationsUpdate,
+): WorkOperationsUpdate {
+	return normalizeNullish(payload) as WorkOperationsUpdate;
 }

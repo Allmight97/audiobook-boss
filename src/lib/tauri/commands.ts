@@ -15,7 +15,7 @@ import {
 	denormalizeNullish,
 	normalizeFrontendAttachment,
 	normalizeMetadata,
-	normalizeOperationListSnapshot,
+	normalizeWorkOperationsSnapshot,
 	normalizeOperationSnapshot,
 	normalizeSessionReply,
 	normalizeSettingsReply,
@@ -116,7 +116,7 @@ export const commandSpecs = {
 	get_supported_audio_import_metadata: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.getSupportedAudioImportMetadata()),
 	list_work_operations: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.listWorkOperations(), normalizeOperationListSnapshot),
+		runGeneratedCommand(generatedCommands.listWorkOperations(), normalizeWorkOperationsSnapshot),
 	cancel_work_operation: (args: { operationId: OperationId; childJobId?: string }) =>
 		runGeneratedCommand(
 			generatedCommands.cancelWorkOperation(args.operationId, args.childJobId ?? null),

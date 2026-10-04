@@ -17,7 +17,7 @@ use crate::remote_source::{RemoteSourceConfig, RemoteSourceRuntime};
 use crate::session::{
     Session, SessionDeps, SessionIntent, SessionReply, SessionRun, SessionUpdate,
 };
-use crate::work_runtime::{OperationId, OperationListSnapshot, OperationSnapshot, WorkRuntime};
+use crate::work_runtime::{OperationId, OperationSnapshot, WorkOperationsSnapshot, WorkRuntime};
 use tokio_util::task::TaskTracker;
 
 /// Admission and shutdown share this lock: visible work is registered before
@@ -345,7 +345,7 @@ impl Engine {
 
     // ---- Output and processing ----
 
-    pub fn list_work_operations(&self) -> Result<OperationListSnapshot> {
+    pub fn list_work_operations(&self) -> Result<WorkOperationsSnapshot> {
         self.inner.work.list_operations()
     }
 

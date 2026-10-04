@@ -12,15 +12,15 @@ import { pathBasename } from '../lib/path/basename';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { audioFile, fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
 import type {
-	OperationListSnapshot,
 	OperationSnapshot,
 	SupportedAudioImportMetadata,
+	WorkOperationsSnapshot,
 } from '../lib/generated/tauri';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
 const eventListeners = new Map<string, Set<TestEventHandler>>();
 let mockJobCounter = 0;
-let mockMembershipRevision = 0;
+let mockRevision = 0;
 const mockOperations = new Map<string, OperationSnapshot>();
 
 function emitTestEvent(event: string, payload: unknown): void {
@@ -31,16 +31,27 @@ function emitTestEvent(event: string, payload: unknown): void {
 	}
 }
 
-function mockOperationList(): OperationListSnapshot {
+function mockOrder(): string[] {
+	return [...mockOperations.values()]
+		.sort((a, b) => b.sequence - a.sequence)
+		.map((operation) => operation.operationId);
+}
+
+function mockOperationList(): WorkOperationsSnapshot {
 	return {
-		membershipRevision: mockMembershipRevision,
-		operations: [...mockOperations.values()].sort((a, b) => b.sequence - a.sequence),
+		revision: mockRevision,
+		order: mockOrder(),
+		operations: mockOrder().map((id) => mockOperations.get(id)!),
 	};
 }
 
 function publishMockOperation(snapshot: OperationSnapshot): void {
 	mockOperations.set(snapshot.operationId, snapshot);
-	emitTestEvent('work-operation-snapshot', { snapshot });
+	emitTestEvent('work-operations-update', {
+		revision: ++mockRevision,
+		order: mockOrder(),
+		changed: snapshot,
+	});
 }
 
 function mockOperationSnapshot(
@@ -63,7 +74,6 @@ function mockOperationSnapshot(
 		operationId,
 		sequence: mockJobCounter,
 		revision: 1,
-		createdRevision: ++mockMembershipRevision,
 		kind,
 		status: 'accepted' as const,
 		title,
@@ -129,7 +139,6 @@ export function publishMockMetadataSave(filePaths: string[]): void {
 	const operationId = `mock-metadata-operation-${mockJobCounter}`;
 	const baseSnapshot = mockOperationSnapshot(operationId, 'metadataSave', filePaths);
 	publishMockOperation(baseSnapshot);
-	emitTestEvent('work-operation-list-snapshot', mockOperationList());
 	publishMockOperation({
 		...baseSnapshot,
 		revision: baseSnapshot.revision + 1,
@@ -164,7 +173,6 @@ export function publishMockMetadataSave(filePaths: string[]): void {
 			message: `Completed ${filePaths.length} item(s).`,
 		},
 	});
-	emitTestEvent('work-operation-list-snapshot', mockOperationList());
 }
 
 // Mock Tauri's invoke API
@@ -324,7 +332,7 @@ startFakeEngine();
 beforeEach(() => {
 	eventListeners.clear();
 	mockJobCounter = 0;
-	mockMembershipRevision = 0;
+	mockRevision = 0;
 	mockOperations.clear();
 	startFakeEngine();
 });
@@ -332,7 +340,7 @@ beforeEach(() => {
 afterEach(() => {
 	eventListeners.clear();
 	mockJobCounter = 0;
-	mockMembershipRevision = 0;
+	mockRevision = 0;
 	mockOperations.clear();
 });
 
