@@ -24,7 +24,7 @@ attachment.
   and when the engine changes something on its own. A host that attached
   while an intent was running learns its result from the event.
 - A `SessionUpdate` carries only the parts that changed (titles, selection,
-  metadata, lookup, audio, output, remote). Each part carries the revision of its own last change; a
+  metadata, lookup, audio, output, remote, remote_library). Each part carries the revision of its own last change; a
   host keeps the newest copy of each part. This is what makes a keystroke cost
   about 1 KB instead of the whole title list, and what lets a reply and an
   event arrive in either order.
@@ -146,6 +146,9 @@ attachment.
 - **Remote.** `SessionIntent::Remote` routes remote choices and accepted work to
   `remote_source`. Its independently revisioned snapshot part survives frontend
   replacement; hosts do not rebuild plans, batch policy, or connection drafts.
+  Account/auth status belongs to remote, library rows/diagnostics to remote_library.
+  Attach includes both; progress-only updates omit remote_library. Authorization
+  URLs exist only in RemoteAuthStarted's initiating reply.
 - **Submission.** `Submit` and `Preview` accept the edits on screen, then
   build the export from the session: valid titles in list order with their
   ordered sources, audio requests, chapter plans, naming, and pending edits

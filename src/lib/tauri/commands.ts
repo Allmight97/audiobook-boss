@@ -4,20 +4,17 @@ import {
 	type OutputDefaults as GeneratedOutputDefaults,
 	type SettingsIntent as GeneratedSettingsIntent,
 	type OutputNamingConfig as GeneratedOutputNamingConfig,
-	type RemoteAuthCompletionRequest as GeneratedRemoteAuthCompletionRequest,
 } from '../generated/tauri';
 import type { OutputNamingConfig } from '../../types/audio';
 import type { AppSettings, SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { SessionIntent } from '../../types/session';
-import type { ProviderId, RemoteAuthCompletionRequest } from '../../types/remoteSource';
 import type { OperationId } from '../../types/workRuntime';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
 	denormalizeNullish,
 	normalizeFrontendAttachment,
 	normalizeMetadata,
-	normalizeNullish,
 	normalizeOperationListSnapshot,
 	normalizeOperationSnapshot,
 	normalizeSessionReply,
@@ -118,32 +115,6 @@ export const commandSpecs = {
 		runGeneratedCommand(generatedCommands.readAudioCoverThumbnail(args.filePath)),
 	get_supported_audio_import_metadata: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.getSupportedAudioImportMetadata()),
-	list_remote_source_providers: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.listRemoteSourceProviders(), normalizeNullish),
-	get_remote_source_account_state: (args: { providerId: ProviderId }) =>
-		runGeneratedCommand(
-			generatedCommands.getRemoteSourceAccountState(args.providerId),
-			normalizeNullish,
-		),
-	start_remote_source_auth: (args: { providerId: ProviderId }) =>
-		runGeneratedCommand(generatedCommands.startRemoteSourceAuth(args.providerId), normalizeNullish),
-	complete_remote_source_auth: (args: { request: RemoteAuthCompletionRequest }) =>
-		runGeneratedCommand(
-			generatedCommands.completeRemoteSourceAuth(
-				denormalizeNullish(args.request) as GeneratedRemoteAuthCompletionRequest,
-			),
-			normalizeNullish,
-		),
-	logout_remote_source_account: (args: { providerId: ProviderId }) =>
-		runGeneratedCommand(
-			generatedCommands.logoutRemoteSourceAccount(args.providerId),
-			normalizeNullish,
-		),
-	load_remote_source_library: (args: { providerId: ProviderId }) =>
-		runGeneratedCommand(
-			generatedCommands.loadRemoteSourceLibrary(args.providerId),
-			normalizeNullish,
-		),
 	list_work_operations: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.listWorkOperations(), normalizeOperationListSnapshot),
 	cancel_work_operation: (args: { operationId: OperationId; childJobId?: string }) =>

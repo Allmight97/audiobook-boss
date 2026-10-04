@@ -147,6 +147,7 @@ pub struct SessionUpdate {
     pub audio: Option<AudioSnapshot>,
     pub output: Option<OutputSnapshot>,
     pub remote: Option<crate::remote_source::RemoteUiSnapshot>,
+    pub remote_library: Option<crate::remote_source::RemoteLibrarySnapshot>,
 }
 
 impl SessionUpdate {
@@ -160,6 +161,7 @@ impl SessionUpdate {
             audio: None,
             output: None,
             remote: Some(snapshot),
+            remote_library: None,
         }
     }
 }
@@ -889,6 +891,7 @@ impl SessionState {
         let newer = |part: u64| revision.is_none_or(|revision| part > revision);
         SessionUpdate {
             remote: None,
+            remote_library: None,
             revision: self.parts.revision,
             titles: newer(self.parts.titles.revision).then(|| self.parts.titles.clone()),
             selection: newer(self.parts.selection.revision).then(|| self.parts.selection.clone()),

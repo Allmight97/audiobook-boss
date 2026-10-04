@@ -4,6 +4,23 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Reopening ABB's window keeps the Audible library, its selection, and any
+  download in progress, instead of showing an empty library.
+- Refresh Library waits while a download is running, and Connect and Logout
+  wait for each other. Switching between Audible and Indexer keeps the title
+  filter and search text.
+
+### Fixed
+
+- An Audible sign-in that Amazon never finishes now fails after a minute
+  instead of blocking the Acquire window until ABB quits. A mistyped handoff
+  path can be corrected without signing in again.
+
+- After launching from pinned defaults, pinning again saves the defaults on
+  screen instead of older ones from before the launch.
+
 ## [1.14.0] - 2026-10-02
 
 ### Changed

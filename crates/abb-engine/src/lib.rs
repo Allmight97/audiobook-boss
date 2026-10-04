@@ -15,7 +15,14 @@
 //! }
 //! ```
 
-//! Hosts cannot write tags or start processing outside the session's safety rules.
+//! Hosts cannot bypass accepted remote lifecycle work or write tags/start
+//! processing outside the session's safety rules.
+//!
+//! ```compile_fail
+//! fn disconnect(engine: &abb_engine::Engine) {
+//!     let _ = engine.remote_source().logout(abb_engine::remote_source::ProviderId::Audible);
+//! }
+//! ```
 //!
 //! ```compile_fail
 //! use abb_engine::save_metadata_intent;

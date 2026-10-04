@@ -10,10 +10,11 @@ when an imported download goes).
 Allowed external entrypoints:
 
 - Provider-neutral command types re-exported from `mod.rs`.
-- Host account display reads plus auth and logout through `Engine::remote_source()`.
 - `RemoteUiIntent` and `RemoteUiSnapshot`, including their named connection,
   Indexer-work, and per-release status vocabulary, through the session boundary. Connection
-  mutation, selection, Search/Grab, and acquisition start/cancel stay engine-internal.
+  mutation, selection, Search/Grab, auth start/completion/disconnect, and library
+  refresh cross only `SessionIntent::Remote`. `RemoteLibrarySnapshot` is a
+  separate revisioned session part; the runtime itself is crate-private.
 
 Processing, audio, metadata, output artifact, and frontend code must not import
 or infer provider-private Audible internals.
@@ -94,6 +95,26 @@ fields are presence hints, not direct-download facts.
   readback generations, and batch outcomes. Its intent match is routing; effect
   execution stays in `RemoteUiRun`. Accepted runs execute on `EngineTasks` through
   the session, regardless of whether a host awaits the reply.
+- SelectLane reads the selected account and, for connected Audible outside an
+  acquisition/handoff, its library; repeated entry coalesces pending reads.
+  Account and library requests carry generations: replaced lanes and accepted
+  disconnects discard both stale success and failure as Superseded. Reattachment
+  includes retained library rows; progress events carry only the remote part.
+  Both parts are captured together under the UI guard; library revisions advance
+  only when rows or diagnostics change.
+- Auth start reserves Starting before execution, returns authorization only in
+  its initiating reply, and retains AwaitingHandoff without the URL. Completion
+  reserves credentials until registration and persistence settle. StartAuth,
+  Disconnect, acquisition, and lane replacement are refused during completion.
+  Shutdown cancels registration before the credential commit is admitted and
+  awaits an admitted blocking commit. Started keychain reads are awaited too.
+- Accepted disconnect reserves the UI guard's disconnecting fact through vault
+  work outside the guard; account_status Running exposes that pending work.
+  Credential deletion failure preserves account/library choices and reports
+  Failed. Successful deletion updates account truth before staging cleanup, so
+  cleanup failure cannot leave a Connected account. Failed unmaterialized jobs
+  remain in the lifecycle registry; startup abandoned-session cleanup retries
+  their paths. Materialized handoff files remain session-owned.
 - Available PDFs start included; refresh preserves explicit exclusion while
   pruning titles that cannot be acquired. A Grab batch captures its releases,
   sends sequentially, and keeps per-release failures for explicit retry. Its

@@ -18,8 +18,16 @@ import type {
 	TitlesSnapshot as GeneratedTitlesSnapshot,
 } from '../lib/generated/tauri';
 import type { AudioFile, PlannedOutput, ProcessCommandResult } from './audio';
-import type { AcquisitionJob, RemoteRelease } from './remoteSource';
-import type { RemoteUiSnapshot as GeneratedRemoteUiSnapshot } from '../lib/generated/tauri';
+import type {
+	AcquisitionJob,
+	RemoteRelease,
+	RemoteTitle,
+	RemoteSourceAccountState,
+} from './remoteSource';
+import type {
+	RemoteLibrarySnapshot as GeneratedRemoteLibrarySnapshot,
+	RemoteUiSnapshot as GeneratedRemoteUiSnapshot,
+} from '../lib/generated/tauri';
 import type { OnlineMetadataResult } from './metadata';
 
 export type {
@@ -57,10 +65,19 @@ export type {
 
 export type SessionIntent = GeneratedSessionIntent;
 export type SessionOutcome = GeneratedSessionOutcome;
-export type RemoteUiSnapshot = Omit<GeneratedRemoteUiSnapshot, 'acquisition' | 'indexer'> & {
+export type RemoteUiSnapshot = Omit<
+	GeneratedRemoteUiSnapshot,
+	'acquisition' | 'indexer' | 'account'
+> & {
 	acquisition: AcquisitionJob | null;
+	account: RemoteSourceAccountState | null;
 	indexer: Omit<GeneratedRemoteUiSnapshot['indexer'], 'releases'> & { releases: RemoteRelease[] };
 };
+
+export type RemoteLibrarySnapshot = Omit<
+	GeneratedRemoteLibrarySnapshot,
+	'titles' | 'diagnostics'
+> & { titles: RemoteTitle[]; diagnostics: AcquisitionJob['diagnostics'] };
 
 export type SessionTitles = Omit<GeneratedTitlesSnapshot, 'files' | 'titleSourcesByIdentity'> & {
 	files: AudioFile[];
@@ -92,6 +109,7 @@ export type SessionUpdate = {
 	audio?: SessionAudio;
 	output?: SessionOutput;
 	remote?: RemoteUiSnapshot;
+	remoteLibrary?: RemoteLibrarySnapshot;
 };
 
 export type SessionReply = {

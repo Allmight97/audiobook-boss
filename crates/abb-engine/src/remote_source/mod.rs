@@ -12,9 +12,12 @@ mod session_lifecycle;
 mod staging;
 mod types;
 mod ui;
+
+/// How long Amazon may take to register a completed sign-in.
+const AUTH_REGISTRATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 pub use ui::{
     IndexerDraftSnapshot, IndexerWorkSnapshot, ReleaseGrabSnapshot, ReleaseGrabStatus,
-    RemoteDraftStatus, RemoteUiIntent, RemoteUiSnapshot,
+    RemoteAuthStatus, RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiIntent, RemoteUiSnapshot,
 };
 pub(crate) use ui::{RemoteUiResult, RemoteUiRun};
 mod vault;
@@ -27,9 +30,7 @@ use staging::RemoteSourceStaging;
 use types::{
     AcquisitionJob as RemoteAcquisitionJob, AcquisitionPlan as RemoteAcquisitionPlan,
     ProviderId as RemoteProviderId, RemoteAuthCompletionRequest as RemoteAuthCompletion,
-    RemoteAuthStartResponse as RemoteAuthStart, RemoteLibraryResponse as RemoteLibrary,
-    RemoteSourceAccountState as RemoteAccountState,
-    RemoteSourceProviderCapabilities as RemoteProviderCapabilities,
+    RemoteAuthStartResponse as RemoteAuthStart, RemoteSourceAccountState as RemoteAccountState,
 };
 use vault::{KeyringSecretVault, SecretVault};
 
@@ -58,7 +59,7 @@ pub(crate) type Handoff = Arc<
 >;
 
 #[derive(Clone)]
-pub struct RemoteSourceRuntime {
+pub(crate) struct RemoteSourceRuntime {
     inner: Arc<RemoteSourceRuntimeInner>,
 }
 
@@ -134,14 +135,10 @@ impl RemoteSourceRuntime {
         self.inner.lifecycle.cleanup_abandoned_sessions()
     }
 
-    pub fn list_providers(&self) -> Vec<RemoteProviderCapabilities> {
-        vec![
-            AudibleProvider::capabilities(),
-            IndexerProvider::capabilities(),
-        ]
-    }
-
-    pub fn account_state(&self, provider_id: RemoteProviderId) -> Result<RemoteAccountState> {
+    pub(crate) fn account_state(
+        &self,
+        provider_id: RemoteProviderId,
+    ) -> Result<RemoteAccountState> {
         match provider_id {
             RemoteProviderId::Audible => AudibleProvider::account_state(self.inner.vault.as_ref()),
             RemoteProviderId::Indexer => {
@@ -150,7 +147,7 @@ impl RemoteSourceRuntime {
         }
     }
 
-    pub fn start_auth(&self, provider_id: RemoteProviderId) -> Result<RemoteAuthStart> {
+    pub(crate) fn start_auth(&self, provider_id: RemoteProviderId) -> Result<RemoteAuthStart> {
         match provider_id {
             RemoteProviderId::Audible => {
                 let (authorization_url, pending) = AudibleProvider::start_auth()?;
@@ -173,9 +170,15 @@ impl RemoteSourceRuntime {
         }
     }
 
-    pub async fn complete_auth(&self, request: RemoteAuthCompletion) -> Result<RemoteAccountState> {
+    pub(crate) async fn complete_auth(
+        &self,
+        request: RemoteAuthCompletion,
+    ) -> Result<RemoteAccountState> {
         match request.provider_id {
             RemoteProviderId::Audible => {
+                // A handoff path that can't be read keeps the sign-in, so the
+                // user can correct the path without a new browser round trip.
+                let response_url = read_handoff_url(request.response_url_handoff_path)?;
                 let pending = self
                     .inner
                     .pending_audible_auth
@@ -187,9 +190,32 @@ impl RemoteSourceRuntime {
                             "Start Audible auth before completing the handoff.".to_string(),
                         )
                     })?;
-                let response_url = read_handoff_url(request.response_url_handoff_path)?;
-                AudibleProvider::complete_auth(self.inner.vault.as_ref(), pending, &response_url)
+                // Registration has no timeout of its own; a stalled Amazon
+                // endpoint must not hold the remote surface until quit.
+                let registration = async {
+                    tokio::time::timeout(
+                        AUTH_REGISTRATION_TIMEOUT,
+                        AudibleProvider::register_auth(pending, &response_url),
+                    )
                     .await
+                    .map_err(|_| {
+                        AppError::General(
+                            "Amazon did not finish the sign-in in time. Connect again.".into(),
+                        )
+                    })?
+                };
+                let auth = self.inner.tasks.until_closing(registration).await?;
+                // Registration is cancellable; the accepted durable write is
+                // awaited by EngineTasks and must finish once started.
+                let runtime = self.clone();
+                let write = self.inner.tasks.admit(|| {
+                    tokio::task::spawn_blocking(move || {
+                        AudibleProvider::persist_auth(runtime.inner.vault.as_ref(), &auth)
+                    })
+                })?;
+                write.await.map_err(|_| {
+                    AppError::General("Audible credential persistence failed.".into())
+                })?
             }
             RemoteProviderId::Indexer => Err(AppError::InvalidInput(
                 "Indexer uses Settings URL and API key configuration instead of browser auth."
@@ -198,56 +224,34 @@ impl RemoteSourceRuntime {
         }
     }
 
-    pub fn logout(&self, provider_id: RemoteProviderId) -> Result<RemoteAccountState> {
-        // Admission and disconnect share this guard: an accepted acquisition
-        // cannot slip between the safety check and staging cleanup.
-        let mut ui = self.ui();
-        ui.disconnect_allowed(provider_id)?;
-        if self.inner.lifecycle.has_unsettled_acquisition() {
-            return Err(AppError::InvalidInput(
-                "Wait for the Audible acquisition and handoff before disconnecting.".into(),
-            ));
-        }
-        self.inner.lifecycle.abort_all_acquisition_tasks();
+    fn disconnect_credentials(&self, provider_id: RemoteProviderId) -> Result<RemoteAccountState> {
         match provider_id {
             RemoteProviderId::Audible => AudibleProvider::logout(self.inner.vault.as_ref())?,
             RemoteProviderId::Indexer => {
                 IndexerProvider::logout(&self.inner.config_dir, self.inner.vault.as_ref())?
             }
         }
+        // Once credentials are removed, reflect disconnection even if a
+        // staging cleanup fails. Failed jobs remain in the lifecycle registry;
+        // startup's abandoned-session sweep is the cleanup backstop.
+        let account = self.account_state(provider_id);
+        {
+            let mut state = self.ui();
+            state.disconnected(provider_id);
+            state.account_disconnected(account.as_ref().ok().cloned());
+        }
+        if provider_id == RemoteProviderId::Audible {
+            *self
+                .inner
+                .pending_audible_auth
+                .lock()
+                .map_err(|_| AppError::General("Remote auth state lock failed".into()))? = None;
+        }
         self.inner
             .lifecycle
             .cleanup_logout_sessions_without_handoff()?;
         self.inner.lifecycle.clear_jobs()?;
-        ui.disconnected(provider_id);
-        drop(ui);
-        self.publish_ui();
-        *self
-            .inner
-            .pending_audible_auth
-            .lock()
-            .map_err(|_| AppError::General("Remote auth state lock failed".to_string()))? = None;
-        self.account_state(provider_id)
-    }
-
-    pub async fn load_library(&self, provider_id: RemoteProviderId) -> Result<RemoteLibrary> {
-        match provider_id {
-            RemoteProviderId::Audible => {
-                let request = self.ui().begin_library();
-                let library = AudibleProvider::load_library(self.inner.vault.as_ref()).await?;
-                if !self.ui().library_reply(request, library.titles.clone()) {
-                    return Err(AppError::InvalidInput(
-                        "The Audible library request was superseded; reopen Acquire to refresh."
-                            .into(),
-                    ));
-                }
-                self.publish_ui();
-                Ok(library)
-            }
-            RemoteProviderId::Indexer => Err(AppError::InvalidInput(
-                "Indexer search uses release search instead of library scan.".to_string(),
-            )),
-        }
+        account
     }
 
     /// Searches the indexer. A new search forgets which releases were sent.
@@ -453,24 +457,30 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn test_runtime(root: &TempDir) -> RemoteSourceRuntime {
+        test_runtime_with(root, None, None)
+    }
+
+    pub(super) fn test_runtime_with(
+        root: &TempDir,
+        vault: Option<Box<dyn vault::SecretVault>>,
+        events: Option<Arc<dyn crate::EventSink>>,
+    ) -> RemoteSourceRuntime {
+        let host = crate::host::Host::new(
+            events.unwrap_or_else(|| Arc::new(crate::DiscardEvents)),
+            crate::power::PowerManager::default(),
+        );
         let ui = Arc::new(Mutex::default());
         RemoteSourceRuntime {
             inner: Arc::new(RemoteSourceRuntimeInner {
                 ui: ui.clone(),
-                ui_host: crate::host::Host::new(
-                    Arc::new(crate::DiscardEvents),
-                    crate::power::PowerManager::default(),
-                ),
+                ui_host: host.clone(),
                 power: crate::power::PowerManager::default(),
                 config_dir: root.path().to_path_buf(),
-                vault: Box::<TestSecretVault>::default(),
+                vault: vault.unwrap_or_else(|| Box::<TestSecretVault>::default()),
                 lifecycle: RemoteAcquisitionLifecycle::new(
                     RemoteSourceStaging::new(root.path().to_path_buf()),
                     AaxcleanMaterializer::for_tests(),
-                    crate::host::Host::new(
-                        std::sync::Arc::new(crate::DiscardEvents),
-                        crate::power::PowerManager::default(),
-                    ),
+                    host,
                     ui,
                 ),
                 pending_audible_auth: Mutex::new(None),
@@ -837,8 +847,8 @@ pub(crate) mod tests {
         );
     }
 
-    #[test]
-    fn logout_keeps_materialized_handoff_sessions_but_purges_unmaterialized_sessions() {
+    #[tokio::test]
+    async fn logout_keeps_materialized_handoff_sessions_but_purges_unmaterialized_sessions() {
         let root = TempDir::new().expect("temp root");
         let runtime = test_runtime(&root);
         let materialized_job_id = "remote-job-materialized";
@@ -874,19 +884,24 @@ pub(crate) mod tests {
                 sha256: "abc123".to_string(),
             });
         materialized_job.handoff = Some(AcquisitionHandoff::Imported { count: 1 });
-        let mut jobs = runtime.inner.lifecycle.jobs.lock().expect("jobs lock");
-        jobs.insert(materialized_job_id.to_string(), materialized_job);
-        jobs.insert(
-            unmaterialized_job_id.to_string(),
-            acquisition_job(
-                unmaterialized_job_id,
-                types::RemoteAcquisitionStatus::Failed,
-            ),
-        );
-        drop(jobs);
+        {
+            let mut jobs = runtime.inner.lifecycle.jobs.lock().expect("jobs lock");
+            jobs.insert(materialized_job_id.to_string(), materialized_job);
+            jobs.insert(
+                unmaterialized_job_id.to_string(),
+                acquisition_job(
+                    unmaterialized_job_id,
+                    types::RemoteAcquisitionStatus::Failed,
+                ),
+            );
+        }
 
         runtime
-            .logout(RemoteProviderId::Audible)
+            .ui_begin(RemoteUiIntent::Disconnect {
+                provider: ProviderId::Audible,
+            })
+            .finish()
+            .await
             .expect("logout should preserve handoff session");
 
         assert!(materialized_path.exists());

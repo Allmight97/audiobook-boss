@@ -64,8 +64,11 @@ files. It is not a hidden processing path.
 The engine owns preview identity, progress, cancellation, and output-opening
 claims. Preview snapshots live in the working session; final exports and metadata
 Saves live in WorkRuntime history. Both use the same progress reducer. Remote
-choices, connection drafts, acquisition progress, and sequential Grab batches also
-live in the engine and reattach through the remote session snapshot.
+accounts, authentication, library refresh, choices, connection drafts, acquisition
+progress, and sequential Grab batches also live in the engine. Reattachment
+restores the retained library as a separately revisioned session part, so download
+progress does not resend the catalog. The frontend opens the browser when an
+auth-start reply supplies its authorization URL.
 
 ## Owner Topology
 
@@ -86,7 +89,7 @@ live in the engine and reattach through the remote session snapshot.
 | Metadata Outcome | `crates/abb-engine/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
 | Output Artifact | `crates/abb-engine/src/output_artifact` | Requested/resolved paths, collision review, replacement, final commit, and success truth. |
 | App Settings | `crates/abb-engine/src/app_settings` + `src/app/appSettings` | Settings in effect, validation, storage, and durability in the engine; dialog state and wording in TS. |
-| Remote Source | `crates/abb-engine/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, working choices/connection drafts, sequential Grab, acquisition snapshots, and staged materialization in the engine (the session imports the files and decides when downloads go); dialog state and wording in TS. |
+| Remote Source | `crates/abb-engine/src/remote_source` + `src/app/remoteSource` | Provider capabilities, account/auth state, retained library and refresh, working choices/connection drafts, sequential Grab, acquisition snapshots, and staged materialization in the engine (the session imports the files and decides when downloads go); dialog state, browser opening, and wording in TS. |
 | Core crates | `crates/abb-*-core` | Pure domain facts and classifiers packaged for an engine owner; not additional product owners. Tier rules: `crates/AGENTS.md`. |
 
 Callers cross an owner's Public API Strip—the allowed import/export surface

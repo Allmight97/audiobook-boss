@@ -16,7 +16,8 @@ use std::time::Duration;
 use abb_engine::audio::{AudioIntent, AudiobookFormat};
 use abb_engine::output_artifact::{CollisionPolicy, NamingPreset};
 use abb_engine::session::{
-    AudioEdit, MetadataField, SessionIntent, SessionOutcome, SessionUpdate, SubmissionStatus,
+    AudioEdit, MetadataField, MetadataStatus, SessionIntent, SessionOutcome, SessionUpdate,
+    SubmissionStatus,
 };
 use abb_engine::work_runtime::{
     ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus,
@@ -470,7 +471,29 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<(), String> {
     } else {
         print_session(&session);
     }
+    if options.save {
+        save_written(&session)?;
+    }
     Ok(())
+}
+
+/// A Save the engine accepted can still fail to write; that fails the run.
+fn save_written(session: &SessionUpdate) -> Result<(), String> {
+    let status = session
+        .metadata
+        .as_ref()
+        .and_then(|metadata| metadata.status.as_ref());
+    match status {
+        Some(MetadataStatus::SaveFailed { error }) => {
+            Err(format!("Save failed: {}", error.message))
+        }
+        Some(MetadataStatus::SaveInvalid) => Err("Save was refused: the edits are invalid".into()),
+        Some(
+            MetadataStatus::SaveComplete { failed, .. }
+            | MetadataStatus::DeferredWritesFinished { failed, .. },
+        ) if *failed > 0 => Err(format!("Save could not write {failed} file(s)")),
+        _ => Ok(()),
+    }
 }
 
 #[tokio::main]

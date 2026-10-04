@@ -498,7 +498,9 @@ mod tests {
     use tokio::net::TcpListener;
     use tokio::time::timeout;
 
-    const LOCAL_TIMEOUT: Duration = Duration::from_secs(3);
+    // Bounds a hang only: building the production client loads the system
+    // root certificates, which can take seconds while the whole suite runs.
+    const LOCAL_TIMEOUT: Duration = Duration::from_secs(15);
 
     #[derive(Default, Clone)]
     struct CapturedRequest {

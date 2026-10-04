@@ -359,10 +359,4 @@ impl Engine {
             .work
             .cancel_operation(&self.inner.host, operation_id, child_job_id)
     }
-
-    // ---- Remote sources ----
-
-    pub fn remote_source(&self) -> &RemoteSourceRuntime {
-        &self.inner.remote_source
-    }
 }

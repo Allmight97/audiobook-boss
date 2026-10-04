@@ -12,14 +12,14 @@ not keep parallel business state.
   and Work Center progress render Rust-owned facts. Adapters word typed statuses
   and send intents or the owned read/cancel API; product rules go in the engine.
 - Keep frontend lifetime and presentation resources here: dialog disclosure,
-  transient typing echo, visible filter/sort, thumbnails, and account display
-  reads. They never determine accepted file work or terminal truth.
+  transient typing echo, visible filter/sort, thumbnails, and authorization browser
+  opening. They never determine accepted file work or terminal truth.
 
 ## Engine Link
 
 - `engineLink` is the one connection to the engine. It keeps the newest copy
   of each snapshot part (titles, selection, metadata, lookup, audio, output,
-  remote, settings) by
+  remote, remote library, settings) by
   revision, and sends intents. Adapters read the link; nothing else holds a
   copy of engine state.
 - `send` resolves with the intent's outcome after its work finishes; `post`
