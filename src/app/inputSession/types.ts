@@ -32,8 +32,7 @@ export type InputView = {
 export type ImportIntent =
 	| { readonly type: 'pickFiles' }
 	| { readonly type: 'pickFolder' }
-	| { readonly type: 'importPaths'; readonly paths: ReadonlyArray<string> }
-	| { readonly type: 'drainOpened' };
+	| { readonly type: 'importPaths'; readonly paths: ReadonlyArray<string> };
 
 export const DEFAULT_SUPPORT_TEXT = 'Supports audio files';
 

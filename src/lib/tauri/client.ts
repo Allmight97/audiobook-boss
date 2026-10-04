@@ -15,7 +15,6 @@ import {
 	EVENTS,
 	type ApplicationEvents,
 	type EventName,
-	type OpenedAudioFilesEvent,
 	type SessionUpdateEvent,
 	type SettingsUpdateEvent,
 	type WorkOperationsUpdateEvent,
@@ -37,18 +36,11 @@ import {
 
 type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
 type RuntimeEventName = Exclude<EventName, AppEventName>;
-type OpenedAudioFilesHandler = (event: { payload: OpenedAudioFilesEvent }) => void;
 type WorkOperationsUpdateHandler = (event: { payload: WorkOperationsUpdateEvent }) => void;
 type SessionUpdateHandler = (event: { payload: SessionUpdateEvent }) => void;
 type SettingsUpdateHandler = (event: { payload: SettingsUpdateEvent }) => void;
 
 type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
-
-async function listenOpenedAudioFiles(handler: OpenedAudioFilesHandler): Promise<UnlistenFn> {
-	return generatedEvents.openedAudioFiles.listen((event) => {
-		handler({ payload: event.payload });
-	});
-}
 
 async function listenWorkOperationsUpdate(
 	handler: WorkOperationsUpdateHandler,
@@ -71,10 +63,6 @@ async function listenSessionUpdate(handler: SessionUpdateHandler): Promise<Unlis
 }
 
 function listen(
-	event: typeof EVENTS.OPENED_AUDIO_FILES,
-	handler: OpenedAudioFilesHandler,
-): Promise<UnlistenFn>;
-function listen(
 	event: typeof EVENTS.WORK_OPERATIONS_UPDATE,
 	handler: WorkOperationsUpdateHandler,
 ): Promise<UnlistenFn>;
@@ -93,16 +81,11 @@ function listen<E extends RuntimeEventName>(
 function listen(
 	event: EventName,
 	handler:
-		| OpenedAudioFilesHandler
 		| WorkOperationsUpdateHandler
 		| SessionUpdateHandler
 		| SettingsUpdateHandler
 		| ((event: { payload: ApplicationEvents[RuntimeEventName] }) => void),
 ): Promise<UnlistenFn> {
-	if (event === EVENTS.OPENED_AUDIO_FILES) {
-		return listenOpenedAudioFiles(handler as OpenedAudioFilesHandler);
-	}
-
 	if (event === EVENTS.WORK_OPERATIONS_UPDATE) {
 		return listenWorkOperationsUpdate(handler as WorkOperationsUpdateHandler);
 	}
@@ -198,7 +181,6 @@ export const TAURI_COMMAND_NAMES = Object.freeze(
 ) as readonly TauriCommand[];
 
 export const TAURI_APP_EVENT_NAMES = Object.freeze([
-	'opened-audio-files',
 	'work-operations-update',
 	'session-update',
 	'settings-update',

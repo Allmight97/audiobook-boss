@@ -117,7 +117,6 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
             work: WorkRuntime::default(),
             jobs: Arc::new(JobRegistry::new(2)),
             temporary_root: PathBuf::from("/staged"),
-            opened_audio: Arc::default(),
             tasks: crate::engine::EngineTasks::default(),
             workspace_root: std::env::temp_dir().join("abb-session-tests"),
             settings,
@@ -216,6 +215,37 @@ impl Rig {
     }
 
     /// Locks the list, as a submission or preview does.
+    fn listed_paths(&self) -> Vec<PathBuf> {
+        self.session
+            .snapshot()
+            .titles
+            .expect("titles")
+            .files
+            .into_iter()
+            .map(|file| file.path)
+            .collect()
+    }
+
+    async fn wait_for_titles(&self, count: usize) {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while self.listed_paths().len() != count {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("titles listed");
+    }
+
+    async fn wait_for_notice(&self, notice: InputNotice) {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while self.session.snapshot().titles.expect("titles").notice != Some(notice.clone()) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("notice shown");
+    }
+
     fn lock_order(&self, locked: bool) {
         self.session
             .transition(|state| state.working_set.set_order_locked(locked));
@@ -846,60 +876,48 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
 }
 
 #[tokio::test]
-async fn opened_files_wait_for_unlock_without_a_second_host_request() {
+async fn opened_files_wait_for_unlock_without_a_host_request() {
     let rig = rig();
     let folder = tempfile::TempDir::new().expect("temp dir");
     let opened = staged_wav(folder.path(), "opened");
-    rig.session
-        .inner
-        .deps
-        .opened_audio
-        .push_paths(vec![opened.clone()])
-        .expect("queue opened file");
     rig.lock_order(true);
-    // The caller's lock snapshot may be stale, and its reply may be dropped.
-    drop(rig.session.begin(SessionIntent::ImportOpened));
+    rig.session
+        .import_opened(vec![opened.clone(), opened.clone()])
+        .expect("opened files admitted");
     tokio::task::yield_now().await;
-    assert!(rig
-        .session
-        .snapshot()
-        .titles
-        .expect("titles")
-        .files
-        .is_empty());
+    assert!(rig.listed_paths().is_empty());
     rig.lock_order(false);
     rig.session.sources_released();
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        loop {
-            if !rig
-                .session
-                .snapshot()
-                .titles
-                .expect("titles")
-                .files
-                .is_empty()
-            {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("engine drains opened files after unlock");
-    let titles = rig.session.snapshot().titles.expect("titles");
-    assert_eq!(titles.files.len(), 1);
+    rig.wait_for_titles(1).await;
     assert_eq!(
-        titles.files[0].path,
-        opened.canonicalize().expect("canonical opened path")
+        rig.listed_paths(),
+        vec![opened.canonicalize().expect("canonical opened path")]
     );
-    assert!(rig
-        .session
-        .inner
-        .deps
-        .opened_audio
-        .take_paths()
-        .expect("queue")
-        .is_empty());
+
+    rig.session
+        .import_opened(vec![opened])
+        .expect("opened again");
+    rig.wait_for_notice(InputNotice::DuplicatesOnly).await;
+    assert_eq!(rig.listed_paths().len(), 1);
+}
+
+#[tokio::test]
+async fn a_reset_drops_opened_files_still_waiting_and_closing_refuses_them() {
+    let rig = rig();
+    let folder = tempfile::TempDir::new().expect("temp dir");
+    let opened = staged_wav(folder.path(), "opened");
+    rig.lock_order(true);
+    rig.session
+        .import_opened(vec![opened.clone()])
+        .expect("opened files admitted");
+    rig.send(SessionIntent::Reset).await;
+    rig.lock_order(false);
+    rig.session.sources_released();
+    rig.session.inner.deps.tasks.close();
+    rig.session.inner.deps.tasks.wait().await;
+    assert!(rig.listed_paths().is_empty(), "the reset dropped them");
+
+    assert!(rig.session.import_opened(vec![opened]).is_err());
 }
 
 #[tokio::test]

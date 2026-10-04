@@ -17,7 +17,6 @@ const EXPECTED_COMMAND_NAMES = [
 ] as const;
 
 const EXPECTED_APP_EVENT_NAMES = [
-	'opened-audio-files',
 	'work-operations-update',
 	'session-update',
 	'settings-update',

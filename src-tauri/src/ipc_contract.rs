@@ -19,7 +19,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::log_frontend,
         ])
         .events(tauri_specta::collect_events![
-            crate::events::OpenedAudioFilesEvent,
             crate::events::WorkOperationsUpdateEvent,
             crate::events::SessionUpdateEvent,
             crate::events::SettingsUpdateEvent,

@@ -38,7 +38,6 @@ export const commands = {
 
 /** Events */
 export const events = {
-	openedAudioFiles: makeEvent<OpenedAudioFilesEvent>("opened-audio-files"),
 	sessionUpdate: makeEvent<SessionUpdateEvent>("session-update"),
 	settingsUpdate: makeEvent<SettingsUpdateEvent>("settings-update"),
 	workOperationsUpdate: makeEvent<WorkOperationsUpdateEvent>("work-operations-update"),
@@ -660,9 +659,6 @@ export type OnlineMetadataResult = {
 	audibleOnly: boolean | null,
 };
 
-/**  Tells the frontend the OS asked ABB to open files; it then drains the queue. */
-export type OpenedAudioFilesEvent = Record<string, never>;
-
 export type OperationId = string;
 
 export type OperationKind = "processingBatch" | "remoteAcquisition" | "metadataSave";
@@ -1051,9 +1047,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  *  Discovers and analyzes audio under `paths` and adds new titles, each
  *  starting from the default audio choice.
  */
-{ kind: "import"; paths: string[] } |
-/**  Imports the files the operating system asked ABB to open. */
-{ kind: "importOpened" } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } |
+{ kind: "import"; paths: string[] } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } |
 /**
  *  Moves a title one place. Named by identity, so a second click sent
  *  before the first is answered moves the same title again.

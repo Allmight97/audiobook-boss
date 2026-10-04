@@ -10,7 +10,7 @@ pub mod ipc_contract;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{Emitter, LogicalSize, Manager, Size, WebviewWindow};
+use tauri::{LogicalSize, Manager, Size, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
 const STARTUP_MAX_MONITOR_RATIO: f64 = 0.94;
@@ -280,9 +280,9 @@ fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) 
         });
 }
 
-/// Hands OS-opened files to the engine and tells the frontend to collect them.
+/// Hands OS-opened files to the engine, which imports them.
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
-fn queue_opened_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
+fn open_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
     let paths = urls
         .into_iter()
         .filter_map(|url| url.to_file_path().ok())
@@ -291,16 +291,8 @@ fn queue_opened_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
         log::warn!("Engine is unavailable; ignoring opened audio files");
         return;
     };
-    match engine.queue_opened_audio_files(paths) {
-        Ok(true) => {
-            use tauri_specta::Event;
-            let event = events::OpenedAudioFilesEvent::default();
-            if let Err(error) = app.emit(events::OpenedAudioFilesEvent::NAME, event) {
-                log::warn!("Failed to emit opened audio files event: {}", error);
-            }
-        }
-        Ok(false) => {}
-        Err(error) => log::warn!("Failed to queue opened audio files: {}", error),
+    if let Err(error) = engine.open_audio_files(paths) {
+        log::warn!("Opened audio files were not imported: {error}");
     }
 }
 
@@ -355,7 +347,7 @@ pub fn run() {
                 api.prevent_close();
             }
             #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
-            tauri::RunEvent::Opened { urls } => queue_opened_urls(app, urls),
+            tauri::RunEvent::Opened { urls } => open_urls(app, urls),
             _ => {}
         });
 }

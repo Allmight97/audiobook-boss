@@ -83,10 +83,11 @@ attachment.
   explicit choice. Drafts for hidden sources survive grouping, and a grouped
   title's draft is kept for its output and never written into a source.
 - **Import.** One import runs at a time. A Reset drops an import still
-  running, including its failure notice. Files the OS opened stay queued while
-  the list is locked; an accepted OS-open request waits and drains them after
-  unlock independently of the host. Analysis that overlaps a submission waits
-  before appending to its locked list.
+  running, including its failure notice. Files the OS opened
+  (`Engine::open_audio_files`) are imported by the engine with no host asking;
+  while the list is locked that import waits and appends after unlock instead
+  of being refused. Analysis that overlaps a submission waits before appending
+  to its locked list.
 - **Cover.** A cover change applies only when exactly one valid title is
   selected. A later cover choice or Clear supersedes a load still running.
 - **Save targets.** Save covers every pending edit on a valid single-source

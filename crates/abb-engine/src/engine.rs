@@ -12,7 +12,6 @@ use crate::audio::{self, SupportedAudioImportMetadata};
 use crate::errors::{AppError, Result};
 use crate::host::{EventSink, Host};
 use crate::metadata::AudiobookMetadata;
-use crate::opened_audio::OpenedAudioFileQueue;
 use crate::power::PowerManager;
 use crate::remote_source::{RemoteSourceConfig, RemoteSourceRuntime};
 use crate::session::{
@@ -124,7 +123,6 @@ struct EngineInner {
     settings: SettingsRuntime,
     work: WorkRuntime,
     remote_source: RemoteSourceRuntime,
-    opened_audio: Arc<OpenedAudioFileQueue>,
     session: Session,
     /// Every background task the engine starts; shutdown waits for them.
     tasks: EngineTasks,
@@ -181,14 +179,12 @@ impl Engine {
 
         let (settings, jobs, startup) = SettingsRuntime::start(config.config_dir, power.clone());
         let work = WorkRuntime::new(tasks.clone());
-        let opened_audio = Arc::new(OpenedAudioFileQueue::default());
         let session = Session::new(SessionDeps {
             remote: remote_source.clone(),
             host: host.clone(),
             work: work.clone(),
             jobs: Arc::clone(&jobs),
             temporary_root: remote_source.staging_root(),
-            opened_audio: Arc::clone(&opened_audio),
             settings: settings.clone(),
             tasks: tasks.clone(),
             workspace_root: audio::processing_workspace_root(&config.cache_dir),
@@ -205,7 +201,6 @@ impl Engine {
                 settings,
                 work,
                 remote_source,
-                opened_audio,
                 session,
                 tasks,
             }),
@@ -369,16 +364,15 @@ impl Engine {
         audio::supported_audio_import_metadata()
     }
 
-    /// Queues files the operating system asked ABB to open. Unsupported paths
-    /// are dropped. Returns whether anything was queued. The session's
-    /// `ImportOpened` intent imports them.
-    pub fn queue_opened_audio_files(&self, paths: Vec<PathBuf>) -> Result<bool> {
+    /// Imports files the operating system asked ABB to open; no window has
+    /// to ask. Unsupported paths are dropped. While the list is locked the
+    /// import waits and appends once it unlocks. Refused once ABB is closing.
+    pub fn open_audio_files(&self, paths: Vec<PathBuf>) -> Result<()> {
         let supported = crate::opened_audio::supported_opened_audio_paths(paths);
         if supported.is_empty() {
-            return Ok(false);
+            return Ok(());
         }
-        self.inner.opened_audio.push_paths(supported)?;
-        Ok(true)
+        self.inner.session.import_opened(supported)
     }
 
     // ---- Metadata ----

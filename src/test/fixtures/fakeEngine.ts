@@ -99,8 +99,6 @@ export type FakeEngine = EngineCapability & {
 	readonly tags: Map<string, Partial<AudiobookMetadata>>;
 	/** What importing a set of paths yields. Defaults to one valid file per path. */
 	analyze: (paths: readonly string[]) => AudioFile[];
-	/** Paths the operating system asked the app to open. */
-	openedPaths: string[];
 	/** Answers an intent in place of the fake's default behavior. */
 	respond?: (intent: SessionIntent) => SessionOutcome | Promise<SessionOutcome> | undefined;
 	/**
@@ -489,11 +487,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				if (locked) titles.notice = { kind: 'orderLocked' };
 				else appendFiles(engine.analyze(intent.paths));
 				break;
-			case 'importOpened': {
-				const paths = engine.openedPaths.splice(0);
-				if (paths.length) appendFiles(engine.analyze(paths));
-				break;
-			}
 			case 'selectFile': {
 				const current = state.selection.selectedIndices;
 				const anchor = state.selection.selectedAnchor;
@@ -707,7 +700,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		settingsIntents: [],
 		tags: new Map(),
 		analyze: (paths: readonly string[]) => paths.map((path) => audioFile(path)),
-		openedPaths: [],
 		answerSubmission: defaultSubmissionAnswer,
 		async attach() {
 			nextSessionSequence = 0;

@@ -46,7 +46,6 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 		}),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),
-		listenOpenedAudioFiles: vi.fn(async () => () => undefined),
 		...overrides,
 	};
 }

@@ -39,7 +39,6 @@ use crate::host::{EngineEvent, Host};
 use crate::metadata::AudiobookMetadata;
 use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource, OnlineMetadataResult};
 use crate::metadata_save::{save_metadata_batch, MetadataSaveRequest, MetadataSaveResultStatus};
-use crate::opened_audio::OpenedAudioFileQueue;
 use crate::output_artifact::CollisionPolicy;
 use crate::output_artifact::NamingPreset;
 use crate::processing::run::{
@@ -77,8 +76,6 @@ pub enum SessionIntent {
     Import {
         paths: Vec<String>,
     },
-    /// Imports the files the operating system asked ABB to open.
-    ImportOpened,
     SelectFile {
         index: usize,
         modifiers: SelectionModifiers,
@@ -330,7 +327,6 @@ pub(crate) struct SessionDeps {
     pub(crate) jobs: ManagedJobRegistry,
     /// Source files under this root are temporary downloads.
     pub(crate) temporary_root: PathBuf,
-    pub(crate) opened_audio: Arc<OpenedAudioFileQueue>,
     /// Where audio and output defaults chosen in the session are recorded.
     pub(crate) settings: SettingsRuntime,
     /// The engine's background tasks; the session's run here.
@@ -406,9 +402,6 @@ enum Rest {
     Remote(crate::remote_source::RemoteUiRun),
     Done(SessionOutcome),
     Reads(Bound),
-    ImportOpened {
-        resets: u64,
-    },
     Import {
         paths: Vec<String>,
         resets: u64,
@@ -505,7 +498,6 @@ impl Session {
                 session.complete_reads(bound).await;
                 SessionOutcome::Applied
             }
-            Rest::ImportOpened { resets } => session.import_opened(resets).await,
             Rest::Import { paths, resets } => session.import(paths, resets).await,
             Rest::Remember(run) => {
                 let reply = run.finish().await;
@@ -855,9 +847,6 @@ impl Session {
         match intent {
             I::Remote { intent } => Rest::Remote(self.inner.deps.remote.ui_begin(intent)),
             I::Import { paths } => self.begin_import(paths),
-            I::ImportOpened => Rest::ImportOpened {
-                resets: self.inner.resets.load(Ordering::SeqCst),
-            },
             I::SelectFile { index, modifiers } => {
                 self.change_selection(|set| set.select_file(index, modifiers))
             }
@@ -947,9 +936,6 @@ impl Session {
             }
             I::Reset => {
                 self.inner.resets.fetch_add(1, Ordering::SeqCst);
-                // Files the OS opened while the list was locked go with the
-                // titles, like an import still running.
-                let _ = self.inner.deps.opened_audio.take_paths();
                 self.transition(SessionState::reset);
                 // A review the reset dropped frees its sources.
                 self.sources_released();
@@ -1117,34 +1103,23 @@ impl Session {
         }
     }
 
-    /// The engine owns the retry, even if the caller saw an unlocked list or
-    /// detached before a submission finished. Drain under the same state lock
-    /// as submission admission so paths cannot be lost on a stale lock check.
-    async fn import_opened(&self, resets: u64) -> SessionOutcome {
-        let paths = loop {
-            let unlocked = self.inner.list_unlocked.notified();
-            tokio::pin!(unlocked);
-            unlocked.as_mut().enable();
-            if self.inner.resets.load(Ordering::SeqCst) != resets {
-                return SessionOutcome::Superseded;
-            }
-            let paths = {
-                let state = self.lock();
-                (!state.working_set.order_locked())
-                    .then(|| self.inner.deps.opened_audio.take_paths())
-            };
-            if let Some(paths) = paths {
-                break paths;
-            }
-            unlocked.await;
+    /// Imports files the operating system asked ABB to open, with no host
+    /// asking. Unlike a user's import it is not refused while the list is
+    /// locked: it appends once the list unlocks, and a Reset meanwhile drops it.
+    pub(crate) fn import_opened(&self, paths: Vec<PathBuf>) -> Result<()> {
+        let rest = Rest::Import {
+            paths: paths
+                .into_iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect(),
+            resets: self.inner.resets.load(Ordering::SeqCst),
         };
-        match paths {
-            Ok(paths) if paths.is_empty() => SessionOutcome::Applied,
-            Ok(paths) => self.import(paths, resets).await,
-            Err(error) => self.import_failed(InputNotice::DiscoveryFailed {
-                error: AppErrorEnvelope::from(&error),
-            }),
-        }
+        self.inner.deps.tasks.admit(|| {
+            let session = self.clone();
+            self.inner.deps.tasks.spawn(async move {
+                session.complete(rest).await;
+            });
+        })
     }
 
     async fn import(&self, paths: Vec<String>, resets: u64) -> SessionOutcome {
