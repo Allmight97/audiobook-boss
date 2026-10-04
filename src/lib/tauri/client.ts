@@ -26,14 +26,6 @@ import type { SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { SessionIntent } from '../../types/session';
 import type {
-	ProviderId,
-	RemoteAuthCompletionRequest,
-	RemoteAuthStartResponse,
-	RemoteLibraryResponse,
-	RemoteSourceAccountState,
-	RemoteSourceProviderCapabilities,
-} from '../../types/remoteSource';
-import type {
 	OperationId,
 	OperationListSnapshot,
 	OperationSnapshot,
@@ -212,19 +204,6 @@ export const tauriClient = {
 	getSupportedAudioImportMetadata: (): Promise<
 		CommandResult<'get_supported_audio_import_metadata'>
 	> => commandSpecs.get_supported_audio_import_metadata(),
-	listRemoteSourceProviders: (): Promise<RemoteSourceProviderCapabilities[]> =>
-		commandSpecs.list_remote_source_providers(),
-	getRemoteSourceAccountState: (providerId: ProviderId): Promise<RemoteSourceAccountState> =>
-		commandSpecs.get_remote_source_account_state({ providerId }),
-	startRemoteSourceAuth: (providerId: ProviderId): Promise<RemoteAuthStartResponse> =>
-		commandSpecs.start_remote_source_auth({ providerId }),
-	completeRemoteSourceAuth: (
-		request: RemoteAuthCompletionRequest,
-	): Promise<RemoteSourceAccountState> => commandSpecs.complete_remote_source_auth({ request }),
-	logoutRemoteSourceAccount: (providerId: ProviderId): Promise<RemoteSourceAccountState> =>
-		commandSpecs.logout_remote_source_account({ providerId }),
-	loadRemoteSourceLibrary: (providerId: ProviderId): Promise<RemoteLibraryResponse> =>
-		commandSpecs.load_remote_source_library({ providerId }),
 	listWorkOperations: (): Promise<OperationListSnapshot> => commandSpecs.list_work_operations(),
 	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancelWorkOperation: (

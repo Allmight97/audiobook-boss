@@ -21,6 +21,13 @@ fn title(id: &str, acquirable: bool, pdf: bool) -> RemoteTitle {
         unsupported_reasons: vec![],
     }
 }
+fn library(titles: Vec<RemoteTitle>) -> super::super::RemoteLibraryResponse {
+    super::super::RemoteLibraryResponse {
+        provider_id: ProviderId::Audible,
+        titles,
+        diagnostics: Vec::new(),
+    }
+}
 fn edit(key: Option<&str>) -> RemoteUiIntent {
     RemoteUiIntent::EditConnection {
         base_url: Some("https://indexer.test".into()),
@@ -240,10 +247,10 @@ fn disconnect_and_new_library_requests_expire_older_choices() {
     let mut ui = UiState::default();
     let old = ui.begin_library();
     let current = ui.begin_library();
-    assert!(ui.library_reply(current, vec![title("new", true, true)]));
-    assert!(!ui.library_reply(old, vec![title("old", true, true)]));
+    assert!(ui.library_result(current, &Ok(library(vec![title("new", true, true)]))));
+    assert!(!ui.library_result(old, &Ok(library(vec![title("old", true, true)]))));
     ui.disconnected(ProviderId::Audible);
-    assert!(!ui.library_reply(current, vec![title("new", true, true)]));
+    assert!(!ui.library_result(current, &Ok(library(vec![title("new", true, true)]))));
     assert!(ui
         .begin(RemoteUiIntent::ToggleTitle {
             title_id: "new".into()
@@ -417,7 +424,13 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
         .finish()
         .await
         .is_err());
-    assert!(runtime.logout(ProviderId::Indexer).is_err());
+    assert!(runtime
+        .ui_begin(RemoteUiIntent::Disconnect {
+            provider: ProviderId::Indexer
+        })
+        .finish()
+        .await
+        .is_err());
     tokio::time::timeout(std::time::Duration::from_secs(10), batch.finish())
         .await
         .expect("fixture step succeeded")
@@ -596,4 +609,465 @@ fn release_keys_keep_the_format_the_frontend_builds() {
     // `src/app/remoteSource/selection.ts` builds the same key with
     // `JSON.stringify([indexerId, guid])` to look rows up.
     assert_eq!(release_key(8, "same-guid"), r#"[8,"same-guid"]"#);
+}
+
+#[test]
+fn attaching_during_an_accepted_acquisition_retains_library_without_resending_it_on_progress() {
+    #[derive(Default)]
+    struct Updates(std::sync::Mutex<Vec<crate::session::SessionUpdate>>);
+    impl crate::EventSink for Updates {
+        fn emit(&self, event: crate::EngineEvent) {
+            if let crate::EngineEvent::Session(update) = event {
+                self.0.lock().expect("events").push(update);
+            }
+        }
+    }
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let updates = std::sync::Arc::new(Updates::default());
+    let runtime = super::super::tests::test_runtime_with(&root, None, Some(updates.clone()));
+    let request = runtime.ui().begin_library();
+    assert!(runtime
+        .ui()
+        .library_result(request, &Ok(library(vec![title("retained", true, true)]))));
+    runtime
+        .ui()
+        .begin(RemoteUiIntent::ToggleTitle {
+            title_id: "retained".into(),
+        })
+        .expect("select title");
+    runtime
+        .ui()
+        .begin(RemoteUiIntent::AcquireSelected)
+        .expect("accept acquisition");
+    let (remote, library) = runtime.ui_parts(None);
+    assert!(remote.expect("attached remote").acquiring);
+    assert_eq!(
+        library.expect("attached library").titles[0].title_id,
+        "retained"
+    );
+    runtime.publish_ui();
+    assert_eq!(
+        updates.0.lock().expect("events")[0]
+            .remote_library
+            .as_ref()
+            .expect("changed library event")
+            .titles[0]
+            .title_id,
+        "retained"
+    );
+    updates.0.lock().expect("events").clear();
+    let since = runtime.ui_revisions();
+    // The lifecycle's progress reducer advances only the remote part.
+    runtime.inner.lifecycle.mark_job_failed(
+        "progress-job",
+        ProviderId::Audible,
+        "fixture failure".into(),
+    );
+    let (remote, library) = runtime.ui_parts(Some(since));
+    assert!(remote.is_some());
+    assert!(library.is_none());
+    let events = updates.0.lock().expect("progress events");
+    assert_eq!(events.len(), 1);
+    assert!(events[0]
+        .remote
+        .as_ref()
+        .expect("progress remote")
+        .acquisition
+        .is_some());
+    assert!(events[0].remote_library.is_none());
+}
+
+struct VaultGate {
+    entered: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+}
+impl VaultGate {
+    fn wait(&self) {
+        if let Some(entered) = self.entered.lock().expect("gate sender").take() {
+            entered.send(()).expect("test awaits vault entry");
+            self.release
+                .lock()
+                .expect("gate receiver")
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("test releases vault");
+        }
+    }
+}
+struct ScriptedVault {
+    read: Option<VaultGate>,
+    delete: Option<VaultGate>,
+    fail_delete: bool,
+}
+impl super::super::vault::SecretVault for ScriptedVault {
+    fn get_secret(&self, _key: &str) -> Result<Option<secrecy::SecretString>> {
+        if let Some(gate) = &self.read {
+            gate.wait();
+            return Err(AppError::ResourceCleanup(
+                "scripted account read failure".into(),
+            ));
+        }
+        Ok(None)
+    }
+    fn set_secret(&self, _key: &str, _value: secrecy::SecretString) -> Result<()> {
+        Ok(())
+    }
+    fn delete_secret(&self, _key: &str) -> Result<()> {
+        if let Some(gate) = &self.delete {
+            gate.wait();
+        }
+        if self.fail_delete {
+            return Err(AppError::ResourceCleanup(
+                "scripted credential deletion failure".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+fn vault_gate() -> (
+    VaultGate,
+    tokio::sync::oneshot::Receiver<()>,
+    std::sync::mpsc::Sender<()>,
+) {
+    let (entered, waiting) = tokio::sync::oneshot::channel();
+    let (release, released) = std::sync::mpsc::channel();
+    (
+        VaultGate {
+            entered: std::sync::Mutex::new(Some(entered)),
+            release: std::sync::Mutex::new(released),
+        },
+        waiting,
+        release,
+    )
+}
+
+#[tokio::test]
+async fn a_late_account_failure_is_superseded_after_a_lane_change() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let (gate, entered, release) = vault_gate();
+    let runtime = super::super::tests::test_runtime_with(
+        &root,
+        Some(Box::new(ScriptedVault {
+            read: Some(gate),
+            delete: None,
+            fail_delete: false,
+        })),
+        None,
+    );
+    let read = runtime.inner.tasks.spawn(
+        runtime
+            .ui_begin(RemoteUiIntent::SelectLane {
+                lane: ProviderId::Audible,
+            })
+            .finish(),
+    );
+    entered.await.expect("account read entered vault");
+    runtime
+        .ui_begin(RemoteUiIntent::SelectLane {
+            lane: ProviderId::Indexer,
+        })
+        .finish()
+        .await
+        .expect("new lane account");
+    release.send(()).expect("release stale read");
+    assert!(matches!(
+        read.await.expect("tracked read").expect("superseded read"),
+        RemoteUiResult::Superseded
+    ));
+    let snapshot = runtime.ui_snapshot();
+    assert_eq!(snapshot.lane, ProviderId::Indexer);
+    assert_eq!(snapshot.account_status, RemoteDraftStatus::Succeeded);
+    assert_eq!(
+        snapshot.account.expect("selected account").provider_id,
+        ProviderId::Indexer
+    );
+}
+
+#[tokio::test]
+async fn shutdown_waits_for_a_started_keychain_read() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let (gate, entered, release) = vault_gate();
+    let runtime = super::super::tests::test_runtime_with(
+        &root,
+        Some(Box::new(ScriptedVault {
+            read: Some(gate),
+            delete: None,
+            fail_delete: false,
+        })),
+        None,
+    );
+    let read = runtime.inner.tasks.spawn(
+        runtime
+            .ui_begin(RemoteUiIntent::SelectLane {
+                lane: ProviderId::Audible,
+            })
+            .finish(),
+    );
+    entered.await.expect("account read entered vault");
+    runtime.inner.tasks.close();
+    assert!(tokio::time::timeout(
+        std::time::Duration::from_millis(25),
+        runtime.inner.tasks.wait()
+    )
+    .await
+    .is_err());
+    release.send(()).expect("release keychain read");
+    runtime.inner.tasks.wait().await;
+    assert!(read.await.expect("tracked read").is_err());
+}
+
+#[tokio::test]
+async fn accepted_disconnect_blocks_acquisition_and_shutdown_waits_for_credential_deletion() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let (gate, entered, release) = vault_gate();
+    let runtime = super::super::tests::test_runtime_with(
+        &root,
+        Some(Box::new(ScriptedVault {
+            read: None,
+            delete: Some(gate),
+            fail_delete: false,
+        })),
+        None,
+    );
+    runtime
+        .ui()
+        .library_loaded(vec![title("selected", true, true)]);
+    runtime
+        .ui()
+        .begin(RemoteUiIntent::ToggleTitle {
+            title_id: "selected".into(),
+        })
+        .expect("select title");
+    let disconnect = runtime.inner.tasks.spawn(
+        runtime
+            .ui_begin(RemoteUiIntent::Disconnect {
+                provider: ProviderId::Audible,
+            })
+            .finish(),
+    );
+    entered.await.expect("delete entered vault");
+    assert_eq!(
+        runtime.ui_snapshot().account_status,
+        RemoteDraftStatus::Running
+    );
+    for intent in [
+        RemoteUiIntent::AcquireSelected,
+        RemoteUiIntent::StartAuth,
+        RemoteUiIntent::SelectLane {
+            lane: ProviderId::Indexer,
+        },
+    ] {
+        assert!(runtime.ui_begin(intent).finish().await.is_err());
+    }
+    assert_eq!(runtime.ui_snapshot().selected_title_ids, ["selected"]);
+    runtime.inner.tasks.close();
+    assert!(tokio::time::timeout(
+        std::time::Duration::from_millis(25),
+        runtime.inner.tasks.wait()
+    )
+    .await
+    .is_err());
+    release.send(()).expect("release credential deletion");
+    runtime.inner.tasks.wait().await;
+    assert!(disconnect.await.expect("tracked disconnect").is_ok());
+    let (remote, library) = runtime.ui_parts(None);
+    assert_eq!(
+        remote
+            .expect("remote")
+            .account
+            .expect("account truth")
+            .status,
+        super::super::RemoteAccountStatus::NeedsAuth
+    );
+    assert!(library.expect("library").titles.is_empty());
+}
+
+#[tokio::test]
+async fn failed_credential_deletion_preserves_library_choices_and_reports_failure() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let runtime = super::super::tests::test_runtime_with(
+        &root,
+        Some(Box::new(ScriptedVault {
+            read: None,
+            delete: None,
+            fail_delete: true,
+        })),
+        None,
+    );
+    runtime
+        .ui()
+        .library_loaded(vec![title("selected", true, true)]);
+    runtime
+        .ui()
+        .begin(RemoteUiIntent::ToggleTitle {
+            title_id: "selected".into(),
+        })
+        .expect("select title");
+    assert!(runtime
+        .ui_begin(RemoteUiIntent::Disconnect {
+            provider: ProviderId::Audible
+        })
+        .finish()
+        .await
+        .is_err());
+    let (remote, library) = runtime.ui_parts(None);
+    let remote = remote.expect("remote");
+    assert!(matches!(
+        remote.account_status,
+        RemoteDraftStatus::Failed { .. }
+    ));
+    assert_eq!(remote.selected_title_ids, ["selected"]);
+    assert_eq!(
+        library.expect("library retained").titles[0].title_id,
+        "selected"
+    );
+}
+
+#[tokio::test]
+async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let runtime = super::super::tests::test_runtime(&root);
+    let start = runtime.ui_begin(RemoteUiIntent::StartAuth);
+    assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Starting);
+    assert!(runtime
+        .ui_begin(RemoteUiIntent::StartAuth)
+        .finish()
+        .await
+        .is_err());
+    let RemoteUiResult::AuthStarted(authorization) = start.finish().await.expect("auth started")
+    else {
+        panic!("one-time authorization expected")
+    };
+    assert!(!format!("{authorization:?}").contains(&authorization.authorization_url));
+    runtime
+        .ui()
+        .library_loaded(vec![title("selected", true, true)]);
+    runtime
+        .ui()
+        .begin(RemoteUiIntent::ToggleTitle {
+            title_id: "selected".into(),
+        })
+        .expect("select title");
+    let completion = runtime.ui_begin(RemoteUiIntent::CompleteAuth {
+        response_url_handoff_path: Some(
+            root.path()
+                .join("missing-handoff")
+                .to_string_lossy()
+                .into_owned(),
+        ),
+    });
+    assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Completing);
+    for intent in [
+        RemoteUiIntent::StartAuth,
+        RemoteUiIntent::Disconnect {
+            provider: ProviderId::Audible,
+        },
+        RemoteUiIntent::RefreshLibrary,
+        RemoteUiIntent::SelectLane {
+            lane: ProviderId::Indexer,
+        },
+    ] {
+        assert!(runtime.ui_begin(intent).finish().await.is_err());
+    }
+    assert_eq!(runtime.ui_snapshot().selected_title_ids, ["selected"]);
+    assert!(completion.finish().await.is_err());
+    assert!(matches!(
+        runtime.ui_snapshot().auth,
+        RemoteAuthStatus::Failed { .. }
+    ));
+}
+
+#[tokio::test]
+async fn a_library_failure_after_lane_replacement_or_disconnect_is_superseded() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let runtime = super::super::tests::test_runtime(&root);
+    let stale = runtime.ui_begin(RemoteUiIntent::RefreshLibrary);
+    runtime
+        .ui_begin(RemoteUiIntent::SelectLane {
+            lane: ProviderId::Indexer,
+        })
+        .finish()
+        .await
+        .expect("replacement lane");
+    // The empty fixture vault fails before any live Audible HTTP request.
+    assert!(matches!(
+        stale.finish().await.expect("stale failure discarded"),
+        RemoteUiResult::Superseded
+    ));
+    runtime
+        .ui_begin(RemoteUiIntent::SelectLane {
+            lane: ProviderId::Audible,
+        })
+        .finish()
+        .await
+        .expect("Audible lane");
+    let stale = runtime.ui_begin(RemoteUiIntent::RefreshLibrary);
+    runtime
+        .ui_begin(RemoteUiIntent::Disconnect {
+            provider: ProviderId::Audible,
+        })
+        .finish()
+        .await
+        .expect("disconnect");
+    assert!(matches!(
+        stale
+            .finish()
+            .await
+            .expect("disconnected failure discarded"),
+        RemoteUiResult::Superseded
+    ));
+    assert_eq!(
+        runtime.ui_snapshot().library_status,
+        RemoteDraftStatus::Idle
+    );
+}
+
+#[tokio::test]
+async fn starting_auth_clears_previous_read_failures_and_supersedes_pending_library() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let runtime = super::super::tests::test_runtime(&root);
+    {
+        let mut ui = runtime.ui();
+        let account_request = ui.account_request;
+        ui.account_reply(
+            ProviderId::Audible,
+            account_request,
+            &Err(AppError::ResourceCleanup("old account failure".into())),
+        );
+        let library_request = ui.begin_library();
+        ui.library_result(
+            library_request,
+            &Err(AppError::General("old library failure".into())),
+        );
+    }
+    let old = runtime.ui_begin(RemoteUiIntent::RefreshLibrary);
+    runtime
+        .ui_begin(RemoteUiIntent::StartAuth)
+        .finish()
+        .await
+        .expect("new auth starts");
+    assert!(matches!(
+        old.finish().await.expect("old library reply superseded"),
+        RemoteUiResult::Superseded
+    ));
+    let snapshot = runtime.ui_snapshot();
+    assert_eq!(snapshot.auth, RemoteAuthStatus::AwaitingHandoff);
+    assert_eq!(snapshot.account_status, RemoteDraftStatus::Idle);
+    assert_eq!(snapshot.library_status, RemoteDraftStatus::Idle);
+}
+
+#[tokio::test]
+async fn disconnect_naming_another_provider_than_the_lane_is_refused() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let runtime = super::super::tests::test_runtime(&root);
+    assert_eq!(runtime.ui_snapshot().lane, ProviderId::Audible);
+
+    let refused = runtime
+        .ui_begin(RemoteUiIntent::Disconnect {
+            provider: ProviderId::Indexer,
+        })
+        .finish()
+        .await;
+
+    assert!(refused.is_err());
+    assert!(!runtime.ui().disconnecting);
 }

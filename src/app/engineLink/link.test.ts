@@ -76,6 +76,24 @@ describe('engine link', () => {
 		expect(link.metadata().saveInProgress).toBe(true);
 	});
 
+	it('preserves library rows on progress-only events and rejects an older library part independently', async () => {
+		const engine = createFakeEngine();
+		let publish!: (update: SessionUpdate) => void;
+		engine.listenSessionUpdates = async (handler) => {
+			publish = handler;
+			return () => undefined;
+		};
+		const link = linkTo(engine);
+		await link.ready();
+		const library = { ...link.remoteLibrary(), revision: 10, diagnostics: [] };
+		publish({ revision: 10, remoteLibrary: library });
+		publish({ revision: 11, remote: { ...link.remote(), revision: 11, acquiring: true } });
+		expect(link.remoteLibrary()).toBe(library);
+		publish({ revision: 12, remoteLibrary: { ...library, revision: 9, diagnostics: [] } });
+		expect(link.remoteLibrary()).toBe(library);
+		expect(link.remote().acquiring).toBe(true);
+	});
+
 	it('keeps the object of every file whose content did not change', async () => {
 		const engine = createFakeEngine();
 		engine.loadTitles([audioFile('/books/a.m4b'), audioFile('/books/b.m4b')]);

@@ -8,18 +8,12 @@ const EXPECTED_COMMAND_NAMES = [
 	'session_dispatch',
 	'settings_dispatch',
 	'cancel_work_operation',
-	'complete_remote_source_auth',
-	'get_remote_source_account_state',
 	'get_supported_audio_import_metadata',
-	'list_remote_source_providers',
 	'list_work_operations',
 	'log_frontend',
 	'load_cover_art_from_url',
-	'load_remote_source_library',
-	'logout_remote_source_account',
 	'read_audio_cover_thumbnail',
 	'read_audio_metadata',
-	'start_remote_source_auth',
 ] as const;
 
 const EXPECTED_APP_EVENT_NAMES = [
@@ -37,16 +31,11 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'sessionDispatch',
 	'settingsDispatch',
 	'cancelWorkOperation',
-	'completeRemoteSourceAuth',
-	'getRemoteSourceAccountState',
 	'getSupportedAudioImportMetadata',
 	'listen',
-	'listRemoteSourceProviders',
 	'listWorkOperations',
 	'logFrontend',
 	'loadCoverArtFromUrl',
-	'loadRemoteSourceLibrary',
-	'logoutRemoteSourceAccount',
 	'open',
 	'openDirectory',
 	'openFile',
@@ -56,7 +45,6 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'openUrl',
 	'readAudioMetadata',
 	'readAudioCoverThumbnail',
-	'startRemoteSourceAuth',
 ] as const;
 
 describe('Tauri Runtime Boundary public API contract', () => {

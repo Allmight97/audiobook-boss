@@ -3,6 +3,7 @@ import { liveEngineCapability, type EngineCapability } from '../../lib/tauri/cap
 import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../types/appSettings';
 import type { AudioFile } from '../../types/audio';
 import type {
+	RemoteLibrarySnapshot,
 	SessionIntent,
 	SessionAudio,
 	SessionLookup,
@@ -26,6 +27,7 @@ export type EngineLink = {
 	readonly audio: Accessor<SessionAudio>;
 	readonly output: Accessor<SessionOutput>;
 	readonly remote: Accessor<import('../../types/session').RemoteUiSnapshot>;
+	readonly remoteLibrary: Accessor<RemoteLibrarySnapshot>;
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
 	send(intent: SessionIntent): Promise<SessionOutcome>;
@@ -180,6 +182,11 @@ function emptyRemote(): import('../../types/session').RemoteUiSnapshot {
 	return {
 		revision: UNATTACHED,
 		lane: 'audible',
+		providers: [],
+		account: null,
+		accountStatus: { kind: 'idle' },
+		auth: { kind: 'idle' },
+		libraryStatus: { kind: 'idle' },
 		selectedTitleIds: [],
 		includePdfByTitleId: {},
 		acquisition: null,
@@ -268,6 +275,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	let audio = emptyAudio();
 	let output = emptyOutput();
 	let remote = emptyRemote();
+	let remoteLibrary: RemoteLibrarySnapshot = { revision: UNATTACHED, titles: [], diagnostics: [] };
 	let settings = emptySettings();
 	const part = () => createSignal(0, { ownedWrite: true });
 	const [titlesRev, bumpTitles] = part();
@@ -277,6 +285,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	const [audioRev, bumpAudio] = part();
 	const [outputRev, bumpOutput] = part();
 	const [remoteRev, bumpRemote] = part();
+	const [libraryRev, bumpLibrary] = part();
 	const [settingsRev, bumpSettings] = part();
 	let disposed = false;
 	let sessionSequence = 0;
@@ -301,6 +310,10 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		if (update.remote && update.remote.revision > remote.revision) {
 			remote = update.remote;
 			bumpRemote((n) => n + 1);
+		}
+		if (update.remoteLibrary && update.remoteLibrary.revision > remoteLibrary.revision) {
+			remoteLibrary = update.remoteLibrary;
+			bumpLibrary((n) => n + 1);
 		}
 		if (update.output && update.output.revision > output.revision) {
 			output = update.output;
@@ -382,6 +395,10 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		remote: () => {
 			remoteRev();
 			return remote;
+		},
+		remoteLibrary: () => {
+			libraryRev();
+			return remoteLibrary;
 		},
 		output: () => {
 			outputRev();
