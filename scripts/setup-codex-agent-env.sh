@@ -4,7 +4,7 @@ set -euo pipefail
 # Codex Cloud and Codex-managed worktree setup for ABB.
 # Intended cloud setup command:
 #   bash scripts/setup-codex-agent-env.sh
-# Frontend-only (pinned Bun plus frozen install; no OS packages, Rust, or
+# Frontend-only (locked Bun plus frozen install; no OS packages, Rust, or
 # FFmpeg), used by the Claude Code cloud SessionStart hook:
 #   bash scripts/setup-codex-agent-env.sh --frontend-only
 #
@@ -19,7 +19,7 @@ ffmpeg_prefix="${ABB_CODEX_FFMPEG_PREFIX:-/opt/ffmpeg90}"
 ffmpeg_src="${ABB_CODEX_FFMPEG_SRC:-/opt/ffmpeg-src}"
 ffmpeg_patch="${repo_root}/vendor/ffmpeg-sys-next-9.0.0/patches/mov-chapter-start.patch"
 local_env_file="${repo_root}/.codex/agent-env.local.sh"
-required_bun_version="1.4.0"
+required_bun_version="$(bash "${repo_root}/scripts/locked-bun-version.sh")"
 mode="${1:-full}"
 
 log() {

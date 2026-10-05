@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Claude Code cloud sessions start without node_modules and may carry a Bun
-# other than package.json#packageManager. Pin Bun and install frontend deps so
+# other than the one bun.lock resolves. Install that Bun and frontend deps so
 # typecheck, Biome, and Vitest run. The FFmpeg/Tauri media lane stays with the
 # environment's setup script (scripts/AGENTS.md, Linux Agent Environment).
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then

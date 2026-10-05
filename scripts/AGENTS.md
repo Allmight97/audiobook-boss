@@ -171,10 +171,12 @@ commands over invoking internals directly.
   named imports count. The tripwire also rejects Tailwind and
   foundation-internal imports. The tripwire stays in `scripts/` so it does not
   pull Node types into the frontend `tsconfig`.
-- Bun version truth is `package.json#packageManager`. When it changes, set
-  `.github/workflows/ci.yml` `bun-version` and
-  `scripts/setup-codex-agent-env.sh` to that same field. Setup must install
-  that version or exit; do not warn-and-continue.
+- Bun is the `bun` devDependency: a compatible range updated by Dependabot
+  under the 10-day cooldown like any other package. `bun.lock` holds the exact
+  version; `scripts/locked-bun-version.sh` prints it for CI and agent setup.
+  Do not pin it elsewhere. Setup must install that version or exit; do not
+  warn-and-continue. Keep `bun.lock` at `lockfileVersion` 1 (update it in
+  place, never regenerate it): Dependabot's Bun updater rejects newer ones.
 - Vite scripts use the standard Vite CLI; change that only with a validated
   tooling decision.
 
@@ -199,12 +201,12 @@ commands over invoking internals directly.
 
 - Codex Cloud setup command: `bash scripts/setup-codex-agent-env.sh`. If the
   Codex environment UI supports package-version pins, set Rust to `1.95` and
-  Bun to the `package.json` `packageManager` version before running the script.
+  Bun to the version `bash scripts/locked-bun-version.sh` prints before running the script.
   The script installs Ubuntu/Tauri build packages, builds pinned FFmpeg with
   `libmp3lame` and `libopus`, makes FFmpeg discoverable after the setup shell exits, creates
   the gitignored AAXClean sidecar stub for the host triple, and runs
   `bun install --frozen-lockfile`. Claude Code cloud sessions run its
-  `--frontend-only` mode (pinned Bun plus frozen install) from the
+  `--frontend-only` mode (locked Bun plus frozen install) from the
   SessionStart hook in `.claude/settings.json`; the media lane there still
   needs this full script as the environment's setup script.
 - The engine suite links FFmpeg at the revision selected by

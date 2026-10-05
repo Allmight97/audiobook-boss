@@ -17,6 +17,7 @@ on:
       - vitest.config.ts
       - biome.json
       - scripts/**/*.ts
+      - scripts/locked-bun-version.sh
   pull_request:
     paths:
       - .github/workflows/ci.yml
@@ -29,6 +30,7 @@ on:
       - vitest.config.ts
       - biome.json
       - scripts/**/*.ts
+      - scripts/locked-bun-version.sh
   workflow_dispatch:
 
 concurrency:
@@ -41,9 +43,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - id: bun
+        run: |
+          version="$(bash scripts/locked-bun-version.sh)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.0
+          bun-version: ${{ steps.bun.outputs.version }}
       - run: bun install --frozen-lockfile
       - run: bun run fmt:check
       - run: bun run lint:check
