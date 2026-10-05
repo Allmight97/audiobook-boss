@@ -4,8 +4,26 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-10-04
+
 ### Changed
 
+- Covers load once and faster everywhere: the file list, Lookup results, the
+  Audible library, the main cover, and the preview. Thumbnails fade in, and a
+  cover that cannot load shows a placeholder instead of a broken image.
+- Quitting while work is running lists what quitting would stop, including
+  exports still being prepared. Work that starts while you decide is asked
+  about too. If ABB cannot save your settings at quit, it offers Retry.
+- Audiobooks opened from Finder (Open With, or dropping on the app icon) are
+  imported, also when ABB was not running.
+- An audio change for several selected titles applies to all of them or to
+  none, and names the titles that cannot take it.
+- Indexer searches use exactly the categories you chose. The default is Audio
+  and Audiobooks; at least one category is required, and Audiobooks is
+  recommended.
+- Disconnecting the Indexer no longer affects Audible downloads.
+- ABB starts even when leftover working files from an earlier run cannot be
+  removed.
 - Work Center now takes its operation list and display order from the engine,
   with one update contract for progress and retained history.
 - Reopening ABB's window keeps the Audible library, its selection, and any
@@ -16,10 +34,18 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- OpenLibrary covers in Lookup results load again.
+- After you save metadata into an imported file, that title can still be
+  exported and given audio choices; before, it said the audio had changed and
+  needed a new import.
+- Start refuses a title that has no title tag or typed title, and names it,
+  instead of exporting an audiobook with no title.
+- A preview length that is not a positive number is refused instead of
+  running as a full-length export.
+- Two imports started close together are added in the order you started them.
 - An Audible sign-in that Amazon never finishes now fails after a minute
   instead of blocking the Acquire window until ABB quits. A mistyped handoff
   path can be corrected without signing in again.
-
 - After launching from pinned defaults, pinning again saves the defaults on
   screen instead of older ones from before the launch.
 
