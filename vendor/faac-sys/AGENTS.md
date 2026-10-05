@@ -25,7 +25,8 @@
 
 - Replace `upstream/` with the release's files for the same slice and confirm
   they match the tag byte for byte. Reconcile `build.rs`'s source list and
-  settings with the release's `meson.build` and `meson_options.txt`.
+  settings with the release's `libfaac/meson.build` and `meson_options.txt` in
+  the upstream repository (`upstream/` omits both).
 - Set the `faac-sys` package version to the release version; `build.rs` turns
   it into the library's runtime version. Update the identity in
   `ABB-PROVENANCE.md`.

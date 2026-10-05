@@ -1,235 +1,133 @@
 # Scripts Boundary
 
-This directory owns repo-local tooling: narrow contract checks, build/release
-helpers, and diagnostics. Prefer `package.json` scripts or documented direct
-commands over invoking internals directly.
+This directory owns repo-local tooling: contract checks, build and release
+helpers, and diagnostics. Cargo commands run from the repository root.
 
-## Public Entrypoints
+## What to run for a change
 
-- Convenience commands: `package.json` scripts.
+Same on macOS and Linux. On Linux, run `bash scripts/setup-linux-agent.sh --rust`
+once before engine, host, or media proof. Each line mirrors a job in
+`.github/workflows/ci.yml`; its header says when jobs run, and `gate` is the
+check `main` requires. Run the commands for the touched owner or risk, one
+expensive build at a time.
+
+- Frontend (`frontend` job): `bun run fmt:check`, `bun run lint:check`,
+  `bun run bindings:check:runtime-boundary`, `bun run typecheck`,
+  `bun run test`. One owner: `bun run test -- <test files>`.
+- A core crate (`core` job): `bun run check:rust-tiers`,
+  `cargo test --locked -p abb-<owner>-core`, and
+  `cargo clippy --locked -p abb-<owner>-core --all-targets -- -D warnings`.
+- Engine rules, session, settings, metadata intent (`engine` job):
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- --skip test_cases::integration_media`,
+  then `cargo test --locked -p abb-engine --features bundled-ffmpeg --doc`.
+  The doctests guard which engine internals hosts can reach.
+- Audio, metadata writing, output artifacts, processing (`engine` job): add
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- test_cases::integration_media`.
+  Focused loop: `-- media_execution`. Fixtures are synthesized at test time.
+- Apple AAC (`apple-aac` job, macOS only):
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- apple`.
+- Host or IPC types (`engine` job): `cargo test --locked -p audiobook-boss --features bundled-ffmpeg`
+  and `bun run bindings:check`. Then the Vitest contract tests under
+  `src/lib/` that name the changed surface. Boundary rules:
+  `src-tauri/AGENTS.md` and `src/lib/tauri/AGENTS.md`.
+
+CI does not run these; run them locally when they apply:
+
+- Workflow changes: `actionlint` (Linux setup installs it; macOS:
+  `brew install actionlint`).
+- Docs and guidance: `git diff --check` plus a search for the edited terms.
+- Engine and `src-tauri` Clippy. Engine:
+  `cargo clippy -p abb-engine --all-targets --features bundled-ffmpeg`. Clippy
+  for `src-tauri` needs GTK/WebKit libs, so run `cargo clippy --workspace --all-targets`
+  only when the change includes `src-tauri` or spans owners.
+- `cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests`
+  proves the separately compiled developer host.
+
+Traps:
+
+- Select Rust packages with `-p`. Workspace discovery pulls unrelated binaries
+  into the target set. Binding export has its own command:
+  `bun run bindings:generate`.
+- `bun run bindings:check:local` checks uncommitted changes against `HEAD`
+  and can skip a clean committed branch. Use `bun run bindings:check` for
+  committed contract changes.
+- Each git worktree holds its own `target/`. Remove finished worktrees.
+- `bun run build` may still print the known DEP0205 and Vite plugin-timing
+  warnings.
+
+## Development tooling
+
 - `bun run tauri` routes through `scripts/tauri.ts`. Dev runs (including
   `dev --release`) and debug bundles get a stable identity per canonical
-  checkout path, isolating settings, provider/WebView state, and caches.
-  Production builds retain the configured identity. Use this entrypoint for
-  development; direct Cargo or upstream Tauri CLI launches bypass isolation.
-  Packaged release-mode experiments need an explicit separate identifier.
-- CI (`.github/workflows/ci.yml`; when it runs: root `AGENTS.md` "Pull
-  Requests And CI") has one job per proof surface. In a PR run each job runs
-  only when the code it proves changed (its `changes` path filters;
-  manifests, the toolchain, `vendor/**` and the workflow count for every Rust
-  job); manual and scheduled runs run them all:
-  - frontend: frozen install, Biome format and lint, the generated Tauri
-    runtime-boundary check, typecheck, and Vitest;
-  - core crates: their tests, `clippy -D warnings`, and the crate tier check;
-  - one Linux job builds the bundled FFmpeg once (restored from cache while
-    compiler, opus, source and patch match) and runs, as needed, the engine
-    tests and doctests, the real-media lane (`test_cases::integration_media`),
-    the Tauri host tests, and the generated-binding check;
-  - macOS runs only the Apple AAC tests, the one encoder Linux cannot build;
-  - `gate` fails when any job above failed or was cancelled; `main` requires
-    it on the PR's head commit.
-- Run native verification commands for the touched owner or explicit risk
-  surface. Keep expensive build/test routes sequential to avoid competing for
-  shared targets. Report failures with the command, exit code, and failing
-  test/script location; include elapsed time when cost is material.
-- If a proof/test/build command consumes disproportionate wall-clock, first-output
-  latency, or agent tokens, classify the friction as `fix` unless a safety, data,
-  or contract invariant requires finishing the current command.
-- Package-select Rust test runs (`-p`); broad workspace/multi-package discovery can
-  pull unrelated binaries into the target set. Binding export has an explicit
-  binary command.
-- Media execution: real-media workflow
-  tests live in `crates/abb-engine/src/test_cases/integration_media_execution_tests.rs`
-  and run inside the engine's real-file suite. Covers WAV, M4B, MP3, and Opus inputs,
-  the Native AAC, Apple AAC, bundled FAAC LC/HE, and Opus encoder routes (Apple
-  AAC tests compile only on macOS; CI runs them there), sample-rate-converted merges, stereo
-  channel preservation (per-channel RMS),
-  cover art, chapters, metadata round-trips, MP3 stack pass-through, Opus M4A/MKA
-  timing and packet-preserved remuxing, mixed-mode
-  preflight, and cancellation. All fixtures
-  are synthesized at test time (WAV in Rust, MP3 via the external FFmpeg CLI, M4B from the
-  engine's own output) — never commit media files. Focused command:
-  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- media_execution`
-  (keep synthesized fixtures small). Do not
-  add broad media gates or committed fixtures beyond this lane without a new
-  owner decision.
+  checkout path, which isolates settings, provider and WebView state, and
+  caches. Production builds keep the configured identity. Direct Cargo or
+  upstream Tauri CLI launches bypass isolation. A packaged release-mode
+  experiment needs its own explicit identifier.
+- `bun run app:dev:log` runs Tauri dev with captured logs. Read
+  `.logs/tauri-dev-summary.md` for the session verdict, then
+  `.logs/tauri-dev.log` for raw evidence, before asking for pasted terminal
+  output. The five newest runs stay under `.logs/runs/<run-id>/`. Log-level
+  switches: header of `scripts/dev-tauri-log.sh`.
+- `cargo run -p abb-engine --features bundled-ffmpeg --bin abb-dev -- --help`
+  drives an engine session without a window. It uses its own identity and a
+  temporary state folder, so it never touches the app's settings or
+  credentials.
+- Release artifacts: use `.agents/skills/release`. DMG builds use
+  `bundled-ffmpeg-portable`; local builds target the compiling host. Public DMG
+  builds publish the AAXClean helper from current source; local app builds may
+  reuse a fresh helper sidecar.
 
-## Command Menu
+## Script rules
 
-- Docs/guidance only: `git diff --check` plus stale-reference searches for the
-  edited terms.
-- Workflow changes: `actionlint` (Linux setup installs it; macOS:
-  `brew install actionlint`). CI does not lint workflows.
-- Formatting/linting when formatting or style is in scope:
-  `bun run fmt:check`, `bun run lint:check` (TS/JSON via Biome), or
-  `cargo fmt --all -- --check`.
-- Rust lint: for a touched core owner, package-select with
-  `cargo clippy -p abb-<owner>-core --all-targets` — this avoids pulling
-  `src-tauri`'s gdk/gtk GUI libs, which core crates build without and which are
-  absent in common agent sandboxes. `abb-engine` has no GUI dependency either:
-  `cargo clippy -p abb-engine --all-targets --features bundled-ffmpeg`. Use the full `cargo clippy --workspace
-  --all-targets` only when the change actually spans owners or includes
-  `src-tauri` (GUI libs must be present). GitHub runs Clippy for the core
-  crates (Rust workflow); engine and `src-tauri` Clippy are local owner checks. Workspace lint posture is centralized in root
-  `Cargo.toml` `[workspace.lints]` (members opt in with
-  `[lints] workspace = true`).
-- What to run for a change (same on macOS and Linux; Linux needs
-  `bash scripts/setup-linux-agent.sh --rust` once and
-  `ABB_FFMPEG`/`ABB_FFPROBE` for media):
-  - frontend only: `bun run fmt:check`, `bun run lint:check`,
-    `bun run typecheck`, `bun run test`;
-  - a core crate: its `cargo test --locked -p abb-<owner>-core`;
-  - engine rules, session, settings, metadata intent: the engine command
-    below with `-- --skip test_cases::integration_media`;
-  - audio, metadata writing, output artifacts, processing: add
-    `-- test_cases::integration_media`;
-  - host or IPC types: the host command and `bun run bindings:check`.
-- Rust core owner: `cargo test --locked -p abb-<owner>-core`.
-- Engine: `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib`
-  (all engine proof), append `-- --skip test_cases::integration` for
-  unit-only or `-- test_cases::integration` for real files.
-  `--test all_tests` proves the separately compiled developer host. The
-  host-API examples run only as doctests:
-  `cargo test -p abb-engine --features bundled-ffmpeg --doc`. Session only:
-  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- session::`
-  plus `--lib -- integration_session`.
-- Host (intent ordering, window sizing, quit prompt, binding file format):
-  `cargo test --locked -p audiobook-boss --features bundled-ffmpeg`.
-- Crate dependency tiers: `bun run check:rust-tiers` when a manifest or crate
-  dependency changes.
-- Driving the engine session without a window:
-  `cargo run -p abb-engine --features bundled-ffmpeg --bin abb-dev -- <file-or-folder>... [--set field=value] [--save] [--out folder --export] [--json]`
-  (usage text lists audio, naming, preview, collision, and title-cancel options).
-  It uses its own identity and a temporary state folder, so it never touches
-  the app's settings or credentials.
-- Metadata planner-to-file workflow (two titles, two processing passes, encode
-  and preserve, actual tag readback and source-save policy):
-  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- metadata_workflow`.
-  Use alongside the session's tests when a change spans edit retention and file
-  output; this is headless backend proof, not UI automation.
-- Manual Tauri dev with captured logs:
-  `bun run app:dev:log`; inspect `.logs/tauri-dev-summary.md` for the semantic
-  session verdict, then `.logs/tauri-dev.log` for raw evidence before asking for
-  pasted terminal output. These are latest-run entrypoints; the five newest
-  run-scoped artifacts remain under `.logs/runs/<run-id>/`.
-  The summary includes bounded build identity, encoder, metadata, file-handoff,
-  and cleanup diagnostics. Full records remain in the raw and encoding logs.
-  The wrapper sets `RUST_LOG=audiobook_boss_lib=info,abb_engine=info,tauri=warn,wry=warn` unless
-  you override it. For extra Rust debug lines in the same captured run:
-  `ABB_DEV_RUST_LOG='audiobook_boss_lib=debug,abb_engine=debug,tauri=warn,wry=warn' bun run app:dev:log`.
-  For audio-pipeline debug only:
-  `ABB_DEV_RUST_LOG='abb_engine::audio=debug,abb_engine=info,audiobook_boss_lib=info,tauri=warn,wry=warn' bun run app:dev:log`.
-  To keep a `RUST_LOG` already in the shell: `ABB_DEV_USE_EXISTING_RUST_LOG=1 bun run app:dev:log`.
-- Frontend owner: `bun run test -- <owner test files>`.
-- Frontend type validation: `bun run typecheck`.
-- IPC/generated binding changes: use `bun run bindings:check`, then the contract
-  Vitest files: `bun run test -- src/lib/tauri-public-api.contract.test.ts
-  src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts`.
-  `bash scripts/check-generated-bindings.sh --mode local` is the uncommitted
-  working-tree loop: it checks changes against `HEAD` plus untracked files and
-  can skip a clean committed branch. Use verify mode for committed contract
-  changes unless generation for that same source is already established.
-- Runtime boundary changes: run the generated binding check
-  (`bun run bindings:check`), the generated Tauri
-  runtime-boundary check (`bun scripts/check-tauri-runtime-boundary.ts`), or
-  targeted contract tests for the owning public surface. Boundary rules:
-  `src-tauri/src/commands/AGENTS.md` + `src/lib/tauri/AGENTS.md`.
-- Build/release artifact changes: use the release skill's lane commands.
-  Developer install and ordinary source builds target the compiling Apple
-  Silicon host natively; public release builds use
-  `bundled-ffmpeg-portable` for the verified noninteractive DMG. A build that
-  produces a DMG must never inherit host-native CPU tuning. Do not convert
-  release work into a broad test mandate by default.
-- Disk upkeep: `bun run clean` removes release builds (including local DMG
-  copies), `dist/`, the Vite cache, and the AAXClean publish folder. It keeps
-  `target/debug`, so the next dev build stays incremental. Git worktrees each
-  hold their own `target/`; remove finished worktrees rather than sharing one.
-- Expected signal: `cargo test` reports per-test `ok`/`FAILED` plus a summary; Vitest
-  reports file/test counts; shell checks print `OK` or matched offending lines;
-  `bun run build` may still show the known DEP0205 and Vite plugin-timing warnings.
-
-## Script Families
-
-- `dev-tauri-log.sh` + `dev-log-analysis.ts`: captured Tauri dev sessions,
-  bounded run history, lifecycle closure, and semantic session verdicts.
-- `check-generated-bindings.sh`: IPC binding drift detection.
-- `check-tauri-runtime-boundary.ts`: generated command/event import boundary
-  plus raw Tauri invoke bypass protection.
-- `build-app.ts`, `install-local-app.ts`, `resolve-release-dmg.ts`,
-  `bump-version.ts`: build/release utilities. Public DMG builds always publish
-  the AAXClean helper from current source and retain the matching portable app
-  long enough to verify it; local app builds may reuse a fresh helper sidecar.
-  Bundle verification accepts exactly the app and helper executables, inspects
-  both, and validates the app resource signature. Tauri seals macOS bundles
-  before DMG creation with the configured signing identity.
-- `analyze_code_lines.py`: optional human "Commander View" source-size
-  diagnostic, not proof.
-- `*.test.ts`: Vitest coverage for script helpers. `vitest.config.ts` runs
-  scripts and bootstrap import-order proof in the Node `tooling` project;
-  frontend tests use the `frontend` project with jsdom and Tauri setup.
-
-## Edit Rules
-
-- Prefer direct native tooling output before adding repo-local scripts.
-- New scripts must enforce a live repo invariant or simplify a release/build
-  workflow enough to justify maintenance.
-- Prefer Rust focused loops as package-selected core tests. Do not route pure
-  domain logic through filtered broad-crate tests when a core crate can own it.
-- Do not recreate custom runner aliases without explicit repo-owner approval.
-- New scripts need an obvious public command, package script, or usage header.
-- TypeScript 7 has no compiler API, so ABB `src/` and `scripts/` do not import
-  `typescript`. The runtime-boundary text scanner stays a text scan;
-  do not grow it toward AST completeness; replace it with a parser only when
-  TypeScript 7's programmatic API exists and an owner needs one.
-- Biome `noRestrictedImports` rejects `typescript`, Tailwind,
-  `foundation/internal`, and deep `src/app/<owner>/…` imports. `biome.json`
-  cannot hold comments, so each restriction's message names its owning
-  `AGENTS.md`. Lint fails on warnings, so a rule is either an error or off.
-- Bun is the `bun` devDependency: a compatible range updated by Dependabot
-  under the 10-day cooldown like any other package. `bun.lock` holds the exact
-  version; `scripts/locked-bun-version.sh` prints it for CI and agent setup.
-  Do not pin it elsewhere. Setup must install that version or exit; do not
-  warn-and-continue. Keep `bun.lock` at `lockfileVersion` 1 (update it in
-  place, never regenerate it): Dependabot's Bun updater rejects newer ones.
-- Vite scripts use the standard Vite CLI; change that only with a validated
-  tooling decision.
+- A new script enforces a live repo invariant or simplifies a build or release
+  workflow, and has a package script or a usage header.
+- TypeScript 7 has no compiler API, so `src/` and `scripts/` do not import
+  `typescript` (Biome enforces it). The runtime-boundary scanner stays a text
+  scan. Replace it with a parser only when TypeScript 7's programmatic API
+  exists and an owner needs one.
+- Lint fails on warnings, so a Biome rule is an error or off. Biome rejects
+  comments in `biome.json`, so each `noRestrictedImports` message names its
+  owning `AGENTS.md`.
+- `bun.lock` is the only Bun pin. `scripts/locked-bun-version.sh` prints it
+  for CI and agent setup. Dependabot updates the `bun` devDependency under the
+  10-day cooldown. Setup installs that version or exits. Update `bun.lock` in
+  place at `lockfileVersion` 1, because Dependabot's Bun updater rejects newer
+  versions.
 
 ## Dependencies
 
 - `Cargo.lock` and `bun.lock` are resolution truth; CI and verification
-  installs run frozen or locked. Manifest ranges stay compatible; exact pins are
-  for prerelease families (Solid and its companions; Specta),
+  installs run frozen or locked. Manifest ranges stay compatible. Exact pins
+  are for prerelease families (Solid and its companions; Specta),
   cross-version type boundaries, synchronized families, and vendored or
   provenance-sensitive dependencies.
-- Fresh Bun resolutions wait 10 days (`bunfig.toml` `minimumReleaseAge`) and
+- Fresh Bun resolutions wait 10 days (`bunfig.toml` `minimumReleaseAge`), and
   Dependabot uses the same cooldown, to limit exposure to fresh supply-chain
   compromises. Cargo has no release-age gate, so review a manual `cargo update`
-  for that risk. Security fixes may bypass the wait with focused proof;
+  for that risk. A security fix may skip the wait with focused proof.
   `bun run update:rc` updates the prerelease families listed in `bunfig.toml`.
 - `package.json` `overrides` keeps one `@tauri-apps/api` version across the app
-  and its plugins, matched to the Rust `tauri` crate; move them together.
-- Scope a dependency update to direct dependencies with a concrete trigger in
-  the touched owner; leave unrelated lockfile churn out.
+  and its plugins, at the same minor version as the Rust `tauri` crate. Move
+  them together.
+- Update direct dependencies that have a concrete trigger in the touched
+  owner; leave unrelated lockfile churn out.
 
 ## Linux Agent Environment
 
-- `bash scripts/setup-linux-agent.sh` installs the locked Bun and frontend
-  dependencies; the Claude Code cloud SessionStart hook runs it. `--rust`
-  adds what Rust proof needs: nasm and static libopus for the bundled FFmpeg,
-  Tauri's GTK/WebKit packages, the gitignored AAXClean sidecar stub, and an
-  FFmpeg 9 CLI in `~/.local/bin` (`ABB_TOOLS_BIN` overrides). Run `--rust`
-  only before engine, host, or media proof.
+- `bash scripts/setup-linux-agent.sh` installs the locked Bun, frontend
+  dependencies, and actionlint; the Claude Code cloud SessionStart hook runs
+  it. `--rust` adds what Rust proof needs (script header lists it). Run it only
+  before engine, host, or media proof.
 - Linux engine and media proof use the same `--features bundled-ffmpeg` build
-  as macOS: cargo compiles the revision in
-  `vendor/ffmpeg-sys-next-*/ffmpeg-revision` with the vendor-owned chapter
-  patch on first use (about 6 minutes) and reuses it while compiler, target,
-  feature and CPU inputs match. Commands: "What to run for a change" above.
-- Media fixtures and readback spawn `ffmpeg`/`ffprobe` from PATH
-  (`ABB_FFMPEG`/`ABB_FFPROBE` override). Use FFmpeg 9: distro 6.x decodes
-  edit lists and Opus pre-skip differently and fails five media tests, which
-  is a readback artifact, not a regression.
+  as macOS. The first build compiles the revision in
+  `vendor/ffmpeg-sys-next-*/ffmpeg-revision`; later builds reuse it while
+  compiler, target, feature, and CPU inputs match.
+- Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
+  (`ABB_FFMPEG` and `ABB_FFPROBE` override). `--rust` installs FFmpeg 9 into
+  `~/.local/bin`; put that directory on PATH. Distro FFmpeg 6.x decodes edit
+  lists and Opus pre-skip differently, so media tests fail on it as a readback
+  artifact, not a regression.
 - Settings save-failure tests fake an unwritable directory with `chmod`, which
-  root ignores; run engine tests as a non-root user.
-- Linux proves the engine, the Native AAC/FAAC/Opus media lane, metadata
-  round-trips, and frontend checks; it cannot prove Apple AAC/AudioToolbox
-  behavior; the macOS CI job runs the Apple AAC tests.
+  root ignores. Run engine tests as a non-root user.
+- Linux cannot prove Apple AAC (AudioToolbox) behavior; the `apple-aac` CI job
+  does.

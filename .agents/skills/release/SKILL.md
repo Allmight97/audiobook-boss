@@ -1,6 +1,6 @@
 ---
 name: release
-description: Prepare ABB version/changelog changes, install a local build, package a DMG, or publish a GitHub Release when the user requests that release work or a release-scope decision.
+description: Release work: version and changelog, local install, portable DMG, or GitHub Release.
 ---
 
 # Release
@@ -32,15 +32,14 @@ explain a material mismatch with the impact instead of silently changing it.
 Use the whole request and prior authorization to select the lane. If “release”
 leaves the destination unclear, inspect the accepted change and prepare the
 version/lane recommendation, then resolve that choice before a build, install,
-or publication that depends on it. Public release alone does not request a
-local install. Temporary development testing uses `bun run app:dev:log`.
+or publication that depends on it. Temporary development testing uses `bun run app:dev:log`.
 
 ## Execute And Verify
 
 Read the applicable sections of [execution.md](references/execution.md) for
-the selected lane. Check commands against `scripts/AGENTS.md` and live package
-scripts. That reference owns the portable-artifact and publication sequence;
-owner guidance determines any additional code verification.
+the selected lane. Check commands against the live package scripts. That
+reference owns the portable-artifact and publication sequence; owner guidance
+and `scripts/AGENTS.md` determine any additional code verification.
 
 Complete the authorized lane, including artifact proof and remote verification
 when publishing. Report only applicable outcomes: version/changelog, installed

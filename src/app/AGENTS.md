@@ -3,82 +3,132 @@
 ## Scope
 
 `src/app/<owner>` modules give Solid views one interface per product area.
-Views under `src/ui/<owner>` render these owners and dispatch intent; they do
-not keep parallel business state.
+Views under `src/ui` render these owners and dispatch intent. They keep no
+second copy of owner state.
 
 ## Engine Adapters
 
 - Input, metadata, lookup, settings, encoding, output, preview, remote choices,
-  and Work Center progress render Rust-owned facts. Adapters word typed statuses
-  and send intents or the owned read/cancel API; product rules go in the engine.
-- Keep frontend lifetime and presentation resources here: dialog disclosure,
-  transient typing echo, visible filter/sort, and authorization browser
-  opening. They never determine accepted file work or terminal truth.
+  and Work Center progress are Rust-owned facts. Adapters word typed statuses
+  and send intents. Engine truth for input, metadata, lookup, encoding, output,
+  and processing: `crates/abb-engine/src/session/AGENTS.md`.
+- Adapters keep frontend lifetime and presentation resources: dialog
+  disclosure, transient typing echo, visible filter and sort, and opening the
+  authorization browser. These never decide accepted file work or terminal
+  truth.
 
 ## Engine Link
 
-- `engineLink` is the one connection to the engine. It keeps the newest copy
-  of each snapshot part (titles, selection, metadata, lookup, audio, output,
-  remote, remote library, settings) by
-  revision, and sends intents. Adapters read the link; nothing else holds a
-  copy of engine state.
-- `send` resolves with the intent's outcome after its work finishes; `post`
-  is for intents whose outcome nobody awaits. Both are numbered in the order
-  called, and the host runs them in that order.
+- `engineLink` is the one connection to the engine. It keeps the newest copy of
+  each snapshot part (titles, selection, metadata, lookup, audio, output,
+  remote, remote library, settings) by revision, and sends intents. Adapters
+  read the link. `workOperations` is the exception: it reads WorkRuntime
+  through `tauriClient`.
+- `send` resolves with the intent's outcome after its work finishes. `post` is
+  for intents whose outcome nobody awaits. The host runs both in the order
+  called.
 - A part that arrives unchanged keeps object identity for its files and lookup
-  results, so Solid rows are not rebuilt and a click does not land on a
-  replaced element.
+  results. Solid rows are not rebuilt, and a click does not land on a replaced
+  element.
 - Adapters show typed text (form fields, lookup queries, the naming template)
-  immediately and drop it when the engine's reply for that keystroke arrives. Form typing shows only on the
-  form it was typed into (the metadata part's `binding`). This local echo is
-  display only; it never decides what is saved.
+  at once and drop it when the engine's reply for that keystroke arrives. Form
+  typing shows only on the form it was typed into (the metadata part's
+  `binding`). The echo is display only and never decides what is saved.
 
 ## Owner Interface
 
-- Treat each owner as a deep module. `index.ts` is its exact Public API Strip;
-  import from the owner root. App Runtime composition and cross-owner
-  production modules use those owner roots.
-- Prefer a small `view()` / accessor surface plus semantic intents. Do not
-  expose raw setters, refresh/poke functions, or one accessor per field.
-- Cross-owner coordination uses another owner's Public API Strip. Inject owner
-  dependencies when the App Runtime composes them.
-- Cross-owner integration tests exercise public owner intents. Owner-internal
-  tests may import private modules to prove behavior at its cheapest stable
-  boundary. Do not widen the public strip solely for a test.
+- Treat each owner as a deep module. Its `index.ts` is its Public API Strip.
+  Import from the owner root; Biome rejects deep imports. Cross-owner
+  coordination uses the other owner's strip, injected when App Runtime composes
+  the owners.
+- Expose a small `view()` or accessor surface plus semantic intents.
+- Cross-owner integration tests use public owner intents. Owner-internal tests
+  may import private modules to prove behavior at its cheapest stable boundary.
+  Test-only needs stay out of the strip.
 
 ## State And Lifetime
 
 - `createAppRuntime()` creates the engine link and one instance of every owner
-  inside one Solid root, and disposes them together. A late engine reply after
+  inside one Solid root and disposes them together. A late engine reply after
   disposal changes nothing visible.
-- Keep screen-local disclosure, focus, and transient input in the Solid view;
-  keep accepted background operation truth in WorkRuntime.
-- Derived views are computed from owner truth, not mirrored into another
-  writable store. Capability and validation facts stay with their Rust owner.
+- Screen-local disclosure, focus, and transient input live in the Solid view.
+  Accepted background operation truth lives in WorkRuntime.
+- Compute derived views from owner truth. Capability and validation facts stay
+  with their Rust owner.
 
 ## Workflow And Failure Shape
 
-- Owner workflows are plain async. Public owner entrypoints return Promise or
-  synchronous domain outcomes. Callers await or handle every Promise; mark an
-  intentional fire-and-forget call with `void` (Biome `noFloatingPromises`).
-- Runtime calls route through `tauriClient`. Normalize user-facing errors and
-  cancellation through `src/lib/tauri/appError.ts`; preserve typed provider
-  diagnostics and backend terminal verdicts.
-- Publish observable state through the owner view and existing runtime/log
-  surfaces. Do not add a shadow event bus or log-derived state machine.
+- Owner workflows are plain async. Public entrypoints return a Promise or a
+  synchronous domain outcome.
+- Error normalization and cancellation follow `src/lib/tauri/AGENTS.md`. Keep
+  typed provider diagnostics and backend terminal verdicts.
+- Publish observable state through the owner view and existing runtime and log
+  surfaces.
+
+## Owners
+
+One bullet per owner: the invariant the code does not show. Engine paths name
+the owner of the truth.
+
+- `appSettings` (`crates/abb-engine/src/app_settings/AGENTS.md`): the owner
+  words durability from `saveError`, shows the concurrency view (Auto shows the
+  capability's `autoEffective`, not the current fixed count), and holds dialog
+  state. The session records audio and output defaults and announces them with
+  `settings-update`; views send Settings intents only.
+- `encoding` (session AGENTS): `project.ts` disables an option because the
+  engine's facts say so. `editFor` turns a control value into an `AudioEdit`;
+  a value no control offers sends nothing. What Auto resolves to comes from the
+  title's engine plan, never from source facts. Defaults describe future
+  imports and name no source; existing titles change only through Apply App
+  Settings. `selectionView` and `refusal` render engine facts and combine no
+  titles.
+- `metadataLookup` (session AGENTS): query text binds to its queued path and
+  metadata `binding`. Advancing or rebinding drops the previous title's echo at
+  once.
+- `outputPlan` (session AGENTS): the owner words preview text per engine
+  preview kind and the size estimate. Size estimates show beside each title in
+  File List; the Output and Encoder panels show none. `collision` words
+  `output.collisionReview` and answers only the question shown; disposal sends
+  no intent.
+- `processing` (session AGENTS): `owner.ts` sends intents and builds no payload;
+  `submit.ts` words `output.submission`. `restartPrompt` renders the engine's one
+  eligible question, and `restartOffers` feeds Work Center retry. Restart and
+  Keep Location send the title and revision shown; teardown answers neither.
+  Preview identity, progress, and terminal truth come from `output.previewRun`:
+  render its snapshot and aggregate nothing. `cancelPreview` carries the run
+  identity and an optional child identity; whole-preview cancel needs no native
+  job id, and disposal does not cancel. After `artworkReady` the artwork shows
+  from the run's `coverSrc` address. A finished preview opens only the path
+  `takePreviewOutput` grants, even when the requesting frontend is disposed
+  before the reply. Submit and Cancel availability follow the engine preview
+  state, including for a frontend that attaches to an active run. Preview
+  duration is screen-local state in `PreviewAudioControls`. Each owner instance
+  owns its status store and publisher.
+- `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and
+  `selectLane` send only the lane intent. Connection editing sends write-only
+  key, URL, and category intents; keys never come back from the engine, and
+  only unconfirmed URL typing and the key's visual echo stay local. Close
+  leaves accepted work running. Disposal invalidates pending
+  authorization-browser replies. An authorization URL occurs only in the
+  initiating intent outcome; snapshots never reopen a browser. Render
+  `settled` and `handoff` facts and infer no terminal precedence. Status stays
+  with its originating provider, and a new request refusal shows even when an
+  older job has a retained message. Filtering and sorting keep the engine's
+  selection. Release rows key on `(indexerId, guid)`, including Grab and Retry.
+  Sent means the provider accepted, not that the download finished.
+- `workOperations` (`crates/abb-engine/src/work_runtime/AGENTS.md`): WorkRuntime
+  snapshots are the only progress source for accepted background operations.
+  Terminal status comes from `abb_processing_core::classify_run_terminal`.
+  `model.ts` applies two rules: keep the newest snapshot per operation, and show
+  operations in the engine's order. `reset` invalidates pending responses.
+  Only whole-operation cancels track pending state; title cancels are
+  idempotent in the backend.
 
 ## Done
 
-- The owner has one source of truth, one public interface, and one disposal
-  path. Cross-owner reads use public strips; views render and dispatch only.
-- Adapter and UI tests run against `src/test/fixtures/fakeEngine.ts`. It
-  records every intent, applies plain list mechanics (import append,
-  selection, removal, output echo), renders the form from seeded tags and
-  typed values, and answers settings intents with a small write model. It
-  copies no engine decision: grouping, ordering, Save, lookup, cover loads,
-  audio edits, and remote product rules are recorded only. A test that needs the
-  engine's answer seeds it with `change`, `respond`, `answerSubmission`, or a
-  `seed*` method; never add a product rule there.
+- The owner has one source of truth, one Public API Strip, and one disposal
+  path.
+- Tests run against `src/test/fixtures/fakeEngine.ts`. It records intents and
+  holds no product rule. Seed the engine's answer; add no rule there.
 - Add App Runtime two-instance proof when isolation changes.
-- Update a nested owner `AGENTS.md` only for non-obvious local invariants or
-  public-surface changes; keep mutable execution state out of instructions.
+- Record a non-obvious owner invariant as one bullet under Owners.

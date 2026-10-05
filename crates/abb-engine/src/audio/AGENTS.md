@@ -1,157 +1,89 @@
 # Audio Pipeline Directives
 
-## Scope
-
-- Applies to audio-domain code under `crates/abb-engine/src/audio/`.
-- Nested `AGENTS.md` files own narrower rules for `processor/`; processing
-  lifecycle rules live under `crates/abb-engine/src/processing/`.
-- This file owns audio integrity rules that cross local import discovery, stream
-  probing, decoder setup, resampling, sample buffering, encoder setup, muxing,
-  and output validation.
-- Audio is the **Audio Engine Deep Module** Public API Strip owner. Its
-  allowed import surface lives at `crate::audio`; processor internals stay
-  private under `crates/abb-engine/src/audio/processor/`.
+This file owns audio integrity rules that cross import discovery, stream
+probing, decoder setup, resampling, sample buffering, encoder setup, muxing,
+and output validation. `processor/AGENTS.md` owns execution-stage rules.
 
 ## Public API Strip
 
-- Import from `crate::audio`, not private child modules such as
-  `crate::audio::processor`, `crate::audio::settings_encoder`,
-  `crate::audio::path_validation`, or `crate::audio::cleanup`.
-- Types: `AudioFile`, `AudioPreservation`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
-  `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
-  `EncoderSettings`, `EncoderType`, `FaacProfile`, `BitrateMode`,
-  `ChannelConfig`, `EncoderAvailability`,
-  `AudiobookFormat`, `AudioIntent`, `TitleAudioRequest`, `TitleAudioPlan`.
-- Functions: `resolve_title_audio`, `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
-  `validate_input_image_path`, `validate_preservation_source`, `validate_preserved_title`, `supported_audio_import_metadata`,
-  `discover_audio_import_paths`, `validate_output_path`, `validate_preserved_output_path`,
-  `validate_sample_rate_config`, `validate_encoder_settings`,
-  `encoder_settings_capabilities`,
-  `detect_encoder_availability`, `execute_audio_engine`.
-  `validate_resolved_audio_inputs` stays processor-private; preflight and
+- Audio is the Audio Engine Deep Module. Import from `crate::audio`; the strip
+  is the `pub use` list in `audio/mod.rs`. Child modules (`processor`,
+  `settings_encoder`, `path_validation`, `cleanup`) stay private.
+- `validate_resolved_audio_inputs` stays processor-private. Preflight and
   execution validate through the resolved audio plan.
-- These functions and execution types are an engine-internal strip; hosts
-  import audio vocabulary and use `Engine` intents and snapshots.
-- Execution request type: `AudioExecutionRequest`. Its constructor accepts the
-  processing context, inspected files, metadata, and cover-art policy; encoder
-  settings come from that context so the request cannot carry conflicting copies.
-  The request carries explicit audio handling and the Metadata Outcome's planned
-  write intent for preserving source audio. Grouped preservation additionally carries effective
-  title metadata and cover policy. Inspection owns source preservation capability; the title planner owns the recommendation.
-- Capability types: `EncoderConfigurationCapability`, `EncoderSettingsCapabilities`,
-  `BitrateModeKind`, `FaacProfileCapability`.
+- `AudioExecutionRequest` takes encoder settings from the processing context,
+  so it cannot carry conflicting copies. Inspection owns source preservation
+  capability; the title planner owns the recommendation.
 - `EncoderSettingsCapabilities.encoder_configurations` is the single
-  per-encoder capability array for allowed modes, defaults, and explicit sample
-  rates and target bitrate bounds. The global `explicit_sample_rates` list remains the rate list for the
-  existing encoders. FAAC profile-specific rates are carried by `faac_profiles`.
-  Quality presets are backend-owned capability values. The FAAC encoder owns
-  upstream profile resolution and opened configuration readback.
-- Target bitrate bounds and native speed bounds come from
-  `EncoderSettingsCapabilities`. Native and bundled FAAC target bitrates also
-  check their resolved AAC ceilings during preflight and encoder setup. Input
-  validation receives the sample-rate choice and inspected sources grouped by
-  output title. Resolve the encoder once per validation call; each title's
-  ceiling uses its combined channels and first input rate.
-  Opened NMR and FAAC settings must match the request; FAAC preflight uses the
-  same encoder open/readback as execution, including upstream bitrate clamps.
-- Every build links FFmpeg's AAC decoder, and macOS builds also link `aac_at`;
-  a `processor/streams.rs` test checks the linked build. Linkage is not file
-  compatibility: per-file trial decoding selects the decoder.
-- Crate-internal helper: `CleanupGuard`.
-- Audio does not own lifecycle event names or progress math. Use
-  `crate::processing` / `processing::progress` for internal progress values,
-  and `crate::work_runtime` for accepted-operation identity.
+  per-encoder capability array. Quality presets are backend-owned capability
+  values. The FAAC encoder owns upstream profile resolution and opened
+  configuration readback.
+- Native and bundled FAAC target bitrates check their resolved AAC ceilings
+  during preflight and encoder setup. Resolve the encoder once per validation
+  call; each title's ceiling uses its combined channels and first input rate.
+  Opened NMR and FAAC settings must match the request. FAAC preflight uses the
+  same open/readback as execution, including upstream bitrate clamps.
+- Linkage is not file compatibility: per-file trial decoding selects the
+  decoder (`processor/streams.rs` tests the linked AAC decoders).
 
-## Private Cluster
+## Encoder Routes
 
-- Files: `buffer.rs`, `buffer_tests.rs`, `cleanup/`, `extensions.rs`,
-  `constants.rs`, `file_list.rs`, `imports.rs`, `imports_tests.rs`, `metrics.rs`,
-  `path_validation.rs`, `processor/`, `settings.rs`, `settings_capabilities.rs`,
-  `settings_encoder.rs`, and `output_plan.rs`.
-- The cluster owns local audio import metadata/discovery, decoder and encoder
-  selection, media inspection, decode/resample/encode/mux internals, staging,
-  cleanup, and media execution facts. Processing owns lifecycle orchestration
-  and terminal normalization; `output_artifact` owns final artifact commit truth.
-
-## Test Placement
-
-- Public API Strip behavior belongs in contract/integration tests that import
-  only `crate::audio`.
-- Private-cluster invariants may use source-tree unit tests, including sibling
-  `*_tests.rs` files declared from the owning module with `#[cfg(test)]` and
-  `#[path = "..._tests.rs"]`. Prefer source-tree tests over a separate
-  integration-test directory when the move would widen the Public API Strip
-  or force test-only exports.
-- Keep small tests inline when they clarify the nearby code; move bulky private
-  test blocks to sibling test files when readability is the real issue.
+- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, and Opus differences inside
+  this module unless a caller needs a stable capability fact.
+- Encoder Auto resolves to Native NMR; Apple and FAAC stay explicit choices.
+  Native AAC uses NMR with upstream psychoacoustic defaults and explicit target
+  bitrate and search speed. FAAC offers profile Auto/LC/HE and ABR/VBR and
+  resolves its profile once at open from output settings.
+- Auto adapts an unsupported bitrate mode to the resolved encoder default;
+  explicit encoder requests reject incompatible modes.
+- Resolve Auto channels once at the Audio execution boundary: all valid inputs
+  mono -> Mono; any stereo input -> Stereo. Multichannel or unknown input
+  counts need an explicit Mono/Stereo choice during preflight. Encoders receive
+  resolved channels.
+- Downmix coefficients are normalized so coherent channels cannot overflow.
+  The standard downmix retains center/surround channels and omits LFE.
 
 ## Path Display Policy
 
 - Filesystem and process identity uses `Path`, `OsStr`, or `OsString`.
-- User-facing diagnostics use sanitized display strings. Local audio-inspection
-  debug logs include the validated canonical source path. Started jobs record
+- User-facing diagnostics use sanitized display strings. Started jobs record
   ordered source paths at info level, with debug escaping so same-named files
-  remain distinguishable without repeated inspection noise.
-- Lossy strings are allowed only for display ordering, never identity or command argv.
-
-## Edit Rules
-
-- Change private implementation files when focused audio/processing tests stay
-  green for the touched boundary.
-- Narrow accidental visibility when callers can use the Public API Strip without
-  losing contract truth.
-- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, and Opus differences inside
-  the private cluster unless a caller needs a stable
-  capability fact.
-
-## Boundary Changes
-
-- Adding, removing, or renaming any Public API Strip symbol.
-- Moving job lifecycle ownership out of processing, final artifact commit truth
-  out of `output_artifact`, or metadata policy out of metadata-owned APIs.
-- Changing user-visible progress, cancellation, or terminal success/failure
-  semantics.
-
-## Preferred Path
-
-- Treat audio processing as a boundary chain: discover supported local paths ->
-  validate paths -> inspect inputs -> choose decoder and encoder ->
-  decode/resample -> accumulate exact encoder frames -> encode/mux -> finalize
-  artifact -> verify output truth.
-- Keep sample format, channel layout, sample rate, frame size, and encoder selection explicit at the boundary where they are chosen.
-- Resolve Auto channels once at the Audio execution boundary: all valid inputs
-  mono -> Mono; any stereo input -> Stereo. Multichannel or unknown input
-  counts require an explicit Mono/Stereo choice during preflight. Encoders
-  receive resolved channels.
-- Downmix coefficients are normalized to prevent coherent channels from
-  overflowing before encoding. The standard downmix retains center/surround
-  channels and omits LFE; Mono/Stereo are explicit downmix choices.
-- Prefer real media probes and small targeted regression tests over codec speculation when audio quality, channel shape, duration, or output validity changes.
-- Keep Native AAC, Apple AAC/AAC-AT, and bundled FAAC behavior distinct. FAAC
-  offers profile Auto/LC/HE and ABR/VBR, resolving its profile once at open
-  from output settings. Encoder Auto resolves to Native NMR; Apple and FAAC
-  remain explicit choices.
-- Native AAC uses NMR with upstream psychoacoustic defaults and explicit target
-  bitrate and search speed. Auto adapts an unsupported bitrate mode to the resolved encoder default; explicit encoder requests reject incompatible modes.
+  stay distinguishable.
+- Lossy strings serve display ordering only, never identity or command argv.
 
 ## Hard Invariants
 
-- For planar audio, use typed plane access such as `frame.plane::<T>(ch)` and `frame.plane_mut::<T>(ch)`, or an explicit FFmpeg `extended_data`-aware helper. Do not use `data(ch)` or `data_mut(ch)` as channel-presence or sample-copy truth for planar audio.
-- Byte `linesize` is not per-channel audio truth for planar frames. A zero byte linesize on channel index `> 0` must not be interpreted as a missing channel without typed-plane or raw-plane confirmation.
-- Silence padding is allowed only for a deliberate short-frame/tail policy or a verified missing-plane condition, and the behavior must have regression coverage.
-- Sample sanitization may repair NaN/Inf or clamp out-of-range floats before encoding, but it must not mask channel-layout, frame-size, or format mismatches.
+- For planar audio, use typed plane access such as `frame.plane::<T>(ch)` and
+  `frame.plane_mut::<T>(ch)`, or an explicit FFmpeg `extended_data`-aware
+  helper. `data(ch)` and `data_mut(ch)` are not channel-presence or sample-copy
+  truth for planar audio.
+- Byte `linesize` is not per-channel audio truth for planar frames. A zero byte
+  linesize on channel index `> 0` needs typed-plane or raw-plane confirmation
+  before it counts as a missing channel.
+- Silence padding serves a deliberate short-frame/tail policy or a verified
+  missing-plane condition, with regression coverage.
+- Sample sanitization repairs NaN/Inf or clamps out-of-range floats before
+  encoding; channel-layout, frame-size, and format mismatches stay visible.
   `buffer.rs` owns the log threshold: NaN/Inf always warn; clamped peaks up to
   `CLIP_WARN_PEAK` (+1 dBFS) log at debug, larger excursions warn. The dev-log
   summary counts WARN lines as actionable, so keep the threshold in the log
   level rather than in `scripts/dev-log-analysis.ts`.
-- Resampler output buffers must account for pending swr delay plus input samples
-  scaled to the output rate; EOF drains must stream flushed frames through the
+- Resampler output buffers account for pending swr delay plus input samples
+  scaled to the output rate; EOF drains stream flushed frames through the
   accumulator/encoder instead of collecting the whole drain.
-- Encoder option changes must include evidence for the affected encoder path: targeted tests, real-file `ffprobe`/`ffmpeg` diagnostics, or documented external encoder behavior.
+- Encoder option changes carry evidence for the affected encoder path:
+  targeted tests, real-file `ffprobe`/`ffmpeg` diagnostics, or documented
+  external encoder behavior.
+- Sample-buffer, resampler, or encoder-boundary changes include regression
+  coverage for channel preservation and tail/frame behavior. Native AAC changes
+  include a real-media probe when feasible: codec/profile, sample rate,
+  channels, duration, and a channel-level check such as RMS/peak parity. Notes
+  on Native AAC artifacts separate structural correctness from subjective
+  encoder quality.
 
 ## Audio Integrity Traps
 
-Treat these as evidence of an audio-boundary assumption to investigate, not as cosmetic warnings:
+Each of these signals an audio-boundary assumption to investigate:
 
 - repeated frame-plane warnings
 - preview/full divergence for the same encoder path
@@ -160,23 +92,17 @@ Treat these as evidence of an audio-boundary assumption to investigate, not as c
 - mismatched source/output duration beyond expected preview boundaries
 - wrapper API behavior that disagrees with FFmpeg frame/layout semantics
 
-When one appears, name the affected boundary, state the current assumption used to continue, and add or propose the smallest regression test, invariant, or doc guard that would prevent recurrence.
-
-## Done Criteria
-
-- Sample-buffer, resampler, or encoder-boundary changes include focused regression coverage for channel preservation and tail/frame behavior.
-- Native AAC changes include a real-media probe when feasible: output codec/profile, sample rate, channels, duration, and at least one channel-level sanity check such as RMS/peak parity.
-- Audio correctness fixes run the focused audio/runtime checks warranted by the touched boundary before being presented as done; escalate only when the change crosses owners or uses real-media behavior the focused checks cannot prove.
-- Final notes distinguish structural correctness from subjective encoder quality when discussing Native AAC artifacts.
+When one appears, name the affected boundary, state the assumption used to
+continue, and add or propose the smallest regression test, invariant, or doc
+guard that prevents recurrence.
 
 ## Chapter Intake
 
-Analysis attaches sibling CUE diagnostics and a source-fingerprinted candidate
-chapter plan to each MP3. `apply_chapter_plans` validates accepted payload plans
-against the audio identity and duration before dispatch. CUE confirmation or
-Ignore is explicit; multi-source CUE merging is rejected. Encoders
-consume accepted chapters, while passthrough source probing remains for cover
-art and external artifact readers. Preview continues to omit chapters.
+Analysis attaches CUE diagnostics and a source-fingerprinted candidate chapter
+plan to each MP3. `apply_chapter_plans` validates accepted plans against the
+audio identity and duration before dispatch. CUE confirmation or Ignore is
+explicit; multi-source CUE merging is rejected. Encoders consume accepted
+chapters. Preview omits chapters.
 
 ## Title Audio Plan
 
@@ -184,16 +110,21 @@ art and external artifact readers. Preview continues to omit chapters.
 the default; MP3 is packet pass-through; Opus supports M4A (MP4 muxer) and MKA.
 Auto copies joinable, matching audio when every source has a known bitrate at or
 below `COMPACT_AUDIO_MAX_BITRATE`; otherwise it plans encoding. Explicit Preserve
-copies regardless of bitrate and never silently encodes. MP3 output stays copy-only
-regardless of bitrate. Strict source/packet validation still applies to every copy. MP3 has no encoder route and rejects
-incompatible copy boundaries. Default M4B encoding uses the built-in AAC
-defaults (NMR 65 kbps target, source channels and automatic rate),
-independent of saved user preferences. Explicit Encode always applies the settings.
-Session title plans (`session/plans.rs`) and processing preflight share this resolver. Only encoding
-plans resolve encoder availability, channels and input rate. Execution receives
-that resolved plan; it does not reinterpret frontend preferences.
+copies regardless of bitrate and always copies. MP3 output stays copy-only
+regardless of bitrate: it has no encoder route and rejects incompatible copy
+boundaries. Strict source/packet validation applies to every copy. Default M4B
+encoding uses the built-in AAC defaults (NMR 65 kbps target, source channels and
+automatic rate), independent of saved user preferences. Explicit Encode applies
+the settings.
 
-Auto keeps supported source rates and otherwise rounds upward to the next encoder/profile rate, capped at its maximum. Opus caps at 48 kHz; explicit FAAC HE starts at 32 kHz. Its headers and skip counts use the 48 kHz decoder clock even with
-24 kHz PCM input. Packet-copy Opus stacks require decoder resets that this join
-path cannot express; Auto therefore encodes them. Single Opus files can remux
-between supported containers without changing compressed packets.
+Session title plans (`session/plans.rs`) and processing preflight share this
+resolver. Only encoding plans resolve encoder availability, channels, and input
+rate. Execution receives that resolved plan and takes no frontend preferences.
+
+Auto keeps supported source rates and otherwise rounds upward to the next
+encoder/profile rate, capped at its maximum. Opus caps at 48 kHz; explicit FAAC
+HE starts at 32 kHz. Opus headers and skip counts use the 48 kHz decoder clock
+even with 24 kHz PCM input. Packet-copy Opus stacks need decoder resets that
+this join path cannot express, so Auto encodes them. Single Opus files can
+remux between supported containers without changing compressed packets.
+Container timing for Opus remux: `metadata/AGENTS.md`.

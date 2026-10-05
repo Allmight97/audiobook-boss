@@ -10,8 +10,6 @@
 
 `bun run check:rust-tiers` enforces the last column and runs in CI.
 
-A UI host on another platform replaces the host tier and keeps the engine, so
-a rule placed in the host would have to be written again for each platform.
 Put a rule in the engine, or in a core when it needs no I/O.
 
 ## Ownership
@@ -22,16 +20,8 @@ Put a rule in the engine, or in a core when it needs no I/O.
   progress, materialized kinds). Provider protocol interpretation, such as
   Audible license keys and strategy choice, lives in that provider's core.
 - Engine owners and the engine's host interface: `crates/abb-engine/AGENTS.md`.
-- Host rules: `src-tauri/AGENTS.md`.
+- Host rules and what host tests cover: `src-tauri/AGENTS.md`.
 
-## Direct Tests
+## Tests
 
-- A core: `cargo test --locked -p abb-<owner>-core` (audible, media, metadata,
-  output-artifact, processing, remote-source). Run several sequentially.
-- Engine unit tests: `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib`
-- Engine real-file tests: append `-- test_cases::` to the unit command; the
-  `abb-dev` host: `cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests`
-- Host: `cargo test --locked -p audiobook-boss --features bundled-ffmpeg`
-
-Move a test with the logic it proves; what the host's own tests cover is in
-`src-tauri/AGENTS.md`.
+Commands: `scripts/AGENTS.md`, "What to run for a change".

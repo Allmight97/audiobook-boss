@@ -1,12 +1,11 @@
 ---
 name: abb-library-research
-description: Resolve version-sensitive Solid, Tauri, Specta, or tauri-specta behavior when ABB needs external-library evidence.
+description: Resolve version-sensitive behavior of Solid, Tauri, Specta, or tauri-specta from the locked package source.
 ---
 
 # ABB Library Research
 
 Resolve the active library question and return the answer to its ABB owner.
-Repository paths below are relative to the ABB root.
 
 ## Evidence
 
@@ -31,12 +30,11 @@ Load only the route card for the library involved:
 | Rust type export and TypeScript generation | [specta.md](references/specta.md) |
 | Tauri command/event codegen integration | [tauri-specta.md](references/tauri-specta.md) |
 
-When package evidence leaves a material gap, use available documentation or
-search tools to find primary docs, source, issues, or history. Context7 can help
-with a known API; Exa or web search can discover sources. Resolve Context7 IDs
-live if using it; route-card IDs are hints. Neither tool is required. Reconcile
-current docs and search results to the resolved package before treating them
-as version proof.
+When package evidence leaves a material gap, find primary docs, source,
+issues, or history with the documentation or search tools available.
+Route-card Context7 IDs are hints; resolve them live. Reconcile current docs
+and search results to the resolved package before treating them as version
+proof.
 
 Read [source-retrieval.md](references/source-retrieval.md) when omitted tests,
 examples, codegen internals, or history require upstream retrieval. Root

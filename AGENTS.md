@@ -101,8 +101,9 @@ simpler design.
 ## Planning And Capture
 
 - Record work that outlasts the session in a GitHub issue
-  (`docs/agents/issue-tracker.md`). Put what another session needs in the PR
-  body or an issue: other sessions cannot read this chat.
+  (`docs/agents/issue-tracker.md`): draft it, and publish it when the owner
+  says so. Put what another session needs in the PR body or an issue: other
+  sessions cannot read this chat.
 - Planning files enter the repo only as `docs/specs/<task>.md`, when the owner
   asks, and leave when the work lands.
 - An open issue is a candidate plan. Verify its claims against `main`, the

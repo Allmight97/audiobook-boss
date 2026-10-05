@@ -1,9 +1,8 @@
 # Release Execution
 
 Read the sections for the selected lane after stating the version or no-bump
-decision. Before running a command, check it against
-`scripts/AGENTS.md` and the live package scripts; the repository environment
-owns command truth.
+decision. Before running a command, check it against the live package
+scripts; the repository environment owns command truth.
 
 ## Version And Changelog
 

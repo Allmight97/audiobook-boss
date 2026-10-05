@@ -7,13 +7,10 @@ default the session records reaches hosts as `EngineEvent::Settings`.
 
 ## Public API Strip
 
-- Intent and snapshot: `SettingsIntent`, `SettingsOutcome`, `SettingsReply`,
-  `SettingsSnapshot`, `ConcurrencySnapshot`.
-- Setting types: `AppSettings`, `AppSettingsPatch`, `AcquisitionLane`,
-  `EncoderDefaults`, `OutputDefaults`, `ConcurrencyPreference`,
-  `StartupBehavior`, `PinnedDefaults`.
+- The strip is the `pub use` list in `mod.rs`: intent and snapshot types plus
+  the setting types.
 - `SettingsRuntime` is engine-internal. Load and save are private to this
-  module so every write goes through the runtime.
+  module, so every write goes through the runtime.
 
 ## Settings Runtime
 
@@ -48,30 +45,17 @@ default the session records reaches hosts as `EngineEvent::Settings`.
   per area, in a saved shape kept apart from the IPC types so a change to
   what hosts send cannot change what a saved file means.
 - Loading never fails. No file means the defaults; a file damaged outside ABB
-  is logged and not used, and the next save replaces it. There is no load
-  error, recovery, or migration: files from builds before `settings.toml`
-  are never read.
+  is logged and not used, and the next save replaces it. There is no
+  file-format migration: files from builds before `settings.toml` are never
+  read.
 - A user's saved choice keeps its meaning across releases. A change that
   removes or narrows a saved value either keeps the sample in `samples/`
-  loading with every choice it holds, or maps each old value in
-  `storage.rs`, with the owner's approval and a one-time notice. A new saved
-  field needs a default so earlier samples still load, and a new sample of
-  the new shape. Samples are never edited.
+  loading with every choice it holds, or maps each old value in `storage.rs`,
+  with the owner's approval and a one-time notice. A new saved field needs a
+  default so earlier samples still load, and a new sample of the new shape.
+  Samples stay as written.
 - Encoder format and copy/encode validation stay Audio-owned; App Settings
-  checks durable choices with the owning runtime APIs and does not duplicate
-  encoder or JobRegistry rules.
+  checks durable choices with the owning runtime APIs and leaves encoder and
+  JobRegistry rules to them.
 - Store request-shaped settings only; display state stays out. Persisted paths
   are preference data; runtime owners validate them before reads or writes.
-
-## Proof
-
-- `contract_tests.rs`: the sample file, save/load round trip, damaged files,
-  and validation.
-- `runtime_tests.rs`: what each intent leaves in effect and on disk, including
-  failed writes, retry, reset, and startup concurrency.
-
-## Boundary Changes
-
-- Adding, removing, or renaming a Public API Strip symbol or intent.
-- Moving runtime behavior ownership, output artifact truth, or encoder
-  validation into App Settings.

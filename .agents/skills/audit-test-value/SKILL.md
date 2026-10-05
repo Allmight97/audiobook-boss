@@ -7,9 +7,6 @@ description: Audit or clean up ABB tests and test-only production seams for beha
 
 Recover useful regression protection at the lowest owning boundary, and remove
 complexity whose only purpose was supporting tests that do not earn keep.
-Favor observable behavior over implementation details. Use end-to-end tests
-when the regression depends on real handoffs across boundaries; isolated unit
-tests earn their place when they prove the owned behavior directly.
 
 ## Scope And Authority
 
@@ -17,15 +14,15 @@ Use the whole request to distinguish a report from authorized cleanup. An
 audit alone is read-only; an audit followed by requested fixes includes those
 edits. A repository-wide census does not by itself authorize production changes.
 
-Read applicable owner guidance and `scripts/AGENTS.md` for test placement and
-commands. Inspect the in-scope tests, fixtures, registries, configuration, and
+Read applicable owner guidance (root tiers, `crates/AGENTS.md`, the surface
+`AGENTS.md`) for test placement and `scripts/AGENTS.md` for commands. Inspect the in-scope tests, fixtures, registries, configuration, and
 production callers. Use baseline execution when it provides useful evidence;
 distinguish existing failures from regressions.
 
 ## Judge The Contract
 
-Root `AGENTS.md` owns ABB's test-value bar and tier selection. For each
-challenged test or shared group, establish:
+Root `AGENTS.md` owns tier selection. For each challenged test or shared
+group, establish:
 
 - the plausible bug and observable contract it protects;
 - the stable owner, test tier, and any distinct risk that justifies a higher or
@@ -61,9 +58,8 @@ production simplification is in scope. Preserve seams that isolate real side
 effects, lifecycle transitions, platform variation, or external dependencies.
 Report out-of-scope simplifications with impact and owner.
 
-Keep procedure here and verification commands in `scripts/AGENTS.md`. Update
-owner guidance only when the change reveals a new local trap or changes an
-owned interface; root already carries the repo-wide value bar.
+Update owner guidance only when the change reveals a new local trap or changes
+an owned interface.
 
 ## Proof And Completion
 

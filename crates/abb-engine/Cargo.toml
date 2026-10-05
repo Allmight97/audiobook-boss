@@ -33,6 +33,8 @@ ffmpeg-next = "9.0.0"
 ffmpeg-sys-next = { version = "9.0.0", default-features = false }
 faac-sys = { path = "../../vendor/faac-sys" }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+# One reqwest with http2: each server picks HTTP/2 or HTTP/1.1. HTTP/3 needs the
+# `reqwest_unstable` cfg and has no fallback (upstream #2303), so ABB leaves it off.
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "http2", "stream", "json", "query", "form"] }
 # audible_api currently accepts reqwest 0.12 request values. Keep this renamed
 # dependency private to the Audible provider until that upstream surface changes.

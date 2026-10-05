@@ -1,21 +1,23 @@
 # REVIEW.md
 
-How to review an ABB pull request. Codex reaches this file from root
-`AGENTS.md` (Review Guidelines); Claude Code Review and the `claude review`
-workflow read it directly. The rules themselves live in the `AGENTS.md`
-chain; this file only says how to review against them.
+How to review an ABB pull request. Root `AGENTS.md` (Review Guidelines) and the
+`claude review` workflow both point here. The rules live in the `AGENTS.md`
+chain; this file says how to review against them.
 
 ## Scope
 
 - For each changed path, read root `AGENTS.md` and every nested `AGENTS.md`
   from the root down to that path. Judge the diff against those rules, the
   owning code, and the owning tests.
-- CI already owns formatting, Biome lint, typecheck, the Tauri
-  runtime-boundary check, Vitest, core-crate tests and Clippy, engine tests,
-  the real-media lane, Tauri host tests, and the generated-binding check.
-  Leave anything those checks decide to them.
-- Skip generated and resolved files: `src/lib/generated/`, `bun.lock`,
-  `Cargo.lock`, and `vendor/`. Read `CHANGELOG.md` only for factual errors.
+- CI runs the format, lint, typecheck, test, and binding checks
+  (`.github/workflows/ci.yml`). Leave what they decide to them.
+- When the PR body names local proof instead of CI, check that the named proof
+  covers the changed surface.
+- Skip generated and resolved files (`src/lib/generated/`, `bun.lock`,
+  `Cargo.lock`) and vendored upstream bytes (`vendor/faac-sys/upstream/`, the
+  FFmpeg and Opus sources). Judge `build.rs`, patches, and provenance files
+  beside them by `vendor/faac-sys/AGENTS.md`. Read `CHANGELOG.md` only for
+  factual errors.
 
 ## Severity
 

@@ -118,12 +118,12 @@ Index of common commands; `package.json` holds the shortcuts.
   `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
   release-critical drift confidence is required.
 - Dependency hygiene: `bun run audit`.
-- CI: GitHub runs Pages for `site/**`; frontend typecheck and Vitest on
-  relevant PRs and `main` pushes; and, for Rust changes, the core crates'
-  tests and Clippy, the crate tier check, and the engine tests on macOS
-  (Save golden paths and host-API examples included). The real-media lane,
-  the every-container Save test, the Tauri host suite, and the generated-binding
-  check stay local; a passing PR check list does not mean those ran.
+- CI (`.github/workflows/ci.yml`): runs when a pull request opens ready or is
+  marked ready, when auto-merge is enabled, by hand, and twice a week on
+  `main`. Pushes and drafts start nothing. It checks the frontend, the core
+  crates, the engine with the real-media lane, the Tauri host, the generated
+  bindings, and Apple AAC on macOS. A pull request runs only the jobs its
+  changes touch. GitHub also runs Pages for `site/**`.
 - Bun is the package manager, script runner, and test runner.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Build timing: use direct Cargo timing commands such as `cargo build --timings`

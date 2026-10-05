@@ -1,6 +1,6 @@
 ---
 name: audiobook-metadata
-description: Evaluate or change ABB tag mappings and folder conventions for Audiobookshelf, Plex, or Apple Books interoperability. Ordinary metadata intent and validation work follows its owning AGENTS.md.
+description: Interop of tag mappings and folder conventions with Audiobookshelf, Plex, and Apple Books. Ordinary metadata intent and validation work follows its owning AGENTS.md.
 ---
 
 # Audiobook Metadata
@@ -26,13 +26,8 @@ policy stays under `crates/abb-engine/src/output_artifact/AGENTS.md`.
 ## Verify The Changed Handoff
 
 Use owner tests for mapping, clear/absent-field behavior, and atom precedence. For a
-changed writer or finalization path, inspect a generated M4B with:
-
-```bash
-ffprobe -v quiet -print_format json -show_format output.m4b
-```
-
-Use atom-aware readback for freeform mirrors that ffprobe cannot distinguish.
+changed writer or finalization path, inspect a generated M4B with ffprobe, and
+use atom-aware readback for freeform mirrors that ffprobe cannot distinguish.
 When the claim is player/scanner compatibility, verify the affected import
 workflow and record the consumer version and relevant library settings. If
 that consumer is unavailable, report the artifact proof and the unverified

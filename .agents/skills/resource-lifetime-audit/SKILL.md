@@ -1,14 +1,13 @@
 ---
 name: resource-lifetime-audit
-description: Audit ABB resource ownership for file loss, false terminal outcomes, residue, or stuck cancellation across reopen, replacement, process, and cleanup transitions. Use when reviewing or changing those transitions; routine file I/O follows its owner's AGENTS.md.
+description: Audit resource ownership across reopen, replace, process, and cleanup transitions for file loss, false terminal outcomes, residue, or stuck cancel. Routine file I/O follows its owner's AGENTS.md.
 ---
 
 # Resource Lifetime Audit
 
 Trace the requested lifecycle boundary using its nearest `AGENTS.md` and live
 callers. An audit alone reports findings; apply fixes when the request also
-authorizes implementation. Loading this skill during a fix does not remove
-that authority or broaden the change into a repository-wide audit.
+authorizes implementation. Scope stays the requested boundary.
 
 ## Trace Ownership
 

@@ -6,69 +6,51 @@ the same code.
 
 ## Host Interface
 
-- A host builds one `Engine` with `EngineConfig`: a cache folder, a config
-  folder, an identity that scopes stored credentials, and an `EventSink`.
-  `Engine::start` clears working files a previous run abandoned (logging, not
-  failing, when it cannot), so two engines must not share those folders.
+- A host builds one `Engine` from `EngineConfig` (`engine.rs` documents each
+  field). `Engine::start` clears working files a previous run abandoned (it
+  logs and continues on failure), so two engines must not share folders.
 - A host calls `Engine` methods and receives `EngineEvent`s; `engine.rs` lists
   the methods. Remote account, auth, library, and acquisition work uses
-  session intents and snapshots; its owned vocabulary is in
+  session intents and snapshots; its vocabulary is in
   `remote_source/AGENTS.md`.
 - The engine runs on the host's tokio runtime: `Engine::start` and every
-  async method must be called inside one. A host with no runtime builds one.
+  async method run inside one. A host with no runtime builds one.
 - The working session and the settings each take typed intents and return
   snapshots: `session/AGENTS.md` and `app_settings/AGENTS.md`.
-- A new host need (a directory, a platform service, an event) is added to
+- A new host need (a directory, a platform service, an event) goes into
   `EngineConfig`, `EventSink`, or `Engine`. Engine code never reaches a host
   type.
 - Before exiting or reusing the engine's folders, a host awaits
-  `Engine::shutdown`: it refuses new exports and acquisitions, cancels running
-  ones, a running preview, and any submission waiting at collision review,
-  and waits for every background task and for the Saves, submissions, and
-  settings writes already under way, accepted remote disconnects and credential
-  writes, and keychain reads started before closing (none starts after), so
-  saves waiting on them are written.
-  Remote registration and network reads stop before credential persistence.
-  Metadata Saves are not cancelled. `Engine::running_work` tells a host what
-  quitting would stop (exports being prepared, reviewed, or running; waiting
-  writes; downloads), with a consent naming that work. `Engine::close_for_quit`
-  closes admission only while no work outside that consent has started, so a
-  quit never stops work the user was not asked about; finished work needs no
-  new consent. An export keeps one identity from submission to running.
-- Every background task the engine starts runs on its one `EngineTasks` owner over a `TaskTracker`
-  (`tokio_util`), never a bare `tokio::spawn`, so shutdown can wait for it.
-  Short scoped tasks joined before their caller returns are the exception.
-  Admission and shutdown share one lock: registering visible work and its
-  cancellation handles must finish before shutdown enumerates work to stop.
+  `Engine::shutdown`. A quit never stops work the user was not asked about:
+  `running_work` and `close_for_quit` enforce that (rustdoc in `engine.rs`).
+- Every background task the engine starts runs on its one `EngineTasks` owner
+  over a `TaskTracker`, so shutdown can wait for it. Short scoped tasks joined
+  before their caller returns are the exception. Admission and shutdown share
+  one lock: registering visible work and its cancellation handles finishes
+  before shutdown enumerates work to stop.
 - An accepted intent belongs to the engine. `SessionRun::finish` and settings
   replies only wait; dropping a host wait never drops accepted file work.
 - Hosts import intent/snapshot vocabulary from the public modules and call
-  `Engine`; metadata writers, media execution, processing contexts, and
-  `WorkRuntime` are crate-internal. Compiler-checked negative API examples
-  in `lib.rs` prevent tests from reopening those safety bypasses.
+  `Engine`. Metadata writers, media execution, processing contexts, and
+  `WorkRuntime` are crate-internal; the compile-fail examples in `lib.rs` pin
+  that.
 - `abb-dev` (`src/bin/abb_dev.rs`) is the smallest host. It runs under its own
-  identity and state folder; keep it from reading the app's settings or
+  identity and state folder; keep it away from the app's settings and
   credentials.
 
 ## Owner Routes
 
 - Media execution crosses `crate::audio`; processor adapter selection and
   engine internals stay private to Audio.
-- Shared lifecycle vocabulary, internal progress values, active jobs, and terminal
-  summaries belong to `crate::processing`. Accepted operation identity,
-  snapshots, retention, and operation cancellation belong to
+- Shared lifecycle vocabulary, internal progress values, active jobs, and
+  terminal summaries belong to `crate::processing`. Accepted operation
+  identity, snapshots, retention, and operation cancellation belong to
   `crate::work_runtime`.
 - The titles being prepared, their metadata drafts, lookup, Save, and
-  submission belong to `crate::session`. It writes tags through `metadata_save.rs` (one WorkRuntime
-  operation per batch, with crate-internal request/result types) and loads user-picked covers through `cover_source.rs`,
-  which owns the URL and file limits. `cover_service.rs` loads every remote and
-  embedded cover (views, Lookup Apply, typed URLs) once per size,
-  single-flight, bounded, and sized for display; a thumbnail is made from the
-  downloaded bytes, not from the full cover.
-- Engine HTTP uses the one `reqwest` 0.13 dependency with `http2`; each
-  server picks HTTP/2 or HTTP/1.1. reqwest's HTTP/3 needs the
-  `reqwest_unstable` cfg and has no fallback (upstream #2303), so ABB does not
-  enable it.
+  submission belong to `crate::session`. It writes tags through
+  `metadata_save.rs` (one WorkRuntime operation per batch). `cover_source.rs`
+  owns the URL and file limits for user-picked covers; `cover_service.rs`
+  loads every cover (module doc).
 - Online metadata search belongs to `crate::metadata_lookup`. A provider that
   fails while others answer leaves the usable results plus typed diagnostics;
   the search fails only when no selected source can answer
@@ -104,20 +86,15 @@ the same code.
 
 - `power::PowerManager` owns the idle-sleep hold (a macOS power assertion, a
   Linux logind idle inhibitor; without D-Bus it logs and work continues) and
-  live opt-out.
-  Active encoding, metadata-save, Audible-acquisition, and Indexer-handoff scopes hold an
-  `ActiveWork` guard through their final writes and cleanup. Acquire after a
-  job's scheduler wait; opening ABB, browsing, and external downloader activity
-  do not acquire guards. The manager has no polling or idle OS resource.
+  live opt-out. Active encoding, metadata-save, Audible-acquisition, and
+  Indexer-handoff scopes hold an `ActiveWork` guard through their final writes
+  and cleanup. Acquire after a job's scheduler wait; opening ABB, browsing, and
+  external downloader activity do not acquire guards. The manager has no
+  polling or idle OS resource.
 - Validate input audio paths where they enter the engine with
   `crate::audio::validate_input_audio_path()`. Paths the engine hands back are
   canonical; compare paths in that spelling.
-- Use `JobRegistry` for active-job tracking. Cancellation is per title:
-  WorkRuntime's flags for an export, the session's for a preview.
-- Run CPU-bound encoding and heavy synchronous work through
-  `tokio::task::spawn_blocking` or an equivalent blocking-safe path.
-- Keep long-running progress and terminal outcomes observable through the
-  owning lifecycle surface.
+- `JobRegistry` tracks active jobs.
 - Before changing production Rust `unsafe`, read
   `docs/unsafe-code-register.md`; update it if scope, purpose, or blast radius
   changes. Unsafe details stay inside the required FFmpeg/FFI boundary.
@@ -125,12 +102,12 @@ the same code.
   root; lint commands and workspace posture are in `scripts/AGENTS.md` and
   root `Cargo.toml`.
 
-Use the nearest subsystem guidance for its public interface and traps, and
-`scripts/AGENTS.md` for checks matching the changed boundary.
-
 ## Proof placement
 
-Real-file engine proofs live under `src/test_cases` so they can use private
-media boundaries without exposing them to hosts. `tests/all_tests.rs` proves
-only the separately compiled `abb-dev` host. Runtime construction helpers that
-serve those proofs compile only under `cfg(test)`.
+- Proofs that need private media boundaries live under `src/test_cases`, so
+  hosts never see those boundaries. `tests/all_tests.rs` proves only the
+  separately compiled `abb-dev` host. Runtime construction helpers that serve
+  those proofs compile only under `cfg(test)`.
+- Private-cluster tests sit in sibling `*_tests.rs` files, declared from the
+  owning module with `#[cfg(test)]` and `#[path = "..._tests.rs"]`. A test
+  never needs a wider export or a separate integration-test directory.
