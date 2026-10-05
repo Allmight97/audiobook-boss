@@ -103,6 +103,9 @@ neither earns no preference over the simpler design.
 
 ## Pull Requests And CI
 
+- Agents on the owner's machine prove changes there (`scripts/AGENTS.md`,
+  "What to run for a change"). CI is the last check before merge and the
+  main proof for cloud Linux agents.
 - Interactive work starts as a draft PR; drafts get no CI. Mark it ready
   when the work is done. Unattended agent work opens the PR ready.
 - CI runs once when a PR opens ready or is marked ready, once when

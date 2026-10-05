@@ -10,6 +10,8 @@ export default defineConfig({
 				test: {
 					name: 'frontend',
 					environment: 'jsdom',
+					// Reuses each worker's jsdom while keeping a fresh context per file.
+					pool: 'vmThreads',
 					include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/**/*.spec.ts'],
 					exclude: [
 						'src/__tests__/bootstrap-order.contract.test.ts',
