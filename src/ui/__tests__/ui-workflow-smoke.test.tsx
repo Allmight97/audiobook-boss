@@ -172,7 +172,7 @@ describe('UI Workflow Smoke Test', () => {
 			await user.click(useMetadata);
 			await waitFor(() => {
 				expect(document.getElementById('meta-title')).toHaveValue('Dune');
-				expect(document.getElementById('cover-art-img')).not.toHaveClass('hidden');
+				expect(screen.getByTestId('cover-art-img')).toBeInTheDocument();
 			});
 
 			await user.click(screen.getByTestId('metadata-lookup-close'));

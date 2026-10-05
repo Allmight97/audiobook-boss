@@ -3,7 +3,7 @@ import type { JSX } from '@solidjs/web';
 
 import type { CoverArtMessage } from '../../app/metadataSession';
 import { useAppRuntime } from '../../app/runtime';
-import { Button } from '../foundation';
+import { Button, CoverImage } from '../foundation';
 import './coverArt.css';
 
 function coverMessageText(message: CoverArtMessage): string {
@@ -97,12 +97,13 @@ export function CoverArtView(): JSX.Element {
 					setDragOver(false);
 				}}
 			>
-				{!hasImage() && <div class="placeholder-text">Click or Drag Image</div>}
-				<img
-					src={cover().imageSrc ?? undefined}
+				<CoverImage
+					src={cover().imageSrc}
 					alt="Book Cover Art"
-					id="cover-art-img"
-					hidden={!hasImage()}
+					testId="cover-art-img"
+					eager
+					missing={<div class="placeholder-text">Click or Drag Image</div>}
+					failed={<div class="placeholder-text">Cover could not be shown</div>}
 				/>
 				<div class="cover-art-loading" id="cover-art-loading">
 					Loading...
