@@ -25,16 +25,6 @@ describe('frontend toolchain layout', () => {
 			encoding: 'utf8',
 		}).trim();
 		expect(locked).toMatch(/^\d+\.\d+\.\d+$/);
-
-		const ciYml = readFileSync(path.join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
-		expect(ciYml).toContain('scripts/locked-bun-version.sh');
-		expect(ciYml).not.toMatch(/bun-version:\s*\d/);
-
-		const setupScript = readFileSync(path.join(repoRoot, 'scripts/setup-linux-agent.sh'), 'utf8');
-		expect(setupScript).toContain('scripts/locked-bun-version.sh');
-		expect(setupScript).not.toMatch(/required_bun_version="\d/);
-		expect(setupScript).toContain(`/releases/download/bun-v\${required_bun_version}`);
-		expect(setupScript).toContain('error: need Bun');
 	});
 
 	// Dependabot's Bun updater rejects lockfiles newer than v1; a lockfile

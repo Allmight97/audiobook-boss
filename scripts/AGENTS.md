@@ -222,9 +222,7 @@ commands over invoking internals directly.
   as macOS: cargo compiles the revision in
   `vendor/ffmpeg-sys-next-*/ffmpeg-revision` with the vendor-owned chapter
   patch on first use (about 6 minutes) and reuses it while compiler, target,
-  feature and CPU inputs match. Media lane:
-  `cargo test -p abb-engine --features bundled-ffmpeg --lib test_cases::integration_media`.
-  CI runs it on Linux when audio, metadata, output, or processing code changes.
+  feature and CPU inputs match. Commands: "What to run for a change" above.
 - Media fixtures and readback spawn `ffmpeg`/`ffprobe` from PATH
   (`ABB_FFMPEG`/`ABB_FFPROBE` override). Use FFmpeg 9: distro 6.x decodes
   edit lists and Opus pre-skip differently and fails five media tests, which

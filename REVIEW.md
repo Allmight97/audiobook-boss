@@ -11,8 +11,9 @@ chain; this file only says how to review against them.
   from the root down to that path. Judge the diff against those rules, the
   owning code, and the owning tests.
 - CI already owns formatting, Biome lint, typecheck, the Tauri
-  runtime-boundary check, Vitest, and core-crate tests and Clippy. Leave
-  anything those checks decide to them.
+  runtime-boundary check, Vitest, core-crate tests and Clippy, engine tests,
+  the real-media lane, Tauri host tests, and the generated-binding check.
+  Leave anything those checks decide to them.
 - Skip generated and resolved files: `src/lib/generated/`, `bun.lock`,
   `Cargo.lock`, and `vendor/`. Read `CHANGELOG.md` only for factual errors.
 
