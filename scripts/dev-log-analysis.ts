@@ -362,44 +362,6 @@ function mergeJob(jobs: Map<string, MutableJob>, next: MutableJob): boolean {
 	return true;
 }
 
-function parseLegacyJobLine(
-	line: string,
-	jobs: Map<string, MutableJob>,
-): 'none' | 'valid' | 'malformed' {
-	const started = line.match(/\bJob ([0-9a-fA-F-]+) started for output:/);
-	if (started) {
-		const merged = mergeJob(jobs, {
-			id: started[1],
-			operationId: 'unknown',
-			inputIndex: 'none',
-			kind: 'unknown',
-			status: 'running',
-			terminal: false,
-			sawStart: true,
-			sawTerminal: false,
-		});
-		return merged ? 'valid' : 'malformed';
-	}
-
-	const terminal = line.match(/\bJob ([0-9a-fA-F-]+) (completed successfully|cancelled:|failed:)/);
-	if (!terminal) return 'none';
-	const current = jobs.get(terminal[1]);
-	if (!current?.sawStart || current.kind !== 'unknown') return 'none';
-	const status = terminal[2].startsWith('completed')
-		? 'success'
-		: terminal[2].startsWith('cancelled')
-			? 'cancelled'
-			: 'failed';
-	const merged = mergeJob(jobs, {
-		...current,
-		status,
-		terminal: true,
-		sawStart: false,
-		sawTerminal: true,
-	});
-	return merged ? 'valid' : 'malformed';
-}
-
 function sortedValues<T extends { id: string }>(values: Map<string, T>): T[] {
 	return [...values.values()].sort((left, right) => left.id.localeCompare(right.id));
 }
@@ -514,9 +476,6 @@ export function analyzeDevLog(
 			if (!job || !mergeJob(jobs, job)) {
 				malformedLifecycleLines += 1;
 			}
-		} else {
-			const legacyResult = parseLegacyJobLine(line, jobs);
-			if (legacyResult === 'malformed') malformedLifecycleLines += 1;
 		}
 
 		if (line.includes('output_plan phase=')) {

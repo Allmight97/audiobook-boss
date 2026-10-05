@@ -11,7 +11,10 @@ export default defineConfig({
 					name: 'frontend',
 					environment: 'jsdom',
 					include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/**/*.spec.ts'],
-					exclude: ['src/__tests__/bootstrap-order.contract.test.ts'],
+					exclude: [
+						'src/__tests__/bootstrap-order.contract.test.ts',
+						'src/__tests__/public-api-strips.contract.test.ts',
+					],
 					setupFiles: ['./src/test/setup.ts'],
 					globals: true,
 				},
@@ -21,7 +24,11 @@ export default defineConfig({
 				test: {
 					name: 'tooling',
 					environment: 'node',
-					include: ['scripts/**/*.test.ts', 'src/__tests__/bootstrap-order.contract.test.ts'],
+					include: [
+						'scripts/**/*.test.ts',
+						'src/__tests__/bootstrap-order.contract.test.ts',
+						'src/__tests__/public-api-strips.contract.test.ts',
+					],
 				},
 			},
 		],

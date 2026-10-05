@@ -43,9 +43,8 @@
 - `model.test.ts` pins the two merge rules against out-of-order arrival.
 - `state.test.ts` pins listener dispose, list/event merging, and reveal
   rejection.
-- Work Center UI strip is pinned by
-  `src/ui/workCenter/__tests__/runtime-api-contract.test.ts`.
-- `runtime-api-contract.test.ts` independently pins the app owner export strip.
+- `src/__tests__/public-api-strips.contract.test.ts` independently pins the
+  app owner export strip and the Work Center UI strip.
 
 ## Boundary Changes
 
