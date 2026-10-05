@@ -107,6 +107,10 @@ neither earns no preference over the simpler design.
   enforces it. There is no separate decision ledger; PR bodies and git
   history own chronology and superseded choices.
 
+## Review Guidelines
+
+- Review pull requests by following `REVIEW.md`.
+
 ## Done
 
 - Nearest relevant `AGENTS.md` was followed and root hard invariants still hold.

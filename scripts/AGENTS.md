@@ -162,15 +162,13 @@ commands over invoking internals directly.
   domain logic through filtered broad-crate tests when a core crate can own it.
 - Do not recreate custom runner aliases without explicit repo-owner approval.
 - New scripts need an obvious public command, package script, or usage header.
-- TypeScript 7 lives in `@typescript/native` and in the `typescript` slot.
-  Do not import `typescript` from ABB `src/` or `scripts/` (parse without
-  the compiler API). The runtime-boundary text scanner stays a text scan;
+- TypeScript 7 has no compiler API, so ABB `src/` and `scripts/` do not import
+  `typescript`. The runtime-boundary text scanner stays a text scan;
   do not grow it toward AST completeness; replace it with a parser only when
   TypeScript 7's programmatic API exists and an owner needs one. Proof:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
   The no-import tripwire matches `from 'typescript'`, so ordinary multiline
-  named imports count. The tripwire also rejects leftover
-  `.svelte` / `.svelte.ts` sources under `src/` and leftover Tailwind or
+  named imports count. The tripwire also rejects Tailwind and
   foundation-internal imports. The tripwire stays in `scripts/` so it does not
   pull Node types into the frontend `tsconfig`.
 - Bun version truth is `package.json#packageManager`. When it changes, set

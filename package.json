@@ -37,20 +37,19 @@
 		"update:rc": "bun add --exact solid-js@next @solidjs/web@next && bun add --dev --exact @solidjs/vite-plugin@latest @solidjs/testing-library@next"
 	},
 	"dependencies": {
-		"@solidjs/web": "2.0.0-rc.10",
+		"@solidjs/web": "2.0.0-rc.13",
 		"@tauri-apps/api": "^2.11.1",
 		"@tauri-apps/plugin-dialog": "^2.7.3",
 		"@tauri-apps/plugin-opener": "^2.5.5",
-		"solid-js": "2.0.0-rc.10"
+		"solid-js": "2.0.0-rc.13"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.14",
 		"@solidjs/testing-library": "1.0.0-beta.3",
-		"@solidjs/vite-plugin": "3.0.0-next.46",
+		"@solidjs/vite-plugin": "3.0.0-next.47",
 		"@tauri-apps/cli": "^2.11.4",
 		"@testing-library/jest-dom": "^7.0.1",
 		"@testing-library/user-event": "^14.6.7",
-		"@typescript/native": "npm:typescript@7.0.2",
 		"jsdom": "^30.1.0",
 		"typescript": "npm:typescript@7.0.2",
 		"vite": "^8.3.0",

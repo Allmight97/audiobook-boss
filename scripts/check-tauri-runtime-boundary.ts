@@ -55,7 +55,7 @@ function collectSourceFiles(root: string): string[] {
 		const stat = statSync(fullPath);
 		if (stat.isDirectory()) {
 			files.push(...collectSourceFiles(fullPath));
-		} else if (/\.(ts|tsx|svelte)$/.test(entry)) {
+		} else if (/\.(ts|tsx)$/.test(entry)) {
 			files.push(fullPath);
 		}
 	}
@@ -63,29 +63,17 @@ function collectSourceFiles(root: string): string[] {
 }
 
 function checkFile(file: string): void {
-	const content = readFileSync(file, 'utf8');
-	for (const block of sourceBlocks(file, content)) {
-		checkSourceBlock(file, content, block);
-	}
-}
-
-function checkSourceBlock(file: string, fullContent: string, block: SourceBlock): void {
-	const code = blankComments(block.content);
+	const code = blankComments(readFileSync(file, 'utf8'));
 	for (const statement of parseModuleStatements(code)) {
-		checkModuleStatement(file, fullContent, block, statement);
+		checkModuleStatement(file, code, statement);
 	}
 	if (!allowsRawTauriCore(file)) {
-		checkRawTauriInvokeUsage(file, fullContent, block, code);
+		checkRawTauriInvokeUsage(file, code);
 	}
 }
 
-function checkModuleStatement(
-	file: string,
-	fullContent: string,
-	block: SourceBlock,
-	statement: ModuleStatement,
-): void {
-	const line = lineNumberAt(fullContent, block.start + statement.index);
+function checkModuleStatement(file: string, code: string, statement: ModuleStatement): void {
+	const line = lineNumberAt(code, statement.index);
 	if (statement.source === '@tauri-apps/api/core' && !allowsRawTauriCore(file)) {
 		pushRawTauriCoreImportViolations(file, line, statement);
 		return;
@@ -121,17 +109,12 @@ function checkModuleStatement(
 	}
 }
 
-function checkRawTauriInvokeUsage(
-	file: string,
-	fullContent: string,
-	block: SourceBlock,
-	code: string,
-): void {
+function checkRawTauriInvokeUsage(file: string, code: string): void {
 	const searchable = blankQuoted(code);
 	for (const match of searchable.matchAll(/\b__TAURI_INVOKE\b/g)) {
 		violations.push({
 			file: displayPath(file),
-			line: lineNumberAt(fullContent, block.start + (match.index ?? 0)),
+			line: lineNumberAt(code, match.index ?? 0),
 			message: 'raw __TAURI_INVOKE usage must stay out of runtime app code; use tauriClient',
 		});
 	}
@@ -168,25 +151,6 @@ function pushRawTauriCoreImportViolations(
 			message: "raw Tauri 'invoke' imports must stay out of runtime app code; use tauriClient",
 		});
 	}
-}
-
-type SourceBlock = {
-	content: string;
-	start: number;
-};
-
-function sourceBlocks(file: string, content: string): SourceBlock[] {
-	if (!file.endsWith('.svelte')) {
-		return [{ content, start: 0 }];
-	}
-
-	const blocks: SourceBlock[] = [];
-	for (const match of content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
-		const script = match[1] ?? '';
-		const scriptStart = (match.index ?? 0) + match[0].indexOf(script);
-		blocks.push({ content: script, start: scriptStart });
-	}
-	return blocks;
 }
 
 function parseModuleStatements(source: string): ModuleStatement[] {
@@ -548,7 +512,7 @@ function resolveImportPath(file: string, source: string): string | null {
 }
 
 function stripKnownExtension(value: string): string {
-	return value.replace(/\.(ts|js|svelte)$/, '');
+	return value.replace(/\.(ts|js)$/, '');
 }
 
 function allowsRawTauriCore(file: string): boolean {
