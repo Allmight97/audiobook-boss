@@ -16,16 +16,15 @@ commands over invoking internals directly.
 - Frontend checks (`.github/workflows/ci.yml`) run frozen install, Biome
   format and lint, the generated Tauri runtime-boundary check, typecheck, and
   Vitest on relevant PRs and pushes to `main`.
-- Rust core workflow (`.github/workflows/rust-core.yml`) runs the six
-  `abb-*-core` crates' tests, their `clippy -D warnings`, and the crate tier
-  check on PRs and `main` pushes that touch `crates/**`, `vendor/**`,
-  workspace manifests/lockfile, the Rust toolchain, the tier script, or that
-  workflow. A macOS job runs the engine tests with ABB's patched bundled
-  FFmpeg, including the session's Save golden paths, and the engine's doctests
-  (the host-API examples). A Linux job runs the real-media lane
-  (`test_cases::integration_media`) and the every-container Save test with an
-  FFmpeg 9 command-line tool. Apple AAC media tests, the developer host, the
-  Tauri host, and binding proof use the local commands below.
+- Rust workflow (`.github/workflows/rust-core.yml`) runs each job only when
+  the code it proves changed (its `changes` path filters; manifests, the
+  toolchain, `vendor/**` and the workflow run everything):
+  - core crates: their tests, `clippy -D warnings`, and the crate tier check;
+  - one Linux job builds the bundled FFmpeg once (restored from cache while
+    compiler, opus, source and patch match) and runs, as needed, the engine
+    tests and doctests, the real-media lane (`test_cases::integration_media`),
+    the Tauri host tests, and the generated-binding check;
+  - macOS runs only the Apple AAC tests, the one encoder Linux cannot build.
 - Run native verification commands for the touched owner or explicit risk
   surface. Keep expensive build/test routes sequential to avoid competing for
   shared targets. Report failures with the command, exit code, and failing
@@ -40,7 +39,7 @@ commands over invoking internals directly.
   tests live in `crates/abb-engine/src/test_cases/integration_media_execution_tests.rs`
   and run inside the engine's real-file suite. Covers WAV, M4B, MP3, and Opus inputs,
   the Native AAC, Apple AAC, bundled FAAC LC/HE, and Opus encoder routes (Apple
-  AAC tests compile only on macOS and run only locally), sample-rate-converted merges, stereo
+  AAC tests compile only on macOS; CI runs them there), sample-rate-converted merges, stereo
   channel preservation (per-channel RMS),
   cover art, chapters, metadata round-trips, MP3 stack pass-through, Opus M4A/MKA
   timing and packet-preserved remuxing, mixed-mode
@@ -66,9 +65,20 @@ commands over invoking internals directly.
   `cargo clippy -p abb-engine --all-targets --features bundled-ffmpeg`. Use the full `cargo clippy --workspace
   --all-targets` only when the change actually spans owners or includes
   `src-tauri` (GUI libs must be present). GitHub runs Clippy for the core
-  crates (Rust core workflow); `src-tauri` Clippy is a local owner check. Workspace lint posture is centralized in root
+  crates (Rust workflow); engine and `src-tauri` Clippy are local owner checks. Workspace lint posture is centralized in root
   `Cargo.toml` `[workspace.lints]` (members opt in with
   `[lints] workspace = true`).
+- What to run for a change (same on macOS and Linux; Linux needs
+  `bash scripts/setup-linux-agent.sh --rust` once and
+  `ABB_FFMPEG`/`ABB_FFPROBE` for media):
+  - frontend only: `bun run fmt:check`, `bun run lint:check`,
+    `bun run typecheck`, `bun run test`;
+  - a core crate: its `cargo test --locked -p abb-<owner>-core`;
+  - engine rules, session, settings, metadata intent: the engine command
+    below with `-- --skip test_cases::integration_media`;
+  - audio, metadata writing, output artifacts, processing: add
+    `-- test_cases::integration_media`;
+  - host or IPC types: the host command and `bun run bindings:check`.
 - Rust core owner: `cargo test --locked -p abb-<owner>-core`.
 - Engine: `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib`
   (all engine proof), append `-- --skip test_cases::integration` for
@@ -210,7 +220,7 @@ commands over invoking internals directly.
   patch on first use (about 6 minutes) and reuses it while compiler, target,
   feature and CPU inputs match. Media lane:
   `cargo test -p abb-engine --features bundled-ffmpeg --lib test_cases::integration_media`.
-  CI runs it on Linux whenever `crates/**` or `vendor/**` change.
+  CI runs it on Linux when audio, metadata, output, or processing code changes.
 - Media fixtures and readback spawn `ffmpeg`/`ffprobe` from PATH
   (`ABB_FFMPEG`/`ABB_FFPROBE` override). Use FFmpeg 9: distro 6.x decodes
   edit lists and Opus pre-skip differently and fails five media tests, which
@@ -219,5 +229,4 @@ commands over invoking internals directly.
   root ignores; run engine tests as a non-root user.
 - Linux proves the engine, the Native AAC/FAAC/Opus media lane, metadata
   round-trips, and frontend checks; it cannot prove Apple AAC/AudioToolbox
-  behavior. Apple AAC media tests run only on a local macOS checkout; no CI
-  job runs them.
+  behavior; the macOS CI job runs the Apple AAC tests.

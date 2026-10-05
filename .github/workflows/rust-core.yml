@@ -1,19 +1,23 @@
-name: rust core crates
+name: rust
 
-# The core crates stay independent of FFmpeg. The macOS job proves the
-# engine's rules, its Save golden paths, and its host-API examples against
-# ABB's patched bundled FFmpeg; the Linux media job encodes real audio through
-# the same build. Apple AAC media tests run only on a local macOS checkout.
+# Each job runs only when the code it proves changed (the `changes` filters).
+# Engine, media, and host proof share one Linux job so the bundled FFmpeg is
+# built once per run and restored from cache across runs; the build script
+# reuses it while its recorded inputs match. macOS runs only Apple AAC, the one
+# encoder Linux cannot build.
 
 on:
   pull_request:
     paths:
       - .github/workflows/rust-core.yml
       - crates/**
+      - src-tauri/**
+      - src/lib/generated/**
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
       - scripts/check-rust-tiers.sh
+      - scripts/check-generated-bindings.sh
       - scripts/setup-linux-agent.sh
       - vendor/**
   push:
@@ -21,16 +25,19 @@ on:
     paths:
       - .github/workflows/rust-core.yml
       - crates/**
+      - src-tauri/**
+      - src/lib/generated/**
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
       - scripts/check-rust-tiers.sh
+      - scripts/check-generated-bindings.sh
       - scripts/setup-linux-agent.sh
       - vendor/**
   workflow_dispatch:
 
 concurrency:
-  group: rust-core-${{ github.ref }}
+  group: rust-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -40,8 +47,58 @@ env:
     -p abb-output-artifact-core -p abb-processing-core -p abb-remote-source-core
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      engine: ${{ steps.filter.outputs.engine }}
+      media: ${{ steps.filter.outputs.media }}
+      host: ${{ steps.filter.outputs.host }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            shared: &shared
+              - .github/workflows/rust-core.yml
+              - Cargo.toml
+              - Cargo.lock
+              - rust-toolchain.toml
+              - vendor/**
+              - scripts/setup-linux-agent.sh
+            core:
+              - *shared
+              - scripts/check-rust-tiers.sh
+              - crates/abb-*-core/**
+            engine:
+              - *shared
+              - crates/**
+            media:
+              - *shared
+              - crates/abb-media-core/**
+              - crates/abb-metadata-core/**
+              - crates/abb-output-artifact-core/**
+              - crates/abb-processing-core/**
+              - crates/abb-engine/src/audio/**
+              - crates/abb-engine/src/metadata/**
+              - crates/abb-engine/src/output_artifact/**
+              - crates/abb-engine/src/processing/**
+              - crates/abb-engine/src/test_cases/integration_media*
+            host:
+              - *shared
+              - crates/**
+              - src-tauri/**
+              - src/lib/generated/**
+              - scripts/check-generated-bindings.sh
+
   core:
     name: Core crate tests and clippy
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -51,27 +108,59 @@ jobs:
       - run: cargo clippy --locked $CORE_CRATES --all-targets -- -D warnings
 
   engine:
-    name: Engine lifecycle tests
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-      - run: brew install opus pkg-config nasm
-      # The Linux media job runs these two; they need an FFmpeg 9 CLI.
-      - run: >-
-          cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --
-          --skip test_cases::integration_media
-          --skip save_updates_finished_outputs_in_every_supported_container
-      # The engine's host-API examples guard which internals hosts can reach.
-      - run: cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
-
-  media:
-    name: Engine media lane
+    name: Engine, media lane, and host (Linux)
+    needs: changes
+    if: >-
+      needs.changes.outputs.engine == 'true' || needs.changes.outputs.host == 'true'
+      || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    env:
+      ABB_FFMPEG: /home/runner/.local/bin/ffmpeg
+      ABB_FFPROBE: /home/runner/.local/bin/ffprobe
+      ALL: ${{ github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - run: bash scripts/setup-linux-agent.sh --rust
-      - run: >-
-          ABB_FFMPEG="$HOME/.local/bin/ffmpeg" ABB_FFPROBE="$HOME/.local/bin/ffprobe"
+      - id: toolchain
+        run: echo "id=$( (cc --version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      # The build script reuses FFmpeg only while compiler, opus, source and
+      # patch match, so the key carries the same inputs.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/debug/build/ffmpeg-sys-next-*/out
+          key: ffmpeg-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
+      - if: needs.changes.outputs.engine == 'true' || env.ALL == 'true'
+        run: >-
+          cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --
+          --skip test_cases::integration_media
+      - if: needs.changes.outputs.engine == 'true' || env.ALL == 'true'
+        # The host-API examples guard which engine internals hosts can reach.
+        run: cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
+      - if: needs.changes.outputs.media == 'true' || env.ALL == 'true'
+        run: >-
           cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --
           test_cases::integration_media
-          save_updates_finished_outputs_in_every_supported_container
+      - if: needs.changes.outputs.host == 'true' || env.ALL == 'true'
+        run: cargo test --locked -p audiobook-boss --features bundled-ffmpeg
+      - if: needs.changes.outputs.host == 'true' || env.ALL == 'true'
+        run: |
+          bash scripts/setup-linux-agent.sh
+          export PATH="$HOME/.bun/bin:$PATH"
+          bash scripts/check-generated-bindings.sh --mode verify
+
+  apple-aac:
+    name: Apple AAC (macOS)
+    needs: changes
+    if: needs.changes.outputs.media == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      # Homebrew's ffmpeg CLI (9.x) reads the outputs back.
+      - run: brew install opus pkg-config nasm ffmpeg
+      - id: toolchain
+        run: echo "id=$( (cc --version; xcrun --show-sdk-version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/debug/build/ffmpeg-sys-next-*/out
+          key: ffmpeg-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
+      - run: cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- apple
