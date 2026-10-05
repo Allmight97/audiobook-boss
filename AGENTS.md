@@ -73,6 +73,7 @@ neither earns no preference over the simpler design.
 ## Testing And Proof Infrastructure
 
 - Verification cost and signal are first-order product concerns. Treat slow, opaque, false-green, or target-bloated proof routes as `fix` candidates when measured evidence shows they waste agent or human attention.
+- Guards, checks, and tests earn their place by protecting an end-to-end behavior or a Golden Path step, or as test infrastructure that keeps paying off. Code that guards a state production cannot reach does not.
 - A retained test should name a plausible regression at its owning stable boundary. Tests that only restate source or test-authored structure, detect refactors without protecting observable behavior, or duplicate another tier's contract without distinct integration risk do not earn keep.
 - Add tests only when they reduce false confidence or protect a concrete user-visible handoff, runtime contract, cleanup path, or regression.
 - For a bug fix or a new assertion on existing behavior, prefer a failing-first test that pins it before the fix; it is a tool, not a ceremony — skip it for trivial or greenfield-adjacent work.
