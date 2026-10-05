@@ -60,6 +60,20 @@ struct Rig {
     _config: tempfile::TempDir,
 }
 
+/// The image the fake cover server sends.
+fn downloaded_cover() -> Vec<u8> {
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image::RgbImage::from_pixel(4, 2, image::Rgb([40, 120, 200]))
+        .write_to(&mut bytes, image::ImageFormat::Png)
+        .expect("encode cover");
+    bytes.into_inner()
+}
+
+/// What a full cover made from [`downloaded_cover`] holds.
+fn written_cover() -> Vec<u8> {
+    crate::metadata::optimize_cover_art(&downloaded_cover()).expect("optimize cover")
+}
+
 fn rig() -> Rig {
     rig_with_cover(None)
 }
@@ -69,7 +83,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
     let searches = Arc::new(StdMutex::new(Vec::new()));
     let replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>> =
         Arc::default();
-    let cover: Arc<StdMutex<Result<Vec<u8>>>> = Arc::new(StdMutex::new(Ok(vec![4, 2])));
+    let cover: Arc<StdMutex<Result<Vec<u8>>>> = Arc::new(StdMutex::new(Ok(downloaded_cover())));
     let cover_fetches: Arc<std::sync::atomic::AtomicUsize> = Arc::default();
     let network = Network {
         search: Box::new({
@@ -595,9 +609,9 @@ async fn replacing_the_cover_stages_the_result_image_with_the_text() {
 
     assert_eq!(
         rig.pending("alpha").and_then(|patch| patch.cover_art),
-        Some(PatchOp::Set(vec![4, 2]))
+        Some(PatchOp::Set(written_cover()))
     );
-    assert_eq!(rig.session.cover_art(), Some(vec![4, 2]));
+    assert_eq!(rig.session.cover_art(), Some(written_cover()));
     assert_eq!(rig.title_shown(), "Found");
 }
 
@@ -614,13 +628,13 @@ async fn applying_a_result_reuses_the_cover_its_preview_downloaded() {
         .await
         .expect("a result's cover is served")
         .expect("it has bytes");
-    assert_eq!(shown.to_vec(), vec![4, 2]);
+    assert_eq!(shown.to_vec(), written_cover());
 
     rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
         .await;
     rig.send(SessionIntent::LookupApply { index: 0 }).await;
 
-    assert_eq!(rig.session.cover_art(), Some(vec![4, 2]));
+    assert_eq!(rig.session.cover_art(), Some(written_cover()));
     assert_eq!(
         rig.cover_fetches.load(std::sync::atomic::Ordering::SeqCst),
         1
@@ -850,7 +864,7 @@ async fn a_cover_loaded_from_a_url_is_staged_on_the_selected_title() {
         cover.notice,
         Some(crate::session::state::CoverNotice::LoadedFromUrl)
     );
-    assert_eq!(rig.session.cover_art(), Some(vec![4, 2]));
+    assert_eq!(rig.session.cover_art(), Some(written_cover()));
 }
 
 #[tokio::test]

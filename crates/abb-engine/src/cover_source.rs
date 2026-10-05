@@ -63,13 +63,13 @@ fn read_bounded_image(path: &std::path::Path) -> Result<Vec<u8>> {
     Ok(image_data)
 }
 
-/// Loads cover art from a remote URL and returns write-ready JPEG bytes.
+/// Downloads cover art from a remote URL and returns the image as served.
 ///
 /// HTTPS-only with size and content-type validation. SSRF protection: literal
 /// hosts must be public addresses, resolved domains drop private/reserved
 /// addresses, every redirect is rechecked, and environment proxies are ignored
 /// so the destination is always resolved here.
-pub(crate) async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
+pub(crate) async fn download_cover_art(url: String) -> Result<Vec<u8>> {
     let validated_url = validate_cover_art_url(&url)?;
     let origin = url_origin_for_log(&validated_url);
     let client = cover_art_http_client()?;
@@ -83,6 +83,11 @@ pub(crate) async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
     })?;
 
     let status = response.status();
+    log::debug!(
+        "cover_download origin={origin} status={} version={:?}",
+        status.as_u16(),
+        response.version()
+    );
     if !status.is_success() {
         return Err(AppError::InvalidInput(cover_status_message(status)));
     }
@@ -132,10 +137,7 @@ pub(crate) async fn load_cover_art_from_url(url: String) -> Result<Vec<u8>> {
             "Image response was empty".to_string(),
         ));
     }
-
-    tokio::task::spawn_blocking(move || optimize_cover_art(&downloaded))
-        .await
-        .map_err(|e| AppError::General(format!("Cover art decode task failed: {e}")))?
+    Ok(downloaded)
 }
 
 fn cover_status_message(status: StatusCode) -> String {

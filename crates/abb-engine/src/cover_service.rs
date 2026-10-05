@@ -1,6 +1,7 @@
 //! One loader per cover. Every view that shows a cover, Lookup Apply, and a
-//! typed cover URL read it here: each cover is fetched or read once, sized for display, and
-//! kept in a bounded cache. Concurrent requests for one cover share its load.
+//! typed cover URL read it here: each cover is fetched or read once per size,
+//! sized from the downloaded bytes, and kept in a bounded cache. Concurrent
+//! requests for one cover share its load.
 
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
@@ -15,8 +16,8 @@ use crate::errors::{AppError, Result};
 
 /// How many covers are kept. Small covers are a few kilobytes, full ones
 /// about a hundred, so this stays within a few tens of megabytes.
-const CACHED_COVERS: usize = 256;
-const REMOTE_FETCHES: usize = 4;
+const CACHED_COVERS: usize = 512;
+const REMOTE_FETCHES: usize = 12;
 const LOCAL_READS: usize = 2;
 
 type Fetch = dyn Fn(String) -> Pin<Box<dyn Future<Output = Result<Vec<u8>>> + Send>> + Send + Sync;
@@ -78,7 +79,7 @@ struct Inner {
 }
 
 impl CoverService {
-    /// `fetch` returns a remote cover's write-ready bytes.
+    /// `fetch` returns a remote cover's downloaded bytes.
     pub(crate) fn new(fetch: Box<Fetch>) -> Self {
         Self {
             inner: Arc::new(Inner {
@@ -92,7 +93,7 @@ impl CoverService {
 
     pub(crate) fn live() -> Self {
         Self::new(Box::new(|url| {
-            Box::pin(crate::cover_source::load_cover_art_from_url(url))
+            Box::pin(crate::cover_source::download_cover_art(url))
         }))
     }
 
@@ -100,22 +101,28 @@ impl CoverService {
     pub(crate) async fn remote_full(&self, url: &str) -> Result<Cover> {
         let fetched = self
             .load(Key::RemoteFull(url.to_string()), async {
-                let _turn = self.inner.remote.acquire().await;
-                (self.inner.fetch)(url.to_string()).await.map(Some)
+                let downloaded = self.download(url).await?;
+                blocking(move || crate::metadata::optimize_cover_art(&downloaded).map(Some)).await
             })
             .await?;
         fetched.ok_or_else(|| AppError::General("The cover could not be loaded.".into()))
     }
 
-    /// A remote cover sized for a thumbnail, made from its full bytes.
+    /// A remote cover sized for a thumbnail, made from its downloaded bytes.
     pub(crate) async fn remote_small(&self, url: &str) -> Result<Cover> {
         let small = self
             .load(Key::RemoteSmall(url.to_string()), async {
-                let full = self.remote_full(url).await?;
-                blocking(move || crate::metadata::render_display_thumbnail(&full).map(Some)).await
+                let downloaded = self.download(url).await?;
+                blocking(move || crate::metadata::render_display_thumbnail(&downloaded).map(Some))
+                    .await
             })
             .await?;
         small.ok_or_else(|| AppError::General("The cover could not be loaded.".into()))
+    }
+
+    async fn download(&self, url: &str) -> Result<Vec<u8>> {
+        let _turn = self.inner.remote.acquire().await;
+        (self.inner.fetch)(url.to_string()).await
     }
 
     /// An audio file's embedded cover sized for a thumbnail; `None` when it

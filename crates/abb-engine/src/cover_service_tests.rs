@@ -22,7 +22,7 @@ fn counting(fetches: &Arc<AtomicUsize>, gate: Arc<tokio::sync::Notify>) -> Cover
         let gate = Arc::clone(&gate);
         Box::pin(async move {
             gate.notified().await;
-            crate::metadata::optimize_cover_art(&png(400))
+            Ok(png(400))
         })
     }))
 }
@@ -34,21 +34,37 @@ async fn views_asking_for_one_cover_at_once_share_one_fetch() {
     let covers = counting(&fetches, Arc::clone(&gate));
     let url = "https://covers.test/book.jpg";
 
-    let (small, full, opened) =
-        tokio::join!(covers.remote_small(url), covers.remote_full(url), async {
+    let (list, results, opened) =
+        tokio::join!(covers.remote_small(url), covers.remote_small(url), async {
             tokio::task::yield_now().await;
             gate.notify_waiters();
         });
-    let (small, full) = (small.expect("small"), full.expect("full"));
+    let (list, results) = (list.expect("list"), results.expect("results"));
 
     assert_eq!(fetches.load(Ordering::SeqCst), 1);
-    let thumbnail = image::load_from_memory(&small).expect("thumbnail decodes");
+    assert_eq!(list, results);
+    let thumbnail = image::load_from_memory(&list).expect("thumbnail decodes");
     assert_eq!((thumbnail.width(), thumbnail.height()), (128, 128));
-    assert!(full.len() > small.len());
-    // Applying the cover later reuses the same download.
-    covers.remote_full(url).await.expect("cached");
+    covers.remote_small(url).await.expect("cached");
     assert_eq!(fetches.load(Ordering::SeqCst), 1);
     let () = opened;
+}
+
+#[tokio::test]
+async fn a_full_cover_is_write_ready_jpeg() {
+    let covers = CoverService::new(Box::new(|_url| Box::pin(async { Ok(png(1200)) })));
+
+    let full = covers
+        .remote_full("https://covers.test/large.png")
+        .await
+        .expect("full");
+
+    assert_eq!(
+        image::guess_format(&full).expect("format"),
+        image::ImageFormat::Jpeg
+    );
+    let decoded = image::load_from_memory(&full).expect("decodes");
+    assert_eq!((decoded.width(), decoded.height()), (800, 800));
 }
 
 #[tokio::test]
@@ -62,7 +78,7 @@ async fn a_failed_fetch_is_tried_again_on_the_next_request() {
                 if attempt == 0 {
                     Err(AppError::General("offline".into()))
                 } else {
-                    crate::metadata::optimize_cover_art(&png(64))
+                    Ok(png(64))
                 }
             })
         }
