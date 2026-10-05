@@ -20,12 +20,12 @@ commands over invoking internals directly.
   `abb-*-core` crates' tests, their `clippy -D warnings`, and the crate tier
   check on PRs and `main` pushes that touch `crates/**`, `vendor/**`,
   workspace manifests/lockfile, the Rust toolchain, the tier script, or that
-  workflow. A separate macOS job runs the engine tests with ABB's patched
-  bundled FFmpeg, including the session's Save golden paths, and the engine's
-  doctests (the host-API examples); it skips the real-media lane
-  (`test_cases::integration_media`) and the every-container Save test, which
-  needs the `ffmpeg` command-line tool. Those, the developer host, the Tauri
-  host, and binding proof use the local commands below.
+  workflow. A macOS job runs the engine tests with ABB's patched bundled
+  FFmpeg, including the session's Save golden paths, and the engine's doctests
+  (the host-API examples). A Linux job runs the real-media lane
+  (`test_cases::integration_media`) and the every-container Save test with an
+  FFmpeg 9 command-line tool. Apple AAC media tests, the developer host, the
+  Tauri host, and binding proof use the local commands below.
 - Run native verification commands for the touched owner or explicit risk
   surface. Keep expensive build/test routes sequential to avoid competing for
   shared targets. Report failures with the command, exit code, and failing
@@ -40,7 +40,7 @@ commands over invoking internals directly.
   tests live in `crates/abb-engine/src/test_cases/integration_media_execution_tests.rs`
   and run inside the engine's real-file suite. Covers WAV, M4B, MP3, and Opus inputs,
   the Native AAC, Apple AAC, bundled FAAC LC/HE, and Opus encoder routes (Apple
-  AAC is macOS-gated and skips elsewhere), sample-rate-converted merges, stereo
+  AAC tests compile only on macOS and run only locally), sample-rate-converted merges, stereo
   channel preservation (per-channel RMS),
   cover art, chapters, metadata round-trips, MP3 stack pass-through, Opus M4A/MKA
   timing and packet-preserved remuxing, mixed-mode
@@ -219,4 +219,5 @@ commands over invoking internals directly.
   root ignores; run engine tests as a non-root user.
 - Linux proves the engine, the Native AAC/FAAC/Opus media lane, metadata
   round-trips, and frontend checks; it cannot prove Apple AAC/AudioToolbox
-  behavior. The macOS CI job or a local macOS checkout covers Apple AAC.
+  behavior. Apple AAC media tests run only on a local macOS checkout; no CI
+  job runs them.

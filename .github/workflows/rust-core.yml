@@ -3,7 +3,7 @@ name: rust core crates
 # The core crates stay independent of FFmpeg. The macOS job proves the
 # engine's rules, its Save golden paths, and its host-API examples against
 # ABB's patched bundled FFmpeg; the Linux media job encodes real audio through
-# the same build. Apple AAC workflow proof stays local.
+# the same build. Apple AAC media tests run only on a local macOS checkout.
 
 on:
   pull_request:

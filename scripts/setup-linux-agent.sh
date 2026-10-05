@@ -88,7 +88,7 @@ install_rust_packages() {
 # Media-lane fixtures and readback spawn ffmpeg/ffprobe; distro FFmpeg 6.x
 # decodes edit lists and Opus pre-skip differently than the engine's FFmpeg 9.
 ensure_readback_cli() {
-	if have ffprobe && ffprobe -version | head -1 | grep -q 'version n\?9\.'; then
+	if [ -x "${tools_bin}/ffprobe" ] && "${tools_bin}/ffprobe" -version | head -1 | grep -q 'version n\?9\.'; then
 		log "Using FFmpeg 9 readback CLI"
 		return
 	fi

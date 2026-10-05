@@ -18,6 +18,7 @@ on:
       - biome.json
       - scripts/**/*.ts
       - scripts/locked-bun-version.sh
+      - scripts/setup-linux-agent.sh
   pull_request:
     paths:
       - .github/workflows/ci.yml
@@ -31,6 +32,7 @@ on:
       - biome.json
       - scripts/**/*.ts
       - scripts/locked-bun-version.sh
+      - scripts/setup-linux-agent.sh
   workflow_dispatch:
 
 concurrency:
