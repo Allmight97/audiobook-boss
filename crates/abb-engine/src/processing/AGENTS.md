@@ -77,9 +77,9 @@
 
 ## Edit Rules
 - Change pure processing classification/summarization when
-  `cargo nextest run -p abb-processing-core` stays green.
+  `cargo test --locked -p abb-processing-core` stays green.
 - Change planner or runner internals when targeted
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg` runs and Public
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg` runs and Public
   API Strip checks stay green.
 - `run.rs`'s `metadata_workflow` tests connect production preflight/planning to
   real encode and preserve writers, then inspect output atoms. They complement

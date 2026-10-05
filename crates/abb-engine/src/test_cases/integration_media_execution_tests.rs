@@ -233,8 +233,9 @@ fn audio_duration_ts(path: &Path) -> u64 {
 /// exactly what the Native AAC encoder takes, so reprocessing it uses the
 /// decoder-format fast path. `ABB_DISABLE_FASTPATH` forces the same input
 /// through the resampler. Both routes must hand the encoder the same audio.
-/// Nextest runs each test in its own process, so the variable stays local;
-/// it is cleared first so an inherited value cannot turn both runs into the
+/// Tests share one process, so media tests running alongside may take the
+/// resampler route while it is set, which this test proves is equivalent.
+/// It is cleared first so an inherited value cannot turn both runs into the
 /// resampler route.
 #[tokio::test]
 async fn fast_path_and_resampler_route_produce_the_same_audio() {

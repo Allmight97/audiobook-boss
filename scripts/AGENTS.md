@@ -33,7 +33,7 @@ commands over invoking internals directly.
 - If a proof/test/build command consumes disproportionate wall-clock, first-output
   latency, or agent tokens, classify the friction as `fix` unless a safety, data,
   or contract invariant requires finishing the current command.
-- Package-select Nextest routes; broad workspace/multi-package discovery can
+- Package-select Rust test runs (`-p`); broad workspace/multi-package discovery can
   pull unrelated binaries into the target set. Binding export has an explicit
   binary command.
 - Media execution: real-media workflow
@@ -47,7 +47,7 @@ commands over invoking internals directly.
   preflight, and cancellation. All fixtures
   are synthesized at test time (WAV in Rust, MP3 via the external FFmpeg CLI, M4B from the
   engine's own output) — never commit media files. Focused command:
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(media_execution)'`
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- media_execution`
   (keep synthesized fixtures small). Do not
   add broad media gates or committed fixtures beyond this lane without a new
   owner decision.
@@ -69,17 +69,17 @@ commands over invoking internals directly.
   crates (Rust core workflow); `src-tauri` Clippy is a local owner check. Workspace lint posture is centralized in root
   `Cargo.toml` `[workspace.lints]` (members opt in with
   `[lints] workspace = true`).
-- Rust core owner: `cargo nextest run -p abb-<owner>-core`.
-- Engine: `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`
-  (all engine proof), append `-E 'not test(test_cases::integration)'` for
-  unit-only or `-E 'test(test_cases::integration)'` for real files.
+- Rust core owner: `cargo test --locked -p abb-<owner>-core`.
+- Engine: `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib`
+  (all engine proof), append `-- --skip test_cases::integration` for
+  unit-only or `-- test_cases::integration` for real files.
   `--test all_tests` proves the separately compiled developer host. The
   host-API examples run only as doctests:
   `cargo test -p abb-engine --features bundled-ffmpeg --doc`. Session only:
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(session::)'`
-  plus `--lib -E 'test(integration_session)'`.
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- session::`
+  plus `--lib -- integration_session`.
 - Host (intent ordering, window sizing, quit prompt, binding file format):
-  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg`.
+  `cargo test --locked -p audiobook-boss --features bundled-ffmpeg`.
 - Crate dependency tiers: `bun run check:rust-tiers` when a manifest or crate
   dependency changes.
 - Driving the engine session without a window:
@@ -89,7 +89,7 @@ commands over invoking internals directly.
   the app's settings or credentials.
 - Metadata planner-to-file workflow (two titles, two processing passes, encode
   and preserve, actual tag readback and source-save policy):
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(metadata_workflow)'`.
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- metadata_workflow`.
   Use alongside the session's tests when a change spans edit retention and file
   output; this is headless backend proof, not UI automation.
 - Manual Tauri dev with captured logs:
@@ -129,7 +129,7 @@ commands over invoking internals directly.
   copies), `dist/`, the Vite cache, and the AAXClean publish folder. It keeps
   `target/debug`, so the next dev build stays incremental. Git worktrees each
   hold their own `target/`; remove finished worktrees rather than sharing one.
-- Expected signal: Nextest reports per-test `PASS`/`FAIL` plus a summary; Vitest
+- Expected signal: `cargo test` reports per-test `ok`/`FAILED` plus a summary; Vitest
   reports file/test counts; shell checks print `OK` or matched offending lines;
   `bun run build` may still show the known DEP0205 and Vite plugin-timing warnings.
 

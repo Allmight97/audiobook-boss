@@ -24,9 +24,9 @@
   never overwritten by an earlier export's tag save.
 
 ## Edit Rules
-- Change pure output planning rules when `cargo nextest run -p abb-output-artifact-core` stays green.
+- Change pure output planning rules when `cargo test --locked -p abb-output-artifact-core` stays green.
 - Change private implementation files when targeted
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg` runs and Public
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg` runs and Public
   API Strip checks stay green.
 - Add behavior coverage inside this cluster when requested path, resolved path, collision, review, or commit behavior changes.
 - Successful publication fixes final artifact truth. Staged-source cleanup

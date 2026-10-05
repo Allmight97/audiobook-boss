@@ -99,15 +99,15 @@ Index of common commands; `package.json` holds the shortcuts.
   `bun run test -- <test files>`, plus `bun run fmt:check` / `bun run lint:check`
   when formatting or lint is in scope.
 - Focused Rust loops:
-  `cargo nextest run -p abb-audible-core`,
-  `cargo nextest run -p abb-media-core`,
-  `cargo nextest run -p abb-metadata-core`,
-  `cargo nextest run -p abb-output-artifact-core`,
-  `cargo nextest run -p abb-processing-core`,
-  `cargo nextest run -p abb-remote-source-core`,
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`,
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`, or
-  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg` (Tauri host).
+  `cargo test --locked -p abb-audible-core`,
+  `cargo test --locked -p abb-media-core`,
+  `cargo test --locked -p abb-metadata-core`,
+  `cargo test --locked -p abb-output-artifact-core`,
+  `cargo test --locked -p abb-processing-core`,
+  `cargo test --locked -p abb-remote-source-core`,
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib`,
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests`, or
+  `cargo test --locked -p audiobook-boss --features bundled-ffmpeg` (Tauri host).
 - Engine without a window: `cargo run -p abb-engine --features bundled-ffmpeg
   --bin abb-dev -- <file-or-folder>... [--set field=value] [--save]
   [--out folder --export] [--json]` imports files into an engine session and

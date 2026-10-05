@@ -26,11 +26,12 @@ Put a rule in the engine, or in a core when it needs no I/O.
 
 ## Direct Tests
 
-- A core: `cargo nextest run -p abb-<owner>-core` (audible, media, metadata,
+- A core: `cargo test --locked -p abb-<owner>-core` (audible, media, metadata,
   output-artifact, processing, remote-source). Run several sequentially.
-- Engine unit tests: `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`
-- Engine real-file tests: `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`
-- Host: `cargo nextest run -p audiobook-boss --features bundled-ffmpeg`
+- Engine unit tests: `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib`
+- Engine real-file tests: append `-- test_cases::` to the unit command; the
+  `abb-dev` host: `cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests`
+- Host: `cargo test --locked -p audiobook-boss --features bundled-ffmpeg`
 
 Move a test with the logic it proves; what the host's own tests cover is in
 `src-tauri/AGENTS.md`.
