@@ -1,9 +1,9 @@
 //! Active work owns the idle-sleep hold; an open, idle app owns no OS resource.
 use std::sync::{Arc, Mutex, MutexGuard};
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 type NativeHold = keepawake::KeepAwake;
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 struct NativeHold;
 
 #[derive(Clone, Default)]
@@ -77,7 +77,7 @@ impl PowerState {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn acquire_native_hold() -> Result<NativeHold, String> {
     keepawake::Builder::default()
         .idle(true)
@@ -88,9 +88,9 @@ fn acquire_native_hold() -> Result<NativeHold, String> {
         .map_err(|error| error.to_string())
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn acquire_native_hold() -> Result<NativeHold, String> {
-    Err("idle-sleep prevention is currently supported on macOS".into())
+    Err("idle-sleep prevention is supported on macOS and Linux".into())
 }
 
 #[cfg(all(test, target_os = "macos"))]

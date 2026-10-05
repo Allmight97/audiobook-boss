@@ -126,3 +126,12 @@ fn a_failed_removal_is_tried_again_only_after_the_retry_delay() {
     assert!(staged.removable(&free, failed + RETRY_DELAY / 2).is_empty());
     assert_eq!(staged.removable(&free, failed + RETRY_DELAY), ["job-1"]);
 }
+
+#[test]
+fn removing_one_download_keeps_a_file_another_download_still_owns() {
+    let mut staged = staged();
+    // job-3 delivered the same file job-2 imported, so nothing came from it.
+    staged.register_unimported("job-3", vec![path("gamma"), path("delta")]);
+
+    assert_eq!(staged.paths_only_in("job-3"), [path("delta")]);
+}

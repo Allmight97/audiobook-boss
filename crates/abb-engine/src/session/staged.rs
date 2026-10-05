@@ -192,6 +192,21 @@ impl StagedSources {
             .collect()
     }
 
+    /// The files removing a job's download takes away: its own, less any
+    /// another staged job still owns.
+    pub(crate) fn paths_only_in(&self, job_id: &str) -> Vec<PathBuf> {
+        let elsewhere: HashSet<PathBuf> = self
+            .jobs
+            .keys()
+            .filter(|other| other.as_str() != job_id)
+            .flat_map(|other| self.paths(other))
+            .collect();
+        self.paths(job_id)
+            .into_iter()
+            .filter(|path| !elsewhere.contains(path))
+            .collect()
+    }
+
     /// Forgets a job whose download was removed.
     pub(crate) fn removed(&mut self, job_id: &str) {
         self.jobs.remove(job_id);

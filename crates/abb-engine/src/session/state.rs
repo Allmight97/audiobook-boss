@@ -854,7 +854,8 @@ impl SessionState {
             self.staged.removal_failed(job_id, now);
             return Vec::new();
         }
-        self.working_set.sources_removed(&paths);
+        self.working_set
+            .sources_removed(&self.staged.paths_only_in(job_id));
         self.staged.removed(job_id);
         self.rebind()
     }

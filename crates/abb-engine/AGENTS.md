@@ -102,7 +102,9 @@ the same code.
 
 ## Runtime Constraints
 
-- `power::PowerManager` owns the macOS idle-sleep assertion and live opt-out.
+- `power::PowerManager` owns the idle-sleep hold (a macOS power assertion, a
+  Linux logind idle inhibitor; without D-Bus it logs and work continues) and
+  live opt-out.
   Active encoding, metadata-save, Audible-acquisition, and Indexer-handoff scopes hold an
   `ActiveWork` guard through their final writes and cleanup. Acquire after a
   job's scheduler wait; opening ABB, browsing, and external downloader activity
