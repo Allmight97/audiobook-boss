@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@solidjs/testing-library';
 import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
-import { EncoderView } from '../encoderPanel/EncoderView';
+import { EncoderView } from '../encoderPanel';
 
 const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.value = value;

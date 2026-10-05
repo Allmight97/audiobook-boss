@@ -39,8 +39,15 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - `cover_art` and `media_type` stay sink-owned outside the neutral field-op loop
   (encode-path embed vs mp4 artwork; unconditional audiobook media type).
   `prepare_output_cover_art` prepares write-ready cover bytes once after merge:
-  JPEG already at the write target stays as is; other covers go through
-  `optimize_cover_art` before native mux, remux, or mp4ameta.
+  JPEG already at the write target (JPEG, 800px or smaller) stays as is; other
+  covers go through `optimize_cover_art` before native mux, remux, or
+  mp4ameta. A cover is converted in exactly two places: here, and in
+  `cover_source.rs` when the user loads a file or URL cover. Covers embedded in
+  source files stay unconverted until write-prep, so displays show the source's
+  real bytes.
+- Cover intent comes only from cover actions (load, drop, clear). A text edit
+  or Lookup apply that keeps the cover leaves cover intent absent, so a save
+  does not rewrite unchanged art.
 - Processed outputs carry the album sort (TSOA) from `processing_album_sort`:
   derived from series, book # and title when possible (fractions kept, so
   novellas sort between books), else the source's own; explicit album-sort

@@ -800,6 +800,8 @@ mod tests {
     #[test]
     fn non_aac_inputs_keep_default_decoder_only() {
         let mut params = ff::codec::Parameters::new();
+        // SAFETY: `params` owns a freshly allocated `AVCodecParameters`, so the pointer is non-null and valid
+        // for this write.
         unsafe {
             (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_MP3;
         }

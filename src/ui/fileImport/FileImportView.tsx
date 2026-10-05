@@ -7,7 +7,7 @@ import type { AcquisitionLane } from '../../types/appSettings';
 import { isFileDropEvent } from '../../types/events';
 import { createSubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
 import { Button, SplitButton } from '../foundation';
-import { FileListView } from '../fileList/FileListView';
+import { FileListView } from '../fileList';
 import { RemoteSourceAcquireView } from '../remoteSource';
 import './fileImport.css';
 

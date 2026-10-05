@@ -1,5 +1,11 @@
 //! Cover image ingestion: bounded local reads and the guarded remote fetch.
 //! Both return write-ready JPEG bytes.
+//!
+//! URL covers are HTTPS only. The host must be a domain or a public IP literal
+//! at entry and on every redirect; resolved addresses drop private ranges,
+//! environment proxies are ignored, and logs keep only the URL origin.
+//! Downloads cap at 10 MB and local files at 32 MB. HTTP 401/403 tells the
+//! user to load the image from a file instead.
 
 use crate::audio::validate_input_image_path;
 use crate::errors::{AppError, Result};

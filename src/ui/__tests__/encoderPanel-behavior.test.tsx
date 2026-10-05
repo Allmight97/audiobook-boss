@@ -3,7 +3,7 @@ import { render, screen } from '@solidjs/testing-library';
 import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import type { AudioChoiceView, SessionAudio } from '../../types/session';
-import { EncoderView } from '../encoderPanel/EncoderView';
+import { EncoderView } from '../encoderPanel';
 
 // The engine decides what each edit does; these tests seed the engine's
 // choice and check what the panel shows and which edit it sends.

@@ -3,22 +3,20 @@ import type { JSX } from '@solidjs/web';
 
 import { useAppRuntime } from '../app/runtime';
 import { AppSettingsDialogView, SettingsPersistenceNotice } from './appSettings';
-import { CollisionDialogView } from './collisionDialog/CollisionDialogView';
-import { SelectedAudioSettings } from './fileList/SelectedAudioSettings';
-import { OutputView } from './outputPanel/OutputView';
-import { FileImportView } from './fileImport/FileImportView';
-import { ConcurrencyControl } from './jobControls/ConcurrencyControl';
-import { GroupTitlesButton } from './jobControls/GroupTitlesButton';
-import { FileInspectorView } from './leftColumn/FileInspectorView';
-import { MetadataLookupView } from './metadataLookup/MetadataLookupView';
-import { MetadataManagerView } from './metadataManager/MetadataManagerView';
-import { PreviewAudioControls } from './previewAudio/PreviewAudioControls';
-import { StatusPanelView } from './statusPanel/StatusPanelView';
-import { TagPreviewView } from './tagPreview/TagPreviewView';
-import { WorkCenterView } from './workCenter/WorkCenterView';
+import { CollisionDialogView } from './collisionDialog';
+import { SelectedAudioSettings } from './fileList';
+import { OutputView } from './outputPanel';
+import { FileImportView } from './fileImport';
+import { ConcurrencyControl, GroupTitlesButton } from './jobControls';
+import { FileInspectorView } from './leftColumn';
+import { MetadataLookupView } from './metadataLookup';
+import { MetadataManagerView } from './metadataManager';
+import { PreviewAudioControls } from './previewAudio';
+import { StatusPanelView } from './statusPanel';
+import { TagPreviewView } from './tagPreview';
+import { WorkCenterView } from './workCenter';
 import { RefusedChangeNotice } from './RefusedChangeNotice';
-import './encodingWorkbench/encodingWorkbench.css';
-import './leftColumn/leftColumn.css';
+import './encodingWorkbench.css';
 
 export function App(): JSX.Element {
 	const runtime = useAppRuntime();

@@ -11,6 +11,9 @@ pub(crate) fn set_attached_pic_disposition(
 ) -> Result<()> {
     use crate::errors::AppError;
 
+    // SAFETY: `octx` is a live exclusive borrow, so its format context and streams stay valid. The code
+    // checks the context, the streams array, the stream index against `nb_streams`, and the stream pointer
+    // for null or out-of-range before any dereference.
     unsafe {
         // Get the format context
         let format_ctx = octx.as_mut_ptr();
@@ -42,6 +45,8 @@ pub(crate) fn set_stream_disposition_and_clear_codec_tag(
     ostream: &mut ff::format::stream::StreamMut,
     disposition: ff::format::stream::Disposition,
 ) {
+    // SAFETY: `ostream` is a live exclusive borrow, so its `AVStream` pointer is valid for writes. The
+    // `codecpar` pointer is checked for null before the write.
     unsafe {
         let ptr = ostream.as_mut_ptr();
         (*ptr).disposition = disposition.bits();

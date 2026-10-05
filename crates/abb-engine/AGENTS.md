@@ -95,9 +95,11 @@ the same code.
   `crate::audio::validate_input_audio_path()`. Paths the engine hands back are
   canonical; compare paths in that spelling.
 - `JobRegistry` tracks active jobs.
-- Before changing production Rust `unsafe`, read
-  `docs/unsafe-code-register.md`; update it if scope, purpose, or blast radius
-  changes. Unsafe details stay inside the required FFmpeg/FFI boundary.
+- Production `unsafe` stays inside the FFmpeg and FAAC wrappers under
+  `audio/` and `metadata/`; product orchestration, UI contracts, and path or
+  output decisions stay safe. Prefer a safe `ffmpeg-next` API where one
+  exists. Each `unsafe` block carries a `// SAFETY:` comment stating the
+  invariant; Clippy's `undocumented_unsafe_blocks` requires it.
 - Keep Clippy allowances local and justified. Code-shape thresholds live at
   root; lint commands and workspace posture are in `scripts/AGENTS.md` and
   root `Cargo.toml`.

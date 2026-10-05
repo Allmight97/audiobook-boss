@@ -171,6 +171,8 @@ fn allocate_resampler_output_frame(
     out.set_channel_layout(out_def.channel_layout);
     out.set_rate(out_def.rate);
     out.set_samples(samples);
+    // SAFETY: Format, layout, rate, and sample count are copied from the resampler output above, and `alloc`
+    // is called once on an empty frame.
     unsafe {
         out.alloc(out_def.format, samples, out_def.channel_layout);
     }
@@ -537,6 +539,8 @@ mod tests {
         input.set_channel_layout(layout);
         input.set_rate(44_100);
         input.set_samples(input_samples);
+        // SAFETY: Format, layout, rate, and sample count are set above, and `alloc` is called once on an empty
+        // frame.
         unsafe {
             input.alloc(fmt, input_samples, layout);
         }
@@ -580,6 +584,8 @@ mod tests {
         input.set_channel_layout(layout);
         input.set_rate(22_050);
         input.set_samples(input_samples);
+        // SAFETY: Format, layout, rate, and sample count are set above, and `alloc` is called once on an empty
+        // frame.
         unsafe {
             input.alloc(fmt, input_samples, layout);
         }

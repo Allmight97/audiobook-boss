@@ -1,0 +1,1 @@
+export { FileInspectorView } from './FileInspectorView';

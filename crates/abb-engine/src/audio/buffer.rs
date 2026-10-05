@@ -243,6 +243,8 @@ impl SampleAccumulator {
         frame.set_channel_layout(config.channel_layout);
         frame.set_rate(config.sample_rate);
         frame.set_samples(take);
+        // SAFETY: Format, channel layout, rate, and sample count are set on the frame just above, and
+        // `alloc` is called once on an empty frame, so the buffer has no earlier allocation to leak or alias.
         unsafe {
             frame.alloc(config.format, take, config.channel_layout);
         }
@@ -295,6 +297,8 @@ impl SampleAccumulator {
         frame.set_channel_layout(config.channel_layout);
         frame.set_rate(config.sample_rate);
         frame.set_samples(take);
+        // SAFETY: Format, channel layout, rate, and sample count are set on the frame just above, and
+        // `alloc` is called once on an empty frame, so the buffer has no earlier allocation to leak or alias.
         unsafe {
             frame.alloc(config.format, take, config.channel_layout);
         }

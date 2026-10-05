@@ -59,9 +59,8 @@ those decisions to it.
 
 - Shared encoder run records use the private `run_diagnostics` helper for file
   writes, requested settings, and monotonic/wall-clock timing. Records take one
-  write lock and append to the file `ABB_ENCODING_LOG` names. When that is
-  unset, `ABB_LOG_FILE` names it instead, and the first write of the process
-  deletes that file. Unavailable opened settings stay explicitly `unknown`.
+  write lock and append to the file `ABB_ENCODING_LOG` names. Unset or empty
+  disables the records. Unavailable opened settings stay explicitly `unknown`.
 - Finalization emits `audio_output` from a read-only probe of the completed
   staged file, before publication. These are observed file properties, not
   encoder configuration; unavailable diagnostics never change processing

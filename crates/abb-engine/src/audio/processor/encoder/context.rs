@@ -76,6 +76,7 @@ pub(crate) fn create_audio_encoder(
         }
     };
 
+    // SAFETY: `opened` owns a live encoder context, so its pointer is valid for this scalar read.
     let raw_bit_rate = unsafe { (*opened.as_mut_ptr()).bit_rate };
     encoder_log(&format!(
         "encoder_config resolved={:?} bitrate_mode={:?} bit_rate_field={} fmt={:?} channels={} rate={} opts={:?}",

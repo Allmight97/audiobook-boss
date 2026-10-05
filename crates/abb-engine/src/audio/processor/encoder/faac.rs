@@ -61,8 +61,9 @@ impl FaacEncoder {
             output: Vec::new(),
             next_packet: 0,
         };
-        // SAFETY: params remains live during open; the new handle is immediately owned.
         check(
+            // SAFETY: `params` stays live for the call, and the handle slot starts null. A successful open
+            // stores a handle that `encoder` owns and `Drop` closes.
             unsafe { faac::faac_encoder_open(&params, &mut encoder.handle) },
             "open",
         )?;
@@ -76,8 +77,9 @@ impl FaacEncoder {
         settings: &EncoderSettings,
     ) -> Result<faac::faac_params> {
         let mut params = faac::faac_params::default();
-        // SAFETY: generated bindings and compiled C use the same size-tagged header.
         check(
+            // SAFETY: `params` is a valid exclusive reference. The size tag comes from the same generated
+            // binding that the compiled header produced, and FAAC checks it.
             unsafe { faac::faac_params_init(&mut params, size_of::<faac::faac_params>() as u32) },
             "initialize",
         )?;
@@ -106,8 +108,9 @@ impl FaacEncoder {
     }
 
     fn read_configuration(&mut self, params: &faac::faac_params) -> Result<()> {
-        // SAFETY: the open handle and size-tagged destination remain live.
         check(
+            // SAFETY: `self.handle` came from a successful open and is still owned. `self.info` is a valid
+            // exclusive destination with its size tag set in `open`.
             unsafe { faac::faac_encoder_get_info(self.handle, &mut self.info) },
             "read configuration",
         )?;
@@ -137,8 +140,9 @@ impl FaacEncoder {
         }
         let mut asc = ptr::null();
         let mut length = 0;
-        // SAFETY: ASC is borrowed from the live encoder and copied before close.
         check(
+            // SAFETY: `self.handle` is the open handle, and `asc` and `length` are valid local out-pointers. The
+            // returned ASC pointer stays borrowed from the live encoder.
             unsafe { faac::faac_encoder_asc(self.handle, &mut asc, &mut length) },
             "read stream configuration",
         )?;
@@ -147,6 +151,8 @@ impl FaacEncoder {
                 "FAAC returned no AAC stream configuration.".into(),
             ));
         }
+        // SAFETY: The success status and the checks above give a non-null `asc` with at least two bytes, and
+        // `length` is its byte count. The handle is still open, and the bytes are copied into `self.asc` here.
         self.asc = unsafe { std::slice::from_raw_parts(asc, length as usize) }.to_vec();
         if (self.asc[1] >> 3) & 15 != params.num_channels as u8 {
             return Err(AppError::General(
@@ -236,8 +242,9 @@ impl FaacEncoder {
             }
         }
         let mut written = 0;
-        // SAFETY: owned buffers match the declared lengths; None invokes documented EOF.
         check(
+            // SAFETY: `self.pcm` and `self.output` are owned buffers, and the call gets their exact lengths. With
+            // no frame, `pcm` is empty and the null input pointer is FAAC's documented flush request.
             unsafe {
                 faac::faac_encoder_encode(
                     self.handle,

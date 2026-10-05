@@ -11,6 +11,8 @@ fn planar_frame(channels: i32, samples: &[f32]) -> ff::frame::Audio {
     frame.set_channel_layout(layout);
     frame.set_rate(44_100);
     frame.set_samples(samples.len());
+    // SAFETY: Format, layout, rate, and sample count are set above, and `alloc` is called once on an empty
+    // frame.
     unsafe {
         frame.alloc(PLANAR, samples.len(), layout);
     }

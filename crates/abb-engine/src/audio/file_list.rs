@@ -122,8 +122,11 @@ fn validate_mp4_audio_extent(
     // SAFETY: The stream remains borrowed from the live input. These public
     // index APIs only inspect it; copy each entry's fields before another call.
     let stream = unsafe { audio_stream.as_ptr() };
+    // SAFETY: `stream` is the valid pointer above, and the call only reads the stream's index.
     let count = unsafe { ff::ffi::avformat_index_get_entries_count(stream) };
     for index in 0..count {
+        // SAFETY: `index` is below the entry count, and FFmpeg returns null for any entry it cannot give,
+        // which `as_ref` turns into `None`. Position and size are copied out before the next FFmpeg call.
         let (position, size) = unsafe {
             ff::ffi::avformat_index_get_entry(stream.cast_mut(), index)
                 .as_ref()

@@ -13,6 +13,7 @@ pub(in crate::audio::processor::encoder) fn build_apple_options(
 ) -> Dictionary<'static> {
     // CVBR requires a target bitrate on the context
     let target_bit_rate = settings.bitrate_kbps as i64 * 1000;
+    // SAFETY: `ctx` is a live exclusive borrow, so its context pointer is valid for this scalar write.
     unsafe {
         (*ctx.as_mut_ptr()).bit_rate = target_bit_rate;
     }

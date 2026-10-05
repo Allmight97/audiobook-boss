@@ -153,6 +153,9 @@ pub(super) fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<
 
     for stream in ictx.streams() {
         if stream.disposition().contains(Disposition::ATTACHED_PIC) {
+            // SAFETY: `stream` borrows the live `ictx`, so its `AVStream` pointer is valid. The code reads
+            // `attached_pic` only after the `ATTACHED_PIC` check, requires non-null data and positive size, and
+            // copies the bytes into an owned `Vec` before the borrow ends.
             unsafe {
                 let av_stream = stream.as_ptr();
                 let pic = (*av_stream).attached_pic;

@@ -5,7 +5,7 @@ import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app
 
 import { coverSrc } from '../../lib/tauri/coverSrc';
 import { createFakeEngine } from '../../test/fixtures/fakeEngine';
-import { MetadataLookupView } from '../metadataLookup/MetadataLookupView';
+import { MetadataLookupView } from '../metadataLookup';
 
 function coverResult(source: 'audnexus' | 'openlibrary', name: string): OnlineMetadataResult {
 	return {

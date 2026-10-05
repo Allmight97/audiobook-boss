@@ -5,8 +5,6 @@
 - Follow this file and the nested `AGENTS.md` chain for each changed path.
   Read related owners when a task crosses their boundaries; verify
   implementation facts in live code, types, generated contracts, and tests.
-- Read `docs/system-map.md` only for onboarding, unclear ownership, or work
-  crossing frontend/backend or several product owners.
 - The live TS/Rust runtime contract is `src-tauri/src/ipc_contract.rs`,
   `src/lib/tauri/client.ts`, and the generated bindings.
 - Cargo commands run from the repository root. Verification commands:

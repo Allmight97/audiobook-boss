@@ -4,12 +4,16 @@ Each view under `src/ui/<view>/` renders its owner from `useAppRuntime()` and
 dispatches intents. It keeps screen-local state only: disclosure, focus, and
 typed input. Owner rules: `src/app/AGENTS.md`.
 
+A view folder's `index.ts` is its Public API Strip. Import another view through
+`src/ui/<view>`; Biome rejects deeper paths. Files in one folder import each
+other relatively.
+
 ## Composition
 
 - `App.tsx` composes the views and owns the global key bindings (Cmd+S saves
   metadata, Cmd+, opens Settings).
 - `metadataManager/` arranges the metadata form and cover art views.
-  `encodingWorkbench/` holds CSS only.
+  `encodingWorkbench.css` holds the workbench layout.
 - Left column: the input workflow flexes and the inspector
   (`leftColumn/FileInspectorView`) stays pinned.
 
