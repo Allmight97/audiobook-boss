@@ -25,6 +25,10 @@ commands over invoking internals directly.
     tests and doctests, the real-media lane (`test_cases::integration_media`),
     the Tauri host tests, and the generated-binding check;
   - macOS runs only the Apple AAC tests, the one encoder Linux cannot build.
+- Neither workflow runs on a draft PR. Prove a draft locally, and on Linux
+  through a cloud session; CI runs when the PR is marked ready and on each
+  later push. Pushes to `main` still run: they prove the merged result and
+  save the FFmpeg cache, which PRs can restore only from `main`.
 - Run native verification commands for the touched owner or explicit risk
   surface. Keep expensive build/test routes sequential to avoid competing for
   shared targets. Report failures with the command, exit code, and failing

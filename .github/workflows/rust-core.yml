@@ -8,6 +8,7 @@ name: rust
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - .github/workflows/rust-core.yml
       - crates/**
@@ -48,6 +49,7 @@ env:
 
 jobs:
   changes:
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
