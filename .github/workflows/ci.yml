@@ -1,6 +1,7 @@
 name: frontend checks
 
-# Frozen installs, typechecking and frontend behavior on main and its PRs.
+# Frozen installs, Biome format/lint, the generated Tauri runtime-boundary check,
+# typechecking and frontend behavior on main and its PRs.
 
 on:
   push:
@@ -13,6 +14,9 @@ on:
       - bunfig.toml
       - tsconfig.json
       - vite.config.ts
+      - vitest.config.ts
+      - biome.json
+      - scripts/**/*.ts
   pull_request:
     paths:
       - .github/workflows/ci.yml
@@ -22,6 +26,9 @@ on:
       - bunfig.toml
       - tsconfig.json
       - vite.config.ts
+      - vitest.config.ts
+      - biome.json
+      - scripts/**/*.ts
   workflow_dispatch:
 
 concurrency:
@@ -38,5 +45,8 @@ jobs:
         with:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile
+      - run: bun run fmt:check
+      - run: bun run lint:check
+      - run: bun run bindings:check:runtime-boundary
       - run: bun run typecheck
       - run: bun run test

@@ -4,6 +4,9 @@ set -euo pipefail
 # Codex Cloud and Codex-managed worktree setup for ABB.
 # Intended cloud setup command:
 #   bash scripts/setup-codex-agent-env.sh
+# Frontend-only (pinned Bun plus frozen install; no OS packages, Rust, or
+# FFmpeg), used by the Claude Code cloud SessionStart hook:
+#   bash scripts/setup-codex-agent-env.sh --frontend-only
 #
 # The script is idempotent and installs/builds only environment prerequisites.
 # It does not run the proof suite; agents should choose proof commands from
@@ -17,6 +20,7 @@ ffmpeg_src="${ABB_CODEX_FFMPEG_SRC:-/opt/ffmpeg-src}"
 ffmpeg_patch="${repo_root}/vendor/ffmpeg-sys-next-9.0.0/patches/mov-chapter-start.patch"
 local_env_file="${repo_root}/.codex/agent-env.local.sh"
 required_bun_version="1.4.0"
+mode="${1:-full}"
 
 log() {
 	printf '\n==> %s\n' "$*"
@@ -77,22 +81,57 @@ ensure_rust_toolchain() {
 	rustup toolchain install 1.95 --component rustfmt --component clippy
 }
 
+bun_release_asset() {
+	local os arch
+	case "$(uname -s)" in
+		Linux) os=linux ;;
+		Darwin) os=darwin ;;
+	esac
+	case "$(uname -m)" in
+		x86_64) arch=x64 ;;
+		aarch64 | arm64) arch=aarch64 ;;
+		*) printf 'error: no Bun release for CPU %s\n' "$(uname -m)" >&2; exit 1 ;;
+	esac
+	# Bun's x64 default build needs AVX2; the baseline build runs without it.
+	if [ "${os}-${arch}" = linux-x64 ] && ! grep -q avx2 /proc/cpuinfo; then
+		arch=x64-baseline
+	fi
+	printf 'bun-%s-%s' "${os}" "${arch}"
+}
+
 ensure_bun() {
 	if have bun && [ "$(bun --version)" = "${required_bun_version}" ]; then
 		log "Using Bun ${required_bun_version}"
 		return
 	fi
 
-	if ! have curl; then
-		printf 'error: need Bun %s (found %s) and curl is missing\n' \
-			"${required_bun_version}" \
-			"$(bun --version 2>/dev/null || printf 'missing')" >&2
-		exit 1
-	fi
+	local tool
+	for tool in curl unzip; do
+		if ! have "${tool}"; then
+			printf 'error: need Bun %s (found %s) and %s is missing\n' \
+				"${required_bun_version}" \
+				"$(bun --version 2>/dev/null || printf 'missing')" "${tool}" >&2
+			exit 1
+		fi
+	done
 
-	log "Installing Bun ${required_bun_version}"
-	curl -fsSL https://bun.sh/install | BUN_VERSION="${required_bun_version}" bash
+	# Fetch the pinned release from GitHub and check it against the release's
+	# SHASUMS256.txt; some agent network policies deny bun.sh.
+	local asset base tmp
+	asset="$(bun_release_asset)"
+	base="https://github.com/oven-sh/bun/releases/download/bun-v${required_bun_version}"
+	tmp="$(mktemp -d)"
+	log "Installing Bun ${required_bun_version} (${asset})"
+	curl -fsSL -o "${tmp}/${asset}.zip" "${base}/${asset}.zip"
+	curl -fsSL -o "${tmp}/SHASUMS256.txt" "${base}/SHASUMS256.txt"
+	local sha_check=(shasum -a 256 -c -)
+	have sha256sum && sha_check=(sha256sum -c -)
+	(cd "${tmp}" && grep " ${asset}.zip\$" SHASUMS256.txt | "${sha_check[@]}")
+	unzip -oq "${tmp}/${asset}.zip" -d "${tmp}"
 	export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
+	mkdir -p "${BUN_INSTALL}/bin"
+	install -m 755 "${tmp}/${asset}/bun" "${BUN_INSTALL}/bin/bun"
+	rm -rf "${tmp}"
 	export PATH="${BUN_INSTALL}/bin:${PATH}"
 	if ! have bun || [ "$(bun --version)" != "${required_bun_version}" ]; then
 		printf 'error: need Bun %s; found %s\n' \
@@ -244,10 +283,18 @@ install_frontend_deps() {
 	)
 }
 
-case "$(uname -s)" in
-	Linux) setup_linux ;;
-	Darwin) setup_macos ;;
-	*) printf 'error: unsupported OS for ABB Codex agent setup: %s\n' "$(uname -s)" >&2; exit 1 ;;
+setup_host() {
+	case "$(uname -s)" in
+		Linux) setup_linux ;;
+		Darwin) setup_macos ;;
+		*) printf 'error: unsupported OS for ABB Codex agent setup: %s\n' "$(uname -s)" >&2; exit 1 ;;
+	esac
+}
+
+case "${mode}" in
+	full) setup_host ;;
+	--frontend-only) ensure_bun ;;
+	*) printf 'error: unknown setup mode: %s (expected --frontend-only or no argument)\n' "${mode}" >&2; exit 1 ;;
 esac
 
 install_frontend_deps

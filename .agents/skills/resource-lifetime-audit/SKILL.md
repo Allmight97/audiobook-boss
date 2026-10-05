@@ -1,6 +1,6 @@
 ---
 name: resource-lifetime-audit
-description: Audit ABB resource ownership for file loss, false terminal outcomes, residue, or stuck cancellation across reopen, replacement, process, and cleanup transitions.
+description: Audit ABB resource ownership for file loss, false terminal outcomes, residue, or stuck cancellation across reopen, replacement, process, and cleanup transitions. Use when reviewing or changing those transitions; routine file I/O follows its owner's AGENTS.md.
 ---
 
 # Resource Lifetime Audit

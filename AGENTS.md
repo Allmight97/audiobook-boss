@@ -12,10 +12,8 @@
   `src-tauri/src/ipc_contract.rs`, `src/lib/tauri/client.ts`, and generated
   bindings; do not rely on a prose command/event inventory.
 - Cargo commands run from the repository root. Verification commands and scope
-  live in `scripts/AGENTS.md`; frontend owner rules live in `src/app/AGENTS.md`.
-- For lifecycle reviews or changes to resource transfer, reopen, replacement,
-  or cleanup semantics, use `.agents/skills/resource-lifetime-audit`. Routine
-  file I/O follows the local owner's invariants.
+  live in `scripts/AGENTS.md`; test placement lives in `crates/AGENTS.md` and
+  each surface `AGENTS.md`; frontend owner rules live in `src/app/AGENTS.md`.
 - "Public API Strip" means an owned module's allowed import/export surface;
   callers use it instead of private implementation files.
 - Root owns repo-wide posture, proof, and cross-cutting invariants; local
@@ -23,10 +21,9 @@
   procedures. Keep each meaning in one of those owners.
 - `README.md` is for people: what ABB is, how to install and run it, and a
   command index. Do not put agent operating guidance there.
-- When an implementation or contract decision needs external-library evidence, use
-  `.agents/skills/abb-library-research`. Do not commit upstream source
-  snapshots as research material. Build provenance explicitly owned by ABB,
-  such as the patched FFmpeg sys crate under `vendor/`, is a separate concern.
+- Do not commit upstream source snapshots as research material. Build
+  provenance explicitly owned by ABB, such as the patched FFmpeg sys crate
+  under `vendor/`, is a separate concern.
 
 ## Golden Path
 
@@ -77,22 +74,19 @@ neither earns no preference over the simpler design.
 
 - Verification cost and signal are first-order product concerns. Treat slow, opaque, false-green, or target-bloated proof routes as `fix` candidates when measured evidence shows they waste agent or human attention.
 - A retained test should name a plausible regression at its owning stable boundary. Tests that only restate source or test-authored structure, detect refactors without protecting observable behavior, or duplicate another tier's contract without distinct integration risk do not earn keep.
-- For an explicit repository-wide or change-scoped test-value audit, pruning pass, or test-only seam cleanup, use `.agents/skills/audit-test-value`.
-- Add tests only when they reduce false confidence or protect a concrete user-visible handoff, runtime contract, cleanup path, or regression. Prefer deterministic focused checks over coverage-count expansion.
+- Add tests only when they reduce false confidence or protect a concrete user-visible handoff, runtime contract, cleanup path, or regression.
 - For a bug fix or a new assertion on existing behavior, prefer a failing-first test that pins it before the fix; it is a tool, not a ceremony — skip it for trivial or greenfield-adjacent work.
 - Test tier: pick the lowest tier that proves the behavior deterministically, owned by the surface that owns the logic; push a test down a tier whenever the same guarantee proves more cheaply there.
   1. Pure domain logic → its owning `abb-*-core` crate.
   2. Session, settings, job/progress lifecycle, file and network workflows, error envelope → `abb-engine`.
   3. Intent ordering and TS↔Rust contract shape/parity → the host crate (`audiobook-boss`) and the contract/binding tests.
   4. DOM, Solid view, or UI-state behavior → Vitest + jsdom under `src/`.
-- Commands, verification scope, and local test placement live in `crates/AGENTS.md`, `scripts/AGENTS.md`, and each surface `AGENTS.md` — do not restate them here.
-- Let deterministic lint/typecheck own style and stale-cleanup (unused symbols, formatting, `any`): run the tools for the touched surface and fix what they report. Command menu: `scripts/AGENTS.md`.
+- Let deterministic lint/typecheck own style and stale-cleanup (unused symbols, formatting, `any`): run the tools for the touched surface and fix what they report.
 - UI behavior also needs visual/human review where static tests cannot prove UX.
 - Owned import/export surface changes update the nearest `AGENTS.md` and its contract test.
 - Treat local boundary-change lists as prompts to update the owning interface
   and proof within the authorized scope. Carry requested fixes through those
   checks; an interface change alone does not require renewed permission.
-- Release/version/changelog/tag/DMG work uses the `release` skill.
 
 ## Planning And Capture
 

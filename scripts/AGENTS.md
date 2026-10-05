@@ -13,8 +13,9 @@ commands over invoking internals directly.
   Production builds retain the configured identity. Use this entrypoint for
   development; direct Cargo or upstream Tauri CLI launches bypass isolation.
   Packaged release-mode experiments need an explicit separate identifier.
-- Frontend checks (`.github/workflows/ci.yml`) run frozen install, typecheck,
-  and Vitest on relevant PRs and pushes to `main`.
+- Frontend checks (`.github/workflows/ci.yml`) run frozen install, Biome
+  format and lint, the generated Tauri runtime-boundary check, typecheck, and
+  Vitest on relevant PRs and pushes to `main`.
 - Rust core workflow (`.github/workflows/rust-core.yml`) runs the six
   `abb-*-core` crates' tests, their `clippy -D warnings`, and the crate tier
   check on PRs and `main` pushes that touch `crates/**`, `vendor/**`,
@@ -204,7 +205,10 @@ commands over invoking internals directly.
   The script installs Ubuntu/Tauri build packages, builds pinned FFmpeg with
   `libmp3lame` and `libopus`, makes FFmpeg discoverable after the setup shell exits, creates
   the gitignored AAXClean sidecar stub for the host triple, and runs
-  `bun install --frozen-lockfile`.
+  `bun install --frozen-lockfile`. Claude Code cloud sessions run its
+  `--frontend-only` mode (pinned Bun plus frozen install) from the
+  SessionStart hook in `.claude/settings.json`; the media lane there still
+  needs this full script as the environment's setup script.
 - The engine suite links FFmpeg at the revision selected by
   `vendor/ffmpeg-sys-next-*/ffmpeg-revision`. Rust and Linux setup consume that
   source identity and apply the vendor-owned chapter patch. Bundled cache reuse
