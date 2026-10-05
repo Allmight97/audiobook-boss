@@ -13,7 +13,7 @@ use std::time::Duration;
 use abb_engine::audio::{AudioIntent, AudiobookFormat, EncoderType};
 use abb_engine::session::{
     AudioEdit, CollisionReview, MetadataField, MetadataSnapshot, MetadataStatus, OutputEdits,
-    SessionIntent, SessionOutcome, SubmissionStatus, SubmitRefusal,
+    SessionIntent, SessionOutcome, SubmissionStatus, SubmitRefusal, TitlePlan,
 };
 use abb_engine::work_runtime::WorkOperationStatus;
 use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig, ShutdownOutcome};
@@ -242,6 +242,12 @@ impl Desk {
         )
     }
 
+    /// The audio plan of the first title.
+    fn plan(&self) -> TitlePlan {
+        let audio = self.engine.session_snapshot().audio.expect("audio part");
+        audio.titles.values().next().expect("a title").plan.clone()
+    }
+
     async fn wait_until(&self, what: &str, done: impl Fn(&Self) -> bool) {
         for _ in 0..600 {
             if done(self) {
@@ -340,6 +346,35 @@ async fn save_with_no_export_running_writes_the_file_in_place() {
     let save = operations.operations.first().expect("the save is listed");
     assert_eq!(save.status, WorkOperationStatus::Completed);
     assert_eq!(save.children.len(), 1);
+}
+
+#[tokio::test]
+async fn a_title_saved_in_place_still_takes_audio_choices() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    desk.import(&book).await;
+    desk.edit_genre_and_save().await;
+    let title_id = desk.engine.session_snapshot().titles.expect("titles").files[0]
+        .input_id
+        .clone();
+
+    desk.send(SessionIntent::SetTitleAudio {
+        title_ids: vec![title_id],
+        edit: AudioEdit::Bitrate(64),
+    })
+    .await;
+
+    desk.wait_until("the title's plan resolves", |desk| {
+        !matches!(desk.plan(), TitlePlan::Pending)
+    })
+    .await;
+    assert!(
+        matches!(desk.plan(), TitlePlan::Resolved { .. }),
+        "{:?}",
+        desk.plan()
+    );
 }
 
 #[tokio::test]

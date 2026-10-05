@@ -1893,9 +1893,13 @@ impl Session {
             failed: result.summary.failed,
             cancelled: result.summary.cancelled,
         };
+        let mut state = self.lock();
         for entry in result.results {
             if let Some(slot) = written.items.get_mut(entry.input_index) {
                 *slot = entry.status == MetadataSaveResultStatus::Success;
+            }
+            if let (Some(item), Some(rewrite)) = (items.get(entry.input_index), &entry.rewrite) {
+                state.working_set.note_tag_write(&item.path, rewrite);
             }
         }
         Ok(written)

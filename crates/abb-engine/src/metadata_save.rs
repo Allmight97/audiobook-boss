@@ -33,6 +33,16 @@ pub(crate) struct MetadataSaveResultEntry {
     pub input_index: usize,
     pub file_path: String,
     pub status: MetadataSaveResultStatus,
+    /// The file's fingerprint just before and just after this write, when
+    /// the write succeeded and both could be read.
+    pub rewrite: Option<Rewrite>,
+}
+
+/// A tag write's effect on a file's source fingerprint.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Rewrite {
+    pub before: String,
+    pub after: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -185,6 +195,7 @@ fn cancelled_metadata_save_batch(items: Vec<MetadataSaveRequest>) -> MetadataSav
                 input_index,
                 file_path: item.file_path,
                 status: MetadataSaveResultStatus::Cancelled,
+                rewrite: None,
             })
             .collect(),
     )
@@ -216,6 +227,7 @@ where
                     input_index: index,
                     file_path: item.file_path,
                     status: MetadataSaveResultStatus::Cancelled,
+                    rewrite: None,
                 },
                 message,
             ));
@@ -241,7 +253,7 @@ where
         .map_err(|error| AppError::General(format!("Metadata save task failed: {error}")))?;
 
         match item_result {
-            Ok(()) => {
+            Ok(rewrite) => {
                 let message = format!("Saved metadata: {}", display_name);
                 emit_progress(MetadataSaveProgress {
                     input_index: index,
@@ -255,6 +267,7 @@ where
                         input_index: index,
                         file_path,
                         status: MetadataSaveResultStatus::Success,
+                        rewrite,
                     },
                     message,
                 ));
@@ -275,6 +288,7 @@ where
                         input_index: index,
                         file_path,
                         status: MetadataSaveResultStatus::Failed,
+                        rewrite: None,
                     },
                     reason,
                 ));
@@ -285,15 +299,22 @@ where
     Ok(SavedMetadataBatch::new(outcomes))
 }
 
-fn save_metadata_item(file_path: &str, metadata_patch: MetadataIntentPatch) -> Result<()> {
+fn save_metadata_item(
+    file_path: &str,
+    metadata_patch: MetadataIntentPatch,
+) -> Result<Option<Rewrite>> {
     let path = PathBuf::from(file_path);
     let validated_path = validate_input_audio_path(&path)?;
     log::info!("Saving metadata to: {}", validated_path.display());
 
+    let before = crate::metadata::source_fingerprint(&validated_path).ok();
     crate::metadata::save_metadata_intent(&validated_path, &metadata_patch)?;
+    let after = crate::metadata::source_fingerprint(&validated_path).ok();
 
     log::info!("Metadata saved to: {}", validated_path.display());
-    Ok(())
+    Ok(before
+        .zip(after)
+        .map(|(before, after)| Rewrite { before, after }))
 }
 
 /// Builds the progress event fed to the metadata-save operation. `job_id` is
