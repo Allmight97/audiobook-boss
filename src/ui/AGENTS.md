@@ -13,7 +13,7 @@ other relatively.
 - `App.tsx` composes the views and owns the global key bindings (Cmd+S saves
   metadata, Cmd+, opens Settings).
 - `metadataManager/` arranges the metadata form and cover art views.
-  `encodingWorkbench.css` holds the workbench layout.
+  `outputAndTags.css` holds the Output and tags panel layout.
 - Left column: the input workflow flexes and the inspector
   (`leftColumn/FileInspectorView`) stays pinned.
 

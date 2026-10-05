@@ -16,7 +16,7 @@ import { StatusPanelView } from './statusPanel';
 import { TagPreviewView } from './tagPreview';
 import { WorkCenterView } from './workCenter';
 import { RefusedChangeNotice } from './RefusedChangeNotice';
-import './encodingWorkbench.css';
+import './outputAndTags.css';
 
 export function App(): JSX.Element {
 	const runtime = useAppRuntime();
@@ -87,24 +87,24 @@ export function App(): JSX.Element {
 					<div class="panel right-column-panel metadata-manager-panel">
 						<MetadataManagerView />
 					</div>
-					<div class="panel right-column-panel encoding-workbench-panel">
-						<div class="encoding-workbench-frame">
+					<div class="panel right-column-panel output-and-tags-panel">
+						<div class="output-and-tags-frame">
 							<section
-								class="encoding-workbench"
+								class="output-and-tags"
 								aria-label="Output and tags"
-								data-testid="encoding-workbench"
+								data-testid="output-and-tags"
 							>
 								<div
-									class="workbench-block workbench-block-output"
-									data-testid="encoding-workbench-output"
+									class="output-and-tags-block output-and-tags-block-output"
+									data-testid="output-and-tags-output"
 								>
 									<OutputView />
 								</div>
 								<div
-									class="workbench-block workbench-block-tags"
-									data-testid="encoding-workbench-tags"
+									class="output-and-tags-block output-and-tags-block-tags"
+									data-testid="output-and-tags-tags"
 								>
-									<div class="workbench-block-header tags-header">
+									<div class="output-and-tags-block-header tags-header">
 										<h3>Tags Preview</h3>
 										<PreviewAudioControls variant="compact" />
 									</div>
