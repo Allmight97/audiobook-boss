@@ -49,9 +49,7 @@ impl CoverRequest {
             _ => Err(unknown()),
         }
     }
-}
 
-impl CoverRequest {
     /// The request for a log line: its kind, and a remote cover's origin
     /// only, never a file path or a full address.
     fn describe(&self) -> String {

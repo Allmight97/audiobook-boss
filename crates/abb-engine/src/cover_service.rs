@@ -14,8 +14,9 @@ use tokio::sync::{OnceCell, Semaphore};
 
 use crate::errors::{AppError, Result};
 
-/// How many covers are kept. Small covers are a few kilobytes, full ones
-/// about a hundred, so this stays within a few tens of megabytes.
+/// How many covers are kept: a whole Audible library's thumbnails. Small
+/// covers are a few kilobytes, full ones about a hundred, so this stays
+/// under about fifty megabytes.
 const CACHED_COVERS: usize = 512;
 const REMOTE_FETCHES: usize = 12;
 const LOCAL_READS: usize = 2;

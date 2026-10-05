@@ -877,7 +877,7 @@ impl SessionState {
     }
 
     pub(crate) fn refuse_submission(&mut self, reason: SubmitRefusal) {
-        log::info!("submit_refused reason={}", reason.log_name());
+        log::info!("submit_refused reason={}", reason.kind());
         self.submission = Some(SubmissionStatus::Refused { reason });
     }
 
