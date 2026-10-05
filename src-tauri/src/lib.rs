@@ -4,13 +4,14 @@
 #![warn(clippy::too_many_lines)]
 
 pub mod commands;
+mod cover_protocol;
 mod events;
 mod intent_order;
 pub mod ipc_contract;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{Emitter, LogicalSize, Manager, Size, WebviewWindow};
+use tauri::{LogicalSize, Manager, Size, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
 const STARTUP_MAX_MONITOR_RATIO: f64 = 0.94;
@@ -105,10 +106,9 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
     })
 }
 
-/// How quitting is going: asked (and answered), engine shutting down, done.
+/// How quitting is going: engine shutting down, done.
 #[derive(Default)]
 struct Quit {
-    confirmed: AtomicBool,
     shutting_down: AtomicBool,
     done: AtomicBool,
 }
@@ -118,27 +118,43 @@ struct Quit {
 const SHUTDOWN_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
 
 /// Awaits `shutdown`, asking after each `SHUTDOWN_WAIT` whether to keep
-/// waiting. Returns whether it settled; `false` only when the user chose to
-/// quit anyway.
-async fn settle_or_ask<A>(
-    shutdown: impl std::future::Future<Output = ()>,
+/// waiting. Returns its outcome; `None` only when the user chose to quit
+/// anyway.
+async fn settle_or_ask<T, A>(
+    shutdown: impl std::future::Future<Output = T>,
     mut keep_waiting: impl FnMut() -> A,
-) -> bool
+) -> Option<T>
 where
     A: std::future::Future<Output = bool>,
 {
     tokio::pin!(shutdown);
     loop {
-        if tokio::time::timeout(SHUTDOWN_WAIT, &mut shutdown)
-            .await
-            .is_ok()
-        {
-            return true;
+        if let Ok(outcome) = tokio::time::timeout(SHUTDOWN_WAIT, &mut shutdown).await {
+            return Some(outcome);
         }
         if !keep_waiting().await {
-            return false;
+            return None;
         }
     }
+}
+
+/// Asks whether to retry saving settings that could not be written.
+async fn ask_to_retry_settings_save(app: tauri::AppHandle, reason: String) -> bool {
+    let (answer, answered) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .message(format!(
+            "ABB could not save your settings: {reason} Quitting now loses the changes \
+             made since they were last saved."
+        ))
+        .title("Settings not saved")
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Retry".to_string(),
+            "Quit Anyway".to_string(),
+        ))
+        .show(move |retry| {
+            let _ = answer.send(retry);
+        });
+    answered.await.unwrap_or(false)
 }
 
 /// Asks whether to keep waiting for a shutdown that has not settled.
@@ -172,10 +188,20 @@ fn shut_down_then_exit(app: &tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         if let Some(engine) = app.try_state::<abb_engine::Engine>() {
             let engine = engine.inner().clone();
-            let settled =
-                settle_or_ask(engine.shutdown(), || ask_to_keep_waiting(app.clone())).await;
-            if !settled {
-                log::warn!("Quit before the engine settled, at the user's choice");
+            loop {
+                match settle_or_ask(engine.shutdown(), || ask_to_keep_waiting(app.clone())).await {
+                    Some(abb_engine::ShutdownOutcome::Settled) => break,
+                    Some(abb_engine::ShutdownOutcome::SettingsUnsaved { error }) => {
+                        if !ask_to_retry_settings_save(app.clone(), error.message).await {
+                            log::warn!("Quit with unsaved settings, at the user's choice");
+                            break;
+                        }
+                    }
+                    None => {
+                        log::warn!("Quit before the engine settled, at the user's choice");
+                        break;
+                    }
+                }
             }
         }
         app.state::<Quit>().done.store(true, Ordering::SeqCst);
@@ -243,17 +269,25 @@ fn hold_quit(app: &tauri::AppHandle) -> bool {
     if quit.done.load(Ordering::SeqCst) {
         return false;
     }
-    if quit.shutting_down.load(Ordering::SeqCst) {
-        return true;
+    if !quit.shutting_down.load(Ordering::SeqCst) {
+        quit_with_consent(app, &abb_engine::QuitConsent::default());
     }
-    let running = app
+    true
+}
+
+/// Quits when the engine closes for the work `consent` covers; otherwise
+/// asks about the work quitting would stop now, and asks again if that
+/// changes before the user answers.
+fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) {
+    let closed = app
         .try_state::<abb_engine::Engine>()
-        .map(|engine| engine.running_work())
-        .unwrap_or_default();
-    let prompt = quit_prompt(&running);
-    let Some((title, message)) = prompt.filter(|_| !quit.confirmed.load(Ordering::SeqCst)) else {
-        shut_down_then_exit(app);
-        return true;
+        .map_or(Ok(()), |engine| engine.close_for_quit(consent));
+    let running = match closed {
+        Ok(()) => return shut_down_then_exit(app),
+        Err(running) => running,
+    };
+    let Some((title, message)) = quit_prompt(&running) else {
+        return shut_down_then_exit(app);
     };
     let app = app.clone();
     app.dialog()
@@ -267,17 +301,15 @@ fn hold_quit(app: &tauri::AppHandle) -> bool {
             let app = app.clone();
             move |quit| {
                 if quit {
-                    app.state::<Quit>().confirmed.store(true, Ordering::SeqCst);
-                    shut_down_then_exit(&app);
+                    quit_with_consent(&app, &running.consent);
                 }
             }
         });
-    true
 }
 
-/// Hands OS-opened files to the engine and tells the frontend to collect them.
+/// Hands OS-opened files to the engine, which imports them.
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
-fn queue_opened_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
+fn open_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
     let paths = urls
         .into_iter()
         .filter_map(|url| url.to_file_path().ok())
@@ -286,16 +318,8 @@ fn queue_opened_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
         log::warn!("Engine is unavailable; ignoring opened audio files");
         return;
     };
-    match engine.queue_opened_audio_files(paths) {
-        Ok(true) => {
-            use tauri_specta::Event;
-            let event = events::OpenedAudioFilesEvent::default();
-            if let Err(error) = app.emit(events::OpenedAudioFilesEvent::NAME, event) {
-                log::warn!("Failed to emit opened audio files event: {}", error);
-            }
-        }
-        Ok(false) => {}
-        Err(error) => log::warn!("Failed to queue opened audio files: {}", error),
+    if let Err(error) = engine.open_audio_files(paths) {
+        log::warn!("Opened audio files were not imported: {error}");
     }
 }
 
@@ -312,6 +336,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(specta_builder.invoke_handler())
+        .register_asynchronous_uri_scheme_protocol(cover_protocol::SCHEME, cover_protocol::handle)
         .setup(move |app| {
             specta_builder.mount_events(app);
             log::info!(
@@ -350,7 +375,7 @@ pub fn run() {
                 api.prevent_close();
             }
             #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
-            tauri::RunEvent::Opened { urls } => queue_opened_urls(app, urls),
+            tauri::RunEvent::Opened { urls } => open_urls(app, urls),
             _ => {}
         });
 }
@@ -411,8 +436,8 @@ mod quit_tests {
     fn quitting_asks_first_when_it_would_stop_downloads_or_exports() {
         let running = |exports, acquisitions| abb_engine::RunningWork {
             exports,
-            waiting_writes: 0,
             acquisitions,
+            ..Default::default()
         };
         assert_eq!(quit_prompt(&running(0, 0)), None);
         let (title, message) = quit_prompt(&running(0, 1)).expect("asks about the download");
@@ -425,9 +450,8 @@ mod quit_tests {
         assert_eq!(title, "Work is still running");
         assert!(message.contains("2 exports are") && message.contains("2 Audible downloads are"));
         let waiting = abb_engine::RunningWork {
-            exports: 0,
             waiting_writes: 1,
-            acquisitions: 0,
+            ..Default::default()
         };
         let (title, message) = quit_prompt(&waiting).expect("asks about the waiting save");
         assert_eq!(title, "Saves are still waiting");
@@ -443,7 +467,7 @@ mod quit_tests {
             async move { times < 2 }
         })
         .await;
-        assert!(!settled);
+        assert!(settled.is_none());
         assert_eq!(asked.load(Ordering::SeqCst), 2);
     }
 
@@ -453,6 +477,6 @@ mod quit_tests {
             panic!("asked although shutdown settled")
         })
         .await;
-        assert!(settled);
+        assert!(settled.is_some());
     }
 }

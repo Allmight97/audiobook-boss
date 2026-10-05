@@ -82,9 +82,6 @@ export function OutputView(): JSX.Element {
 							/>
 							Include year segment (YYYY)
 						</label>
-						<span id="output-abs-hint" class="muted-text" hidden={view().absHintHidden}>
-							{view().absHintText}
-						</span>
 					</div>
 					<div class="output-example" data-testid="output-example">
 						<span class="output-example-label">Example:</span>

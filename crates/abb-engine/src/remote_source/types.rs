@@ -231,6 +231,9 @@ pub enum RemoteAcquisitionFailureKind {
     ProtectedSourcePurgeFailed,
     ValidationFailed,
     SupplementalPdfFailed,
+    /// The user asked for the title's Supplemental PDF and Audible offers
+    /// none. Non-blocking: the audiobook is imported without it.
+    SupplementalPdfUnavailable,
     IndexerConnectionRequired,
     ReleaseSearchFailed,
     ReleaseGrabFailed,

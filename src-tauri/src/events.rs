@@ -39,14 +39,6 @@ impl tauri_specta::Event for SettingsUpdateEvent {
     const NAME: &'static str = "settings-update";
 }
 
-/// Tells the frontend the OS asked ABB to open files; it then drains the queue.
-#[derive(Clone, Default, Serialize, specta::Type)]
-pub struct OpenedAudioFilesEvent {}
-
-impl tauri_specta::Event for OpenedAudioFilesEvent {
-    const NAME: &'static str = "opened-audio-files";
-}
-
 /// Forwards engine events to every webview.
 pub struct TauriEvents(pub tauri::AppHandle);
 

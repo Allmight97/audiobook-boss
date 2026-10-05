@@ -28,7 +28,9 @@
   source.
 - Encoder choices/availability, locked selection, and surround downmix warnings
   come from engine facts, including every source in a grouped title.
-- `selectionView` marks fields whose values differ across the selected titles.
+- `selectionView` renders the engine's `audio.selection` (shared options and
+  mixed fields); `refusal` words `audio.refusal` for the titles shown. Neither
+  combines titles here.
 
 ## Testing
 

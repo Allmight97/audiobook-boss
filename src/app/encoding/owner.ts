@@ -17,9 +17,13 @@ export type EncodingOwner = {
 	/** What the engine resolved `file`'s audio to. */
 	plan(file: AudioFile): TitlePlan;
 	titleView(file: AudioFile): EncodingView;
+	/** The selected titles' audio as the engine combines it; `null` with
+	 * nothing selected. */
 	selectionView(
 		files: readonly AudioFile[],
-	): EncodingView & { mixedFields: readonly EncodingField[] };
+	): (EncodingView & { mixedFields: readonly EncodingField[] }) | null;
+	/** Why the latest edit of `files`' audio changed nothing, worded. */
+	refusal(files: readonly AudioFile[]): string | null;
 	selectTitles(files: readonly AudioFile[], field: EncodingField, value: string): void;
 	applyDefaultsToTitles(files: readonly AudioFile[]): void;
 	selectTitle(file: AudioFile, field: EncodingField, value: string): void;
@@ -32,19 +36,6 @@ export type EncodingOwner = {
 export type EncodingOwnerDeps = {
 	readonly link: EngineLink;
 };
-
-const fieldKeys = {
-	format: 'format',
-	intent: 'intent',
-	encoder: 'flavor',
-	quality: 'quality',
-	faacProfile: 'faacProfile',
-	rateControl: 'rateControl',
-	nativeSpeed: 'nativeSpeed',
-	bitrate: 'bitrate',
-	sampleRate: 'sampleRate',
-	channels: 'channels',
-} as const satisfies Record<EncodingField, keyof EncodingView>;
 
 function titleId(file: AudioFile): string {
 	return file.inputId ?? file.path;
@@ -63,7 +54,10 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 	}
 
 	/** `titles` is empty for the defaults, which describe future imports. */
-	function display(view: AudioChoiceView, titles: readonly AudioFile[]): EncodingView {
+	function display(
+		view: Pick<AudioChoiceView, 'choice' | 'facts'>,
+		titles: readonly AudioFile[],
+	): EncodingView {
 		return projectView({
 			choice: view.choice,
 			facts: view.facts,
@@ -93,15 +87,23 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		},
 		selectTitles,
 		selectionView(files) {
-			const views = files.map(titleView);
-			const shown = files[0] ? titleChoice(files[0]) : link.audio().defaults;
-			// A warning about any selected title's sources applies to the selection.
-			const downmixWarning = files.some((file) => titleChoice(file).facts.downmixWarning);
-			const first = display({ ...shown, facts: { ...shown.facts, downmixWarning } }, files);
-			const mixedFields = (Object.keys(fieldKeys) as EncodingField[]).filter((field) =>
-				views.some((view) => view[fieldKeys[field]] !== first[fieldKeys[field]]),
-			);
-			return { ...first, mixedFields };
+			const selection = link.audio().selection;
+			if (!selection) return null;
+			return {
+				...display(selection, files),
+				mixedFields: selection.mixed,
+			};
+		},
+		refusal(files) {
+			const refusal = link.audio().refusal;
+			const shown = new Set(files.map(titleId));
+			if (!refusal) return null;
+			if (refusal.kind === 'locked') {
+				return "Audio can't change while an export is being prepared.";
+			}
+			const names = refusal.labels.filter((_, index) => shown.has(refusal.titleIds[index] ?? ''));
+			if (names.length === 0) return null;
+			return `${names.join(', ')} can't take that change, so no title changed.`;
 		},
 		applyDefaultsToTitles(files) {
 			if (files.length === 0) return;

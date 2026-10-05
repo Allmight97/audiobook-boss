@@ -117,9 +117,13 @@ impl Desk {
                 self.disk.insert(path(name), tags.clone());
             }
         }
+        // Analysis reads the title tag, as it does for real files.
         let files = books
             .iter()
-            .map(|(name, _)| audio_file(name, true))
+            .map(|(name, tags)| AudioFile {
+                tag_title: tags.as_ref().and_then(|tags| tags.title.clone()),
+                ..audio_file(name, true)
+            })
             .collect();
         self.state
             .working_set
@@ -762,6 +766,28 @@ fn with_nothing_selected_the_first_valid_title_cover_shows() {
         &[],
     );
     assert_eq!(desk.cover(), Some(vec![7, 7, 7]));
+}
+
+#[test]
+fn a_saved_cover_gives_source_covers_a_new_address_and_a_tag_edit_does_not() {
+    let covers_revision = |desk: &mut Desk| {
+        desk.state.settle();
+        desk.state
+            .update_since(None)
+            .titles
+            .expect("titles")
+            .covers_revision
+    };
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    let before = covers_revision(&mut desk);
+
+    desk.type_into(MetadataField::Genre, "Mystery");
+    desk.save(&[]).expect("tag save");
+    assert_eq!(covers_revision(&mut desk), before);
+
+    desk.state.apply_cover(vec![1]);
+    desk.save(&[]).expect("cover save");
+    assert!(covers_revision(&mut desk) > before);
 }
 
 #[test]
@@ -1520,7 +1546,10 @@ proptest! {
 
 #[test]
 fn a_download_waits_for_the_export_and_the_submission_reading_it() {
-    let mut desk = Desk::open(&[("alpha", None), ("beta", None)], &[0]);
+    let mut desk = Desk::open(
+        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
+        &[0],
+    );
     let staged = &mut desk.state.staged;
     staged.register("job-1", "alpha", path("alpha"), Vec::new());
     staged.register("job-2", "beta", path("beta"), Vec::new());
@@ -1601,6 +1630,7 @@ fn a_download_being_removed_is_neither_written_nor_submitted() {
     let defaults = desk.state.audio.request();
     let mut next = crate::audio::AudioFile::new(path("beta"));
     next.is_valid = true;
+    next.tag_title = Some("Beta".to_string());
     desk.state
         .working_set
         .append_analyzed(vec![next], &defaults);
@@ -1696,6 +1726,62 @@ fn a_save_still_writing_after_a_reset_keeps_its_file_busy() {
 }
 
 #[test]
+fn an_export_needs_a_title_from_its_tag_or_the_form() {
+    let missing = |desk: &mut Desk| {
+        assert!(desk.state.begin_submission(None).is_none());
+        assert_eq!(
+            desk.state.output_snapshot(0).submission,
+            Some(SubmissionStatus::Refused {
+                reason: SubmitRefusal::MissingTitle {
+                    title_id: "alpha".to_string(),
+                    label: "alpha.m4b".to_string(),
+                }
+            })
+        );
+    };
+    let mut untagged = Desk::open(&[("alpha", None)], &[0]);
+    untagged.state.output.set_directory("/library".to_string());
+    missing(&mut untagged);
+    untagged.type_into(MetadataField::Title, "Typed");
+    assert!(untagged.state.begin_submission(None).is_some());
+
+    let mut blanked = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    blanked.state.output.set_directory("/library".to_string());
+    blanked.act(MetadataField::Title, FieldAction::Blank);
+    assert!(blanked.state.begin_submission(None).is_none());
+    assert!(matches!(
+        blanked.state.output_snapshot(0).submission,
+        Some(SubmissionStatus::Refused {
+            reason: SubmitRefusal::MissingTitle { .. }
+        })
+    ));
+    assert!(
+        blanked.state.begin_submission(Some(30.0)).is_some(),
+        "a preview needs no title"
+    );
+}
+
+#[test]
+fn a_preview_with_no_usable_length_is_refused_and_holds_nothing() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state.output.set_directory("/library".to_string());
+    for seconds in [0.0, -5.0, f64::NAN, f64::INFINITY] {
+        assert!(
+            desk.state.begin_submission(Some(seconds)).is_none(),
+            "{seconds}"
+        );
+        assert_eq!(
+            desk.state.output_snapshot(0).submission,
+            Some(SubmissionStatus::Refused {
+                reason: SubmitRefusal::InvalidPreviewLength
+            })
+        );
+        assert!(!desk.state.working_set.order_locked());
+    }
+    assert!(desk.state.begin_submission(Some(30.0)).is_some());
+}
+
+#[test]
 fn a_refused_second_submission_does_not_let_a_third_through() {
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     desk.state.output.set_directory("/library".to_string());
@@ -1756,9 +1842,13 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_and_reset() 
     assert!(desk.state.reserved.is_empty());
     assert!(!desk.state.output_snapshot(0).submission_in_progress);
     let request = desk.state.audio.request();
-    desk.state
-        .working_set
-        .append_analyzed(vec![audio_file("beta", true)], &request);
+    desk.state.working_set.append_analyzed(
+        vec![AudioFile {
+            tag_title: Some("Beta".to_string()),
+            ..audio_file("beta", true)
+        }],
+        &request,
+    );
     let draft = desk
         .state
         .begin_submission(None)

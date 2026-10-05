@@ -3,6 +3,11 @@
 /// Minimum segment duration per file (in seconds) for adaptive preview
 pub const PREVIEW_MIN_SEGMENT_SECONDS: f64 = 5.0;
 
+/// Whether `seconds` is a usable preview length: positive and finite.
+pub(crate) fn is_valid_preview_length(seconds: f64) -> bool {
+    seconds.is_finite() && seconds > 0.0
+}
+
 /// Preview configuration for early-stop preview encodes
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PreviewConfig {

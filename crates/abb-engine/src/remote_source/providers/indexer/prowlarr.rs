@@ -170,11 +170,7 @@ pub(super) fn build_search_params(
 
     Ok(ProwlarrSearchParams {
         query: joined,
-        category_ids: if category_ids.is_empty() {
-            connection::DEFAULT_CATEGORY_IDS.to_vec()
-        } else {
-            category_ids.to_vec()
-        },
+        category_ids: category_ids.to_vec(),
     })
 }
 
@@ -485,8 +481,6 @@ enum ProwlarrCategoryEntry {
     },
     Id(u32),
 }
-
-use super::connection;
 
 #[cfg(test)]
 mod tests {

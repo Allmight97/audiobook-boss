@@ -121,9 +121,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 				if (selected) await importPaths([selected]);
 				return;
 			}
-			case 'drainOpened':
-				await link.send({ kind: 'importOpened' });
-				return;
 			case 'importPaths':
 				await importPaths(intent.paths);
 		}

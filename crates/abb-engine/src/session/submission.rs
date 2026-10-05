@@ -41,12 +41,32 @@ pub enum SubmitRefusal {
     SaveInProgress,
     /// Another submission or a preview is still running.
     Busy,
+    /// A preview length that is not a positive number of seconds.
+    InvalidPreviewLength,
+    /// This title has no title tag and none was typed; its output would
+    /// carry no title. `label` is what the title list shows for it.
+    #[serde(rename_all = "camelCase")]
+    MissingTitle {
+        title_id: String,
+        label: String,
+    },
     /// A downloaded source is being removed after its export finished.
     SourceRemoved,
     Closing,
     /// The restart offer was replaced by a later Save, or the output folder
     /// or naming changed since it was made.
     RestartStale,
+}
+
+impl SubmitRefusal {
+    /// The refusal's kind as hosts receive it, for a log line; never a
+    /// title or a message.
+    pub(crate) fn kind(&self) -> String {
+        serde_json::to_value(self)
+            .ok()
+            .and_then(|value| value.get("kind")?.as_str().map(str::to_string))
+            .unwrap_or_default()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
@@ -104,7 +124,8 @@ pub(crate) struct Draft {
     pub(crate) payload: ProcessPayload,
     pub(crate) metadata: Option<HashMap<String, MetadataIntentPatch>>,
     pub(crate) preview_seconds: Option<f64>,
-    pub(crate) preview_id: Option<OperationId>,
+    /// The export's or preview's identity from acceptance on.
+    pub(crate) operation_id: OperationId,
     pub(crate) title: String,
     pub(crate) sources: Vec<PathBuf>,
     /// The collisions the user saw when choosing a policy.
@@ -114,6 +135,10 @@ pub(crate) struct Draft {
 impl Draft {
     pub(crate) fn preview(&self) -> bool {
         self.preview_seconds.is_some()
+    }
+
+    pub(crate) fn preview_id(&self) -> Option<&OperationId> {
+        self.preview().then_some(&self.operation_id)
     }
 
     /// The draft approved under `policy` for the plan signed `signature`.
@@ -130,6 +155,8 @@ pub(crate) struct SubmittedTitle<'a> {
     pub(crate) sources: &'a [AudioFile],
     pub(crate) request: crate::audio::TitleAudioRequest,
     pub(crate) choice_required: bool,
+    /// Whether the output will carry a title: typed, or the source's tag.
+    pub(crate) has_title: bool,
 }
 
 /// Everything a draft needs besides the titles.
@@ -169,6 +196,18 @@ pub(crate) fn build_draft(
     }
     if valid.iter().any(|title| title.choice_required) {
         return Err(SubmitRefusal::AudioChoiceRequired);
+    }
+    // A preview is a listening check, not the export; only an export needs one.
+    let untitled = inputs
+        .preview_seconds
+        .is_none()
+        .then(|| valid.iter().find(|title| !title.has_title))
+        .flatten();
+    if let Some(untitled) = untitled {
+        return Err(SubmitRefusal::MissingTitle {
+            title_id: untitled.anchor.input_id.clone(),
+            label: label(untitled.anchor),
+        });
     }
     let Some(output_dir) = inputs.output_directory else {
         return Err(SubmitRefusal::NoOutputDirectory);
@@ -226,7 +265,7 @@ pub(crate) fn build_draft(
             supplemental_assets_by_input_id: inputs.supplemental_assets,
         },
         metadata: (!metadata.is_empty()).then_some(metadata),
-        preview_id: inputs.preview_seconds.map(|_| OperationId::new()),
+        operation_id: OperationId::new(),
         preview_seconds: inputs.preview_seconds,
         title,
         sources,

@@ -13,7 +13,6 @@
  */
 
 import type {
-	AudiobookMetadata as GeneratedAudiobookMetadata,
 	FrontendAttachment as GeneratedFrontendAttachment,
 	SessionReply as GeneratedSessionReply,
 	OutputSnapshot as GeneratedOutputSnapshot,
@@ -27,7 +26,6 @@ import type {
 } from '../generated/tauri';
 import type { PlannedOutput, ProcessCommandResult } from '../../types/audio';
 import type { SettingsReply, SettingsSnapshot } from '../../types/appSettings';
-import type { AudiobookMetadata } from '../../types/metadata';
 import type { SessionReply, SessionUpdate, SubmissionStatus } from '../../types/session';
 import type { NullToOptionalDeep } from '../../types/ipc';
 import type {
@@ -57,9 +55,9 @@ function isScalarArrayWithoutNullish(value: readonly unknown[]): boolean {
  *
  * The return type is `NullToOptionalDeep<T>` — the type-level twin of this
  * runtime transform. Typing the return this way means every downstream
- * normalizer can return a UI-friendly type (e.g. `AudiobookMetadata =
- * NullToOptionalDeep<GeneratedAudiobookMetadata>`) without an `as` cast at
- * the call site.
+ * normalizer can return a UI-friendly type (e.g. `SettingsSnapshot =
+ * NullToOptionalDeep<GeneratedSettingsSnapshot>`) without an `as` cast at the
+ * call site.
  */
 export function normalizeNullish<T>(value: T): NullToOptionalDeep<T> {
 	if (value == null) {
@@ -110,10 +108,6 @@ export function denormalizeNullish<T>(value: T): T {
 		return normalized as T;
 	}
 	return value;
-}
-
-export function normalizeMetadata(metadata: GeneratedAudiobookMetadata): AudiobookMetadata {
-	return normalizeNullish(metadata);
 }
 
 /**

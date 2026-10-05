@@ -5,7 +5,7 @@ import type {
 	OutputEdits,
 	SessionMetadata,
 } from '../../types/session';
-import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
+import { coverSrc } from '../../lib/tauri/coverSrc';
 import { toUserMessage } from '../../lib/tauri/appError';
 import {
 	liveMetadataCapability,
@@ -144,12 +144,9 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	let isHovered = false;
 	let isDragOver = false;
 	let urlInputValue = '';
-	let imageDataUrl: string | null = null;
 	let localMessage: CoverArtMessage = HIDDEN_COVER_MESSAGE;
 	let hiddenNoticeSerial = 0;
 	let messageTimer: ReturnType<typeof setTimeout> | undefined;
-	// Advances on reset so a cover fetch from before it is dropped.
-	let generation = 0;
 
 	function changed(): void {
 		bump((n) => n + 1);
@@ -171,38 +168,6 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			localMessage = HIDDEN_COVER_MESSAGE;
 		});
 	}
-
-	// The engine reports that the image changed; the bytes are fetched once per change.
-	createEffect(
-		() => {
-			const cover = link.metadata().cover;
-			return `${cover.imageRevision}:${cover.present}`;
-		},
-		() => {
-			const { imageRevision, present } = untrack(() => link.metadata().cover);
-			if (!present) {
-				// The view already shows no image while the engine reports none.
-				imageDataUrl = null;
-				return;
-			}
-			const started = generation;
-			imageDataUrl = null;
-			changed();
-			void link
-				.coverArt()
-				.then((bytes) => {
-					// A newer image has its own fetch.
-					if (
-						started !== generation ||
-						untrack(() => link.metadata().cover.imageRevision) !== imageRevision
-					)
-						return;
-					imageDataUrl = bytes?.length ? coverArtBytesToDataUrl(bytes) : null;
-					changed();
-				})
-				.catch((error: unknown) => console.error('Failed to fetch cover art:', error));
-		},
-	);
 
 	// A cover notice hides itself after a moment; a request for a URL stays.
 	createEffect(
@@ -236,7 +201,9 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		return {
 			form,
 			cover: {
-				imageDataUrl: metadata.cover.present ? imageDataUrl : null,
+				imageSrc: metadata.cover.present
+					? coverSrc({ kind: 'session', revision: metadata.cover.imageRevision })
+					: null,
 				isLoading: metadata.cover.loading,
 				message: coverMessage(metadata),
 				isHovered,
@@ -349,14 +316,12 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			await link.send({ kind: 'save' });
 		},
 		reset() {
-			generation += 1;
 			if (messageTimer !== undefined) clearTimeout(messageTimer);
 			messageTimer = undefined;
 			typed.clear();
 			isHovered = false;
 			isDragOver = false;
 			urlInputValue = '';
-			imageDataUrl = null;
 			localMessage = HIDDEN_COVER_MESSAGE;
 			changed();
 		},

@@ -29,6 +29,7 @@ fn title<'a>(anchor: &'a AudioFile, sources: &'a [AudioFile]) -> SubmittedTitle<
         sources,
         request: request(),
         choice_required: false,
+        has_title: true,
     }
 }
 

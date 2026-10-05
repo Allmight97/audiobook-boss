@@ -98,6 +98,9 @@ pub struct IndexerDraftSnapshot {
     /// Why the last edit was refused. The draft keeps the values it accepted
     /// before; Save and Test refuse until an edit is accepted.
     pub draft_error: Option<AppErrorEnvelope>,
+    /// The last category edit chose none and was refused; the draft keeps
+    /// its categories. A search needs at least one.
+    pub empty_categories_refused: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -209,6 +212,7 @@ impl Default for UiState {
                     api_key_configured: false,
                     api_key_entered: false,
                     draft_error: None,
+                    empty_categories_refused: false,
                     save: RemoteDraftStatus::Idle,
                     test: RemoteDraftStatus::Idle,
                     test_result: None,
@@ -314,12 +318,13 @@ impl UiState {
                 "Wait for the current account change to finish.".into(),
             ));
         }
-        if self.snapshot.acquiring
-            || self
-                .snapshot
-                .acquisition
-                .as_ref()
-                .is_some_and(|job| !job.settled)
+        if provider == ProviderId::Audible
+            && (self.snapshot.acquiring
+                || self
+                    .snapshot
+                    .acquisition
+                    .as_ref()
+                    .is_some_and(|job| !job.settled))
         {
             return Err(AppError::InvalidInput(
                 "Wait for the Audible acquisition and handoff before disconnecting.".into(),
@@ -737,6 +742,11 @@ impl UiState {
         };
         self.snapshot.connection.draft_error = None;
         self.url_edited |= url.is_some();
+        let refused = category_ids
+            .as_ref()
+            .is_some_and(|ids| ids.iter().all(|id| *id == 0));
+        self.snapshot.connection.empty_categories_refused = refused;
+        let category_ids = category_ids.filter(|_| !refused);
         self.categories_edited |= category_ids.is_some();
         self.edit_revision += 1;
         if let Some(url) = url {
@@ -1028,6 +1038,14 @@ impl RemoteSourceRuntime {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
+    /// Whether a library title shows the cover at `url`.
+    pub(crate) fn library_offers_cover(&self, url: &str) -> bool {
+        self.ui()
+            .library
+            .titles
+            .iter()
+            .any(|title| title.cover_url.as_deref() == Some(url))
+    }
     pub(crate) fn ui_revisions(&self) -> (u64, u64) {
         let state = self.ui();
         (state.snapshot.revision, state.library.revision)
@@ -1065,8 +1083,12 @@ impl RemoteSourceRuntime {
     pub(crate) fn ui_begin(&self, intent: RemoteUiIntent) -> RemoteUiRun {
         let action = {
             let mut state = self.ui();
-            if matches!(intent, RemoteUiIntent::Disconnect { .. })
-                && self.inner.lifecycle.has_unsettled_acquisition()
+            if matches!(
+                intent,
+                RemoteUiIntent::Disconnect {
+                    provider: ProviderId::Audible
+                }
+            ) && self.inner.lifecycle.has_unsettled_acquisition()
             {
                 Err(AppError::InvalidInput(
                     "Wait for the Audible acquisition and handoff before disconnecting.".into(),
@@ -1186,6 +1208,11 @@ impl RemoteSourceRuntime {
     }
 
     async fn refresh_ui_account(&self, lane: ProviderId, request: u64) -> Result<RemoteUiResult> {
+        // A keychain read can wait on a system prompt; one started now would
+        // hold shutdown behind it.
+        if self.inner.tasks.is_closed() {
+            return Err(AppError::General("ABB is closing.".into()));
+        }
         let runtime = self.clone();
         // Once the keychain read starts, await its blocking worker so shutdown
         // cannot return while it still uses the vault.

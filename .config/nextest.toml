@@ -1,0 +1,4 @@
+[profile.default]
+# Tests that spawn no child still exceeded the 100 ms default under full
+# parallel load on macOS and were reported as LEAK.
+leak-timeout = "1s"

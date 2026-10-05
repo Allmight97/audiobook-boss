@@ -1,3 +1,4 @@
+import { coverSrc } from '../../../lib/tauri/coverSrc';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@solidjs/testing-library';
 import { AppRuntimeProvider } from '../../runtime';
@@ -74,14 +75,12 @@ afterEach(() => {
 });
 
 describe('engine preview adapter', () => {
-	it('reattaches to live progress and reads the accepted custom cover', async () => {
+	it('reattaches to live progress and shows the accepted artwork', async () => {
 		const engine = createFakeEngine();
 		engine.change((state) => {
 			state.output.previewRun = preview();
 			state.output.submissionInProgress = true;
 		});
-		engine.respond = (intent) =>
-			intent.kind === 'readPreviewCover' ? { kind: 'previewCover', bytes: [1, 2, 3] } : undefined;
 		const first = createAppRuntime({ engine });
 		runtimes.push(first);
 		await first.initialize();
@@ -96,7 +95,9 @@ describe('engine preview adapter', () => {
 		expect(screen.getByRole('button', { name: /^Cancel$/ })).toBeEnabled();
 
 		await vi.waitFor(() =>
-			expect(first.processing.status().coverArtDataUrl).toBe('data:image/jpeg;base64,AQID'),
+			expect(first.processing.status().coverArtSrc).toBe(
+				coverSrc({ kind: 'preview', runId: 'preview-1' }),
+			),
 		);
 		first.dispose();
 		const replacement = createAppRuntime({ engine });

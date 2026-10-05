@@ -1,7 +1,8 @@
 import type { JobListItem } from './viewTypes';
 
 export type StatusView = {
-	readonly coverArtDataUrl: string | null;
+	/** The address of the running preview's artwork. */
+	readonly coverArtSrc: string | null;
 	readonly jobItems: ReadonlyArray<JobListItem>;
 	readonly progressPercentage: number;
 	readonly statusText: string;
@@ -14,7 +15,7 @@ export type StatusView = {
 };
 
 export const DEFAULT_STATUS_VIEW: StatusView = {
-	coverArtDataUrl: null,
+	coverArtSrc: null,
 	jobItems: [],
 	progressPercentage: 0,
 	statusText: 'Idle',
@@ -34,7 +35,7 @@ export type StatusViewStore = {
 	snapshot(): StatusView;
 	bindPublisher(next: StatusPublisher | null): void;
 	reset(): void;
-	setCoverArtDataUrl(dataUrl: string | null): void;
+	setCoverArtSrc(src: string | null): void;
 	setJobItems(items: JobListItem[]): void;
 	setProgressPercentage(value: number): void;
 	setStatusText(value: string): void;
@@ -135,8 +136,8 @@ export function createStatusViewStore(): StatusViewStore {
 			queuedStatusAfterUserMessageLock = null;
 			commit();
 		},
-		setCoverArtDataUrl(dataUrl) {
-			patch({ coverArtDataUrl: dataUrl });
+		setCoverArtSrc(src) {
+			patch({ coverArtSrc: src });
 		},
 		setJobItems(items) {
 			patch({ jobItems: items });

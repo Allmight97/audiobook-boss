@@ -195,6 +195,12 @@ impl EventSink for PrintProgress {
 }
 
 /// Sends an intent and reports one that the session did not apply.
+async fn shut_down(engine: &Engine) {
+    if let abb_engine::ShutdownOutcome::SettingsUnsaved { error } = engine.shutdown().await {
+        eprintln!("settings were not saved: {}", error.message);
+    }
+}
+
 async fn send(engine: &Engine, intent: SessionIntent) -> Result<(), String> {
     let description = format!("{intent:?}");
     match engine.session_dispatch(intent).await.outcome {
@@ -470,14 +476,14 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<(), String> {
     plan(&engine, &options).await?;
     if options.export || options.preview.is_some() {
         if let Err(message) = produce(&engine, &options).await {
-            engine.shutdown().await;
+            shut_down(&engine).await;
             return Err(message);
         }
     }
 
     // Waiting saves are written and background work settles before the
     // state folder can be removed.
-    engine.shutdown().await;
+    shut_down(&engine).await;
     let session = engine.session_snapshot();
     if options.json {
         let json = serde_json::to_string_pretty(&session)

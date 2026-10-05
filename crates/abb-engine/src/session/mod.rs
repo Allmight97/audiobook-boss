@@ -9,6 +9,7 @@
 mod audio;
 mod audio_choice;
 mod exports;
+mod import_order;
 mod lookup;
 mod metadata_form;
 mod output;
@@ -22,7 +23,9 @@ mod submission;
 mod tag_cache;
 mod working_set;
 
-pub use audio::{AudioChoiceView, AudioSnapshot, TitleAudio};
+pub use audio::{
+    AudioChoiceView, AudioField, AudioRefusal, AudioSnapshot, SelectionAudio, TitleAudio,
+};
 pub use audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, EncoderOption, FaacRateControl};
 pub use exports::{OutputEdits, RestartOffer};
 pub use lookup::{

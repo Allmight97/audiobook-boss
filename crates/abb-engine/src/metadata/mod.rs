@@ -15,7 +15,9 @@ mod cue;
 pub use abb_metadata_core::{
     parse_cue, validate_chapters, ChapterSpec, CueInterpretation, CueSheet,
 };
-pub(crate) use cue::{inspect_chapter_source, validate_chapter_plan, validate_source_fingerprint};
+pub(crate) use cue::{
+    inspect_chapter_source, source_fingerprint, validate_chapter_plan, validate_source_fingerprint,
+};
 pub use cue::{ChapterPlan, CueSource, CueStatus};
 mod cover_art;
 mod embedded_cover;
@@ -55,6 +57,7 @@ impl From<MetadataCoreError> for AppError {
 
 pub use reader::{display_tags_from_ffmpeg_dict, read_metadata};
 pub use thumbnail::read_audio_cover_thumbnail;
+pub(crate) use thumbnail::render_display_thumbnail;
 pub(crate) use thumbnail::{optimize_cover_art, prepare_cover_art_for_write};
 
 pub use cover_art::{add_cover_art_stream_pre_header, write_cover_art_packet_post_header};

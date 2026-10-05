@@ -12,8 +12,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`.
 - Read/write symbols: `read_metadata`, `save_metadata_intent`,
   `finalize_artifact_metadata` (engine-internal; real-media proof is crate-local
-  under `src/test_cases`). Hosts read through `Engine::read_audio_metadata`
-  and change tags through session intents. `finalize_artifact_metadata` is the
+  under `src/test_cases`). The app reads tags from session snapshots and changes
+  them through session intents; `abb-dev` reads through
+  `Engine::read_audio_metadata`. `finalize_artifact_metadata` is the
   container-aware finish for a preserved merge: remux carries chapters/cover, then
   MP4-family tag truth is rewritten via mp4ameta. The FFmpeg mov muxer
   silently drops dict keys outside its known-atom table (series, series-part,
@@ -122,7 +123,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - `ChapterPlan`, `CueSource`, and `CueStatus` carry intake facts. Audio consumes
   crate-local `inspect_chapter_source`, `validate_chapter_plan`, and
   `validate_source_fingerprint`; the last compares metadata from an already-open
-  source handle with the fingerprint captured during inspection.
+  source handle with the fingerprint captured during inspection. ABB's own tag
+  write moves a source's fingerprint forward only when the file still matched
+  it just before the write (`metadata_save.rs` reports both), so a change made
+  outside ABB is still refused.
 - `PassthroughSource.chapters` carries accepted data when present; `None` is
   container discovery for artifact readers. `verify_chapters` checks names,
   starts, ends, and count after final metadata writes and before artifact commit.

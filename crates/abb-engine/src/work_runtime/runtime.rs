@@ -116,7 +116,7 @@ impl WorkRuntime {
         // Concurrency stays fixed from acceptance until the export ends,
         // including between titles when no job is registered.
         let active_run = registry.hold_run();
-        let operation_id = OperationId::new();
+        let operation_id = request.operation_id.clone();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
         let title = request.title.trim().to_string();
         let input_ids = request.payload.input_ids.as_deref();

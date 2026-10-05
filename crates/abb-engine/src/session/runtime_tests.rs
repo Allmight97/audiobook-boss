@@ -50,12 +50,28 @@ struct Rig {
     /// empty result.
     replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>>,
     cover: Arc<StdMutex<Result<Vec<u8>>>>,
+    /// How many times a cover was fetched from the network.
+    cover_fetches: Arc<std::sync::atomic::AtomicUsize>,
     /// Acquisition jobs whose downloads the session removed.
     removed: Arc<StdMutex<Vec<String>>>,
     /// Removals that fail before one succeeds.
     failing_removals: Arc<std::sync::atomic::AtomicUsize>,
     /// Holds the settings the session records defaults into.
     _config: tempfile::TempDir,
+}
+
+/// The image the fake cover server sends.
+fn downloaded_cover() -> Vec<u8> {
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image::RgbImage::from_pixel(4, 2, image::Rgb([40, 120, 200]))
+        .write_to(&mut bytes, image::ImageFormat::Png)
+        .expect("encode cover");
+    bytes.into_inner()
+}
+
+/// What a full cover made from [`downloaded_cover`] holds.
+fn written_cover() -> Vec<u8> {
+    crate::metadata::optimize_cover_art(&downloaded_cover()).expect("optimize cover")
 }
 
 fn rig() -> Rig {
@@ -67,7 +83,8 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
     let searches = Arc::new(StdMutex::new(Vec::new()));
     let replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>> =
         Arc::default();
-    let cover: Arc<StdMutex<Result<Vec<u8>>>> = Arc::new(StdMutex::new(Ok(vec![4, 2])));
+    let cover: Arc<StdMutex<Result<Vec<u8>>>> = Arc::new(StdMutex::new(Ok(downloaded_cover())));
+    let cover_fetches: Arc<std::sync::atomic::AtomicUsize> = Arc::default();
     let network = Network {
         search: Box::new({
             let searches = Arc::clone(&searches);
@@ -83,10 +100,12 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
                 })
             }
         }),
-        cover_from_url: Box::new({
+        covers: crate::cover_service::CoverService::new(Box::new({
             let cover = Arc::clone(&cover);
+            let cover_fetches = Arc::clone(&cover_fetches);
             let pending = StdMutex::new(pending);
             move |_url| {
+                cover_fetches.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let pending = pending.lock().expect("cover reply").take();
                 let result = match &*cover.lock().expect("cover") {
                     Ok(bytes) => Ok(bytes.clone()),
@@ -99,7 +118,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
                     }
                 })
             }
-        }),
+        })),
     };
     let removed: Arc<StdMutex<Vec<String>>> = Arc::default();
     let failing_removals: Arc<std::sync::atomic::AtomicUsize> = Arc::default();
@@ -117,7 +136,6 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
             work: WorkRuntime::default(),
             jobs: Arc::new(JobRegistry::new(2)),
             temporary_root: PathBuf::from("/staged"),
-            opened_audio: Arc::default(),
             tasks: crate::engine::EngineTasks::default(),
             workspace_root: std::env::temp_dir().join("abb-session-tests"),
             settings,
@@ -149,6 +167,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
         searches,
         replies,
         cover,
+        cover_fetches,
         removed,
         failing_removals,
         _config: config,
@@ -216,6 +235,37 @@ impl Rig {
     }
 
     /// Locks the list, as a submission or preview does.
+    fn listed_paths(&self) -> Vec<PathBuf> {
+        self.session
+            .snapshot()
+            .titles
+            .expect("titles")
+            .files
+            .into_iter()
+            .map(|file| file.path)
+            .collect()
+    }
+
+    async fn wait_for_titles(&self, count: usize) {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while self.listed_paths().len() != count {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("titles listed");
+    }
+
+    async fn wait_for_notice(&self, notice: InputNotice) {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while self.session.snapshot().titles.expect("titles").notice != Some(notice.clone()) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("notice shown");
+    }
+
     fn lock_order(&self, locked: bool) {
         self.session
             .transition(|state| state.working_set.set_order_locked(locked));
@@ -559,10 +609,36 @@ async fn replacing_the_cover_stages_the_result_image_with_the_text() {
 
     assert_eq!(
         rig.pending("alpha").and_then(|patch| patch.cover_art),
-        Some(PatchOp::Set(vec![4, 2]))
+        Some(PatchOp::Set(written_cover()))
     );
-    assert_eq!(rig.session.cover_art(), Some(vec![4, 2]));
+    assert_eq!(rig.session.cover_art(), Some(written_cover()));
     assert_eq!(rig.title_shown(), "Found");
+}
+
+#[tokio::test]
+async fn applying_a_result_reuses_the_cover_its_preview_downloaded() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.answer_next_search(Ok(found(&["Found"])));
+    rig.send(SessionIntent::LookupOpen).await;
+    let shown = rig
+        .session
+        .cover("remote/full/0/https%253A%252F%252Fexample.com%252Fcover.jpg")
+        .await
+        .expect("a result's cover is served")
+        .expect("it has bytes");
+    assert_eq!(shown.to_vec(), written_cover());
+
+    rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
+        .await;
+    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+
+    assert_eq!(rig.session.cover_art(), Some(written_cover()));
+    assert_eq!(
+        rig.cover_fetches.load(std::sync::atomic::Ordering::SeqCst),
+        1
+    );
 }
 
 #[tokio::test]
@@ -788,7 +864,7 @@ async fn a_cover_loaded_from_a_url_is_staged_on_the_selected_title() {
         cover.notice,
         Some(crate::session::state::CoverNotice::LoadedFromUrl)
     );
-    assert_eq!(rig.session.cover_art(), Some(vec![4, 2]));
+    assert_eq!(rig.session.cover_art(), Some(written_cover()));
 }
 
 #[tokio::test]
@@ -846,60 +922,48 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
 }
 
 #[tokio::test]
-async fn opened_files_wait_for_unlock_without_a_second_host_request() {
+async fn opened_files_wait_for_unlock_without_a_host_request() {
     let rig = rig();
     let folder = tempfile::TempDir::new().expect("temp dir");
     let opened = staged_wav(folder.path(), "opened");
-    rig.session
-        .inner
-        .deps
-        .opened_audio
-        .push_paths(vec![opened.clone()])
-        .expect("queue opened file");
     rig.lock_order(true);
-    // The caller's lock snapshot may be stale, and its reply may be dropped.
-    drop(rig.session.begin(SessionIntent::ImportOpened));
+    rig.session
+        .import_opened(vec![opened.clone(), opened.clone()])
+        .expect("opened files admitted");
     tokio::task::yield_now().await;
-    assert!(rig
-        .session
-        .snapshot()
-        .titles
-        .expect("titles")
-        .files
-        .is_empty());
+    assert!(rig.listed_paths().is_empty());
     rig.lock_order(false);
     rig.session.sources_released();
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        loop {
-            if !rig
-                .session
-                .snapshot()
-                .titles
-                .expect("titles")
-                .files
-                .is_empty()
-            {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("engine drains opened files after unlock");
-    let titles = rig.session.snapshot().titles.expect("titles");
-    assert_eq!(titles.files.len(), 1);
+    rig.wait_for_titles(1).await;
     assert_eq!(
-        titles.files[0].path,
-        opened.canonicalize().expect("canonical opened path")
+        rig.listed_paths(),
+        vec![opened.canonicalize().expect("canonical opened path")]
     );
-    assert!(rig
-        .session
-        .inner
-        .deps
-        .opened_audio
-        .take_paths()
-        .expect("queue")
-        .is_empty());
+
+    rig.session
+        .import_opened(vec![opened])
+        .expect("opened again");
+    rig.wait_for_notice(InputNotice::DuplicatesOnly).await;
+    assert_eq!(rig.listed_paths().len(), 1);
+}
+
+#[tokio::test]
+async fn a_reset_drops_opened_files_still_waiting_and_closing_refuses_them() {
+    let rig = rig();
+    let folder = tempfile::TempDir::new().expect("temp dir");
+    let opened = staged_wav(folder.path(), "opened");
+    rig.lock_order(true);
+    rig.session
+        .import_opened(vec![opened.clone()])
+        .expect("opened files admitted");
+    rig.send(SessionIntent::Reset).await;
+    rig.lock_order(false);
+    rig.session.sources_released();
+    rig.session.inner.deps.tasks.close();
+    rig.session.inner.deps.tasks.wait().await;
+    assert!(rig.listed_paths().is_empty(), "the reset dropped them");
+
+    assert!(rig.session.import_opened(vec![opened]).is_err());
 }
 
 #[tokio::test]
@@ -1081,6 +1145,114 @@ async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
     );
     // The defaults themselves never moved.
     assert_eq!(audio(&rig).defaults.choice.format, AudiobookFormat::M4b);
+}
+
+#[tokio::test]
+async fn a_batch_audio_edit_applies_to_every_title_or_none() {
+    use crate::audio::{EncoderType, FaacProfile, SampleRateConfig};
+    use crate::session::{AudioField, AudioRefusal};
+
+    let rig = rig();
+    rig.load(&["alpha", "beta"]);
+    let both = vec!["alpha".to_string(), "beta".to_string()];
+    let set = |title_ids: Vec<String>, edit| SessionIntent::SetTitleAudio { title_ids, edit };
+    rig.send(set(both.clone(), AudioEdit::Encoder(EncoderType::Faac)))
+        .await;
+    rig.send(set(
+        vec!["alpha".to_string()],
+        AudioEdit::FaacProfile(FaacProfile::HeAacV1),
+    ))
+    .await;
+    rig.send(set(
+        vec!["beta".to_string()],
+        AudioEdit::FaacProfile(FaacProfile::AacLc),
+    ))
+    .await;
+    let titles = audio(&rig).titles;
+    let only_lc = titles["beta"]
+        .facts
+        .allowed_sample_rates
+        .iter()
+        .copied()
+        .find(|rate| !titles["alpha"].facts.allowed_sample_rates.contains(rate))
+        .expect("a rate only AAC-LC accepts");
+    let beta_rate = titles["beta"].choice.sample_rate;
+
+    rig.send(set(
+        both.clone(),
+        AudioEdit::SampleRate(SampleRateConfig::Explicit(only_lc)),
+    ))
+    .await;
+    let after = audio(&rig);
+    assert_eq!(
+        after.titles["beta"].choice.sample_rate, beta_rate,
+        "nothing changed"
+    );
+    assert_eq!(
+        after.refusal,
+        Some(AudioRefusal::NotAccepted {
+            title_ids: vec!["alpha".to_string()],
+            labels: vec!["alpha.m4b".to_string()],
+        })
+    );
+
+    rig.select(&[0, 1]).await;
+    let selection = audio(&rig).selection.expect("selection audio");
+    assert_eq!(selection.title_ids, both);
+    assert!(!selection.facts.allowed_sample_rates.contains(&only_lc));
+    assert!(selection.facts.allowed_sample_rates.contains(&44_100));
+    assert!(selection.mixed.contains(&AudioField::FaacProfile));
+
+    rig.send(set(both.clone(), AudioEdit::Encoder(EncoderType::Faac)))
+        .await;
+    assert_eq!(
+        audio(&rig).refusal,
+        None,
+        "a value already set is not a refusal"
+    );
+
+    rig.lock_order(true);
+    rig.send(SessionIntent::ApplyDefaultAudio { title_ids: both })
+        .await;
+    assert_eq!(audio(&rig).refusal, Some(AudioRefusal::Locked));
+    rig.lock_order(false);
+    assert_eq!(audio(&rig).refusal, None, "unlocking answers the refusal");
+}
+
+#[tokio::test]
+async fn covers_are_served_only_for_what_the_session_shows() {
+    let rig = rig();
+    let folder = tempfile::TempDir::new().expect("temp dir");
+    let listed = staged_wav(folder.path(), "listed");
+    let unlisted = staged_wav(folder.path(), "unlisted");
+    rig.send(SessionIntent::Import {
+        paths: vec![listed.to_string_lossy().into_owned()],
+    })
+    .await;
+    let request = |path: &std::path::Path| {
+        let value = percent_encoding::utf8_percent_encode(
+            &path.canonicalize().expect("canonical").to_string_lossy(),
+            percent_encoding::NON_ALPHANUMERIC,
+        )
+        .to_string();
+        format!("audio/small/0/{value}")
+    };
+
+    assert_eq!(
+        rig.session.cover(&request(&listed)).await.expect("listed"),
+        None,
+        "a listed source with no cover has none"
+    );
+    assert!(rig.session.cover(&request(&unlisted)).await.is_err());
+    assert!(rig
+        .session
+        .cover("remote/small/0/https%3A%2F%2Fcovers.test%2Fnever-shown.jpg")
+        .await
+        .is_err());
+    assert_eq!(
+        rig.session.cover("session/full/0/").await.expect("session"),
+        None
+    );
 }
 
 // ---- Output and plans ----
@@ -1396,6 +1568,11 @@ async fn a_download_goes_once_its_title_is_exported_and_nothing_imported_is_refu
         directory: output.path().to_string_lossy().into_owned(),
     })
     .await;
+    rig.send(SessionIntent::SetField {
+        field: MetadataField::Title,
+        value: "Book".to_string(),
+    })
+    .await;
     rig.send(SessionIntent::Submit).await;
     assert!(
         matches!(
@@ -1451,7 +1628,12 @@ async fn reset_supersedes_an_acquired_handoff_waiting_for_an_earlier_import() {
     let rig = rig();
     let staging = tempfile::TempDir::new().expect("staging");
     let audio = staged_wav(staging.path(), "book");
-    let in_order = rig.session.inner.imports.lock().await;
+    let in_order = rig
+        .session
+        .inner
+        .imports
+        .wait(rig.session.inner.imports.take())
+        .await;
     let mut handoff = Box::pin(
         rig.session
             .import_acquired(acquired("job-before-reset", &audio)),
@@ -1502,7 +1684,12 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
     let rig = rig();
     let lane =
         crate::test_cases::integration_media_execution_tests::MediaLane::with_fixtures(&[0.2]);
-    let source = lane.process(None).await;
+    let source = lane
+        .process(Some(AudiobookMetadata {
+            title: Some("Preview".to_string()),
+            ..Default::default()
+        }))
+        .await;
     std::fs::create_dir_all(rig._config.path().join("previews")).expect("preview folder");
     rig.send(SessionIntent::Import {
         paths: vec![source.to_string_lossy().into_owned()],
@@ -1537,12 +1724,15 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
         .operation
         .operation_id;
     wait_preview(&rig, crate::work_runtime::WorkOperationStatus::Running).await;
+    let shown = rig
+        .session
+        .cover(&format!("preview/small/0/{id}"))
+        .await
+        .expect("the running preview's artwork")
+        .expect("a custom cover");
     assert_eq!(
-        rig.send(SessionIntent::ReadPreviewCover {
-            run_id: id.to_string()
-        })
-        .await,
-        SessionOutcome::PreviewCover { bytes: Some(cover) }
+        shown.to_vec(),
+        crate::metadata::render_display_thumbnail(&cover).expect("thumbnail")
     );
     assert_eq!(
         rig.send(SessionIntent::CancelPreview {

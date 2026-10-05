@@ -7,7 +7,8 @@ export type CoverArtMessage =
 	| { readonly kind: 'success'; readonly text: string };
 
 export type CoverUiState = {
-	readonly imageDataUrl: string | null;
+	/** The address of the cover on screen; absent when there is none. */
+	readonly imageSrc: string | null;
 	readonly isLoading: boolean;
 	readonly message: CoverArtMessage;
 	readonly isHovered: boolean;

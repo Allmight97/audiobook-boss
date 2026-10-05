@@ -38,9 +38,7 @@ describe('output plan owner', () => {
 		expect(app.output.view()).toMatchObject({
 			outputDirectory: '/out',
 			previewText: '/out/Author/Book/Book.m4b',
-			absHintHidden: false,
 		});
-		expect(app.output.view().absHintText).toContain('YYYY');
 
 		engine.change((state) => {
 			state.output.preview = { kind: 'unavailable', message: 'bad template' };

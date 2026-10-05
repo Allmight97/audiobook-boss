@@ -4,10 +4,6 @@ import { tauriClient } from '../../lib/tauri/client';
 import type { RemoteUiIntent } from '../../types/session';
 import type { RemoteRelease } from '../../types/remoteSource';
 import {
-	createCoverArtPreviewScheduler,
-	type CoverArtPreviewState,
-} from '../../lib/media/coverArtPreviewScheduler';
-import {
 	createIndexerConnectionSettings,
 	type IndexerConnectionSettingsView,
 } from './indexerConnection';
@@ -94,9 +90,6 @@ export type RemoteSourceOwner = {
 		options?: { multi: boolean },
 	): void;
 	runAction(action: RemoteSourceAction): Promise<void>;
-	coverPreview(coverUrl: string | null | undefined): CoverArtPreviewState;
-	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
-	cancelCoverPreviews(): void;
 	loadIndexerConnectionSettings(): Promise<void>;
 	patchIndexerConnectionSettings(
 		patch: Partial<
@@ -111,12 +104,10 @@ export type RemoteSourceOwner = {
 export type RemoteSourceOwnerDeps = {
 	readonly link: EngineLink;
 	readonly openAuthorizationUrl?: (url: string) => Promise<void>;
-	readonly loadCoverArtFromUrl?: (url: string) => Promise<number[]>;
 };
 
 export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSourceOwner {
 	const [viewRev, bumpView] = createSignal(0, { ownedWrite: true });
-	const [previewRev, bumpPreviews] = createSignal(0, { ownedWrite: true });
 	const state = createRemoteSourceStateStore(
 		() => bumpView((revision) => revision + 1),
 		() => deps.link.remote(),
@@ -125,11 +116,6 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 	const indexerConnection = createIndexerConnectionSettings(deps.link);
 
 	const openAuthorizationUrl = deps.openAuthorizationUrl ?? tauriClient.openUrl;
-	const previews = createCoverArtPreviewScheduler({
-		load: deps.loadCoverArtFromUrl ?? tauriClient.loadCoverArtFromUrl,
-		onChange: () => bumpPreviews((revision) => revision + 1),
-		failureLogMessage: 'Failed to load remote source cover preview:',
-	});
 	let generation = 0;
 	let disposed = false;
 	onCleanup(() => {
@@ -215,16 +201,6 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 					state.setAcquisitionError(error, 'Remote source request failed.', providerId);
 			}
 		},
-		coverPreview(coverUrl) {
-			previewRev();
-			return previews.getState(coverUrl);
-		},
-		scheduleCoverPreviews(coverUrls) {
-			previews.schedule(coverUrls);
-		},
-		cancelCoverPreviews() {
-			previews.cancel();
-		},
 		loadIndexerConnectionSettings() {
 			return indexerConnection.load();
 		},
@@ -241,7 +217,6 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		},
 		reset() {
 			generation += 1;
-			previews.clear();
 			indexerConnection.reset();
 			state.reset();
 		},

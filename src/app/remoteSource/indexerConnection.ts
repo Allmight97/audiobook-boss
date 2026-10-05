@@ -5,6 +5,8 @@ import type { EngineLink } from '../engineLink';
 export type IndexerConnectionSettingsView = {
 	baseUrlDraft: string;
 	categoryIdsDraft: number[];
+	/** The last category edit chose none and the engine refused it. */
+	categoriesRefused: boolean;
 	apiKeyDraft: string;
 	apiKeyConfigured: boolean;
 	saveState: 'idle' | 'saving' | 'saved' | 'error';
@@ -28,7 +30,7 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 	reset(): void;
 } {
 	const [revision, bump] = createSignal(0, { ownedWrite: true });
-	let typed: { baseUrlDraft?: string; categoryIdsDraft?: number[] } | null = null;
+	let typed: { baseUrlDraft?: string } | null = null;
 	let keyEcho = '';
 	let keyAccepted = false;
 	let localError = '';
@@ -62,7 +64,8 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			const saveError = draft.save.kind === 'failed' ? toUserMessage(draft.save.error) : localError;
 			return {
 				baseUrlDraft: typed?.baseUrlDraft ?? draft.baseUrl,
-				categoryIdsDraft: typed?.categoryIdsDraft ?? draft.categoryIds,
+				categoryIdsDraft: draft.categoryIds,
+				categoriesRefused: draft.emptyCategoriesRefused,
 				apiKeyDraft: keyEcho,
 				apiKeyConfigured: draft.apiKeyConfigured,
 				saveState: saveError
@@ -94,9 +97,6 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			const echo = {
 				...typed,
 				...(patch.baseUrlDraft === undefined ? {} : { baseUrlDraft: patch.baseUrlDraft }),
-				...(patch.categoryIdsDraft === undefined
-					? {}
-					: { categoryIdsDraft: patch.categoryIdsDraft }),
 			};
 			typed = echo;
 			if (patch.apiKeyDraft !== undefined) keyEcho = patch.apiKeyDraft;
@@ -120,9 +120,7 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 					if (
 						typed === echo &&
 						(echo.baseUrlDraft === undefined ||
-							echo.baseUrlDraft.trim() === link.remote().connection.baseUrl) &&
-						(echo.categoryIdsDraft === undefined ||
-							echo.categoryIdsDraft.join(',') === link.remote().connection.categoryIds.join(','))
+							echo.baseUrlDraft.trim() === link.remote().connection.baseUrl)
 					) {
 						typed = null;
 						changed();

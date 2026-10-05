@@ -20,11 +20,9 @@ function fakeInput(): InputCapability {
 		openFiles: vi.fn(async () => ['/books/chapter.m4b']),
 		openDirectory: vi.fn(async () => null),
 		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
-		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),
-		listenOpenedAudioFiles: vi.fn(async () => () => undefined),
 	};
 }
 
@@ -56,6 +54,7 @@ describe('Solid import tracer shell', () => {
 				<App />
 			</AppRuntimeProvider>
 		));
+		await screen.findByTestId('left-column');
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
 		const row = await screen.findByRole('option', { name: 'chapter.m4b' });

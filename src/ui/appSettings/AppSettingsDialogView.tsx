@@ -16,19 +16,21 @@ const INDEXER_CATEGORY_OPTIONS: ReadonlyArray<{ readonly id: number; readonly la
 ];
 
 function indexerCategorySummary(selected: readonly number[]): string {
-	const labels = INDEXER_CATEGORY_OPTIONS.filter((option) => selected.includes(option.id)).map(
-		(option) => option.label,
-	);
-	return labels.length > 0 ? labels.join(', ') : 'Audiobooks (3030)';
+	return selected
+		.map(
+			(id) =>
+				INDEXER_CATEGORY_OPTIONS.find((option) => option.id === id)?.label ?? `Category ${id}`,
+		)
+		.join(', ');
 }
 
 function toggledIndexerCategories(selected: readonly number[], id: number): number[] {
-	const next = selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id];
-	return next.length > 0 ? next : [3030];
+	return selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id];
 }
 
 function IndexerCategoryPicker(props: {
 	readonly selected: readonly number[];
+	readonly refused: boolean;
 	readonly onChange: (ids: number[]) => void;
 }): JSX.Element {
 	const [open, setOpen] = createSignal(false);
@@ -77,6 +79,11 @@ function IndexerCategoryPicker(props: {
 					</label>
 				))}
 			</div>
+			<Show when={props.refused}>
+				<p class="field-hint" role="status" data-testid="indexer-category-required">
+					One category is required. Audiobooks (3030) is recommended.
+				</p>
+			</Show>
 		</div>
 	);
 }
@@ -372,6 +379,7 @@ export function AppSettingsDialogView(): JSX.Element {
 									</label>
 									<IndexerCategoryPicker
 										selected={indexerConnection().categoryIdsDraft}
+										refused={indexerConnection().categoriesRefused}
 										onChange={(categoryIdsDraft) =>
 											remoteSource.patchIndexerConnectionSettings({ categoryIdsDraft })
 										}

@@ -31,6 +31,10 @@ function refusalText(reason: SubmitRefusal): string {
 			return 'Wait for the metadata save to finish before processing.';
 		case 'busy':
 			return 'Processing is already starting.';
+		case 'invalidPreviewLength':
+			return 'Choose a preview length longer than zero seconds.';
+		case 'missingTitle':
+			return `${reason.label} has no title. Select it and type a title before processing.`;
 		case 'sourceRemoved':
 			return 'A downloaded source was removed after its export. Acquire it again to export it.';
 		case 'closing':

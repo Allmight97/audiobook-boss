@@ -18,17 +18,6 @@ export const commands = {
 	 *  Settings intents run one at a time in `sequence` order.
 	 */
 	settingsDispatch: (client: number, sequence: number, intent: SettingsIntent) => typedError<SettingsReply, AppErrorEnvelope>(__TAURI_INVOKE("settings_dispatch", { client, sequence, intent })),
-	/**  The cover image the session currently shows. */
-	sessionCoverArt: () => __TAURI_INVOKE<number[] | null>("session_cover_art"),
-	/**
-	 *  Reads metadata from an audio file
-	 *  Returns metadata as JSON-serializable struct
-	 */
-	readAudioMetadata: (filePath: string) => typedError<AudiobookMetadata, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_metadata", { filePath })),
-	/**  Loads cover art from a remote HTTPS URL and returns write-ready JPEG bytes. */
-	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
-	/**  Reads an audio file's embedded cover as a bounded JPEG thumbnail. */
-	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**  Returns backend-owned supported local audio import metadata for picker UI. */
 	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
 	listWorkOperations: () => typedError<WorkOperationsSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
@@ -38,7 +27,6 @@ export const commands = {
 
 /** Events */
 export const events = {
-	openedAudioFiles: makeEvent<OpenedAudioFilesEvent>("opened-audio-files"),
 	sessionUpdate: makeEvent<SessionUpdateEvent>("session-update"),
 	settingsUpdate: makeEvent<SettingsUpdateEvent>("settings-update"),
 	workOperationsUpdate: makeEvent<WorkOperationsUpdateEvent>("work-operations-update"),
@@ -177,6 +165,9 @@ export type AudioEdit = { field: "format"; value: AudiobookFormat } | { field: "
 /**  Target kbps for the format's encoder, across all channels. */
 { field: "bitrate"; value: number } | { field: "sampleRate"; value: SampleRateConfig } | { field: "channels"; value: ChannelConfig };
 
+/**  One part of an audio choice, named as its `AudioEdit` is. */
+export type AudioField = "format" | "intent" | "encoder" | "faacProfile" | "rateControl" | "quality" | "nativeSpeed" | "bitrate" | "sampleRate" | "channels";
+
 /**  Represents an audio file with metadata */
 export type AudioFile = {
 	/**  Stable workbench/session identity for joins that must survive reorder/remove operations. */
@@ -229,6 +220,16 @@ export type AudioPreservation = {
 	canPreserve: boolean,
 };
 
+/**  Why a title audio edit changed nothing. */
+export type AudioRefusal =
+/**  A submission holds the list. */
+{ kind: "locked" } |
+/**
+ *  These titles cannot take the edit, so no title took it. `labels`
+ *  are what the title list shows for them, in the same order.
+ */
+{ kind: "notAccepted"; titleIds: string[]; labels: string[] };
+
 /**  The audio part of the session. */
 export type AudioSnapshot = {
 	revision: number,
@@ -237,28 +238,13 @@ export type AudioSnapshot = {
 	defaults: AudioChoiceView,
 	/**  Each title's audio, by title identity. */
 	titles: { [key in string]: TitleAudio },
+	/**  The selected titles' audio as one choice; absent with no selection. */
+	selection: SelectionAudio | null,
+	/**  Why the latest title audio edit changed nothing. */
+	refusal: AudioRefusal | null,
 };
 
 export type AudiobookFormat = "m4b" | "mp3" | "m4aOpus" | "mkaOpus";
-
-export type AudiobookMetadata = {
-	title: string | null,
-	artist: string | null,
-	album: string | null,
-	composer: string | null,
-	genre: string | null,
-	date: string | null,
-	track: [number, number | null] | null,
-	disk: [number, number | null] | null,
-	comment: string | null,
-	description: string | null,
-	series: string | null,
-	series_part: string | null,
-	subseries: string | null,
-	subseries_part: string | null,
-	album_sort: string | null,
-	cover_art: number[] | null,
-};
 
 /**  Bitrate/quality control mode per encoder */
 export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "abr" } | { mode: "vbr"; value: number } |
@@ -503,6 +489,11 @@ export type IndexerDraftSnapshot = {
 	 *  before; Save and Test refuse until an edit is accepted.
 	 */
 	draftError: AppErrorEnvelope | null,
+	/**
+	 *  The last category edit chose none and was refused; the draft keeps
+	 *  its categories. A search needs at least one.
+	 */
+	emptyCategoriesRefused: boolean,
 };
 
 export type IndexerWorkSnapshot = {
@@ -659,9 +650,6 @@ export type OnlineMetadataResult = {
 	coverUrl: string | null,
 	audibleOnly: boolean | null,
 };
-
-/**  Tells the frontend the OS asked ABB to open files; it then drains the queue. */
-export type OpenedAudioFilesEvent = Record<string, never>;
 
 export type OperationId = string;
 
@@ -897,7 +885,12 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
  *  staging source could not be purged. Non-blocking: the startup session
  *  sweep removes it on next launch.
  */
-"protectedSourcePurgeFailed" | "validationFailed" | "supplementalPdfFailed" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
+"protectedSourcePurgeFailed" | "validationFailed" | "supplementalPdfFailed" |
+/**
+ *  The user asked for the title's Supplemental PDF and Audible offers
+ *  none. Non-blocking: the audiobook is imported without it.
+ */
+"supplementalPdfUnavailable" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
 
 export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
 
@@ -1030,6 +1023,17 @@ export type SampleRateConfig =
 /**  Explicit sample rate in Hz */
 { explicit: number };
 
+/**  The selected titles' audio, edited together. */
+export type SelectionAudio = {
+	/**  The titles this describes, in list order. */
+	titleIds: string[],
+	/**  The first title's choice; `mixed` names where the others differ. */
+	choice: AudioChoice,
+	/**  Only what every selected title accepts is offered. */
+	facts: AudioChoiceFacts,
+	mixed: AudioField[],
+};
+
 export type SelectionModifiers = {
 	multi: boolean,
 	range: boolean,
@@ -1051,9 +1055,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  *  Discovers and analyzes audio under `paths` and adds new titles, each
  *  starting from the default audio choice.
  */
-{ kind: "import"; paths: string[] } |
-/**  Imports the files the operating system asked ABB to open. */
-{ kind: "importOpened" } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } |
+{ kind: "import"; paths: string[] } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } |
 /**
  *  Moves a title one place. Named by identity, so a second click sent
  *  before the first is answered moves the same title again.
@@ -1078,7 +1080,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 /**  Keeps an exported title where it is; its export continues unchanged. */
 { kind: "keepTitleLocation"; titleId: string; revision: number } |
 /**  Cancels the identified preview, including preparation and queued titles. */
-{ kind: "cancelPreview"; runId: string; childJobId: string | null } | { kind: "takePreviewOutput"; runId: string } | { kind: "readPreviewCover"; runId: string } |
+{ kind: "cancelPreview"; runId: string; childJobId: string | null } | { kind: "takePreviewOutput"; runId: string } |
 /**  Where exports are written; recorded in the settings. */
 { kind: "setOutputDirectory"; directory: string } | { kind: "setNamingPreset"; preset: NamingPreset } | { kind: "setIncludeYear"; includeYear: boolean } |
 /**  The custom naming template as typed; recorded once typing pauses. */
@@ -1106,7 +1108,7 @@ export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } | { k
  *  The edits on screen were not accepted, so nothing changed. `message`
  *  is absent when a save in progress is what blocked the change.
  */
-{ kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } | { kind: "previewOutput"; path: string | null } | { kind: "previewCover"; bytes: number[] | null } |
+{ kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } | { kind: "previewOutput"; path: string | null } |
 /**  A newer request or a reset replaced this one before it finished. */
 { kind: "superseded" };
 
@@ -1233,6 +1235,13 @@ export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | {
 { kind: "saveInProgress" } |
 /**  Another submission or a preview is still running. */
 { kind: "busy" } |
+/**  A preview length that is not a positive number of seconds. */
+{ kind: "invalidPreviewLength" } |
+/**
+ *  This title has no title tag and none was typed; its output would
+ *  carry no title. `label` is what the title list shows for it.
+ */
+{ kind: "missingTitle"; titleId: string; label: string } |
 /**  A downloaded source is being removed after its export finished. */
 { kind: "sourceRemoved" } | { kind: "closing" } |
 /**
@@ -1342,6 +1351,11 @@ export type TitlesSnapshot = {
 	orderDiffersFromImport: boolean,
 	/**  Companion PDF names of downloaded titles, by input id. */
 	companions: { [key in string]: string[] },
+	/**
+	 *  Advances whenever a Save writes a cover into a source, so an address
+	 *  for a source's cover names its current image.
+	 */
+	coversRevision: number,
 };
 
 export type WorkOperationStatus = "accepted" | "running" | "cancelling" | "completed" | "cancelled" | "failed" | "mixed";

@@ -22,8 +22,8 @@
   event adapters.
 
 ## Frontend Utility Surface
-- `appError.ts` and `subscriptionGroup.ts` are deliberate frontend utilities that
-  Solid views may import directly from `src/lib/tauri/*`. They are not IPC
+- `appError.ts`, `subscriptionGroup.ts`, and `coverSrc.ts` are deliberate
+  frontend utilities that Solid views may import directly from `src/lib/tauri/*`. They are not IPC
   command/event adapters and not `tauriClient` methods.
 - `appError.ts` is the single owner of error normalization and presentation:
   `normalizeAppError`, `toUserMessage`, `isCancellation`, `isAppErrorCategory`,
@@ -32,14 +32,20 @@
 - `subscriptionGroup.ts` (`createSubscriptionGroup`) is the single owner of Tauri
   event-unlisten teardown and the dispose / late-arrival race. Views collect
   unlisteners through a group, not bespoke arrays/flags.
+- `coverSrc.ts` builds the `abb-cover` address of every cover a view shows; the
+  host serves the scheme through `Engine::cover`. Covers never cross IPC as
+  bytes. Its path format mirrors `crates/abb-engine/src/session/cover_request.rs`
+  by hand; change both, with their tests, together.
 - These utilities are NOT pinned by `src/lib/tauri-public-api.contract.test.ts`
   (which guards the `tauriClient` IPC strip); each carries its own focused module
-  test (`appError.test.ts`, `subscriptionGroup.test.ts`).
+  test (`appError.test.ts`, `subscriptionGroup.test.ts`, `coverSrc.test.ts`).
 
 ## Private Cluster
 - Files: `client.ts`, `commands.ts`, `normalizers.ts`, `AGENTS.md`.
-- `normalizers.ts` keeps explicit nulls the engine sends (for example an audio
-  request's MP3 pass-through settings) and drops only absent optionals.
+- `normalizers.ts` turns `null` into an absent field for the snapshot families
+  it names (for example title files, remote account and acquisition, settings)
+  and passes every other field through unchanged, so meaningful nulls such as
+  an audio request's MP3 pass-through settings survive.
 - Generated bindings live at `src/lib/generated/tauri.ts`; do not hand-edit them.
 
 ## Edit Rules

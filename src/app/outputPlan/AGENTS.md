@@ -18,8 +18,9 @@
 
 ## What Stays Here
 
-- Wording: the preview text for each engine preview kind, the naming hint,
-  and the size estimate text.
+- Wording: the preview text for each engine preview kind and the size
+  estimate text. The folder layout is shown only as the engine's example
+  path; no text here restates it.
 - The naming template shows what was typed until the engine confirms it.
 - `collision` words `output.collisionReview`, not the last submission status.
   `chooseCollisionPolicy(reviewId, policy)` and `cancelCollisionReview(reviewId)`

@@ -4,7 +4,8 @@ use std::io::Cursor;
 use std::path::Path;
 
 const COVER_ART_MAX_DIMENSION: u32 = 800;
-const THUMBNAIL_MAX_DIMENSION: u32 = 64;
+/// Twice the 64 px a thumbnail is shown at, so it stays sharp on Retina.
+const THUMBNAIL_MAX_DIMENSION: u32 = 128;
 const COVER_ART_JPEG_QUALITY: u8 = 85;
 const COVER_ART_MAX_INPUT_DIMENSION: u32 = 4096;
 const THUMBNAIL_MAX_INPUT_DIMENSION: u32 = 4096;
@@ -73,16 +74,19 @@ fn cover_art_meets_write_target(bytes: &[u8]) -> bool {
 fn render_cover_thumbnail(cover_art: Option<Vec<u8>>) -> Result<Option<Vec<u8>>> {
     cover_art
         .as_deref()
-        .map(|bytes| {
-            ensure_thumbnail_encoded_size(bytes.len())?;
-            encode_jpeg_with_limits(
-                bytes,
-                THUMBNAIL_MAX_DIMENSION,
-                THUMBNAIL_MAX_INPUT_DIMENSION,
-                Some(THUMBNAIL_MAX_DECODER_ALLOC_BYTES),
-            )
-        })
+        .map(render_display_thumbnail)
         .transpose()
+}
+
+/// A cover image as a small display thumbnail.
+pub(crate) fn render_display_thumbnail(bytes: &[u8]) -> Result<Vec<u8>> {
+    ensure_thumbnail_encoded_size(bytes.len())?;
+    encode_jpeg_with_limits(
+        bytes,
+        THUMBNAIL_MAX_DIMENSION,
+        THUMBNAIL_MAX_INPUT_DIMENSION,
+        Some(THUMBNAIL_MAX_DECODER_ALLOC_BYTES),
+    )
 }
 
 fn ensure_thumbnail_encoded_size(byte_len: usize) -> Result<()> {
@@ -183,7 +187,7 @@ mod tests {
 
     #[test]
     fn renders_embedded_cover_as_a_bounded_opaque_jpeg() {
-        let image = DynamicImage::ImageRgba8(ImageBuffer::from_pixel(128, 64, Rgba([0, 0, 0, 0])));
+        let image = DynamicImage::ImageRgba8(ImageBuffer::from_pixel(256, 128, Rgba([0, 0, 0, 0])));
         let mut source = Cursor::new(Vec::new());
         image
             .write_to(&mut source, ImageFormat::Png)
@@ -192,7 +196,7 @@ mod tests {
             .expect("thumbnail should render")
             .expect("embedded cover should produce a thumbnail");
         let decoded = image::load_from_memory(&thumbnail).expect("thumbnail should decode");
-        assert_eq!(decoded.dimensions(), (64, 32));
+        assert_eq!(decoded.dimensions(), (128, 64));
         assert_eq!(
             image::guess_format(&thumbnail).expect("thumbnail format"),
             ImageFormat::Jpeg
@@ -230,7 +234,7 @@ mod tests {
             image::load_from_memory(&thumbnail)
                 .expect("thumbnail should decode")
                 .dimensions(),
-            (64, 64)
+            (128, 128)
         );
     }
 

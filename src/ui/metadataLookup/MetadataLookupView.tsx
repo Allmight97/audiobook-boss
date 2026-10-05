@@ -1,8 +1,9 @@
-import { createEffect, createSignal, For } from 'solid-js';
+import { createSignal, For } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { useAppRuntime } from '../../app/runtime';
-import { Button, CoverThumb, Dialog } from '../foundation';
+import { Button, CoverImage, CoverThumb, Dialog } from '../foundation';
+import { coverSrc } from '../../lib/tauri/coverSrc';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import './metadataLookup.css';
 
@@ -48,32 +49,18 @@ function LookupCoverThumb(props: {
 	readonly coverUrl: string | null | undefined;
 	readonly title: string;
 }): JSX.Element {
-	const coverPreview = useAppRuntime().lookup.coverPreview;
-	const previewState = () => coverPreview(props.coverUrl);
-	const readyUrl = () => {
-		const state = previewState();
-		return state.status === 'ready' ? state.dataUrl : '';
-	};
-
 	return (
 		<CoverThumb>
-			{props.coverUrl ? (
-				previewState().status === 'ready' ? (
-					<img
-						src={readyUrl()}
-						alt={`${props.title} cover art`}
-						data-testid="metadata-lookup-cover-image"
-					/>
-				) : previewState().status === 'loading' || previewState().status === 'queued' ? (
-					<span data-testid="metadata-lookup-cover-loading">Loading…</span>
-				) : previewState().status === 'error' ? (
-					<span data-testid="metadata-lookup-cover-error">Preview failed</span>
-				) : (
-					<span data-testid="metadata-lookup-cover-available">Art Available</span>
-				)
-			) : (
-				<span>No Art</span>
-			)}
+			<CoverImage
+				src={
+					props.coverUrl ? coverSrc({ kind: 'remote', url: props.coverUrl, size: 'small' }) : null
+				}
+				alt={`${props.title} cover art`}
+				testId="metadata-lookup-cover-image"
+				eager
+				missing={<span>No Art</span>}
+				failed={<span data-testid="metadata-lookup-cover-error">Preview failed</span>}
+			/>
 		</CoverThumb>
 	);
 }
@@ -88,25 +75,6 @@ export function MetadataLookupView(): JSX.Element {
 	const setApplyMode = lookup.setApplyMode;
 	const setReplaceCover = lookup.setReplaceCover;
 	const [restoreFocus, setRestoreFocus] = createSignal(true);
-
-	createEffect(
-		() => {
-			const state = view();
-			return {
-				isOpen: state.isOpen,
-				hasSearched: state.hasSearched,
-				coverUrls: state.results.map((result) => result.coverUrl),
-			};
-		},
-		(state) => {
-			if (!state.isOpen || !state.hasSearched) {
-				lookup.cancelCoverPreviews();
-				return;
-			}
-			lookup.scheduleCoverPreviews(state.coverUrls);
-			return () => lookup.cancelCoverPreviews();
-		},
-	);
 
 	function handleQueryKeyDown(event: KeyboardEvent): void {
 		if (event.key !== 'Enter') return;

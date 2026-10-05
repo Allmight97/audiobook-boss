@@ -33,7 +33,7 @@ pub(crate) use context::{OutputConfig, ProcessingContext};
 pub use job_registry::MaxConcurrentJobsCapabilities;
 pub(crate) use lifecycle::operation_kind_log_label;
 pub use lifecycle::{OperationKind, OperationResultSummary};
-pub(crate) use preview_config::PreviewConfig;
+pub(crate) use preview_config::{is_valid_preview_length, PreviewConfig};
 pub use progress::{EventStage, ProgressEvent};
 pub(crate) use session::ProcessingSession;
 pub(crate) use title_output::TitleOutput;

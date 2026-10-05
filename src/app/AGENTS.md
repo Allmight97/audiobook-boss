@@ -12,7 +12,7 @@ not keep parallel business state.
   and Work Center progress render Rust-owned facts. Adapters word typed statuses
   and send intents or the owned read/cancel API; product rules go in the engine.
 - Keep frontend lifetime and presentation resources here: dialog disclosure,
-  transient typing echo, visible filter/sort, thumbnails, and authorization browser
+  transient typing echo, visible filter/sort, and authorization browser
   opening. They never determine accepted file work or terminal truth.
 
 ## Engine Link
