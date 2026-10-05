@@ -89,7 +89,7 @@ describe('frontend toolchain layout', () => {
 		);
 		expect(ciYml).toContain(`bun-version: ${bunVersion}`);
 		expect(setupScript).toContain(`required_bun_version="${bunVersion}"`);
-		expect(setupScript).toContain(`BUN_VERSION="\${required_bun_version}"`);
+		expect(setupScript).toContain(`/releases/download/bun-v\${required_bun_version}`);
 		expect(setupScript).toContain('error: need Bun');
 	});
 
