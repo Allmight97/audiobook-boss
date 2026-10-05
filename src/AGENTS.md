@@ -20,6 +20,8 @@
 
 ## UI And State
 
+- Solid views read props through `props.x`; destructured props stop updating
+  (Biome `noSolidDestructuredProps`).
 - Solid views render owner state and dispatch semantic intent. Capability
   accept/reject facts come from their Rust owner, including encoder and
   concurrency settings.

@@ -59,7 +59,8 @@ not keep parallel business state.
 ## Workflow And Failure Shape
 
 - Owner workflows are plain async. Public owner entrypoints return Promise or
-  synchronous domain outcomes.
+  synchronous domain outcomes. Callers await or handle every Promise; mark an
+  intentional fire-and-forget call with `void` (Biome `noFloatingPromises`).
 - Runtime calls route through `tauriClient`. Normalize user-facing errors and
   cancellation through `src/lib/tauri/appError.ts`; preserve typed provider
   diagnostics and backend terminal verdicts.

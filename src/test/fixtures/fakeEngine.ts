@@ -632,6 +632,9 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			case 'lookupSetReplaceCover':
 				state.lookup.replaceCover = intent.replace;
 				break;
+			default:
+				// Intents no test drives are accepted without stand-in behavior.
+				break;
 		}
 		return { kind: 'applied' };
 	}

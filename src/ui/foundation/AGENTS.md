@@ -36,4 +36,4 @@ only styling language.
 ## Proof
 
 - `bun run test -- src/ui/foundation`
-- `bun run test -- scripts/frontend-toolchain-layout.test.ts`
+- `bun run lint:check` (Biome rejects Tailwind and `foundation/internal` imports)

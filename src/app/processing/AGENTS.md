@@ -54,8 +54,8 @@
 - `remote-source-boundary.test.ts` pins the visual Remote UI strip and proves
   production Processing does not import UI or private Remote implementation
   files.
-- `runtime-api-contract.test.ts` pins this owner's public export strip.
-- Status UI strip is pinned by `src/ui/statusPanel/__tests__/runtime-api-contract.test.ts`.
+- `src/__tests__/public-api-strips.contract.test.ts` pins this owner's public export strip.
+- The same test pins the Status UI strip.
 
 ## Boundary Changes
 

@@ -12,10 +12,8 @@
   `src-tauri/src/ipc_contract.rs`, `src/lib/tauri/client.ts`, and generated
   bindings; do not rely on a prose command/event inventory.
 - Cargo commands run from the repository root. Verification commands and scope
-  live in `scripts/AGENTS.md`; frontend owner rules live in `src/app/AGENTS.md`.
-- For lifecycle reviews or changes to resource transfer, reopen, replacement,
-  or cleanup semantics, use `.agents/skills/resource-lifetime-audit`. Routine
-  file I/O follows the local owner's invariants.
+  live in `scripts/AGENTS.md`; test placement lives in `crates/AGENTS.md` and
+  each surface `AGENTS.md`; frontend owner rules live in `src/app/AGENTS.md`.
 - "Public API Strip" means an owned module's allowed import/export surface;
   callers use it instead of private implementation files.
 - Root owns repo-wide posture, proof, and cross-cutting invariants; local
@@ -23,10 +21,9 @@
   procedures. Keep each meaning in one of those owners.
 - `README.md` is for people: what ABB is, how to install and run it, and a
   command index. Do not put agent operating guidance there.
-- When an implementation or contract decision needs external-library evidence, use
-  `.agents/skills/abb-library-research`. Do not commit upstream source
-  snapshots as research material. Build provenance explicitly owned by ABB,
-  such as the patched FFmpeg sys crate under `vendor/`, is a separate concern.
+- Do not commit upstream source snapshots as research material. Build
+  provenance explicitly owned by ABB, such as the patched FFmpeg sys crate
+  under `vendor/`, is a separate concern.
 
 ## Golden Path
 
@@ -67,7 +64,7 @@ neither earns no preference over the simpler design.
 
 - Name the owned invariant and its owner before refactoring; move truth to the owning layer before extracting helpers or reshaping files. A rule several callers must each remember belongs in that owner.
 - When merging code paths into one, name what each old path relied on (reads it skipped, state it left alone, ordering); the merged path keeps each reliance or the change says which one it drops.
-- New or reshaped functions target one nameable responsibility at roughly CCN ≤10 / cognitive ≤15; exceeding that takes a named reason (dispatch `match`, sequential `?` lifecycle). Existing hotspots are adjudicated at their next change point, not campaigned: weigh consequence, proof, structure, and change pressure, then record one disposition (Proof-first, Reduce, Preserve, or Observe) with its evidence and next trigger. Agents do not loosen the new-code target.
+- New or reshaped functions target one nameable responsibility at roughly CCN ≤10 / cognitive ≤15; exceeding that takes a named reason (dispatch `match`, sequential `?` lifecycle). Existing hotspots are adjudicated at their next change point, not campaigned: weigh consequence, proof, structure, and change pressure, then record one disposition (Proof-first, Reduce, Preserve, or Observe) with its evidence and next trigger. Biome enforces cognitive ≤15; `biome.json` exempts today's hotspots per file until each is reshaped, and adding a file there loosens the target. Agents do not loosen the new-code target.
 - Before creating a new module, skill, CI step, abstraction, or canon rule, name the invariant it owns and the recurring upkeep cost it adds; if an existing owner can carry it, extend that instead.
 - Public API Strip tests must stay independent of implementation registries. Do not derive expected public surfaces from the command, event, or generated source they are meant to guard.
 - Treat pre-existing dead code, stale patterns, and suspicious seams as findings: report with evidence, and fix semantic findings in the same change only when inside the active owner boundary and affecting the invariant or proof. Trivial mechanical debt (formatting, import ordering, EOF newlines, lint whitespace) is exempt: fix and name it in the report rather than contorting new code to coexist with the drift. For findings left unfixed, classify `fix`, `defer`, or `reject` with impact and owner.
@@ -76,35 +73,52 @@ neither earns no preference over the simpler design.
 ## Testing And Proof Infrastructure
 
 - Verification cost and signal are first-order product concerns. Treat slow, opaque, false-green, or target-bloated proof routes as `fix` candidates when measured evidence shows they waste agent or human attention.
+- Guards, checks, and tests earn their place by protecting an end-to-end behavior or a Golden Path step, or as test infrastructure that keeps paying off. Code that guards a state production cannot reach does not.
 - A retained test should name a plausible regression at its owning stable boundary. Tests that only restate source or test-authored structure, detect refactors without protecting observable behavior, or duplicate another tier's contract without distinct integration risk do not earn keep.
-- For an explicit repository-wide or change-scoped test-value audit, pruning pass, or test-only seam cleanup, use `.agents/skills/audit-test-value`.
-- Add tests only when they reduce false confidence or protect a concrete user-visible handoff, runtime contract, cleanup path, or regression. Prefer deterministic focused checks over coverage-count expansion.
+- Add tests only when they reduce false confidence or protect a concrete user-visible handoff, runtime contract, cleanup path, or regression.
 - For a bug fix or a new assertion on existing behavior, prefer a failing-first test that pins it before the fix; it is a tool, not a ceremony — skip it for trivial or greenfield-adjacent work.
 - Test tier: pick the lowest tier that proves the behavior deterministically, owned by the surface that owns the logic; push a test down a tier whenever the same guarantee proves more cheaply there.
   1. Pure domain logic → its owning `abb-*-core` crate.
   2. Session, settings, job/progress lifecycle, file and network workflows, error envelope → `abb-engine`.
   3. Intent ordering and TS↔Rust contract shape/parity → the host crate (`audiobook-boss`) and the contract/binding tests.
   4. DOM, Solid view, or UI-state behavior → Vitest + jsdom under `src/`.
-- Commands, verification scope, and local test placement live in `crates/AGENTS.md`, `scripts/AGENTS.md`, and each surface `AGENTS.md` — do not restate them here.
-- Let deterministic lint/typecheck own style and stale-cleanup (unused symbols, formatting, `any`): run the tools for the touched surface and fix what they report. Command menu: `scripts/AGENTS.md`.
+- Let deterministic lint/typecheck own style and stale-cleanup (unused symbols, formatting, `any`): run the tools for the touched surface and fix what they report.
 - UI behavior also needs visual/human review where static tests cannot prove UX.
 - Owned import/export surface changes update the nearest `AGENTS.md` and its contract test.
 - Treat local boundary-change lists as prompts to update the owning interface
   and proof within the authorized scope. Carry requested fixes through those
   checks; an interface change alone does not require renewed permission.
-- Release/version/changelog/tag/DMG work uses the `release` skill.
 
 ## Planning And Capture
 
-- **Default durable capture:** GitHub issues per `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`.
-- Ephemeral planning: chat and OS-temp handoffs — not repo files.
-- `docs/specs/<task>.md` only when the user explicitly wants a repo-local active spec instead of an issue; it is temporary work state — delete or distill enduring rules into canon when done.
-- Issue bodies are resume-ready plans, not planning transcripts.
-- Open issues are mutable candidate work records, not owners of current
-  behavior. Verify their state and next action against `main`, the owning
-  interface, and current tests; status, labels, and body are evidence, not
-  authority. Closed issues, merged branches, and chat are history until live
-  evidence makes them relevant again.
+- Record work that outlasts the session in a GitHub issue
+  (`docs/agents/issue-tracker.md`). Put what another session needs in the PR
+  body or an issue: other sessions cannot read this chat.
+- Do not add planning files to the repo. Use `docs/specs/<task>.md` only when
+  the owner asks for one, and delete it when the work lands.
+- An open issue is a candidate plan, not current behavior. Verify its claims
+  against `main`, the owning code, and tests before acting on it.
+
+## Pull Requests And CI
+
+- Agents on the owner's machine prove changes there (`scripts/AGENTS.md`,
+  "What to run for a change"). CI is the last check before merge and the
+  main proof for cloud Linux agents.
+- Interactive work starts as a draft PR; drafts get no CI. Mark it ready
+  when the work is done. Unattended agent work opens the PR ready.
+- CI runs once when a PR opens ready or is marked ready, once when
+  auto-merge is enabled (the merge attempt), on `gh workflow run ci.yml
+  --ref <branch>`, and twice a week on `main`. Pushes start nothing; batch
+  follow-up fixes, then merge with `gh pr merge <n> --auto --merge`.
+- `main` requires the `gate` check on the PR's head commit and accepts merge
+  commits only. A push after the last run blocks the merge until CI runs
+  again. Why: each run costs wall-clock time, and only the head that merges
+  needs proof.
+- Work proven on the owner's machine may merge without waiting for CI:
+  `gh pr merge <n> --admin --merge` (repository admins bypass `gate` for PR
+  merges only). Name the local proof in the PR body.
+- A substantial, related follow-up may branch from the PR's branch as a child
+  PR based on it; GitHub retargets it to `main` when the parent merges.
 
 ## Rationale
 
@@ -112,6 +126,10 @@ neither earns no preference over the simpler design.
   justifies: in the owning `AGENTS.md`, or as a comment at the code that
   enforces it. There is no separate decision ledger; PR bodies and git
   history own chronology and superseded choices.
+
+## Review Guidelines
+
+- Review pull requests by following `REVIEW.md`.
 
 ## Done
 

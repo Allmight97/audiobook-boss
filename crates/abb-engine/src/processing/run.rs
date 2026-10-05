@@ -704,8 +704,9 @@ mod tests {
     }
 
     /// Captures lifecycle records emitted through `log` so tests can assert
-    /// terminal truth. Installable once per process; safe under Nextest's
-    /// process-per-test execution.
+    /// terminal truth. The only logger the engine's tests install; assertions
+    /// filter on this test's operation id, so tests sharing the process do not
+    /// interfere.
     struct CapturingLogger {
         records: std::sync::Mutex<Vec<String>>,
     }

@@ -25,5 +25,5 @@
 - `owner.test.ts`: what the dialog shows and which intents it sends, against
   the fake engine. Write ordering, retry, and reset rules are proved in the
   engine's `runtime_tests.rs`.
-- `runtime-api-contract.test.ts` independently pins the owner export strip.
+- `src/__tests__/public-api-strips.contract.test.ts` independently pins the owner export strip.
 - Visible failure/retry and dialog interactions live in `src/ui/appSettings`.

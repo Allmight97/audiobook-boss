@@ -1545,24 +1545,13 @@ async fn a_failed_removal_waits_out_the_retry_delay_before_the_next_change_retri
 }
 
 #[tokio::test]
-async fn a_download_goes_once_its_title_is_exported_and_nothing_imported_is_refused() {
+async fn a_download_goes_once_its_title_is_exported() {
     let rig = rig();
     let staging = tempfile::TempDir::new().expect("staging");
     let output = tempfile::TempDir::new().expect("output");
     let audio = staged_wav(staging.path(), "book");
     rig.session.import_acquired(acquired("job-1", &audio)).await;
-
-    // The same files again add nothing, so that job's download is refused.
-    let again = rig.session.import_acquired(acquired("job-2", &audio)).await;
-    assert_eq!(
-        again,
-        crate::remote_source::AcquisitionHandoff::Removed {
-            reason: crate::remote_source::HandoffRefusal::NothingAdded
-        }
-    );
-    // The session removes the refused job's download itself.
-    assert_eq!(rig.removed_jobs().await, ["job-2"]);
-    rig.removed.lock().expect("removed").clear();
+    assert!(rig.removed.lock().expect("removed").is_empty());
 
     rig.send(SessionIntent::SetOutputDirectory {
         directory: output.path().to_string_lossy().into_owned(),
@@ -1651,6 +1640,8 @@ async fn reset_supersedes_an_acquired_handoff_waiting_for_an_earlier_import() {
             reason: HandoffRefusal::NothingAdded
         }
     );
+    // The session removes the refused job's download itself.
+    assert_eq!(rig.removed_jobs().await, ["job-before-reset"]);
     assert!(rig
         .session
         .snapshot()

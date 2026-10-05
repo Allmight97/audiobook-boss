@@ -20,9 +20,52 @@
 		"enabled": true,
 		"rules": {
 			"preset": "recommended",
+			"complexity": {
+				"noExcessiveCognitiveComplexity": {
+					"level": "error",
+					"options": {
+						"maxAllowedComplexity": 15
+					}
+				}
+			},
+			"correctness": {
+				"noSolidDestructuredProps": "error"
+			},
+			"performance": {
+				"noReExportAll": "error"
+			},
 			"suspicious": {
 				"noExplicitAny": "error",
-				"useIterableCallbackReturn": "warn"
+				"noImportCycles": "error"
+			},
+			"nursery": {
+				"noFloatingPromises": "error",
+				"noMisusedPromises": "error",
+				"useExhaustiveSwitchCases": "error"
+			},
+			"style": {
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"paths": {
+							"typescript": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+						},
+						"patterns": [
+							{
+								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
+								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+							},
+							{
+								"group": ["**/foundation/internal", "**/foundation/internal/**"],
+								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+							},
+							{
+								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
+								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+							}
+						]
+					}
+				}
 			}
 		}
 	},
@@ -40,11 +83,6 @@
 	"json": {
 		"formatter": {
 			"trailingCommas": "none"
-		}
-	},
-	"css": {
-		"parser": {
-			"tailwindDirectives": true
 		}
 	},
 	"overrides": [
@@ -72,10 +110,32 @@
 				"rules": {
 					"style": {
 						"noNonNullAssertion": "off"
-					},
-					"suspicious": {
-						"useIterableCallbackReturn": "off",
-						"noNonNullAssertedOptionalChain": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"scripts/build-app.ts",
+				"scripts/bump-version.ts",
+				"scripts/check-tauri-runtime-boundary.ts",
+				"scripts/dev-log-analysis.ts",
+				"scripts/resolve-release-dmg.ts",
+				"src/app/encoding/project.ts",
+				"src/app/engineLink/link.ts",
+				"src/app/remoteSource/indexerConnection.ts",
+				"src/app/remoteSource/state.ts",
+				"src/test/fixtures/fakeEngine.ts",
+				"src/ui/encoderPanel/EncoderView.tsx",
+				"src/ui/fileList/AudioHandlingControl.tsx",
+				"src/ui/fileList/FileListView.tsx",
+				"src/ui/fileList/pointerReorder.ts",
+				"src/ui/metadataForm/MetadataFormView.tsx"
+			],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"noExcessiveCognitiveComplexity": "off"
 					}
 				}
 			}

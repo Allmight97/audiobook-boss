@@ -10,7 +10,7 @@
 ## Public API Strip
 
 - Import from `src/ui/outputPanel`. The runtime export surface is `index.ts`,
-  pinned by `__tests__/runtime-api-contract.test.ts`.
+  pinned by `src/__tests__/public-api-strips.contract.test.ts`.
 - Exports: `OutputView`.
 
 ## Private Cluster

@@ -1198,16 +1198,14 @@ impl Session {
         let handoff = self.import_acquired_files(&job).await;
         if matches!(handoff, AcquisitionHandoff::Removed { .. }) {
             // Nothing from it is listed; the staged record owns removing the
-            // download, and retries if removal fails.
+            // download, and retries if removal fails. Canonical, as listed
+            // titles' paths are.
             let paths = job
                 .materialized_files
                 .iter()
-                .map(|file| file.path.clone())
-                .chain(
-                    job.supplemental_assets
-                        .iter()
-                        .map(|asset| asset.path.clone()),
-                )
+                .map(|file| &file.path)
+                .chain(job.supplemental_assets.iter().map(|asset| &asset.path))
+                .map(|path| std::fs::canonicalize(path).unwrap_or_else(|_| path.clone()))
                 .collect();
             self.transition(|state| state.staged.register_unimported(&job.job_id, paths));
         }

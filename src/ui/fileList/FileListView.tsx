@@ -2,8 +2,8 @@ import {
 	displayedTitleForFile,
 	formatFileDetails,
 	formatAudioProperties,
+	interpretFileListKeyDown,
 } from '../../app/inputSession';
-import { interpretFileListKeyDown } from '../../app/inputSession/keyboardNavigation';
 import { pathBasename } from '../../lib/path/basename';
 import { useAppRuntime } from '../../app/runtime';
 import { coverSrc } from '../../lib/tauri/coverSrc';

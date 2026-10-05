@@ -79,9 +79,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   demux fallback.
 
 ## Edit Rules
-- Change pure intent internals when `cargo nextest run -p abb-metadata-core` stays green.
+- Change pure intent internals when `cargo test --locked -p abb-metadata-core` stays green.
 - Change runtime/container adapters when targeted
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg` runs and Public
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg` runs and Public
   API Strip checks stay green.
 - When metadata policy crosses planning and writing, prove the changed handoff
   through the production processing planner and read tags from actual output

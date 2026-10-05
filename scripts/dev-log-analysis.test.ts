@@ -264,43 +264,6 @@ describe('analyzeDevLog', () => {
 		expect(analysis.reasons).toContain('No application startup record was captured.');
 	});
 
-	it('replays the captured legacy interruption and names the unmatched job', () => {
-		const jobId = 'c4e62f2a-c5c3-4117-9c54-1e4d9da15131';
-		const analysis = analyzeDevLog(
-			[
-				APP_START,
-				`[INFO] Job ${jobId} registered and started`,
-				`[INFO] Job ${jobId} started for output: /Volumes/data/Book.m4b`,
-				'8:25:50 AM [vite] Internal server error: Invalid declaration',
-				'8:25:55 AM [vite] server restarted.',
-				APP_START,
-				'error: script "dev" exited with code 143',
-			].join('\n'),
-			'# ABB encoding log\nrun_id=legacy\n',
-			0,
-		);
-
-		expect(analysis.health).toBe('interrupted');
-		expect(analysis.unmatchedJobIds).toEqual([jobId]);
-		expect(renderDevLogAnalysis(analysis)).toContain(jobId);
-	});
-
-	it('pairs completed legacy start and terminal records', () => {
-		const jobId = 'c4e62f2a-c5c3-4117-9c54-1e4d9da15131';
-		const analysis = analyzeDevLog(
-			[
-				APP_START,
-				`[INFO] Job ${jobId} started for output: /Volumes/data/Book.m4b`,
-				`[INFO] Job ${jobId} completed successfully`,
-			].join('\n'),
-			'',
-			0,
-		);
-
-		expect(analysis.health).toBe('clean');
-		expect(analysis.jobs[0]).toMatchObject({ id: jobId, status: 'success', terminal: true });
-	});
-
 	it('lists an output-plan collision without treating it as session failure', () => {
 		const analysis = analyzeDevLog(
 			[

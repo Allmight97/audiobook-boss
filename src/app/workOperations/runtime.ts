@@ -118,7 +118,7 @@ export function createWorkOperationsSession(
 	return {
 		view: snapshot,
 		initialize() {
-			if (initializationPromise) return initializationPromise;
+			if (initializationPromise !== null) return initializationPromise;
 			if (!isTauriRuntimeAvailable()) {
 				state.initialized = true;
 				state.errorMessage = null;

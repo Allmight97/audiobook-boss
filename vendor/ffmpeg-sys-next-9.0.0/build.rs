@@ -239,6 +239,10 @@ fn native_build_identity(sysroot: Option<&str>) -> io::Result<String> {
             .find(|path| path.is_file())
             .ok_or_else(|| io::Error::other("Opus static library is required; install the libopus development package"))?;
         println!("cargo:rerun-if-changed={}", archive.display());
+        // pkg-config omits system library dirs (Linux /usr/lib/<triple>), so name the archive's dir.
+        if let Some(dir) = archive.parent() {
+            println!("cargo:rustc-link-search=native={}", dir.display());
+        }
         writeln!(identity, "opus-version={}\nopus-archive={}\nopus-hash={}", opus.version, archive.display(), git_blob_hash(&archive)?).unwrap();
     }
     let compiler = cc::Build::new().get_compiler();

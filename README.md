@@ -18,7 +18,7 @@ Convert, tag, and organize your audiobook library with metadata that works every
 ## Quick start
 
 ```bash
-# JS/TS dependencies (Bun 1.4.0; see package.json packageManager)
+# JS/TS dependencies
 bun install
 
 # First run publishes the AAXClean sidecar (.NET 8 SDK required)
@@ -26,7 +26,7 @@ bun install
 bun run app:dev:log
 ```
 
-Requires: macOS (Apple Silicon), Bun 1.4.0, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
+Requires: macOS (Apple Silicon), Bun 1.4 or newer, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
 
 **AAC runtime contract**: output encoder and input decoder are separate. Auto
 selects Native NMR; Apple AAC and bundled FAAC are explicit choices.
@@ -64,7 +64,8 @@ closure, and low-battery sleep remain controlled by macOS.
 
 ## Toolchain
 
-- Package manager: **Bun 1.4.0**, pinned by `package.json` `packageManager`.
+- Package manager: **Bun**, a `devDependency` updated with the other packages;
+  `bash scripts/locked-bun-version.sh` prints the version CI uses.
 - Verify Bun or frontend changes with the commands below; use `.agents/skills/release`
   for packaging and GitHub Release work.
 
@@ -98,15 +99,15 @@ Index of common commands; `package.json` holds the shortcuts.
   `bun run test -- <test files>`, plus `bun run fmt:check` / `bun run lint:check`
   when formatting or lint is in scope.
 - Focused Rust loops:
-  `cargo nextest run -p abb-audible-core`,
-  `cargo nextest run -p abb-media-core`,
-  `cargo nextest run -p abb-metadata-core`,
-  `cargo nextest run -p abb-output-artifact-core`,
-  `cargo nextest run -p abb-processing-core`,
-  `cargo nextest run -p abb-remote-source-core`,
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`,
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`, or
-  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg` (Tauri host).
+  `cargo test --locked -p abb-audible-core`,
+  `cargo test --locked -p abb-media-core`,
+  `cargo test --locked -p abb-metadata-core`,
+  `cargo test --locked -p abb-output-artifact-core`,
+  `cargo test --locked -p abb-processing-core`,
+  `cargo test --locked -p abb-remote-source-core`,
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib`,
+  `cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests`, or
+  `cargo test --locked -p audiobook-boss --features bundled-ffmpeg` (Tauri host).
 - Engine without a window: `cargo run -p abb-engine --features bundled-ffmpeg
   --bin abb-dev -- <file-or-folder>... [--set field=value] [--save]
   [--out folder --export] [--json]` imports files into an engine session and

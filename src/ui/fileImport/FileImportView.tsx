@@ -1,7 +1,7 @@
 import { onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
-import { nativeDropTargetAtPoint } from '../../app/inputSession/nativeIngress';
+import { nativeDropTargetAtPoint } from '../../app/inputSession';
 import { useAppRuntime } from '../../app/runtime';
 import type { AcquisitionLane } from '../../types/appSettings';
 import { isFileDropEvent } from '../../types/events';
@@ -24,7 +24,7 @@ export function FileImportView(): JSX.Element {
 	let fileManagementContainer: HTMLElement | null = null;
 
 	function openAcquire(lane: AcquisitionLane): void {
-		remoteSource.open({ lane });
+		void remoteSource.open({ lane });
 	}
 
 	onSettled(() => {
@@ -55,7 +55,7 @@ export function FileImportView(): JSX.Element {
 					return;
 				}
 				if (filesHit) {
-					importIntent({ type: 'importPaths', paths: [...payload.paths] });
+					void importIntent({ type: 'importPaths', paths: [...payload.paths] });
 				}
 			}),
 		);

@@ -110,7 +110,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 				<RemoteSourceAcquireView />
 			</AppRuntimeProvider>
 		));
-		runtime.remoteSource.open();
+		void runtime.remoteSource.open();
 		await Promise.resolve();
 
 		await fireEvent.keyDown(document.getElementById('remote-source-close') as Element, {

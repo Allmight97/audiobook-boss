@@ -24,7 +24,7 @@ required-features = ["binding-export"]
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "audiobook_boss_lib"
 # Tauri packaging needs these crate types. Use one package/target-selected
-# Nextest command at a time for Rust review instead of changing packaging
+# `cargo test` command at a time for Rust review instead of changing packaging
 # artifacts to influence test discovery.
 crate-type = ["staticlib", "cdylib", "rlib"]
 # ABB treats backend contract coverage as unit/integration tests plus IPC and

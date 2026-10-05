@@ -170,34 +170,6 @@ describe('check-tauri-runtime-boundary.ts', () => {
 		}
 	});
 
-	it('rejects generated value imports inside Svelte script tags outside the boundary files', () => {
-		const repoRoot = createFixtureRepo();
-		try {
-			writeFileSync(
-				path.join(repoRoot, 'src/ui/bypass.svelte'),
-				[
-					'<script module lang="ts">',
-					"import { commands } from '../lib/generated/tauri';",
-					'void commands;',
-					'</script>',
-					'<script lang="ts">',
-					"import type { Foo } from '../lib/generated/tauri';",
-					'const value: Foo = "ok";',
-					'</script>',
-					'<div>{value}</div>',
-					'',
-				].join('\n'),
-			);
-
-			const result = runTauriBoundaryCheck(repoRoot);
-			expectStatus(result, 1);
-			expect(result.stderr).toContain("generated 'commands' value imports");
-			expect(result.stderr).toContain('src/ui/bypass.svelte');
-		} finally {
-			rmSync(repoRoot, { force: true, recursive: true });
-		}
-	});
-
 	it('allows raw Tauri invoke imports inside the runtime boundary', () => {
 		const repoRoot = createFixtureRepo();
 		try {

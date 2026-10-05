@@ -26,4 +26,4 @@
   starts from defaults), so the dialog has no load error; the confirmed full
   reset stays reachable.
 - `AppSettingsDialogView.test.tsx` owns dialog interactions and visible automatic
-  save failure/retry. `runtime-api-contract.test.ts` pins this UI export strip.
+  save failure/retry. `src/__tests__/public-api-strips.contract.test.ts` pins this UI export strip.
