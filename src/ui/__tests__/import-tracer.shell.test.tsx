@@ -3,8 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupportedAudioImportMetadata } from '../../types/audio';
 import { audioFile, createFakeEngine } from '../../test/fixtures/fakeEngine';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
-import { createAppRuntime, type AppRuntime } from '../../app/runtime';
+import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import { App } from '../App';
 

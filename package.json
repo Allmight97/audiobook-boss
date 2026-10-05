@@ -11,7 +11,7 @@
 		"fmt": "bunx @biomejs/biome format --write --no-errors-on-unmatched .",
 		"fmt:check": "bunx @biomejs/biome format --no-errors-on-unmatched .",
 		"fmt:changed": "bunx @biomejs/biome format --write --changed --no-errors-on-unmatched",
-		"lint:check": "bunx @biomejs/biome lint --no-errors-on-unmatched .",
+		"lint:check": "bunx @biomejs/biome lint --error-on-warnings --no-errors-on-unmatched .",
 		"audit:rust": "cargo audit -D warnings",
 		"audit:js": "bun audit",
 		"audit": "bun run --sequential --no-exit-on-error audit:rust audit:js",

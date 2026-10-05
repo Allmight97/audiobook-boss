@@ -165,12 +165,11 @@ commands over invoking internals directly.
 - TypeScript 7 has no compiler API, so ABB `src/` and `scripts/` do not import
   `typescript`. The runtime-boundary text scanner stays a text scan;
   do not grow it toward AST completeness; replace it with a parser only when
-  TypeScript 7's programmatic API exists and an owner needs one. Proof:
-  `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
-  The no-import tripwire matches `from 'typescript'`, so ordinary multiline
-  named imports count. The tripwire also rejects Tailwind and
-  foundation-internal imports. The tripwire stays in `scripts/` so it does not
-  pull Node types into the frontend `tsconfig`.
+  TypeScript 7's programmatic API exists and an owner needs one.
+- Biome `noRestrictedImports` rejects `typescript`, Tailwind,
+  `foundation/internal`, and deep `src/app/<owner>/…` imports. `biome.json`
+  cannot hold comments, so each restriction's message names its owning
+  `AGENTS.md`. Lint fails on warnings, so a rule is either an error or off.
 - Bun is the `bun` devDependency: a compatible range updated by Dependabot
   under the 10-day cooldown like any other package. `bun.lock` holds the exact
   version; `scripts/locked-bun-version.sh` prints it for CI and agent setup.

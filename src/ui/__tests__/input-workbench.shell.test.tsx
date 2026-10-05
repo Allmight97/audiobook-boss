@@ -4,8 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, SupportedAudioImportMetadata } from '../../types/audio';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
-import { createAppRuntime, type AppRuntime } from '../../app/runtime';
+import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
 import { App } from '../App';
 
