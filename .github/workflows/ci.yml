@@ -5,7 +5,8 @@ name: ci
 # and drafts never run. The `gate` job is the check main requires: a push after
 # the last run leaves the new head without one, so the merge waits for a new
 # run. Within a PR run, each job proves only what the PR changed; manual and
-# scheduled runs prove everything. The scheduled run keeps the FFmpeg cache
+# scheduled runs prove everything, and also run `cargo audit` and `cargo deny`
+# (`supply-chain`). The scheduled run keeps the FFmpeg cache
 # alive, because GitHub evicts caches unused for 7 days and only runs on main
 # save caches that PRs can restore.
 
@@ -15,6 +16,8 @@ on:
   schedule:
     - cron: "0 6 * * 1,4"
   workflow_dispatch:
+
+permissions: {}
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
@@ -42,6 +45,8 @@ jobs:
       host: ${{ steps.filter.outputs.host }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
       - id: filter
         if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -57,6 +62,7 @@ jobs:
               - vite.config.ts
               - vitest.config.ts
               - biome.json
+              - knip.json
               - scripts/**/*.ts
               - scripts/locked-bun-version.sh
               - scripts/setup-linux-agent.sh
@@ -99,9 +105,13 @@ jobs:
     name: Frontend typecheck and tests
     needs: changes
     if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.all == 'true'
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
       - id: bun
         run: |
           version="$(bash scripts/locked-bun-version.sh)"
@@ -114,19 +124,25 @@ jobs:
       - run: bun run lint:check
       - run: bun run bindings:check:runtime-boundary
       - run: bun run typecheck
+      - run: bun run knip
       - run: bun run test
 
   core:
     name: Core crate tests and clippy
     needs: changes
     if: needs.changes.outputs.core == 'true' || needs.changes.outputs.all == 'true'
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
       # rust-toolchain.toml pins the compiler; rustup installs it on first use.
       - run: bash scripts/check-rust-tiers.sh
-      - run: cargo test --locked ${{ env.CORE_CRATES }}
-      - run: cargo clippy --locked ${{ env.CORE_CRATES }} --all-targets -- -D warnings
+      - run: cargo fmt --all -- --check
+      - run: cargo test --locked ${{ env.CORE_CRATES }} # zizmor: ignore[template-injection]
+      - run: cargo clippy --locked ${{ env.CORE_CRATES }} --all-targets -- -D warnings # zizmor: ignore[template-injection]
 
   engine:
     name: Engine, media lane, and host (Linux)
@@ -134,6 +150,8 @@ jobs:
     if: >-
       needs.changes.outputs.engine == 'true' || needs.changes.outputs.host == 'true'
       || needs.changes.outputs.all == 'true'
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     env:
       ABB_FFMPEG: /home/runner/.local/bin/ffmpeg
@@ -141,6 +159,8 @@ jobs:
       ALL: ${{ needs.changes.outputs.all }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
       - run: bash scripts/setup-linux-agent.sh --rust
       - id: toolchain
         run: echo "id=$( (cc --version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
@@ -173,9 +193,13 @@ jobs:
     name: Apple AAC (macOS)
     needs: changes
     if: needs.changes.outputs.media == 'true' || needs.changes.outputs.all == 'true'
+    permissions:
+      contents: read
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
       # Homebrew's ffmpeg CLI (9.x) reads the outputs back.
       - run: brew install opus pkg-config nasm ffmpeg
       - id: toolchain
@@ -186,11 +210,28 @@ jobs:
           key: ffmpeg-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
       - run: cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- apple
 
+  supply-chain:
+    name: Advisories and licenses
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
+        with:
+          tool: cargo-audit@0.22.1,cargo-deny@0.20.2
+      - run: cargo audit -D warnings
+      - run: cargo deny check licenses sources
+
   gate:
     name: gate
-    needs: [changes, frontend, core, engine, apple-aac]
+    needs: [changes, frontend, core, engine, apple-aac, supply-chain]
     if: always() && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1

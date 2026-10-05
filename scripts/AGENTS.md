@@ -13,8 +13,9 @@ expensive build at a time.
 
 - Frontend (`frontend` job): `bun run fmt:check`, `bun run lint:check`,
   `bun run bindings:check:runtime-boundary`, `bun run typecheck`,
-  `bun run test`. One owner: `bun run test -- <test files>`.
+  `bun run knip`, `bun run test`. One owner: `bun run test -- <test files>`.
 - A core crate (`core` job): `bun run check:rust-tiers`,
+  `cargo fmt --all -- --check`,
   `cargo test --locked -p abb-<owner>-core`, and
   `cargo clippy --locked -p abb-<owner>-core --all-targets -- -D warnings`.
 - Engine rules, session, settings, metadata intent (`engine` job):
@@ -34,7 +35,9 @@ expensive build at a time.
 CI does not run these; run them locally when they apply:
 
 - Workflow changes: `actionlint` (Linux setup installs it; macOS:
-  `brew install actionlint`).
+  `brew install actionlint`) and `uvx zizmor .github/workflows`.
+- Shell script changes: `shellcheck -S warning scripts/*.sh .claude/hooks/session-start.sh`
+  (macOS: `brew install shellcheck`; Linux: `apt install shellcheck`).
 - Docs and guidance: `git diff --check` plus a search for the edited terms.
 - Engine and `src-tauri` Clippy. Engine:
   `cargo clippy -p abb-engine --all-targets --features bundled-ffmpeg`. Clippy
@@ -42,6 +45,10 @@ CI does not run these; run them locally when they apply:
   only when the change includes `src-tauri` or spans owners.
 - `cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests`
   proves the separately compiled developer host.
+
+CI runs these only on scheduled and manual runs (`supply-chain` job):
+`cargo audit -D warnings` (accepted advisories: `.cargo/audit.toml`) and
+`cargo deny check licenses sources` (`deny.toml`).
 
 Traps:
 

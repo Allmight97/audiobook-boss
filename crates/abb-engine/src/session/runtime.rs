@@ -840,7 +840,10 @@ impl Session {
         self.lock().waiting_write_paths()
     }
 
-    #[allow(clippy::too_many_lines)] // one arm per intent; each arm is a call
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per intent; each arm is a call"
+    )]
     fn begin_rest(&self, intent: SessionIntent) -> Rest {
         use SessionIntent as I;
         match intent {

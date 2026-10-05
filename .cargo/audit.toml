@@ -1,6 +1,7 @@
 [advisories]
 # Explicitly accepted upstream/transitive advisories for current dependency graph.
-# Policy: per-ID allowlist only; any new advisory/warning class fails CI.
+# Policy: per-ID allowlist only; any new advisory or warning fails the scheduled
+# `supply-chain` job in .github/workflows/ci.yml (`cargo audit -D warnings`).
 ignore = [
   # GTK3 stack from tauri -> tauri-runtime-wry -> wry -> webkit2gtk/gtk (Linux path).
   # Acceptance: warnings are unmaintained/unsound only; no direct top-level alternative until tauri/wry migrate.

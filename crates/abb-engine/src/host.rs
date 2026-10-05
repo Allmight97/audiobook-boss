@@ -12,8 +12,10 @@ use crate::work_runtime::WorkOperationsUpdate;
 
 /// A fact the engine publishes without being asked. Hosts forward each to
 /// their UI; a host with no UI may ignore them.
-// Each event is built once and moved to the sink; boxing would only add an allocation.
-#[allow(clippy::large_enum_variant)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "Each event is built once and moved to the sink; boxing would only add an allocation"
+)]
 #[derive(Clone)]
 pub enum EngineEvent {
     /// An accepted operation changed; carries the display order as of then.

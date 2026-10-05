@@ -138,7 +138,10 @@ fn write_encoded_packets(
     }
 }
 
-#[allow(clippy::too_many_arguments)] // Private mux handoff; callers outside encoder use EncoderSession.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Private mux handoff; callers outside encoder use EncoderSession"
+)]
 pub(super) fn write_packet(
     mut packet: ff::Packet,
     output_context: &mut ff::format::context::Output,

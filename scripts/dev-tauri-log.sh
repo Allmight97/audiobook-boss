@@ -215,6 +215,7 @@ finish_run() {
 	local status="$?"
 	set +e
 	if [[ -n "${tee_pid:-}" ]]; then
+		# shellcheck disable=SC2261 # restores stdout, then stderr, on purpose
 		exec >&"$orig_stdout_fd" 2>&"$orig_stderr_fd"
 		# Bounded drain: an orphaned child still holding the pipe write end
 		# must degrade the verdict, not hang the exit trap.

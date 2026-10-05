@@ -1239,7 +1239,7 @@ impl Run {
         }
     }
 
-    #[allow(clippy::too_many_lines)] // one arm per generated step
+    #[expect(clippy::too_many_lines, reason = "one arm per generated step")]
     fn apply(&mut self, step: Step) -> Result<(), TestCaseError> {
         let desk = &mut self.desk;
         match step {

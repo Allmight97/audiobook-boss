@@ -1483,7 +1483,10 @@ async fn preserve_copies_supported_m4b_and_mp3_without_mutating_source_bytes() {
 }
 
 #[tokio::test]
-#[allow(clippy::too_many_lines)] // Preserve: Sequential source/output readbacks prove preservation of audio and cover together.
+#[expect(
+    clippy::too_many_lines,
+    reason = "Sequential source/output readbacks prove preservation of audio and cover together"
+)]
 async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
     let source_lane = MediaLane::with_fixtures(&[0.8, 0.7]).with_encoder(EncoderSettings {
         bitrate_kbps: 128,
@@ -1645,7 +1648,10 @@ async fn cancelled_preserve_does_not_publish_or_leave_staging_residue() {
 }
 
 #[tokio::test]
-#[allow(clippy::too_many_lines)] // Preserve: Each mixed-title case proves the planner applies constraints only to encoded audio.
+#[expect(
+    clippy::too_many_lines,
+    reason = "Each mixed-title case proves the planner applies constraints only to encoded audio"
+)]
 async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encoded_books() {
     use abb_engine::processing::{
         AudioHandling::{Encode, Preserve},
@@ -2568,7 +2574,10 @@ fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
 }
 
 #[tokio::test]
-#[allow(clippy::too_many_lines)] // Preserve: Sequential packet, chapter, cover and duration readbacks prove both Opus containers.
+#[expect(
+    clippy::too_many_lines,
+    reason = "Sequential packet, chapter, cover and duration readbacks prove both Opus containers"
+)]
 async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_containers() {
     use abb_engine::audio::{AudioIntent, AudiobookFormat, TitleAudioRequest};
     use abb_engine::processing::ProcessPayload;

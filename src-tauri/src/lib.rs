@@ -1,8 +1,5 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
-#![deny(clippy::unwrap_used)]
-#![warn(clippy::too_many_lines)]
-
 pub mod commands;
 mod cover_protocol;
 mod events;

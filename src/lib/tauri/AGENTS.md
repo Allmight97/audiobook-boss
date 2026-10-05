@@ -42,8 +42,8 @@ and not `tauriClient` methods. Solid views import them directly. Each has its
 own module test.
 
 - `appError.ts` owns error normalization and presentation: `normalizeAppError`,
-  `toUserMessage`, `isCancellation`, `isAppErrorCategory`, `logAppError`,
-  `unwrapGeneratedResult`. Derive user messages and cancellation here.
+  `toUserMessage`, `isCancellation`, `logAppError`, `unwrapGeneratedResult`.
+  Derive user messages and cancellation here.
 - `subscriptionGroup.ts` (`createSubscriptionGroup`) owns Tauri event-unlisten
   teardown and the dispose and late-arrival race. Views collect unlisteners
   through a group.

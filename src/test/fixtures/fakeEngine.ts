@@ -201,7 +201,7 @@ export function fakeRemote(): import('../../types/session').RemoteUiSnapshot {
 	};
 }
 
-export function fakeOutput(): SessionOutput {
+function fakeOutput(): SessionOutput {
 	return {
 		revision: 0,
 		directory: null,
@@ -278,7 +278,7 @@ function fakeAudio(): SessionAudio {
 }
 
 /** A preview of every title that finished without trouble. */
-export function finishedPreview(): ProcessCommandResult {
+function finishedPreview(): ProcessCommandResult {
 	return {
 		summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
 		terminalClass: 'success',

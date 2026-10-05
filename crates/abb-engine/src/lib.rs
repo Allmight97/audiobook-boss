@@ -37,9 +37,6 @@
 //! use abb_engine::work_runtime::WorkRuntime;
 //! ```
 
-#![deny(clippy::unwrap_used)]
-#![warn(clippy::too_many_lines)]
-
 pub mod app_settings;
 pub mod audio;
 mod cover_service;

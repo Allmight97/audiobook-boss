@@ -71,6 +71,10 @@ fn quoted(value: &str, line: usize) -> Result<String> {
 
 /// Parse a single FILE/AUDIO sheet. Nonstandard fields propose hundredths;
 /// the runtime/UI must obtain explicit confirmation before accepting that plan.
+#[expect(
+    clippy::too_many_lines,
+    reason = "One pass over CUE lines; each arm handles one directive"
+)]
 pub fn parse_cue(text: &str, duration_ms: i64) -> Result<CueSheet> {
     let mut file_name = None;
     let mut tracks: Vec<Track> = Vec::new();

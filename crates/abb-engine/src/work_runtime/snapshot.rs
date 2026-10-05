@@ -115,7 +115,10 @@ pub(crate) fn new_metadata_save_snapshot(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Each argument is one field of the child record"
+)]
 fn new_child(
     operation_id: &OperationId,
     child_job_id: String,

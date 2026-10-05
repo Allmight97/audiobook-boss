@@ -48,7 +48,6 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) title_output: Option<Arc<crate::processing::TitleOutput>>,
 }
 
-#[allow(clippy::too_many_lines)] // Keep registration, execution, and terminal cleanup in one lifecycle.
 pub(crate) async fn run_processing_job(
     request: ProcessingJobRequest,
 ) -> Result<ProcessResultEntry> {

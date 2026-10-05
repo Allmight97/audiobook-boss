@@ -80,16 +80,6 @@ export type ProcessCommandResult = Omit<
 
 export type BitrateKbps = EncoderSettings['bitrateKbps'];
 
-// Match Rust's fresh and Default M4B encoding defaults.
-export const defaultEncoderSettings = (): EncoderSettings => ({
-	encoderType: 'native_aac',
-	bitrateKbps: 65,
-	bitrateMode: { mode: 'cbr' },
-	channels: 'auto',
-	nativeAacSpeed: 0,
-	faacProfile: 'auto',
-});
-
 // Utility functions
 export const formatDuration = (seconds: number | undefined): string => {
 	if (seconds == null || Number.isNaN(seconds)) {

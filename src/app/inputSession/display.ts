@@ -33,7 +33,7 @@ export function formatFileDetails(file: AudioFile): string {
 }
 
 /** Words the engine's reason an import added nothing. */
-export function inputNoticeText(notice: InputNotice | null): string {
+function inputNoticeText(notice: InputNotice | null): string {
 	switch (notice?.kind) {
 		case undefined:
 			return '';

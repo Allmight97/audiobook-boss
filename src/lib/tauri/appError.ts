@@ -1,6 +1,6 @@
 type PlainRecord = Record<string, unknown>;
 
-export const APP_ERROR_CATEGORIES = [
+const APP_ERROR_CATEGORIES = [
 	'validation',
 	'cancellation',
 	'toolchain',
@@ -121,10 +121,6 @@ export function unwrapGeneratedResult<T>(value: unknown): T {
 	}
 
 	return value.data as T;
-}
-
-export function isAppErrorCategory(error: unknown, category: AppErrorCategory): boolean {
-	return normalizeAppError(error).category === category;
 }
 
 /**

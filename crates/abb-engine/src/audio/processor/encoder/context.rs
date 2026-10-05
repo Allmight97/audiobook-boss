@@ -12,7 +12,6 @@ use super::{
 };
 
 /// Creates and configures an AAC audio encoder with optimal settings
-#[allow(clippy::too_many_lines)]
 pub(crate) fn create_audio_encoder(
     encoder_settings: &EncoderSettings,
     target_sample_rate: u32,
@@ -110,7 +109,10 @@ pub(crate) fn create_audio_encoder(
 ///
 /// When `skip_chapter_passthrough` is false and input files have chapters, they are copied
 /// to the output context before the header is written (#66).
-#[allow(clippy::too_many_lines)] // Sequential codec/container/cover/chapter setup with fallible handoffs.
+#[expect(
+    clippy::too_many_lines,
+    reason = "Sequential codec/container/cover/chapter setup with fallible handoffs"
+)]
 pub(crate) fn setup_encoder(
     plan: &crate::audio::processor::plan::MediaProcessingPlan,
     metadata: Option<&crate::metadata::AudiobookMetadata>,

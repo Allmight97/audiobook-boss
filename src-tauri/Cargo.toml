@@ -4,6 +4,7 @@ version = "1.15.0"
 description = "AudioBook Boss™ — Batch audiobook processing and metadata management"
 authors = ["JStar"]
 edition = "2021"
+license.workspace = true
 default-run = "audiobook-boss"
 autobins = false
 

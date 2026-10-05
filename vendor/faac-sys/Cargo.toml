@@ -9,6 +9,3 @@ publish = false
 [build-dependencies]
 cc = "1.4.4"
 bindgen = { version = "0.73.2", default-features = false, features = ["runtime"] }
-
-[lints]
-workspace = true

@@ -87,6 +87,16 @@
 	},
 	"overrides": [
 		{
+			"includes": ["src/**"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noNodejsModules": "error"
+					}
+				}
+			}
+		},
+		{
 			"includes": ["index.html"],
 			"linter": {
 				"enabled": false

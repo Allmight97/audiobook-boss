@@ -1,8 +1,4 @@
-import type {
-	EncoderAvailability,
-	EncoderSettingsCapabilities,
-	MaxConcurrentJobsCapabilities,
-} from '../../types/audio';
+import type { EncoderSettingsCapabilities, MaxConcurrentJobsCapabilities } from '../../types/audio';
 import type {
 	EncoderAvailability as GeneratedEncoderAvailability,
 	EncoderSettingsCapabilities as GeneratedEncoderSettingsCapabilities,
@@ -19,17 +15,6 @@ type RuntimeSettingsCapabilitiesFixtureOverrides = {
 	encoder?: Partial<RuntimeSettingsCapabilities['encoder']>;
 	maxConcurrentJobs?: Partial<RuntimeSettingsCapabilities['maxConcurrentJobs']>;
 };
-
-export function encoderAvailabilityFixture(
-	overrides: Partial<EncoderAvailability> = {},
-): EncoderAvailability {
-	const base = {
-		aacAtAvailable: overrides.aacAtAvailable ?? true,
-		nativeAacAvailable: overrides.nativeAacAvailable ?? true,
-		autoEncoder: 'native_aac' as const,
-	} satisfies GeneratedEncoderAvailability;
-	return { ...base, ...overrides };
-}
 
 export function runtimeSettingsCapabilitiesFixture(
 	overrides: RuntimeSettingsCapabilitiesFixtureOverrides = {},

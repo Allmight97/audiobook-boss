@@ -59,7 +59,7 @@ function isScalarArrayWithoutNullish(value: readonly unknown[]): boolean {
  * NullToOptionalDeep<GeneratedSettingsSnapshot>`) without an `as` cast at the
  * call site.
  */
-export function normalizeNullish<T>(value: T): NullToOptionalDeep<T> {
+function normalizeNullish<T>(value: T): NullToOptionalDeep<T> {
 	if (value == null) {
 		return undefined as NullToOptionalDeep<T>;
 	}
