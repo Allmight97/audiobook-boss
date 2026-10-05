@@ -330,6 +330,31 @@ pub(crate) struct SessionDeps {
 
 pub(crate) type RemoveStaged = Arc<dyn Fn(&str) -> Result<()> + Send + Sync>;
 
+/// One line per finished search: counts by source and how many results
+/// offer a cover, never the query or the results themselves.
+fn log_lookup_found(response: &MetadataLookupResponse, elapsed: std::time::Duration) {
+    let from = |source: MetadataSource| {
+        response
+            .results
+            .iter()
+            .filter(|result| result.source == source)
+            .count()
+    };
+    log::info!(
+        "metadata_lookup outcome=found results={} audnexus={} openlibrary={} with_cover={} diagnostics={} elapsed_ms={}",
+        response.results.len(),
+        from(MetadataSource::Audnexus),
+        from(MetadataSource::Openlibrary),
+        response
+            .results
+            .iter()
+            .filter(|result| result.cover_url.is_some())
+            .count(),
+        response.diagnostics.len(),
+        elapsed.as_millis()
+    );
+}
+
 fn closing() -> SubmissionStatus {
     SubmissionStatus::Refused {
         reason: SubmitRefusal::Closing,
@@ -2004,9 +2029,11 @@ impl Session {
             return SessionOutcome::Applied;
         };
         self.publish();
+        let started = std::time::Instant::now();
         let response = (self.inner.network.search)(query, sources).await;
         let applied = self.lookup_step(request, |state| match response {
             Ok(response) => {
+                log_lookup_found(&response, started.elapsed());
                 state.lookup.status = Some(LookupStatus::Found {
                     count: response.results.len(),
                     partial: !response.diagnostics.is_empty(),

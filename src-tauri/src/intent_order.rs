@@ -96,6 +96,7 @@ impl IntentOrder {
             position.waiting.remove(&sequence);
             if outcome.is_ok() {
                 if position.next > sequence {
+                    log::warn!("Intent {sequence} arrived after later intents ran; refused");
                     outcome = Err(Refused::Late);
                 } else {
                     position.running = true;

@@ -53,7 +53,6 @@ fn response(answer: abb_engine::Result<Option<Arc<[u8]>>>) -> Response<Vec<u8>> 
             {
                 StatusCode::NOT_FOUND
             } else {
-                log::warn!("A cover could not be loaded: {error}");
                 StatusCode::BAD_GATEWAY
             };
             (not_cached(builder, status), Vec::new())

@@ -51,6 +51,25 @@ impl CoverRequest {
     }
 }
 
+impl CoverRequest {
+    /// The request for a log line: its kind, and a remote cover's origin
+    /// only, never a file path or a full address.
+    fn describe(&self) -> String {
+        match self {
+            Self::Remote { url, small } => {
+                let origin = reqwest::Url::parse(url)
+                    .map(|url| url.origin().ascii_serialization())
+                    .unwrap_or_else(|_| "invalid".into());
+                let size = if *small { "small" } else { "full" };
+                format!("remote_{size} origin={origin}")
+            }
+            Self::Audio { .. } => "audio_small".into(),
+            Self::Session { .. } => "session_full".into(),
+            Self::Preview { .. } => "preview_small".into(),
+        }
+    }
+}
+
 fn decode(text: &str) -> Result<String> {
     percent_decode_str(text)
         .decode_utf8()
@@ -65,30 +84,42 @@ fn unknown() -> AppError {
 impl Session {
     /// The cover `request` names; `None` when its source has no cover.
     pub(crate) async fn cover(&self, request: &str) -> Result<Option<Cover>> {
+        let request = CoverRequest::parse(request).inspect_err(|_| {
+            log::warn!("cover_load outcome=refused reason=malformed_address");
+        })?;
+        self.serve_cover(&request).await.inspect_err(|error| {
+            log::info!(
+                "cover_load kind={} outcome=failed reason={error}",
+                request.describe()
+            );
+        })
+    }
+
+    async fn serve_cover(&self, request: &CoverRequest) -> Result<Option<Cover>> {
         let covers = &self.inner.network.covers;
-        match CoverRequest::parse(request)? {
+        match request {
             CoverRequest::Remote { url, small } => {
-                if !self.offers_remote_cover(&url) {
+                if !self.offers_remote_cover(url) {
                     return Err(unknown());
                 }
-                let cover = if small {
-                    covers.remote_small(&url).await?
+                let cover = if *small {
+                    covers.remote_small(url).await?
                 } else {
-                    covers.remote_full(&url).await?
+                    covers.remote_full(url).await?
                 };
                 Ok(Some(cover))
             }
             CoverRequest::Audio { path } => {
-                let path = crate::audio::validate_input_audio_path(&path)?;
+                let path = crate::audio::validate_input_audio_path(path)?;
                 if !self.lock().lists_source(&path) {
                     return Err(unknown());
                 }
                 covers.embedded_small(&path).await
             }
             CoverRequest::Session { revision } => {
-                Ok(self.lock().displayed_cover_at(revision).map(Cover::from))
+                Ok(self.lock().displayed_cover_at(*revision).map(Cover::from))
             }
-            CoverRequest::Preview { run_id } => self.preview_cover(&run_id).await,
+            CoverRequest::Preview { run_id } => self.preview_cover(run_id).await,
         }
     }
 

@@ -610,7 +610,7 @@ impl SessionState {
                 Some(draft)
             }
             Err(reason) => {
-                self.submission = Some(SubmissionStatus::Refused { reason });
+                self.refuse_submission(reason);
                 None
             }
         }
@@ -877,6 +877,7 @@ impl SessionState {
     }
 
     pub(crate) fn refuse_submission(&mut self, reason: SubmitRefusal) {
+        log::info!("submit_refused reason={}", reason.log_name());
         self.submission = Some(SubmissionStatus::Refused { reason });
     }
 
@@ -1285,10 +1286,17 @@ impl SessionState {
         refusal: Option<AudioRefusal>,
         next: Vec<(&String, crate::audio::TitleAudioRequest)>,
     ) {
-        if refusal.is_none() {
-            for (id, request) in next {
-                self.working_set.set_audio_request(id, request);
+        match &refusal {
+            None => {
+                for (id, request) in next {
+                    self.working_set.set_audio_request(id, request);
+                }
             }
+            Some(AudioRefusal::Locked) => log::info!("audio_edit_refused reason=locked"),
+            Some(AudioRefusal::NotAccepted { title_ids, .. }) => log::info!(
+                "audio_edit_refused reason=not_accepted titles={}",
+                title_ids.len()
+            ),
         }
         self.audio_refusal = refusal;
     }

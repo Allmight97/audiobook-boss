@@ -58,6 +58,29 @@ pub enum SubmitRefusal {
     RestartStale,
 }
 
+impl SubmitRefusal {
+    /// The refusal's kind for a log line; never a title or a message.
+    pub(crate) fn log_name(&self) -> &'static str {
+        match self {
+            Self::NoTitles => "no_titles",
+            Self::NoValidTitles => "no_valid_titles",
+            Self::NoOutputDirectory => "no_output_directory",
+            Self::InvalidSource => "invalid_source",
+            Self::AudioChoiceRequired => "audio_choice_required",
+            Self::ChapterReview { .. } => "chapter_review",
+            Self::DraftInvalid { .. } => "draft_invalid",
+            Self::NoTarget => "no_target",
+            Self::SaveInProgress => "save_in_progress",
+            Self::Busy => "busy",
+            Self::InvalidPreviewLength => "invalid_preview_length",
+            Self::MissingTitle { .. } => "missing_title",
+            Self::SourceRemoved => "source_removed",
+            Self::Closing => "closing",
+            Self::RestartStale => "restart_stale",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CollisionReview {

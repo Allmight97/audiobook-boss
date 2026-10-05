@@ -62,8 +62,13 @@ the same code.
   submission belong to `crate::session`. It writes tags through `metadata_save.rs` (one WorkRuntime
   operation per batch, with crate-internal request/result types) and loads user-picked covers through `cover_source.rs`,
   which owns the URL and file limits. `cover_service.rs` loads every remote and
-  embedded cover (views, Lookup Apply, typed URLs) once, single-flight,
-  bounded, and sized for display.
+  embedded cover (views, Lookup Apply, typed URLs) once per size,
+  single-flight, bounded, and sized for display; a thumbnail is made from the
+  downloaded bytes, not from the full cover.
+- Engine HTTP uses the one `reqwest` 0.13 dependency with `http2`; each
+  server picks HTTP/2 or HTTP/1.1. reqwest's HTTP/3 needs the
+  `reqwest_unstable` cfg and has no fallback (upstream #2303), so ABB does not
+  enable it.
 - Online metadata search belongs to `crate::metadata_lookup`. A provider that
   fails while others answer leaves the usable results plus typed diagnostics;
   the search fails only when no selected source can answer
@@ -90,6 +95,8 @@ the same code.
   Records never change an operation result. Artifact IDs correlate paths without
   exposing parent folders; processor handoffs link those IDs to job/session IDs.
 - Log encoding/metadata/publication transitions and cleanup at their owners.
+  A refusal (Start, an audio edit) and a cover that fails to load log one
+  line with its kind at the owner; a cover names a remote origin only.
   Metadata diagnostics describe field actions and cover sizes/formats, not tag
   values or artwork bytes. Keep per-packet tracing at debug level.
 
