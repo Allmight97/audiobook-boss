@@ -1,9 +1,9 @@
 name: rust core crates
 
-# The core crates stay independent of FFmpeg. A separate macOS job proves the
+# The core crates stay independent of FFmpeg. The macOS job proves the
 # engine's rules, its Save golden paths, and its host-API examples against
-# ABB's patched bundled FFmpeg; the real-media encode lane and Apple AAC
-# workflow proof stay local.
+# ABB's patched bundled FFmpeg; the Linux media job encodes real audio through
+# the same build. Apple AAC workflow proof stays local.
 
 on:
   pull_request:
@@ -14,6 +14,7 @@ on:
       - Cargo.lock
       - rust-toolchain.toml
       - scripts/check-rust-tiers.sh
+      - scripts/setup-linux-agent.sh
       - vendor/**
   push:
     branches: [main]
@@ -24,6 +25,7 @@ on:
       - Cargo.lock
       - rust-toolchain.toml
       - scripts/check-rust-tiers.sh
+      - scripts/setup-linux-agent.sh
       - vendor/**
   workflow_dispatch:
 
@@ -54,11 +56,22 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - run: brew install opus pkg-config nasm
-      # The media lane encodes real audio, and the every-container Save test
-      # calls the ffmpeg command-line tool; both stay local.
+      # The Linux media job runs these two; they need an FFmpeg 9 CLI.
       - run: >-
           cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --
           --skip test_cases::integration_media
           --skip save_updates_finished_outputs_in_every_supported_container
       # The engine's host-API examples guard which internals hosts can reach.
       - run: cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
+
+  media:
+    name: Engine media lane
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - run: bash scripts/setup-linux-agent.sh --rust
+      - run: >-
+          ABB_FFMPEG="$HOME/.local/bin/ffmpeg" ABB_FFPROBE="$HOME/.local/bin/ffprobe"
+          cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --
+          test_cases::integration_media
+          save_updates_finished_outputs_in_every_supported_container

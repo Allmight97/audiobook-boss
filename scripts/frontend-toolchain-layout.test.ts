@@ -30,10 +30,7 @@ describe('frontend toolchain layout', () => {
 		expect(ciYml).toContain('scripts/locked-bun-version.sh');
 		expect(ciYml).not.toMatch(/bun-version:\s*\d/);
 
-		const setupScript = readFileSync(
-			path.join(repoRoot, 'scripts/setup-codex-agent-env.sh'),
-			'utf8',
-		);
+		const setupScript = readFileSync(path.join(repoRoot, 'scripts/setup-linux-agent.sh'), 'utf8');
 		expect(setupScript).toContain('scripts/locked-bun-version.sh');
 		expect(setupScript).not.toMatch(/required_bun_version="\d/);
 		expect(setupScript).toContain(`/releases/download/bun-v\${required_bun_version}`);

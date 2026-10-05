@@ -5,8 +5,8 @@ Base: crates.io `ffmpeg-sys-next` 9.0.0 archive, SHA-256
 The upstream manifest declares WTFPL.
 
 `ffmpeg-revision` selects the immutable FFmpeg development source required by
-Native AAC's NMR coder. The Rust build and Linux setup consume this file and
-verify the fetched commit. ABB retains the CoreAudio framework link.
+Native AAC's NMR coder. The Rust build consumes this file and verifies the
+fetched commit. ABB retains the CoreAudio framework link.
 
 The September 18, 2026 selection is
 `be387f252de068a38e3b0f5f40404ec55c14578c`. Compared with the previous selection,
@@ -23,7 +23,8 @@ to advance the revision label.
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,
 SDK/sysroot and relevant compiler environment. Rebuild notifications are emitted
-before deciding reuse. Linux setup records its source/patch identity separately.
+before deciding reuse. The build names the static libopus archive's directory
+for the linker, since Linux pkg-config omits system library directories.
 Native and portable CPU mechanisms come from upstream sys 9.0.0; ABB selects
 native builds for development and portable builds for distribution.
 
