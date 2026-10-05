@@ -1,0 +1,22 @@
+.refused-change-notice {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem 1rem;
+	padding: 0.75rem 1rem;
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
+	background: var(--bg-panel);
+	color: var(--text-primary);
+	font-size: var(--text-sm);
+}
+
+.refused-change-notice p {
+	margin: 0;
+}
+
+.engine-attach-failed {
+	margin: 2rem;
+	color: var(--text-primary);
+	font-size: var(--text-sm);
+}

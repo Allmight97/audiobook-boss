@@ -81,6 +81,7 @@ export function toInputView(
 		fileCount: files.length,
 		hasFiles: files.length > 0,
 		orderLocked: locked,
+		coversRevision: titles.coversRevision,
 		errorMessage: local.errorMessage || inputNoticeText(titles.notice),
 		isDragOver: local.isDragOver,
 		supportText: local.supportText,

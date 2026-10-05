@@ -9,19 +9,13 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::attach_frontend,
             crate::commands::session_dispatch,
             crate::commands::settings_dispatch,
-            crate::commands::session_cover_art,
-            crate::commands::read_audio_metadata,
-            crate::commands::load_cover_art_from_url,
-            crate::commands::read_audio_cover_thumbnail,
             crate::commands::get_supported_audio_import_metadata,
             crate::commands::list_work_operations,
             crate::commands::cancel_work_operation,
             crate::commands::log_frontend,
         ])
         .events(tauri_specta::collect_events![
-            crate::events::OpenedAudioFilesEvent,
-            crate::events::WorkOperationSnapshotEvent,
-            crate::events::WorkOperationListSnapshotEvent,
+            crate::events::WorkOperationsUpdateEvent,
             crate::events::SessionUpdateEvent,
             crate::events::SettingsUpdateEvent,
         ])

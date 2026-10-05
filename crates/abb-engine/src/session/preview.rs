@@ -56,7 +56,7 @@ pub(crate) struct Preview {
 
 impl Preview {
     pub(crate) fn begin(&mut self, draft: &Draft) {
-        let Some(id) = &draft.preview_id else { return };
+        let Some(id) = draft.preview_id() else { return };
         self.state = WorkRuntimeState::default();
         self.id = Some(id.clone());
         self.open_path = None;
@@ -136,7 +136,7 @@ impl Preview {
     }
 
     pub(crate) fn finish(&mut self, draft: &Draft, status: &SubmissionStatus) {
-        let Some(id) = &draft.preview_id else { return };
+        let Some(id) = draft.preview_id() else { return };
         if !self.matches(id.as_str()) {
             return;
         }

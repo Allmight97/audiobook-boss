@@ -146,5 +146,13 @@ describe('engine link', () => {
 
 		await expect(link.send({ kind: 'selectAll' })).rejects.toThrow('engine unavailable');
 		await expect(link.ready()).rejects.toThrow('engine unavailable');
+		expect(link.attachment()).toEqual({ kind: 'failed', message: 'engine unavailable' });
+	});
+
+	it('is pending until the first snapshot arrives', async () => {
+		const link = linkTo(createFakeEngine());
+		expect(link.attachment()).toEqual({ kind: 'pending' });
+		await link.ready();
+		expect(link.attachment()).toEqual({ kind: 'ready' });
 	});
 });

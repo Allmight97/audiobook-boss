@@ -164,9 +164,9 @@ describe('AppSettingsDialogView', () => {
 		expect(awake).toBeChecked();
 	});
 
-	it('lets the user enable both audiobook categories from the collapsed picker', async () => {
-		await renderOpenDialog((engine) =>
-			engine.change((state) => {
+	it('sends the category choice unchanged and shows what the engine kept', async () => {
+		await renderOpenDialog((seeded) =>
+			seeded.change((state) => {
 				Object.assign(state.remote.connection, {
 					baseUrl: '',
 					categoryIds: [3030],
@@ -174,23 +174,27 @@ describe('AppSettingsDialogView', () => {
 				});
 			}),
 		);
-		await vi.waitFor(() =>
-			expect(runtime!.remoteSource.indexerConnection().categoryIdsDraft).toEqual([3030]),
-		);
-
 		expect(screen.getByTestId('app-settings-indexer-category')).toHaveTextContent(
 			'Audiobooks (3030)',
 		);
 		await fireEvent.click(screen.getByTestId('app-settings-indexer-category'));
-		const audio = screen.getByRole('checkbox', { name: 'Audio (3000)' }) as HTMLInputElement;
-		audio.checked = true;
-		audio.dispatchEvent(new Event('change', { bubbles: true }));
-		flush();
+		const audiobooks = screen.getByRole('checkbox', { name: 'Audiobooks (3030)' });
+		await fireEvent.click(audiobooks);
 
-		expect(runtime!.remoteSource.indexerConnection().categoryIdsDraft).toEqual([3030, 3000]);
-		expect(screen.getByTestId('app-settings-indexer-category')).toHaveTextContent(
-			'Audiobooks (3030), Audio (3000)',
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'remote',
+				intent: { kind: 'editConnection', baseUrl: null, categoryIds: [], apiKey: null },
+			}),
 		);
+		// The engine refused an empty choice and kept the category.
+		engine.change((state) => {
+			state.remote.connection.emptyCategoriesRefused = true;
+		});
+		expect(await screen.findByTestId('indexer-category-required')).toHaveTextContent(
+			'One category is required. Audiobooks (3030) is recommended.',
+		);
+		expect(audiobooks).toBeChecked();
 	});
 
 	it('recommends HTTPS while keeping an explicit HTTP connection usable', async () => {

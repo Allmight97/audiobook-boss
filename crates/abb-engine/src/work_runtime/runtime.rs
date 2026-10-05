@@ -1,8 +1,8 @@
 use super::snapshot::{new_metadata_save_snapshot, new_processing_snapshot};
 use super::state::WorkRuntimeState;
 use super::types::{
-    OperationId, OperationListSnapshot, OperationSnapshot, SubmitProcessingOperationRequest,
-    WorkOperationStatus, WorkSubmissionAccepted,
+    OperationId, OperationSnapshot, SubmitProcessingOperationRequest, WorkOperationStatus,
+    WorkSubmissionAccepted,
 };
 use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
@@ -97,7 +97,6 @@ impl WorkRuntime {
         })??;
         log_work_operation(WorkOperationLogEvent::Accepted, &accepted.snapshot);
         self.emit_snapshot(&host, &accepted.snapshot);
-        self.emit_list(&host);
         Ok(accepted)
     }
 
@@ -117,7 +116,7 @@ impl WorkRuntime {
         // Concurrency stays fixed from acceptance until the export ends,
         // including between titles when no job is registered.
         let active_run = registry.hold_run();
-        let operation_id = OperationId::new();
+        let operation_id = request.operation_id.clone();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
         let title = request.title.trim().to_string();
         let input_ids = request.payload.input_ids.as_deref();
@@ -302,7 +301,6 @@ impl WorkRuntime {
 
         log_work_operation(WorkOperationLogEvent::Accepted, &snapshot);
         self.emit_snapshot(host, &snapshot);
-        self.emit_list(host);
         self.mark_running_and_emit(host, &operation_id);
 
         Ok((operation_id, cancel_flag))
@@ -341,7 +339,6 @@ impl WorkRuntime {
         };
         log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
         self.emit_snapshot(host, &snapshot);
-        self.emit_list(host);
         self.remove_cancel_flag(operation_id);
         Ok(snapshot)
     }
@@ -364,7 +361,7 @@ impl WorkRuntime {
         }
     }
 
-    pub fn list_operations(&self) -> Result<OperationListSnapshot> {
+    pub fn list_operations(&self) -> Result<super::WorkOperationsSnapshot> {
         Ok(lock_state(&self.inner.state)?.list())
     }
 
@@ -399,7 +396,6 @@ impl WorkRuntime {
             Some(child_job_id) => self.cancel_title(&operation_id, &child_job_id)?,
         };
         self.emit_snapshot(host, &snapshot);
-        self.emit_list(host);
         Ok(snapshot)
     }
 
@@ -451,7 +447,6 @@ impl WorkRuntime {
                     log_work_operation(WorkOperationLogEvent::Running, &snapshot);
                 }
                 self.emit_snapshot(host, &snapshot);
-                self.emit_list(host);
             }
             Err(error) => log::warn!("Failed to mark work operation running: {}", error),
         }
@@ -472,7 +467,6 @@ impl WorkRuntime {
             Ok(snapshot) => {
                 log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
                 self.emit_snapshot(host, &snapshot);
-                self.emit_list(host);
                 Some(snapshot)
             }
             Err(error) => {
@@ -549,15 +543,18 @@ impl WorkRuntime {
         }
     }
 
+    /// Publishes a change with the display order as of now. The revision is
+    /// taken under the state lock, so hosts can order updates however they
+    /// arrive.
     fn emit_snapshot(&self, host: &Host, snapshot: &OperationSnapshot) {
         self.inner.changes.send_modify(|change| *change += 1);
-        host.emit(EngineEvent::WorkOperationSnapshot(snapshot.clone()));
-    }
-
-    fn emit_list(&self, host: &Host) {
-        match self.list_operations() {
-            Ok(list) => host.emit(EngineEvent::WorkOperationList(list)),
-            Err(error) => log::warn!("Failed to build work operation list snapshot: {}", error),
+        match lock_state(&self.inner.state) {
+            Ok(mut state) => {
+                let update = state.publish(snapshot.clone());
+                drop(state);
+                host.emit(EngineEvent::WorkOperations(update));
+            }
+            Err(error) => log::warn!("Failed to publish a work operation update: {error}"),
         }
     }
 }

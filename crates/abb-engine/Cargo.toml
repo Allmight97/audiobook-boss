@@ -33,7 +33,7 @@ ffmpeg-next = "9.0.0"
 ffmpeg-sys-next = { version = "9.0.0", default-features = false }
 faac-sys = { path = "../../vendor/faac-sys" }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
-reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "stream", "json", "query", "form"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "http2", "stream", "json", "query", "form"] }
 # audible_api currently accepts reqwest 0.12 request values. Keep this renamed
 # dependency private to the Audible provider until that upstream surface changes.
 audible-reqwest = { package = "reqwest", version = "0.12.28", features = ["json"] }
@@ -41,6 +41,8 @@ mp4ameta = "0.13.0"
 bogon = "0.3"
 # Typed URL hosts for the cover-fetch SSRF policy; same version reqwest resolves.
 url = "2.5.8"
+# Decodes cover request paths; the version url already resolves.
+percent-encoding = "2.3.2"
 # Exact pins: a prerelease family whose generated TS contract can change between
 # RCs. Bump together with the host crate, deliberately, and regenerate bindings.
 specta = "=2.0.0-rc.25"

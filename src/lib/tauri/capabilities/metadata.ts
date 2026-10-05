@@ -8,10 +8,9 @@ export interface MetadataOpenFileOptions {
 	}>;
 }
 
-/** Host services the metadata views use directly: the image picker, and cover previews. */
+/** Host services the metadata views use directly: the image picker. */
 export interface MetadataCapability {
 	openFile(options?: MetadataOpenFileOptions): Promise<string | null>;
-	loadCoverArtFromUrl(url: string): Promise<number[]>;
 }
 
 export const liveMetadataCapability: MetadataCapability = {
@@ -27,5 +26,4 @@ export const liveMetadataCapability: MetadataCapability = {
 					}
 				: undefined,
 		),
-	loadCoverArtFromUrl: (url) => tauriClient.loadCoverArtFromUrl(url),
 };

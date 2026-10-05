@@ -1,75 +1,66 @@
 import type {
-	OperationListSnapshot,
+	OperationId,
 	OperationSnapshot,
-	WorkOperationStatus,
+	WorkOperationsSnapshot,
+	WorkOperationsUpdate,
 } from '../../types/workRuntime';
 
+/**
+ * The engine numbers every Work Center change and sends the display order with
+ * it. Updates may arrive in any order, so this keeps the newest snapshot of
+ * each operation and the order with the highest revision; operations outside
+ * that order are gone.
+ */
 export interface WorkCenterModel {
-	membershipRevision: number;
-	operations: OperationSnapshot[];
+	revision: number;
+	order: OperationId[];
+	byId: ReadonlyMap<OperationId, OperationSnapshot>;
 }
 
-const TERMINAL_OPERATION_STATUSES = new Set<WorkOperationStatus>([
-	'completed',
-	'cancelled',
-	'failed',
-	'mixed',
-]);
-
-function isTerminalOperationStatus(status: WorkOperationStatus): boolean {
-	return TERMINAL_OPERATION_STATUSES.has(status);
+export function emptyWorkCenterModel(): WorkCenterModel {
+	return { revision: 0, order: [], byId: new Map() };
 }
 
-export function replaceOperations(
+export function applyWorkOperations(
 	model: WorkCenterModel,
-	list: OperationListSnapshot,
+	incoming: WorkOperationsSnapshot | WorkOperationsUpdate,
 ): WorkCenterModel {
-	if (list.membershipRevision < model.membershipRevision) return model;
-	const previous = new Map(model.operations.map((operation) => [operation.operationId, operation]));
-	const operations = list.operations.map((incoming) => {
-		const current = previous.get(incoming.operationId);
-		previous.delete(incoming.operationId);
-		return current && current.revision > incoming.revision ? current : incoming;
-	});
-	// An event can announce new work after this list was captured.
-	for (const operation of previous.values()) {
-		if (operation.createdRevision > list.membershipRevision) operations.push(operation);
+	const snapshots = 'changed' in incoming ? [incoming.changed] : incoming.operations;
+	const newer = incoming.revision > model.revision;
+	const order = newer ? incoming.order : model.order;
+	const listed = new Set(order);
+	const byId = new Map<OperationId, OperationSnapshot>();
+	for (const id of listed) {
+		const kept = model.byId.get(id);
+		if (kept) byId.set(id, kept);
 	}
-	return {
-		membershipRevision: list.membershipRevision,
-		operations: operations.sort(sortByStatusThenSequenceDesc),
-	};
+	let changed = newer;
+	for (const snapshot of snapshots) {
+		if (!listed.has(snapshot.operationId)) continue;
+		const kept = byId.get(snapshot.operationId);
+		if (kept && kept.revision >= snapshot.revision) continue;
+		byId.set(snapshot.operationId, snapshot);
+		changed = true;
+	}
+	if (!changed) return model;
+	return { revision: newer ? incoming.revision : model.revision, order, byId };
 }
 
-export function upsertOperation(
+/** A cancel reply: one operation's snapshot, with no newer order. */
+export function applyOperationSnapshot(
 	model: WorkCenterModel,
 	snapshot: OperationSnapshot,
 ): WorkCenterModel {
-	const current = model.operations.find(
-		(operation) => operation.operationId === snapshot.operationId,
-	);
-	if (
-		current
-			? snapshot.revision <= current.revision
-			: snapshot.createdRevision <= model.membershipRevision
-	)
-		return model;
-	const next = model.operations.filter(
-		(operation) => operation.operationId !== snapshot.operationId,
-	);
-	next.push(snapshot);
-	next.sort(sortByStatusThenSequenceDesc);
-	return { membershipRevision: model.membershipRevision, operations: next };
+	return applyWorkOperations(model, {
+		revision: model.revision,
+		order: model.order,
+		changed: snapshot,
+	});
 }
 
-function statusDisplayBucket(status: WorkOperationStatus): 0 | 1 | 2 {
-	if (isTerminalOperationStatus(status)) return 2;
-	if (status === 'accepted') return 1;
-	return 0;
-}
-
-function sortByStatusThenSequenceDesc(left: OperationSnapshot, right: OperationSnapshot): number {
-	const bucketDiff = statusDisplayBucket(left.status) - statusDisplayBucket(right.status);
-	if (bucketDiff !== 0) return bucketDiff;
-	return right.sequence - left.sequence;
+export function visibleOperations(model: WorkCenterModel): OperationSnapshot[] {
+	return model.order.flatMap((id) => {
+		const snapshot = model.byId.get(id);
+		return snapshot ? [snapshot] : [];
+	});
 }

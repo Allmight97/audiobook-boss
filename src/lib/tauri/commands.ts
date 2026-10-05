@@ -14,8 +14,7 @@ import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
 	denormalizeNullish,
 	normalizeFrontendAttachment,
-	normalizeMetadata,
-	normalizeOperationListSnapshot,
+	normalizeWorkOperationsSnapshot,
 	normalizeOperationSnapshot,
 	normalizeSessionReply,
 	normalizeSettingsReply,
@@ -105,18 +104,10 @@ export const commandSpecs = {
 			),
 			normalizeSettingsReply,
 		),
-	session_cover_art: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.sessionCoverArt()),
-	read_audio_metadata: (args: { filePath: string }) =>
-		runGeneratedCommand(generatedCommands.readAudioMetadata(args.filePath), normalizeMetadata),
-	load_cover_art_from_url: (args: { url: string }) =>
-		runGeneratedCommand(generatedCommands.loadCoverArtFromUrl(args.url)),
-	read_audio_cover_thumbnail: (args: { filePath: string }) =>
-		runGeneratedCommand(generatedCommands.readAudioCoverThumbnail(args.filePath)),
 	get_supported_audio_import_metadata: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.getSupportedAudioImportMetadata()),
 	list_work_operations: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.listWorkOperations(), normalizeOperationListSnapshot),
+		runGeneratedCommand(generatedCommands.listWorkOperations(), normalizeWorkOperationsSnapshot),
 	cancel_work_operation: (args: { operationId: OperationId; childJobId?: string }) =>
 		runGeneratedCommand(
 			generatedCommands.cancelWorkOperation(args.operationId, args.childJobId ?? null),

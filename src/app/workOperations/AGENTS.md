@@ -21,20 +21,18 @@
 
 ## Hard Invariants
 
-- Render only backend-authored WorkRuntime snapshot events
-  (`work-operation-snapshot`, `work-operation-list-snapshot`). The
-  `OperationSnapshot` is the sole progress source for accepted background
-  operations.
+- Render only backend-authored WorkRuntime updates (`work-operations-update`)
+  and the initial `listWorkOperations` snapshot. The `OperationSnapshot` is
+  the sole progress source for accepted background operations.
 - WorkRuntime snapshots are the only progress source; do not apply
   client-authored progress overlays.
 - Terminal operation status is backend-canonical through
   `abb_processing_core::classify_run_terminal`. Do not recalculate success,
   mixed, failed, skipped, or cancelled outcomes.
-- Keep the highest per-operation revision across event/list/cancel responses.
-  Only current list membership may prune history; retain operations created
-  after a list's membership revision and reject late resurrection of removed
-  members. Terminal effects use accepted model truth. Reset invalidates pending
-  responses before a new session can publish.
+- `model.ts` applies the engine's two rules and nothing else: keep the newest
+  snapshot per operation (event, list, or cancel reply) and show operations in
+  the order with the highest revision. Display order is the engine's. Reset
+  invalidates pending responses before a new session can publish.
 - What happens to staged downloads when an export ends is the engine's
   (`crates/abb-engine/src/session/AGENTS.md`); this owner only renders.
 - Do not own processing submission, metadata staging, output-plan review, or
@@ -42,6 +40,7 @@
 
 ## Testing
 
+- `model.test.ts` pins the two merge rules against out-of-order arrival.
 - `state.test.ts` pins listener dispose, list/event merging, and reveal
   rejection.
 - Work Center UI strip is pinned by

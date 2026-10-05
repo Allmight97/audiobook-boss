@@ -39,7 +39,6 @@ use crate::host::{EngineEvent, Host};
 use crate::metadata::AudiobookMetadata;
 use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource, OnlineMetadataResult};
 use crate::metadata_save::{save_metadata_batch, MetadataSaveRequest, MetadataSaveResultStatus};
-use crate::opened_audio::OpenedAudioFileQueue;
 use crate::output_artifact::CollisionPolicy;
 use crate::output_artifact::NamingPreset;
 use crate::processing::run::{
@@ -77,8 +76,6 @@ pub enum SessionIntent {
     Import {
         paths: Vec<String>,
     },
-    /// Imports the files the operating system asked ABB to open.
-    ImportOpened,
     SelectFile {
         index: usize,
         modifiers: SelectionModifiers,
@@ -132,10 +129,15 @@ pub enum SessionIntent {
         seconds: f64,
     },
     /// Continues a submission held for review with the user's choice.
+    #[serde(rename_all = "camelCase")]
     ChooseCollisionPolicy {
+        review_id: u64,
         policy: CollisionPolicy,
     },
-    CancelCollisionReview,
+    #[serde(rename_all = "camelCase")]
+    CancelCollisionReview {
+        review_id: u64,
+    },
     /// Restarts an exported title at the location a Save offered
     /// (`OutputSnapshot::restart_offers`): cancels it, removes its empty
     /// folders, and submits it again through collision review.
@@ -161,10 +163,6 @@ pub enum SessionIntent {
     },
     #[serde(rename_all = "camelCase")]
     TakePreviewOutput {
-        run_id: String,
-    },
-    #[serde(rename_all = "camelCase")]
-    ReadPreviewCover {
         run_id: String,
     },
 
@@ -273,9 +271,6 @@ pub enum SessionOutcome {
     PreviewOutput {
         path: Option<String>,
     },
-    PreviewCover {
-        bytes: Option<Vec<u8>>,
-    },
     /// A newer request or a reset replaced this one before it finished.
     Superseded,
 }
@@ -294,12 +289,12 @@ type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 /// without a network.
 pub(crate) struct Network {
     pub(crate) search: Box<SearchFn>,
-    pub(crate) cover_from_url: Box<CoverFromUrlFn>,
+    /// Every remote and embedded cover the session shows or applies.
+    pub(crate) covers: crate::cover_service::CoverService,
 }
 
 type SearchFn =
     dyn Fn(String, Vec<MetadataSource>) -> BoxFuture<Result<MetadataLookupResponse>> + Send + Sync;
-type CoverFromUrlFn = dyn Fn(String) -> BoxFuture<Result<Vec<u8>>> + Send + Sync;
 
 impl Network {
     fn live() -> Self {
@@ -311,9 +306,7 @@ impl Network {
                     Some(RESULT_LIMIT),
                 ))
             }),
-            cover_from_url: Box::new(|url| {
-                Box::pin(crate::cover_source::load_cover_art_from_url(url))
-            }),
+            covers: crate::cover_service::CoverService::live(),
         }
     }
 }
@@ -325,7 +318,6 @@ pub(crate) struct SessionDeps {
     pub(crate) jobs: ManagedJobRegistry,
     /// Source files under this root are temporary downloads.
     pub(crate) temporary_root: PathBuf,
-    pub(crate) opened_audio: Arc<OpenedAudioFileQueue>,
     /// Where audio and output defaults chosen in the session are recorded.
     pub(crate) settings: SettingsRuntime,
     /// The engine's background tasks; the session's run here.
@@ -337,6 +329,31 @@ pub(crate) struct SessionDeps {
 }
 
 pub(crate) type RemoveStaged = Arc<dyn Fn(&str) -> Result<()> + Send + Sync>;
+
+/// One line per finished search: counts by source and how many results
+/// offer a cover, never the query or the results themselves.
+fn log_lookup_found(response: &MetadataLookupResponse, elapsed: std::time::Duration) {
+    let from = |source: MetadataSource| {
+        response
+            .results
+            .iter()
+            .filter(|result| result.source == source)
+            .count()
+    };
+    log::info!(
+        "metadata_lookup outcome=found results={} audnexus={} openlibrary={} with_cover={} diagnostics={} elapsed_ms={}",
+        response.results.len(),
+        from(MetadataSource::Audnexus),
+        from(MetadataSource::Openlibrary),
+        response
+            .results
+            .iter()
+            .filter(|result| result.cover_url.is_some())
+            .count(),
+        response.diagnostics.len(),
+        elapsed.as_millis()
+    );
+}
 
 fn closing() -> SubmissionStatus {
     SubmissionStatus::Refused {
@@ -360,8 +377,8 @@ struct SessionInner {
     state: Mutex<SessionState>,
     deps: SessionDeps,
     network: Network,
-    /// One import runs at a time, in the order requested.
-    imports: tokio::sync::Mutex<()>,
+    /// One import runs at a time, in the order accepted.
+    imports: super::import_order::ImportOrder,
     /// Advances on reset; an import that started earlier is dropped.
     resets: AtomicU64,
     /// The revision the last event carried.
@@ -401,19 +418,13 @@ enum Rest {
     Remote(crate::remote_source::RemoteUiRun),
     Done(SessionOutcome),
     Reads(Bound),
-    ImportOpened {
-        resets: u64,
-    },
     Import {
         paths: Vec<String>,
         resets: u64,
+        turn: super::import_order::Turn,
     },
     /// Record a choice in the settings, unless they were reset since `resets`.
     Remember(SettingsRun),
-    PreviewCover {
-        run_id: String,
-        artwork: super::preview::PreviewArtwork,
-    },
     /// Preflight, review, then export or preview.
     Submit(Box<Draft>),
     /// Continue a reviewed submission under `policy`.
@@ -500,8 +511,11 @@ impl Session {
                 session.complete_reads(bound).await;
                 SessionOutcome::Applied
             }
-            Rest::ImportOpened { resets } => session.import_opened(resets).await,
-            Rest::Import { paths, resets } => session.import(paths, resets).await,
+            Rest::Import {
+                paths,
+                resets,
+                turn,
+            } => session.import(paths, resets, turn).await,
             Rest::Remember(run) => {
                 let reply = run.finish().await;
                 session
@@ -516,25 +530,6 @@ impl Session {
                     _ => SessionOutcome::Applied,
                 }
             }
-            Rest::PreviewCover { run_id, artwork } => {
-                let bytes = match artwork {
-                    super::preview::PreviewArtwork::None => Ok(None),
-                    super::preview::PreviewArtwork::Bytes(bytes) => Ok(Some(bytes)),
-                    super::preview::PreviewArtwork::Source(path) => {
-                        blocking(move || crate::metadata::read_audio_cover_thumbnail(&path)).await
-                    }
-                };
-                if !session.lock().preview.matches(&run_id) {
-                    SessionOutcome::Superseded
-                } else {
-                    match bytes {
-                        Ok(bytes) => SessionOutcome::PreviewCover { bytes },
-                        Err(error) => SessionOutcome::Rejected {
-                            error: (&error).into(),
-                        },
-                    }
-                }
-            }
             Rest::Submit(draft) => session.submit(*draft).await,
             Rest::Reviewed { mut draft, policy } => {
                 draft.payload.collision_policy = Some(policy);
@@ -546,7 +541,11 @@ impl Session {
                 title_id,
                 revision,
                 link,
-            } => session.keep_location(title_id, revision, *link).await,
+            } => {
+                let outcome = session.keep_location(title_id, revision, *link).await;
+                session.transition(SessionState::finish_keep_location);
+                outcome
+            }
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
             Rest::LookupSearch { request } => session.lookup_search(request, None).await,
             Rest::LookupApply { request, chosen } => session.lookup_apply(request, *chosen).await,
@@ -570,7 +569,7 @@ impl Session {
                 state: Mutex::new(SessionState::default()),
                 deps,
                 network,
-                imports: tokio::sync::Mutex::new(()),
+                imports: super::import_order::ImportOrder::default(),
                 resets: AtomicU64::new(0),
                 published: AtomicU64::new(0),
                 deferred_writer_running: AtomicBool::new(false),
@@ -827,8 +826,13 @@ impl Session {
         snapshot
     }
 
+    #[cfg(test)]
     pub(crate) fn cover_art(&self) -> Option<Vec<u8>> {
         self.lock().displayed_cover()
+    }
+
+    pub(crate) fn export_in_preparation(&self) -> Option<crate::work_runtime::OperationId> {
+        self.lock().export_in_preparation().cloned()
     }
 
     /// Source files with a Save accepted and not yet written.
@@ -842,9 +846,6 @@ impl Session {
         match intent {
             I::Remote { intent } => Rest::Remote(self.inner.deps.remote.ui_begin(intent)),
             I::Import { paths } => self.begin_import(paths),
-            I::ImportOpened => Rest::ImportOpened {
-                resets: self.inner.resets.load(Ordering::SeqCst),
-            },
             I::SelectFile { index, modifiers } => {
                 self.change_selection(|set| set.select_file(index, modifiers))
             }
@@ -934,9 +935,6 @@ impl Session {
             }
             I::Reset => {
                 self.inner.resets.fetch_add(1, Ordering::SeqCst);
-                // Files the OS opened while the list was locked go with the
-                // titles, like an import still running.
-                let _ = self.inner.deps.opened_audio.take_paths();
                 self.transition(SessionState::reset);
                 // A review the reset dropped frees its sources.
                 self.sources_released();
@@ -973,34 +971,29 @@ impl Session {
             I::TakePreviewOutput { run_id } => Rest::Done(SessionOutcome::PreviewOutput {
                 path: self.transition(|state| state.preview.take_output(&run_id)),
             }),
-            I::ReadPreviewCover { run_id } => {
-                let artwork = {
-                    let state = self.lock();
-                    state
-                        .preview
-                        .matches(&run_id)
-                        .then(|| state.preview.artwork.clone())
-                };
-                match artwork {
-                    Some(artwork) => Rest::PreviewCover { run_id, artwork },
+            I::ChooseCollisionPolicy { review_id, policy } => {
+                match self.transition(|state| state.take_review(review_id)) {
+                    Some(draft) => Rest::Reviewed {
+                        draft: Box::new(draft),
+                        policy,
+                    },
                     None => Rest::Done(SessionOutcome::Superseded),
                 }
             }
-            I::ChooseCollisionPolicy { policy } => match self.transition(SessionState::take_review)
-            {
-                Some(draft) => Rest::Reviewed {
-                    draft: Box::new(draft),
-                    policy,
-                },
-                None => Rest::Done(SessionOutcome::Applied),
-            },
-            I::CancelCollisionReview => {
-                self.cancel_review();
-                Rest::Done(SessionOutcome::Applied)
+            I::CancelCollisionReview { review_id } => {
+                let cancelled = self.transition(|state| state.cancel_review_named(review_id));
+                if cancelled {
+                    self.sources_released();
+                }
+                Rest::Done(if cancelled {
+                    SessionOutcome::Applied
+                } else {
+                    SessionOutcome::Superseded
+                })
             }
             I::RestartTitle { title_id, revision } => self.begin_restart(&title_id, revision),
             I::KeepTitleLocation { title_id, revision } => {
-                match self.lock().location_offer(&title_id, revision) {
+                match self.transition(|state| state.begin_keep_location(&title_id, revision)) {
                     Some(link) => Rest::KeepLocation {
                         title_id,
                         revision,
@@ -1093,41 +1086,38 @@ impl Session {
         Rest::Import {
             paths,
             resets: self.inner.resets.load(Ordering::SeqCst),
+            turn: self.inner.imports.take(),
         }
     }
 
-    /// The engine owns the retry, even if the caller saw an unlocked list or
-    /// detached before a submission finished. Drain under the same state lock
-    /// as submission admission so paths cannot be lost on a stale lock check.
-    async fn import_opened(&self, resets: u64) -> SessionOutcome {
-        let paths = loop {
-            let unlocked = self.inner.list_unlocked.notified();
-            tokio::pin!(unlocked);
-            unlocked.as_mut().enable();
-            if self.inner.resets.load(Ordering::SeqCst) != resets {
-                return SessionOutcome::Superseded;
-            }
-            let paths = {
-                let state = self.lock();
-                (!state.working_set.order_locked())
-                    .then(|| self.inner.deps.opened_audio.take_paths())
+    /// Imports files the operating system asked ABB to open, with no host
+    /// asking. Unlike a user's import it is not refused while the list is
+    /// locked: it appends once the list unlocks, and a Reset meanwhile drops it.
+    pub(crate) fn import_opened(&self, paths: Vec<PathBuf>) -> Result<()> {
+        let paths = paths
+            .into_iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect();
+        self.inner.deps.tasks.admit(|| {
+            let rest = Rest::Import {
+                paths,
+                resets: self.inner.resets.load(Ordering::SeqCst),
+                turn: self.inner.imports.take(),
             };
-            if let Some(paths) = paths {
-                break paths;
-            }
-            unlocked.await;
-        };
-        match paths {
-            Ok(paths) if paths.is_empty() => SessionOutcome::Applied,
-            Ok(paths) => self.import(paths, resets).await,
-            Err(error) => self.import_failed(InputNotice::DiscoveryFailed {
-                error: AppErrorEnvelope::from(&error),
-            }),
-        }
+            let session = self.clone();
+            self.inner.deps.tasks.spawn(async move {
+                session.complete(rest).await;
+            });
+        })
     }
 
-    async fn import(&self, paths: Vec<String>, resets: u64) -> SessionOutcome {
-        let _in_order = self.inner.imports.lock().await;
+    async fn import(
+        &self,
+        paths: Vec<String>,
+        resets: u64,
+        turn: super::import_order::Turn,
+    ) -> SessionOutcome {
+        let _in_order = self.inner.imports.wait(turn).await;
         // A Reset since this import began drops it, success or failure.
         let superseded = || self.inner.resets.load(Ordering::SeqCst) != resets;
         let failed = |notice| {
@@ -1226,7 +1216,7 @@ impl Session {
 
     async fn import_acquired_files(&self, job: &AcquisitionJob) -> AcquisitionHandoff {
         let resets = self.inner.resets.load(Ordering::SeqCst);
-        let _in_order = self.inner.imports.lock().await;
+        let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
         let removed = |reason| AcquisitionHandoff::Removed { reason };
         if self.inner.resets.load(Ordering::SeqCst) != resets {
             return removed(HandoffRefusal::NothingAdded);
@@ -1345,8 +1335,7 @@ impl Session {
             Err(error) => return self.end_submission(&draft, failed(&error)),
         };
         if draft
-            .preview_id
-            .as_ref()
+            .preview_id()
             .is_some_and(|id| self.lock().preview.cancelled(id))
         {
             return self.end_submission(&draft, SubmissionStatus::Cancelled);
@@ -1421,6 +1410,7 @@ impl Session {
                 deps.jobs.clone(),
                 deps.workspace_root.clone(),
                 SubmitProcessingOperationRequest {
+                    operation_id: draft.operation_id.clone(),
                     payload: draft.payload.clone(),
                     metadata: draft.metadata.clone(),
                     title: draft.title.clone(),
@@ -1468,10 +1458,7 @@ impl Session {
         let cancels: Vec<Arc<AtomicBool>> = (0..draft.payload.input_files.len())
             .map(|_| Arc::default())
             .collect();
-        let id = draft
-            .preview_id
-            .clone()
-            .expect("preview draft has an identity");
+        let id = draft.operation_id.clone();
         *self.preview_cancels() = cancels.clone();
         if let Some(preview) = self.lock().preview.snapshot() {
             for child in &preview.operation.children {
@@ -1634,9 +1621,13 @@ impl Session {
         }
         let result = match source {
             CoverSource::File(path) => crate::cover_source::load_cover_art_file(path).await,
-            CoverSource::Url(url) => {
-                (self.inner.network.cover_from_url)(url.trim().to_string()).await
-            }
+            CoverSource::Url(url) => self
+                .inner
+                .network
+                .covers
+                .remote_full(url.trim())
+                .await
+                .map(|cover| cover.to_vec()),
         };
         self.transition(|state| {
             // The image was chosen for a selection that is no longer bound,
@@ -1902,9 +1893,13 @@ impl Session {
             failed: result.summary.failed,
             cancelled: result.summary.cancelled,
         };
+        let mut state = self.lock();
         for entry in result.results {
             if let Some(slot) = written.items.get_mut(entry.input_index) {
                 *slot = entry.status == MetadataSaveResultStatus::Success;
+            }
+            if let (Some(item), Some(rewrite)) = (items.get(entry.input_index), &entry.rewrite) {
+                state.working_set.note_tag_write(&item.path, rewrite);
             }
         }
         Ok(written)
@@ -2038,9 +2033,11 @@ impl Session {
             return SessionOutcome::Applied;
         };
         self.publish();
+        let started = std::time::Instant::now();
         let response = (self.inner.network.search)(query, sources).await;
         let applied = self.lookup_step(request, |state| match response {
             Ok(response) => {
+                log_lookup_found(&response, started.elapsed());
                 state.lookup.status = Some(LookupStatus::Found {
                     count: response.results.len(),
                     partial: !response.diagnostics.is_empty(),
@@ -2133,7 +2130,14 @@ impl Session {
         let mut cover = None;
         let mut cover_failed = false;
         if let Some(url) = result.cover_url.clone().filter(|_| replace_cover) {
-            match (self.inner.network.cover_from_url)(url).await {
+            match self
+                .inner
+                .network
+                .covers
+                .remote_full(&url)
+                .await
+                .map(|cover| cover.to_vec())
+            {
                 Ok(bytes) => cover = Some(bytes),
                 Err(error) => {
                     log::warn!("Failed to load cover art from lookup: {error}");
@@ -2350,6 +2354,9 @@ async fn read_all(tickets: Vec<ReadTicket>) -> Vec<(ReadTicket, Result<Audiobook
     }
     finished
 }
+
+#[path = "cover_request.rs"]
+mod cover_request;
 
 #[cfg(test)]
 #[path = "runtime_tests.rs"]

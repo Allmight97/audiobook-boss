@@ -1152,8 +1152,8 @@ async fn embedded_cover_thumbnail_is_bounded_jpeg_and_coverless_artifact_returns
     );
     let (width, height) = decoded.dimensions();
     assert!(
-        width <= 64 && height <= 64,
-        "thumbnail dimensions {width}x{height} exceed the 64px bound"
+        width <= 128 && height <= 128,
+        "thumbnail dimensions {width}x{height} exceed the 128px bound"
     );
 
     let coverless_lane = MediaLane::with_fixtures(&[1.0]);

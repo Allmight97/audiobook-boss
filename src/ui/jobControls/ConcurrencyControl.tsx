@@ -23,11 +23,7 @@ export function ConcurrencyControl(): JSX.Element {
 					select.value = view().selection;
 				}}
 			>
-				{view().allowAuto && (
-					<option value="auto">
-						{view().autoEffective === null ? 'Auto' : `Auto · ${view().autoEffective} jobs`}
-					</option>
-				)}
+				{view().allowAuto && <option value="auto">{`Auto · ${view().autoEffective} jobs`}</option>}
 				<For each={[...view().fixedOptions]}>
 					{(option) => <option value={String(option)}>{option}</option>}
 				</For>

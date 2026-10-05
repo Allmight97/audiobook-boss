@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { OperationSnapshot } from '../../../types/workRuntime';
-import { replaceOperations, upsertOperation } from '../model';
+import {
+	applyOperationSnapshot,
+	applyWorkOperations,
+	emptyWorkCenterModel,
+	visibleOperations,
+} from '../model';
 
 function operation(id: string, sequence: number, childCount = 1): OperationSnapshot {
 	const children = Array.from({ length: childCount }, (_, index) => ({
@@ -33,7 +38,6 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 		operationId: id,
 		sequence,
 		revision: 1,
-		createdRevision: sequence,
 		kind: 'processingBatch',
 		status: 'accepted',
 		title: `Operation ${id}`,
@@ -61,78 +65,69 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 	};
 }
 
-describe('Work Center model', () => {
-	it('keeps newer operation state across delayed event and list responses', () => {
-		const completed = { ...operation('op-1', 1), revision: 3, status: 'completed' as const };
-		const older = { ...completed, revision: 2, status: 'running' as const };
-		const model = { membershipRevision: 0, operations: [completed] };
-		expect(upsertOperation(model, older).operations).toEqual([completed]);
-		expect(
-			replaceOperations(model, { membershipRevision: 1, operations: [older] }).operations,
-		).toEqual([completed]);
+describe('work center model', () => {
+	const at = (op: OperationSnapshot, revision: number) => ({ ...op, revision });
+	const ids = (model: ReturnType<typeof emptyWorkCenterModel>) =>
+		visibleOperations(model).map((item) => `${item.operationId}@${item.revision}`);
+
+	it('keeps the newest snapshot of each operation and the newest order, whatever the arrival order', () => {
+		const a = operation('a', 1);
+		const b = operation('b', 2);
+		let model = emptyWorkCenterModel();
+		model = applyWorkOperations(model, { revision: 3, order: ['b', 'a'], changed: at(b, 1) });
+		model = applyWorkOperations(model, { revision: 2, order: ['a'], changed: at(a, 2) });
+		model = applyWorkOperations(model, { revision: 1, order: ['a'], changed: at(a, 1) });
+
+		expect(ids(model)).toEqual(['b@1', 'a@2']);
 	});
 
-	it('preserves a new operation missing from a delayed initial list', () => {
-		const newer = operation('op-2', 2);
-		const model = { membershipRevision: 0, operations: [newer] };
-		expect(
-			replaceOperations(model, {
-				membershipRevision: 1,
-				operations: [operation('op-1', 1)],
-			}).operations.map((item) => item.operationId),
-		).toEqual(['op-2', 'op-1']);
+	it('hides an operation the newest order lists until its snapshot arrives', () => {
+		const a = operation('a', 1);
+		let model = applyWorkOperations(emptyWorkCenterModel(), {
+			revision: 2,
+			order: ['b', 'a'],
+			changed: a,
+		});
+		expect(ids(model)).toEqual(['a@1']);
+
+		model = applyWorkOperations(model, { revision: 1, order: ['b'], changed: operation('b', 2) });
+		expect(ids(model)).toEqual(['b@1', 'a@1']);
 	});
 
-	it('honors backend pruning without resurrecting history from delayed responses', () => {
-		const retired = { ...operation('op-1', 1), status: 'completed' as const };
-		const retained = operation('op-2', 2);
-		const model = replaceOperations(
-			{ membershipRevision: 0, operations: [retired, retained] },
-			{ membershipRevision: 3, operations: [retained] },
-		);
-		expect(model.operations).toEqual([retained]);
-		expect(upsertOperation(model, retired).operations).toEqual([retained]);
-		expect(
-			replaceOperations(model, { membershipRevision: 1, operations: [retired] }).operations,
-		).toEqual([retained]);
+	it('does not bring back an operation the engine removed', () => {
+		const a = operation('a', 1);
+		let model = applyWorkOperations(emptyWorkCenterModel(), {
+			revision: 5,
+			order: [],
+			changed: operation('b', 2),
+		});
+		model = applyWorkOperations(model, { revision: 4, order: ['a'], changed: at(a, 3) });
+
+		expect(ids(model)).toEqual([]);
 	});
 
-	it('upserts one operation without erasing existing operations', () => {
-		let model = { membershipRevision: 0, operations: [] as OperationSnapshot[] };
+	it('lets a late initial list fill in snapshots without undoing newer updates', () => {
+		const a = operation('a', 1);
+		let model = applyWorkOperations(emptyWorkCenterModel(), {
+			revision: 4,
+			order: ['a'],
+			changed: at(a, 3),
+		});
+		model = applyWorkOperations(model, { revision: 2, order: ['a'], operations: [at(a, 1)] });
 
-		model = upsertOperation(model, operation('op-1', 1));
-		model = upsertOperation(model, operation('op-2', 2));
-
-		expect(model.operations.map((item) => item.operationId)).toEqual(['op-2', 'op-1']);
+		expect(ids(model)).toEqual(['a@3']);
 	});
 
-	it('replaceOperations sorts operations by descending sequence', () => {
-		const list = {
-			membershipRevision: 3,
-			operations: [operation('first', 1), operation('second', 3), operation('third', 2)],
-		};
+	it('applies a cancel reply only when it is newer than what is shown', () => {
+		const a = operation('a', 1);
+		let model = applyWorkOperations(emptyWorkCenterModel(), {
+			revision: 1,
+			order: ['a'],
+			changed: at(a, 2),
+		});
+		expect(applyOperationSnapshot(model, at(a, 1))).toBe(model);
 
-		const model = replaceOperations({ membershipRevision: 0, operations: [] }, list);
-
-		expect(model.operations.map((operation) => operation.operationId)).toEqual([
-			'second',
-			'third',
-			'first',
-		]);
-	});
-
-	it('keeps running work above queued and terminal history', () => {
-		const running = { ...operation('running', 1), status: 'running' as const };
-		const queued = operation('queued', 3);
-		const completed = { ...operation('completed', 4), status: 'completed' as const };
-		const model = replaceOperations(
-			{ membershipRevision: 0, operations: [] },
-			{ membershipRevision: 4, operations: [completed, queued, running] },
-		);
-		expect(model.operations.map((item) => item.operationId)).toEqual([
-			'running',
-			'queued',
-			'completed',
-		]);
+		model = applyOperationSnapshot(model, at(a, 3));
+		expect(ids(model)).toEqual(['a@3']);
 	});
 });

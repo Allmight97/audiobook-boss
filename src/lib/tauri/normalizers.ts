@@ -13,7 +13,6 @@
  */
 
 import type {
-	AudiobookMetadata as GeneratedAudiobookMetadata,
 	FrontendAttachment as GeneratedFrontendAttachment,
 	SessionReply as GeneratedSessionReply,
 	OutputSnapshot as GeneratedOutputSnapshot,
@@ -21,15 +20,19 @@ import type {
 	SettingsReply as GeneratedSettingsReply,
 	SettingsSnapshot as GeneratedSettingsSnapshot,
 	ProcessCommandResult as GeneratedProcessCommandResult,
-	OperationListSnapshot as GeneratedOperationListSnapshot,
+	WorkOperationsSnapshot as GeneratedWorkOperationsSnapshot,
+	WorkOperationsUpdate as GeneratedWorkOperationsUpdate,
 	OperationSnapshot as GeneratedOperationSnapshot,
 } from '../generated/tauri';
 import type { PlannedOutput, ProcessCommandResult } from '../../types/audio';
 import type { SettingsReply, SettingsSnapshot } from '../../types/appSettings';
-import type { AudiobookMetadata } from '../../types/metadata';
 import type { SessionReply, SessionUpdate, SubmissionStatus } from '../../types/session';
 import type { NullToOptionalDeep } from '../../types/ipc';
-import type { OperationListSnapshot, OperationSnapshot } from '../../types/workRuntime';
+import type {
+	OperationSnapshot,
+	WorkOperationsSnapshot,
+	WorkOperationsUpdate,
+} from '../../types/workRuntime';
 import { normalizeAppError } from './appError';
 
 type PlainRecord = Record<string, unknown>;
@@ -52,9 +55,9 @@ function isScalarArrayWithoutNullish(value: readonly unknown[]): boolean {
  *
  * The return type is `NullToOptionalDeep<T>` — the type-level twin of this
  * runtime transform. Typing the return this way means every downstream
- * normalizer can return a UI-friendly type (e.g. `AudiobookMetadata =
- * NullToOptionalDeep<GeneratedAudiobookMetadata>`) without an `as` cast at
- * the call site.
+ * normalizer can return a UI-friendly type (e.g. `SettingsSnapshot =
+ * NullToOptionalDeep<GeneratedSettingsSnapshot>`) without an `as` cast at the
+ * call site.
  */
 export function normalizeNullish<T>(value: T): NullToOptionalDeep<T> {
 	if (value == null) {
@@ -107,10 +110,6 @@ export function denormalizeNullish<T>(value: T): T {
 	return value;
 }
 
-export function normalizeMetadata(metadata: GeneratedAudiobookMetadata): AudiobookMetadata {
-	return normalizeNullish(metadata);
-}
-
 /**
  * Audio files and lookup results take the optional-field forms the frontend
  * uses elsewhere. Audio requests keep their explicit nulls: a null `settings`
@@ -156,6 +155,12 @@ export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionU
 			? {
 					...output,
 					submission: normalizeSubmission(output.submission),
+					collisionReview: output.collisionReview
+						? {
+								...output.collisionReview,
+								outputs: normalizeNullish(output.collisionReview.outputs) as PlannedOutput[],
+							}
+						: null,
 				}
 			: undefined,
 	};
@@ -167,8 +172,6 @@ function normalizeSubmission(
 	switch (submission?.kind) {
 		case 'previewFinished':
 			return { kind: 'previewFinished', result: normalizeProcessResult(submission.result) };
-		case 'reviewRequired':
-			return { ...submission, outputs: normalizeNullish(submission.outputs) as PlannedOutput[] };
 		default:
 			return submission ?? null;
 	}
@@ -213,8 +216,14 @@ export function normalizeOperationSnapshot(payload: GeneratedOperationSnapshot):
 	return normalizeNullish(payload) as OperationSnapshot;
 }
 
-export function normalizeOperationListSnapshot(
-	payload: GeneratedOperationListSnapshot,
-): OperationListSnapshot {
-	return normalizeNullish(payload) as OperationListSnapshot;
+export function normalizeWorkOperationsSnapshot(
+	payload: GeneratedWorkOperationsSnapshot,
+): WorkOperationsSnapshot {
+	return normalizeNullish(payload) as WorkOperationsSnapshot;
+}
+
+export function normalizeWorkOperationsUpdate(
+	payload: GeneratedWorkOperationsUpdate,
+): WorkOperationsUpdate {
+	return normalizeNullish(payload) as WorkOperationsUpdate;
 }

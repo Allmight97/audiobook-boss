@@ -8,8 +8,8 @@ the same code.
 
 - A host builds one `Engine` with `EngineConfig`: a cache folder, a config
   folder, an identity that scopes stored credentials, and an `EventSink`.
-  `Engine::start` clears working files a previous run abandoned, so two
-  engines must not share those folders.
+  `Engine::start` clears working files a previous run abandoned (logging, not
+  failing, when it cannot), so two engines must not share those folders.
 - A host calls `Engine` methods and receives `EngineEvent`s; `engine.rs` lists
   the methods. Remote account, auth, library, and acquisition work uses
   session intents and snapshots; its owned vocabulary is in
@@ -26,10 +26,15 @@ the same code.
   ones, a running preview, and any submission waiting at collision review,
   and waits for every background task and for the Saves, submissions, and
   settings writes already under way, accepted remote disconnects and credential
-  writes, and started keychain reads, so saves waiting on them are written.
+  writes, and keychain reads started before closing (none starts after), so
+  saves waiting on them are written.
   Remote registration and network reads stop before credential persistence.
   Metadata Saves are not cancelled. `Engine::running_work` tells a host what
-  quitting would stop.
+  quitting would stop (exports being prepared, reviewed, or running; waiting
+  writes; downloads), with a consent naming that work. `Engine::close_for_quit`
+  closes admission only while no work outside that consent has started, so a
+  quit never stops work the user was not asked about; finished work needs no
+  new consent. An export keeps one identity from submission to running.
 - Every background task the engine starts runs on its one `EngineTasks` owner over a `TaskTracker`
   (`tokio_util`), never a bare `tokio::spawn`, so shutdown can wait for it.
   Short scoped tasks joined before their caller returns are the exception.
@@ -56,7 +61,14 @@ the same code.
 - The titles being prepared, their metadata drafts, lookup, Save, and
   submission belong to `crate::session`. It writes tags through `metadata_save.rs` (one WorkRuntime
   operation per batch, with crate-internal request/result types) and loads user-picked covers through `cover_source.rs`,
-  which owns the URL and file limits.
+  which owns the URL and file limits. `cover_service.rs` loads every remote and
+  embedded cover (views, Lookup Apply, typed URLs) once per size,
+  single-flight, bounded, and sized for display; a thumbnail is made from the
+  downloaded bytes, not from the full cover.
+- Engine HTTP uses the one `reqwest` 0.13 dependency with `http2`; each
+  server picks HTTP/2 or HTTP/1.1. reqwest's HTTP/3 needs the
+  `reqwest_unstable` cfg and has no fallback (upstream #2303), so ABB does not
+  enable it.
 - Online metadata search belongs to `crate::metadata_lookup`. A provider that
   fails while others answer leaves the usable results plus typed diagnostics;
   the search fails only when no selected source can answer
@@ -83,6 +95,8 @@ the same code.
   Records never change an operation result. Artifact IDs correlate paths without
   exposing parent folders; processor handoffs link those IDs to job/session IDs.
 - Log encoding/metadata/publication transitions and cleanup at their owners.
+  A refusal (Start, an audio edit) and a cover that fails to load log one
+  line with its kind at the owner; a cover names a remote origin only.
   Metadata diagnostics describe field actions and cover sizes/formats, not tag
   values or artwork bytes. Keep per-packet tracing at debug level.
 

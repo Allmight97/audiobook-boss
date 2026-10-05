@@ -11,7 +11,7 @@ use std::time::Instant;
 
 use serde::Serialize;
 
-use super::audio::{AudioDefaults, AudioSnapshot, TitleAudio};
+use super::audio::{AudioDefaults, AudioRefusal, AudioSnapshot, TitleAudio};
 use super::audio_choice::AudioEdit;
 use super::exports::{ExportLink, Exports, OutputEdit, OutputEdits, RestartStale};
 use super::lookup::{LookupSnapshot, LookupState, QueuedTitle};
@@ -241,6 +241,11 @@ struct Cover {
     request: u64,
 }
 
+struct Submitting {
+    operation_id: OperationId,
+    preview: bool,
+}
+
 struct Parts {
     revision: u64,
     titles: TitlesSnapshot,
@@ -269,11 +274,18 @@ pub(crate) struct SessionState {
     /// How the latest submission or preview is going.
     submission: Option<SubmissionStatus>,
     /// A submission waiting for the user's collision choice.
-    pending_review: Option<Draft>,
-    /// A submission or preview is between `begin_submission` and
+    pending_review: Option<super::submission::PendingReview>,
+    /// Never reset: a delayed answer must not name a later question.
+    review_serial: u64,
+    /// The submission or preview between `begin_submission` and
     /// `finish_submission`. Kept apart from `submission`, which a refusal of
     /// a later request overwrites.
-    submitting: bool,
+    submitting: Option<Submitting>,
+    /// Why the latest title audio edit changed nothing.
+    audio_refusal: Option<AudioRefusal>,
+    /// Covers a Save has written into sources; see `TitlesSnapshot::covers_revision`.
+    covers_written: u64,
+    keeping_locations: usize,
     /// Sources a submission being prepared will read; Save treats them as busy.
     reserved: Vec<PathBuf>,
     /// Downloads the session imported, and when they may be removed.
@@ -330,6 +342,8 @@ impl Default for SessionState {
                 capabilities: None,
                 defaults: AudioDefaults::default().defaults_view(),
                 titles: Default::default(),
+                selection: None,
+                refusal: None,
             },
             output: OutputPlan::default().snapshot(0, OutputPreview::NoDirectory, None),
         };
@@ -346,7 +360,11 @@ impl Default for SessionState {
             plans_seen: (u64::MAX, u64::MAX),
             submission: None,
             pending_review: None,
-            submitting: false,
+            review_serial: 0,
+            submitting: None,
+            audio_refusal: None,
+            covers_written: 0,
+            keeping_locations: 0,
             reserved: Vec::new(),
             staged: StagedSources::default(),
             removing: Vec::new(),
@@ -375,6 +393,12 @@ impl SessionState {
     /// revision. The runtime calls this once after every transition.
     pub(crate) fn settle(&mut self) {
         self.refresh_displayed_cover();
+        // A refusal answers the titles and lock it was made for.
+        if self.working_set.order_locked() != self.parts.titles.order_locked
+            || self.working_set.selected_indices() != self.parts.selection.selected_indices
+        {
+            self.audio_refusal = None;
+        }
         let next = self.parts.revision + 1;
         let mut changed = false;
 
@@ -390,10 +414,12 @@ impl SessionState {
         let companions = self.staged.companions();
         if self.working_set.titles_changes() != self.parts.titles_changes
             || companions != self.parts.titles.companions
+            || self.covers_written != self.parts.titles.covers_revision
         {
             self.parts.titles_changes = self.working_set.titles_changes();
             self.parts.titles = TitlesSnapshot {
                 companions,
+                covers_revision: self.covers_written,
                 ..self.working_set.titles(next)
             };
             changed = true;
@@ -475,11 +501,21 @@ impl SessionState {
                     },
                 ))
             })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let files = self.working_set.files();
+        let selected: Vec<_> = self
+            .working_set
+            .selected_indices()
+            .iter()
+            .filter_map(|index| files.get(*index))
+            .filter_map(|file| titles.get_key_value(&file.input_id))
             .collect();
         AudioSnapshot {
             revision,
             capabilities: self.audio.capabilities().cloned(),
             defaults: self.audio.defaults_view(),
+            selection: super::audio::selection_audio(&selected),
+            refusal: self.audio_refusal.clone(),
             titles,
         }
     }
@@ -521,12 +557,28 @@ impl SessionState {
         });
         let preview = self.output.preview(title);
         OutputSnapshot {
+            submission_in_progress: self.submitting.is_some(),
+            collision_review: self
+                .pending_review
+                .as_ref()
+                .map(|review| review.view.clone()),
             restart_offers: self.exports.offers(),
+            restart_prompt: self.next_restart_prompt(),
             preview_run: self.preview.snapshot(),
             ..self
                 .output
                 .snapshot(revision, preview, self.submission.clone())
         }
+    }
+
+    fn next_restart_prompt(&self) -> Option<super::exports::RestartOffer> {
+        if self.submitting.is_some() || self.keeping_locations > 0 || self.save_in_progress {
+            return None;
+        }
+        self.exports.next_prompt(
+            self.output.naming_directory().as_ref(),
+            &self.output.naming(),
+        )
     }
 
     // ---- Submission ----
@@ -546,7 +598,10 @@ impl SessionState {
         match self.prepare_submission(preview_seconds, only) {
             Ok(draft) => {
                 self.preview.begin(&draft);
-                self.submitting = true;
+                self.submitting = Some(Submitting {
+                    operation_id: draft.operation_id.clone(),
+                    preview: draft.preview(),
+                });
                 self.reserved.extend(draft.sources.iter().cloned());
                 self.working_set.set_order_locked(true);
                 self.submission = Some(SubmissionStatus::Preparing {
@@ -555,7 +610,7 @@ impl SessionState {
                 Some(draft)
             }
             Err(reason) => {
-                self.submission = Some(SubmissionStatus::Refused { reason });
+                self.refuse_submission(reason);
                 None
             }
         }
@@ -566,8 +621,13 @@ impl SessionState {
         preview_seconds: Option<f64>,
         only: Option<&str>,
     ) -> Result<Draft, SubmitRefusal> {
-        if self.submitting {
+        if self.submitting.is_some() {
             return Err(SubmitRefusal::Busy);
+        }
+        if preview_seconds
+            .is_some_and(|seconds| !crate::processing::is_valid_preview_length(seconds))
+        {
+            return Err(SubmitRefusal::InvalidPreviewLength);
         }
         let writing = !self.writing.is_empty()
             || self
@@ -600,6 +660,7 @@ impl SessionState {
                     |request| self.audio.title_view(request).request,
                 ),
                 choice_required: required.contains(&file.input_id),
+                has_title: self.has_title(file),
             })
             .collect();
         let supplemental_assets = self.staged.assets_for(
@@ -714,7 +775,7 @@ impl SessionState {
                 return None;
             }
         };
-        // A refused submission leaves the offer for another try.
+        self.exports.acknowledge_prompt(title_id, revision);
         let draft = self.begin_submission_of(None, Some(title_id))?;
         self.exports.consume_offer(title_id);
         Some((draft, link))
@@ -725,15 +786,27 @@ impl SessionState {
         self.exports.decline(title_id, revision);
     }
 
-    pub(crate) fn location_offer(&self, title_id: &str, revision: u64) -> Option<ExportLink> {
-        self.exports
+    pub(crate) fn begin_keep_location(
+        &mut self,
+        title_id: &str,
+        revision: u64,
+    ) -> Option<ExportLink> {
+        let link = self
+            .exports
             .offered(
                 title_id,
                 revision,
                 self.output.naming_directory().as_ref(),
                 &self.output.naming(),
             )
-            .ok()
+            .ok()?;
+        self.exports.acknowledge_prompt(title_id, revision);
+        self.keeping_locations += 1;
+        Some(link)
+    }
+
+    pub(crate) fn finish_keep_location(&mut self) {
+        self.keeping_locations -= 1;
     }
 
     // ---- Staged downloads ----
@@ -794,33 +867,57 @@ impl SessionState {
     ) {
         draft.payload.collision_policy = None;
         draft.reviewed = Some(super::submission::collisions(&outputs));
-        self.submission = Some(SubmissionStatus::ReviewRequired {
+        self.review_serial += 1;
+        let view = super::submission::CollisionReview {
+            review_id: self.review_serial,
             outputs,
-            preview: draft.preview(),
-        });
-        self.pending_review = Some(draft);
+        };
+        self.submission = Some(SubmissionStatus::ReviewRequired);
+        self.pending_review = Some(super::submission::PendingReview { view, draft });
     }
 
     pub(crate) fn refuse_submission(&mut self, reason: SubmitRefusal) {
+        log::info!("submit_refused reason={}", reason.kind());
         self.submission = Some(SubmissionStatus::Refused { reason });
     }
 
     /// Drops a submission held for review.
     pub(crate) fn cancel_review(&mut self) {
-        if let Some(draft) = self.pending_review.take() {
-            self.finish_submission(&draft, SubmissionStatus::Cancelled);
+        if let Some(review) = self.pending_review.take() {
+            self.finish_submission(&review.draft, SubmissionStatus::Cancelled);
         }
     }
 
+    pub(crate) fn cancel_review_named(&mut self, review_id: u64) -> bool {
+        if !self.review_matches(review_id) {
+            return false;
+        }
+        self.cancel_review();
+        true
+    }
+
+    fn review_matches(&self, review_id: u64) -> bool {
+        self.pending_review
+            .as_ref()
+            .is_some_and(|review| review.view.review_id == review_id)
+    }
+
     pub(crate) fn cancel_preview_review(&mut self) {
-        if self.pending_review.as_ref().is_some_and(Draft::preview) {
+        if self
+            .pending_review
+            .as_ref()
+            .is_some_and(|review| review.draft.preview())
+        {
             self.cancel_review();
         }
     }
 
     /// The submission waiting for a collision choice, if any.
-    pub(crate) fn take_review(&mut self) -> Option<Draft> {
-        let draft = self.pending_review.take()?;
+    pub(crate) fn take_review(&mut self, review_id: u64) -> Option<Draft> {
+        if !self.review_matches(review_id) {
+            return None;
+        }
+        let draft = self.pending_review.take()?.draft;
         self.submission = Some(SubmissionStatus::Preparing {
             preview: draft.preview(),
         });
@@ -844,7 +941,7 @@ impl SessionState {
         if self.reserved.is_empty() {
             self.working_set.set_order_locked(false);
         }
-        self.submitting = false;
+        self.submitting = None;
         self.submission = Some(status);
     }
 
@@ -1134,24 +1231,74 @@ impl SessionState {
 
     // ---- Audio ----
 
-    /// Edits each named title's audio choice; refused edits and a locked list
-    /// change nothing.
+    /// Edits every named title's audio choice, or none: a locked list or a
+    /// title that refuses the edit changes nothing and is recorded as the
+    /// refusal. A title already at the value takes it.
     pub(crate) fn edit_title_audio(&mut self, title_ids: &[String], edit: AudioEdit) {
+        let mut next = Vec::new();
+        let mut refusing: Vec<String> = Vec::new();
         for id in title_ids {
             let Some(request) = self.working_set.audio_request(id) else {
                 continue;
             };
-            if let Some(next) = self.audio.edit_title(request, edit) {
-                self.working_set.set_audio_request(id, next);
+            match self.audio.edit_title(request, edit) {
+                Some(request) => next.push((id, request)),
+                None => refusing.push(id.clone()),
             }
         }
+        let refusal = if self.working_set.order_locked() {
+            Some(AudioRefusal::Locked)
+        } else if refusing.is_empty() {
+            None
+        } else {
+            let labels = refusing
+                .iter()
+                .filter_map(|id| {
+                    self.working_set
+                        .files()
+                        .iter()
+                        .find(|file| &file.input_id == id)
+                })
+                .map(super::submission::title_label)
+                .collect();
+            Some(AudioRefusal::NotAccepted {
+                title_ids: refusing,
+                labels,
+            })
+        };
+        self.apply_title_audio(refusal, next);
     }
 
+    /// Gives every named title the default audio choice, unless the list is
+    /// locked.
     pub(crate) fn apply_default_audio(&mut self, title_ids: &[String]) {
         let request = self.audio.request();
-        for id in title_ids {
-            self.working_set.set_audio_request(id, request.clone());
+        let refusal = self
+            .working_set
+            .order_locked()
+            .then_some(AudioRefusal::Locked);
+        let next = title_ids.iter().map(|id| (id, request.clone())).collect();
+        self.apply_title_audio(refusal, next);
+    }
+
+    fn apply_title_audio(
+        &mut self,
+        refusal: Option<AudioRefusal>,
+        next: Vec<(&String, crate::audio::TitleAudioRequest)>,
+    ) {
+        match &refusal {
+            None => {
+                for (id, request) in next {
+                    self.working_set.set_audio_request(id, request);
+                }
+            }
+            Some(AudioRefusal::Locked) => log::info!("audio_edit_refused reason=locked"),
+            Some(AudioRefusal::NotAccepted { title_ids, .. }) => log::info!(
+                "audio_edit_refused reason=not_accepted titles={}",
+                title_ids.len()
+            ),
         }
+        self.audio_refusal = refusal;
     }
 
     /// Returns the session to empty. Writes already waiting on an export stay
@@ -1161,7 +1308,8 @@ impl SessionState {
         // keeps its sources until it ends.
         self.cancel_review();
         self.working_set.reset();
-        if self.submitting {
+        self.audio_refusal = None;
+        if self.submitting.is_some() {
             self.working_set.set_order_locked(true);
         }
         self.lookup = LookupState {
@@ -1287,8 +1435,33 @@ impl SessionState {
             .map(|file| file.path.clone())
     }
 
+    #[cfg(test)]
     pub(crate) fn displayed_cover(&self) -> Option<Vec<u8>> {
         self.cover.displayed.clone()
+    }
+
+    /// The cover on screen while it is still the one at `revision`.
+    pub(crate) fn displayed_cover_at(&self, revision: u64) -> Option<Vec<u8>> {
+        (self.cover.image_revision == revision)
+            .then(|| self.cover.displayed.clone())
+            .flatten()
+    }
+
+    pub(crate) fn lookup_offers_cover(&self, url: &str) -> bool {
+        self.lookup
+            .results
+            .iter()
+            .any(|result| result.cover_url.as_deref() == Some(url))
+    }
+
+    /// Whether `path` is a source of a listed title.
+    pub(crate) fn lists_source(&self, path: &std::path::Path) -> bool {
+        self.working_set.files().iter().any(|file| {
+            self.working_set
+                .sources_for(file)
+                .iter()
+                .any(|source| source.path == path)
+        })
     }
 
     fn set_cover_notice(&mut self, notice: CoverNotice) {
@@ -1511,6 +1684,7 @@ impl SessionState {
         for item in saved {
             self.exports.acknowledge(&item.path, &item.patch);
             let cover_was_submitted = item.patch.cover_art.is_some();
+            self.covers_written += u64::from(cover_was_submitted);
             self.tags
                 .commit_saved(&item.path, &item.patch, item.revision);
             // A cover changed while the save ran is still unsaved.
@@ -1557,6 +1731,34 @@ impl SessionState {
             .any(|write| write.phase == DeferredPhase::Waiting)
     }
 
+    /// Whether `file`'s output will carry a title: the pending edit's, else
+    /// the file's own tag. Without a read of the file's tags this session,
+    /// analysis is what is known of them.
+    fn has_title(&self, file: &AudioFile) -> bool {
+        let pending = self
+            .tags
+            .pending(&file.path)
+            .and_then(|pending| pending.patch.title.clone());
+        let title = match pending {
+            Some(crate::metadata::PatchOp::Set(title)) => Some(title),
+            Some(crate::metadata::PatchOp::Clear) => None,
+            None if self.tags.has_source_read(&file.path) => {
+                self.tags.effective(&file.path).and_then(|tags| tags.title)
+            }
+            None => file.tag_title.clone(),
+        };
+        title.is_some_and(|title| !title.trim().is_empty())
+    }
+
+    /// The export being prepared or reviewed. Its identity becomes the
+    /// accepted export's, so quit consent survives the handoff.
+    pub(crate) fn export_in_preparation(&self) -> Option<&OperationId> {
+        self.submitting
+            .as_ref()
+            .filter(|submitting| !submitting.preview)
+            .map(|submitting| &submitting.operation_id)
+    }
+
     /// Files with a Save accepted and not yet written.
     pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
         let mut paths: Vec<PathBuf> = self
@@ -1600,6 +1802,7 @@ impl SessionState {
             }
             if *written {
                 self.exports.acknowledge(&item.path, &item.patch);
+                self.covers_written += u64::from(item.patch.cover_art.is_some());
             }
             if !loaded.contains(&item.path) {
                 // Not loaded: nothing on screen describes this file.

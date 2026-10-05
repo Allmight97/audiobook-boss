@@ -10,6 +10,7 @@ import type { OutputPlanOwner } from '../outputPlan';
 import type { ProcessingOwner } from '../processing';
 import type { RemoteSourceOwner, RemoteSourceOwnerDeps } from '../remoteSource';
 import type { WorkOperationsOwner } from '../workOperations';
+import type { EngineLink } from '../engineLink';
 
 export type RuntimeCapabilities = {
 	readonly engine?: EngineCapability;
@@ -18,7 +19,11 @@ export type RuntimeCapabilities = {
 	readonly remoteSource?: Omit<RemoteSourceOwnerDeps, 'link'>;
 };
 
+/** The connection's own state: whether it is attached, and refused posts. */
+export type EngineStatus = Pick<EngineLink, 'attachment' | 'refusal' | 'dismissRefusal'>;
+
 export type AppRuntime = {
+	readonly engine: EngineStatus;
 	readonly input: InputOwner;
 	readonly metadata: MetadataOwner;
 	readonly lookup: MetadataLookupOwner;

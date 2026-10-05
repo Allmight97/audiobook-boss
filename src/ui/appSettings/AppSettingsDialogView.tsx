@@ -16,19 +16,21 @@ const INDEXER_CATEGORY_OPTIONS: ReadonlyArray<{ readonly id: number; readonly la
 ];
 
 function indexerCategorySummary(selected: readonly number[]): string {
-	const labels = INDEXER_CATEGORY_OPTIONS.filter((option) => selected.includes(option.id)).map(
-		(option) => option.label,
-	);
-	return labels.length > 0 ? labels.join(', ') : 'Audiobooks (3030)';
+	return selected
+		.map(
+			(id) =>
+				INDEXER_CATEGORY_OPTIONS.find((option) => option.id === id)?.label ?? `Category ${id}`,
+		)
+		.join(', ');
 }
 
 function toggledIndexerCategories(selected: readonly number[], id: number): number[] {
-	const next = selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id];
-	return next.length > 0 ? next : [3030];
+	return selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id];
 }
 
 function IndexerCategoryPicker(props: {
 	readonly selected: readonly number[];
+	readonly refused: boolean;
 	readonly onChange: (ids: number[]) => void;
 }): JSX.Element {
 	const [open, setOpen] = createSignal(false);
@@ -77,6 +79,11 @@ function IndexerCategoryPicker(props: {
 					</label>
 				))}
 			</div>
+			<Show when={props.refused}>
+				<p class="field-hint" role="status" data-testid="indexer-category-required">
+					One category is required. Audiobooks (3030) is recommended.
+				</p>
+			</Show>
 		</div>
 	);
 }
@@ -301,8 +308,8 @@ export function AppSettingsDialogView(): JSX.Element {
 							<section class="app-settings-section">
 								<h4 class="app-settings-section-title">Import</h4>
 								<p class="muted-text">
-									Choose which source the Import button opens by default. Use the caret to pick
-									the other source any time.
+									Choose which source the Import button opens by default. Use the caret to pick the
+									other source any time.
 								</p>
 								<div
 									class="app-settings-startup-options"
@@ -362,8 +369,8 @@ export function AppSettingsDialogView(): JSX.Element {
 								</div>
 								<p id="app-settings-connection-security" class="app-settings-connection-security">
 									<Show when={usesHttp()} fallback="HTTPS recommended.">
-										<strong>HTTP is unencrypted.</strong> Your API key, searches, and results
-										could be read or modified by someone able to intercept this connection.
+										<strong>HTTP is unencrypted.</strong> Your API key, searches, and results could
+										be read or modified by someone able to intercept this connection.
 									</Show>
 								</p>
 								<div class="app-settings-path-row">
@@ -372,6 +379,7 @@ export function AppSettingsDialogView(): JSX.Element {
 									</label>
 									<IndexerCategoryPicker
 										selected={indexerConnection().categoryIdsDraft}
+										refused={indexerConnection().categoriesRefused}
 										onChange={(categoryIdsDraft) =>
 											remoteSource.patchIndexerConnectionSettings({ categoryIdsDraft })
 										}
@@ -449,11 +457,7 @@ export function AppSettingsDialogView(): JSX.Element {
 									The encoder, output, and job controls save as you change them. This chooses what
 									the app restores on launch.
 								</p>
-								<div
-									class="app-settings-startup-options"
-									role="radiogroup"
-									aria-label="On launch"
-								>
+								<div class="app-settings-startup-options" role="radiogroup" aria-label="On launch">
 									<label class="app-settings-radio">
 										<input
 											type="radio"

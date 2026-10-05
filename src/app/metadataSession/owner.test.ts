@@ -1,3 +1,4 @@
+import { coverSrc } from '../../lib/tauri/coverSrc';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import type { SessionOutcome } from '../../types/session';
@@ -136,9 +137,8 @@ describe('metadata owner', () => {
 		expect(title(app).value).toBe('Alpha');
 	});
 
-	it('fetches the cover once per image the engine reports and shows it', async () => {
+	it("shows the engine's cover at an address that names that image", async () => {
 		const app = await open();
-		const fetches = vi.spyOn(engine, 'sessionCoverArt');
 		engine.respond = (intent) => {
 			if (intent.kind !== 'loadCoverFromDrop') return undefined;
 			engine.seedCover([1, 2, 3]);
@@ -151,25 +151,18 @@ describe('metadata owner', () => {
 			kind: 'loadCoverFromDrop',
 			paths: ['/art/readme.txt', '/art/cover.PNG'],
 		});
-		await vi.waitFor(() =>
-			expect(app.metadata.view().cover.imageDataUrl).toBe('data:image/jpeg;base64,AQID'),
+		await vi.waitFor(() => expect(app.metadata.view().cover.imageSrc).not.toBeNull());
+		expect(app.metadata.view().cover.imageSrc).toMatch(
+			coverSrc({ kind: 'session', revision: 0 }).replace(/0%2F$/, ''),
 		);
 		expect(app.metadata.view().cover.hasCustomCoverArt).toBe(true);
-		const fetched = fetches.mock.calls.length;
-		// An edit that leaves the image alone does not fetch it again.
+		const shown = app.metadata.view().cover.imageSrc;
 		app.metadata.setFieldValue({ inputId: 'meta-genre', value: 'Mystery' });
 		await vi.waitFor(() => expect(app.metadata.view().form.fields['meta-genre'].dirty).toBe(true));
-		expect(fetches.mock.calls.length).toBe(fetched);
-	});
+		expect(app.metadata.view().cover.imageSrc).toBe(shown);
 
-	it('clears the previous image when the new cover cannot be fetched', async () => {
-		const app = await open();
-		engine.seedCover([1, 2, 3]);
-		await vi.waitFor(() => expect(app.metadata.view().cover.imageDataUrl).not.toBeNull());
-		vi.spyOn(engine, 'sessionCoverArt').mockRejectedValueOnce(new Error('Cover unavailable'));
-		vi.spyOn(console, 'error').mockImplementation(() => undefined);
 		engine.seedCover([4, 5, 6]);
-		await vi.waitFor(() => expect(app.metadata.view().cover.imageDataUrl).toBeNull());
+		await vi.waitFor(() => expect(app.metadata.view().cover.imageSrc).not.toBe(shown));
 	});
 
 	it('hides a cover message after a moment', async () => {

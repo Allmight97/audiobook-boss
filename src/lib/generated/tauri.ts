@@ -18,31 +18,18 @@ export const commands = {
 	 *  Settings intents run one at a time in `sequence` order.
 	 */
 	settingsDispatch: (client: number, sequence: number, intent: SettingsIntent) => typedError<SettingsReply, AppErrorEnvelope>(__TAURI_INVOKE("settings_dispatch", { client, sequence, intent })),
-	/**  The cover image the session currently shows. */
-	sessionCoverArt: () => __TAURI_INVOKE<number[] | null>("session_cover_art"),
-	/**
-	 *  Reads metadata from an audio file
-	 *  Returns metadata as JSON-serializable struct
-	 */
-	readAudioMetadata: (filePath: string) => typedError<AudiobookMetadata, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_metadata", { filePath })),
-	/**  Loads cover art from a remote HTTPS URL and returns write-ready JPEG bytes. */
-	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
-	/**  Reads an audio file's embedded cover as a bounded JPEG thumbnail. */
-	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**  Returns backend-owned supported local audio import metadata for picker UI. */
 	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
-	listWorkOperations: () => typedError<OperationListSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
+	listWorkOperations: () => typedError<WorkOperationsSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	cancelWorkOperation: (operationId: OperationId, childJobId: string | null) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId, childJobId })),
 	logFrontend: (entry: FrontendLogEntry) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("log_frontend", { entry })),
 };
 
 /** Events */
 export const events = {
-	openedAudioFiles: makeEvent<OpenedAudioFilesEvent>("opened-audio-files"),
 	sessionUpdate: makeEvent<SessionUpdateEvent>("session-update"),
 	settingsUpdate: makeEvent<SettingsUpdateEvent>("settings-update"),
-	workOperationListSnapshot: makeEvent<WorkOperationListSnapshotEvent>("work-operation-list-snapshot"),
-	workOperationSnapshot: makeEvent<WorkOperationSnapshotEvent>("work-operation-snapshot"),
+	workOperationsUpdate: makeEvent<WorkOperationsUpdateEvent>("work-operations-update"),
 };
 
 /* Types */
@@ -178,6 +165,9 @@ export type AudioEdit = { field: "format"; value: AudiobookFormat } | { field: "
 /**  Target kbps for the format's encoder, across all channels. */
 { field: "bitrate"; value: number } | { field: "sampleRate"; value: SampleRateConfig } | { field: "channels"; value: ChannelConfig };
 
+/**  One part of an audio choice, named as its `AudioEdit` is. */
+export type AudioField = "format" | "intent" | "encoder" | "faacProfile" | "rateControl" | "quality" | "nativeSpeed" | "bitrate" | "sampleRate" | "channels";
+
 /**  Represents an audio file with metadata */
 export type AudioFile = {
 	/**  Stable workbench/session identity for joins that must survive reorder/remove operations. */
@@ -230,6 +220,16 @@ export type AudioPreservation = {
 	canPreserve: boolean,
 };
 
+/**  Why a title audio edit changed nothing. */
+export type AudioRefusal =
+/**  A submission holds the list. */
+{ kind: "locked" } |
+/**
+ *  These titles cannot take the edit, so no title took it. `labels`
+ *  are what the title list shows for them, in the same order.
+ */
+{ kind: "notAccepted"; titleIds: string[]; labels: string[] };
+
 /**  The audio part of the session. */
 export type AudioSnapshot = {
 	revision: number,
@@ -238,28 +238,13 @@ export type AudioSnapshot = {
 	defaults: AudioChoiceView,
 	/**  Each title's audio, by title identity. */
 	titles: { [key in string]: TitleAudio },
+	/**  The selected titles' audio as one choice; absent with no selection. */
+	selection: SelectionAudio | null,
+	/**  Why the latest title audio edit changed nothing. */
+	refusal: AudioRefusal | null,
 };
 
 export type AudiobookFormat = "m4b" | "mp3" | "m4aOpus" | "mkaOpus";
-
-export type AudiobookMetadata = {
-	title: string | null,
-	artist: string | null,
-	album: string | null,
-	composer: string | null,
-	genre: string | null,
-	date: string | null,
-	track: [number, number | null] | null,
-	disk: [number, number | null] | null,
-	comment: string | null,
-	description: string | null,
-	series: string | null,
-	series_part: string | null,
-	subseries: string | null,
-	subseries_part: string | null,
-	album_sort: string | null,
-	cover_art: number[] | null,
-};
 
 /**  Bitrate/quality control mode per encoder */
 export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "abr" } | { mode: "vbr"; value: number } |
@@ -316,6 +301,11 @@ export type ChildJobSnapshot = {
 export type ChildJobStatus = "queued" | "running" | "completed" | "skipped" | "cancelled" | "failed";
 
 export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip_existing";
+
+export type CollisionReview = {
+	reviewId: number,
+	outputs: PlannedOutput[],
+};
 
 export type ConcurrencyPreference = { mode: "auto" } | { mode: "fixed"; value: number };
 
@@ -499,6 +489,11 @@ export type IndexerDraftSnapshot = {
 	 *  before; Save and Test refuse until an edit is accepted.
 	 */
 	draftError: AppErrorEnvelope | null,
+	/**
+	 *  The last category edit chose none and was refused; the draft keeps
+	 *  its categories. A search needs at least one.
+	 */
+	emptyCategoriesRefused: boolean,
 };
 
 export type IndexerWorkSnapshot = {
@@ -656,17 +651,9 @@ export type OnlineMetadataResult = {
 	audibleOnly: boolean | null,
 };
 
-/**  Tells the frontend the OS asked ABB to open files; it then drains the queue. */
-export type OpenedAudioFilesEvent = Record<string, never>;
-
 export type OperationId = string;
 
 export type OperationKind = "processingBatch" | "remoteAcquisition" | "metadataSave";
-
-export type OperationListSnapshot = {
-	membershipRevision: number,
-	operations: OperationSnapshot[],
-};
 
 /**
  *  Bounded per-operation activity tail rendered by the Work Center's op-card
@@ -693,8 +680,6 @@ export type OperationSnapshot = {
 	sequence: number,
 	/**  Monotonic within this operation; authored under the state lock. */
 	revision: number,
-	/**  Membership revision when this operation entered the retained set. */
-	createdRevision: number,
 	kind: OperationKind,
 	status: WorkOperationStatus,
 	title: string,
@@ -783,8 +768,14 @@ export type OutputSnapshot = {
 	preview: OutputPreview,
 	/**  How the latest submission or preview is going. */
 	submission: SubmissionStatus | null,
+	/**  Accepted preparation, review, restart, or preview still holds the session. */
+	submissionInProgress: boolean,
+	/**  The question awaiting an answer; a later refusal does not replace it. */
+	collisionReview: CollisionReview | null,
 	/**  Exported titles a Save would move, each awaiting Restart or Keep. */
 	restartOffers: RestartOffer[],
+	/**  One unanswered offer to ask now; absent while a decision's work settles. */
+	restartPrompt: RestartOffer | null,
 	previewRun: PreviewSnapshot | null,
 };
 
@@ -894,7 +885,12 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
  *  staging source could not be purged. Non-blocking: the startup session
  *  sweep removes it on next launch.
  */
-"protectedSourcePurgeFailed" | "validationFailed" | "supplementalPdfFailed" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
+"protectedSourcePurgeFailed" | "validationFailed" | "supplementalPdfFailed" |
+/**
+ *  The user asked for the title's Supplemental PDF and Audible offers
+ *  none. Non-blocking: the audiobook is imported without it.
+ */
+"supplementalPdfUnavailable" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
 
 export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
 
@@ -1027,6 +1023,17 @@ export type SampleRateConfig =
 /**  Explicit sample rate in Hz */
 { explicit: number };
 
+/**  The selected titles' audio, edited together. */
+export type SelectionAudio = {
+	/**  The titles this describes, in list order. */
+	titleIds: string[],
+	/**  The first title's choice; `mixed` names where the others differ. */
+	choice: AudioChoice,
+	/**  Only what every selected title accepts is offered. */
+	facts: AudioChoiceFacts,
+	mixed: AudioField[],
+};
+
 export type SelectionModifiers = {
 	multi: boolean,
 	range: boolean,
@@ -1048,9 +1055,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  *  Discovers and analyzes audio under `paths` and adds new titles, each
  *  starting from the default audio choice.
  */
-{ kind: "import"; paths: string[] } |
-/**  Imports the files the operating system asked ABB to open. */
-{ kind: "importOpened" } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } |
+{ kind: "import"; paths: string[] } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } |
 /**
  *  Moves a title one place. Named by identity, so a second click sent
  *  before the first is answered moves the same title again.
@@ -1065,7 +1070,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 /**  Renders the first `seconds` of each valid title, in the foreground. */
 { kind: "preview"; seconds: number | null } |
 /**  Continues a submission held for review with the user's choice. */
-{ kind: "chooseCollisionPolicy"; policy: CollisionPolicy } | { kind: "cancelCollisionReview" } |
+{ kind: "chooseCollisionPolicy"; reviewId: number; policy: CollisionPolicy } | { kind: "cancelCollisionReview"; reviewId: number } |
 /**
  *  Restarts an exported title at the location a Save offered
  *  (`OutputSnapshot::restart_offers`): cancels it, removes its empty
@@ -1075,7 +1080,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 /**  Keeps an exported title where it is; its export continues unchanged. */
 { kind: "keepTitleLocation"; titleId: string; revision: number } |
 /**  Cancels the identified preview, including preparation and queued titles. */
-{ kind: "cancelPreview"; runId: string; childJobId: string | null } | { kind: "takePreviewOutput"; runId: string } | { kind: "readPreviewCover"; runId: string } |
+{ kind: "cancelPreview"; runId: string; childJobId: string | null } | { kind: "takePreviewOutput"; runId: string } |
 /**  Where exports are written; recorded in the settings. */
 { kind: "setOutputDirectory"; directory: string } | { kind: "setNamingPreset"; preset: NamingPreset } | { kind: "setIncludeYear"; includeYear: boolean } |
 /**  The custom naming template as typed; recorded once typing pauses. */
@@ -1103,7 +1108,7 @@ export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } | { k
  *  The edits on screen were not accepted, so nothing changed. `message`
  *  is absent when a save in progress is what blocked the change.
  */
-{ kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } | { kind: "previewOutput"; path: string | null } | { kind: "previewCover"; bytes: number[] | null } |
+{ kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } | { kind: "previewOutput"; path: string | null } |
 /**  A newer request or a reset replaced this one before it finished. */
 { kind: "superseded" };
 
@@ -1202,8 +1207,8 @@ export type StartupBehavior =
 
 /**  How the latest submission or preview is going. */
 export type SubmissionStatus = { kind: "preparing"; preview: boolean } | { kind: "refused"; reason: SubmitRefusal } |
-/**  Some outputs already exist; the user chooses what to do with them. */
-{ kind: "reviewRequired"; outputs: PlannedOutput[]; preview: boolean } |
+/**  Some outputs already exist; `OutputSnapshot::collision_review` holds the question. */
+{ kind: "reviewRequired" } |
 /**  The output plan cannot proceed; `message` says why. */
 { kind: "blocked"; message: string } | { kind: "failed"; error: AppErrorEnvelope } | { kind: "submitted"; operationId: OperationId; title: string } | { kind: "previewing" } | { kind: "previewFinished"; result: ProcessCommandResult } |
 /**  The user cancelled the collision review. */
@@ -1230,6 +1235,13 @@ export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | {
 { kind: "saveInProgress" } |
 /**  Another submission or a preview is still running. */
 { kind: "busy" } |
+/**  A preview length that is not a positive number of seconds. */
+{ kind: "invalidPreviewLength" } |
+/**
+ *  This title has no title tag and none was typed; its output would
+ *  carry no title. `label` is what the title list shows for it.
+ */
+{ kind: "missingTitle"; titleId: string; label: string } |
 /**  A downloaded source is being removed after its export finished. */
 { kind: "sourceRemoved" } | { kind: "closing" } |
 /**
@@ -1339,18 +1351,39 @@ export type TitlesSnapshot = {
 	orderDiffersFromImport: boolean,
 	/**  Companion PDF names of downloaded titles, by input id. */
 	companions: { [key in string]: string[] },
-};
-
-export type WorkOperationListSnapshotEvent = {
-	membershipRevision: number,
-	operations: OperationSnapshot[],
-};
-
-export type WorkOperationSnapshotEvent = {
-	snapshot: OperationSnapshot,
+	/**
+	 *  Advances whenever a Save writes a cover into a source, so an address
+	 *  for a source's cover names its current image.
+	 */
+	coversRevision: number,
 };
 
 export type WorkOperationStatus = "accepted" | "running" | "cancelling" | "completed" | "cancelled" | "failed" | "mixed";
+
+/**
+ *  The operations a host shows, in display order. Active operations come
+ *  first, then accepted ones, then finished ones; newest first within each.
+ */
+export type WorkOperationsSnapshot = {
+	/**  Advances with every change to any operation or to the order. */
+	revision: number,
+	order: OperationId[],
+	operations: OperationSnapshot[],
+};
+
+/**
+ *  One change. A host keeps the newest `changed` per operation (by its own
+ *  `revision`) and the `order` with the highest `revision`, so updates may
+ *  arrive in any order; an operation missing from that order is not shown.
+ */
+export type WorkOperationsUpdate = {
+	revision: number,
+	order: OperationId[],
+	changed: OperationSnapshot,
+};
+
+/**  An accepted operation changed, with the display order as of then. */
+export type WorkOperationsUpdateEvent = WorkOperationsUpdate;
 
 export type WorkProgressStage = "pending" | "analyzing" | "converting" | "writing" | "downloading" | "decrypting" | "committing" | "cleaning" | "complete" | "failed" | "cancelled";
 

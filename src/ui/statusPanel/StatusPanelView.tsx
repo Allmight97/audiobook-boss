@@ -3,7 +3,7 @@ import type { JSX } from '@solidjs/web';
 
 import type { JobListItem } from '../../app/processing';
 import { useAppRuntime } from '../../app/runtime';
-import { Button, Progress } from '../foundation';
+import { Button, CoverImage, Progress } from '../foundation';
 import './statusPanelView.css';
 
 function jobPercentageText(item: JobListItem): string {
@@ -61,9 +61,13 @@ export function StatusPanelView(): JSX.Element {
 		<div class="panel status-panel">
 			<div class="status-panel-content">
 				<div class="art-thumbnail">
-					<Show when={view().coverArtDataUrl} fallback={<span>Art</span>}>
-						{(dataUrl) => <img src={dataUrl()} alt="Cover Art" class="status-cover-image" />}
-					</Show>
+					<CoverImage
+						src={view().coverArtSrc}
+						alt="Cover Art"
+						class="status-cover-image"
+						eager
+						missing={<span>Art</span>}
+					/>
 				</div>
 				<div class="progress-details">
 					<div class="status-progress-header">
@@ -159,7 +163,7 @@ export function StatusPanelView(): JSX.Element {
 					<Button
 						id="process-button"
 						tone="primary"
-						disabled={view().isProcessing}
+						disabled={processing.isProcessing()}
 						onClick={() => void startProcessing(undefined)}
 					>
 						Start Processing

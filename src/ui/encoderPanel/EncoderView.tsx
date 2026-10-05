@@ -1,23 +1,45 @@
-import { For, Show, createMemo, createUniqueId } from 'solid-js';
+import { For, Show, createMemo, createUniqueId, type Accessor } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { useAppRuntime } from '../../app/runtime';
 import type { AudioFile } from '../../types/audio';
-import type { EncodingField } from '../../app/encoding';
+import type { EncodingField, EncodingView } from '../../app/encoding';
 import './encoderView.css';
+
+type PanelView = EncodingView & { readonly mixedFields: readonly EncodingField[] };
 
 export function EncoderView(
 	props: { title?: AudioFile; titles?: readonly AudioFile[] } = {},
 ): JSX.Element {
 	const runtime = useAppRuntime();
-	const view = createMemo(() =>
+	const view = createMemo((): PanelView | null =>
 		props.titles
 			? runtime.encoding.selectionView(props.titles)
 			: {
 					...(props.title ? runtime.encoding.titleView(props.title) : runtime.encoding.view()),
-					mixedFields: [] as readonly EncodingField[],
+					mixedFields: [],
 				},
 	);
+	return (
+		<Show when={view()}>
+			{(shown) => <EncoderPanel view={shown} title={props.title} titles={props.titles} />}
+		</Show>
+	);
+}
+
+function EncoderPanel(props: {
+	view: Accessor<PanelView>;
+	title?: AudioFile;
+	titles?: readonly AudioFile[];
+}): JSX.Element {
+	const runtime = useAppRuntime();
+	const view = props.view;
+	const refusal = () =>
+		props.titles
+			? runtime.encoding.refusal(props.titles)
+			: props.title
+				? runtime.encoding.refusal([props.title])
+				: null;
 	const mixed = (field: EncodingField) => view().mixedFields.includes(field);
 	const value = (field: EncodingField, current: string | number) => (mixed(field) ? '' : current);
 	const editingTitles = () => !!props.title || !!props.titles;
@@ -46,6 +68,11 @@ export function EncoderView(
 			class="encoder-workbench-panel"
 			data-testid="encoder-settings-panel"
 		>
+			<Show when={refusal()}>
+				<p class="field-hint" role="status" data-testid="audio-edit-refusal">
+					{refusal()}
+				</p>
+			</Show>
 			<div class="encoder-workbench-grid">
 				<div class="encoder-field-row">
 					<label for={id('audio-format')}>Output</label>

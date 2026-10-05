@@ -61,6 +61,10 @@ or infer provider-private Audible internals.
   credential store.
 - The private connection owner resolves URL, categories, and the host's key for
   search/grab together; its credential-bearing result never crosses IPC.
+- Indexer categories default to Audio (3000) and Audiobooks (3030); a search
+  uses exactly the saved choice. An edit or save that chooses none is refused
+  (`empty_categories_refused` on the draft), and a file with none loads as the
+  default.
 - Indexer credentials are scoped to the normalized server URL in the vault;
   connection JSON never contains a key. Save persists changed JSON before
   changing that URL's key, and reports partial persistence if the vault fails.
@@ -78,16 +82,20 @@ Processing receives them explicitly by file-list `inputId`; it must not query
 A finished job hands its files to the session through the engine-set
 `Handoff` and records the outcome on the job. From then on the session
 decides when the download goes, including one nothing was imported from
-(`crate::session`, `staged.rs`), and calls `purge_session`.
+(`crate::session`, `staged.rs`), and calls `purge_session`, which also drops
+the job's record.
 Cancel does nothing to a job that already finished, so it cannot remove files
 the session holds. Materialized handoff files stay usable after provider
-logout. Disconnect refuses unfinished acquisition/handoff. Job changes update
+logout. An Audible disconnect refuses unfinished acquisition/handoff; an
+Indexer disconnect neither waits for nor cleans up Audible jobs. Job changes update
 `SessionUpdate.remote`; download progress is published at most every 100 ms,
 a stage change at once. Snapshot `terminal` and `settled` facts belong here.
 
 Audible Supplemental PDF acquisition uses provider-private authenticated
 `GET /companion-file/{title_id}`. Do not use `HEAD`; Audible API `pdf_url`
-fields are presence hints, not direct-download facts.
+fields are presence hints, not direct-download facts. A requested PDF with no
+hint imports the audio and adds a non-blocking `SupplementalPdfUnavailable`
+diagnostic.
 
 ## Working Remote State
 
@@ -107,14 +115,16 @@ fields are presence hints, not direct-download facts.
   reserves credentials until registration and persistence settle. StartAuth,
   Disconnect, acquisition, and lane replacement are refused during completion.
   Shutdown cancels registration before the credential commit is admitted and
-  awaits an admitted blocking commit. Started keychain reads are awaited too.
+  awaits an admitted blocking commit. Started keychain reads are awaited too;
+  none starts once closing, so a system prompt cannot hold quit.
 - Accepted disconnect reserves the UI guard's disconnecting fact through vault
   work outside the guard; account_status Running exposes that pending work.
   Credential deletion failure preserves account/library choices and reports
   Failed. Successful deletion updates account truth before staging cleanup, so
-  cleanup failure cannot leave a Connected account. Failed unmaterialized jobs
-  remain in the lifecycle registry; startup abandoned-session cleanup retries
-  their paths. Materialized handoff files remain session-owned.
+  cleanup failure cannot leave a Connected account. Cleanup covers only the
+  disconnected provider's jobs. Failed unmaterialized jobs remain in the
+  lifecycle registry; startup abandoned-session cleanup retries their paths.
+  Materialized handoff files remain session-owned.
 - Available PDFs start included; refresh preserves explicit exclusion while
   pruning titles that cannot be acquired. A Grab batch captures its releases,
   sends sequentially, and keeps per-release failures for explicit retry. Its

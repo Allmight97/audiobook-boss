@@ -11,7 +11,7 @@ import { createRemoteSourceOwner } from '../remoteSource';
 import { createWorkOperationsOwner } from '../workOperations';
 import type { AppRuntime, RuntimeCapabilities } from './types';
 
-export type { AppRuntime, RuntimeCapabilities } from './types';
+export type { AppRuntime, EngineStatus, RuntimeCapabilities } from './types';
 
 export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRuntime {
 	let disposeRoot = (): void => {};
@@ -25,9 +25,9 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			const metadata = createMetadataOwner({ link, capability: capabilities.metadata });
 			const encoding = createEncodingOwner({ link });
 			const output = createOutputOwner({ link });
-			const lookup = createMetadataLookupOwner({ link, metadata });
+			const lookup = createMetadataLookupOwner({ link });
 			const remoteSource = createRemoteSourceOwner({ link, ...capabilities.remoteSource });
-			const processing = createProcessingOwner({ link, settings, output });
+			const processing = createProcessingOwner({ link, settings });
 			const workOperations = createWorkOperationsOwner();
 			/** Resolves once the engine's session and settings have arrived. */
 			function initialize(): Promise<void> {
@@ -37,6 +37,11 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			}
 			return {
 				link,
+				engine: {
+					attachment: link.attachment,
+					refusal: link.refusal,
+					dismissRefusal: link.dismissRefusal,
+				},
 				initialize,
 				input,
 				metadata,

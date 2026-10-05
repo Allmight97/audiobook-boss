@@ -10,8 +10,8 @@ attachment.
 ## Public API Strip
 
 - Hosts reach the session through `Engine::session_dispatch`,
-  `Engine::session_begin`, `Engine::session_snapshot`, and
-  `Engine::session_cover_art`, and receive `EngineEvent::Session`.
+  `Engine::session_begin`, `Engine::session_snapshot`, `Engine::cover`, and
+  `Engine::open_audio_files`, and receive `EngineEvent::Session`.
 - Types are the `pub use` list in `mod.rs`: the intent, outcome, reply, and
   update types, each snapshot part, and the typed statuses and notices.
 - `Session`, `SessionDeps`, and the state modules are engine-internal.
@@ -36,9 +36,13 @@ attachment.
 - The metadata part carries `binding`, which advances whenever the form binds
   to a different selection. A host showing typing the engine has not yet
   confirmed shows it only on the form it was typed into.
-- The cover image is not in a snapshot. The metadata part carries
-  `image_revision`; a host fetches the bytes with `Engine::session_cover_art`
-  when that changes.
+- Covers are not in a snapshot. `Engine::cover` serves the ones the session
+  shows by request (`cover_request.rs`): a lookup result's or a library
+  title's URL, a listed source's embedded cover (the titles part's
+  `covers_revision` advances when a Save writes one), the cover on screen at
+  the metadata part's `image_revision`, and the running preview's artwork.
+  Anything else is refused. Loading is `crate::cover_service`'s
+  (`crates/abb-engine/AGENTS.md`).
 - Reasons and statuses are typed (`InputNotice`, `MetadataStatus`,
   `LookupStatus`, `CoverNotice`, `SubmissionStatus`). The host words them.
 
@@ -82,11 +86,13 @@ attachment.
   anchors on the first selected title; conflicting audio requests require an
   explicit choice. Drafts for hidden sources survive grouping, and a grouped
   title's draft is kept for its output and never written into a source.
-- **Import.** One import runs at a time. A Reset drops an import still
-  running, including its failure notice. Files the OS opened stay queued while
-  the list is locked; an accepted OS-open request waits and drains them after
-  unlock independently of the host. Analysis that overlaps a submission waits
-  before appending to its locked list.
+- **Import.** One import runs at a time, in the order the imports were
+  accepted (`import_order.rs`), whatever order their tasks start. A Reset
+  drops an import still running, including its failure notice. Files the OS opened
+  (`Engine::open_audio_files`) are imported by the engine with no host asking;
+  while the list is locked that import waits and appends after unlock instead
+  of being refused. Analysis that overlaps a submission waits before appending
+  to its locked list.
 - **Cover.** A cover change applies only when exactly one valid title is
   selected. A later cover choice or Clear supersedes a load still running.
 - **Save targets.** Save covers every pending edit on a valid single-source
@@ -97,6 +103,20 @@ attachment.
   remote-source staging root) is never written and its edit stays pending for
   its exports; any other file is written at once and never moved. Two writes
   to one file never overlap.
+- **Decision presentation.** `output.collision_review` is the held question, independent
+  of a later request's refusal; `SubmissionStatus::ReviewRequired` carries no
+  copy of it. Its `review_id` advances for each review and
+  survives Reset; choice and cancel intents must name it, and stale/duplicate
+  answers are `Superseded`. Frontend teardown is not a user cancellation.
+  `output.submission_in_progress` owns the preparation/review/restart/preview
+  busy fact. `output.restart_prompt` selects one unanswered current offer in
+  title-id order only after the preceding answer's work settles; answering
+  suppresses that offer's automatic question for the engine session, even if
+  Restart or Keep fails. Unanswered questions reattach; retained offers remain
+  retryable in Work Center. Changing naming makes the old question ineligible.
+  Hosts render questions; they do not own an asked set, a review loop, or a
+  restart queue. The snapshots keep presentation lifetime separate from accepted
+  source holds, so a replaced frontend cannot release file work.
 - **Exported titles.** A title links to its latest export's output
   (`exports.rs`) while it stays listed. Every Save sends each linked output
   the edit it should carry: what was written to the title's source since the
@@ -120,8 +140,12 @@ attachment.
   not retry repeatedly in the background.
 - **Audio choice.** The defaults new titles start from and each title's own
   choice are edited with typed `AudioEdit`s checked against the encoder
-  capabilities (`audio_choice.rs`); a refused edit changes nothing. MP3 copies
-  its source; editing how audio is encoded selects Encode. A defaults edit is
+  capabilities (`audio_choice.rs`); a refused edit changes nothing. A title
+  edit applies to every named title or none: one title that refuses it, or a
+  locked list, changes nothing and sets `audio.refusal` until the selection
+  or the lock changes; a title already at the value takes it. `audio.selection` combines the selected titles: the first
+  one's choice, only the options every one accepts, and the fields that differ.
+  MP3 copies its source; editing how audio is encoded selects Encode. A defaults edit is
   recorded in the settings; a title edit is not, and is refused while the
   list is locked. A settings reset returns the defaults and output choices to
   the reset settings; loaded titles keep their choices.
@@ -155,10 +179,12 @@ attachment.
   (`submission.rs`). An invalid standalone title is left out; a grouped title
   with an invalid source, an unresolved audio choice, a CUE awaiting review,
   no output folder, a Save writing, or another submission in progress refuses
-  it with a `SubmitRefusal`. From acceptance until the export is registered
+  it with a `SubmitRefusal`. An export also refuses a valid title with no
+  title tag and no typed title (`MissingTitle`, naming it); the file name is
+  never used as a title. A preview needs no title. From acceptance until the export is registered
   with WorkRuntime (or the preview ends) its sources are held and the list is
   locked. Outputs that already exist hold it at `ReviewRequired` until
-  `ChooseCollisionPolicy` or `CancelCollisionReview`. The choice applies only
+  identified `ChooseCollisionPolicy` or `CancelCollisionReview`. The choice applies only
   to the collisions the user saw: one that appears meanwhile sends the
   submission back to review, and execution still rejects a plan whose
   signature changed after approval. After `Engine::shutdown` a submission is

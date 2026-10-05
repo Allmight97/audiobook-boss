@@ -16,7 +16,6 @@ import type {
 } from '../../types/appSettings';
 import type { AudioFile, ProcessCommandResult, TitleAudioRequest } from '../../types/audio';
 import { runtimeSettingsCapabilitiesFixture } from './runtimeSettingsCapabilities';
-import type { AudiobookMetadata } from '../../types/metadata';
 import type {
 	CoverNotice,
 	FieldSnapshot,
@@ -37,7 +36,22 @@ import type {
 	SubmissionStatus,
 } from '../../types/session';
 
-const FIELD_TAGS: ReadonlyArray<readonly [MetadataField, keyof AudiobookMetadata]> = [
+/** A file's tags as the fake engine keeps them, keyed by tag name. */
+type FileTags = {
+	readonly title?: string;
+	readonly date?: string;
+	readonly artist?: string;
+	readonly composer?: string;
+	readonly series?: string;
+	readonly series_part?: string;
+	readonly subseries?: string;
+	readonly subseries_part?: string;
+	readonly genre?: string;
+	readonly description?: string;
+	readonly cover_art?: number[];
+};
+
+const FIELD_TAGS: ReadonlyArray<readonly [MetadataField, keyof FileTags]> = [
 	['title', 'title'],
 	['date', 'date'],
 	['author', 'artist'],
@@ -96,11 +110,9 @@ export type FakeEngine = EngineCapability & {
 	readonly sessionIntents: SessionIntent[];
 	readonly settingsIntents: SettingsIntent[];
 	/** What reading each file's tags yields. */
-	readonly tags: Map<string, Partial<AudiobookMetadata>>;
+	readonly tags: Map<string, FileTags>;
 	/** What importing a set of paths yields. Defaults to one valid file per path. */
 	analyze: (paths: readonly string[]) => AudioFile[];
-	/** Paths the operating system asked the app to open. */
-	openedPaths: string[];
 	/** Answers an intent in place of the fake's default behavior. */
 	respond?: (intent: SessionIntent) => SessionOutcome | Promise<SessionOutcome> | undefined;
 	/**
@@ -178,6 +190,7 @@ export function fakeRemote(): import('../../types/session').RemoteUiSnapshot {
 		connection: {
 			baseUrl: '',
 			categoryIds: [3000, 3030],
+			emptyCategoriesRefused: false,
 			apiKeyConfigured: false,
 			apiKeyEntered: false,
 			save: { kind: 'idle' },
@@ -198,7 +211,10 @@ export function fakeOutput(): SessionOutput {
 		naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
 		preview: { kind: 'noDirectory' },
 		submission: null,
+		submissionInProgress: false,
+		collisionReview: null,
 		restartOffers: [],
+		restartPrompt: null,
 		previewRun: null,
 	};
 }
@@ -256,6 +272,8 @@ function fakeAudio(): SessionAudio {
 			request: { format: 'm4b', intent: 'auto', settings, sampleRate: 'auto' },
 		},
 		titles: {},
+		selection: null,
+		refusal: null,
 	};
 }
 
@@ -304,6 +322,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			notice: null,
 			orderDiffersFromImport: false,
 			companions: {},
+			coversRevision: 0,
 		} as SessionTitles,
 		selection: { revision: 0, selectedIndices: [], selectedAnchor: null } as SessionSelection,
 		metadata: {
@@ -387,7 +406,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			.filter((file): file is AudioFile => Boolean(file));
 	}
 
-	function effectiveTags(file: AudioFile): Partial<AudiobookMetadata> {
+	function effectiveTags(file: AudioFile): FileTags {
 		return { ...engine.tags.get(file.path) };
 	}
 
@@ -486,11 +505,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				if (locked) titles.notice = { kind: 'orderLocked' };
 				else appendFiles(engine.analyze(intent.paths));
 				break;
-			case 'importOpened': {
-				const paths = engine.openedPaths.splice(0);
-				if (paths.length) appendFiles(engine.analyze(paths));
-				break;
-			}
 			case 'selectFile': {
 				const current = state.selection.selectedIndices;
 				const anchor = state.selection.selectedAnchor;
@@ -704,7 +718,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		settingsIntents: [],
 		tags: new Map(),
 		analyze: (paths: readonly string[]) => paths.map((path) => audioFile(path)),
-		openedPaths: [],
 		answerSubmission: defaultSubmissionAnswer,
 		async attach() {
 			nextSessionSequence = 0;
@@ -728,11 +741,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			const outcome = applySettings(intent);
 			settingsRevision += 1;
 			return { outcome, snapshot: settingsSnapshot() };
-		},
-		async sessionCoverArt() {
-			if (chosenCover) return chosenCover;
-			const [file] = selectedFiles();
-			return file ? (effectiveTags(file).cover_art ?? null) : null;
 		},
 		seedGroup(sources: AudioFile[], options = {}) {
 			const [anchor] = sources;

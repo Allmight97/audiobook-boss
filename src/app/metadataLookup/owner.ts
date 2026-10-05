@@ -1,10 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type { EngineLink } from '../engineLink';
-import type { MetadataOwner } from '../metadataSession';
-import {
-	createCoverArtPreviewScheduler,
-	type CoverArtPreviewState,
-} from '../../lib/media/coverArtPreviewScheduler';
 import type { SessionIntent } from '../../types/session';
 import {
 	toLookupState,
@@ -23,14 +18,10 @@ export type MetadataLookupAction =
 
 /**
  * The engine owns the lookup: its queue, searches, and applying a result.
- * This owner shows the engine's snapshot, sends intents, and loads the
- * result thumbnails the dialog displays.
+ * This owner shows the engine's snapshot and sends intents.
  */
 export type MetadataLookupOwner = {
 	readonly view: Accessor<MetadataLookupState>;
-	coverPreview(coverUrl: string | null | undefined): CoverArtPreviewState;
-	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
-	cancelCoverPreviews(): void;
 	run(action: MetadataLookupAction): Promise<void>;
 	setTitleQuery(value: string): void;
 	setAuthorQuery(value: string): void;
@@ -60,19 +51,12 @@ function intentFor(action: MetadataLookupAction): SessionIntent {
 
 export function createMetadataLookupOwner(deps: {
 	readonly link: EngineLink;
-	readonly metadata: Pick<MetadataOwner, 'capability'>;
 }): MetadataLookupOwner {
 	const { link } = deps;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	const [previewRev, bumpPreviews] = createSignal(0, { ownedWrite: true });
 	// Query text entered and not yet confirmed by the engine.
 	type QueryEcho = { value: string; path: string | undefined; binding: number };
 	const typed: { titleQuery?: QueryEcho; authorQuery?: QueryEcho } = {};
-	const previews = createCoverArtPreviewScheduler({
-		load: (url) => deps.metadata.capability().loadCoverArtFromUrl(url),
-		onChange: () => bumpPreviews((revision) => revision + 1),
-		failureLogMessage: 'Failed to load metadata lookup cover preview:',
-	});
 
 	function changed(): void {
 		bump((n) => n + 1);
@@ -113,16 +97,6 @@ export function createMetadataLookupOwner(deps: {
 				authorQuery: echo(typed.authorQuery),
 			});
 		},
-		coverPreview(coverUrl) {
-			previewRev();
-			return previews.getState(coverUrl);
-		},
-		scheduleCoverPreviews(coverUrls) {
-			previews.schedule(coverUrls);
-		},
-		cancelCoverPreviews() {
-			previews.cancel();
-		},
 		async run(action) {
 			try {
 				await link.send(intentFor(action));
@@ -150,7 +124,6 @@ export function createMetadataLookupOwner(deps: {
 			link.post({ kind: 'lookupSetReplaceCover', replace });
 		},
 		reset() {
-			previews.clear();
 			delete typed.titleQuery;
 			delete typed.authorQuery;
 			changed();

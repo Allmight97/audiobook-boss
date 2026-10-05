@@ -37,15 +37,17 @@ fn default_category_ids() -> Vec<u32> {
     DEFAULT_CATEGORY_IDS.to_vec()
 }
 
-fn normalize_category_ids(ids: Vec<u32>) -> Vec<u32> {
-    let mut normalized: Vec<u32> = ids.into_iter().filter(|id| *id > 0).collect();
-    normalized.sort_unstable();
-    normalized.dedup();
-    if normalized.is_empty() {
-        default_category_ids()
-    } else {
-        normalized
+/// The categories a search uses: at least one, or nothing can be searched.
+fn chosen_category_ids(ids: Vec<u32>) -> Result<Vec<u32>> {
+    let mut chosen: Vec<u32> = ids.into_iter().filter(|id| *id > 0).collect();
+    chosen.sort_unstable();
+    chosen.dedup();
+    if chosen.is_empty() {
+        return Err(AppError::InvalidInput(
+            "Choose at least one Indexer category.".to_string(),
+        ));
     }
+    Ok(chosen)
 }
 
 pub(super) fn get_connection(
@@ -71,7 +73,7 @@ pub(super) fn update_connection(
         stored.base_url = normalize_base_url(base_url)?;
     }
     if let Some(category_ids) = update.category_ids {
-        stored.category_ids = normalize_category_ids(category_ids);
+        stored.category_ids = chosen_category_ids(category_ids)?;
     }
     let key_change = update.api_key.map(|key| key.trim().to_string());
     if key_change.as_ref().is_some_and(|key| !key.is_empty()) && stored.base_url.is_none() {
@@ -197,9 +199,12 @@ fn load_stored_connection(config_dir: &Path) -> StoredIndexerConnection {
                 .transpose()
                 .map_err(|error| error.to_string())?
                 .flatten();
+            // A settings file without a usable category gets the default
+            // ones, so a search still has something to search.
             Ok(StoredIndexerConnection {
                 base_url,
-                category_ids: normalize_category_ids(stored.category_ids),
+                category_ids: chosen_category_ids(stored.category_ids)
+                    .unwrap_or_else(|_| default_category_ids()),
             })
         });
     stored.unwrap_or_else(|error| {
@@ -379,20 +384,27 @@ mod tests {
     }
 
     #[test]
-    fn preserves_explicit_categories_and_defaults_empty_categories() {
+    fn saves_exactly_the_chosen_categories_and_refuses_none() {
         let temp = TempDir::new().expect("temp dir");
         let vault = TestVault::default();
-        for (categories, expected) in [(vec![3030], vec![3030]), (vec![], vec![3000, 3030])] {
-            let mut change = update(None, None);
-            change.category_ids = Some(categories);
-            update_connection(temp.path(), &vault, change).expect("save categories");
-            assert_eq!(
-                get_connection(temp.path(), &vault)
-                    .expect("reload")
-                    .category_ids,
-                expected
-            );
-        }
+        assert_eq!(
+            get_connection(temp.path(), &vault)
+                .expect("defaults")
+                .category_ids,
+            [3000, 3030]
+        );
+        let mut change = update(None, None);
+        change.category_ids = Some(vec![3030]);
+        update_connection(temp.path(), &vault, change).expect("save categories");
+        let mut empty = update(None, None);
+        empty.category_ids = Some(Vec::new());
+        assert!(update_connection(temp.path(), &vault, empty).is_err());
+        assert_eq!(
+            get_connection(temp.path(), &vault)
+                .expect("reload")
+                .category_ids,
+            [3030]
+        );
     }
 
     #[test]

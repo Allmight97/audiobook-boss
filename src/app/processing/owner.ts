@@ -1,13 +1,12 @@
 import { createEffect, createSignal, onCleanup, untrack, type Accessor } from 'solid-js';
 import type { SettingsOwner } from '../appSettings';
 import type { EngineLink } from '../engineLink';
-import type { OutputPlanOwner } from '../outputPlan';
 import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
-import type { RestartOffer } from '../../types/session';
-import { runSubmission } from './submit';
+import type { RestartOffer, SessionIntent } from '../../types/session';
+import { renderSubmission } from './submit';
 import { renderConcurrencyStatus, renderPreview, renderStatus } from './render';
-import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
+import { coverSrc } from '../../lib/tauri/coverSrc';
 import { createStatusViewStore, DEFAULT_STATUS_VIEW, type StatusView } from './view';
 
 /**
@@ -18,6 +17,7 @@ import { createStatusViewStore, DEFAULT_STATUS_VIEW, type StatusView } from './v
 export type ProcessingOwner = {
 	readonly status: Accessor<StatusView>;
 	readonly restartOffers: Accessor<readonly RestartOffer[]>;
+	readonly restartPrompt: Accessor<RestartOffer | null>;
 	restart(offer: RestartOffer): Promise<void>;
 	keepLocation(offer: RestartOffer): Promise<void>;
 	start(options?: { previewSeconds?: number }): Promise<void>;
@@ -30,7 +30,6 @@ export type ProcessingOwner = {
 export type ProcessingOwnerDeps = {
 	readonly link: EngineLink;
 	readonly settings: SettingsOwner;
-	readonly output: Pick<OutputPlanOwner, 'openCollisionReview'>;
 };
 
 export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwner {
@@ -42,20 +41,13 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	}
 	const statusView = createStatusViewStore();
 	statusView.bindPublisher(publish);
-	let submitting = false;
 	let disposed = false;
 	onCleanup(() => {
 		disposed = true;
 		statusView.bindPublisher(null);
 	});
-	const submit = {
-		link: deps.link,
-		reviewCollisions: (outputs: Parameters<OutputPlanOwner['openCollisionReview']>[0]) =>
-			deps.output.openCollisionReview(outputs),
-		setControlsEnabled: (enabled: boolean) => deps.settings.setControlsEnabled(enabled),
-		showError: (message: string) => statusView.showError(message),
-	};
 	const context = {
+		showError: (message: string) => statusView.showError(message),
 		updateStatus: (next: Parameters<typeof renderStatus>[1]) =>
 			renderStatus(statusView, next, false),
 		setProcessingState: (active: boolean) => statusView.setIsProcessing(active),
@@ -84,25 +76,9 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			const key = `${id}:${preview.artworkReady}`;
 			if (artworkKey !== key) {
 				artworkKey = key;
-				statusView.setCoverArtDataUrl(null);
-				if (preview.artworkReady) {
-					void deps.link
-						.send({ kind: 'readPreviewCover', runId: id })
-						.then((reply) => {
-							if (
-								!disposed &&
-								deps.link.output().previewRun?.operation.operationId === id &&
-								reply.kind === 'previewCover'
-							) {
-								statusView.setCoverArtDataUrl(
-									reply.bytes ? coverArtBytesToDataUrl(reply.bytes) : null,
-								);
-							}
-						})
-						.catch((error: unknown) => {
-							if (!disposed) console.warn('Preview artwork could not be read:', error);
-						});
-				}
+				statusView.setCoverArtSrc(
+					preview.artworkReady ? coverSrc({ kind: 'preview', runId: id }) : null,
+				);
 			}
 			if (preview.openReady && claiming !== id) {
 				claiming = id;
@@ -119,63 +95,21 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			}
 		},
 	);
-	async function start(options?: {
-		previewSeconds?: number;
-		restart?: RestartOffer;
-		resumeReview?: boolean;
-	}): Promise<void> {
-		if (submitting) return;
-		submitting = true;
+	async function send(intent: SessionIntent): Promise<void> {
+		if (disposed) return;
 		try {
-			await runSubmission(context, submit, options);
-		} finally {
-			submitting = false;
+			await deps.link.send(intent);
+		} catch (error) {
+			if (!disposed) statusView.showError(`Processing failed: ${toUserMessage(error)}`);
 		}
 	}
-	// A replacement frontend continues the engine's held review. The same
-	// owner already handling a submission does not open a second dialog.
 	createEffect(
 		() => deps.link.output().submission,
-		(submission) => {
-			if (submission?.kind === 'reviewRequired' && !submitting) {
-				void start({ resumeReview: true });
-			}
-		},
+		(submission) => renderSubmission(context, submission),
 	);
-	// A Save that would move an unfinished export asks once per offer.
-	const asked = new Set<string>();
-	async function answer(offer: RestartOffer): Promise<void> {
-		const restart = await tauriClient.ask(
-			`This Save changes where the audiobook goes.\n\nFrom: ${offer.from}\nTo: ${offer.to}\n\n` +
-				'Restart it at the new location? Its unfinished output and any empty folders made for it are removed. ' +
-				'Keep Location lets the export finish where it is.',
-			{ title: 'Restart this export?', okLabel: 'Restart', cancelLabel: 'Keep Location' },
-		);
-		if (restart) {
-			await start({ restart: offer });
-		} else {
-			await deps.link.send({
-				kind: 'keepTitleLocation',
-				titleId: offer.titleId,
-				revision: offer.revision,
-			});
-		}
-	}
-	// One restart runs through review at a time; the next offer is asked
-	// once it settles, so two confirmations never compete for submission.
-	let answering: Promise<void> = Promise.resolve();
 	createEffect(
-		() => deps.link.output().restartOffers,
-		(offers) => {
-			for (const offer of offers) {
-				const key = `${offer.titleId}:${offer.revision}`;
-				if (asked.has(key)) continue;
-				asked.add(key);
-				answering = answering
-					.then(() => answer(offer))
-					.catch((error: unknown) => statusView.showError(toUserMessage(error)));
-			}
-		},
+		() => deps.link.output().submissionInProgress,
+		(active) => deps.settings.setControlsEnabled(!active),
 	);
 	createEffect(
 		() => deps.settings.concurrency(),
@@ -188,36 +122,36 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 
 	return {
 		restartOffers: () => deps.link.output().restartOffers,
-		restart: (offer) => start({ restart: offer }),
-		async keepLocation(offer) {
-			try {
-				await deps.link.send({
-					kind: 'keepTitleLocation',
-					titleId: offer.titleId,
-					revision: offer.revision,
-				});
-			} catch (error) {
-				statusView.showError(toUserMessage(error));
-			}
+		restartPrompt: () => {
+			rev();
+			return disposed ? null : deps.link.output().restartPrompt;
 		},
+		restart: (offer) =>
+			send({ kind: 'restartTitle', titleId: offer.titleId, revision: offer.revision }),
+		keepLocation: (offer) =>
+			send({ kind: 'keepTitleLocation', titleId: offer.titleId, revision: offer.revision }),
 		status: () => {
 			rev();
 			return status;
 		},
 		start(options) {
-			return start(options);
+			return send(
+				options?.previewSeconds != null
+					? { kind: 'preview', seconds: options.previewSeconds }
+					: { kind: 'submit' },
+			);
 		},
 		cancelAll() {
 			cancelPreview();
 		},
 		isProcessing() {
-			const status = deps.link.output().previewRun?.operation.status;
-			return status === 'accepted' || status === 'running' || status === 'cancelling';
+			return deps.link.output().submissionInProgress;
 		},
 		pushTransientStatus(message, options) {
 			statusView.pushTransient(message, options?.ttlMs);
 		},
 		reset() {
+			disposed = true;
 			statusView.reset();
 		},
 	};

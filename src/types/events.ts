@@ -1,11 +1,6 @@
-import type {
-	OpenedAudioFilesEvent as GeneratedOpenedAudioFilesEvent,
-	WorkOperationListSnapshotEvent as GeneratedWorkOperationListSnapshotEvent,
-	WorkOperationSnapshotEvent as GeneratedWorkOperationSnapshotEvent,
-} from '../lib/generated/tauri';
-import type { NullToOptionalDeep } from './ipc';
 import type { SettingsSnapshot } from './appSettings';
 import type { SessionUpdate } from './session';
+import type { WorkOperationsUpdate } from './workRuntime';
 
 /**
  * Frontend event contract for payloads that cross the Tauri runtime boundary.
@@ -16,17 +11,12 @@ import type { SessionUpdate } from './session';
  */
 
 export const EVENTS = {
-	OPENED_AUDIO_FILES: 'opened-audio-files',
-	WORK_OPERATION_SNAPSHOT: 'work-operation-snapshot',
-	WORK_OPERATION_LIST_SNAPSHOT: 'work-operation-list-snapshot',
+	WORK_OPERATIONS_UPDATE: 'work-operations-update',
 	SESSION_UPDATE: 'session-update',
 	SETTINGS_UPDATE: 'settings-update',
 } as const;
 
-export type OpenedAudioFilesEvent = NullToOptionalDeep<GeneratedOpenedAudioFilesEvent>;
-export type WorkOperationSnapshotEvent = NullToOptionalDeep<GeneratedWorkOperationSnapshotEvent>;
-export type WorkOperationListSnapshotEvent =
-	NullToOptionalDeep<GeneratedWorkOperationListSnapshotEvent>;
+export type WorkOperationsUpdateEvent = WorkOperationsUpdate;
 export type SessionUpdateEvent = SessionUpdate;
 export type SettingsUpdateEvent = SettingsSnapshot;
 
@@ -38,9 +28,7 @@ export interface TauriFileDropEvents {
 }
 
 export interface ApplicationEvents extends TauriFileDropEvents {
-	[EVENTS.OPENED_AUDIO_FILES]: OpenedAudioFilesEvent;
-	[EVENTS.WORK_OPERATION_SNAPSHOT]: WorkOperationSnapshotEvent;
-	[EVENTS.WORK_OPERATION_LIST_SNAPSHOT]: WorkOperationListSnapshotEvent;
+	[EVENTS.WORK_OPERATIONS_UPDATE]: WorkOperationsUpdateEvent;
 	[EVENTS.SESSION_UPDATE]: SessionUpdateEvent;
 	[EVENTS.SETTINGS_UPDATE]: SettingsUpdateEvent;
 }

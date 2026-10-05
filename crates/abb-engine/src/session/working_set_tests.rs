@@ -445,3 +445,50 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn a_tag_write_moves_a_chapter_plan_only_when_the_file_was_as_inspected() {
+    let planned = |name: &str, fingerprint: &str| {
+        let mut file = file(name);
+        file.chapter_plan = Some(crate::metadata::ChapterPlan {
+            chapters: Vec::new(),
+            from_cue: false,
+            source_fingerprint: fingerprint.to_string(),
+        });
+        file
+    };
+    let mut set = WorkingSet::default();
+    set.append_analyzed(
+        vec![planned("saved", "10:1"), planned("changed", "10:1")],
+        &request(AudioIntent::Auto),
+    );
+    let fingerprint = |set: &WorkingSet, name: &str| {
+        set.files()
+            .iter()
+            .find(|file| file.input_id == name)
+            .and_then(|file| file.chapter_plan.as_ref())
+            .map(|plan| plan.source_fingerprint.clone())
+    };
+
+    set.note_tag_write(
+        Path::new("/books/saved"),
+        &Rewrite {
+            before: "10:1".into(),
+            after: "20:2".into(),
+        },
+    );
+    set.note_tag_write(
+        Path::new("/books/changed"),
+        &Rewrite {
+            before: "15:5".into(),
+            after: "25:6".into(),
+        },
+    );
+
+    assert_eq!(fingerprint(&set, "saved").as_deref(), Some("20:2"));
+    assert_eq!(
+        fingerprint(&set, "changed").as_deref(),
+        Some("10:1"),
+        "a file changed outside ABB before the write stays caught"
+    );
+}

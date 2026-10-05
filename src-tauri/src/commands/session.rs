@@ -95,10 +95,3 @@ pub async fn settings_dispatch(
         .map_err(refused)?;
     Ok(engine.settings_dispatch(intent).await)
 }
-
-/// The cover image the session currently shows.
-#[tauri::command]
-#[specta::specta]
-pub fn session_cover_art(engine: EngineState<'_>) -> Option<Vec<u8>> {
-    engine.session_cover_art()
-}

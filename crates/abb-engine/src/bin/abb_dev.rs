@@ -16,8 +16,8 @@ use std::time::Duration;
 use abb_engine::audio::{AudioIntent, AudiobookFormat};
 use abb_engine::output_artifact::{CollisionPolicy, NamingPreset};
 use abb_engine::session::{
-    AudioEdit, MetadataField, MetadataStatus, SessionIntent, SessionOutcome, SessionUpdate,
-    SubmissionStatus,
+    AudioEdit, CollisionReview, MetadataField, MetadataStatus, SessionIntent, SessionOutcome,
+    SessionUpdate, SubmissionStatus,
 };
 use abb_engine::work_runtime::{
     ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus,
@@ -177,9 +177,10 @@ struct PrintProgress {
 
 impl EventSink for PrintProgress {
     fn emit(&self, event: EngineEvent) {
-        let EngineEvent::WorkOperationSnapshot(operation) = event else {
+        let EngineEvent::WorkOperations(update) = event else {
             return;
         };
+        let operation = update.changed;
         let Ok(mut seen) = self.seen.lock() else {
             return;
         };
@@ -194,6 +195,12 @@ impl EventSink for PrintProgress {
 }
 
 /// Sends an intent and reports one that the session did not apply.
+async fn shut_down(engine: &Engine) {
+    if let abb_engine::ShutdownOutcome::SettingsUnsaved { error } = engine.shutdown().await {
+        eprintln!("settings were not saved: {}", error.message);
+    }
+}
+
 async fn send(engine: &Engine, intent: SessionIntent) -> Result<(), String> {
     let description = format!("{intent:?}");
     match engine.session_dispatch(intent).await.outcome {
@@ -241,6 +248,13 @@ fn submission(engine: &Engine) -> Option<SubmissionStatus> {
         .session_snapshot()
         .output
         .and_then(|output| output.submission)
+}
+
+fn collision_review(engine: &Engine) -> Option<CollisionReview> {
+    engine
+        .session_snapshot()
+        .output
+        .and_then(|output| output.collision_review)
 }
 
 /// Chooses audio and output for every title.
@@ -300,11 +314,14 @@ async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, 
     };
     send(engine, intent).await?;
     let status = submission(engine).ok_or("the engine did not answer the submission")?;
-    let SubmissionStatus::ReviewRequired { outputs, .. } = &status else {
+    if status != SubmissionStatus::ReviewRequired {
         return Ok(status);
-    };
+    }
+    let CollisionReview {
+        review_id, outputs, ..
+    } = collision_review(engine).ok_or("the engine did not hold the review")?;
     let Some(policy) = options.on_collision else {
-        send(engine, SessionIntent::CancelCollisionReview).await?;
+        send(engine, SessionIntent::CancelCollisionReview { review_id }).await?;
         let paths: Vec<String> = outputs
             .iter()
             .map(|output| output.resolved_path.clone())
@@ -314,7 +331,11 @@ async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, 
             paths.join(", ")
         ));
     };
-    send(engine, SessionIntent::ChooseCollisionPolicy { policy }).await?;
+    send(
+        engine,
+        SessionIntent::ChooseCollisionPolicy { review_id, policy },
+    )
+    .await?;
     submission(engine).ok_or_else(|| "the engine did not answer the review".to_string())
 }
 
@@ -455,14 +476,14 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<(), String> {
     plan(&engine, &options).await?;
     if options.export || options.preview.is_some() {
         if let Err(message) = produce(&engine, &options).await {
-            engine.shutdown().await;
+            shut_down(&engine).await;
             return Err(message);
         }
     }
 
     // Waiting saves are written and background work settles before the
     // state folder can be removed.
-    engine.shutdown().await;
+    shut_down(&engine).await;
     let session = engine.session_snapshot();
     if options.json {
         let json = serde_json::to_string_pretty(&session)

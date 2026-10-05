@@ -20,11 +20,17 @@ the engine: `crates/abb-engine/AGENTS.md`.
   settings intents are numbered separately (`FrontendLink`).
 - **Event forwarding.** `events.rs` maps each `EngineEvent` to one Tauri
   event. It adds no state and drops nothing.
-- **Quit.** `lib.rs` holds every quit until `Engine::shutdown` has settled,
-  and asks first when `Engine::running_work` reports exports or Audible
-  downloads still running.
+- **Covers.** `cover_protocol.rs` serves the `abb-cover` scheme: it passes each
+  request path to `Engine::cover` and maps the answer to an HTTP response
+  (JPEG and cacheable, or an uncached not-found or bad-gateway).
+- **Quit.** `lib.rs` holds every quit until `Engine::shutdown` has settled.
+  It asks `Engine::close_for_quit`; when that returns running work, the host
+  shows it and, on Quit Anyway, asks again with that work's consent, so work
+  that started while the dialog was open is asked about too.
   A shutdown that has not settled after `SHUTDOWN_WAIT` asks whether to keep
   waiting; the process exits early only when the user chooses Quit Now.
+  A shutdown that reports `SettingsUnsaved` offers Retry (shutdown again) or
+  Quit Anyway.
 
 ## Rules
 
@@ -32,7 +38,8 @@ the engine: `crates/abb-engine/AGENTS.md`.
   When the host needs something the engine does not offer, add it to the
   engine's host interface.
 - Host tests cover what the host owns: intent ordering, window sizing, the
-  quit prompt and shutdown wait, the frontend log command, and the generated
+  quit prompt and shutdown wait, the `abb-cover` response mapping, the
+  frontend log command, and the generated
   binding file's format. Command and
   event shapes are proved by the binding checks and the frontend contract
   tests. A test of product behavior belongs with the engine owner that

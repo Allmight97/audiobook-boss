@@ -73,6 +73,7 @@ struct Ticket {
     /// The output folder and naming the offer was computed under.
     directory: Option<String>,
     naming: OutputNamingConfig,
+    answered: bool,
 }
 
 /// Why a restart was not started.
@@ -206,6 +207,7 @@ impl Exports {
                 },
                 directory,
                 naming,
+                answered: false,
             },
         );
         true
@@ -249,6 +251,32 @@ impl Exports {
         });
         let link = self.links.get(title_id).filter(|_| current).cloned();
         link.ok_or(RestartStale::Stale)
+    }
+
+    pub(crate) fn next_prompt(
+        &self,
+        directory: Option<&String>,
+        naming: &OutputNamingConfig,
+    ) -> Option<RestartOffer> {
+        self.tickets
+            .values()
+            .filter(|ticket| {
+                !ticket.answered
+                    && ticket.directory.as_ref() == directory
+                    && ticket.naming == *naming
+            })
+            .min_by(|a, b| a.offer.title_id.cmp(&b.offer.title_id))
+            .map(|ticket| ticket.offer.clone())
+    }
+
+    pub(crate) fn acknowledge_prompt(&mut self, title_id: &str, revision: u64) {
+        if let Some(ticket) = self
+            .tickets
+            .get_mut(title_id)
+            .filter(|ticket| ticket.offer.revision == revision)
+        {
+            ticket.answered = true;
+        }
     }
 
     pub(crate) fn consume_offer(&mut self, title_id: &str) {

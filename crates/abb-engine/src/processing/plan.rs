@@ -163,14 +163,18 @@ fn build_processing_inputs(
     Ok(ProcessingInputs {
         output_naming: payload.output_naming.clone().unwrap_or_default(),
         base_output_dir: resolve_output_dir(&payload.output_dir, allow_missing_output_dir)?,
-        preview_seconds: resolve_preview_seconds(preview_seconds),
+        preview_seconds: preview_seconds
+            .map(|seconds| {
+                if super::is_valid_preview_length(seconds) {
+                    Ok(seconds)
+                } else {
+                    Err(AppError::InvalidInput(
+                        "A preview needs a positive length.".into(),
+                    ))
+                }
+            })
+            .transpose()?,
     })
-}
-
-fn resolve_preview_seconds(preview_seconds: Option<f64>) -> Option<f64> {
-    let resolved = preview_seconds?;
-
-    (resolved.is_finite() && resolved > 0.0).then_some(resolved)
 }
 
 fn build_processing_plan(

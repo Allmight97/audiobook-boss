@@ -1,5 +1,6 @@
 //! The engine's host-facing interface and lifetime.
 
+use std::collections::BTreeSet;
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -11,13 +12,12 @@ use crate::audio::{self, SupportedAudioImportMetadata};
 use crate::errors::{AppError, Result};
 use crate::host::{EventSink, Host};
 use crate::metadata::AudiobookMetadata;
-use crate::opened_audio::OpenedAudioFileQueue;
 use crate::power::PowerManager;
 use crate::remote_source::{RemoteSourceConfig, RemoteSourceRuntime};
 use crate::session::{
     Session, SessionDeps, SessionIntent, SessionReply, SessionRun, SessionUpdate,
 };
-use crate::work_runtime::{OperationId, OperationListSnapshot, OperationSnapshot, WorkRuntime};
+use crate::work_runtime::{OperationId, OperationSnapshot, WorkOperationsSnapshot, WorkRuntime};
 use tokio_util::task::TaskTracker;
 
 /// Admission and shutdown share this lock: visible work is registered before
@@ -45,12 +45,23 @@ impl EngineTasks {
     }
 
     pub(crate) fn close(&self) {
+        let _ = self.close_if(|| Ok::<(), ()>(()));
+    }
+
+    /// Closes admission only when `check` passes, in the same turn, so no
+    /// work can be admitted between the check and the close.
+    fn close_if<E>(
+        &self,
+        check: impl FnOnce() -> std::result::Result<(), E>,
+    ) -> std::result::Result<(), E> {
         let _turn = self
             .admission
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
+        check()?;
         self.tracker.close();
         self.closing.cancel();
+        Ok(())
     }
 
     /// Runs `work` unless shutdown begins first; then it is dropped.
@@ -112,7 +123,6 @@ struct EngineInner {
     settings: SettingsRuntime,
     work: WorkRuntime,
     remote_source: RemoteSourceRuntime,
-    opened_audio: Arc<OpenedAudioFileQueue>,
     session: Session,
     /// Every background task the engine starts; shutdown waits for them.
     tasks: EngineTasks,
@@ -121,12 +131,37 @@ struct EngineInner {
 /// Work still running that quitting would stop.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RunningWork {
-    /// Accepted exports that have not finished.
+    /// Exports being prepared, awaiting collision review, or running.
     pub exports: usize,
     /// Files with a Save waiting for an export to finish reading them.
     pub waiting_writes: usize,
     /// Audible downloads in progress.
     pub acquisitions: usize,
+    /// Names exactly this work, for [`Engine::close_for_quit`].
+    pub consent: QuitConsent,
+}
+
+/// How [`Engine::shutdown`] ended.
+#[must_use]
+#[derive(Debug, Clone, PartialEq)]
+pub enum ShutdownOutcome {
+    Settled,
+    /// Accepted settings could not be written. Calling `shutdown` again
+    /// retries the write.
+    SettingsUnsaved {
+        error: crate::AppErrorEnvelope,
+    },
+}
+
+/// The work a user agreed quitting may stop.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct QuitConsent(BTreeSet<StoppedWork>);
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum StoppedWork {
+    Export(String),
+    WaitingWrite(PathBuf),
+    Acquisition(String),
 }
 
 impl RunningWork {
@@ -142,7 +177,11 @@ impl Engine {
         let power = PowerManager::default();
         let host = Host::new(config.events, power.clone());
         let tasks = EngineTasks::default();
-        audio::cleanup_abandoned_processing_workspaces(&config.cache_dir)?;
+        // Leftover working files never stop ABB from starting; the next
+        // start tries again.
+        if let Err(error) = audio::cleanup_abandoned_processing_workspaces(&config.cache_dir) {
+            log::warn!("Abandoned processing files were left in place: {error}");
+        }
         let remote_source = RemoteSourceRuntime::new(RemoteSourceConfig {
             cache_dir: config.cache_dir.clone(),
             config_dir: config.config_dir.clone(),
@@ -152,18 +191,18 @@ impl Engine {
             aaxclean_helper: config.aaxclean_helper,
             tasks: tasks.clone(),
         })?;
-        remote_source.cleanup_abandoned_sessions()?;
+        if let Err(error) = remote_source.cleanup_abandoned_sessions() {
+            log::warn!("Abandoned remote downloads were left in place: {error}");
+        }
 
         let (settings, jobs, startup) = SettingsRuntime::start(config.config_dir, power.clone());
         let work = WorkRuntime::new(tasks.clone());
-        let opened_audio = Arc::new(OpenedAudioFileQueue::default());
         let session = Session::new(SessionDeps {
             remote: remote_source.clone(),
             host: host.clone(),
             work: work.clone(),
             jobs: Arc::clone(&jobs),
             temporary_root: remote_source.staging_root(),
-            opened_audio: Arc::clone(&opened_audio),
             settings: settings.clone(),
             tasks: tasks.clone(),
             workspace_root: audio::processing_workspace_root(&config.cache_dir),
@@ -180,7 +219,6 @@ impl Engine {
                 settings,
                 work,
                 remote_source,
-                opened_audio,
                 session,
                 tasks,
             }),
@@ -189,18 +227,58 @@ impl Engine {
 
     /// What quitting now would stop.
     pub fn running_work(&self) -> RunningWork {
+        let mut exports: BTreeSet<String> = self
+            .inner
+            .work
+            .unfinished_exports()
+            .into_iter()
+            .map(|operation| operation.0)
+            .collect();
+        exports.extend(
+            self.inner
+                .session
+                .export_in_preparation()
+                .map(|operation| operation.0),
+        );
+        let waiting_writes = self.inner.session.waiting_write_paths();
+        let acquisitions = self.inner.remote_source.running_acquisitions();
         RunningWork {
-            exports: self.inner.work.unfinished_exports().len(),
-            waiting_writes: self.inner.session.waiting_write_paths().len(),
-            acquisitions: self.inner.remote_source.running_acquisitions(),
+            exports: exports.len(),
+            waiting_writes: waiting_writes.len(),
+            acquisitions: acquisitions.len(),
+            consent: QuitConsent(
+                exports
+                    .into_iter()
+                    .map(StoppedWork::Export)
+                    .chain(waiting_writes.into_iter().map(StoppedWork::WaitingWrite))
+                    .chain(acquisitions.into_iter().map(StoppedWork::Acquisition))
+                    .collect(),
+            ),
         }
+    }
+
+    /// Refuses new work when quitting would stop only what `consent` names;
+    /// work that finished since does not matter. Otherwise nothing closes and
+    /// the error is what quitting would stop now, to ask about again. The
+    /// check and the close share one admission turn, so no work starts
+    /// between them. A host then calls [`Engine::shutdown`].
+    pub fn close_for_quit(&self, consent: &QuitConsent) -> std::result::Result<(), RunningWork> {
+        self.inner.tasks.close_if(|| {
+            let running = self.running_work();
+            if running.consent.0.is_subset(&consent.0) {
+                Ok(())
+            } else {
+                Err(running)
+            }
+        })
     }
 
     /// Stops the engine: refuses new exports and acquisitions, cancels the
     /// running ones, and waits for every background task to settle, so the
     /// engine's folders can be reused or removed. Saves that were waiting for
     /// a cancelled export are written once it stops reading their files.
-    pub async fn shutdown(&self) {
+    /// Repeating it after it settled only retries an unsaved settings write.
+    pub async fn shutdown(&self) -> ShutdownOutcome {
         self.inner.tasks.close();
         self.inner.session.cancel_review();
         self.inner.session.cancel_preview();
@@ -216,7 +294,10 @@ impl Engine {
         self.inner.remote_source.abort_acquisitions();
         self.inner.tasks.wait().await;
         // A choice whose write failed gets one more attempt before ABB exits.
-        self.inner.settings.flush().await;
+        match self.inner.settings.flush().await {
+            None => ShutdownOutcome::Settled,
+            Some(error) => ShutdownOutcome::SettingsUnsaved { error },
+        }
     }
 
     // ---- Settings ----
@@ -294,9 +375,14 @@ impl Engine {
         self.inner.session.snapshot()
     }
 
-    /// The cover image the session currently shows.
-    pub fn session_cover_art(&self) -> Option<Vec<u8>> {
-        self.inner.session.cover_art()
+    /// A cover a view shows, named by the request path of its cover address
+    /// (`session/cover_request.rs`); `None` when its source has no cover.
+    /// Only covers the session handed out are served. Stops at closing.
+    pub async fn cover(&self, request: &str) -> Result<Option<std::sync::Arc<[u8]>>> {
+        self.inner
+            .tasks
+            .until_closing(self.inner.session.cover(request))
+            .await
     }
 
     // ---- Import ----
@@ -305,16 +391,15 @@ impl Engine {
         audio::supported_audio_import_metadata()
     }
 
-    /// Queues files the operating system asked ABB to open. Unsupported paths
-    /// are dropped. Returns whether anything was queued. The session's
-    /// `ImportOpened` intent imports them.
-    pub fn queue_opened_audio_files(&self, paths: Vec<PathBuf>) -> Result<bool> {
+    /// Imports files the operating system asked ABB to open; no window has
+    /// to ask. Unsupported paths are dropped. While the list is locked the
+    /// import waits and appends once it unlocks. Refused once ABB is closing.
+    pub fn open_audio_files(&self, paths: Vec<PathBuf>) -> Result<()> {
         let supported = crate::opened_audio::supported_opened_audio_paths(paths);
         if supported.is_empty() {
-            return Ok(false);
+            return Ok(());
         }
-        self.inner.opened_audio.push_paths(supported)?;
-        Ok(true)
+        self.inner.session.import_opened(supported)
     }
 
     // ---- Metadata ----
@@ -328,24 +413,9 @@ impl Engine {
         .map_err(|e| AppError::General(format!("Metadata read task failed: {e}")))?
     }
 
-    /// Reads an audio file's embedded cover as a bounded JPEG thumbnail.
-    pub async fn read_audio_cover_thumbnail(&self, file_path: String) -> Result<Option<Vec<u8>>> {
-        tokio::task::spawn_blocking(move || {
-            let validated_path = audio::validate_input_audio_path(&PathBuf::from(&file_path))?;
-            crate::metadata::read_audio_cover_thumbnail(&validated_path)
-        })
-        .await
-        .map_err(|error| AppError::General(format!("Cover thumbnail read task failed: {error}")))?
-    }
-
-    /// Loads a cover image from an HTTPS URL as write-ready JPEG bytes.
-    pub async fn load_cover_art_from_url(&self, url: String) -> Result<Vec<u8>> {
-        crate::cover_source::load_cover_art_from_url(url).await
-    }
-
     // ---- Output and processing ----
 
-    pub fn list_work_operations(&self) -> Result<OperationListSnapshot> {
+    pub fn list_work_operations(&self) -> Result<WorkOperationsSnapshot> {
         self.inner.work.list_operations()
     }
 

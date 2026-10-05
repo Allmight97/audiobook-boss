@@ -35,7 +35,7 @@ local files at 32 MB; reading and decoding run off the async runtime. HTTP
 ```mermaid
 flowchart TD
   drop[Drop or pick audio] --> inspect[Audio inspect: duration, tags, format]
-  drop --> listThumb[File-list thumbnail: bounded 64px JPEG]
+  drop --> listThumb[File-list thumbnail: bounded 128px JPEG]
   drop --> hydrate[Inspector: raw source cover for display]
   hydrate --> intent{User replaced cover?}
   intent -->|File or URL| loadOpt[optimize_cover_art when loaded]
@@ -57,8 +57,8 @@ flowchart TD
 
 | Step | Owner |
 | --- | --- |
-| File-list thumbnail | Metadata thumbnail / `mp4_covr` |
-| Inspector display | Metadata read; frontend cache |
+| Every cover a view shows (file list, lookup, library, form, preview) | `cover_service.rs`, served by `Engine::cover` through the host's `abb-cover` scheme |
+| File-list thumbnail bytes | Metadata thumbnail / `mp4_covr` |
 | User-picked cover ingest | `cover_source.rs` calls `optimize_cover_art` |
 | Include vs suppress after clear | `CoverArtPassthroughPolicy` |
 | Write-ready bytes | `prepare_output_cover_art` after merge |
@@ -66,5 +66,5 @@ flowchart TD
 | MP4 `covr` atom and tags | `finish_artifact_tags` via mp4ameta |
 | Final file move | `output_artifact` |
 
-Do not convert in the FFmpeg encoder-open helper, the file-list loader, or
+Do not convert in the FFmpeg encoder-open helper, a view, or
 `CoverArtPassthroughPolicy`. That policy only answers include vs suppress.

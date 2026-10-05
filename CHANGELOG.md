@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Changed
 
+- Work Center now takes its operation list and display order from the engine,
+  with one update contract for progress and retained history.
 - Reopening ABB's window keeps the Audible library, its selection, and any
   download in progress, instead of showing an empty library.
 - Refresh Library waits while a download is running, and Connect and Logout

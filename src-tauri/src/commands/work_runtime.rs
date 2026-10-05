@@ -1,10 +1,10 @@
-use abb_engine::work_runtime::{OperationId, OperationListSnapshot, OperationSnapshot};
+use abb_engine::work_runtime::{OperationId, OperationSnapshot, WorkOperationsSnapshot};
 
 use crate::commands::{CommandResult, EngineState};
 
 #[tauri::command]
 #[specta::specta]
-pub fn list_work_operations(engine: EngineState<'_>) -> CommandResult<OperationListSnapshot> {
+pub fn list_work_operations(engine: EngineState<'_>) -> CommandResult<WorkOperationsSnapshot> {
     Ok(engine.list_work_operations()?)
 }
 

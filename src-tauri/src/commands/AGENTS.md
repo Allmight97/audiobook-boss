@@ -11,8 +11,9 @@ carries one request to the engine and returns its answer.
   `settings_dispatch` in `session.rs`, which take a turn from the intent
   order before calling the engine. A new user action is a new intent variant
   in the engine, not a new command.
-- Add a separate command only for a read that is not part of a snapshot (for
-  example cover bytes) or for an owner that does not take intents yet.
+- Add a separate command only for a read that is not part of a snapshot or
+  for an owner that does not take intents yet. Covers are not commands: the
+  `abb-cover` scheme serves them (`src/cover_protocol.rs`).
 - Remote source account, authentication, and library actions are session intents;
   they do not have standalone Tauri commands.
 - Register command and event changes in `src-tauri/src/ipc_contract.rs` and keep

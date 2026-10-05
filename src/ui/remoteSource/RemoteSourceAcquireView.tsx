@@ -1,7 +1,8 @@
-import { createEffect, createSignal, For, Show } from 'solid-js';
+import { createSignal, For, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
+import { coverSrc } from '../../lib/tauri/coverSrc';
 
 import type { AcquisitionLane } from '../../types/appSettings';
 import {
@@ -18,43 +19,24 @@ import {
 	visibleRemoteTitles,
 } from '../../app/remoteSource';
 import { useAppRuntime } from '../../app/runtime';
-import { Button, CoverThumb, Dialog, Progress } from '../foundation';
+import { Button, CoverImage, CoverThumb, Dialog, Progress } from '../foundation';
 import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import './remoteSourceAcquire.css';
 
 function RemoteTitleCover(props: { readonly title: RemoteTitle }): JSX.Element {
-	const coverPreview = useAppRuntime().remoteSource.coverPreview;
-	const previewState = () => coverPreview(props.title.coverUrl);
-	const readyUrl = () => {
-		const state = previewState();
-		return state.status === 'ready' ? state.dataUrl : '';
-	};
-
 	return (
 		<CoverThumb class="remote-title-cover" testId="remote-title-cover">
-			<Show
-				when={props.title.coverUrl}
-				fallback={<span data-testid="remote-title-cover-missing">No Art</span>}
-			>
-				<Show
-					when={previewState().status === 'ready'}
-					fallback={
-						previewState().status === 'loading' || previewState().status === 'queued' ? (
-							<span data-testid="remote-title-cover-loading">Loading…</span>
-						) : previewState().status === 'error' ? (
-							<span data-testid="remote-title-cover-error">Preview failed</span>
-						) : (
-							<span data-testid="remote-title-cover-available">Art Available</span>
-						)
-					}
-				>
-					<img
-						src={readyUrl()}
-						alt={`${props.title.title} cover art`}
-						data-testid="remote-title-cover-image"
-					/>
-				</Show>
-			</Show>
+			<CoverImage
+				src={
+					props.title.coverUrl
+						? coverSrc({ kind: 'remote', url: props.title.coverUrl, size: 'small' })
+						: null
+				}
+				alt={`${props.title.title} cover art`}
+				testId="remote-title-cover-image"
+				missing={<span data-testid="remote-title-cover-missing">No Art</span>}
+				failed={<span data-testid="remote-title-cover-error">Preview failed</span>}
+			/>
 		</CoverThumb>
 	);
 }
@@ -70,27 +52,6 @@ export function RemoteSourceAcquireView(): JSX.Element {
 
 	const isAudibleLane = () => view().providerId === 'audible';
 	const isIndexerLane = () => view().providerId === 'indexer';
-
-	createEffect(
-		() => view(),
-		(current) => {
-			if (
-				!current.isOpen ||
-				current.providerId !== 'audible' ||
-				current.accountState?.status !== 'connected'
-			) {
-				remoteSource.cancelCoverPreviews();
-				return;
-			}
-			const visible = visibleRemoteTitles(current.titles, {
-				titleFilter: current.titleFilter,
-				showSupplementalPdfOnly: current.showSupplementalPdfOnly,
-				hideUnavailableTitles: current.hideUnavailableTitles,
-			});
-			remoteSource.scheduleCoverPreviews(visible.map((title) => title.coverUrl));
-			return () => remoteSource.cancelCoverPreviews();
-		},
-	);
 
 	const visibleTitles = () =>
 		visibleRemoteTitles(view().titles, {

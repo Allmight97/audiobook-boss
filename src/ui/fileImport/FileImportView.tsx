@@ -27,10 +27,6 @@ export function FileImportView(): JSX.Element {
 		remoteSource.open({ lane });
 	}
 
-	function drainOpenedAudioFiles(): void {
-		void importIntent({ type: 'drainOpened' });
-	}
-
 	onSettled(() => {
 		void hydrateSupportText();
 		const subscriptions = createSubscriptionGroup();
@@ -63,12 +59,6 @@ export function FileImportView(): JSX.Element {
 				}
 			}),
 		);
-		void subscriptions.add(
-			capability().listenOpenedAudioFiles(() => {
-				void drainOpenedAudioFiles();
-			}),
-		);
-		void drainOpenedAudioFiles();
 		return () => subscriptions.dispose();
 	});
 

@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::audio::{AudioFile, TitleAudioRequest};
 use crate::errors::AppErrorEnvelope;
 use crate::metadata::CueStatus;
+use crate::metadata_save::Rewrite;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -84,6 +85,9 @@ pub struct TitlesSnapshot {
     pub order_differs_from_import: bool,
     /// Companion PDF names of downloaded titles, by input id.
     pub companions: BTreeMap<String, Vec<String>>,
+    /// Advances whenever a Save writes a cover into a source, so an address
+    /// for a source's cover names its current image.
+    pub covers_revision: u64,
 }
 
 /// Which titles are selected, as positions in [`TitlesSnapshot::files`].
@@ -130,6 +134,7 @@ impl WorkingSet {
             notice: self.notice.clone(),
             order_differs_from_import: self.order_differs_from_import(),
             companions: BTreeMap::new(),
+            covers_revision: 0,
         }
     }
 
@@ -653,6 +658,30 @@ impl WorkingSet {
         let moved = sources.remove(from);
         sources.insert(to, moved);
         self.touch();
+    }
+
+    /// Carries a source's chapter plan across ABB's own tag write, which
+    /// changes the file but not its audio. A plan made for a file that had
+    /// already changed before the write keeps its old fingerprint, so the
+    /// change is still caught.
+    pub(crate) fn note_tag_write(&mut self, path: &Path, rewrite: &Rewrite) {
+        let apply = |file: &mut AudioFile| {
+            if file.path != path {
+                return;
+            }
+            if let Some(plan) = file
+                .chapter_plan
+                .as_mut()
+                .filter(|plan| plan.source_fingerprint == rewrite.before)
+            {
+                plan.source_fingerprint = rewrite.after.clone();
+            }
+        };
+        self.files.iter_mut().for_each(apply);
+        self.title_sources
+            .values_mut()
+            .flat_map(|sources| sources.iter_mut())
+            .for_each(apply);
     }
 
     /// Records the user's decision about one source's CUE sheet.

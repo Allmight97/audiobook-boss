@@ -1,4 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
+import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
 import { liveEngineCapability, type EngineCapability } from '../../lib/tauri/capabilities/engine';
 import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../types/appSettings';
 import type { AudioFile } from '../../types/audio';
@@ -31,14 +32,25 @@ export type EngineLink = {
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
 	send(intent: SessionIntent): Promise<SessionOutcome>;
-	/** Sends an intent whose outcome the caller does not need; a failure is logged. */
+	/** Sends an intent whose outcome the caller does not need. A refusal is
+	 * kept as `refusal` until dismissed. */
 	post(intent: SessionIntent): void;
+	/** Why the latest posted intent was refused, worded for the user. */
+	readonly refusal: Accessor<string | null>;
+	dismissRefusal(): void;
+	/** `pending` until the engine's first snapshot arrives; nothing it owns
+	 * is truthful before then. */
+	readonly attachment: Accessor<Attachment>;
 	sendSettings(intent: SettingsIntent): Promise<SettingsOutcome>;
-	coverArt(): Promise<number[] | null>;
 	/** Resolves once the engine's current state has been received. */
 	ready(): Promise<void>;
 	dispose(): void;
 };
+
+export type Attachment =
+	| { readonly kind: 'pending' }
+	| { readonly kind: 'ready' }
+	| { readonly kind: 'failed'; readonly message: string };
 
 const UNATTACHED = -1;
 
@@ -53,6 +65,7 @@ function emptyTitles(): SessionTitles {
 		notice: null,
 		orderDiffersFromImport: false,
 		companions: {},
+		coversRevision: 0,
 	};
 }
 
@@ -125,7 +138,10 @@ function emptyOutput(): SessionOutput {
 		naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
 		preview: { kind: 'noDirectory' },
 		submission: null,
+		submissionInProgress: false,
+		collisionReview: null,
 		restartOffers: [],
+		restartPrompt: null,
 		previewRun: null,
 	};
 }
@@ -175,6 +191,8 @@ function emptyAudio(): SessionAudio {
 			request: { format: 'm4b', intent: 'auto', settings, sampleRate: 'auto' },
 		},
 		titles: {},
+		selection: null,
+		refusal: null,
 	};
 }
 
@@ -202,6 +220,7 @@ function emptyRemote(): import('../../types/session').RemoteUiSnapshot {
 		connection: {
 			baseUrl: '',
 			categoryIds: [],
+			emptyCategoriesRefused: false,
 			apiKeyConfigured: false,
 			apiKeyEntered: false,
 			save: { kind: 'idle' },
@@ -287,6 +306,10 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	const [remoteRev, bumpRemote] = part();
 	const [libraryRev, bumpLibrary] = part();
 	const [settingsRev, bumpSettings] = part();
+	const [refusalRev, bumpRefusal] = part();
+	const [attachmentRev, bumpAttachment] = part();
+	let refusal: string | null = null;
+	let attachment: Attachment = { kind: 'pending' };
 	let disposed = false;
 	let sessionSequence = 0;
 	let settingsSequence = 0;
@@ -354,14 +377,24 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 			unlisten = stop;
 			return capability.attach();
 		})
-		.then((attachment) => {
-			applySession(attachment.session);
-			applySettings(attachment.settings);
-			return attachment.client;
+		.then((attached) => {
+			applySession(attached.session);
+			applySettings(attached.settings);
+			setAttachment({ kind: 'ready' });
+			return attached.client;
 		});
-	// A failed attach surfaces through the first send; it must not also be an
-	// unhandled rejection.
-	attached.catch(() => undefined);
+	attached.catch((error: unknown) => {
+		setAttachment({
+			kind: 'failed',
+			message: toUserMessage(error, { fallback: 'ABB could not reach its engine.' }),
+		});
+	});
+
+	function setAttachment(next: Attachment): void {
+		if (disposed) return;
+		attachment = next;
+		bumpAttachment((n) => n + 1);
+	}
 
 	function send(intent: SessionIntent): Promise<SessionOutcome> {
 		// The sequence is taken as the request is made, so intents are numbered
@@ -415,8 +448,23 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		send,
 		post(intent) {
 			send(intent).catch((error: unknown) => {
-				if (!disposed) console.error(`Session intent ${intent.kind} failed:`, error);
+				if (disposed || isCancellation(error)) return;
+				console.error(`Session intent ${intent.kind} failed:`, error);
+				refusal = toUserMessage(error, { fallback: "That change couldn't be applied." });
+				bumpRefusal((n) => n + 1);
 			});
+		},
+		refusal: () => {
+			refusalRev();
+			return refusal;
+		},
+		dismissRefusal() {
+			refusal = null;
+			bumpRefusal((n) => n + 1);
+		},
+		attachment: () => {
+			attachmentRev();
+			return attachment;
 		},
 		sendSettings(intent) {
 			return attached
@@ -426,7 +474,6 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 					return reply.outcome;
 				});
 		},
-		coverArt: () => capability.sessionCoverArt(),
 		ready: () => attached.then(() => undefined),
 		dispose() {
 			disposed = true;

@@ -388,10 +388,12 @@ impl SettingsRuntime {
         }
     }
 
-    /// Writes anything still unsaved, as ABB closes.
-    pub(crate) async fn flush(&self) {
+    /// Writes anything still unsaved, as ABB closes. Returns why accepted
+    /// settings are still not on disk, if they are not.
+    pub(crate) async fn flush(&self) -> Option<AppErrorEnvelope> {
         let mut state = self.inner.state.lock().await;
         self.write(&mut state).await;
+        state.save_error.clone()
     }
 
     /// The runtime side of the settings in effect.

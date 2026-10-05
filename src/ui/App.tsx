@@ -16,6 +16,7 @@ import { PreviewAudioControls } from './previewAudio/PreviewAudioControls';
 import { StatusPanelView } from './statusPanel/StatusPanelView';
 import { TagPreviewView } from './tagPreview/TagPreviewView';
 import { WorkCenterView } from './workCenter/WorkCenterView';
+import { RefusedChangeNotice } from './RefusedChangeNotice';
 import './encodingWorkbench/encodingWorkbench.css';
 import './leftColumn/leftColumn.css';
 
@@ -45,66 +46,82 @@ export function App(): JSX.Element {
 		return () => window.removeEventListener('keydown', handleGlobalKeyDown);
 	});
 
+	const attachment = runtime.engine.attachment;
 	return (
-		<div class="main-container">
-			<div class="panel input-panel left-column-wrapper" data-testid="left-column">
-				<section
-					class="left-column-panel input-workflow input-workflow-panel"
-					data-testid="input-workflow-panel"
-					aria-label="Input and File Order"
-				>
-					<div class="input-workflow-heading-row">
-						<h3 class="section-title input-workflow-heading">Input and File Order</h3>
-						<div class="input-workflow-controls">
-							<GroupTitlesButton />
-							<SelectedAudioSettings />
-							<ConcurrencyControl />
+		<Show
+			when={attachment().kind === 'ready'}
+			fallback={
+				<Show when={attachment().kind === 'failed'}>
+					<p class="engine-attach-failed" role="alert">
+						{(() => {
+							const current = attachment();
+							return current.kind === 'failed' ? current.message : '';
+						})()}
+					</p>
+				</Show>
+			}
+		>
+			<div class="main-container">
+				<div class="panel input-panel left-column-wrapper" data-testid="left-column">
+					<section
+						class="left-column-panel input-workflow input-workflow-panel"
+						data-testid="input-workflow-panel"
+						aria-label="Input and File Order"
+					>
+						<div class="input-workflow-heading-row">
+							<h3 class="section-title input-workflow-heading">Input and File Order</h3>
+							<div class="input-workflow-controls">
+								<GroupTitlesButton />
+								<SelectedAudioSettings />
+								<ConcurrencyControl />
+							</div>
+						</div>
+						<FileImportView />
+					</section>
+					<FileInspectorView />
+				</div>
+
+				<div class="right-column-wrapper">
+					<Show when={!runtime.settings.dialog().isOpen}>
+						<SettingsPersistenceNotice />
+					</Show>
+					<RefusedChangeNotice />
+					<div class="panel right-column-panel metadata-manager-panel">
+						<MetadataManagerView />
+					</div>
+					<div class="panel right-column-panel encoding-workbench-panel">
+						<div class="encoding-workbench-frame">
+							<section
+								class="encoding-workbench"
+								aria-label="Output and tags"
+								data-testid="encoding-workbench"
+							>
+								<div
+									class="workbench-block workbench-block-output"
+									data-testid="encoding-workbench-output"
+								>
+									<OutputView />
+								</div>
+								<div
+									class="workbench-block workbench-block-tags"
+									data-testid="encoding-workbench-tags"
+								>
+									<div class="workbench-block-header tags-header">
+										<h3>Tags Preview</h3>
+										<PreviewAudioControls variant="compact" />
+									</div>
+									<TagPreviewView variant="workbench" />
+								</div>
+							</section>
 						</div>
 					</div>
-					<FileImportView />
-				</section>
-				<FileInspectorView />
-			</div>
-
-			<div class="right-column-wrapper">
-				<Show when={!runtime.settings.dialog().isOpen}>
-					<SettingsPersistenceNotice />
-				</Show>
-				<div class="panel right-column-panel metadata-manager-panel">
-					<MetadataManagerView />
+					<StatusPanelView />
+					<WorkCenterView />
 				</div>
-				<div class="panel right-column-panel encoding-workbench-panel">
-					<div class="encoding-workbench-frame">
-						<section
-							class="encoding-workbench"
-							aria-label="Output and tags"
-							data-testid="encoding-workbench"
-						>
-							<div
-								class="workbench-block workbench-block-output"
-								data-testid="encoding-workbench-output"
-							>
-								<OutputView />
-							</div>
-							<div
-								class="workbench-block workbench-block-tags"
-								data-testid="encoding-workbench-tags"
-							>
-								<div class="workbench-block-header tags-header">
-									<h3>Tags Preview</h3>
-									<PreviewAudioControls variant="compact" />
-								</div>
-								<TagPreviewView variant="workbench" />
-							</div>
-						</section>
-					</div>
-				</div>
-				<StatusPanelView />
-				<WorkCenterView />
+				<MetadataLookupView />
+				<AppSettingsDialogView />
+				<CollisionDialogView />
 			</div>
-			<MetadataLookupView />
-			<AppSettingsDialogView />
-			<CollisionDialogView />
-		</div>
+		</Show>
 	);
 }

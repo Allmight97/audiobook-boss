@@ -40,8 +40,11 @@ describe('isCancellation', () => {
 		expect(isCancellation(envelope({ category: 'cancellation', message: 'done' }))).toBe(true);
 	});
 
-	it('detects an un-enveloped cancellation via the message fallback', () => {
-		expect(isCancellation(new Error('Processing was cancelled.'))).toBe(true);
+	it('reads only the category, not words in the message', () => {
+		expect(
+			isCancellation(envelope({ category: 'io', message: 'Could not write cancelled.m4b' })),
+		).toBe(false);
+		expect(isCancellation(new Error('Processing was cancelled.'))).toBe(false);
 	});
 
 	it('returns false for unrelated errors', () => {
