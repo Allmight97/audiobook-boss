@@ -91,15 +91,13 @@ neither earns no preference over the simpler design.
 
 ## Planning And Capture
 
-- **Default durable capture:** GitHub issues per `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`.
-- Ephemeral planning: chat and OS-temp handoffs — not repo files.
-- `docs/specs/<task>.md` only when the user explicitly wants a repo-local active spec instead of an issue; it is temporary work state — delete or distill enduring rules into canon when done.
-- Issue bodies are resume-ready plans, not planning transcripts.
-- Open issues are mutable candidate work records, not owners of current
-  behavior. Verify their state and next action against `main`, the owning
-  interface, and current tests; status, labels, and body are evidence, not
-  authority. Closed issues, merged branches, and chat are history until live
-  evidence makes them relevant again.
+- Record work that outlasts the session in a GitHub issue
+  (`docs/agents/issue-tracker.md`). Put what another session needs in the PR
+  body or an issue: other sessions cannot read this chat.
+- Do not add planning files to the repo. Use `docs/specs/<task>.md` only when
+  the owner asks for one, and delete it when the work lands.
+- An open issue is a candidate plan, not current behavior. Verify its claims
+  against `main`, the owning code, and tests before acting on it.
 
 ## Pull Requests And CI
 
@@ -116,6 +114,9 @@ neither earns no preference over the simpler design.
   commits only. A push after the last run blocks the merge until CI runs
   again. Why: each run costs wall-clock time, and only the head that merges
   needs proof.
+- Work proven on the owner's machine may merge without waiting for CI:
+  `gh pr merge <n> --admin --merge` (repository admins bypass `gate` for PR
+  merges only). Name the local proof in the PR body.
 - A substantial, related follow-up may branch from the PR's branch as a child
   PR based on it; GitHub retargets it to `main` when the parent merges.
 

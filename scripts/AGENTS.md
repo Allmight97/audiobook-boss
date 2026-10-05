@@ -58,6 +58,8 @@ commands over invoking internals directly.
 
 - Docs/guidance only: `git diff --check` plus stale-reference searches for the
   edited terms.
+- Workflow changes: `actionlint` (Linux setup installs it; macOS:
+  `brew install actionlint`). CI does not lint workflows.
 - Formatting/linting when formatting or style is in scope:
   `bun run fmt:check`, `bun run lint:check` (TS/JSON via Biome), or
   `cargo fmt --all -- --check`.

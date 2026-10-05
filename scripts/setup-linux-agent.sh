@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Linux agent and CI setup for ABB. Idempotent.
-#   bash scripts/setup-linux-agent.sh          # locked Bun + frozen frontend install
+#   bash scripts/setup-linux-agent.sh          # locked Bun, frozen frontend install, actionlint
 #   bash scripts/setup-linux-agent.sh --rust   # what Rust engine/host proof needs
 #
 # --rust installs nasm and static libopus for the engine's bundled FFmpeg
@@ -108,6 +108,29 @@ ensure_readback_cli() {
 	rm -rf "${tmp}"
 }
 
+actionlint_version=1.7.12
+
+ensure_actionlint() {
+	if have actionlint && actionlint -version | head -1 | grep -qx "${actionlint_version}"; then
+		return
+	fi
+	local arch tmp asset
+	case "$(uname -m)" in
+		x86_64) arch=amd64 ;;
+		aarch64 | arm64) arch=arm64 ;;
+		*) printf 'error: no actionlint build for CPU %s\n' "$(uname -m)" >&2; exit 1 ;;
+	esac
+	asset="actionlint_${actionlint_version}_linux_${arch}.tar.gz"
+	tmp="$(mktemp -d)"
+	log "Installing actionlint ${actionlint_version} into ${tools_bin}"
+	fetch_verified "https://github.com/rhysd/actionlint/releases/download/v${actionlint_version}" \
+		"${asset}" "actionlint_${actionlint_version}_checksums.txt" "${tmp}"
+	tar -xzf "${tmp}/${asset}" -C "${tmp}" actionlint
+	mkdir -p "${tools_bin}"
+	install -m 755 "${tmp}/actionlint" "${tools_bin}/"
+	rm -rf "${tmp}"
+}
+
 ensure_sidecar_stub() {
 	local path
 	path="${repo_root}/src-tauri/binaries/abb-aaxclean-helper-$(rustc -vV | awk '/^host:/ { print $2 }')"
@@ -124,6 +147,7 @@ case "${mode}" in
 		ensure_bun
 		log "Installing frontend dependencies"
 		(cd "${repo_root}" && bun install --frozen-lockfile)
+		ensure_actionlint
 		;;
 	--rust)
 		install_rust_packages
