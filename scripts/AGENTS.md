@@ -13,22 +13,21 @@ commands over invoking internals directly.
   Production builds retain the configured identity. Use this entrypoint for
   development; direct Cargo or upstream Tauri CLI launches bypass isolation.
   Packaged release-mode experiments need an explicit separate identifier.
-- Frontend checks (`.github/workflows/ci.yml`) run frozen install, Biome
-  format and lint, the generated Tauri runtime-boundary check, typecheck, and
-  Vitest on relevant PRs and pushes to `main`.
-- Rust workflow (`.github/workflows/rust-core.yml`) runs each job only when
-  the code it proves changed (its `changes` path filters; manifests, the
-  toolchain, `vendor/**` and the workflow run everything):
+- CI (`.github/workflows/ci.yml`; when it runs: root `AGENTS.md` "Pull
+  Requests And CI") has one job per proof surface. In a PR run each job runs
+  only when the code it proves changed (its `changes` path filters;
+  manifests, the toolchain, `vendor/**` and the workflow count for every Rust
+  job); manual and scheduled runs run them all:
+  - frontend: frozen install, Biome format and lint, the generated Tauri
+    runtime-boundary check, typecheck, and Vitest;
   - core crates: their tests, `clippy -D warnings`, and the crate tier check;
   - one Linux job builds the bundled FFmpeg once (restored from cache while
     compiler, opus, source and patch match) and runs, as needed, the engine
     tests and doctests, the real-media lane (`test_cases::integration_media`),
     the Tauri host tests, and the generated-binding check;
-  - macOS runs only the Apple AAC tests, the one encoder Linux cannot build.
-- Neither workflow runs on a draft PR. Prove a draft locally, and on Linux
-  through a cloud session; CI runs when the PR is marked ready and on each
-  later push. Pushes to `main` still run: they prove the merged result and
-  save the FFmpeg cache, which PRs can restore only from `main`.
+  - macOS runs only the Apple AAC tests, the one encoder Linux cannot build;
+  - `gate` fails when any job above failed or was cancelled; `main` requires
+    it on the PR's head commit.
 - Run native verification commands for the touched owner or explicit risk
   surface. Keep expensive build/test routes sequential to avoid competing for
   shared targets. Report failures with the command, exit code, and failing

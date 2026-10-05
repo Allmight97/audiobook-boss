@@ -101,6 +101,21 @@ neither earns no preference over the simpler design.
   authority. Closed issues, merged branches, and chat are history until live
   evidence makes them relevant again.
 
+## Pull Requests And CI
+
+- Interactive work starts as a draft PR; drafts get no CI. Mark it ready
+  when the work is done. Unattended agent work opens the PR ready.
+- CI runs once when a PR opens ready or is marked ready, once when
+  auto-merge is enabled (the merge attempt), on `gh workflow run ci.yml
+  --ref <branch>`, and twice a week on `main`. Pushes start nothing; batch
+  follow-up fixes, then merge with `gh pr merge <n> --auto --merge`.
+- `main` requires the `gate` check on the PR's head commit and accepts merge
+  commits only. A push after the last run blocks the merge until CI runs
+  again. Why: each run costs wall-clock time, and only the head that merges
+  needs proof.
+- A substantial, related follow-up may branch from the PR's branch as a child
+  PR based on it; GitHub retargets it to `main` when the parent merges.
+
 ## Rationale
 
 - Record a durable, non-obvious "why" as one short line beside the rule it
