@@ -116,7 +116,7 @@ simpler design.
 - Local proof is the primary proof: agents on the owner's machine run
   `scripts/AGENTS.md` "What to run for a change". CI is the last check and
   the main proof for cloud Linux agents.
-- Interactive work starts as a draft PR; unattended agent work opens ready.
+- Open PRs ready; a draft only when the owner asks.
   Batch follow-up fixes into one push.
 - CI (`.github/workflows/ci.yml`) runs when a PR opens ready or is marked
   ready, when auto-merge is enabled, by hand (`gh workflow run ci.yml --ref
