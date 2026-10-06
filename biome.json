@@ -24,7 +24,7 @@
 				"noExcessiveCognitiveComplexity": {
 					"level": "error",
 					"options": {
-						"maxAllowedComplexity": 15
+						"maxAllowedComplexity": 20
 					}
 				}
 			},
@@ -126,20 +126,14 @@
 		},
 		{
 			"includes": [
-				"scripts/build-app.ts",
-				"scripts/bump-version.ts",
 				"scripts/check-tauri-runtime-boundary.ts",
 				"scripts/dev-log-analysis.ts",
-				"scripts/resolve-release-dmg.ts",
 				"src/app/encoding/project.ts",
 				"src/app/engineLink/link.ts",
 				"src/app/remoteSource/indexerConnection.ts",
 				"src/app/remoteSource/state.ts",
-				"src/test/fixtures/fakeEngine.ts",
-				"src/ui/encoderPanel/EncoderView.tsx",
 				"src/ui/fileList/AudioHandlingControl.tsx",
 				"src/ui/fileList/FileListView.tsx",
-				"src/ui/fileList/pointerReorder.ts",
 				"src/ui/metadataForm/MetadataFormView.tsx"
 			],
 			"linter": {

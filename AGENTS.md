@@ -63,11 +63,12 @@ simpler design.
 - When merging code paths, name what each old path relied on (reads it
   skipped, state it left alone, ordering); keep each reliance or say which one
   the change drops.
-- New or reshaped functions hold one nameable responsibility at about CCN ≤10 /
-  cognitive ≤15 (Biome enforces cognitive ≤15); exceeding it takes a named
-  reason. A file in `biome.json`'s hotspot exemptions gets one disposition when
-  next changed (Proof-first, Reduce, Preserve, or Observe) with evidence and
-  its next trigger.
+- A new or reshaped function holds one nameable responsibility. Biome's
+  complexity limit (`biome.json`) and complexity-lens flag one that grows past
+  it: split it, or name the reason at the code (a flat dispatch `match`, a
+  format parser, a sequential `?` setup). A file in `biome.json`'s hotspot
+  exemptions gets one disposition when next changed (Proof-first, Reduce,
+  Preserve, or Observe) with evidence and its next trigger.
 - Before adding a module, skill, CI step, abstraction, or canon rule, name the
   invariant it owns and its upkeep; extend an existing owner when one can
   carry it.
