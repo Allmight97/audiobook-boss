@@ -64,11 +64,14 @@ simpler design.
   skipped, state it left alone, ordering); keep each reliance or say which one
   the change drops.
 - A new or reshaped function holds one nameable responsibility. Biome's
-  complexity limit (`biome.json`) and complexity-lens flag one that grows past
-  it: split it, or name the reason at the code (a flat dispatch `match`, a
+  complexity limit (`biome.json`), the Rust check
+  (`scripts/check-rust-complexity.sh`), and complexity-lens flag one that grows
+  past it: split it, or name the reason at the code (a flat dispatch `match`, a
   format parser, a sequential `?` setup). A file in `biome.json`'s hotspot
-  exemptions gets one disposition when next changed (Proof-first, Reduce,
-  Preserve, or Observe) with evidence and its next trigger.
+  exemptions, or a function in the Rust allowlist
+  (`scripts/rust-complexity-allowlist.txt`), gets one disposition when next
+  changed (Proof-first, Reduce, Preserve, or Observe) with evidence and its
+  next trigger.
 - Before adding a module, skill, CI step, abstraction, or canon rule, name the
   invariant it owns and its upkeep; extend an existing owner when one can
   carry it.

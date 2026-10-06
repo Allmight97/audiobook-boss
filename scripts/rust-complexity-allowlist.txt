@@ -1,0 +1,11 @@
+# Rust functions allowed above the cyclomatic limit of scripts/check-rust-complexity.sh.
+# Format: <path from the repository root>:<function>  # reason. Remove a line when its function drops to the limit.
+crates/abb-engine/src/bin/abb_dev.rs:parse  # flat dispatch match: one arm per command-line flag
+crates/abb-engine/src/audio/processor/encoder/context.rs:setup_encoder  # sequential ? setup of one FFmpeg encoder session
+crates/abb-engine/src/audio/processor/frame_pipeline.rs:process_input_packets  # Reduce: #549 (read loop mixes cancel, skip, early stop, and drain)
+crates/abb-engine/src/audio/processor/preserve_merge.rs:visit_packets  # Reduce: #549 (packet loop with seven separate timeline checks)
+crates/abb-engine/src/audio/output_plan.rs:resolve_title_audio  # Reduce: #549 (many early-return guards before the plan is built)
+crates/abb-engine/src/remote_source/materializer/mod.rs:materialize  # sequential ? setup of the helper process, then its result handling
+crates/abb-engine/src/metadata/remux.rs:rewrite_metadata_with_ffmpeg_plan_as  # sequential ? setup of one remux, one stage per step
+crates/abb-engine/src/metadata/embedded_cover.rs:read_id3_cover  # format parser: ID3v2 tag and frame walk with overflow checks
+crates/abb-metadata-core/src/chapters.rs:parse_cue  # format parser: one match arm per CUE command

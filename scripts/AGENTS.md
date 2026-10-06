@@ -15,10 +15,12 @@ expensive build at a time.
   `bun run bindings:check:runtime-boundary`, `bun run typecheck`,
   `bun run knip`, `bun run test`. One owner: `bun run test -- <test files>`.
 - A core crate (`core` job): `bun run check:rust-tiers`,
+  `bun run check:rust-complexity`,
   `cargo fmt --all -- --check`,
   `cargo test --locked -p abb-<owner>-core`, and
   `cargo clippy --locked -p abb-<owner>-core --all-targets -- -D warnings`.
 - Engine rules, session, settings, metadata intent (`engine` job):
+  `bun run check:rust-complexity` (`core` job), then
   `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- --skip test_cases::integration_media`,
   then `cargo test --locked -p abb-engine --features bundled-ffmpeg --doc`.
   The doctests guard which engine internals hosts can reach.

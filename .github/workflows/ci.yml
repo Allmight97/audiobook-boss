@@ -78,6 +78,10 @@ jobs:
             core:
               - *shared
               - scripts/check-rust-tiers.sh
+              - scripts/check-rust-complexity.sh
+              - scripts/rust-complexity-allowlist.txt
+              - crates/*/src/**
+              - src-tauri/src/**
               - crates/abb-*-core/**
             engine:
               - *shared
@@ -140,6 +144,11 @@ jobs:
           persist-credentials: false
       # rust-toolchain.toml pins the compiler; rustup installs it on first use.
       - run: bash scripts/check-rust-tiers.sh
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: 0.12.10
+          enable-cache: false
+      - run: bash scripts/check-rust-complexity.sh
       - run: cargo fmt --all -- --check
       - run: cargo test --locked ${{ env.CORE_CRATES }} # zizmor: ignore[template-injection]
       - run: cargo clippy --locked ${{ env.CORE_CRATES }} --all-targets -- -D warnings # zizmor: ignore[template-injection]
