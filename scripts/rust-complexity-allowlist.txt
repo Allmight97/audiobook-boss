@@ -9,3 +9,7 @@ crates/abb-engine/src/remote_source/materializer/mod.rs:materialize  # sequentia
 crates/abb-engine/src/metadata/remux.rs:rewrite_metadata_with_ffmpeg_plan_as  # sequential ? setup of one remux, one stage per step
 crates/abb-engine/src/metadata/embedded_cover.rs:read_id3_cover  # format parser: ID3v2 tag and frame walk with overflow checks
 crates/abb-metadata-core/src/chapters.rs:parse_cue  # format parser: one match arm per CUE command
+crates/abb-engine/src/remote_source/ui.rs:begin  # flat dispatch match: one arm per remote UI intent
+crates/abb-engine/src/session/audio_choice.rs:apply  # flat dispatch match: one arm per audio edit, each with its own refusal check
+crates/abb-engine/src/session/runtime.rs:begin_rest  # flat dispatch match: one arm per session intent
+crates/abb-output-artifact-core/src/lib.rs:render_custom_template  # format parser: walks the naming template's placeholders

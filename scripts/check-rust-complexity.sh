@@ -3,11 +3,14 @@
 # scripts/rust-complexity-allowlist.txt. Test code is skipped. Lizard parses
 # without compiling. The length limit is raised because lizard can misread where
 # a function ends (a 13-complexity function was reported 1000+ lines long).
+# uvx takes the newest lizard at least 10 days old (scripts/AGENTS.md,
+# Dependencies). The owner let lizard 1.24.1 through early because it counts
+# Rust match arms; delete --exclude-newer-package after 2026-10-16.
 # Usage: bash scripts/check-rust-complexity.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-uvx lizard==1.24.0 crates/*/src src-tauri/src \
+uvx --exclude-newer "10 days" --exclude-newer-package "lizard=2026-10-06" lizard crates/*/src src-tauri/src \
 	--CCN 20 --length 100000 --warnings_only \
 	--whitelist scripts/rust-complexity-allowlist.txt \
 	--exclude "*_tests.rs" --exclude "*/tests.rs" --exclude "*/test_cases/*"
