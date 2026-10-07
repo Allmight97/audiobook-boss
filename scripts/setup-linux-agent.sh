@@ -36,8 +36,10 @@ run_as_root() {
 # Download a release asset and check it against the release's checksum file.
 fetch_verified() {
 	local base="$1" asset="$2" sums="$3" dest="$4"
-	curl -fsSL -o "${dest}/${asset}" "${base}/${asset}"
-	curl -fsSL -o "${dest}/${sums}" "${base}/${sums}"
+	# Bounded: a stalled download fails in minutes instead of holding CI.
+	local curl_opts=(-fsSL --connect-timeout 20 --max-time 600 --retry 3 --retry-all-errors)
+	curl "${curl_opts[@]}" -o "${dest}/${asset}" "${base}/${asset}"
+	curl "${curl_opts[@]}" -o "${dest}/${sums}" "${base}/${sums}"
 	(cd "${dest}" && grep " ${asset}\$" "${sums}" | sha256sum -c -)
 }
 
@@ -79,8 +81,10 @@ ensure_bun() {
 
 install_rust_packages() {
 	log "Installing packages for the bundled FFmpeg build and Tauri host"
-	run_as_root apt-get update -qq
-	run_as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+	# Retries and timeouts make a stalled mirror fail with a message.
+	local apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+	run_as_root apt-get "${apt_opts[@]}" update -q
+	run_as_root env DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install -y -q --no-install-recommends \
 		build-essential ca-certificates clang curl nasm pkg-config libopus-dev \
 		libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev librsvg2-dev
 }

@@ -118,9 +118,9 @@ Index of common commands; `package.json` holds the shortcuts.
   `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
   release-critical drift confidence is required.
 - Dependency hygiene: `bun run audit`.
-- CI (`.github/workflows/ci.yml`): runs when a pull request opens ready or is
-  marked ready, when auto-merge is enabled, by hand, and twice a week on
-  `main`. Pushes and drafts start nothing. It checks the frontend, the core
+- CI (`.github/workflows/ci.yml`): runs once per pull request when auto-merge
+  is enabled, by hand, and twice a week on `main`. Opening a pull request and
+  pushing start nothing. It checks the frontend, the core
   crates, the engine with the real-media lane, the Tauri host, the generated
   bindings, and Apple AAC on macOS. A pull request runs only the jobs its
   changes touch. GitHub also runs Pages for `site/**`.
