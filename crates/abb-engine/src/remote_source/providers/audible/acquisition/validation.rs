@@ -72,7 +72,9 @@ pub(super) fn materialized_file_from_path(
     let metadata = fs::metadata(path)?;
     let sha256 = sha256_file(path)?;
 
-    match audio::get_file_list_info(std::slice::from_ref(&path)) {
+    // This proves the download is readable audio; the session's import
+    // inspects it again with the AAC decoder setting.
+    match audio::get_file_list_info(std::slice::from_ref(&path), audio::AacDecoder::Auto) {
         Ok(info) if info.valid_count == 1 => {
             let accepted_file = &info.files[0];
             Ok(MaterializedSourceFile {

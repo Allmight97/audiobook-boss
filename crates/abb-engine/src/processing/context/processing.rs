@@ -74,6 +74,8 @@ pub struct ProcessingContext {
     pub encoder_settings: Option<EncoderSettings>,
     /// Sample rate configuration
     pub sample_rate: SampleRateConfig,
+    /// The decoder for AAC sources, from the settings when the run was accepted.
+    pub aac_decoder: crate::audio::AacDecoder,
     /// Output configuration
     pub output: OutputConfig,
     /// App-owned local workspace root for in-flight processing artifacts.
@@ -123,6 +125,7 @@ impl ProcessingContext {
             session,
             encoder_settings: encoder_settings.into(),
             sample_rate,
+            aac_decoder: crate::audio::AacDecoder::Auto,
             output,
             workspace_root,
             preview: None,

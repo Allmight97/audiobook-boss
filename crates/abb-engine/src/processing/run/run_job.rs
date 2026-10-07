@@ -33,6 +33,7 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) audio_reason: Option<String>,
     pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
     pub(crate) sample_rate: audio::SampleRateConfig,
+    pub(crate) aac_decoder: audio::AacDecoder,
     pub(crate) input_index: usize,
     pub(crate) operation_kind: OperationKind,
     pub(crate) operation_id: Option<String>,
@@ -77,6 +78,7 @@ pub(crate) async fn run_processing_job(
         job_id,
         encoder_settings: request.encoder_settings.clone(),
         sample_rate: request.sample_rate,
+        aac_decoder: request.aac_decoder,
         input_index: Some(request.input_index),
         operation_kind: request.operation_kind,
         operation_id,
@@ -322,6 +324,7 @@ struct ProcessingContextRequest {
     job_id: crate::processing::job_registry::JobId,
     encoder_settings: Option<EncoderSettings>,
     sample_rate: audio::SampleRateConfig,
+    aac_decoder: audio::AacDecoder,
     input_index: Option<usize>,
     operation_kind: OperationKind,
     operation_id: Option<String>,
@@ -342,6 +345,7 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
         OutputConfig::from_plan(request.output_plan),
         request.workspace_root,
     );
+    context.aac_decoder = request.aac_decoder;
     context.job_id = Some(request.job_id.to_string());
     context.operation_id = request.operation_id;
     context.input_index = request.input_index;

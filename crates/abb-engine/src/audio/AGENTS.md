@@ -25,10 +25,13 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   same open/readback as execution, including upstream bitrate clamps.
 - Linkage is not file compatibility: per-file trial decoding selects the
   decoder (`processor/streams.rs` tests the linked AAC decoders).
-  `ABB_AAC_DECODER=faad` replaces that choice with bundled FAAD3 for every AAC
-  input, so FAAD3 can be compared in dev runs before it has a setting; a file
-  FAAD3 cannot decode fails instead of falling back. An unknown value fails
-  every decode. `processor/decoder.rs` owns the switch and both backends.
+  The `AacDecoder` setting set to FAAD3 replaces that choice with bundled FAAD3
+  for every AAC input; a file FAAD3 cannot decode fails instead of falling
+  back. An import reads the setting when it runs; an export or preview
+  captures it when accepted (`ProcessPayload`, `ProcessingContext`), so its
+  inspection and decoding agree. Audible's post-download check uses Auto: it
+  proves the file is audio, and the import that follows applies the setting.
+  `processor/decoder.rs` owns both backends.
 
 ## Encoder Routes
 

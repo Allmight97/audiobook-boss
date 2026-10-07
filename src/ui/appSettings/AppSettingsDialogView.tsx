@@ -306,6 +306,54 @@ export function AppSettingsDialogView(): JSX.Element {
 								</Show>
 							</section>
 							<section class="app-settings-section">
+								<h4 class="app-settings-section-title">Decoding</h4>
+								<p class="muted-text">
+									Which decoder reads AAC audio (M4B, M4A, AAC) when titles are imported, previewed,
+									and exported. FAAD3 is a new decoder bundled for testing; a file it cannot read
+									fails instead of falling back. Titles already in the list keep the facts read when
+									they were imported.
+								</p>
+								<div
+									class="app-settings-startup-options"
+									role="radiogroup"
+									aria-label="AAC decoder"
+								>
+									<label class="app-settings-radio">
+										<input
+											type="radio"
+											name="app-settings-aac-decoder"
+											value="auto"
+											data-testid="app-settings-aac-decoder-auto"
+											checked={(state().settings?.aacDecoder ?? 'auto') === 'auto'}
+											disabled={state().decoderSaveState === 'saving'}
+											onChange={() => void settings.setAacDecoder('auto')}
+										/>
+										Auto (FFmpeg)
+									</label>
+									<label class="app-settings-radio">
+										<input
+											type="radio"
+											name="app-settings-aac-decoder"
+											value="faad"
+											data-testid="app-settings-aac-decoder-faad"
+											checked={state().settings?.aacDecoder === 'faad'}
+											disabled={state().decoderSaveState === 'saving'}
+											onChange={() => void settings.setAacDecoder('faad')}
+										/>
+										FAAD3 (bundled)
+									</label>
+								</div>
+								<Show when={state().decoderSaveState === 'error'}>
+									<p
+										class="app-settings-status app-settings-status-error"
+										data-testid="app-settings-decoder-error"
+										role="alert"
+									>
+										{state().decoderSaveError}
+									</p>
+								</Show>
+							</section>
+							<section class="app-settings-section">
 								<h4 class="app-settings-section-title">Import</h4>
 								<p class="muted-text">
 									Choose which source the Import button opens by default. Use the caret to pick the

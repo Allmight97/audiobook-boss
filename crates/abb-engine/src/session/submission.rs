@@ -263,6 +263,8 @@ pub(crate) fn build_draft(
             collision_policy: None,
             preflight_signature: None,
             supplemental_assets_by_input_id: inputs.supplemental_assets,
+            // The runtime reads the setting when it submits the draft.
+            aac_decoder: crate::audio::AacDecoder::Auto,
         },
         metadata: (!metadata.is_empty()).then_some(metadata),
         operation_id: OperationId::new(),

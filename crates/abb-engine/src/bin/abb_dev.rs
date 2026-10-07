@@ -13,7 +13,8 @@ use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use abb_engine::audio::{AudioIntent, AudiobookFormat};
+use abb_engine::app_settings::{SettingsIntent, SettingsOutcome};
+use abb_engine::audio::{AacDecoder, AudioIntent, AudiobookFormat};
 use abb_engine::output_artifact::{CollisionPolicy, NamingPreset};
 use abb_engine::session::{
     AudioEdit, CollisionReview, MetadataField, MetadataStatus, SessionIntent, SessionOutcome,
@@ -40,6 +41,8 @@ Options:
   --intent <intent>       Audio handling for every title: auto, preserve, or
                           encode.
   --bitrate <kbps>        Target bitrate for encoded titles.
+  --decoder <decoder>     AAC decoder for import and export: auto (FFmpeg)
+                          or faad (bundled FAAD3).
   --out <folder>          Export folder; created if missing.
   --template <template>   Name exports with a custom template, such as
                           '{author}/{title}'.
@@ -61,6 +64,7 @@ struct Options {
     edits: Vec<(MetadataField, String)>,
     save: bool,
     audio: Vec<AudioEdit>,
+    decoder: Option<AacDecoder>,
     out: Option<String>,
     template: Option<String>,
     export: bool,
@@ -124,6 +128,9 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
                 let kbps = value(&mut args, "--bitrate")?;
                 let kbps = kbps.parse().map_err(|_| format!("bad bitrate '{kbps}'"))?;
                 options.audio.push(AudioEdit::Bitrate(kbps));
+            }
+            "--decoder" => {
+                options.decoder = Some(named("decoder", &value(&mut args, "--decoder")?)?);
             }
             "--out" => options.out = Some(value(&mut args, "--out")?),
             "--template" => options.template = Some(value(&mut args, "--template")?),
@@ -458,6 +465,16 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<(), String> {
         aaxclean_helper: None,
     })
     .map_err(|error| format!("engine failed to start: {error}"))?;
+
+    if let Some(decoder) = options.decoder {
+        let outcome = engine
+            .settings_dispatch(SettingsIntent::SetAacDecoder { decoder })
+            .await
+            .outcome;
+        if outcome != SettingsOutcome::Applied {
+            return Err(format!("decoder choice was not applied: {outcome:?}"));
+        }
+    }
 
     send(
         &engine,

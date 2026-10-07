@@ -54,7 +54,7 @@ mod run_diagnostics;
 mod staging;
 mod streams;
 
-pub(crate) use decoder::codec_library_identity;
+pub(crate) use decoder::codec_library_versions;
 pub(crate) use streams::assess_preservation;
 pub(in crate::audio) use streams::inspect_audio_decoder;
 

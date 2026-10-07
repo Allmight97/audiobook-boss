@@ -735,6 +735,50 @@ fn collision_review(desk: &Desk) -> abb_engine::session::CollisionReview {
 }
 
 #[tokio::test]
+async fn the_aac_decoder_setting_chooses_faad3_for_import_and_the_export_completes() {
+    use abb_engine::app_settings::{SettingsIntent, SettingsOutcome};
+    use abb_engine::audio::AacDecoder;
+
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 2.0)
+        .await;
+    let chosen = desk
+        .engine
+        .settings_dispatch(SettingsIntent::SetAacDecoder {
+            decoder: AacDecoder::Faad,
+        })
+        .await;
+    assert_eq!(chosen.outcome, SettingsOutcome::Applied);
+
+    desk.import(&book).await;
+    let titles = desk.engine.session_snapshot().titles.expect("titles part");
+    assert_eq!(
+        titles.files[0].selected_decoder.as_deref(),
+        Some("FAAD3 (bundled)")
+    );
+
+    let library = desk.root.path().join("out");
+    fs::create_dir_all(&library).expect("create output folder");
+    desk.send(SessionIntent::SetOutputDirectory {
+        directory: library.to_string_lossy().into_owned(),
+    })
+    .await;
+    desk.send(SessionIntent::Submit).await;
+    let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(&desk) else {
+        panic!("submitted: {:?}", submission(&desk));
+    };
+    desk.wait_until("the export finishes", |desk| {
+        finished(desk.export_status(&operation_id))
+    })
+    .await;
+    assert_eq!(
+        desk.export_status(&operation_id),
+        WorkOperationStatus::Completed
+    );
+}
+
+#[tokio::test]
 async fn submit_exports_the_session_reviews_a_collision_and_previews() {
     use abb_engine::output_artifact::CollisionPolicy;
 

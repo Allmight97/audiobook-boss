@@ -20,6 +20,7 @@ mod path_validation;
 mod processor;
 mod settings;
 mod settings_capabilities;
+mod settings_decoder;
 mod settings_encoder;
 
 /// Represents an audio file with metadata
@@ -132,7 +133,7 @@ pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo
 pub(crate) use imports::{discover_audio_import_paths, supported_audio_import_metadata};
 pub use imports::{SupportedAudioImportFormat, SupportedAudioImportMetadata};
 pub(crate) use path_validation::{validate_input_audio_path, validate_input_image_path};
-pub(crate) use processor::{codec_library_identity, execute_audio_engine, AudioExecutionRequest};
+pub(crate) use processor::{codec_library_versions, execute_audio_engine, AudioExecutionRequest};
 pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
 pub(crate) use settings::{
     validate_output_path, validate_preserved_output_path, validate_sample_rate_config,
@@ -152,6 +153,7 @@ pub use settings_capabilities::{
     EncoderAvailability, EncoderConfigurationCapability, EncoderSettingsCapabilities,
     FaacProfileCapability,
 };
+pub use settings_decoder::AacDecoder;
 pub(crate) use settings_encoder::{validate_encoder_settings, DEFAULT_FAAC_QUALITY};
 pub use settings_encoder::{
     BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, FaacProfile,

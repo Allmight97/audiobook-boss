@@ -1,47 +1,16 @@
 //! The per-input audio decoder: FFmpeg's selected decoder, or bundled FAAD3
-//! for AAC when `ABB_AAC_DECODER=faad`. Both yield FFmpeg audio frames, so
-//! the resampler, accumulator, and encoder stay decoder-neutral.
+//! for AAC when the `AacDecoder` setting chooses it. Both yield FFmpeg audio
+//! frames, so the resampler, accumulator, and encoder stay decoder-neutral.
 
 use super::faad_decoder::FaadDecoder;
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use std::time::{Duration, Instant};
 
-pub(super) const AAC_DECODER_ENV: &str = "ABB_AAC_DECODER";
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum AacDecoderPreference {
-    Auto,
-    Faad,
-}
-
-/// Reads the developer override that forces bundled FAAD3 for AAC inputs.
-pub(super) fn aac_decoder_preference() -> Result<AacDecoderPreference> {
-    match std::env::var(AAC_DECODER_ENV) {
-        Err(std::env::VarError::NotPresent) => Ok(AacDecoderPreference::Auto),
-        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
-            "" | "auto" => Ok(AacDecoderPreference::Auto),
-            "faad" | "faad3" => Ok(AacDecoderPreference::Faad),
-            other => Err(AppError::InvalidInput(format!(
-                "{AAC_DECODER_ENV} must be 'auto' or 'faad', not '{other}'"
-            ))),
-        },
-        Err(error) => Err(AppError::InvalidInput(format!(
-            "{AAC_DECODER_ENV} is unreadable: {error}"
-        ))),
-    }
-}
-
-/// FAAC and FAAD library versions and the AAC decoder override in effect,
-/// for a host's build-identity log line.
-pub(crate) fn codec_library_identity() -> String {
-    let preference = match aac_decoder_preference() {
-        Ok(AacDecoderPreference::Auto) => "auto".to_string(),
-        Ok(AacDecoderPreference::Faad) => "faad".to_string(),
-        Err(error) => format!("invalid({error})"),
-    };
+/// FAAC and FAAD library versions, for a host's build-identity log line.
+pub(crate) fn codec_library_versions() -> String {
     format!(
-        "faac={} faad={} aac_decoder={preference}",
+        "faac={} faad={}",
         super::encoder::faac_library_version(),
         super::faad_decoder::library_version()
     )

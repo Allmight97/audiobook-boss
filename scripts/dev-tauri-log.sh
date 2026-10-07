@@ -182,7 +182,6 @@ write_summary() {
 		printf -- '- RUST_LOG source: `%s`\n' "${rust_log_source:-unset}"
 		printf -- '- ABB_RUN_ID: `%s`\n' "${ABB_RUN_ID:-unset}"
 		printf -- '- ABB_ENCODING_LOG: `%s`\n' "${ABB_ENCODING_LOG:-unset}"
-		printf -- '- ABB_AAC_DECODER: `%s`\n' "${ABB_AAC_DECODER:-unset}"
 		printf '\n## Port Handling\n\n'
 		if ((${#port_notes[@]} > 0)); then
 			printf '```text\n'

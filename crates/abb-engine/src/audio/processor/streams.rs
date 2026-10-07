@@ -1,8 +1,8 @@
 //! Decoder and resampler setup.
 
-use super::decoder::{aac_decoder_preference, AacDecoderPreference, AudioDecoder};
+use super::decoder::AudioDecoder;
 use super::faad_decoder::FaadDecoder;
-use crate::audio::{AudioPreservation, DecoderSelection};
+use crate::audio::{AacDecoder, AudioPreservation, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use ffmpeg_next as ff;
 use std::path::Path;
@@ -141,12 +141,12 @@ fn build_aac_decoder_candidates_for_object_type(
 
 fn build_decoder_candidates_from_parameters(
     params: &ff::codec::Parameters,
-    preference: AacDecoderPreference,
+    decoder: AacDecoder,
 ) -> Vec<DecoderCandidate> {
     if params.id() != ff::codec::Id::AAC {
         return vec![DecoderCandidate::Default];
     }
-    if preference == AacDecoderPreference::Faad {
+    if decoder == AacDecoder::Faad {
         return vec![DecoderCandidate::Faad];
     }
 
@@ -472,9 +472,9 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
 fn select_decoder_candidate(
     path: &Path,
     params: &ff::codec::Parameters,
-    preference: AacDecoderPreference,
+    decoder: AacDecoder,
 ) -> Result<DecoderCandidate> {
-    let candidates = build_decoder_candidates_from_parameters(params, preference);
+    let candidates = build_decoder_candidates_from_parameters(params, decoder);
     let attempted_labels = candidates
         .iter()
         .map(|candidate| candidate.stable_id())
@@ -513,15 +513,14 @@ fn select_decoder_candidate(
     )))
 }
 
-fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
+fn open_best_audio_decoder(path: &Path, aac_decoder: AacDecoder) -> Result<OpenedAudioInput> {
     log::debug!("Opening FFmpeg input context...");
     let inspect_ctx = open_input_context(path)?;
     let params = {
         let inspect_stream = best_audio_stream(&inspect_ctx, path)?;
         inspect_stream.parameters()
     };
-    let preference = aac_decoder_preference()?;
-    let faad_forced = preference == AacDecoderPreference::Faad && params.id() == ff::codec::Id::AAC;
+    let faad_forced = aac_decoder == AacDecoder::Faad && params.id() == ff::codec::Id::AAC;
     let sbr_delay_owner = if faad_forced {
         super::faac_timing::SbrDelayOwner::Decoder
     } else {
@@ -539,7 +538,7 @@ fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
         probe_decoder_candidate(path, candidate)?;
         candidate
     } else {
-        select_decoder_candidate(path, &params, preference)?
+        select_decoder_candidate(path, &params, aac_decoder)?
     };
 
     let input = if decode_window.is_some() {
@@ -574,9 +573,12 @@ fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
 }
 
 /// Opens the best available decoder for the input and returns stream properties.
-pub(crate) fn inspect_audio_decoder(path: &Path) -> Result<AudioDecoderInspection> {
+pub(crate) fn inspect_audio_decoder(
+    path: &Path,
+    aac_decoder: AacDecoder,
+) -> Result<AudioDecoderInspection> {
     ff::init().map_err(AppError::Ffmpeg)?;
-    let opened = open_best_audio_decoder(path)?;
+    let opened = open_best_audio_decoder(path, aac_decoder)?;
     let sample_rate = opened.decoder.rate();
     let channels = opened.decoder.channels() as u32;
     let bitrate = match opened.decoder.bit_rate() {
@@ -636,6 +638,7 @@ mod preservation_tests {
 pub(crate) fn setup_decoder_and_resampler(
     input_path: &Path,
     encoder: &super::encoder::EncoderSession,
+    aac_decoder: AacDecoder,
 ) -> Result<(
     ff::format::context::Input,
     AudioDecoder,
@@ -664,7 +667,7 @@ pub(crate) fn setup_decoder_and_resampler(
         codec_label: _codec_label,
         codec_id: _codec_id,
         decode_window,
-    } = open_best_audio_decoder(input_path)?;
+    } = open_best_audio_decoder(input_path, aac_decoder)?;
     log::info!(
         "✓ Audio decoder opened successfully (selected_id={} selected_label={})",
         selected_decoder.decoder_id.as_str(),
@@ -742,8 +745,8 @@ mod tests {
         aac_audio_object_type_label, build_aac_decoder_candidates,
         build_aac_decoder_candidates_for_object_type, build_decoder_candidates_from_parameters,
         detect_aac_decoder_availability, format_decoder_selection_failure,
-        friendly_codec_label_from_id, parse_aac_audio_object_type, AacDecoderAvailability,
-        AacDecoderPreference, DecoderCandidate,
+        friendly_codec_label_from_id, parse_aac_audio_object_type, AacDecoder,
+        AacDecoderAvailability, DecoderCandidate,
     };
     use ffmpeg_next as ff;
     use std::path::Path;
@@ -844,7 +847,7 @@ mod tests {
         unsafe {
             (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_MP3;
         }
-        for preference in [AacDecoderPreference::Auto, AacDecoderPreference::Faad] {
+        for preference in [AacDecoder::Auto, AacDecoder::Faad] {
             let candidates = build_decoder_candidates_from_parameters(&params, preference);
             assert_eq!(candidates, vec![DecoderCandidate::Default]);
         }
@@ -858,8 +861,7 @@ mod tests {
         unsafe {
             (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_AAC;
         }
-        let candidates =
-            build_decoder_candidates_from_parameters(&params, AacDecoderPreference::Faad);
+        let candidates = build_decoder_candidates_from_parameters(&params, AacDecoder::Faad);
 
         assert_eq!(candidates, vec![DecoderCandidate::Faad]);
     }

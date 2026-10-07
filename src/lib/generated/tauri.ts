@@ -33,6 +33,16 @@ export const events = {
 };
 
 /* Types */
+/**
+ *  The AAC decoder for every AAC source: import inspection, previews, and
+ *  exports. Other codecs always use FFmpeg.
+ */
+export type AacDecoder =
+/**  FFmpeg's AAC decoders, chosen per file by trial decoding. */
+"auto" |
+/**  Bundled FAAD3. A file it cannot decode fails instead of falling back. */
+"faad";
+
 export type AccountRef = {
 	providerId: ProviderId,
 	accountId: string,
@@ -100,6 +110,7 @@ export type AppSettings = {
 	startupBehavior: StartupBehavior,
 	pinnedDefaults: PinnedDefaults | null,
 	defaultAcquisitionLane: AcquisitionLane,
+	aacDecoder: AacDecoder,
 };
 
 export type AudioChoice = {
@@ -1149,7 +1160,12 @@ export type SettingsIntent =
  */
 { kind: "remember"; encoderDefaults: EncoderDefaults | null; outputDefaults: OutputDefaults | null; defaultAcquisitionLane: AcquisitionLane | null } |
 /**  Changes how many titles export at once. Refused while jobs run. */
-{ kind: "setConcurrency"; preference: ConcurrencyPreference } | { kind: "setKeepAwake"; enabled: boolean } | { kind: "setStartupBehavior"; behavior: StartupBehavior } |
+{ kind: "setConcurrency"; preference: ConcurrencyPreference } | { kind: "setKeepAwake"; enabled: boolean } |
+/**
+ *  Chooses the decoder for AAC sources in imports, previews, and exports
+ *  accepted from now on.
+ */
+{ kind: "setAacDecoder"; decoder: AacDecoder } | { kind: "setStartupBehavior"; behavior: StartupBehavior } |
 /**  Captures the current defaults as the ones a later launch starts from. */
 { kind: "pinCurrentDefaults" } |
 /**  Writes accepted changes that an earlier write failed to save. */

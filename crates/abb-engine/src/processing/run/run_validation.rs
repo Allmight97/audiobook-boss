@@ -28,7 +28,7 @@ pub(super) fn inspect_and_validate_external_processing_contract(
             "An audio source can belong to only one output title.".into(),
         ));
     }
-    let mut file_info = audio::get_file_list_info(&input_paths)?;
+    let mut file_info = audio::get_file_list_info(&input_paths, payload.aac_decoder)?;
     audio::apply_chapter_plans(&mut file_info, payload.chapter_plans.as_ref())?;
     Ok(file_info)
 }

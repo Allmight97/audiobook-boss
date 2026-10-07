@@ -1,7 +1,7 @@
 use super::*;
 use crate::audio::{
-    AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
-    FaacProfile, SampleRateConfig,
+    AacDecoder, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings,
+    EncoderType, FaacProfile, SampleRateConfig,
 };
 use crate::output_artifact::{NamingPreset, OutputNamingConfig};
 use tempfile::TempDir;
@@ -13,6 +13,7 @@ fn chosen_settings() -> AppSettings {
         keep_awake_while_working: false,
         max_concurrent_jobs: ConcurrencyPreference::Fixed(2),
         default_acquisition_lane: AcquisitionLane::Indexer,
+        aac_decoder: AacDecoder::Faad,
         encoder_defaults: EncoderDefaults {
             format: AudiobookFormat::Mp3,
             intent: AudioIntent::Encode,
@@ -61,16 +62,29 @@ fn chosen_settings() -> AppSettings {
 // A saved file must keep meaning what it meant. Changing how a setting is
 // saved fails here; keep the sample loading, or the change says what each
 // saved choice becomes.
+fn load_sample(content: &str) -> AppSettings {
+    let temp = TempDir::new().expect("temp dir");
+    std::fs::write(temp.path().join("settings.toml"), content).expect("write sample");
+    get_app_settings(temp.path())
+}
+
 #[test]
 fn the_sample_settings_file_loads_every_choice_it_holds() {
-    let temp = TempDir::new().expect("temp dir");
-    std::fs::write(
-        temp.path().join("settings.toml"),
-        include_str!("samples/settings.toml"),
-    )
-    .expect("write sample");
+    assert_eq!(
+        load_sample(include_str!("samples/settings-aac-decoder.toml")),
+        chosen_settings()
+    );
+}
 
-    assert_eq!(get_app_settings(temp.path()), chosen_settings());
+#[test]
+fn a_file_saved_before_the_aac_decoder_setting_loads_with_auto() {
+    assert_eq!(
+        load_sample(include_str!("samples/settings.toml")),
+        AppSettings {
+            aac_decoder: AacDecoder::Auto,
+            ..chosen_settings()
+        }
+    );
 }
 
 #[test]

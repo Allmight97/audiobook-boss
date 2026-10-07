@@ -1,6 +1,6 @@
 //! File list management and validation
 
-use super::{AudioChapter, AudioFile, DecoderSelection};
+use super::{AacDecoder, AudioChapter, AudioFile, DecoderSelection};
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use std::fs;
@@ -25,7 +25,7 @@ pub struct FileListInfo {
 }
 
 /// Validates a single audio file
-fn validate_single_file(path: &Path) -> Result<AudioFile> {
+fn validate_single_file(path: &Path, aac_decoder: AacDecoder) -> Result<AudioFile> {
     let mut audio_file = AudioFile::new(path.to_path_buf());
 
     // Use shared validation first
@@ -54,7 +54,7 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
     };
 
     // Validate audio format and get comprehensive metadata using canonical path
-    match validate_audio_format(&canonical_path, file_size) {
+    match validate_audio_format(&canonical_path, file_size, aac_decoder) {
         Ok(properties) => {
             audio_file.format = Some(properties.format);
             audio_file.duration = Some(properties.duration);
@@ -143,7 +143,11 @@ fn validate_mp4_audio_extent(
     Ok(())
 }
 
-fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties> {
+fn validate_audio_format(
+    path: &Path,
+    file_size: u64,
+    aac_decoder: AacDecoder,
+) -> Result<AudioProperties> {
     ff::init().map_err(AppError::Ffmpeg)?;
 
     // First check if we support the file extension
@@ -201,7 +205,7 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
     }
 
     // Extract technical metadata
-    let inspection = crate::audio::processor::inspect_audio_decoder(path)?;
+    let inspection = crate::audio::processor::inspect_audio_decoder(path, aac_decoder)?;
     let selected_decoder = inspection.selected_decoder;
     log::debug!(
         "validate_audio_format source_path={:?} selected_decoder_id={} selected_decoder={}",
@@ -237,7 +241,10 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
 }
 
 /// Gets comprehensive information about a file list
-pub fn get_file_list_info<P: AsRef<Path>>(file_paths: &[P]) -> Result<FileListInfo> {
+pub fn get_file_list_info<P: AsRef<Path>>(
+    file_paths: &[P],
+    aac_decoder: AacDecoder,
+) -> Result<FileListInfo> {
     let mut files = Vec::new();
 
     if file_paths.is_empty() {
@@ -247,7 +254,7 @@ pub fn get_file_list_info<P: AsRef<Path>>(file_paths: &[P]) -> Result<FileListIn
     }
 
     for path in file_paths {
-        files.push(validate_single_file(path.as_ref())?);
+        files.push(validate_single_file(path.as_ref(), aac_decoder)?);
     }
     Ok(FileListInfo::from_files(files))
 }

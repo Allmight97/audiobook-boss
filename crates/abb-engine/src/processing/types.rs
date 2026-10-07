@@ -43,6 +43,8 @@ pub struct ProcessPayload {
     /// Supplemental assets keyed by input id. These are committed only after a
     /// matching final batch audiobook succeeds.
     pub supplemental_assets_by_input_id: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
+    /// The decoder for AAC sources, from the settings when the run was accepted.
+    pub aac_decoder: audio::AacDecoder,
 }
 
 impl ProcessPayload {

@@ -1146,14 +1146,16 @@ impl Session {
                 formats_text: audio::supported_audio_import_metadata().formats_text,
             });
         }
-        let analyzed = match blocking(move || audio::get_file_list_info(&discovered)).await {
-            Ok(analyzed) => analyzed,
-            Err(error) => {
-                return failed(InputNotice::AnalysisFailed {
-                    error: AppErrorEnvelope::from(&error),
-                })
-            }
-        };
+        let aac_decoder = self.inner.deps.settings.aac_decoder().await;
+        let analyzed =
+            match blocking(move || audio::get_file_list_info(&discovered, aac_decoder)).await {
+                Ok(analyzed) => analyzed,
+                Err(error) => {
+                    return failed(InputNotice::AnalysisFailed {
+                        error: AppErrorEnvelope::from(&error),
+                    })
+                }
+            };
 
         if superseded() {
             return SessionOutcome::Superseded;
@@ -1227,9 +1229,10 @@ impl Session {
             .iter()
             .map(|file| file.path.clone())
             .collect();
+        let aac_decoder = self.inner.deps.settings.aac_decoder().await;
         let analyzed = blocking(move || {
             let discovered = audio::discover_audio_import_paths(&paths)?;
-            audio::get_file_list_info(&discovered)
+            audio::get_file_list_info(&discovered, aac_decoder)
         })
         .await;
         let analyzed = match analyzed {
@@ -1320,7 +1323,8 @@ impl Session {
 
     /// Preflights a draft, holds it for review when outputs collide, then
     /// exports or previews it.
-    async fn submit(&self, draft: Draft) -> SessionOutcome {
+    async fn submit(&self, mut draft: Draft) -> SessionOutcome {
+        draft.payload.aac_decoder = self.inner.deps.settings.aac_decoder().await;
         self.publish();
         let checking = draft.clone();
         let plan = blocking(move || {
