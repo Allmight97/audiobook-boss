@@ -191,12 +191,17 @@ fn open_audio_decoder_from_parameters(
         let decoder = FaadDecoder::open(path, stream_index, asc.as_deref())?;
         return Ok(AudioDecoder::faad(decoder, time_base, bit_rate));
     }
-    open_ffmpeg_decoder(params, candidate, time_base, path).map(AudioDecoder::ffmpeg)
+    let named = match candidate {
+        DecoderCandidate::Named(name) => Some(name),
+        DecoderCandidate::Default | DecoderCandidate::Faad => None,
+    };
+    open_ffmpeg_decoder(params, named, time_base, path).map(AudioDecoder::ffmpeg)
 }
 
+/// Opens FFmpeg's default decoder for the codec, or the named one.
 fn open_ffmpeg_decoder(
     params: ff::codec::Parameters,
-    candidate: DecoderCandidate,
+    named: Option<&'static str>,
     time_base: ff::Rational,
     path: &Path,
 ) -> Result<ff::codec::decoder::Audio> {
@@ -210,15 +215,15 @@ fn open_ffmpeg_decoder(
 
     let mut decoder = dec_ctx.decoder();
     decoder.set_packet_time_base(time_base);
-    match candidate {
-        DecoderCandidate::Default | DecoderCandidate::Faad => decoder.audio().map_err(|e| {
+    match named {
+        None => decoder.audio().map_err(|e| {
             AppError::General(format!(
                 "Failed to open audio decoder for '{}': {}",
                 sanitize_path_for_display(path),
                 e
             ))
         }),
-        DecoderCandidate::Named(name) => {
+        Some(name) => {
             let codec = ff::codec::decoder::find_by_name(name).ok_or_else(|| {
                 AppError::General(format!("Requested decoder '{}' is not available", name))
             })?;
