@@ -57,7 +57,7 @@ struct OpenedAudioInput {
     selected_decoder: DecoderSelection,
     codec_label: Option<String>,
     codec_id: ff::codec::Id,
-    decode_window: Option<super::faac_timing::FaacDecodeWindow>,
+    decode_window: Option<super::faac_timing::HeDecodeWindow>,
 }
 
 pub(crate) struct AudioDecoderInspection {
@@ -540,8 +540,9 @@ fn open_best_audio_decoder(path: &Path, aac_decoder: AacDecoder) -> Result<Opene
     } else {
         super::faac_timing::SbrDelayOwner::Window
     };
+    let he = matches!(aac_object_type_from_parameters(&params), Some(5 | 29));
     let decode_window =
-        super::faac_timing::FaacDecodeWindow::from_input(&inspect_ctx, sbr_delay_owner)?;
+        super::faac_timing::HeDecodeWindow::from_input(&inspect_ctx, he, sbr_delay_owner)?;
     drop(inspect_ctx);
     let selected_candidate = if decode_window.is_some() {
         let candidate = if faad_forced {
@@ -658,7 +659,7 @@ pub(crate) fn setup_decoder_and_resampler(
     AudioDecoder,
     ff::software::resampling::Context,
     usize,
-    Option<super::faac_timing::FaacDecodeWindow>,
+    Option<super::faac_timing::HeDecodeWindow>,
 )> {
     log::info!(
         "🔧 Setting up decoder for input file: {}",

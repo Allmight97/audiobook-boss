@@ -34,12 +34,7 @@ fn open_source(file: &AudioFile) -> Result<(ff::format::context::Input, usize, C
             "each source must contain exactly one audio stream",
         ));
     }
-    if super::faac_timing::FaacDecodeWindow::from_input(
-        &input,
-        super::faac_timing::SbrDelayOwner::Window,
-    )?
-    .is_some()
-    {
+    if super::faac_timing::is_abb_faac_he(&input) {
         return Err(incompatible(
             "a source has encoder priming that must be removed at a join",
         ));

@@ -79,14 +79,21 @@ those decisions to it.
 - `encoder/faac.rs` owns requested parameters and resolved configuration. Its
   opened profile determines frame size, mux profile, priming, postroll policy,
   and encoding-tool tag; profile Auto must work for both LC and HE.
-- `faac_timing` owns HE core priming in MP4 and the decoded PCM interval.
-  FFmpeg's native HE decoder emits SBR delay untrimmed, so its window adds it;
-  FAAD3 trims its own reported delay (`faad_decoder.rs`), so its window holds
-  core priming alone (`SbrDelayOwner`). Its encoding-tool tag identifies the timing convention of
-  ABB-produced HE files; retain each recognized convention when upgrading
-  upstream priming. LC uses a distinct tag and its returned encoder delay.
-  Apply the HE interval only to the recognized HE provenance.
-- HE re-import reads all FAAC access units, including decoder postroll, and trims
+- `faac_timing` owns the decoded PCM interval of HE-AAC MP4 inputs. ABB's
+  FAAC HE files are recognized by their encoding-tool tag; keep each recognized
+  convention (2079, 2080) when upgrading upstream priming. LC uses a distinct
+  tag and its returned encoder delay. A third-party HE or HE v2 file gets a
+  window only when it declares iTunSMPB. Apple's encoder and upstream's `faac`
+  frontend both leave the SBR delay out of that priming. HE files with only an
+  edit list, or with no gapless metadata (FFmpeg's muxer with Apple's encoder),
+  keep FFmpeg's trimming; nothing in them says which convention they follow.
+- Who removes SBR delay (`SbrDelayOwner`): FFmpeg's native HE decoder emits it
+  untrimmed, so the window adds 962; FAAD3 trims its own reported delay, so
+  its window holds priming alone.
+- A windowed input reads all access units (`ignore_editlist`), because an edit
+  list can drop the final unit that holds the delayed tail. The window trims
   at source sample rate before preview, resampling, or concatenation, through
-  packet skip metadata. Encoder selection does not change the source's
-  playable audio.
+  packet skip metadata that replaces what FFmpeg derived from iTunSMPB.
+  Encoder selection does not change the source's playable audio.
+- Packet-copy joins refuse only ABB's FAAC HE files (`is_abb_faac_he`); a
+  third-party HE file with iTunSMPB stays preservable as before.
