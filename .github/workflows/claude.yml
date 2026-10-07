@@ -57,4 +57,5 @@ jobs:
           additional_permissions: "actions: read"
           # Empty prompt selects interactive mention handling in the pinned action.
           prompt: ${{ github.event_name == 'workflow_dispatch' && 'Reply with exactly AUTH_OK. Do not use tools, post comments, or modify files.' || '' }}
-          claude_args: ${{ github.event_name == 'workflow_dispatch' && '--max-turns 1 --tools ""' || '--append-system-prompt "Follow AGENTS.md at the repository root and the applicable nested AGENTS.md files. Review requests follow REVIEW.md."' }}
+          # Inline empty value survives the pinned action's shell-argument parser.
+          claude_args: ${{ github.event_name == 'workflow_dispatch' && '--max-turns 1 --tools=' || '--append-system-prompt "Follow AGENTS.md at the repository root and the applicable nested AGENTS.md files. Review requests follow REVIEW.md."' }}
