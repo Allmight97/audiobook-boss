@@ -1,12 +1,14 @@
 name: ci
 
 # CI runs once per PR, when auto-merge is enabled ("done: prove it and merge"),
-# by hand (`gh workflow run ci.yml --ref <branch>`), and twice a week on main.
-# Opening a PR and pushing start nothing. The `gate` job is the check main
-# requires: a push after the last run leaves the new head without one, so the
-# merge waits for a run by hand. Within a PR run, each job proves only what the
-# PR changed; manual and scheduled runs prove everything, and also run
-# `cargo audit` and `cargo deny` (`supply-chain`). Only main runs save the Rust
+# by hand, and twice a week on main. Opening a PR and pushing start nothing.
+# The `gate` job is the check main requires; GitHub counts only pull_request
+# runs toward it, not workflow_dispatch. A push after the last run leaves the
+# new head without one: disable and re-enable auto-merge to rerun. A skipped
+# gate counts as passing, so pushes cannot trigger a conditional run. Within
+# a PR run, each job proves only what the PR changed; manual and scheduled runs
+# prove everything, and also run `cargo audit` and `cargo deny`
+# (`supply-chain`). Only main runs save the Rust
 # build cache (FFmpeg included), because PRs can restore only main's caches;
 # the scheduled run also keeps it from the 7-day eviction. Every job has a
 # timeout so a stalled runner or download fails instead of waiting 6 hours.

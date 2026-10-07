@@ -123,7 +123,9 @@ simpler design.
      comment, or the `claude review` workflow when the owner enables it.
   2. Done: `gh pr merge <n> --auto --merge` runs CI (`.github/workflows/ci.yml`)
      once and merges with a merge commit when `gate` passes. After a later
-     push, rerun it with `gh workflow run ci.yml --ref <branch>`.
+     push, rerun it with `gh pr merge <n> --disable-auto`, then the same
+     `--auto --merge` again (a manual `workflow_dispatch` run cannot satisfy
+     the required `gate`).
 - Proven locally, or CI is down: `gh pr merge <n> --admin --merge`, naming the
   local proof in the PR body. The owner may also say to commit straight to
   `main` (docs, small fixes). CI also runs twice a week on `main`.
