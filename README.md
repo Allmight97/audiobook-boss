@@ -137,6 +137,50 @@ Index of common commands; `package.json` holds the shortcuts.
   `bun scripts/resolve-release-dmg.ts --version <version>` resolves the artifact;
   download the uploaded asset and compare its `shasum -a 256` with the local DMG.
 
+## Claude on GitHub
+
+Tag `@claude` with a request in an issue or pull request comment, an inline
+review comment, a submitted review, or a new issue's title/body. The
+`Claude mentions` workflow handles the request. The triggering person must
+have write access; the action rejects bot actors and users without it.
+
+Both Claude workflows use a subscription token stored as the repository secret
+`CLAUDE_CODE_OAUTH_TOKEN`. To replace a rejected or expired token, run these
+commands locally, then paste the token printed by the first command into the
+second command's hidden prompt:
+
+```sh
+claude setup-token
+gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo Allmight97/audiobook-boss
+```
+
+Paste only the token, without quotes or the surrounding instructions. Keep it
+out of comments, logs, and committed files. A `401 Invalid bearer token` error
+means Anthropic rejected the stored credential; rerunning with the same secret
+does not repair it.
+
+In GitHub Actions, select **Claude mentions → Run workflow** to check
+authentication without posting comments or changing files. The run must pass
+before testing `@claude` on a real request. From the CLI:
+
+```sh
+gh workflow run claude.yml --repo Allmight97/audiobook-boss --ref main
+```
+
+Automatic review is separate. Select **claude review → … → Enable workflow**
+or **Disable workflow**, or use:
+
+```sh
+gh workflow enable claude-review.yml --repo Allmight97/audiobook-boss
+gh workflow disable claude-review.yml --repo Allmight97/audiobook-boss
+```
+
+Toggling automatic review leaves mention handling available. Enabling review
+does not retroactively review existing ready PRs; its next trigger is a PR
+opening, reopening, or being marked ready. The workflow files must be on the
+default branch before comment triggers and the manual authentication check
+are available.
+
 ## Project Operation
 
 - Agents: start in [AGENTS.md](AGENTS.md) and follow the nearest nested

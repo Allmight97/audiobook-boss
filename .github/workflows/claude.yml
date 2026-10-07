@@ -1,0 +1,60 @@
+name: Claude mentions
+
+# On-demand work is independent of claude-review.yml's Enable/Disable switch.
+# A manual run checks the subscription token without posting or changing files.
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: claude-mention-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.sender.type == 'User' &&
+       ((github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+        (github.event_name == 'issues' &&
+         (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Check subscription token is configured
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "::error::Set CLAUDE_CODE_OAUTH_TOKEN using claude setup-token, then gh secret set. See README.md: Claude on GitHub."
+            exit 1
+          fi
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Respond to mention or check authentication
+        uses: anthropics/claude-code-action@c3d45e8e941e1b2ad7b278c57482d9c5bf1f35b3 # v1.0.99
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          additional_permissions: "actions: read"
+          # Empty prompt selects interactive mention handling in the pinned action.
+          prompt: ${{ github.event_name == 'workflow_dispatch' && 'Reply with exactly AUTH_OK. Do not use tools, post comments, or modify files.' || '' }}
+          claude_args: ${{ github.event_name == 'workflow_dispatch' && '--max-turns 1 --tools ""' || '--append-system-prompt "Follow AGENTS.md at the repository root and the applicable nested AGENTS.md files. Review requests follow REVIEW.md."' }}
