@@ -29,11 +29,12 @@ pub(super) fn is_abb_faac_he(input: &ff::format::context::Input) -> bool {
     core_priming(input.metadata().get("encoder")).is_some()
 }
 
-/// iTunSMPB priming and playable length, in the track's time base.
+/// iTunSMPB priming, playable length, and padding, in the track's time base.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Gapless {
     priming: i64,
     samples: i64,
+    remainder: i64,
 }
 
 /// Reads iTunSMPB as FFmpeg's MP4 reader does: four hex fields of at most 16
@@ -53,8 +54,12 @@ fn itunes_gapless(value: &str) -> Option<Gapless> {
     {
         return None;
     }
-    let (priming, samples) = (priming as i64, samples as i64);
-    (0 < priming && priming < 16384 && samples > 0).then_some(Gapless { priming, samples })
+    let (priming, samples, remainder) = (priming as i64, samples as i64, remainder as i64);
+    (0 < priming && priming < 16384 && samples > 0).then_some(Gapless {
+        priming,
+        samples,
+        remainder,
+    })
 }
 
 /// The best audio stream's time base, output rate, and duration.
@@ -72,7 +77,7 @@ fn audio_clock(input: &ff::format::context::Input) -> Result<AudioClock> {
     let parameters = stream.parameters();
     // SAFETY: copy the sample rate while the stream's parameters are borrowed.
     let rate = unsafe { (*parameters.as_ptr()).sample_rate };
-    if parameters.id() != ff::codec::Id::AAC || rate <= 0 || stream.duration() <= 0 {
+    if parameters.id() != ff::codec::Id::AAC || rate <= 0 {
         return Err(AppError::InvalidInput(
             "HE-AAC file has no valid playable sample interval.".into(),
         ));
@@ -109,27 +114,43 @@ impl HeDecodeWindow {
             log::warn!("he_gapless status=ignored reason=unreadable_itunsmpb");
             return Ok(None);
         };
-        Self::itunes(input, gapless).map(Some)
+        Self::itunes(input, gapless)
     }
 
-    fn itunes(input: &ff::format::context::Input, gapless: Gapless) -> Result<Self> {
+    /// Trusts the tag only when the stream's duration agrees with it, as either
+    /// the playable length or the whole coded length; a stale tag would
+    /// otherwise cut the end of the audio. Disagreement keeps FFmpeg's trimming.
+    fn itunes(input: &ff::format::context::Input, gapless: Gapless) -> Result<Option<Self>> {
         let clock = audio_clock(input)?;
         let to_output = |ticks: i64| ticks.rescale(clock.time_base, ff::Rational(1, clock.rate));
-        let window = Self::new(
-            to_output(gapless.priming),
-            to_output(gapless.samples),
-            clock.rate,
-        )?;
+        let (priming, samples) = (to_output(gapless.priming), to_output(gapless.samples));
+        let coded = priming + samples + to_output(gapless.remainder);
+        let duration = to_output(clock.duration);
+        // One HE access unit of slack covers encoder padding rounding.
+        if clock.duration <= 0
+            || [samples, coded]
+                .iter()
+                .all(|len| (duration - len).abs() > 2048)
+        {
+            log::warn!("he_gapless status=ignored reason=itunsmpb_disagrees_with_duration");
+            return Ok(None);
+        }
+        let window = Self::new(priming, samples, clock.rate)?;
         log::info!(
             "he_gapless status=applied source=itunsmpb start_sample={} end_sample={}",
             window.start_sample,
             window.end_sample
         );
-        Ok(window)
+        Ok(Some(window))
     }
 
     fn abb_faac(input: &ff::format::context::Input, priming: i64) -> Result<Self> {
         let clock = audio_clock(input)?;
+        if clock.duration <= 0 {
+            return Err(AppError::InvalidInput(
+                "HE-AAC file has no valid playable sample interval.".into(),
+            ));
+        }
         let samples = clock
             .duration
             .rescale(clock.time_base, ff::Rational(1, clock.rate));
@@ -218,7 +239,8 @@ mod tests {
             itunes_gapless(apple),
             Some(Gapless {
                 priming: 0x840,
-                samples: 0x6BAA8
+                samples: 0x6BAA8,
+                remainder: 0x518
             })
         );
         for unusable in [
