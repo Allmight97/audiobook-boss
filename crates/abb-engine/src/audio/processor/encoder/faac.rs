@@ -6,7 +6,7 @@ use faac_sys as faac;
 use ffmpeg_next as ff;
 use std::{ffi::CStr, mem::size_of, ptr};
 
-use super::super::faac_timing::CORE_PRIMING;
+use super::super::he_timing::CORE_PRIMING;
 
 pub(super) struct FaacEncoder {
     handle: *mut faac::faac_encoder,
@@ -117,7 +117,7 @@ impl FaacEncoder {
         let (frame_samples, delay) = match self.info.object_type {
             faac::FAAC_OBJ_LOW => (1024, 1024),
             // FAAC reports HE priming without the SBR decoder delay; the MP4
-            // timing ABB writes (`faac_timing`) must match it exactly.
+            // timing ABB writes (`he_timing`) must match it exactly.
             faac::FAAC_OBJ_HE_AAC_V1 => (2048, CORE_PRIMING),
             _ => {
                 return Err(AppError::General(
@@ -183,7 +183,7 @@ impl FaacEncoder {
 
     pub fn encoding_tool(&self) -> &'static str {
         if self.is_he() {
-            super::super::faac_timing::ENCODING_TOOL
+            super::super::he_timing::ENCODING_TOOL
         } else {
             "AudioBook Boss FAAC AAC-LC"
         }

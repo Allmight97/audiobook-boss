@@ -52,7 +52,7 @@ struct OpenedAudioInput {
     selected_decoder: DecoderSelection,
     codec_label: Option<String>,
     codec_id: ff::codec::Id,
-    decode_window: Option<super::faac_timing::FaacDecodeWindow>,
+    decode_window: Option<super::he_timing::HeDecodeWindow>,
 }
 
 pub(crate) struct AudioDecoderInspection {
@@ -483,7 +483,8 @@ fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
         let inspect_stream = best_audio_stream(&inspect_ctx, path)?;
         inspect_stream.parameters()
     };
-    let decode_window = super::faac_timing::FaacDecodeWindow::from_input(&inspect_ctx)?;
+    let he = matches!(aac_object_type_from_parameters(&params), Some(5 | 29));
+    let decode_window = super::he_timing::HeDecodeWindow::from_input(&inspect_ctx, he)?;
     drop(inspect_ctx);
     let selected_candidate = if decode_window.is_some() {
         probe_decoder_candidate(path, DecoderCandidate::Default)?;
@@ -495,8 +496,9 @@ fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
     let input = if decode_window.is_some() {
         let mut options = ff::Dictionary::new();
         options.set("ignore_editlist", "1");
-        ff::format::input_with_dictionary(path, options)
-            .map_err(|error| AppError::General(format!("Cannot open FAAC access units: {error}")))?
+        ff::format::input_with_dictionary(path, options).map_err(|error| {
+            AppError::General(format!("Cannot open HE-AAC access units: {error}"))
+        })?
     } else {
         open_input_context(path)?
     };
@@ -590,7 +592,7 @@ pub(crate) fn setup_decoder_and_resampler(
     ff::codec::decoder::Audio,
     ff::software::resampling::Context,
     usize,
-    Option<super::faac_timing::FaacDecodeWindow>,
+    Option<super::he_timing::HeDecodeWindow>,
 )> {
     log::info!(
         "🔧 Setting up decoder for input file: {}",

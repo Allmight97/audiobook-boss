@@ -2264,6 +2264,50 @@ async fn faac_lc_and_auto_vbr_reimport_preserve_audio_interval() {
     }
 }
 
+/// Deterministic noise has one correlation peak, so a shifted decode shows.
+fn fill_with_filtered_noise(pcm16: &mut [u8]) {
+    let mut state = 42u32;
+    let mut filtered = 0.0_f64;
+    for sample in pcm16.chunks_exact_mut(2) {
+        state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+        let noise = f64::from(state) / f64::from(u32::MAX) - 0.5;
+        filtered = filtered * 0.85 + noise * 0.15;
+        sample.copy_from_slice(&((filtered * 50000.0) as i16).to_le_bytes());
+    }
+}
+
+/// Apple's HE-AAC declares iTunSMPB priming without the HE decoder's SBR
+/// delay, as upstream FAAC's frontend does.
+#[cfg(target_os = "macos")]
+#[tokio::test]
+async fn apple_he_aac_with_itunsmpb_reimports_aligned_and_full_length() {
+    let lane = MediaLane::with_fixtures(&[2.0]);
+    let mut wav = fs::read(&lane.inputs[0]).expect("fixture value");
+    fill_with_filtered_noise(&mut wav[44..]);
+    fs::write(&lane.inputs[0], wav).expect("fixture value");
+    let source = decode_pcm_f32(&lane.inputs[0]);
+    let he = lane.tmp.path().join("apple-he.m4a");
+    let encoded = Command::new("afconvert")
+        .args(["-f", "m4af", "-d", "aach", "-b", "32000"])
+        .arg(&lane.inputs[0])
+        .arg(&he)
+        .output()
+        .expect("fixture value");
+    assert!(
+        encoded.status.success(),
+        "{}",
+        String::from_utf8_lossy(&encoded.stderr)
+    );
+    let output = MediaLane::for_inputs(vec![he]).process(None).await;
+    let decoded = decode_pcm_f32(&output);
+    assert_eq!(decoded.len(), source.len(), "playable sample count");
+    let lag = best_signal_lag(&source, &decoded, 1200);
+    assert!(
+        lag.abs() <= 2,
+        "audio shifted by {lag} samples (962 is the untrimmed SBR delay)"
+    );
+}
+
 async fn assert_faac_reimport(
     input_settings: EncoderSettings,
     expected_tool: &str,
@@ -2276,14 +2320,7 @@ async fn assert_faac_reimport(
         let mut wav = fs::read(&lane.inputs[0]).expect("fixture value");
         wav[24..28].copy_from_slice(&rate.to_le_bytes());
         wav[28..32].copy_from_slice(&(rate * 2).to_le_bytes());
-        let mut state = 42u32;
-        let mut filtered = 0.0_f64;
-        for sample in wav[44..].chunks_exact_mut(2) {
-            state = state.wrapping_mul(1664525).wrapping_add(1013904223);
-            let noise = f64::from(state) / f64::from(u32::MAX) - 0.5;
-            filtered = filtered * 0.85 + noise * 0.15;
-            sample.copy_from_slice(&((filtered * 50000.0) as i16).to_le_bytes());
-        }
+        fill_with_filtered_noise(&mut wav[44..]);
         fs::write(&lane.inputs[0], wav).expect("fixture value");
         let source = decode_pcm_f32(&lane.inputs[0]);
         let faac_output = lane.process(None).await;
