@@ -530,13 +530,21 @@ impl Session {
                     _ => SessionOutcome::Applied,
                 }
             }
-            Rest::Submit(draft) => session.submit(*draft).await,
+            Rest::Submit(draft) => {
+                session
+                    .submit(session.record_acceptance(*draft).await)
+                    .await
+            }
             Rest::Reviewed { mut draft, policy } => {
                 draft.payload.collision_policy = Some(policy);
                 session.submit(*draft).await
             }
             Rest::Save { epoch, plan } => session.save(epoch, plan).await,
-            Rest::Restart { draft, link } => session.restart(*draft, *link).await,
+            Rest::Restart { draft, link } => {
+                session
+                    .restart(session.record_acceptance(*draft).await, *link)
+                    .await
+            }
             Rest::KeepLocation {
                 title_id,
                 revision,
@@ -1323,8 +1331,14 @@ impl Session {
 
     /// Preflights a draft, holds it for review when outputs collide, then
     /// exports or previews it.
-    async fn submit(&self, mut draft: Draft) -> SessionOutcome {
-        draft.payload.aac_decoder = self.inner.deps.settings.aac_decoder().await;
+    /// Records the settings an export runs under at the moment it is
+    /// accepted; a reviewed draft keeps them through its collision review.
+    async fn record_acceptance(&self, mut draft: Draft) -> Draft {
+        draft.payload.aac_decoder = Some(self.inner.deps.settings.aac_decoder().await);
+        draft
+    }
+
+    async fn submit(&self, draft: Draft) -> SessionOutcome {
         self.publish();
         let checking = draft.clone();
         let plan = blocking(move || {

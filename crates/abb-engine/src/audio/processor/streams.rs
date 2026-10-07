@@ -689,7 +689,7 @@ pub(crate) fn setup_decoder_and_resampler(
         selected_decoder.decoder_label.as_str()
     );
 
-    decoder.log_summary_as(sanitize_path_for_display(input_path));
+    decoder.log_open_and_summary(sanitize_path_for_display(input_path));
     log::info!("Creating resampler...");
     let in_layout = decoder.normalized_channel_layout();
     let in_rate = decoder.rate();

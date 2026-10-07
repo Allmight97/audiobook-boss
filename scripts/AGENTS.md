@@ -27,6 +27,8 @@ expensive build at a time.
 - Audio, metadata writing, output artifacts, processing (`engine` job): add
   `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- test_cases::integration_media`.
   Focused loop: `-- media_execution`. Fixtures are synthesized at test time.
+- Bundled FAAC/FAAD (`vendor/faac-sys`, `engine` job):
+  `cargo test --locked -p faac-sys`.
 - Apple AAC (`apple-aac` job, macOS only):
   `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- apple`.
 - Host or IPC types (`engine` job): `cargo test --locked -p audiobook-boss --features bundled-ffmpeg`

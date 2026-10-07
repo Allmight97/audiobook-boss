@@ -271,7 +271,7 @@ async fn fast_path_and_resampler_route_produce_the_same_audio() {
     );
 }
 
-fn decode_pcm_f32(path: &Path) -> Vec<f32> {
+pub(crate) fn decode_pcm_f32(path: &Path) -> Vec<f32> {
     let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
     let decoded = Command::new(binary)
         .args(["-v", "error", "-xerror", "-i"])
@@ -1707,7 +1707,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
         collision_policy: None,
         preflight_signature: None,
         supplemental_assets_by_input_id: None,
-        aac_decoder: AacDecoder::Auto,
+        aac_decoder: Some(AacDecoder::Auto),
     };
     let metadata: std::collections::HashMap<_, _> = paths
         .iter()
@@ -2301,7 +2301,7 @@ fn fill_with_filtered_noise(pcm16: &mut [u8]) {
 /// delay, as upstream FAAC's frontend does.
 #[cfg(target_os = "macos")]
 #[tokio::test]
-async fn third_party_he_aac_with_itunsmpb_reimports_aligned_and_full_length_with_both_decoders() {
+async fn apple_he_aac_with_itunsmpb_reimports_aligned_and_full_length_with_both_decoders() {
     let lane = MediaLane::with_fixtures(&[2.0]);
     let mut wav = fs::read(&lane.inputs[0]).expect("fixture value");
     fill_with_filtered_noise(&mut wav[44..]);

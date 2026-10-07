@@ -111,7 +111,7 @@ async fn dispatch_batch_plan(
             audio_reason: planned_job.audio_plan.reason.clone(),
             metadata_intent: planned_job.metadata_intent.clone(),
             sample_rate: audio::SampleRateConfig::Explicit(planned_job.audio_plan.sample_rate),
-            aac_decoder: payload.aac_decoder,
+            aac_decoder: payload.accepted_aac_decoder()?,
             input_index,
             operation_kind: OperationKind::ProcessingBatch,
             operation_id: options.operation_id.clone(),

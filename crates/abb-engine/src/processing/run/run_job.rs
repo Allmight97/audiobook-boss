@@ -342,10 +342,10 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
         std::sync::Arc::new(session),
         request.encoder_settings,
         request.sample_rate,
+        request.aac_decoder,
         OutputConfig::from_plan(request.output_plan),
         request.workspace_root,
     );
-    context.aac_decoder = request.aac_decoder;
     context.job_id = Some(request.job_id.to_string());
     context.operation_id = request.operation_id;
     context.input_index = request.input_index;

@@ -118,6 +118,7 @@ impl ProcessingContext {
         session: Arc<ProcessingSession>,
         encoder_settings: impl Into<Option<EncoderSettings>>,
         sample_rate: SampleRateConfig,
+        aac_decoder: crate::audio::AacDecoder,
         output: OutputConfig,
         workspace_root: PathBuf,
     ) -> Self {
@@ -125,7 +126,7 @@ impl ProcessingContext {
             session,
             encoder_settings: encoder_settings.into(),
             sample_rate,
-            aac_decoder: crate::audio::AacDecoder::Auto,
+            aac_decoder,
             output,
             workspace_root,
             preview: None,
@@ -167,6 +168,7 @@ impl ProcessingContext {
             session,
             encoder_settings,
             sample_rate,
+            crate::audio::AacDecoder::Auto,
             output,
             workspace_root,
         )

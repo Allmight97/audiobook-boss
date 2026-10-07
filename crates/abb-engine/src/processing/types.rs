@@ -43,11 +43,21 @@ pub struct ProcessPayload {
     /// Supplemental assets keyed by input id. These are committed only after a
     /// matching final batch audiobook succeeds.
     pub supplemental_assets_by_input_id: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
-    /// The decoder for AAC sources, from the settings when the run was accepted.
-    pub aac_decoder: audio::AacDecoder,
+    /// The AAC decoder setting, recorded when the session accepts the run.
+    pub aac_decoder: Option<audio::AacDecoder>,
 }
 
 impl ProcessPayload {
+    /// The decoder recorded at acceptance; a payload without one is refused,
+    /// never decoded with a default.
+    pub(crate) fn accepted_aac_decoder(&self) -> crate::errors::Result<audio::AacDecoder> {
+        self.aac_decoder.ok_or_else(|| {
+            crate::errors::AppError::InvalidInput(
+                "This export did not record its AAC decoder when it was accepted.".into(),
+            )
+        })
+    }
+
     pub(crate) fn sources_for(&self, index: usize) -> Vec<TitleSource> {
         let anchor = &self.input_files[index];
         self.title_sources

@@ -57,8 +57,8 @@ impl AudioDecoder {
         }
     }
 
-    /// Logs one `decode_summary` line for this input when the decoder drops.
-    pub(super) fn log_summary_as(&mut self, label: String) {
+    /// Logs `decode_open` now and one `decode_summary` line when the decoder drops.
+    pub(super) fn log_open_and_summary(&mut self, label: String) {
         let faad = match &self.backend {
             Backend::Ffmpeg(_) => String::new(),
             Backend::Faad(decoder) => {
