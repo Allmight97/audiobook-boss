@@ -36,12 +36,24 @@ struct Gapless {
     samples: i64,
 }
 
-/// Reads iTunSMPB as FFmpeg's MP4 reader does: hex fields, priming in
-/// 1..16384, a positive length.
+/// Reads iTunSMPB as FFmpeg's MP4 reader does: four hex fields of at most 16
+/// digits, counts up to 2^40, priming in 1..16384, a positive length.
 fn itunes_gapless(value: &str) -> Option<Gapless> {
-    let fields: Vec<&str> = value.split_whitespace().collect();
-    let priming = i64::from_str_radix(fields.get(1)?, 16).ok()?;
-    let samples = i64::from_str_radix(fields.get(3)?, 16).ok()?;
+    let fields = value
+        .split_whitespace()
+        .take(4)
+        .map(|field| (field.len() <= 16).then(|| u64::from_str_radix(field, 16).ok())?)
+        .collect::<Option<Vec<u64>>>()?;
+    let [_, priming, remainder, samples] = fields[..] else {
+        return None;
+    };
+    if [priming, remainder, samples]
+        .iter()
+        .any(|count| *count > 1 << 40)
+    {
+        return None;
+    }
+    let (priming, samples) = (priming as i64, samples as i64);
     (0 < priming && priming < 16384 && samples > 0).then_some(Gapless { priming, samples })
 }
 
@@ -148,7 +160,7 @@ impl HeDecodeWindow {
             .ok_or_else(|| AppError::InvalidInput("HE-AAC packet has no timestamp.".into()))?
             .rescale(time_base, samples);
         let length = packet.duration().rescale(time_base, samples);
-        if start < 0 || length != 2048 || start > i64::MAX - length {
+        if start < 0 || length <= 0 || start > i64::MAX - length {
             return Err(AppError::InvalidInput(
                 "HE-AAC packet has an invalid access-unit interval.".into(),
             ));
@@ -214,6 +226,8 @@ mod tests {
             "garbage",
             " 00000000 00000000 00000518 000000000006BAA8",
             " 00000000 00004000 0 1",
+            " 00000000 00000840 not-hex 000000000006BAA8",
+            " 00000000 00000840 00000518",
         ] {
             assert_eq!(itunes_gapless(unusable), None, "{unusable:?}");
         }
