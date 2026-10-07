@@ -139,6 +139,20 @@ fn build_aac_decoder_candidates_for_object_type(
     build_aac_decoder_candidates(availability)
 }
 
+/// FAAD3 decodes AAC-LC, HE-AAC, and HE-AAC v2. An ADTS stream carries no
+/// ASC; FAAD3 learns its type from the first frame.
+fn faad_decodes(audio_object_type: Option<u32>) -> bool {
+    matches!(audio_object_type, None | Some(2 | 5 | 29))
+}
+
+/// Whether the setting sends this stream to FAAD3. Other AAC profiles keep
+/// the automatic choice.
+fn uses_faad(params: &ff::codec::Parameters, decoder: AacDecoder) -> bool {
+    decoder == AacDecoder::Faad
+        && params.id() == ff::codec::Id::AAC
+        && faad_decodes(aac_object_type_from_parameters(params))
+}
+
 fn build_decoder_candidates_from_parameters(
     params: &ff::codec::Parameters,
     decoder: AacDecoder,
@@ -146,7 +160,7 @@ fn build_decoder_candidates_from_parameters(
     if params.id() != ff::codec::Id::AAC {
         return vec![DecoderCandidate::Default];
     }
-    if decoder == AacDecoder::Faad {
+    if uses_faad(params, decoder) {
         return vec![DecoderCandidate::Faad];
     }
 
@@ -520,7 +534,7 @@ fn open_best_audio_decoder(path: &Path, aac_decoder: AacDecoder) -> Result<Opene
         let inspect_stream = best_audio_stream(&inspect_ctx, path)?;
         inspect_stream.parameters()
     };
-    let faad_forced = aac_decoder == AacDecoder::Faad && params.id() == ff::codec::Id::AAC;
+    let faad_forced = uses_faad(&params, aac_decoder);
     let sbr_delay_owner = if faad_forced {
         super::faac_timing::SbrDelayOwner::Decoder
     } else {
@@ -744,7 +758,7 @@ mod tests {
     use super::{
         aac_audio_object_type_label, build_aac_decoder_candidates,
         build_aac_decoder_candidates_for_object_type, build_decoder_candidates_from_parameters,
-        detect_aac_decoder_availability, format_decoder_selection_failure,
+        detect_aac_decoder_availability, faad_decodes, format_decoder_selection_failure,
         friendly_codec_label_from_id, parse_aac_audio_object_type, AacDecoder,
         AacDecoderAvailability, DecoderCandidate,
     };
@@ -850,6 +864,16 @@ mod tests {
         for preference in [AacDecoder::Auto, AacDecoder::Faad] {
             let candidates = build_decoder_candidates_from_parameters(&params, preference);
             assert_eq!(candidates, vec![DecoderCandidate::Default]);
+        }
+    }
+
+    #[test]
+    fn faad_takes_lc_he_and_he_v2_and_leaves_other_profiles_to_auto() {
+        for object_type in [None, Some(2), Some(5), Some(29)] {
+            assert!(faad_decodes(object_type), "{object_type:?}");
+        }
+        for object_type in [Some(1), Some(23), Some(39), Some(42)] {
+            assert!(!faad_decodes(object_type), "{object_type:?}");
         }
     }
 

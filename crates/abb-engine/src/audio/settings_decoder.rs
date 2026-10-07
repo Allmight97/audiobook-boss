@@ -10,6 +10,7 @@ pub enum AacDecoder {
     /// FFmpeg's AAC decoders, chosen per file by trial decoding.
     #[default]
     Auto,
-    /// Bundled FAAD3. A file it cannot decode fails instead of falling back.
+    /// Bundled FAAD3 for AAC-LC, HE-AAC, and HE-AAC v2; other AAC profiles
+    /// keep Auto. A file FAAD3 cannot decode fails instead of falling back.
     Faad,
 }

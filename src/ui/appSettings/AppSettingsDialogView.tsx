@@ -309,9 +309,10 @@ export function AppSettingsDialogView(): JSX.Element {
 								<h4 class="app-settings-section-title">Decoding</h4>
 								<p class="muted-text">
 									Which decoder reads AAC audio (M4B, M4A, AAC) when titles are imported, previewed,
-									and exported. FAAD3 is a new decoder bundled for testing; a file it cannot read
-									fails instead of falling back. Titles already in the list keep the facts read when
-									they were imported.
+									and exported. FAAD3 is a new decoder bundled for testing. It reads AAC-LC and
+									HE-AAC; other AAC kinds, such as xHE-AAC, still use Auto. A file FAAD3 should read
+									but cannot fails instead of switching decoders. Titles already in the list keep
+									the facts read when they were imported.
 								</p>
 								<div
 									class="app-settings-startup-options"
