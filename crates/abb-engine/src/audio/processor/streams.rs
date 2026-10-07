@@ -1,5 +1,7 @@
 //! Decoder and resampler setup.
 
+use super::decoder::{aac_decoder_preference, AacDecoderPreference, AudioDecoder};
+use super::faad_decoder::FaadDecoder;
 use crate::audio::{AudioPreservation, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use ffmpeg_next as ff;
@@ -12,6 +14,7 @@ const AAC_DECODER_PROBE_MIN_FRAMES: usize = 8;
 enum DecoderCandidate {
     Default,
     Named(&'static str),
+    Faad,
 }
 
 impl DecoderCandidate {
@@ -19,6 +22,7 @@ impl DecoderCandidate {
         match self {
             Self::Default => "default",
             Self::Named(name) => name,
+            Self::Faad => "faad3",
         }
     }
 
@@ -27,6 +31,7 @@ impl DecoderCandidate {
             Self::Default => "FFmpeg default decoder",
             Self::Named("aac_at") => "Apple AAC",
             Self::Named(name) => name,
+            Self::Faad => "FAAD3 (bundled)",
         }
     }
 
@@ -47,7 +52,7 @@ struct AacDecoderAvailability {
 
 struct OpenedAudioInput {
     input: ff::format::context::Input,
-    decoder: ff::codec::decoder::Audio,
+    decoder: AudioDecoder,
     stream_index: usize,
     selected_decoder: DecoderSelection,
     codec_label: Option<String>,
@@ -136,9 +141,13 @@ fn build_aac_decoder_candidates_for_object_type(
 
 fn build_decoder_candidates_from_parameters(
     params: &ff::codec::Parameters,
+    preference: AacDecoderPreference,
 ) -> Vec<DecoderCandidate> {
     if params.id() != ff::codec::Id::AAC {
         return vec![DecoderCandidate::Default];
+    }
+    if preference == AacDecoderPreference::Faad {
+        return vec![DecoderCandidate::Faad];
     }
 
     let availability = detect_aac_decoder_availability();
@@ -173,6 +182,23 @@ fn open_audio_decoder_from_parameters(
     candidate: DecoderCandidate,
     time_base: ff::Rational,
     path: &Path,
+    stream_index: usize,
+) -> Result<AudioDecoder> {
+    if candidate == DecoderCandidate::Faad {
+        let asc = read_codec_extradata(&params);
+        // SAFETY: copy the container bitrate while the parameters are borrowed.
+        let bit_rate = unsafe { (*params.as_ptr()).bit_rate }.max(0) as usize;
+        let decoder = FaadDecoder::open(path, stream_index, asc.as_deref())?;
+        return Ok(AudioDecoder::faad(decoder, time_base, bit_rate));
+    }
+    open_ffmpeg_decoder(params, candidate, time_base, path).map(AudioDecoder::ffmpeg)
+}
+
+fn open_ffmpeg_decoder(
+    params: ff::codec::Parameters,
+    candidate: DecoderCandidate,
+    time_base: ff::Rational,
+    path: &Path,
 ) -> Result<ff::codec::decoder::Audio> {
     let dec_ctx = ff::codec::context::Context::from_parameters(params).map_err(|e| {
         AppError::General(format!(
@@ -185,7 +211,7 @@ fn open_audio_decoder_from_parameters(
     let mut decoder = dec_ctx.decoder();
     decoder.set_packet_time_base(time_base);
     match candidate {
-        DecoderCandidate::Default => decoder.audio().map_err(|e| {
+        DecoderCandidate::Default | DecoderCandidate::Faad => decoder.audio().map_err(|e| {
             AppError::General(format!(
                 "Failed to open audio decoder for '{}': {}",
                 sanitize_path_for_display(path),
@@ -327,7 +353,7 @@ fn aac_label_from_parameters(params: &ff::codec::Parameters) -> Option<&'static 
 
 fn derive_codec_label(
     params: &ff::codec::Parameters,
-    decoder: &ff::codec::decoder::Audio,
+    profile: ff::codec::Profile,
 ) -> Option<String> {
     let codec_id = params.id();
 
@@ -336,7 +362,7 @@ fn derive_codec_label(
             return Some(label.to_string());
         }
 
-        if let Some(label) = aac_profile_label(decoder.profile()) {
+        if let Some(label) = aac_profile_label(profile) {
             return Some(label.to_string());
         }
 
@@ -351,8 +377,13 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
     let stream = best_audio_stream(&ictx, path)?;
     let stream_index = stream.index();
     let params = stream.parameters();
-    let mut decoder =
-        open_audio_decoder_from_parameters(params, candidate, stream.time_base(), path)?;
+    let mut decoder = open_audio_decoder_from_parameters(
+        params,
+        candidate,
+        stream.time_base(),
+        path,
+        stream_index,
+    )?;
 
     let mut packets_seen = 0usize;
     let mut decoded_frames = 0usize;
@@ -436,8 +467,9 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
 fn select_decoder_candidate(
     path: &Path,
     params: &ff::codec::Parameters,
+    preference: AacDecoderPreference,
 ) -> Result<DecoderCandidate> {
-    let candidates = build_decoder_candidates_from_parameters(params);
+    let candidates = build_decoder_candidates_from_parameters(params, preference);
     let attempted_labels = candidates
         .iter()
         .map(|candidate| candidate.stable_id())
@@ -483,13 +515,26 @@ fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
         let inspect_stream = best_audio_stream(&inspect_ctx, path)?;
         inspect_stream.parameters()
     };
-    let decode_window = super::faac_timing::FaacDecodeWindow::from_input(&inspect_ctx)?;
+    let preference = aac_decoder_preference()?;
+    let faad_forced = preference == AacDecoderPreference::Faad && params.id() == ff::codec::Id::AAC;
+    let sbr_delay_owner = if faad_forced {
+        super::faac_timing::SbrDelayOwner::Decoder
+    } else {
+        super::faac_timing::SbrDelayOwner::Window
+    };
+    let decode_window =
+        super::faac_timing::FaacDecodeWindow::from_input(&inspect_ctx, sbr_delay_owner)?;
     drop(inspect_ctx);
     let selected_candidate = if decode_window.is_some() {
-        probe_decoder_candidate(path, DecoderCandidate::Default)?;
-        DecoderCandidate::Default
+        let candidate = if faad_forced {
+            DecoderCandidate::Faad
+        } else {
+            DecoderCandidate::Default
+        };
+        probe_decoder_candidate(path, candidate)?;
+        candidate
     } else {
-        select_decoder_candidate(path, &params)?
+        select_decoder_candidate(path, &params, preference)?
     };
 
     let input = if decode_window.is_some() {
@@ -508,8 +553,9 @@ fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
         selected_candidate,
         stream.time_base(),
         path,
+        stream_index,
     )?;
-    let codec_label = derive_codec_label(&params, &decoder);
+    let codec_label = derive_codec_label(&params, decoder.profile());
 
     Ok(OpenedAudioInput {
         input,
@@ -587,7 +633,7 @@ pub(crate) fn setup_decoder_and_resampler(
     encoder: &super::encoder::EncoderSession,
 ) -> Result<(
     ff::format::context::Input,
-    ff::codec::decoder::Audio,
+    AudioDecoder,
     ff::software::resampling::Context,
     usize,
     Option<super::faac_timing::FaacDecodeWindow>,
@@ -620,21 +666,9 @@ pub(crate) fn setup_decoder_and_resampler(
         selected_decoder.decoder_label.as_str()
     );
 
+    decoder.log_summary_as(sanitize_path_for_display(input_path));
     log::info!("Creating resampler...");
-    // Containers without channel-layout semantics (e.g. WAV/PCM) open with an
-    // unspecified layout while their decoded frames carry the default layout
-    // for the channel count; swresample then rejects every frame with
-    // "Input changed". Normalize to the default layout up front so the
-    // decoder, its frames, and the resampler agree.
-    let mut in_layout = decoder.channel_layout();
-    if in_layout.is_empty() && decoder.channels() > 0 {
-        in_layout = ff::ChannelLayout::default(i32::from(decoder.channels()));
-        decoder.set_channel_layout(in_layout);
-        log::info!(
-            "Input declared no channel layout; defaulting for {} channel(s)",
-            decoder.channels()
-        );
-    }
+    let in_layout = decoder.normalized_channel_layout();
     let in_rate = decoder.rate();
     let in_format = decoder.format();
     log::info!(
@@ -704,7 +738,7 @@ mod tests {
         build_aac_decoder_candidates_for_object_type, build_decoder_candidates_from_parameters,
         detect_aac_decoder_availability, format_decoder_selection_failure,
         friendly_codec_label_from_id, parse_aac_audio_object_type, AacDecoderAvailability,
-        DecoderCandidate,
+        AacDecoderPreference, DecoderCandidate,
     };
     use ffmpeg_next as ff;
     use std::path::Path;
@@ -805,9 +839,24 @@ mod tests {
         unsafe {
             (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_MP3;
         }
-        let candidates = build_decoder_candidates_from_parameters(&params);
+        for preference in [AacDecoderPreference::Auto, AacDecoderPreference::Faad] {
+            let candidates = build_decoder_candidates_from_parameters(&params, preference);
+            assert_eq!(candidates, vec![DecoderCandidate::Default]);
+        }
+    }
 
-        assert_eq!(candidates, vec![DecoderCandidate::Default]);
+    #[test]
+    fn forced_faad_is_the_only_aac_candidate() {
+        let mut params = ff::codec::Parameters::new();
+        // SAFETY: `params` owns a freshly allocated `AVCodecParameters`, so the pointer is non-null and valid
+        // for this write.
+        unsafe {
+            (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_AAC;
+        }
+        let candidates =
+            build_decoder_candidates_from_parameters(&params, AacDecoderPreference::Faad);
+
+        assert_eq!(candidates, vec![DecoderCandidate::Faad]);
     }
 
     #[test]

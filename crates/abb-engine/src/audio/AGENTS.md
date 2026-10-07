@@ -25,6 +25,10 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   same open/readback as execution, including upstream bitrate clamps.
 - Linkage is not file compatibility: per-file trial decoding selects the
   decoder (`processor/streams.rs` tests the linked AAC decoders).
+  `ABB_AAC_DECODER=faad` replaces that choice with bundled FAAD3 for every AAC
+  input, so FAAD3 can be compared in dev runs before it has a setting; a file
+  FAAD3 cannot decode fails instead of falling back. An unknown value fails
+  every decode. `processor/decoder.rs` owns the switch and both backends.
 
 ## Encoder Routes
 

@@ -2,7 +2,9 @@
 //!
 //! Apple MP4 playback uses core priming. FFmpeg's native HE decoder also emits
 //! SBR reconstruction delay; re-import reads all access units and applies the
-//! corresponding PCM interval. The tool tag limits this policy to our files.
+//! corresponding PCM interval. FAAD3 trims its reported SBR delay itself, so
+//! its window holds core priming alone. The tool tag limits this policy to our
+//! files.
 
 use crate::errors::{AppError, Result};
 use ff::{packet::Mut, Rescale};
@@ -21,6 +23,15 @@ fn core_priming(tool: Option<&str>) -> Option<i64> {
     }
 }
 
+/// Who removes the HE decoder's SBR delay from the decoded PCM.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SbrDelayOwner {
+    /// This window (FFmpeg's native decoder emits the delay untrimmed).
+    Window,
+    /// The decoder (FAAD3 reports and trims its own delay).
+    Decoder,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct FaacDecodeWindow {
     pub start_sample: i64,
@@ -29,7 +40,10 @@ pub(super) struct FaacDecodeWindow {
 }
 
 impl FaacDecodeWindow {
-    pub fn from_input(input: &ff::format::context::Input) -> Result<Option<Self>> {
+    pub fn from_input(
+        input: &ff::format::context::Input,
+        sbr_delay_owner: SbrDelayOwner,
+    ) -> Result<Option<Self>> {
         let Some(priming) = core_priming(input.metadata().get("encoder")) else {
             return Ok(None);
         };
@@ -48,7 +62,10 @@ impl FaacDecodeWindow {
         let samples = stream
             .duration()
             .rescale(stream.time_base(), ff::Rational(1, rate));
-        let start_sample = priming + SBR_DELAY;
+        let start_sample = match sbr_delay_owner {
+            SbrDelayOwner::Window => priming + SBR_DELAY,
+            SbrDelayOwner::Decoder => priming,
+        };
         let end_sample = start_sample
             .checked_add(samples)
             .filter(|end| *end > start_sample)

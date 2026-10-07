@@ -274,7 +274,7 @@ impl FaacEncoder {
     }
 }
 
-pub(super) fn library_version() -> String {
+pub(crate) fn library_version() -> String {
     let mut info = faac::faac_library_info {
         struct_size: size_of::<faac::faac_library_info>() as u32,
         ..Default::default()

@@ -61,6 +61,9 @@ those decisions to it.
   writes, requested settings, and monotonic/wall-clock timing. Records take one
   write lock and append to the file `ABB_ENCODING_LOG` names. Unset or empty
   disables the records. Unavailable opened settings stay explicitly `unknown`.
+- Each input's decoder logs `decode_open` and, when it closes,
+  `decode_summary` (packets, samples, decode speed; FAAD3 adds its trims and
+  concealment counts). The dev-log summary shows both lines.
 - Finalization emits `audio_output` from a read-only probe of the completed
   staged file, before publication. These are observed file properties, not
   encoder configuration; unavailable diagnostics never change processing
@@ -76,8 +79,10 @@ those decisions to it.
 - `encoder/faac.rs` owns requested parameters and resolved configuration. Its
   opened profile determines frame size, mux profile, priming, postroll policy,
   and encoding-tool tag; profile Auto must work for both LC and HE.
-- `faac_timing` owns HE core priming in MP4 and the native decoder's PCM
-  interval. Its encoding-tool tag identifies the timing convention of
+- `faac_timing` owns HE core priming in MP4 and the decoded PCM interval.
+  FFmpeg's native HE decoder emits SBR delay untrimmed, so its window adds it;
+  FAAD3 trims its own reported delay (`faad_decoder.rs`), so its window holds
+  core priming alone (`SbrDelayOwner`). Its encoding-tool tag identifies the timing convention of
   ABB-produced HE files; retain each recognized convention when upgrading
   upstream priming. LC uses a distinct tag and its returned encoder delay.
   Apply the HE interval only to the recognized HE provenance.

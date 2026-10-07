@@ -65,9 +65,10 @@ pub(crate) fn process_input_file(
         crate::audio::processor::streams::setup_decoder_and_resampler(input_path, encoder)?;
     if let Some(input_facts) = input_facts {
         input_facts.push(format!(
-            "file={} codec={:?} rate={} channels={}",
+            "file={} codec={:?} decoder={} rate={} channels={}",
             sanitize_path_for_display(input_path),
             decoder.id(),
+            decoder.name(),
             decoder.rate(),
             decoder.channels()
         ));

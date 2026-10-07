@@ -25,11 +25,13 @@ use crate::processing::ProcessingContext;
 use std::time::Duration;
 
 // Submodules
+mod decoder;
 mod encoder;
 mod engine;
 mod engine_orchestrator;
 mod execute;
 mod faac_timing;
+mod faad_decoder;
 mod finalize;
 mod frame_pipeline;
 mod plan;
@@ -52,6 +54,7 @@ mod run_diagnostics;
 mod staging;
 mod streams;
 
+pub(crate) use decoder::codec_library_identity;
 pub(crate) use streams::assess_preservation;
 pub(in crate::audio) use streams::inspect_audio_decoder;
 
