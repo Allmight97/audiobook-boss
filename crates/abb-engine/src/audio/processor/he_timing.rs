@@ -62,6 +62,14 @@ fn itunes_gapless(value: &str) -> Option<Gapless> {
     })
 }
 
+/// Whether the stream duration matches the tag's playable or whole coded
+/// length; one HE access unit of slack covers encoder padding rounding.
+fn agrees_with_duration(samples: i64, coded: i64, duration: i64) -> bool {
+    [samples, coded]
+        .iter()
+        .any(|len| (duration - len).abs() <= 2048)
+}
+
 /// The best audio stream's time base, output rate, and duration.
 struct AudioClock {
     time_base: ff::Rational,
@@ -125,13 +133,7 @@ impl HeDecodeWindow {
         let to_output = |ticks: i64| ticks.rescale(clock.time_base, ff::Rational(1, clock.rate));
         let (priming, samples) = (to_output(gapless.priming), to_output(gapless.samples));
         let coded = priming + samples + to_output(gapless.remainder);
-        let duration = to_output(clock.duration);
-        // One HE access unit of slack covers encoder padding rounding.
-        if clock.duration <= 0
-            || [samples, coded]
-                .iter()
-                .all(|len| (duration - len).abs() > 2048)
-        {
+        if clock.duration <= 0 || !agrees_with_duration(samples, coded, to_output(clock.duration)) {
             log::warn!("he_gapless status=ignored reason=itunsmpb_disagrees_with_duration");
             return Ok(None);
         }
@@ -253,5 +255,17 @@ mod tests {
         ] {
             assert_eq!(itunes_gapless(unusable), None, "{unusable:?}");
         }
+    }
+
+    #[test]
+    fn stale_itunsmpb_length_keeps_ffmpeg_trimming() {
+        let (priming, samples, remainder) = (0x840, 0x6BAA8, 0x518);
+        let coded = priming + samples + remainder;
+        // Apple's edit-list duration, or the whole coded length, both agree.
+        assert!(agrees_with_duration(samples, coded, samples));
+        assert!(agrees_with_duration(samples, coded, coded));
+        // A tag left over from a shorter edit would cut the end of the book.
+        assert!(!agrees_with_duration(samples, coded, coded + 44_100 * 60));
+        assert!(!agrees_with_duration(samples, coded, samples - 4096));
     }
 }
