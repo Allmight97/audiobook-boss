@@ -724,6 +724,8 @@ pub enum Id {
     PCM_DVDA,
     ITUT_T35,
     ASTC,
+    ADPCM_RHETOREX,
+    ADPCM_IMA_CITRIX,
 }
 
 impl Id {
@@ -1454,6 +1456,8 @@ impl From<AVCodecID> for Id {
             AV_CODEC_ID_PCM_DVDA => Id::PCM_DVDA,
             AV_CODEC_ID_ITUT_T35 => Id::ITUT_T35,
             AV_CODEC_ID_ASTC => Id::ASTC,
+            AV_CODEC_ID_ADPCM_RHETOREX => Id::ADPCM_RHETOREX,
+            AV_CODEC_ID_ADPCM_IMA_CITRIX => Id::ADPCM_IMA_CITRIX,
 
             #[cfg(feature = "non-exhaustive-enums")]
             _ => unimplemented!(),
@@ -2179,6 +2183,8 @@ impl From<Id> for AVCodecID {
             Id::PCM_DVDA => AV_CODEC_ID_PCM_DVDA,
             Id::ITUT_T35 => AV_CODEC_ID_ITUT_T35,
             Id::ASTC => AV_CODEC_ID_ASTC,
+            Id::ADPCM_RHETOREX => AV_CODEC_ID_ADPCM_RHETOREX,
+            Id::ADPCM_IMA_CITRIX => AV_CODEC_ID_ADPCM_IMA_CITRIX,
         }
     }
 }

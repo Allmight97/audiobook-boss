@@ -16,6 +16,8 @@ pub(in crate::audio::processor::encoder) fn build_native_options(
     let mut opts = ff::Dictionary::new();
     opts.set("aac_coder", "nmr");
     opts.set("aac_nmr_speed", &settings.native_aac_speed.to_string());
+    // ABB's Native contract is a constant target; upstream may change the default.
+    opts.set("aac_rc", "cbr");
     opts
 }
 
@@ -23,10 +25,11 @@ pub(in crate::audio::processor::encoder) fn validate_native_options(
     encoder: &ff::codec::encoder::audio::Encoder,
     settings: &EncoderSettings,
 ) -> Result<()> {
-    // AAC_CODER_NMR = 2 in the pinned libavcodec/aacenc.h.
+    // Pinned source: AAC_CODER_NMR = 2 (aacenc.h); aac_rc cbr = 0 (aacenc.c).
     for (name, expected) in [
         (c"aac_coder", 2),
         (c"aac_nmr_speed", i64::from(settings.native_aac_speed)),
+        (c"aac_rc", 0),
     ] {
         let actual = native_option(encoder, name)?;
         if actual != expected {
@@ -46,7 +49,7 @@ pub(in crate::audio::processor::encoder) fn validate_native_options(
         return Err(AppError::General(format!("Native AAC opened target differs from request: target_mode={uses_target} bitrate={bitrate}")));
     }
     log::info!(
-        "Native AAC opened: coder=nmr speed={} bitrate={bitrate}",
+        "Native AAC opened: coder=nmr rc=cbr speed={} bitrate={bitrate}",
         settings.native_aac_speed,
     );
     Ok(())

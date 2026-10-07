@@ -87,6 +87,7 @@ pub enum Type {
     #[cfg(feature = "ffmpeg_9_0")]
     RAW_COLOR_PARAMS,
     DOWNMIX_MATRIX,
+    GAIN_MAP_PARAMS,
 }
 
 impl Type {
@@ -178,6 +179,7 @@ impl From<AVFrameSideDataType> for Type {
             #[cfg(feature = "ffmpeg_9_0")]
             AV_FRAME_DATA_RAW_COLOR_PARAMS => Type::RAW_COLOR_PARAMS,
             AV_FRAME_DATA_DOWNMIX_MATRIX => Type::DOWNMIX_MATRIX,
+            AV_FRAME_DATA_GAIN_MAP_PARAMS => Type::GAIN_MAP_PARAMS,
 
             #[cfg(feature = "non-exhaustive-enums")]
             _ => unimplemented!(),
@@ -265,6 +267,7 @@ impl From<Type> for AVFrameSideDataType {
             #[cfg(feature = "ffmpeg_9_0")]
             Type::RAW_COLOR_PARAMS => AV_FRAME_DATA_RAW_COLOR_PARAMS,
             Type::DOWNMIX_MATRIX => AV_FRAME_DATA_DOWNMIX_MATRIX,
+            Type::GAIN_MAP_PARAMS => AV_FRAME_DATA_GAIN_MAP_PARAMS,
         }
     }
 }
