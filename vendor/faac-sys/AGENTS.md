@@ -37,7 +37,9 @@
 - Set the `faac-sys` package version to the release version; `build.rs` turns
   it into the library's runtime version. Update the identity in
   `ABB-PROVENANCE.md`.
-- Proof: `cargo test --locked -p faac-sys` (`faad_tests.rs` drives FAAD with
-  this crate's FAAC output, including ABB's HE timing constants), plus the
-  FAAC cases in the engine media lane (`scripts/AGENTS.md`). A changed encoder delay fails the
-  adapter's open check; follow the processor guidance before changing timing.
+- Proof: `cargo test --locked -p faac-sys`, plus the FAAC cases in the engine
+  media lane (`scripts/AGENTS.md`). `faad_tests.rs` drives FAAD with this
+  crate's FAAC output through the API ABB uses: float output, heap handles,
+  the struct-size handshake, ADTS discovery, and the decoder delays ABB's HE
+  timing relies on. A changed encoder delay fails the adapter's open check;
+  follow the processor guidance before changing timing.

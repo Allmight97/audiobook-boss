@@ -24,7 +24,6 @@ enum Backend {
 #[derive(Default)]
 struct DecodeStats {
     packets: u64,
-    decoded_samples: u64,
     emitted_samples: u64,
     decode_time: Duration,
 }
@@ -60,22 +59,23 @@ impl AudioDecoder {
 
     /// Logs one `decode_summary` line for this input when the decoder drops.
     pub(super) fn log_summary_as(&mut self, label: String) {
-        let Backend::Faad(faad) = &self.backend else {
-            log::info!(
-                "decode_open input={label} decoder={} rate={} channels={} format={:?} bit_rate={}",
-                self.name(),
-                self.rate(),
-                self.channels(),
-                self.format(),
-                self.bit_rate
-            );
-            self.summary_label = Some(label);
-            return;
+        let faad = match &self.backend {
+            Backend::Ffmpeg(_) => String::new(),
+            Backend::Faad(decoder) => {
+                let format = decoder.format();
+                format!(
+                    " object_type={} frame_samples={} decoder_delay={}",
+                    format.object_type, format.frame_samples, format.decoder_delay
+                )
+            }
         };
-        let format = faad.format();
         log::info!(
-            "decode_open input={label} decoder=faad3 rate={} channels={} object_type={} frame_samples={} decoder_delay={} bit_rate={}",
-            format.rate, format.channels, format.object_type, format.frame_samples, format.decoder_delay, self.bit_rate
+            "decode_open input={label} decoder={} rate={} channels={} format={:?} bit_rate={}{faad}",
+            self.name(),
+            self.rate(),
+            self.channels(),
+            self.format(),
+            self.bit_rate
         );
         self.summary_label = Some(label);
     }
@@ -167,9 +167,7 @@ impl AudioDecoder {
             Backend::Ffmpeg(decoder) => decoder
                 .send_packet(packet)
                 .map_err(|error| AppError::General(error.to_string())),
-            Backend::Faad(decoder) => decoder.send_packet(packet).map(|samples| {
-                self.stats.decoded_samples += samples as u64;
-            }),
+            Backend::Faad(decoder) => decoder.send_packet(packet),
         };
         self.stats.decode_time += started.elapsed();
         result
@@ -223,8 +221,8 @@ impl Drop for AudioDecoder {
             Backend::Faad(decoder) => {
                 let c = decoder.counts();
                 format!(
-                    " decoded_samples={} delay_trimmed={} skip_trimmed={} padding_trimmed={} discarded_packets={} concealed_frames={} degraded_frames={}",
-                    stats.decoded_samples, c.delay_samples, c.skipped_samples, c.padding_samples, c.discarded_packets, c.concealed_frames, c.degraded_frames
+                    " delay_trimmed={} skip_trimmed={} padding_trimmed={} discarded_packets={} concealed_frames={} degraded_frames={}",
+                    c.delay_samples, c.skipped_samples, c.padding_samples, c.discarded_packets, c.concealed_frames, c.degraded_frames
                 )
             }
         };

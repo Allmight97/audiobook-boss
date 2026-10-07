@@ -6,7 +6,7 @@ use crate as faac;
 use std::{ffi::CStr, mem::size_of, ptr};
 
 const RATE: u32 = 44_100;
-/// ABB's MP4 timing for its FAAC HE files (`faac_timing.rs`).
+/// ABB's MP4 timing for its FAAC HE files (`he_timing.rs`).
 const ABB_HE_CORE_PRIMING: usize = 2080;
 const ABB_SBR_DELAY: usize = 962;
 
@@ -130,14 +130,15 @@ fn encode(
     }
 }
 
-fn config(stream: faad_stream_format, output: faad_output_format) -> faad_config {
+/// ABB decodes to float, the only output format it uses.
+fn config(stream: faad_stream_format) -> faad_config {
     let mut cfg = faad_config::default();
     assert_eq!(
         unsafe { faad_config_init(&mut cfg, size_of::<faad_config>() as u32) },
         FAAD_OK
     );
     cfg.stream_format = stream;
-    cfg.output_format = output;
+    cfg.output_format = FAAD_OUTPUT_FLOAT;
     cfg
 }
 
@@ -164,8 +165,8 @@ fn open(cfg: &faad_config, asc: &[u8]) -> Decoder {
     dec
 }
 
-/// Decodes every packet and returns interleaved PCM in signed-16 units.
-fn decode_with(dec: &Decoder, output: faad_output_format, packets: &[Vec<u8>]) -> Decoded {
+/// Decodes every packet and returns interleaved float PCM.
+fn decode_with(dec: &Decoder, packets: &[Vec<u8>]) -> Decoded {
     let cap = stream_info(dec.0).max_output_bytes;
     let mut out = vec![0u8; cap as usize];
     let (mut pcm, mut flags) = (Vec::new(), Vec::new());
@@ -186,33 +187,11 @@ fn decode_with(dec: &Decoder, output: faad_output_format, packets: &[Vec<u8>]) -
         assert_eq!(status, FAAD_OK, "{}", strerror(status));
         assert_eq!(consumed as usize, packet.len());
         flags.push(frame_flags);
-        let bytes = &out[..written as usize];
-        match output {
-            FAAD_OUTPUT_16BIT => pcm.extend(
-                bytes
-                    .chunks_exact(2)
-                    .map(|b| i16::from_ne_bytes([b[0], b[1]]) as f64),
-            ),
-            FAAD_OUTPUT_24BIT => pcm.extend(bytes.chunks_exact(3).map(|b| {
-                let v = if cfg!(target_endian = "little") {
-                    [0, b[0], b[1], b[2]]
-                } else {
-                    [b[0], b[1], b[2], 0]
-                };
-                (i32::from_ne_bytes(v) >> 8) as f64 / 256.0
-            })),
-            FAAD_OUTPUT_32BIT => pcm.extend(
-                bytes
-                    .chunks_exact(4)
-                    .map(|b| i32::from_ne_bytes([b[0], b[1], b[2], b[3]]) as f64),
-            ),
-            FAAD_OUTPUT_FLOAT => pcm.extend(
-                bytes
-                    .chunks_exact(4)
-                    .map(|b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]]) as f64),
-            ),
-            _ => unreachable!(),
-        }
+        pcm.extend(
+            out[..written as usize]
+                .chunks_exact(4)
+                .map(|b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]]) as f64),
+        );
     }
     Decoded {
         pcm,
@@ -222,10 +201,8 @@ fn decode_with(dec: &Decoder, output: faad_output_format, packets: &[Vec<u8>]) -
 }
 
 fn decode(encoded: &Encoded) -> Decoded {
-    let cfg = config(FAAD_STREAM_RAW, FAAD_OUTPUT_16BIT);
     decode_with(
-        &open(&cfg, &encoded.asc),
-        FAAD_OUTPUT_16BIT,
+        &open(&config(FAAD_STREAM_RAW), &encoded.asc),
         &encoded.packets,
     )
 }
@@ -315,7 +292,7 @@ fn struct_size_handshake_rejects_short_layouts_and_preserves_unknown_tails() {
         faac::FAAC_STREAM_RAW,
         &source(2, 0.1),
     );
-    let dec = open(&config(FAAD_STREAM_RAW, FAAD_OUTPUT_16BIT), &encoded.asc);
+    let dec = open(&config(FAAD_STREAM_RAW), &encoded.asc);
     let mut short_info = faad_stream_info {
         struct_size: 4,
         ..Default::default()
@@ -422,7 +399,7 @@ fn adts_discovers_format_on_the_first_frame_and_retries_partial_input() {
         faac::FAAC_STREAM_ADTS,
         &source(2, 0.5),
     );
-    let dec = open(&config(FAAD_STREAM_ADTS, FAAD_OUTPUT_16BIT), &[]);
+    let dec = open(&config(FAAD_STREAM_ADTS), &[]);
     let before = stream_info(dec.0);
     assert!(!before.format_known);
     assert!(before.max_output_bytes > 0);
@@ -460,7 +437,7 @@ fn adts_discovers_format_on_the_first_frame_and_retries_partial_input() {
     assert_eq!(status, FAAD_ERR_OUTPUT_TOO_SMALL);
     assert_eq!((consumed, written), (0, 0));
 
-    let decoded = decode_with(&dec, FAAD_OUTPUT_16BIT, &encoded.packets);
+    let decoded = decode_with(&dec, &encoded.packets);
     assert_eq!(
         decoded.flags[0] & FAAD_FRAME_FORMAT_CHANGED,
         FAAD_FRAME_FORMAT_CHANGED
@@ -472,77 +449,21 @@ fn adts_discovers_format_on_the_first_frame_and_retries_partial_input() {
     assert_eq!((decoded.info.sample_rate, decoded.info.channels), (RATE, 2));
 }
 
+/// FAAD's float is unity full scale, the scale of FFmpeg's float frames,
+/// unlike FAAC's signed-16-scaled float input.
 #[test]
-fn output_formats_carry_the_same_signal_at_documented_scales() {
-    let encoded = encode(
-        faac::FAAC_OBJ_LOW,
-        2,
-        faac::FAAC_STREAM_RAW,
-        &source(2, 0.5),
-    );
-    let reference = decode(&encoded).pcm;
-    let peak = reference.iter().fold(0f64, |m, v| m.max(v.abs()));
-    for (format, scale) in [
-        (FAAD_OUTPUT_24BIT, 256.0 / 256.0),
-        (FAAD_OUTPUT_32BIT, 256.0),
-        (FAAD_OUTPUT_FLOAT, 1.0 / 32768.0),
-    ] {
-        let dec = open(&config(FAAD_STREAM_RAW, format), &encoded.asc);
-        let pcm = decode_with(&dec, format, &encoded.packets).pcm;
-        assert_eq!(pcm.len(), reference.len());
-        let error = pcm
-            .iter()
-            .zip(&reference)
-            .map(|(v, r)| (v / scale - r).abs())
-            .fold(0f64, f64::max);
-        assert!(
-            error <= 1.0,
-            "format {format}: max deviation {error} against peak {peak}"
-        );
-    }
-}
-
-#[repr(C, align(16))]
-#[derive(Clone, Copy)]
-struct Aligned([u8; 16]);
-
-#[test]
-fn caller_owned_state_decodes_like_heap_state() {
-    let encoded = encode(
-        faac::FAAC_OBJ_HE_AAC_V1,
-        2,
-        faac::FAAC_STREAM_RAW,
-        &source(2, 0.5),
-    );
-    let mut bytes = 0;
-    assert_eq!(unsafe { faad_get_state_size(&mut bytes) }, FAAD_OK);
-    let mut block = vec![Aligned([0; 16]); bytes as usize / 16 + 2];
-    let base = block.as_mut_ptr().cast::<u8>();
-    let cfg = config(FAAD_STREAM_RAW, FAAD_OUTPUT_16BIT);
-    let init = |mem: *mut u8, size: u32| {
-        let mut dec = ptr::null_mut();
-        let status = unsafe {
-            faad_decoder_init(
-                mem.cast(),
-                size,
-                &cfg,
-                encoded.asc.as_ptr(),
-                encoded.asc.len() as u32,
-                &mut dec,
-            )
-        };
-        (status, dec)
+fn float_output_is_unity_full_scale() {
+    let pcm = source(2, 1.0);
+    let encoded = encode(faac::FAAC_OBJ_LOW, 2, faac::FAAC_STREAM_RAW, &pcm);
+    let decoded = decode(&encoded);
+    let rms = |values: &mut dyn Iterator<Item = f64>| {
+        let (sum, count) = values.fold((0.0, 0usize), |(s, n), v| (s + v * v, n + 1));
+        (sum / count as f64).sqrt()
     };
-    assert_eq!(init(base, bytes - 1).0, FAAD_ERR_INSUFFICIENT_MEM);
-    assert_eq!(
-        init(unsafe { base.add(8) }, bytes).0,
-        FAAD_ERR_INVALID_ARGUMENT,
-        "misaligned state"
-    );
-    let (status, dec) = init(base, bytes);
-    assert_eq!(status, FAAD_OK);
-    let static_pcm = decode_with(&Decoder(dec), FAAD_OUTPUT_16BIT, &encoded.packets).pcm;
-    assert_eq!(static_pcm, decode(&encoded).pcm);
+    let source_rms = rms(&mut pcm.iter().map(|v| f64::from(*v) / 32768.0));
+    let decoded_rms = rms(&mut decoded.pcm[encoded.encoder_delay * 2..].iter().copied());
+    let ratio = decoded_rms / source_rms;
+    assert!((0.9..1.1).contains(&ratio), "decoded/source level {ratio}");
 }
 
 #[test]

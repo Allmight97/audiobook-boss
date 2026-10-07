@@ -74,12 +74,12 @@ those decisions to it.
   inside `encoder/`. Declare its output cleanup guard before opening the session
   so handles close before cleanup removes a failed output.
 
-## FAAC file timing
+## FAAC and HE-AAC file timing
 
 - `encoder/faac.rs` owns requested parameters and resolved configuration. Its
   opened profile determines frame size, mux profile, priming, postroll policy,
   and encoding-tool tag; profile Auto must work for both LC and HE.
-- `faac_timing` owns the decoded PCM interval of HE-AAC MP4 inputs. ABB's
+- `he_timing` owns the decoded PCM interval of HE-AAC MP4 inputs. ABB's
   FAAC HE files are recognized by their encoding-tool tag; keep each recognized
   convention (2079, 2080) when upgrading upstream priming. LC uses a distinct
   tag and its returned encoder delay. A third-party HE or HE v2 file gets a

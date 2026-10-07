@@ -26,7 +26,7 @@ pub(super) struct FaadFormat {
 }
 
 #[derive(Clone, Copy, Default, Debug)]
-pub(super) struct FaadTrimCounts {
+pub(super) struct FaadCounts {
     pub delay_samples: u64,
     pub skipped_samples: u64,
     pub padding_samples: u64,
@@ -55,11 +55,12 @@ struct PacketTrim {
     discard: bool,
 }
 
-/// libavcodec `discard_samples()` state across frames, in samples per channel.
+/// libavcodec `discard_samples()` state across frames, in samples per
+/// channel, and the decode's counts for its summary line.
 #[derive(Default)]
 struct Trimmer {
     skip_samples: usize,
-    counts: FaadTrimCounts,
+    counts: FaadCounts,
 }
 
 impl Trimmer {
@@ -105,9 +106,6 @@ pub(super) struct FaadDecoder {
     trimmer: Trimmer,
     ready: VecDeque<ff::frame::Audio>,
     eof: bool,
-    delay_samples: u64,
-    concealed_frames: u64,
-    degraded_frames: u64,
 }
 
 pub(super) fn library_version() -> String {
@@ -285,9 +283,6 @@ impl FaadDecoder {
             trimmer: Trimmer::default(),
             ready: VecDeque::new(),
             eof: false,
-            delay_samples: 0,
-            concealed_frames: 0,
-            degraded_frames: 0,
         })
     }
 
@@ -299,19 +294,13 @@ impl FaadDecoder {
         self.layout
     }
 
-    pub(super) fn counts(&self) -> FaadTrimCounts {
-        FaadTrimCounts {
-            delay_samples: self.delay_samples,
-            concealed_frames: self.concealed_frames,
-            degraded_frames: self.degraded_frames,
-            ..self.trimmer.counts
-        }
+    pub(super) fn counts(&self) -> FaadCounts {
+        self.trimmer.counts
     }
 
-    /// Returns the number of samples per channel FAAD decoded from this packet.
-    pub(super) fn send_packet(&mut self, packet: &ff::Packet) -> Result<usize> {
+    pub(super) fn send_packet(&mut self, packet: &ff::Packet) -> Result<()> {
         let Some(data) = packet.data() else {
-            return Ok(0);
+            return Ok(());
         };
         let unit = decode_unit(&self.handle, data, &mut self.output)?;
         self.count_flags(unit.flags)?;
@@ -329,10 +318,10 @@ impl FaadDecoder {
             .map(|b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]]));
         let delayed = self.delay_left.min(frames);
         self.delay_left -= delayed;
-        self.delay_samples += delayed as u64;
+        self.trimmer.counts.delay_samples += delayed as u64;
         self.shifted.extend(decoded.skip(delayed * channels));
         self.emit_ready();
-        Ok(frames)
+        Ok(())
     }
 
     fn count_flags(&mut self, flags: u32) -> Result<()> {
@@ -345,8 +334,9 @@ impl FaadDecoder {
                 )));
             }
         }
-        self.concealed_frames += u64::from(flags & faad::FAAD_FRAME_CONCEALED != 0);
-        self.degraded_frames += u64::from(flags & faad::FAAD_FRAME_DEGRADED != 0);
+        let counts = &mut self.trimmer.counts;
+        counts.concealed_frames += u64::from(flags & faad::FAAD_FRAME_CONCEALED != 0);
+        counts.degraded_frames += u64::from(flags & faad::FAAD_FRAME_DEGRADED != 0);
         Ok(())
     }
 

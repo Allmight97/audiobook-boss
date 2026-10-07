@@ -364,7 +364,7 @@ pub(crate) fn process_input_packets(
     decoder: &mut super::decoder::AudioDecoder,
     encoder: &mut super::encoder::EncoderSession,
     resampler: &mut ff::software::resampling::Context,
-    decode_window: Option<super::faac_timing::HeDecodeWindow>,
+    decode_window: Option<super::he_timing::HeDecodeWindow>,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
 ) -> Result<PreviewAction> {
