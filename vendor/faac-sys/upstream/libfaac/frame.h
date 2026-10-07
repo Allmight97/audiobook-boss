@@ -117,7 +117,7 @@ typedef struct faacEncStruct {
 
 /* Configuration worker behind faac_encoder_open(): validates the config,
  * resolves AUTO/HE-AAC, and (re)initializes the encoder. Returns 1 on success,
- * 0 on failure. */
+ * 0 for an invalid configuration, -1 when an allocation failed. */
 int faacEncApplyConfig(faacEncStruct* hEncoder,
                        faacEncConfigurationPtr config);
 

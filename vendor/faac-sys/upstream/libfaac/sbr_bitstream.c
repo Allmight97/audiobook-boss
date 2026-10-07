@@ -17,7 +17,7 @@
 
 #include "sbr.h"
 #include "sbr_internal.h"
-#include "sbr_tables.h"
+#include "sbr_huff_tables.h"
 #include "bitstream.h"
 #include "channels.h"
 #include "util.h"

@@ -1685,7 +1685,7 @@ dependencies = [
 
 [[package]]
 name = "faac-sys"
-version = "2.2.0"
+version = "2.2.0+pr29.66a7c2d"
 dependencies = [
  "bindgen 0.73.2",
  "cc",

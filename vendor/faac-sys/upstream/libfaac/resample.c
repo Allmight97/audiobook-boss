@@ -40,7 +40,7 @@ Resampler *ResampleInit(int channels)
 {
     Resampler *r = (Resampler *)AllocMemory(sizeof(Resampler));
     if (!r) return NULL;
-    SetMemory(r, 0, sizeof(Resampler));
+    memset(r, 0, sizeof(Resampler));
     r->channels = channels;
     return r;
 }

@@ -18,10 +18,10 @@
  *
  * This is the only public surface for the encoder. The legacy faacEnc* API
  * (faacEncOpen/faacEncGetCurrentConfiguration/faacEncSetConfiguration/
- * faacEncEncode/faacEncClose) has been removed; see docs/libfaac.html for a
+ * faacEncEncode/faacEncClose) has been removed; see docs/libfaac.md for a
  * porting guide.
  *
- * Design summary (see docs/libfaac.html for the full narrative):
+ * Design summary (see docs/libfaac.md for the full narrative):
  *   - Parameters are supplied once, up front, to faac_encoder_open(), so the
  *     encoder never exists in a half-configured state and all derived values
  *     (frame size, output-buffer bound, effective sample rate, resolved object
@@ -29,7 +29,8 @@
  *   - Every fallible call returns a faac_status; faac_strerror() maps a status
  *     to a human-readable string.
  *   - Fixed-width integer types and width-pinned enums keep the ABI identical
- *     across LP64/LLP64 platforms and regardless of -fshort-enums.
+ *     across 64-bit platforms (LP64 and LLP64), regardless of -fshort-enums.
+ *     32-bit targets have their own layout because of pointer fields.
  *   - faac_params grows only additively: new releases append named fields and
  *     grow sizeof(faac_params); callers MUST zero-initialize via
  *     faac_params_init() so struct_size lets the library reconcile versions.
@@ -163,6 +164,10 @@ enum faac_input_format {
  * the whole struct (including padding) and stamps struct_size, which is how the
  * library stays compatible as this struct grows. Construct one from scratch and
  * open() will reject it. The struct only ever grows by appending named fields.
+ *
+ * Maintainers: appended fields must start at or after the previous sizeof(struct),
+ * never in its tail padding: struct_size cannot distinguish a new field there
+ * from padding supplied by an older caller.
  */
 typedef struct faac_params {
     uint32_t                struct_size;   /* set by faac_params_init() */
@@ -259,6 +264,10 @@ typedef struct faac_encoder_info {
  * grows only by appending fields, so a newer library stays compatible with an
  * older caller's smaller struct. version/copyright are static and library-owned;
  * do not free them.
+ *
+ * Maintainers: appended fields must start at or after the previous sizeof(struct),
+ * never in its tail padding: struct_size cannot distinguish a new field there
+ * from padding in the older layout.
  */
 typedef struct faac_library_info {
     uint32_t                struct_size;    /* set by caller to sizeof(faac_library_info) */
@@ -279,7 +288,7 @@ FAACAPI faac_status faac_get_library_info(faac_library_info *out);
  * sizeof(faac_params)), so a caller stays safe even if the loaded library's
  * faac_params has grown since the caller was built. Returns
  * FAAC_ERR_INVALID_ARGUMENT if p is NULL or caller_size is smaller than
- * faac_params's original (baseline) layout.
+ * faac_params's SONAME-2 baseline layout, through rate_control.
  *
  * caller_size was added in SONAME 2; code that must build against both:
  *   #if FAAC_VERSION_MAJOR >= 2

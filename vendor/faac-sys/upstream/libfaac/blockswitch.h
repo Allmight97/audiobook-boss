@@ -37,13 +37,16 @@ typedef struct {
 	float sampleRate;
 	/* Transient rule: see PSY_LEVEL_RATIO_LC in blockswitch.c. */
 	float levelRatio;
+	float dropRatio;
 	float levelSmooth;
+	int needBass;    /* short-only regime: a sub-block that is not bass dominated counts as an attack */
+	float bassDom;   /* first-difference / total energy below which a sub-block is judged by the LC band; 0 = never (LC) */
 
 	/* shared work buffers */
 	float *sharedWorkBuffLong;  /* Used for 2048-sample windows (filtbank, psy, mdct) */
 } GlobalPsyInfo;
 
-void PsyInit (GlobalPsyInfo *gpsyInfo, PsyInfo *psyInfo,
+int PsyInit (GlobalPsyInfo *gpsyInfo, PsyInfo *psyInfo,
 		unsigned int numChannels, unsigned int sampleRate, bool heCore);
 void PsyEnd (PsyInfo *psyInfo, unsigned int numChannels);
 float PsyGetAttack (PsyInfo *psyInfo);

@@ -90,14 +90,15 @@ struct BitStream;
  * core. */
 #define SBR_TWO_ENV_BITRATE_BPS         17000u
 /* Master table density, bands per octave 12/10/8 for bs_freq_scale 1/2/3:
- * the coarsest table wins from 12 kbps/ch up to the fine table's rate, but
- * below that it costs speech-like clips more than it saves. */
-#define SBR_FREQ_SCALE_FINE_BPS         24000u
+ * the coarsest table wins from 12 kbps/ch up, but below that it costs
+ * speech-like clips more than it saves. */
 #define SBR_FREQ_SCALE_COARSE_BPS       12000u
-/* Stop-frequency search bounds (bs_stop_freq). 13 is the largest worth
- * searching: it already pins k2 to its 64-band ceiling at every supported
- * rate, so higher indices would just signal more range for the same band. */
-#define SBR_STOP_FREQ_MIN               10
+/* Stop-frequency search bounds (bs_stop_freq). The search starts at 0 so a
+ * low crossover still finds a stop within the span decoders accept. 13 is
+ * the largest worth searching: it already pins k2 to its 64-band ceiling at
+ * every supported rate, so higher indices would just signal more range for
+ * the same band. */
+#define SBR_STOP_FREQ_MIN               0
 #define SBR_STOP_FREQ_MAX               13
 /* Where widening aims. Past this the bands are inaudible to essentially every
  * listener while costing exactly as much as the ones below. */
@@ -117,7 +118,7 @@ SBRContext *SbrContextInit(int channels);
 void SbrContextEnd(SBRContext *sbrCtx);
 int SbrContextGetASC(SBRContext *sbrCtx, int coreSRIdx, int channels, unsigned char** ppBuffer, unsigned long* pSize);
 unsigned int SbrContextGetXOverBandwidth(SBRContext *sbrCtx);
-void SbrContextUpdateConfig(SBRContext *sCtx, int channels, unsigned long bitrate);
+int SbrContextUpdateConfig(SBRContext *sCtx, int channels, unsigned long bitrate);
 void SbrContextProcessFrame(SBRContext *sCtx, int numChannels, const bool *isLfe, int realPerCh, int flushTick, float *inputFifo[MAX_CHANNELS], float *heHalfRate[MAX_CHANNELS]);
 int SbrContextIsPresent(SBRContext *sCtx);
 void SbrContextRestoreRate(SBRContext *sCtx, unsigned long *sampleRate, unsigned int *sampleRateIdx, SR_INFO **srInfo);

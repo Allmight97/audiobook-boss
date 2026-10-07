@@ -51,9 +51,12 @@ static inline int clamp_int(int x, int lo, int hi)
 #define M_PI_DOUBLE 3.14159265358979323846
 
 /* Memory functions */
+#ifndef AllocMemory
 #define AllocMemory(size) malloc(size)
+#endif
+#ifndef FreeMemory
 #define FreeMemory(block) free(block)
-#define SetMemory(block, value, size) memset(block, value, size)
+#endif
 
 int GetSRIndex(unsigned int sampleRate);
 unsigned int MaxBitrate(unsigned long sampleRate);

@@ -1,6 +1,6 @@
 [package]
 name = "faac-sys"
-version = "2.2.0"
+version = "2.2.0+pr29.66a7c2d"
 edition = "2021"
 links = "faac"
 license = "LGPL-2.1-or-later"
