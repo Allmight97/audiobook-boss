@@ -210,9 +210,10 @@ impl RemoteSourceRuntime {
                 let runtime = self.clone();
                 let write = self.inner.tasks.admit(|| {
                     #[expect(clippy::disallowed_methods, reason = "joined by complete_auth")]
-                    tokio::task::spawn_blocking(move || {
+                    let write = tokio::task::spawn_blocking(move || {
                         AudibleProvider::persist_auth(runtime.inner.vault.as_ref(), &auth)
-                    })
+                    });
+                    write
                 })?;
                 write.await.map_err(|_| {
                     AppError::General("Audible credential persistence failed.".into())
@@ -332,11 +333,11 @@ impl RemoteSourceRuntime {
             clippy::disallowed_methods,
             reason = "joined by get_indexer_connection"
         )]
-        tokio::task::spawn_blocking(move || {
+        let read = tokio::task::spawn_blocking(move || {
             IndexerProvider::get_connection(&runtime.inner.config_dir, runtime.inner.vault.as_ref())
-        })
-        .await
-        .map_err(|error| AppError::General(error.to_string()))?
+        });
+        read.await
+            .map_err(|error| AppError::General(error.to_string()))?
     }
 
     /// Saves the connection. Refused while a search or grab runs; releases
@@ -357,15 +358,16 @@ impl RemoteSourceRuntime {
             clippy::disallowed_methods,
             reason = "joined by update_indexer_connection"
         )]
-        tokio::task::spawn_blocking(move || {
+        let write = tokio::task::spawn_blocking(move || {
             IndexerProvider::update_connection(
                 &runtime.inner.config_dir,
                 runtime.inner.vault.as_ref(),
                 update,
             )
-        })
-        .await
-        .map_err(|error| AppError::General(error.to_string()))?
+        });
+        write
+            .await
+            .map_err(|error| AppError::General(error.to_string()))?
     }
 
     pub(crate) async fn test_indexer_connection(

@@ -1218,7 +1218,8 @@ impl RemoteSourceRuntime {
             .tasks
             .admit(|| {
                 #[expect(clippy::disallowed_methods, reason = "joined by refresh_ui_account")]
-                tokio::task::spawn_blocking(move || runtime.account_state(lane))
+                let read = tokio::task::spawn_blocking(move || runtime.account_state(lane));
+                read
             })?
             .await
             .map_err(|_| AppError::General("Account read failed.".into()))

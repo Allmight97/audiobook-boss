@@ -404,11 +404,11 @@ impl Engine {
 
     // ---- Metadata ----
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by Engine::read_audio_metadata"
+    )]
     pub async fn read_audio_metadata(&self, file_path: String) -> Result<AudiobookMetadata> {
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "joined by Engine::read_audio_metadata"
-        )]
         tokio::task::spawn_blocking(move || {
             let validated_path = audio::validate_input_audio_path(&PathBuf::from(&file_path))?;
             crate::metadata::read_metadata(validated_path.to_string_lossy().as_ref())

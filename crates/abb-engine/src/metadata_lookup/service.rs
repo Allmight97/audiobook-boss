@@ -149,6 +149,10 @@ struct ProviderSearchOutput {
     diagnostics: Vec<MetadataLookupDiagnostic>,
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "joined by collect_provider_searches"
+)]
 async fn collect_provider_searches(
     client: &Client,
     search_query: &str,
@@ -161,15 +165,9 @@ async fn collect_provider_searches(
         let client = client.clone();
         let search_query = search_query.to_string();
         let region = region.to_string();
-        Some({
-            #[expect(
-                clippy::disallowed_methods,
-                reason = "joined by collect_provider_searches"
-            )]
-            tokio::spawn(async move {
-                fetch_audnexus_with_audible(&client, &search_query, &region, limit).await
-            })
-        })
+        Some(tokio::spawn(async move {
+            fetch_audnexus_with_audible(&client, &search_query, &region, limit).await
+        }))
     } else {
         None
     };
@@ -177,15 +175,9 @@ async fn collect_provider_searches(
     let openlibrary_handle = if include_openlibrary {
         let client = client.clone();
         let search_query = search_query.to_string();
-        Some({
-            #[expect(
-                clippy::disallowed_methods,
-                reason = "joined by collect_provider_searches"
-            )]
-            tokio::spawn(
-                async move { fetch_openlibrary_search(&client, &search_query, limit).await },
-            )
-        })
+        Some(tokio::spawn(async move {
+            fetch_openlibrary_search(&client, &search_query, limit).await
+        }))
     } else {
         None
     };

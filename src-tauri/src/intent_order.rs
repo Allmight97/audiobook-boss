@@ -165,11 +165,12 @@ mod tests {
                 clippy::disallowed_methods,
                 reason = "joined by intents_that_arrive_out_of_order_run_in_the_order_sent"
             )]
-            tokio::spawn(async move {
+            let intent = tokio::spawn(async move {
                 let turn = order.turn(1, sequence).await.expect("its turn");
                 ran.lock().expect("ran").push(sequence);
                 drop(turn);
-            })
+            });
+            intent
         });
         for arrival in arrivals {
             arrival.await.expect("intent ran");
@@ -209,11 +210,12 @@ mod tests {
                 clippy::disallowed_methods,
                 reason = "joined by a_waiting_or_running_intent_is_never_skipped"
             )]
-            tokio::spawn(async move {
+            let intent = tokio::spawn(async move {
                 let turn = order.turn(1, sequence).await.expect("its turn");
                 ran.lock().expect("ran").push(sequence);
                 drop(turn);
-            })
+            });
+            intent
         });
         tokio::time::sleep(super::MISSING_INTENT_WAIT * 3).await;
         assert!(ran.lock().expect("ran").is_empty(), "intent 0 still runs");

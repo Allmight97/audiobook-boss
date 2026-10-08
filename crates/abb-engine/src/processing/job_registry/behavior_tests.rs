@@ -153,7 +153,7 @@ async fn test_stress_concurrent_registration_respects_limit() {
             clippy::disallowed_methods,
             reason = "joined by test_stress_concurrent_registration_respects_limit"
         )]
-        handles.push(tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let (job_id, permit) = reg.register_job().await.expect("register");
             let current = active.fetch_add(1, Ordering::SeqCst) + 1;
             let mut observed = peak.load(Ordering::SeqCst);
@@ -167,7 +167,8 @@ async fn test_stress_concurrent_registration_respects_limit() {
             active.fetch_sub(1, Ordering::SeqCst);
             drop(permit);
             reg.complete_job(job_id).await;
-        }));
+        });
+        handles.push(handle);
     }
 
     for handle in handles {

@@ -2382,10 +2382,10 @@ fn now() -> std::time::Instant {
     tokio::time::Instant::now().into_std()
 }
 
+#[expect(clippy::disallowed_methods, reason = "joined by blocking")]
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T> + Send + 'static,
 ) -> Result<T> {
-    #[expect(clippy::disallowed_methods, reason = "joined by blocking")]
     tokio::task::spawn_blocking(work)
         .await
         .map_err(|error| AppError::General(format!("Background task failed: {error}")))?
@@ -2403,12 +2403,13 @@ async fn read_all(tickets: Vec<ReadTicket>) -> Vec<(ReadTicket, Result<Audiobook
         .map(|ticket| {
             let limit = Arc::clone(&limit);
             #[expect(clippy::disallowed_methods, reason = "joined by read_all")]
-            tokio::spawn(async move {
+            let read = tokio::spawn(async move {
                 let _permit = limit.acquire_owned().await;
                 let path = ticket.path.clone();
                 let result = blocking(move || read_tags(&path)).await;
                 (ticket, result)
-            })
+            });
+            read
         })
         .collect();
     let mut finished = Vec::with_capacity(reads.len());

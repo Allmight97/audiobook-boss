@@ -190,9 +190,9 @@ pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<P
         .collect()
 }
 
+#[expect(clippy::disallowed_methods, reason = "joined by execute_audio_engine")]
 pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<String> {
     if request.handling == AudioHandling::Preserve {
-        #[expect(clippy::disallowed_methods, reason = "joined by execute_audio_engine")]
         return tokio::task::spawn_blocking(move || {
             if request.file_info.files.len() > 1 {
                 return preserve_merge::execute(
@@ -263,7 +263,6 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
     // The pipeline (prepare -> encode -> finalize) is synchronous, CPU-bound
     // work. Run it on a blocking thread so it never occupies an async runtime
     // worker; progress emission and the atomic cancel flag work off the runtime.
-    #[expect(clippy::disallowed_methods, reason = "joined by execute_audio_engine")]
     tokio::task::spawn_blocking(move || {
         process_audiobook_with_context(context, files, metadata, cover_art_passthrough)
     })

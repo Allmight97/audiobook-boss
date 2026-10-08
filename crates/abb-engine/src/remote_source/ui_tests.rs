@@ -458,9 +458,9 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
     );
 }
 
+#[expect(clippy::disallowed_methods, reason = "joined by serve_grab_batch")]
 fn serve_grab_batch(listener: tokio::net::TcpListener) -> tokio::task::JoinHandle<Vec<i64>> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    #[expect(clippy::disallowed_methods, reason = "joined by serve_grab_batch")]
     tokio::spawn(async move {
         let mut ids = Vec::new();
         for response_status in ["200 OK", "500 Internal Server Error", "200 OK"] {

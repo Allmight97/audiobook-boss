@@ -872,7 +872,7 @@ mod tests {
             clippy::disallowed_methods,
             reason = "joined by search_returns_auth_diagnostic_for_rejected_api_key"
         )]
-        tokio::spawn(async move {
+        let _server = tokio::spawn(async move {
             serve_one(&listener, response).await;
         });
 
@@ -941,7 +941,7 @@ mod tests {
             clippy::disallowed_methods,
             reason = "joined by grab_returns_failure_diagnostic_for_server_error"
         )]
-        tokio::spawn(async move {
+        let _server = tokio::spawn(async move {
             serve_one(&listener, response).await;
         });
 
