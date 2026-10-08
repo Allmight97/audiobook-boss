@@ -45,7 +45,9 @@ Numbered steps, ordered when dependencies must serialize.
 ```
 
 Omit `Open forks` when the decision is locked. Include library versions only
-when they change implementation choices.
+when they change implementation choices. An issue that asks the owner to
+choose what the user gets cites `docs/agents/observed-use.md` or says "no
+observed case" (`.agents/skills/app-use-notes`).
 
 When work lands, rewrite the issue around the resulting state or close it with
 the proof and residual work. A closed flag does not make a stale body safe to
