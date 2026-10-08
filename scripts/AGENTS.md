@@ -119,7 +119,8 @@ Traps:
 
 - `bash scripts/setup.sh` installs the locked Bun, Node 22 from `.node-version`,
   frontend dependencies, actionlint, and shellcheck. `rust` adds what engine
-  and host proof need (script header lists it). `--check` installs nothing.
+  and host proof need (script header lists it), including `libssl-dev` on
+  Linux so `openssl-sys` can build. `--check` installs nothing.
   The Claude Code cloud SessionStart hook runs `setup.sh frontend`. Cursor
   cloud runs `setup.sh` from `.cursor/environment.json`. Codex cloud uses the
   same command in its environment settings, not the repo.

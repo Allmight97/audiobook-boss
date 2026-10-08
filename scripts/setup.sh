@@ -275,6 +275,11 @@ check_rust() {
 		else
 			need "GTK/WebKit (run: bash scripts/setup.sh rust)"
 		fi
+		if have pkg-config && pkg-config --exists openssl; then
+			ok "openssl ($(pkg-config --modversion openssl))"
+		else
+			need "openssl (run: bash scripts/setup.sh rust)"
+		fi
 	fi
 	if have rustc; then
 		sidecar="${repo_root}/src-tauri/binaries/abb-aaxclean-helper-$(rustc -vV | awk '/^host:/ { print $2 }')"
@@ -401,7 +406,7 @@ install_linux_packages() {
 	run_as_root env DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install -y -q --no-install-recommends \
 		build-essential ca-certificates clang curl nasm pkg-config libopus-dev \
 		libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev librsvg2-dev \
-		shellcheck unzip
+		libssl-dev shellcheck unzip
 }
 
 install_linux_shellcheck() {
