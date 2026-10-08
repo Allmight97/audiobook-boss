@@ -141,5 +141,5 @@ Traps:
   artifact, not a regression.
 - Linux cannot prove Apple AAC (AudioToolbox) behavior; `verify.sh apple`
   skips there and the macOS rust CI leg runs it.
-- Windows is WSL-only. README "Windows (WSL)" covers WSLg, filesystem, and
-  the keyring gap.
+- Windows is WSL-only. README covers WSLg, filesystem, and the Linux-wide
+  keyring gap (issue #557).

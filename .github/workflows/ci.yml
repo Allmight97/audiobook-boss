@@ -157,10 +157,12 @@ jobs:
   rust:
     name: Rust (${{ matrix.os }})
     needs: changes
+    # `core` starts the matrix so macOS still gates fmt and core Clippy.
+    # Ubuntu rust then skips the core lane; the dedicated core job already ran it.
     if: >-
-      needs.changes.outputs.engine == 'true' || needs.changes.outputs.host == 'true'
-      || needs.changes.outputs.media == 'true' || needs.changes.outputs.decrypt == 'true'
-      || needs.changes.outputs.all == 'true'
+      needs.changes.outputs.core == 'true' || needs.changes.outputs.engine == 'true'
+      || needs.changes.outputs.host == 'true' || needs.changes.outputs.media == 'true'
+      || needs.changes.outputs.decrypt == 'true' || needs.changes.outputs.all == 'true'
     permissions:
       contents: read
     strategy:
@@ -201,8 +203,8 @@ jobs:
           key: ffmpeg-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
       - run: |
           lanes=()
-          # Linux core stays the dedicated no-apt job. macOS runs core here so
-          # fmt, Clippy, and tests gate on both OSes.
+          # Dedicated Ubuntu `core` job already ran fmt, core Clippy, and tests.
+          # macOS runs that lane here so those checks still gate on a Mac.
           if [ "${RUNNER_OS}" = macOS ] && { [ "${CORE}" = true ] || [ "${ALL}" = true ]; }; then
             lanes+=(core)
           fi

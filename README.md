@@ -77,6 +77,9 @@ focused loops: root `AGENTS.md` Environment and `scripts/AGENTS.md`.
 
 Linux (tested target): x86_64 Ubuntu 22.04 or newer, glibc 2.27+, OpenSSL, and
 WebKitGTK 4.1. `linux-arm64` publishes but is not proven on real hardware.
+Known gap: saved sign-ins do not survive a reboot on Linux (WSL included).
+`linux-keyutils-keyring-store` 1.0.0 is UntilReboot
+([#557](https://github.com/Allmight97/audiobook-boss/issues/557)).
 
 ### Windows (WSL)
 
@@ -93,10 +96,6 @@ Windows is supported only through WSL running the Linux build.
   apply, and they are case-insensitive.
 - Dragging files from Windows Explorer into the app does not work under WSLg.
   Use the file picker.
-- Known gap: ABB's Linux vault uses the kernel keyring. WSL has no persistent
-  keyring, so saved Audible credentials disappear whenever the WSL VM stops
-  (`wsl --shutdown`, a Windows reboot, or the default idle shutdown). Whether
-  that is ship-blocking for WSL users is a later decision.
 
 ### Install a local build
 
