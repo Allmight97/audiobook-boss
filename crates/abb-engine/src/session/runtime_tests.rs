@@ -422,6 +422,10 @@ async fn the_open_lookup_is_published_before_its_search_answers() {
     rig.select(&[0]).await;
     let answer = rig.hold_next_search();
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by the_open_lookup_is_published_before_its_search_answers"
+    )]
     let opening = tokio::spawn({
         let session = rig.session.clone();
         async move { session.dispatch(SessionIntent::LookupOpen).await }
@@ -529,6 +533,10 @@ async fn a_newer_search_keeps_its_results_when_an_earlier_one_answers_last() {
     rig.select(&[0]).await;
     rig.send(SessionIntent::LookupOpen).await;
     let slow = rig.hold_next_search();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by a_newer_search_keeps_its_results_when_an_earlier_one_answers_last"
+    )]
     let earlier = tokio::spawn({
         let session = rig.session.clone();
         async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
@@ -1209,6 +1217,10 @@ async fn a_host_that_attached_mid_intent_learns_its_result_from_an_event() {
     rig.send(SessionIntent::LookupOpen).await;
     let answer = rig.hold_next_search();
     let search = rig.session.begin(SessionIntent::LookupSearch);
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by a_host_that_attached_mid_intent_learns_its_result_from_an_event"
+    )]
     let finished = tokio::spawn(search.finish());
     tokio::task::yield_now().await;
 
@@ -1852,8 +1864,13 @@ async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_u
 
     let audio = staged_wav(staging.path(), "book");
     let session = rig.session.clone();
-    let handoff =
-        tokio::spawn(async move { session.import_acquired(acquired("job-1", &audio)).await });
+    let handoff = #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks"
+    )]
+    tokio::spawn(
+        async move { session.import_acquired(acquired("job-1", &audio)).await },
+    );
     for _ in 0..20 {
         tokio::task::yield_now().await;
     }

@@ -245,6 +245,10 @@ where
 
         let file_path = item.file_path;
         let metadata_patch = item.metadata_patch;
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by save_metadata_batch_impl"
+        )]
         let item_result = tokio::task::spawn_blocking({
             let file_path = file_path.clone();
             move || save_metadata_item(&file_path, metadata_patch)

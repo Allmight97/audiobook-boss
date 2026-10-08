@@ -41,6 +41,7 @@ pub(crate) fn dropped_cover_path(paths: Vec<String>) -> Option<String> {
 
 /// Loads a cover image from disk and returns write-ready JPEG bytes.
 pub(crate) async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
+    #[expect(clippy::disallowed_methods, reason = "joined by load_cover_art_file")]
     tokio::task::spawn_blocking(move || {
         let validated_path = validate_input_image_path(&PathBuf::from(&file_path))?;
         let image_data = read_bounded_image(&validated_path)?;

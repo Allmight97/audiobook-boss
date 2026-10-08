@@ -460,6 +460,7 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
 
 fn serve_grab_batch(listener: tokio::net::TcpListener) -> tokio::task::JoinHandle<Vec<i64>> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    #[expect(clippy::disallowed_methods, reason = "joined by serve_grab_batch")]
     tokio::spawn(async move {
         let mut ids = Vec::new();
         for response_status in ["200 OK", "500 Internal Server Error", "200 OK"] {
@@ -512,6 +513,10 @@ async fn shutdown_drops_an_indexer_search_waiting_on_a_silent_server() {
         .await
         .expect("listener");
     let address = listener.local_addr().expect("address");
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by shutdown_drops_an_indexer_search_waiting_on_a_silent_server"
+    )]
     let _silent = tokio::spawn(async move {
         let mut held = Vec::new();
         while let Ok((stream, _)) = listener.accept().await {
@@ -531,6 +536,10 @@ async fn shutdown_drops_an_indexer_search_waiting_on_a_silent_server() {
     ] {
         runtime.ui_begin(intent).finish().await.expect("setup step");
     }
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by shutdown_drops_an_indexer_search_waiting_on_a_silent_server"
+    )]
     let search = tokio::spawn(
         runtime
             .ui_begin(RemoteUiIntent::SearchReleases {

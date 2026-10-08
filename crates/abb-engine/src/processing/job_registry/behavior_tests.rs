@@ -149,6 +149,10 @@ async fn test_stress_concurrent_registration_respects_limit() {
         let reg = Arc::clone(&registry);
         let active = Arc::clone(&active);
         let peak = Arc::clone(&peak);
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by test_stress_concurrent_registration_respects_limit"
+        )]
         handles.push(tokio::spawn(async move {
             let (job_id, permit) = reg.register_job().await.expect("register");
             let current = active.fetch_add(1, Ordering::SeqCst) + 1;

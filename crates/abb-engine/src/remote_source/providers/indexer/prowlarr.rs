@@ -588,8 +588,16 @@ mod tests {
         let response = format!(
             "HTTP/1.1 302 Found\r\nLocation: http://{destination_addr}/redirected\r\nContent-Length: 0\r\n\r\n"
         );
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by production_client_does_not_forward_api_keys_on_redirect"
+        )]
         let origin_server =
             tokio::spawn(async move { serve_one(&origin, response.as_bytes()).await });
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by production_client_does_not_forward_api_keys_on_redirect"
+        )]
         let mut destination_server = tokio::spawn(async move {
             let body = r#"{"version":"1.2.3"}"#;
             let response = format!(
@@ -637,6 +645,10 @@ mod tests {
                 "HTTP/1.1 {status}\r\nContent-Length: {}\r\n\r\n{body}",
                 body.len()
             );
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "joined by system_status_requires_valid_service_response"
+            )]
             let server =
                 tokio::spawn(async move { serve_one(&listener, response.as_bytes()).await });
             let adapter = ReqwestProwlarrAdapter::with_client(local_client("indexer.test", addr));
@@ -801,6 +813,10 @@ mod tests {
         );
         let mut response_bytes = response.into_bytes();
         response_bytes.extend_from_slice(body);
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by search_maps_query_and_category_without_indexer_ids"
+        )]
         let server = tokio::spawn(async move { serve_one(&listener, &response_bytes).await });
 
         let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, addr));
@@ -852,6 +868,10 @@ mod tests {
         let (listener, addr) = start_listener().await;
         let host = "prowlarr.test";
         let response = b"HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}";
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by search_returns_auth_diagnostic_for_rejected_api_key"
+        )]
         tokio::spawn(async move {
             serve_one(&listener, response).await;
         });
@@ -883,6 +903,10 @@ mod tests {
         let host = "prowlarr.test";
         let response =
             b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}";
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by grab_posts_guid_and_indexer_id"
+        )]
         let server = tokio::spawn(async move { serve_one(&listener, response).await });
 
         let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, addr));
@@ -913,6 +937,10 @@ mod tests {
         let (listener, addr) = start_listener().await;
         let host = "prowlarr.test";
         let response = b"HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nerror";
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by grab_returns_failure_diagnostic_for_server_error"
+        )]
         tokio::spawn(async move {
             serve_one(&listener, response).await;
         });

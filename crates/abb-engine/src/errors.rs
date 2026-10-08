@@ -73,6 +73,14 @@ impl AppError {
     pub fn cancelled() -> Self {
         Self::Cancellation("Processing was cancelled".to_string())
     }
+
+    pub(crate) fn closing() -> Self {
+        Self::General("ABB is closing.".into())
+    }
+
+    pub(crate) fn is_closing(&self) -> bool {
+        matches!(self, Self::General(message) if message == "ABB is closing.")
+    }
 }
 
 impl AppErrorCode {

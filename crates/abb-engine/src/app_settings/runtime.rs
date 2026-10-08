@@ -370,6 +370,7 @@ impl SettingsRuntime {
         }
         let config_dir = self.inner.config_dir.clone();
         let settings = state.accepted.clone();
+        #[expect(clippy::disallowed_methods, reason = "joined by write")]
         let written =
             tokio::task::spawn_blocking(move || save_app_settings(&config_dir, &settings))
                 .await

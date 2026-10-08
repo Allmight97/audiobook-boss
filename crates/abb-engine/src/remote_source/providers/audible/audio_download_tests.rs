@@ -55,6 +55,7 @@ async fn start_stub(script: Vec<Serve>) -> Stub {
     let range_starts = Arc::new(Mutex::new(Vec::new()));
     let recorded = Arc::clone(&range_starts);
 
+    #[expect(clippy::disallowed_methods, reason = "joined by start_stub")]
     tokio::spawn(async move {
         let body = body();
         for serve in script {

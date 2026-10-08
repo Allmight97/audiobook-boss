@@ -621,6 +621,10 @@ mod tests {
             pdf_bytes.len()
         );
         let response = [response.as_bytes(), pdf_bytes].concat();
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by supplemental_pdf_get_download_succeeds_when_head_would_fail"
+        )]
         let server = tokio::spawn(async move { serve_one(&listener, &response).await });
         let auth =
             fixture_auth_with_cookies(&[("at-main", "cookie-a"), ("sess-at-main", "cookie-b")], "");
@@ -679,6 +683,10 @@ mod tests {
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener addr");
         let client = local_client(addr, Some("cdn.example.test"));
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by supplemental_pdf_redirect_does_not_send_cookies_to_non_audible_hosts"
+        )]
         let server = tokio::spawn(async move {
             let (mut first_stream, _) = timeout(LOCAL_REQUEST_TIMEOUT, listener.accept())
                 .await
@@ -780,6 +788,10 @@ mod tests {
         let addr = listener.local_addr().expect("listener addr");
         let client = local_client(addr, None);
         let response = b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\n\r\nnot-pdf";
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by supplemental_pdf_download_rejects_non_pdf_without_provider_details"
+        )]
         let server = tokio::spawn(async move { serve_one(&listener, response).await });
         let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
         let root = tempfile::TempDir::new().expect("temp root");
@@ -835,6 +847,10 @@ mod tests {
             "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
             MAX_SUPPLEMENTAL_PDF_BYTES + 1
         );
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by supplemental_pdf_download_rejects_oversized_content_length"
+        )]
         let server = tokio::spawn(async move { serve_one(&listener, response.as_bytes()).await });
         let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
         let root = tempfile::TempDir::new().expect("temp root");
@@ -889,6 +905,10 @@ mod tests {
             pdf_bytes.len()
         );
         let response = [response.as_bytes(), pdf_bytes].concat();
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by supplemental_pdf_download_cleans_partial_on_cancelled_stream"
+        )]
         let server = tokio::spawn(async move { serve_one(&listener, &response).await });
         let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
         let root = tempfile::TempDir::new().expect("temp root");
@@ -939,6 +959,10 @@ mod tests {
         let addr = listener.local_addr().expect("listener addr");
         let client = local_client(addr, None);
         let response = b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by supplemental_pdf_download_maps_http_failure_without_provider_details"
+        )]
         let server = tokio::spawn(async move { serve_one(&listener, response).await });
         let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
         let root = tempfile::TempDir::new().expect("temp root");

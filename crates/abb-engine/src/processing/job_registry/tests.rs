@@ -40,6 +40,10 @@ async fn reconfiguration_rejects_a_job_waiting_for_admission() {
     let (finished_job, finishing_permit) = registry.register_job().await.expect("first job");
     registry.complete_job(finished_job).await;
     let waiting_registry = Arc::clone(&registry);
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by reconfiguration_rejects_a_job_waiting_for_admission"
+    )]
     let waiting = tokio::spawn(async move { waiting_registry.register_job().await });
     sleep(Duration::from_millis(20)).await;
 
@@ -71,6 +75,10 @@ async fn dropped_admission_does_not_block_reconfiguration() {
     let (finished_job, _finishing_permit) = registry.register_job().await.expect("first job");
     registry.complete_job(finished_job).await;
     let waiting_registry = Arc::clone(&registry);
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by dropped_admission_does_not_block_reconfiguration"
+    )]
     let waiting = tokio::spawn(async move { waiting_registry.register_job().await });
     sleep(Duration::from_millis(20)).await;
 

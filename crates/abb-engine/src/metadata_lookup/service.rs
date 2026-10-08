@@ -161,9 +161,15 @@ async fn collect_provider_searches(
         let client = client.clone();
         let search_query = search_query.to_string();
         let region = region.to_string();
-        Some(tokio::spawn(async move {
-            fetch_audnexus_with_audible(&client, &search_query, &region, limit).await
-        }))
+        Some({
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "joined by collect_provider_searches"
+            )]
+            tokio::spawn(async move {
+                fetch_audnexus_with_audible(&client, &search_query, &region, limit).await
+            })
+        })
     } else {
         None
     };
@@ -171,9 +177,15 @@ async fn collect_provider_searches(
     let openlibrary_handle = if include_openlibrary {
         let client = client.clone();
         let search_query = search_query.to_string();
-        Some(tokio::spawn(async move {
-            fetch_openlibrary_search(&client, &search_query, limit).await
-        }))
+        Some({
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "joined by collect_provider_searches"
+            )]
+            tokio::spawn(
+                async move { fetch_openlibrary_search(&client, &search_query, limit).await },
+            )
+        })
     } else {
         None
     };
@@ -253,6 +265,10 @@ async fn fetch_audnexus_with_audible(
             let client = client.clone();
             let region = region.to_string();
             let item = item.clone();
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "joined by fetch_audnexus_with_audible"
+            )]
             let handle = tokio::spawn(async move {
                 match fetch_audnexus_book(&client, &item.asin, &region).await {
                     Ok(result) => (result, false),

@@ -24,6 +24,10 @@ pub(super) async fn validate_materialized_audio(
     } = ctx;
     let title_id = title_id.to_string();
     let materialized_path = materialized_path.to_path_buf();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by validate_materialized_audio"
+    )]
     let validation_result = tokio::task::spawn_blocking(move || {
         materialized_file_from_path(&title_id, &materialized_path)
     })

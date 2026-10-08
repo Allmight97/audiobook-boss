@@ -165,6 +165,7 @@ impl CoverService {
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T> + Send + 'static,
 ) -> Result<T> {
+    #[expect(clippy::disallowed_methods, reason = "joined by blocking")]
     tokio::task::spawn_blocking(work)
         .await
         .map_err(|error| AppError::General(format!("Cover task failed: {error}")))?

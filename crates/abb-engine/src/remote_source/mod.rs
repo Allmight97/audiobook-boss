@@ -209,6 +209,7 @@ impl RemoteSourceRuntime {
                 // awaited by EngineTasks and must finish once started.
                 let runtime = self.clone();
                 let write = self.inner.tasks.admit(|| {
+                    #[expect(clippy::disallowed_methods, reason = "joined by complete_auth")]
                     tokio::task::spawn_blocking(move || {
                         AudibleProvider::persist_auth(runtime.inner.vault.as_ref(), &auth)
                     })
@@ -327,6 +328,10 @@ impl RemoteSourceRuntime {
     // so both run on a blocking thread and never stall the caller's executor.
     pub(crate) async fn get_indexer_connection(&self) -> Result<types::RemoteIndexerConnection> {
         let runtime = self.clone();
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by get_indexer_connection"
+        )]
         tokio::task::spawn_blocking(move || {
             IndexerProvider::get_connection(&runtime.inner.config_dir, runtime.inner.vault.as_ref())
         })
@@ -348,6 +353,10 @@ impl RemoteSourceRuntime {
         })?;
         self.forget_sent_releases();
         let runtime = self.clone();
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by update_indexer_connection"
+        )]
         tokio::task::spawn_blocking(move || {
             IndexerProvider::update_connection(
                 &runtime.inner.config_dir,

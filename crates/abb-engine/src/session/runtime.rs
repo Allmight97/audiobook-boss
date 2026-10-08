@@ -706,6 +706,7 @@ impl Session {
         self.inner.deps.tasks.spawn(async move {
             for ticket in tickets {
                 let resolving = ticket.clone();
+                #[expect(clippy::disallowed_methods, reason = "joined by resolve_plans")]
                 let result = tokio::task::spawn_blocking(move || resolving.resolve())
                     .await
                     .unwrap_or_else(|error| Err(error.to_string().into()));
@@ -1351,14 +1352,7 @@ impl Session {
     // ---- Export ----
 
     fn begin_submission(&self, preview_seconds: Option<f64>) -> Rest {
-        let closing = self.inner.deps.tasks.is_closed();
-        let draft = self.transition(|state| {
-            if closing {
-                state.refuse_submission(SubmitRefusal::Closing);
-                return None;
-            }
-            state.begin_submission(preview_seconds)
-        });
+        let draft = self.transition(|state| state.begin_submission(preview_seconds));
         match draft {
             Some(draft) => Rest::Submit {
                 draft: Box::new(draft),
@@ -1424,9 +1418,9 @@ impl Session {
     }
 
     /// Holds a draft for the user's collision choice, unless the engine is
-    /// closing or a Reset superseded this submit: checked under the session
-    /// lock, so shutdown's cancel of reviews either finds this one or this
-    /// sees shutdown, and a Reset during preflight drops the preflight and
+    /// closing or a Reset superseded this submit. Closing is registered under
+    /// admit, so shutdown's cancel of reviews either finds this one or this
+    /// sees shutdown. A Reset during preflight drops the preflight and
     /// unlocks the list.
     fn hold_for_review(
         &self,
@@ -1434,22 +1428,28 @@ impl Session {
         outputs: Vec<crate::output_artifact::PlannedOutput>,
         resets: u64,
     ) -> SessionOutcome {
-        let dropped = self.transition(|state| {
-            if self.inner.deps.tasks.is_closed() {
-                state.finish_submission(&draft, closing());
-                return true;
+        let closing_draft = draft.clone();
+        match self.inner.deps.tasks.admit(|| {
+            self.transition(|state| {
+                if self.inner.resets.load(Ordering::SeqCst) != resets {
+                    state.finish_submission(&draft, SubmissionStatus::Cancelled);
+                    return true;
+                }
+                state.await_review(draft, outputs);
+                false
+            })
+        }) {
+            Ok(true) => {
+                self.sources_released();
+                SessionOutcome::Applied
             }
-            if self.inner.resets.load(Ordering::SeqCst) != resets {
-                state.finish_submission(&draft, SubmissionStatus::Cancelled);
-                return true;
+            Ok(false) => SessionOutcome::Applied,
+            Err(_) => {
+                self.transition(|state| state.finish_submission(&closing_draft, closing()));
+                self.sources_released();
+                SessionOutcome::Applied
             }
-            state.await_review(draft, outputs);
-            false
-        });
-        if dropped {
-            self.sources_released();
         }
-        SessionOutcome::Applied
     }
 
     async fn accept(
@@ -1499,7 +1499,7 @@ impl Session {
                     title: draft.title.clone(),
                 }
             }
-            Err(_) if deps.tasks.is_closed() => closing(),
+            Err(error) if error.is_closing() => closing(),
             Err(error) => failed(&error),
         };
         self.end_submission(&draft, status)
@@ -1528,15 +1528,22 @@ impl Session {
             }
         }
         let artwork = super::preview::PreviewArtwork::from_plan(&inspected);
-        // Checked after the flags are visible, so shutdown either sees
+        // Admitted after the flags are visible, so shutdown either sees
         // this preview to cancel or the preview sees shutdown.
-        if deps.tasks.is_closed() {
+        if self
+            .inner
+            .deps
+            .tasks
+            .admit(|| {
+                self.transition(|state| {
+                    state.preview.artwork = artwork;
+                    state.start_preview(&id);
+                });
+            })
+            .is_err()
+        {
             return self.end_submission(&draft, closing());
         }
-        self.transition(|state| {
-            state.preview.artwork = artwork;
-            state.start_preview(&id);
-        });
         self.publish();
         let result = process_inspected_with_options(
             &_active_run,
@@ -1891,14 +1898,7 @@ impl Session {
     }
 
     fn begin_restart(&self, title_id: &str, revision: u64) -> Rest {
-        let closing = self.inner.deps.tasks.is_closed();
-        let started = self.transition(|state| {
-            if closing {
-                state.refuse_submission(SubmitRefusal::Closing);
-                return None;
-            }
-            state.begin_restart(title_id, revision)
-        });
+        let started = self.transition(|state| state.begin_restart(title_id, revision));
         match started {
             Some((draft, link)) => Rest::Restart {
                 draft: Box::new(draft),
@@ -2385,6 +2385,7 @@ fn now() -> std::time::Instant {
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T> + Send + 'static,
 ) -> Result<T> {
+    #[expect(clippy::disallowed_methods, reason = "joined by blocking")]
     tokio::task::spawn_blocking(work)
         .await
         .map_err(|error| AppError::General(format!("Background task failed: {error}")))?
@@ -2401,6 +2402,7 @@ async fn read_all(tickets: Vec<ReadTicket>) -> Vec<(ReadTicket, Result<Audiobook
         .into_iter()
         .map(|ticket| {
             let limit = Arc::clone(&limit);
+            #[expect(clippy::disallowed_methods, reason = "joined by read_all")]
             tokio::spawn(async move {
                 let _permit = limit.acquire_owned().await;
                 let path = ticket.path.clone();

@@ -137,12 +137,16 @@ impl Session {
         match artwork {
             PreviewArtwork::None => Ok(None),
             PreviewArtwork::Source(path) => self.inner.network.covers.embedded_small(&path).await,
-            PreviewArtwork::Bytes(bytes) => tokio::task::spawn_blocking(move || {
-                crate::metadata::render_display_thumbnail(&bytes)
-            })
-            .await
-            .map_err(|error| AppError::General(format!("Cover task failed: {error}")))?
-            .map(|small| Some(Cover::from(small))),
+            PreviewArtwork::Bytes(bytes) =>
+            {
+                #[expect(clippy::disallowed_methods, reason = "joined by preview_cover")]
+                tokio::task::spawn_blocking(move || {
+                    crate::metadata::render_display_thumbnail(&bytes)
+                })
+                .await
+                .map_err(|error| AppError::General(format!("Cover task failed: {error}")))?
+                .map(|small| Some(Cover::from(small)))
+            }
         }
     }
 }
