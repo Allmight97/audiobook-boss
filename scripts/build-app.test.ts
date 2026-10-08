@@ -8,7 +8,6 @@ import {
 	addAaxcleanHelperConfigArg,
 	assertSupportedMacOsHost,
 	buildTauriApp,
-	bundledFfmpegFeatureForBuild,
 	ensureFeatureArg,
 	findForbiddenLinkedLibraries,
 	findUnsupportedMacOsArchitectures,
@@ -79,17 +78,6 @@ describe('resolveMacOsBundlePaths', () => {
 		);
 		expect(paths.applicationsAppPath).toBe(path.join(applicationsDir, 'AudioBook Boss.app'));
 		expect(paths.dmgDir).toBe(path.join(repoRoot, 'target/release/bundle/dmg'));
-	});
-});
-
-describe('bundledFfmpegFeatureForBuild', () => {
-	it('uses native host tuning for source-built app bundles', () => {
-		expect(bundledFfmpegFeatureForBuild(['--bundles', 'app'])).toBe('bundled-ffmpeg');
-	});
-
-	it('uses the portable target for every build that produces a DMG', () => {
-		expect(bundledFfmpegFeatureForBuild(['--bundles', 'dmg'])).toBe('bundled-ffmpeg-portable');
-		expect(bundledFfmpegFeatureForBuild(['--bundles', 'all'])).toBe('bundled-ffmpeg-portable');
 	});
 });
 
@@ -392,7 +380,7 @@ describe('buildTauriApp', () => {
 			'--bundles',
 			'dmg',
 			'--features',
-			'bundled-ffmpeg-portable',
+			'bundled-ffmpeg',
 			'--config',
 		]);
 		expect(JSON.parse(calls[1]?.args[8] ?? '{}')).toEqual({
@@ -400,8 +388,6 @@ describe('buildTauriApp', () => {
 		});
 		expect(calls[1]?.stdio).toBe('inherit');
 		expect(calls[1]?.env?.CI).toBe('true');
-		expect(calls[1]?.env?.FFMPEG_MARCH).toBe('');
-		expect(calls[1]?.env?.FFMPEG_MTUNE).toBe('');
 	});
 
 	it('leaves CI value untouched for non-DMG app builds', () => {

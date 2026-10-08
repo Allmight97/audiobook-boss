@@ -58,10 +58,10 @@ bun scripts/resolve-release-dmg.ts --version <x.y.z>
 hdiutil verify "<resolved-dmg-path>"
 ```
 
-The build must stay noninteractive and use the portable Apple Silicon FFmpeg
-feature; a distributable DMG must not inherit the build host's native CPU
-tuning. Report the resolved path and verification result, then stop before
-tagging or publishing.
+The build must stay noninteractive. `bundled-ffmpeg` always enables
+`ffmpeg-sys-next/build-portable`, so a distributable DMG does not inherit the
+build host's native CPU tuning. Report the resolved path and verification
+result, then stop before tagging or publishing.
 
 ## Public Release
 

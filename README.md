@@ -103,15 +103,14 @@ Build the current branch and replace `/Applications/AudioBook Boss.app` in
 place. macOS (Apple Silicon) only; the replace is silent and unprompted.
 
 ```bash
-bun run app:install-local            # native build, verify, install, prune artifacts
+bun run app:install-local            # local build, verify, install, prune artifacts
 bun run app:install-local:existing   # install an already-built bundle (--skip-build)
 ```
 
-On a supported Apple Silicon Mac, source app builds and developer installs
-target the compiling host natively. `bun run app:build` builds that native
-repo-local app. `bun run app:build:dmg` and `bun run app:build:all` instead use
-the portable Apple Silicon baseline because their DMG may run on an unknown
-recipient Mac.
+On a supported Apple Silicon Mac, `bundled-ffmpeg` always uses the portable
+Apple Silicon baseline (`ffmpeg-sys-next/build-portable`). `bun run app:build`
+builds the repo-local app; `bun run app:build:dmg` and `bun run app:build:all`
+package a DMG that may run on an unknown recipient Mac.
 
 ## Script Guide
 
@@ -155,9 +154,9 @@ Index of common commands; `package.json` holds the shortcuts.
   when investigating compile cost.
 - Release lanes: use `.agents/skills/release`.
   `bun scripts/bump-version.ts <version>` updates version surfaces;
-  `bun run app:install-local` is the native developer-install lane and silently
+  `bun run app:install-local` is the developer-install lane and silently
   replaces `/Applications/AudioBook Boss.app`; `bun run app:build` builds a
-  native repo-local `.app`; `bun run app:build:dmg` builds a portable,
+  repo-local `.app`; `bun run app:build:dmg` builds a portable,
   noninteractive public DMG and rebuilds the AAXClean helper from current source.
   `bun scripts/resolve-release-dmg.ts --version <version>` resolves the artifact;
   download the uploaded asset and compare its `shasum -a 256` with the local DMG.

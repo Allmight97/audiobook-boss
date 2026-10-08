@@ -25,8 +25,8 @@ inputs: build-script contents, compiler/version, target, features, CPU flags,
 SDK/sysroot and relevant compiler environment. Rebuild notifications are emitted
 before deciding reuse. The build names the static libopus archive's directory
 for the linker, since Linux pkg-config omits system library directories.
-Native and portable CPU mechanisms come from upstream sys 9.0.0; ABB selects
-native builds for development and portable builds for distribution.
+Native and portable CPU mechanisms come from upstream sys 9.0.0; ABB's
+`bundled-ffmpeg` feature always enables `build-portable`.
 
 The header-only CUDA shim adds `CUarray` and `CUDA_ARRAY3D_DESCRIPTOR` so bindgen
 can parse the selected headers. Layout follows nv-codec-headers revision

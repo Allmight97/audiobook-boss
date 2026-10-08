@@ -38,8 +38,8 @@ CI does not run these; run them locally when they apply:
 - Docs and guidance: `git diff --check` plus a search for the edited terms.
 
 Workspace-wide Clippy, if you run it, needs
-`--features audiobook-boss/bundled-ffmpeg-portable,abb-engine/bundled-ffmpeg-portable`.
-Per-package Clippy is inside `verify.sh` (`bundled-ffmpeg-portable` on engine and host).
+`--features audiobook-boss/bundled-ffmpeg,abb-engine/bundled-ffmpeg`.
+Per-package Clippy is inside `verify.sh` (`bundled-ffmpeg` on engine and host).
 
 CI runs these only on scheduled and manual runs (`supply-chain` job):
 `cargo audit -D warnings` (accepted advisories: `.cargo/audit.toml`) and
@@ -49,8 +49,7 @@ Traps:
 
 - Select Rust packages with `-p`. Workspace discovery pulls unrelated binaries
   into the target set. Binding export has its own command:
-  `bun run bindings:generate` (`bundled-ffmpeg-portable`, so host-lane
-  export cannot write a native FFmpeg unit into the portable cache).
+  `bun run bindings:generate` (`bundled-ffmpeg`).
 - `bun run bindings:check:local` checks uncommitted changes against `HEAD`
   and can skip a clean committed branch. Use `bun run bindings:check` for
   committed contract changes.
@@ -75,10 +74,10 @@ Traps:
   drives an engine session without a window. It uses its own identity and a
   temporary state folder, so it never touches the app's settings or
   credentials.
-- Release artifacts: use `.agents/skills/release`. DMG builds use
-  `bundled-ffmpeg-portable`; local builds target the compiling host. Public DMG
-  builds publish the AAXClean helper from current source; local app builds may
-  reuse a fresh helper sidecar.
+- Release artifacts: use `.agents/skills/release`. `bundled-ffmpeg` always
+  enables `ffmpeg-sys-next/build-portable`. Public DMG builds publish the
+  AAXClean helper from current source; local app builds may reuse a fresh
+  helper sidecar.
 
 ## Script rules
 
@@ -134,9 +133,8 @@ Traps:
   `ABB_FFMPEG` / `ABB_FFPROBE` when setup can see them) have one owner:
   `eval "$(scripts/setup.sh --print-env)"`.
 - Engine, media, host, decrypt, and apple proof use
-  `--features bundled-ffmpeg-portable` on every host (`verify.sh`; no `CI=true`
-  branch), including `bun run bindings:generate` from the host lane. Bare
-  `cargo` defaults and `app:dev` stay `bundled-ffmpeg`. The first
+  `--features bundled-ffmpeg` on every host (`verify.sh`), including
+  `bun run bindings:generate` and `app:dev`. The first
   build compiles the revision in `vendor/ffmpeg-sys-next-*/ffmpeg-revision`;
   later builds reuse it while compiler, target, and feature match.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH

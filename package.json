@@ -26,7 +26,7 @@
 		"app:install-local": "bun scripts/install-local-app.ts",
 		"app:install-local:existing": "bun scripts/install-local-app.ts --skip-build",
 		"clean": "rm -rf target/release dist node_modules/.vite tools/abb-aaxclean-helper/.publish",
-		"bindings:generate": "cargo run --manifest-path src-tauri/Cargo.toml --features bundled-ffmpeg-portable,binding-export --bin export_bindings",
+		"bindings:generate": "cargo run --manifest-path src-tauri/Cargo.toml --features bundled-ffmpeg,binding-export --bin export_bindings",
 		"bindings:check": "scripts/check-generated-bindings.sh --mode verify",
 		"bindings:check:local": "scripts/check-generated-bindings.sh --mode local",
 		"bindings:check:runtime-boundary": "bun scripts/check-tauri-runtime-boundary.ts",

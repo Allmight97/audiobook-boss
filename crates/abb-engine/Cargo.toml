@@ -79,9 +79,6 @@ bundled-ffmpeg = [
     "ffmpeg-next/build",
     "ffmpeg-sys-next/build-audiotoolbox",
     "ffmpeg-sys-next/build-lib-opus",
-]
-bundled-ffmpeg-portable = [
-    "bundled-ffmpeg",
     "ffmpeg-sys-next/build-portable",
 ]
 

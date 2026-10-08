@@ -15,7 +15,7 @@ describe('app:dev:log entrypoint', () => {
 		) as { scripts: Record<string, string> };
 
 		expect(packageJson.scripts['bindings:generate']).toContain(
-			'--features bundled-ffmpeg-portable,binding-export',
+			'--features bundled-ffmpeg,binding-export',
 		);
 	});
 });
