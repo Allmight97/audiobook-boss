@@ -442,6 +442,8 @@ it('exposes build identity, stage failures and effective codec diagnostics witho
 		'build_identity app_id=dev.main libavcodec=1 libavformat=2',
 		'media_job session_id=s job_id=j artifact=a encoder=native_aac',
 		'encoder_effective encoder=aac rate=44100 channels=2',
+		'decode_open input=/books/a.m4b decoder=faad3 rate=44100 channels=2 object_type=5 frame_samples=2048 decoder_delay=962 bit_rate=64000',
+		'decode_summary input=/books/a.m4b decoder=faad3 packets=10 emitted_samples=20480 delay_trimmed=962',
 		'media_stage stage=metadata_open_input status=error artifact=a exists=false',
 		'metadata_plan artifact=a writer=mp4ameta fields=Title=set,Comment=clear',
 		'media_cleanup reason=guard_drop session_id=s pid=1',
@@ -461,6 +463,8 @@ it('exposes build identity, stage failures and effective codec diagnostics witho
 	expect(summary).toContain('build_identity app_id=dev.main');
 	expect(summary).toContain('metadata_open_input status=error artifact=a exists=false');
 	expect(summary).toContain('encoder_effective encoder=aac rate=44100 channels=2');
+	expect(summary).toContain('decode_open input=/books/a.m4b decoder=faad3');
+	expect(summary).toContain('decode_summary input=/books/a.m4b decoder=faad3 packets=10');
 	expect(summary).toContain('faac_version=1.31 profile=HE-AAC-v1');
 	expect(summary).toContain('mux_finished=true');
 	expect(analysis.jobs).toEqual([]);

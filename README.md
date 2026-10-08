@@ -38,18 +38,29 @@ FAAC chooses Auto’s profile from the requested output settings when encoding
 opens. VBR offers Smaller (50), Standard (100), and Higher (200); size varies
 with the audio, so use ABR for a bitrate target. Explicit HE supports 32, 44.1,
 and 48 kHz; Auto and LC also support the other available output rates. Saved
-HE/ABR preferences retain that intent. All processing runs in the in-process
-Audio engine; on macOS it uses `aac_at` to decode AAC sources the default
-decoder cannot handle. Bundled source revisions and wrapper changes are
-recorded under `vendor/`. ABB-produced FAAC HE files retain Apple-compatible
-gapless timing; ABB accounts for native decoder priming when reading them back.
-FAAC's LGPL license and source provenance ship with the app; its corresponding
-source and build configuration live in `vendor/faac-sys/`. Each public release
-provides the corresponding ABB source, including the selected FAAC source and
-build scripts. To rebuild with a modified FAAC library, extract the matching
+HE/ABR preferences retain that intent.
+
+Settings → Decoding chooses the AAC input decoder independently of the output
+encoder. Auto selects a compatible FFmpeg decoder per file, including Apple's
+`aac_at` on macOS. FAAD3 selects the bundled decoder for mono/stereo AAC-LC,
+HE-AAC v1/v2, and ADTS; other AAC profiles, including xHE-AAC, keep Auto.
+The choice is saved between launches. FAAD3 currently uses unreleased source
+from [upstream PR 29](https://github.com/FreewareAdvancedAudio/faac/pull/29)
+for evaluation. Some Audible M4Bs are rejected by FAAD3; use Auto for those
+files. A failed FAAD3 decode is reported without switching decoders.
+
+All processing runs in the in-process Audio engine. Bundled source revisions
+and wrapper changes are recorded under `vendor/`. ABB-produced FAAC HE files
+retain Apple-compatible gapless timing; re-import accounts for SBR decoder
+delay under both decoders. Third-party HE files declaring iTunSMPB also retain
+their audio alignment and tail. FAAC and FAAD's LGPL license and source
+provenance ship with the app; their source and build configuration live in
+`vendor/faac-sys/`. Each public release provides the corresponding ABB source,
+including the selected codec source and build scripts. To rebuild with a
+modified FAAC or FAAD library, extract the matching
 release source archive, edit `vendor/faac-sys/upstream/`, run
 `bun install --frozen-lockfile`, then `bun run app:build:dmg` on an Apple Silicon
-Mac with the prerequisites above. The build compiles and links that local FAAC
+Mac with the prerequisites above. The build compiles and links that local codec
 source; no proprietary relinking tool is required.
 
 [Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)

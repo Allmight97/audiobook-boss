@@ -37,6 +37,9 @@ default the session records reaches hosts as `EngineEvent::Settings`.
   effect and writes them like any change.
 - `keep_awake_while_working` defaults on. Applying it updates
   `PowerManager`; opting out releases an active hold.
+- `aac_decoder` takes effect for imports and submissions accepted after it;
+  the session reads it at those points (`SettingsRuntime::aac_decoder`). It is
+  not part of pinned defaults.
 
 ## Storage
 

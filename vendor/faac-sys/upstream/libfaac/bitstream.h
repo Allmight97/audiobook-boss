@@ -80,7 +80,7 @@ static inline void AccumBegin(BitAccumulator *a, BitStream *bs)
     /* Preload the in-progress byte so its already-written high bits are
      * preserved; its low (8-fill) bits are 0 (the buffer starts zeroed and
      * we only ever move forward), so this seed is exact. */
-    a->bits = a->fill ? ((uint64_t)(*a->out) << 56) : 0;
+    a->bits = (a->fill && a->out < a->limit) ? ((uint64_t)(*a->out) << 56) : 0;
 }
 
 static inline void AccumPutBits(BitAccumulator *a, uint32_t value, int numBits)

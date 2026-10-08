@@ -184,6 +184,9 @@ jobs:
           cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --
           --skip test_cases::integration_media
       - if: needs.changes.outputs.engine == 'true' || env.ALL == 'true'
+        # FAAC encoder and FAAD decoder FFI contracts the engine adapters rely on.
+        run: cargo test --locked -p faac-sys
+      - if: needs.changes.outputs.engine == 'true' || env.ALL == 'true'
         # The host-API examples guard which engine internals hosts can reach.
         run: cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
       - if: needs.changes.outputs.media == 'true' || env.ALL == 'true'

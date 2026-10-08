@@ -58,18 +58,18 @@ _Static_assert((int)FAAC_INPUT_NULL  == INPUT_NULL  && (int)FAAC_INPUT_16BIT == 
             && (int)FAAC_INPUT_24BIT == INPUT_24BIT && (int)FAAC_INPUT_32BIT == INPUT_32BIT
             && (int)FAAC_INPUT_FLOAT == INPUT_FLOAT, "input format drift");
 
-/* Baseline layout as first shipped. Frozen by the append-only rule: new fields
- * go after max_bit_rate, so this offset never moves. Not sizeof(), which
+/* Baseline layout as shipped in SONAME 2. Frozen by the append-only rule:
+ * fields cannot move, so this offset never moves. Not sizeof(), which
  * grows with every appended field and would reject older callers' binaries.
  * A literal would be wrong too: the layout depends on pointer width. */
 #define PARAMS_BASELINE_SIZE \
-    ((uint32_t)(offsetof(faac_params, max_bit_rate) + sizeof(uint32_t)))
+    ((uint32_t)(offsetof(faac_params, rate_control) + sizeof(enum faac_rate_control)))
 
 /* Same pattern as PARAMS_BASELINE_SIZE above. */
 #define LIBRARY_INFO_BASELINE_SIZE \
     ((uint32_t)(offsetof(faac_library_info, sbr_decimation) + sizeof(uint32_t)))
 #define ENCODER_INFO_BASELINE_SIZE \
-    ((uint32_t)(offsetof(faac_encoder_info, max_bit_rate) + sizeof(uint32_t)))
+    ((uint32_t)(offsetof(faac_encoder_info, rate_control) + sizeof(enum faac_rate_control)))
 
 /* faac_encoder* and faacEncHandle are the same underlying object. */
 static inline faacEncStruct *unwrap(faac_encoder *enc) { return (faacEncStruct *)enc; }
@@ -136,6 +136,9 @@ FAACAPI faac_status faac_params_init(faac_params *p, uint32_t caller_size)
     return FAAC_OK;
 }
 
+#define FAAC_MIN_SAMPLE_RATE 7350u
+#define FAAC_MAX_SAMPLE_RATE 96000u
+
 /* Validate the enumerated/range fields the caller supplied. Returns FAAC_OK,
  * FAAC_ERR_INVALID_ARGUMENT for out-of-range values, or FAAC_ERR_UNSUPPORTED
  * for values that are valid but not implemented in this build. */
@@ -173,7 +176,10 @@ static faac_status validate_params(const faac_params *p)
         default:
             return FAAC_ERR_INVALID_ARGUMENT;
     }
-    if (p->sample_rate == 0)
+    /* The ADTS/ASC rate table spans 7350..96000 Hz. Outside it the rate index
+     * would lie, and the rate-derived tables and bit budgets are only sized for
+     * it. */
+    if (p->sample_rate < FAAC_MIN_SAMPLE_RATE || p->sample_rate > FAAC_MAX_SAMPLE_RATE)
         return FAAC_ERR_INVALID_ARGUMENT;
     if (GetChannelConfig((int)p->num_channels) == 0)
         return FAAC_ERR_INVALID_ARGUMENT;
@@ -224,6 +230,7 @@ FAACAPI faac_status faac_encoder_open(const faac_params *p, faac_encoder **out)
     faacEncConfiguration *cfg;
     unsigned long inSamples = 0, maxOut = 0;
     faac_status st;
+    int applied;
 
     if (!out)
         return FAAC_ERR_INVALID_ARGUMENT;
@@ -268,9 +275,10 @@ FAACAPI faac_status faac_encoder_open(const faac_params *p, faac_encoder **out)
     }
     /* else: faacEncOpen already installed the identity map */
 
-    if (!faacEncApplyConfig(h, cfg)) {
+    applied = faacEncApplyConfig(h, cfg);
+    if (applied != 1) {
         faacEncClose((faacEncHandle)h);
-        return FAAC_ERR_INVALID_ARGUMENT;
+        return (applied < 0) ? FAAC_ERR_NO_MEMORY : FAAC_ERR_INVALID_ARGUMENT;
     }
 
     *out = (faac_encoder *)h;

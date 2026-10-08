@@ -12,8 +12,8 @@ use crate::app_settings::{
     OutputDefaults, PinnedDefaults, StartupBehavior,
 };
 use crate::audio::{
-    AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
-    FaacProfile, SampleRateConfig,
+    AacDecoder, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings,
+    EncoderType, FaacProfile, SampleRateConfig,
 };
 use crate::errors::{AppError, Result};
 use crate::output_artifact::{NamingPreset, OutputNamingConfig};
@@ -69,6 +69,9 @@ struct General {
     keep_awake_while_working: bool,
     max_concurrent_jobs: AutoOr<usize>,
     default_acquisition_lane: AcquisitionLane,
+    /// Added after the first saved shape; files without it load as Auto.
+    #[serde(default)]
+    aac_decoder: AacDecoder,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -206,6 +209,7 @@ impl From<&AppSettings> for SavedSettings {
                 keep_awake_while_working: settings.keep_awake_while_working,
                 max_concurrent_jobs: settings.max_concurrent_jobs.into(),
                 default_acquisition_lane: settings.default_acquisition_lane,
+                aac_decoder: settings.aac_decoder,
             },
             audio: Audio::from(&settings.encoder_defaults),
             output: Output::from(&settings.output_defaults),
@@ -229,6 +233,7 @@ impl TryFrom<SavedSettings> for AppSettings {
             keep_awake_while_working: saved.general.keep_awake_while_working,
             max_concurrent_jobs: saved.general.max_concurrent_jobs.into(),
             default_acquisition_lane: saved.general.default_acquisition_lane,
+            aac_decoder: saved.general.aac_decoder,
             encoder_defaults: saved.audio.try_into()?,
             output_defaults: saved.output.into(),
             startup_behavior: saved.startup.behavior,

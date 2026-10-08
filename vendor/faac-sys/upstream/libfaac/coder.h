@@ -39,6 +39,9 @@ enum WINDOW_TYPE {
     SHORT_LONG_WINDOW
 };
 
+/* ics_info window_shape, as the decoder names them. */
+enum { SINE_WINDOW = 0, KBD_WINDOW = 1 };
+
 /* Array bounds, sized to what this encoder actually emits rather than to what
  * the spec permits: one filter per long window at a fixed order (tns.c's
  * TNS_LPC_ORDER), never the spec's 4 filters at order 20. Both are checked
@@ -76,6 +79,8 @@ typedef struct {
 typedef struct CoderInfo {
     int block_type;
     int desired_block_type;
+    /* ics_info window_shape of this frame: SINE_WINDOW or KBD_WINDOW. */
+    int window_shape;
 
     int global_gain;
     int sf[MAX_SCFAC_BANDS];

@@ -14,13 +14,14 @@ fn version_label(version: u32) -> String {
     )
 }
 
-/// The linked FFmpeg library versions, as `libavcodec=… libavformat=…`, for a
-/// host's build-identity log line.
-pub fn ffmpeg_build_identity() -> String {
+/// The linked media library versions, as `libavcodec=… libavformat=… faac=…
+/// faad=…`, for a host's build-identity log line.
+pub fn media_build_identity() -> String {
     format!(
-        "libavcodec={} libavformat={}",
+        "libavcodec={} libavformat={} {}",
         version_label(ffmpeg_next::codec::version()),
-        version_label(ffmpeg_next::format::version())
+        version_label(ffmpeg_next::format::version()),
+        crate::audio::codec_library_versions()
     )
 }
 

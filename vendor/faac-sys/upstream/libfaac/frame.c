@@ -31,6 +31,7 @@
 #include "sbr.h"
 #include "ratecontrol.h"
 #include "atomic.h"
+#include "endian.h"
 
 /* HE-AAC auto-mode thresholds; tuned via ViSQOL on a 49-clip corpus. */
 #define HE_MIN_SAMPLE_RATE    32000  /* Fs/2 < 16 kHz below this → core too narrow for SBR */
@@ -62,6 +63,10 @@
  * hearing. VBR, having no rate, codes at the top. */
 #define BANDWIDTH_CEILING     18750
 
+/* Float PCM is in 16-bit sample units; 2^23 is the most 32-bit input can reach
+ * after its scaling, so anything beyond it is not audio. */
+#define FLOAT_INPUT_LIMIT     8388608.0f
+
 /* From this rate (bps per channel) the quantizer's treble de-emphasis is
  * steepened by TREBLE_SLOPE_RICH; below it the steeper slope starves the
  * treble of some material. */
@@ -81,7 +86,7 @@
 
 static char *libfaacName = PACKAGE_VERSION;
 static char *libCopyright =
-  "FAAC - Freeware Advanced Audio Coder (http://faac.sourceforge.net/)\n"
+  "FAAC - Freeware Advanced Audio Coder (https://freewareadvancedaudio.github.io)\n"
   " Copyright (C) 1999-2001, Menno Bakker\n"
   " Copyright (C) 2002-2017, Krzysztof Nikiel\n"
   " Copyright (C) 2004, Dan Villiom P. Christiansen\n"
@@ -150,7 +155,7 @@ int faacEncGetDecoderSpecificInfo(faacEncHandle hpEncoder,unsigned char** ppBuff
     }
 
     *pSizeOfDecoderSpecificInfo = 2;
-    *ppBuffer = (unsigned char *)malloc(2);
+    *ppBuffer = (unsigned char *)AllocMemory(2);
 
     if(*ppBuffer != NULL){
         BitStream bs;
@@ -167,7 +172,7 @@ int faacEncGetDecoderSpecificInfo(faacEncHandle hpEncoder,unsigned char** ppBuff
 
 /* Configuration worker behind faac_encoder_open(): validates the config,
  * resolves AUTO/HE-AAC, and (re)initializes the encoder for it. Returns 1 on
- * success, 0 on failure. */
+ * success, 0 for an invalid configuration, -1 when an allocation failed. */
 int faacEncApplyConfig(faacEncStruct* hEncoder,
                        faacEncConfigurationPtr config)
 {
@@ -256,7 +261,7 @@ int faacEncApplyConfig(faacEncStruct* hEncoder,
             hEncoder->sbrContext = SbrContextInit(hEncoder->numChannels);
 
         if (!hEncoder->sbrContext)
-            return 0;
+            return -1;
 
         SbrContextResolveRate(hEncoder->sbrContext, &hEncoder->sampleRate, &hEncoder->sampleRateIdx, &hEncoder->srInfo);
     }
@@ -352,7 +357,8 @@ int faacEncApplyConfig(faacEncStruct* hEncoder,
     if (hEncoder->config.aacObjectType == HE_V1) {
         SBRContext *sCtx = hEncoder->sbrContext;
         unsigned long sbr_bitrate = hEncoder->config.bitRate ? (hEncoder->config.bitRate * hEncoder->numChannels) : ((unsigned long)hEncoder->config.quantqual * 1280);
-        SbrContextUpdateConfig(sCtx, hEncoder->numChannels, sbr_bitrate);
+        if (!SbrContextUpdateConfig(sCtx, hEncoder->numChannels, sbr_bitrate))
+            return -1;
         /* kx * Fs / (2*64): each QMF band is Fs/(2*SBR_QMF_BANDS_64) Hz wide.
          * Matching core bandwidth to the SBR crossover avoids a gap or overlap. */
         hEncoder->config.bandWidth = SbrContextGetXOverBandwidth(sCtx);
@@ -375,7 +381,7 @@ int faacEncApplyConfig(faacEncStruct* hEncoder,
             {
                 hEncoder->inputFifo[channel] =
                     (float *)AllocMemory(cap * sizeof(float));
-                if (!hEncoder->inputFifo[channel]) return 0;
+                if (!hEncoder->inputFifo[channel]) return -1;
             }
         hEncoder->inputFifoCap  = cap;
         /* HE-AAC's pipeline delay is 3*FRAME_LEN - 31 full-rate samples, an odd
@@ -399,7 +405,7 @@ int faacEncApplyConfig(faacEncStruct* hEncoder,
             if (!hEncoder->peakSnap[ch])
                 hEncoder->peakSnap[ch] = (int *)AllocMemory(2 * MAX_SCFAC_BANDS * sizeof(int));
             if (!hEncoder->peakSnap[ch])
-                return 0;
+                return -1;
         }
     }
 
@@ -420,12 +426,13 @@ int faacEncApplyConfig(faacEncStruct* hEncoder,
 
     // reset psymodel
     PsyEnd(hEncoder->psyInfo, hEncoder->numChannels);
-    PsyInit(&hEncoder->gpsyInfo, hEncoder->psyInfo, hEncoder->numChannels,
-			hEncoder->sampleRate, hEncoder->config.aacObjectType == HE_V1);
+    if (!PsyInit(&hEncoder->gpsyInfo, hEncoder->psyInfo, hEncoder->numChannels,
+                 hEncoder->sampleRate, hEncoder->config.aacObjectType == HE_V1))
+        return -1;
 
-	/* load channel_map */
-	for( i = 0; i < MAX_CHANNELS; i++ )
-		hEncoder->config.channel_map[i] = config->channel_map[i];
+    /* load channel_map */
+    for( i = 0; i < MAX_CHANNELS; i++ )
+        hEncoder->config.channel_map[i] = config->channel_map[i];
 
     InitElements(hEncoder->elements, &hEncoder->numElements, (int)hEncoder->numChannels, hEncoder->config.useLfe);
     RefreshLfeMap(hEncoder);
@@ -473,7 +480,7 @@ faacEncHandle faacEncOpen(unsigned long sampleRate,
 
     hEncoder = (faacEncStruct*)AllocMemory(sizeof(faacEncStruct));
     if (!hEncoder) return NULL;
-    SetMemory(hEncoder, 0, sizeof(faacEncStruct));
+    memset(hEncoder, 0, sizeof(faacEncStruct));
 
     hEncoder->numChannels = numChannels;
     hEncoder->sampleRate = sampleRate;
@@ -508,10 +515,12 @@ faacEncHandle faacEncOpen(unsigned long sampleRate,
     InitElements(hEncoder->elements, &hEncoder->numElements, (int)hEncoder->numChannels, (bool)hEncoder->config.useLfe);
     RefreshLfeMap(hEncoder);
 
-	PsyInit(&hEncoder->gpsyInfo, hEncoder->psyInfo, hEncoder->numChannels,
-        hEncoder->sampleRate, hEncoder->config.aacObjectType == HE_V1);
-
-    FilterBankInit(hEncoder);
+    if (!PsyInit(&hEncoder->gpsyInfo, hEncoder->psyInfo, hEncoder->numChannels,
+                 hEncoder->sampleRate, hEncoder->config.aacObjectType == HE_V1)
+        || !FilterBankInit(hEncoder)) {
+        faacEncClose(hEncoder);
+        return NULL;
+    }
 
     TnsInit(hEncoder);
 
@@ -547,11 +556,10 @@ static int appendInputFifo(faacEncStruct *hEncoder, int32_t *inputBuffer,
                 for (i = 0; i < spch; i++) {
                     const uint8_t *src = src_base + (i * numChannels + hEncoder->config.channel_map[channel]) * 3;
 #if WORDS_BIGENDIAN
-                    int32_t s = ((int32_t)src[0] << 16) | ((int32_t)src[1] << 8) | (int32_t)src[2];
+                    int32_t s = read_pcm24(src, true);
 #else
-                    int32_t s = (int32_t)src[0] | ((int32_t)src[1] << 8) | ((int32_t)src[2] << 16);
+                    int32_t s = read_pcm24(src, false);
 #endif
-                    if (s & 0x800000) s |= (int32_t)0xff000000;
                     dst[i] = (1.0f / 256.0f) * (float)s;
                 }
                 break;
@@ -564,6 +572,12 @@ static int appendInputFifo(faacEncStruct *hEncoder, int32_t *inputBuffer,
             case INPUT_FLOAT: {
                 float *src = (float *)inputBuffer + hEncoder->config.channel_map[channel];
                 for (i = 0; i < spch; i++) { dst[i] = (float)*src; src += numChannels; }
+                /* Not audio: silence NaN, Inf and anything past the limit. A
+                 * separate pass because the conditional store keeps the
+                 * compiler from unrolling it. */
+                for (i = 0; i < spch; i++)
+                    if (!(fabsf(dst[i]) < FLOAT_INPUT_LIMIT))
+                        dst[i] = 0.0f;
                 break;
             }
             default: return -1;
@@ -662,7 +676,7 @@ int faacEncClose(faacEncHandle hpEncoder)
             FreeMemory(hEncoder->peakSnap[channel]);
     }
 
-    if (hEncoder->ascCache) free(hEncoder->ascCache);
+    if (hEncoder->ascCache) FreeMemory(hEncoder->ascCache);
 
     if (hEncoder->sbrContext) {
         SbrContextEnd(hEncoder->sbrContext);
@@ -707,19 +721,21 @@ int faacEncEncode(faacEncHandle hpEncoder,
     faacEncStruct* hEncoder = (faacEncStruct*)hpEncoder;
     unsigned int channel;
     int frameBytes;
-    BitStream *bitStream;
+    BitStream bitStream;
 
     CoderInfo *coderInfo = hEncoder->coderInfo;
     unsigned int numChannels = hEncoder->numChannels;
     unsigned int useTns = hEncoder->config.useTns;
     unsigned int shortctl = hEncoder->config.shortctl;
     /* A starved HE core can't afford a long window's scalefactors and
-     * sections; the frequency resolution they buy loses to the bits. */
-    if (hEncoder->config.aacObjectType == HE_V1
+     * sections; the frequency resolution they buy loses to the bits. Only a
+     * bass-dominated frame, where the short windows leak and cost more than a
+     * long one, is let off (PsyBufferUpdate). */
+    bool shortOnly = hEncoder->config.aacObjectType == HE_V1
         && (hEncoder->config.bitRate
             ? hEncoder->config.bitRate < HE_SHORT_ONLY_BITRATE
-            : hEncoder->config.quantqual < HE_SHORT_ONLY_QUANTQUAL))
-        shortctl = SHORTCTL_NOLONG;
+            : hEncoder->config.quantqual < HE_SHORT_ONLY_QUANTQUAL);
+    hEncoder->gpsyInfo.needBass = shortOnly;
     int maxqual = hEncoder->config.outputFormat ? MAXQUALADTS : MAXQUAL;
 
     /* The input FIFO decouples the caller's chunk size from the encoder frame
@@ -841,29 +857,13 @@ int faacEncEncode(faacEncHandle hpEncoder,
     }
 #endif
 
-    /* force block type */
-    if (shortctl == SHORTCTL_NOSHORT)
+    /* force block type; LFE must stay ONLY_LONG_SEQUENCE (ISO/IEC 14496-3) */
+    for (channel = 0; channel < numChannels; channel++)
     {
-		for (channel = 0; channel < numChannels; channel++)
-		{
-			coderInfo[channel].block_type = ONLY_LONG_WINDOW;
-		}
-    }
-    else if ((hEncoder->frameNum <= (LOOKAHEAD_DEPTH + 1)) || (shortctl == SHORTCTL_NOLONG))
-    {
-		for (channel = 0; channel < numChannels; channel++)
-		{
-			coderInfo[channel].block_type = ONLY_SHORT_WINDOW;
-		}
-    }
-
-    /* AAC Filterbank, MDCT with overlap and add */
-    for (channel = 0; channel < numChannels; channel++) {
-        FilterBank(hEncoder,
-            &coderInfo[channel],
-            hEncoder->audioFIFO[channel][FIFO_PAST],
-            hEncoder->audioFIFO[channel][FIFO_CURR],
-            hEncoder->freqBuff[channel]);
+        if (hEncoder->isLfeChannel[channel] || shortctl == SHORTCTL_NOSHORT)
+            coderInfo[channel].block_type = ONLY_LONG_WINDOW;
+        else if ((hEncoder->frameNum <= (LOOKAHEAD_DEPTH + 1)) || (shortctl == SHORTCTL_NOLONG))
+            coderInfo[channel].block_type = ONLY_SHORT_WINDOW;
     }
 
     for (channel = 0; channel < numChannels; channel++) {
@@ -887,6 +887,9 @@ int faacEncEncode(faacEncHandle hpEncoder,
         int r = (el->type == ID_CPE) ? el->channels[1] : -1;
         CoderInfo *a = NULL, *b = NULL;
         float *xa = NULL, *xb = NULL;
+
+        /* AAC Filterbank, MDCT with overlap and add */
+        FilterBankElement(hEncoder, coderInfo, el);
 
         if (coderInfo[l].block_type == ONLY_SHORT_WINDOW)
         {
@@ -1043,15 +1046,14 @@ int faacEncEncode(faacEncHandle hpEncoder,
         }
 
         /* Write the AAC bitstream; the write doubles as the size probe. */
-        bitStream = OpenBitStream(bufferSize, outputBuffer);
-        if (!bitStream)
-            return -1;
+        InitBitStream(&bitStream, outputBuffer, bufferSize);
 
-        if (WriteBitstream(hEncoder, coderInfo, hEncoder->elements, hEncoder->numElements, bitStream) < 0)
+        if (WriteBitstream(hEncoder, coderInfo, hEncoder->elements, hEncoder->numElements, &bitStream) < 0) {
             return -1;
+        }
 
-        /* Close the bitstream and return the number of bytes written */
-        frameBytes = CloseBitStream(bitStream);
+        /* Round the written bits up to complete bytes. */
+        frameBytes = (int)((bitStream.currentBit + 7) >> 3);
         payloadBits = (frameBytes - hdrBytes) * 8;
 
         if (!peakBits || (unsigned long long)payloadBits <= peakBits

@@ -88,7 +88,7 @@ static int WriteICSInfo(BitStream *bs, CoderInfo *coder)
 {
     PutBit(bs, 0, LEN_ICS_RESERV);
     PutBit(bs, coder->block_type, LEN_WIN_SEQ);
-    PutBit(bs, 0, LEN_WIN_SH); /* window_shape: sine */
+    PutBit(bs, coder->window_shape, LEN_WIN_SH);
     int bits = LEN_ICS_RESERV + LEN_WIN_SEQ + LEN_WIN_SH;
 
     if (coder->block_type == ONLY_SHORT_WINDOW) {
@@ -202,14 +202,18 @@ int WriteElement(BitStream *bs, AACElement *elem, CoderInfo *coder)
 
             if (elem->common_window) {
                 bits += WriteICSInfo(bs, &coder[elem->channels[0]]);
-                PutBit(bs, elem->msInfo.is_present, LEN_MASK_PRES);
-                if (elem->msInfo.is_present == 1) {
-                    int n = coder[elem->channels[0]].groups.n * coder[elem->channels[0]].sfbn;
-                    for (int i = 0; i < n; i++) PutBit(bs, elem->msInfo.ms_used[i], LEN_MASK);
-                }
+                /* The quantizer can revert M/S bands (e.g. to PNS) after the
+                 * stereo decision, so signal the mask only if a band still uses it. */
+                int n = coder[elem->channels[0]].groups.n * coder[elem->channels[0]].sfbn;
+                int first = 0;
+                while (first < n && !elem->msInfo.ms_used[first]) first++;
+                bool msPresent = first < n;
+                PutBit(bs, msPresent, LEN_MASK_PRES);
                 bits += LEN_MASK_PRES;
-                if (elem->msInfo.is_present == 1)
-                    bits += coder[elem->channels[0]].groups.n * coder[elem->channels[0]].sfbn * LEN_MASK;
+                if (msPresent) {
+                    for (int i = 0; i < n; i++) PutBit(bs, elem->msInfo.ms_used[i], LEN_MASK);
+                    bits += n * LEN_MASK;
+                }
             }
             bits += WriteICS(bs, &coder[elem->channels[0]], elem->common_window);
             bits += WriteICS(bs, &coder[elem->channels[1]], elem->common_window);

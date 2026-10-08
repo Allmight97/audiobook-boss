@@ -20,6 +20,7 @@
 
 #include "sbr.h"
 #include "sbr_tables.h"
+#include "sbr_huff_tables.h"
 #include "util.h"
 #include "sbr_analysis.h"
 #include "resample.h"
@@ -140,7 +141,7 @@ SBRInfo *SbrInit(int channels, int sampleRate, unsigned long bitRate)
 {
     SBRInfo *sbr = (SBRInfo *)AllocMemory(sizeof(SBRInfo));
     if (!sbr) return NULL;
-    SetMemory(sbr, 0, sizeof(SBRInfo));
+    memset(sbr, 0, sizeof(SBRInfo));
     sbr->sbrPresent = 1;
     sbr->numChannels = channels;
     sbr->sampleRate = sampleRate;
@@ -171,8 +172,7 @@ void SbrUpdate(SBRInfo *sbr, unsigned long bitRate)
     sbr->bs_start_freq = 15;
     /* Log-spaced envelope bands, fewer per octave while bits are scarce:
      * what they save, rate control hands to the core. */
-    sbr->bs_freq_scale = (rate_per_ch >= SBR_FREQ_SCALE_FINE_BPS) ? 1
-                       : (rate_per_ch >= SBR_FREQ_SCALE_COARSE_BPS) ? 3 : 2;
+    sbr->bs_freq_scale = (rate_per_ch >= SBR_FREQ_SCALE_COARSE_BPS) ? 3 : 2;
     sbr->bs_alter_scale = 0; /* only warps a two-region table; see build_freq_table */
     sbr->bs_freq_res = 1; /* HIGH resolution */
     sbr->bs_xover_band = 0; /* every master band is an SBR band; no low-res split */
@@ -197,7 +197,7 @@ void SbrEnd(SBRInfo *sbr)
  * legal payload: numEnvelopes == 0 encodes no grid at all. */
 static void sbr_frame_silence(SbrFrameData *fd)
 {
-    SetMemory(fd, 0, sizeof(*fd));
+    memset(fd, 0, sizeof(*fd));
     fd->numEnvelopes = 1;
     fd->eff_amp_res  = 0;
     fd->frameClass   = SBR_FRAME_CLASS_FIXFIX;
@@ -211,7 +211,7 @@ SBRContext *SbrContextInit(int channels)
 {
     SBRContext *sbrCtx = (SBRContext *)AllocMemory(sizeof(SBRContext));
     if (sbrCtx) {
-        SetMemory(sbrCtx, 0, sizeof(SBRContext));
+        memset(sbrCtx, 0, sizeof(SBRContext));
         sbrCtx->resampler = ResampleInit(channels);
         if (!sbrCtx->resampler) {
             FreeMemory(sbrCtx);
@@ -249,7 +249,7 @@ int SbrContextGetASC(SBRContext *sbrCtx, int coreSRIdx, int channels, unsigned c
     const int signalPS = (channels == 1);
     const unsigned long size = signalPS ? 7 : 5;
 
-    unsigned char *buf = (unsigned char *)malloc(size);
+    unsigned char *buf = (unsigned char *)AllocMemory(size);
     if (buf == NULL) return -3;
 
     BitStream bs;
@@ -285,13 +285,14 @@ unsigned int SbrContextGetXOverBandwidth(SBRContext *sbrCtx)
                            (2 * SBR_QMF_BANDS_64));
 }
 
-void SbrContextUpdateConfig(SBRContext *sCtx, int channels, unsigned long bitrate)
+int SbrContextUpdateConfig(SBRContext *sCtx, int channels, unsigned long bitrate)
 {
-    if (!sCtx) return;
+    if (!sCtx) return 0;
     if (!sCtx->sbrInfo)
         sCtx->sbrInfo = SbrInit(channels, sCtx->fullSampleRate, bitrate);
     else
         SbrUpdate(sCtx->sbrInfo, bitrate);
+    return sCtx->sbrInfo != NULL;
 }
 
 void SbrContextProcessFrame(SBRContext *sCtx, int numChannels, const bool *isLfe, int realPerCh, int flushTick, float *inputFifo[MAX_CHANNELS], float *heHalfRate[MAX_CHANNELS])

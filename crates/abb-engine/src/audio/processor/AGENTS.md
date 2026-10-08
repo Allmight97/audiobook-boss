@@ -61,6 +61,9 @@ those decisions to it.
   writes, requested settings, and monotonic/wall-clock timing. Records take one
   write lock and append to the file `ABB_ENCODING_LOG` names. Unset or empty
   disables the records. Unavailable opened settings stay explicitly `unknown`.
+- Each input's decoder logs `decode_open` and, when it closes,
+  `decode_summary` (packets, samples, decode speed; FAAD3 adds its trims and
+  concealment counts). The dev-log summary shows both lines.
 - Finalization emits `audio_output` from a read-only probe of the completed
   staged file, before publication. These are observed file properties, not
   encoder configuration; unavailable diagnostics never change processing
@@ -71,17 +74,26 @@ those decisions to it.
   inside `encoder/`. Declare its output cleanup guard before opening the session
   so handles close before cleanup removes a failed output.
 
-## FAAC file timing
+## FAAC and HE-AAC file timing
 
 - `encoder/faac.rs` owns requested parameters and resolved configuration. Its
   opened profile determines frame size, mux profile, priming, postroll policy,
   and encoding-tool tag; profile Auto must work for both LC and HE.
-- `faac_timing` owns HE core priming in MP4 and the native decoder's PCM
-  interval. Its encoding-tool tag identifies the timing convention of
-  ABB-produced HE files; retain each recognized convention when upgrading
-  upstream priming. LC uses a distinct tag and its returned encoder delay.
-  Apply the HE interval only to the recognized HE provenance.
-- HE re-import reads all FAAC access units, including decoder postroll, and trims
+- `he_timing` owns the decoded PCM interval of HE-AAC MP4 inputs. ABB's
+  FAAC HE files are recognized by their encoding-tool tag; keep each recognized
+  convention (2079, 2080) when upgrading upstream priming. LC uses a distinct
+  tag and its returned encoder delay. A third-party HE or HE v2 file gets a
+  window only when it declares iTunSMPB. Apple's encoder and upstream's `faac`
+  frontend both leave the SBR delay out of that priming. HE files with only an
+  edit list, or with no gapless metadata (FFmpeg's muxer with Apple's encoder),
+  keep FFmpeg's trimming; nothing in them says which convention they follow.
+- Who removes SBR delay (`SbrDelayOwner`): FFmpeg's native HE decoder emits it
+  untrimmed, so the window adds 962; FAAD3 trims its own reported delay, so
+  its window holds priming alone.
+- A windowed input reads all access units (`ignore_editlist`), because an edit
+  list can drop the final unit that holds the delayed tail. The window trims
   at source sample rate before preview, resampling, or concatenation, through
-  packet skip metadata. Encoder selection does not change the source's
-  playable audio.
+  packet skip metadata that replaces what FFmpeg derived from iTunSMPB.
+  Encoder selection does not change the source's playable audio.
+- Packet-copy joins refuse only ABB's FAAC HE files (`is_abb_faac_he`); a
+  third-party HE file with iTunSMPB stays preservable as before.

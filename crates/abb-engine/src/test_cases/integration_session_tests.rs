@@ -735,6 +735,146 @@ fn collision_review(desk: &Desk) -> abb_engine::session::CollisionReview {
 }
 
 #[tokio::test]
+async fn the_aac_decoder_setting_chooses_faad3_for_import_and_the_export_completes() {
+    use abb_engine::app_settings::{SettingsIntent, SettingsOutcome};
+    use abb_engine::audio::AacDecoder;
+
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 2.0)
+        .await;
+    let chosen = desk
+        .engine
+        .settings_dispatch(SettingsIntent::SetAacDecoder {
+            decoder: AacDecoder::Faad,
+        })
+        .await;
+    assert_eq!(chosen.outcome, SettingsOutcome::Applied);
+
+    desk.import(&book).await;
+    let titles = desk.engine.session_snapshot().titles.expect("titles part");
+    assert_eq!(
+        titles.files[0].selected_decoder.as_deref(),
+        Some("FAAD3 (bundled)")
+    );
+
+    let library = desk.root.path().join("out");
+    fs::create_dir_all(&library).expect("create output folder");
+    desk.send(SessionIntent::SetOutputDirectory {
+        directory: library.to_string_lossy().into_owned(),
+    })
+    .await;
+    desk.send(SessionIntent::Submit).await;
+    let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(&desk) else {
+        panic!("submitted: {:?}", submission(&desk));
+    };
+    desk.wait_until("the export finishes", |desk| {
+        finished(desk.export_status(&operation_id))
+    })
+    .await;
+    assert_eq!(
+        desk.export_status(&operation_id),
+        WorkOperationStatus::Completed
+    );
+}
+
+/// Exports every listed title into `folder` and returns the files it holds.
+async fn export_into(desk: &Desk, folder: &Path) -> Vec<PathBuf> {
+    fs::create_dir_all(folder).expect("create output folder");
+    desk.send(SessionIntent::SetOutputDirectory {
+        directory: folder.to_string_lossy().into_owned(),
+    })
+    .await;
+    desk.send(SessionIntent::Submit).await;
+    if matches!(submission(desk), Some(SubmissionStatus::ReviewRequired)) {
+        return Vec::new();
+    }
+    finish_export(desk).await;
+    walk(folder)
+}
+
+async fn finish_export(desk: &Desk) {
+    let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(desk) else {
+        panic!("submitted: {:?}", submission(desk));
+    };
+    desk.wait_until("the export finishes", |desk| {
+        finished(desk.export_status(&operation_id))
+    })
+    .await;
+    assert_eq!(
+        desk.export_status(&operation_id),
+        WorkOperationStatus::Completed
+    );
+}
+
+/// An export runs under the decoder setting in effect when it was accepted,
+/// even if the setting changes while its collision review is open. FFmpeg
+/// and FAAD3 decode about 1 LSB apart, so each leaves its own output.
+#[tokio::test]
+async fn a_decoder_change_during_collision_review_does_not_change_the_accepted_export() {
+    use super::integration_media_execution_tests::decode_pcm_f32;
+    use abb_engine::app_settings::SettingsIntent;
+    use abb_engine::audio::AacDecoder;
+    use abb_engine::output_artifact::CollisionPolicy;
+
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    desk.import(&book).await;
+    let title_ids = desk
+        .engine
+        .session_snapshot()
+        .titles
+        .expect("titles part")
+        .files
+        .into_iter()
+        .map(|file| file.input_id)
+        .collect();
+    // Encode, so the export decodes its source instead of copying packets.
+    desk.send(SessionIntent::SetTitleAudio {
+        title_ids,
+        edit: AudioEdit::Intent(AudioIntent::Encode),
+    })
+    .await;
+    let set_decoder = |decoder| {
+        desk.engine
+            .settings_dispatch(SettingsIntent::SetAacDecoder { decoder })
+    };
+    let ffmpeg_dir = desk.root.path().join("ffmpeg");
+    let faad_dir = desk.root.path().join("faad");
+    let ffmpeg = export_into(&desk, &ffmpeg_dir).await;
+    set_decoder(AacDecoder::Faad).await;
+    let faad = export_into(&desk, &faad_dir).await;
+    assert!(
+        decode_pcm_f32(&ffmpeg[0]) != decode_pcm_f32(&faad[0]),
+        "the decoders must leave distinguishable exports"
+    );
+
+    assert!(
+        export_into(&desk, &faad_dir).await.is_empty(),
+        "review held"
+    );
+    set_decoder(AacDecoder::Auto).await;
+    let review_id = collision_review(&desk).review_id;
+    desk.send(SessionIntent::ChooseCollisionPolicy {
+        review_id,
+        policy: CollisionPolicy::RenameNew,
+    })
+    .await;
+    finish_export(&desk).await;
+
+    let reviewed = walk(&faad_dir)
+        .into_iter()
+        .find(|path| *path != faad[0])
+        .expect("renamed export");
+    assert!(
+        decode_pcm_f32(&reviewed) == decode_pcm_f32(&faad[0]),
+        "the reviewed export must decode with FAAD3, the setting it was accepted under"
+    );
+}
+
+#[tokio::test]
 async fn submit_exports_the_session_reviews_a_collision_and_previews() {
     use abb_engine::output_artifact::CollisionPolicy;
 

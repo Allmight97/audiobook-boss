@@ -27,11 +27,44 @@
  * cos/sin(freq*(i+1/8)) for both block sizes, short slice first. Built once
  * per process in double, rounded to float when stored, and shared read-only
  * by every handle. A twiddle table breaks the serial cos/sin recurrence that
- * kept the MDCT twiddle loops from vectorizing, and is more accurate. */
-static float sin_window_long[BLOCK_LEN_LONG];
+ * kept the MDCT twiddle loops from vectorizing, and is more accurate. The two
+ * long slopes sit in one array indexed by ics_info window_shape, so picking a
+ * window is address arithmetic, not a pointer select the compiler would unswitch
+ * the windowing loops on. */
+static float window_long[2][BLOCK_LEN_LONG];
 static float sin_window_short[BLOCK_LEN_SHORT];
 static fftfloat mdct_cos[FFT_TBL_LEN];
 static fftfloat mdct_sin[FFT_TBL_LEN];
+
+/* Kaiser-Bessel-derived window, alpha 4, rising half, ISO/IEC 14496-3
+ * 4.6.11.3.2: the cumulative Kaiser kernel, normalised, under a square root.
+ * The kernel is evaluated once into w[] and accumulated in place; its last
+ * point (v = 1) is I0(0) = 1. With v = 2i/n - 1, 1 - v^2 = 4i(n - i)/n^2. */
+static void kbd_window(float *w, int n)
+{
+    const double c = 16.0 * M_PI_DOUBLE * M_PI_DOUBLE / ((double)n * n);
+    double sum = 1.0, run = 0.0;
+    int i;
+
+    for (i = 0; i < n; i++) {
+        double q = c * (i * (n - i));
+        double term = 1.0, k = 1.0;
+        int m;
+
+        for (m = 1; term > k * 1e-17; m++) {
+            term *= q / ((double)m * m);
+            k += term;
+        }
+        w[i] = (float)k;
+        sum += k;
+    }
+    for (i = 0; i < n; i++) {
+        run += w[i];
+        /* fabs: the quotient is never negative, which tells the compiler sqrt
+         * needs no errno path (a libm call inside the loop, with its spills). */
+        w[i] = (float)sqrt(fabs(run / sum));
+    }
+}
 
 void FilterBankTablesInit(void)
 {
@@ -40,12 +73,14 @@ void FilterBankTablesInit(void)
 
     /* One loop body for both sizes: two constant-argument calls would be
      * cloned and unrolled separately under LTO. */
+    kbd_window(window_long[KBD_WINDOW], BLOCK_LEN_LONG);
+
     for (t = 0; t < 2; t++)
     {
         int logm = logms[t];
         int size = 1 << logm;
         int halfLen = 2 * size;
-        float *win = (logm == FFT_LOGM_SHORT) ? sin_window_short : sin_window_long;
+        float *win = (logm == FFT_LOGM_SHORT) ? sin_window_short : window_long[SINE_WINDOW];
         int off = FFT_TBL_OFFSET(logm);
         double freq = 2.0 * M_PI_DOUBLE / (double)(4 * size);
         int i;
@@ -62,16 +97,17 @@ void FilterBankTablesInit(void)
     }
 }
 
-void FilterBankInit(faacEncStruct* hEncoder)
+int FilterBankInit(faacEncStruct* hEncoder)
 {
     unsigned int channel;
 
     for (channel = 0; channel < hEncoder->numChannels; channel++) {
         hEncoder->freqBuff[channel] = (float*)AllocMemory(2*FRAME_LEN*sizeof(float));
-        if (!hEncoder->freqBuff[channel]) return;
+        if (!hEncoder->freqBuff[channel]) return 0;
     }
 
     hEncoder->gpsyInfo.sharedWorkBuffLong = (float*)AllocMemory(2*BLOCK_LEN_LONG*sizeof(float));
+    return hEncoder->gpsyInfo.sharedWorkBuffLong != NULL;
 }
 
 void FilterBankEnd(faacEncStruct* hEncoder)
@@ -117,17 +153,19 @@ static inline void CopyFlat(float * restrict dst, const float * restrict src, in
 
 static inline void ZeroFlat(float * restrict dst, int len)
 {
-    SetMemory(dst, 0, len * sizeof(float));
+    memset(dst, 0, len * sizeof(float));
 }
 
-void FilterBank(faacEncStruct* hEncoder,
-                CoderInfo *coderInfo,
-                float * restrict p_prev_data,
-                float * restrict p_in_data,
-                float * restrict p_out_mdct)
+/* Left long half is windowed with the previous frame's shape and the right
+ * with this frame's, as the decoder does; short slopes are always sine. */
+static void WindowAndMdct(faacEncStruct* hEncoder, int block_type, int lshape, int rshape,
+                          const float * restrict p_prev_data,
+                          const float * restrict p_in_data,
+                          float * restrict p_out_mdct)
 {
     float * restrict overlapBuf = hEncoder->gpsyInfo.sharedWorkBuffLong;
-    int block_type = coderInfo->block_type;
+    const float *winL = window_long[lshape];
+    const float *winR = window_long[rshape];
     int k;
 
     /* Assemble the 2048-sample overlap window from the previous and
@@ -137,14 +175,14 @@ void FilterBank(faacEncStruct* hEncoder,
 
     switch (block_type) {
     case ONLY_LONG_WINDOW: {
-        ApplyWindowDirect(p_out_mdct, overlapBuf, sin_window_long, BLOCK_LEN_LONG);
-        ApplyWindowReverse(p_out_mdct+BLOCK_LEN_LONG, overlapBuf+BLOCK_LEN_LONG, sin_window_long, BLOCK_LEN_LONG);
+        ApplyWindowDirect(p_out_mdct, overlapBuf, winL, BLOCK_LEN_LONG);
+        ApplyWindowReverse(p_out_mdct+BLOCK_LEN_LONG, overlapBuf+BLOCK_LEN_LONG, winR, BLOCK_LEN_LONG);
         MDCT(p_out_mdct, 2*BLOCK_LEN_LONG, hEncoder->gpsyInfo.sharedWorkBuffLong);
         break;
     }
 
     case LONG_SHORT_WINDOW: {
-        ApplyWindowDirect(p_out_mdct, overlapBuf, sin_window_long, BLOCK_LEN_LONG);
+        ApplyWindowDirect(p_out_mdct, overlapBuf, winL, BLOCK_LEN_LONG);
         CopyFlat(p_out_mdct+BLOCK_LEN_LONG, overlapBuf+BLOCK_LEN_LONG, NFLAT_LS);
         ApplyWindowReverse(p_out_mdct+BLOCK_LEN_LONG+NFLAT_LS, overlapBuf+BLOCK_LEN_LONG+NFLAT_LS, sin_window_short, BLOCK_LEN_SHORT);
         ZeroFlat(p_out_mdct+BLOCK_LEN_LONG+NFLAT_LS+BLOCK_LEN_SHORT, NFLAT_LS);
@@ -156,7 +194,7 @@ void FilterBank(faacEncStruct* hEncoder,
         ZeroFlat(p_out_mdct, NFLAT_LS);
         ApplyWindowDirect(p_out_mdct+NFLAT_LS, overlapBuf+NFLAT_LS, sin_window_short, BLOCK_LEN_SHORT);
         CopyFlat(p_out_mdct+NFLAT_LS+BLOCK_LEN_SHORT, overlapBuf+NFLAT_LS+BLOCK_LEN_SHORT, NFLAT_LS);
-        ApplyWindowReverse(p_out_mdct+BLOCK_LEN_LONG, overlapBuf+BLOCK_LEN_LONG, sin_window_long, BLOCK_LEN_LONG);
+        ApplyWindowReverse(p_out_mdct+BLOCK_LEN_LONG, overlapBuf+BLOCK_LEN_LONG, winR, BLOCK_LEN_LONG);
         MDCT(p_out_mdct, 2*BLOCK_LEN_LONG, hEncoder->gpsyInfo.sharedWorkBuffLong);
         break;
     }
@@ -176,6 +214,40 @@ void FilterBank(faacEncStruct* hEncoder,
         }
         break;
     }
+    }
+}
+
+/* The LC core's long windows are Kaiser-Bessel-derived. A sine window's
+ * sidelobes spread a loud, stationary low-frequency tone across the whole
+ * spectrum as a smooth skirt. A clean source's own floor is far below it, so
+ * the skirt is the loudest thing above the bass, and it can only be coded or
+ * discarded: discarded, it comes back as broadband haze (and a smooth skirt is
+ * what TNS fits at absurd gain). A KBD window falls off far faster, so the skirt
+ * is not there. Elsewhere the two shapes trade resolution against leakage about
+ * evenly, so no content test is made. The HE core keeps sine long windows: KBD
+ * there costs more above 10 kHz than it saves below.
+ *
+ * Every channel's spectrum ends up in freqBuff. Both channels of an element
+ * share one shape (common_window carries a single ics_info). Shapes follow the
+ * decoder's rule: the left long half uses the previous frame's shape, the right
+ * half this frame's. A frame that ends in a short slope stays sine, since short
+ * windows are always sine here. */
+void FilterBankElement(faacEncStruct* hEncoder, CoderInfo *coderInfo, const AACElement *el)
+{
+    int nch = (el->type == ID_CPE) ? 2 : 1;
+    int bt = coderInfo[el->channels[0]].block_type;
+    int prev = coderInfo[el->channels[0]].window_shape;
+    int shape = (el->type != ID_LFE) && hEncoder->config.aacObjectType != HE_V1 &&
+                (bt == ONLY_LONG_WINDOW || bt == SHORT_LONG_WINDOW) ? KBD_WINDOW : SINE_WINDOW;
+    int c;
+
+    for (c = 0; c < nch; c++) {
+        int ch = el->channels[c];
+
+        WindowAndMdct(hEncoder, coderInfo[ch].block_type, prev, shape,
+                      hEncoder->audioFIFO[ch][FIFO_PAST],
+                      hEncoder->audioFIFO[ch][FIFO_CURR], hEncoder->freqBuff[ch]);
+        coderInfo[ch].window_shape = shape;
     }
 }
 
