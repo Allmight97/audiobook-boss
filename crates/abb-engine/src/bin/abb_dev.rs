@@ -449,7 +449,7 @@ async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
     }
 }
 
-async fn run(options: Options, state_dir: PathBuf) -> Result<(), String> {
+async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, String> {
     let engine = Engine::start(EngineConfig {
         cache_dir: state_dir.join("cache"),
         config_dir: state_dir.join("config"),
@@ -492,10 +492,25 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<(), String> {
     } else {
         print_session(&session);
     }
-    if options.save {
-        save_written(&session)?;
+    if nothing_imported(&session) {
+        return Ok(AbbDevStatus::NothingImported);
     }
-    Ok(())
+    if options.save {
+        if let Err(message) = save_written(&session) {
+            return Ok(AbbDevStatus::SaveFailed(message));
+        }
+    }
+    if session
+        .output
+        .as_ref()
+        .and_then(|output| output.collision_review.as_ref())
+        .is_some()
+    {
+        return Ok(AbbDevStatus::PendingReview(
+            "a collision review is still pending".into(),
+        ));
+    }
+    Ok(AbbDevStatus::Success)
 }
 
 /// A Save the engine accepted can still fail to write; that fails the run.
@@ -517,34 +532,90 @@ fn save_written(session: &SessionUpdate) -> Result<(), String> {
     }
 }
 
-#[tokio::main]
-async fn main() -> ExitCode {
-    if std::env::args().any(|arg| arg == "--help" || arg == "-h") {
-        print!("{USAGE}");
-        return ExitCode::SUCCESS;
-    }
-    let options = match parse(std::env::args().skip(1)) {
-        Ok(options) => options,
-        Err(message) => {
-            eprintln!("abb-dev: {message}\n\n{USAGE}");
-            return ExitCode::from(2);
-        }
-    };
-    let temporary = options.state_dir.is_none();
-    let state_dir = options
-        .state_dir
-        .clone()
-        .unwrap_or_else(|| std::env::temp_dir().join(format!("abb-dev-{}", std::process::id())));
+fn nothing_imported(session: &SessionUpdate) -> bool {
+    session
+        .titles
+        .as_ref()
+        .is_none_or(|titles| titles.files.is_empty())
+}
 
-    let result = run(options, state_dir.clone()).await;
-    if temporary {
-        let _ = std::fs::remove_dir_all(&state_dir);
+/// Every host outcome abb-dev can finish with.
+enum AbbDevStatus {
+    Success,
+    Help,
+    Usage(String),
+    NothingImported,
+    SaveFailed(String),
+    PendingReview(String),
+    Failed(String),
+}
+
+fn classify_failed(message: String) -> AbbDevStatus {
+    if message.contains("choose --on-collision") {
+        AbbDevStatus::PendingReview(message)
+    } else if message.starts_with("Save failed")
+        || message.starts_with("Save was refused")
+        || message.starts_with("Save could not write")
+    {
+        AbbDevStatus::SaveFailed(message)
+    } else {
+        AbbDevStatus::Failed(message)
     }
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(message) => {
+}
+
+/// One exhaustive map from host outcome to process exit code.
+fn exit_code(status: AbbDevStatus) -> ExitCode {
+    match status {
+        AbbDevStatus::Help => {
+            print!("{USAGE}");
+            ExitCode::SUCCESS
+        }
+        AbbDevStatus::Success => ExitCode::SUCCESS,
+        AbbDevStatus::Usage(message) => {
+            eprintln!("abb-dev: {message}\n\n{USAGE}");
+            ExitCode::from(2)
+        }
+        AbbDevStatus::NothingImported => {
+            eprintln!("abb-dev: nothing imported");
+            ExitCode::FAILURE
+        }
+        AbbDevStatus::SaveFailed(message) => {
+            eprintln!("abb-dev: {message}");
+            ExitCode::FAILURE
+        }
+        AbbDevStatus::PendingReview(message) => {
+            eprintln!("abb-dev: {message}");
+            ExitCode::FAILURE
+        }
+        AbbDevStatus::Failed(message) => {
             eprintln!("abb-dev: {message}");
             ExitCode::FAILURE
         }
     }
+}
+
+#[tokio::main]
+async fn main() -> ExitCode {
+    let status = if std::env::args().any(|arg| arg == "--help" || arg == "-h") {
+        AbbDevStatus::Help
+    } else {
+        match parse(std::env::args().skip(1)) {
+            Err(message) => AbbDevStatus::Usage(message),
+            Ok(options) => {
+                let temporary = options.state_dir.is_none();
+                let state_dir = options.state_dir.clone().unwrap_or_else(|| {
+                    std::env::temp_dir().join(format!("abb-dev-{}", std::process::id()))
+                });
+                let status = match run(options, state_dir.clone()).await {
+                    Ok(status) => status,
+                    Err(message) => classify_failed(message),
+                };
+                if temporary {
+                    let _ = std::fs::remove_dir_all(&state_dir);
+                }
+                status
+            }
+        }
+    };
+    exit_code(status)
 }

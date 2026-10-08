@@ -141,6 +141,24 @@ fn the_developer_tool_fails_when_a_save_cannot_write() {
 }
 
 #[test]
+fn the_developer_tool_exits_nonzero_when_importing_an_empty_directory() {
+    let root = tempfile::TempDir::new().expect("state root");
+    let empty = root.path().join("empty");
+    std::fs::create_dir(&empty).expect("empty import dir");
+    let result = Command::new(env!("CARGO_BIN_EXE_abb-dev"))
+        .arg(&empty)
+        .args(["--json", "--state-dir"])
+        .arg(root.path().join("tool-state"))
+        .output()
+        .expect("run developer host");
+    assert!(
+        !result.status.success(),
+        "importing an empty directory must fail the run: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[test]
 fn the_developer_tool_exports_with_the_edited_tags() {
     let root = tempfile::TempDir::new().expect("state root");
     let source = book(root.path());
