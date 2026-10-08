@@ -408,7 +408,7 @@ describe('buildTauriApp', () => {
 		const { repoRoot } = createRepoFixture();
 		const sidecarDir = path.join(repoRoot, 'src-tauri/binaries');
 		mkdirSync(sidecarDir, { recursive: true });
-		writeFileSync(resolveAaxcleanHelperPaths(repoRoot).sidecarPath, 'existing helper');
+		writeFileSync(resolveAaxcleanHelperPaths(repoRoot).sidecarPath, Buffer.alloc(1_000_001, 1));
 		const calls: Array<{ env?: NodeJS.ProcessEnv }> = [];
 		const commandRunner = ((
 			command: string,

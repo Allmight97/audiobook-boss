@@ -571,6 +571,7 @@ fn assert_matches_source(output: &Path, source: &Path) {
     }
 }
 
+#[derive(Debug)]
 struct MaterializeOut {
     _root: TempDir,
     output: PathBuf,
