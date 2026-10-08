@@ -102,15 +102,16 @@ lane_frontend() {
 
 lane_core() {
 	require_core
+	cargo fmt --all -- --check
 	bash scripts/check-rust-tiers.sh
 	bash scripts/check-rust-complexity.sh
-	cargo fmt --all -- --check
 	cargo test --locked "${core_crates[@]}"
 	cargo clippy --locked "${core_crates[@]}" --all-targets -- -D warnings
 }
 
 lane_engine() {
 	require_rust
+	cargo fmt --all -- --check
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
 		--skip test_cases::integration_media --skip test_cases::integration_decrypt
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
@@ -120,12 +121,14 @@ lane_engine() {
 
 lane_media() {
 	require_rust
+	cargo fmt --all -- --check
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
 		test_cases::integration_media
 }
 
 lane_host() {
 	require_rust
+	cargo fmt --all -- --check
 	cargo test --locked -p audiobook-boss --features bundled-ffmpeg
 	bash scripts/check-generated-bindings.sh --mode verify
 	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg --all-targets -- -D warnings
@@ -133,6 +136,7 @@ lane_host() {
 
 lane_decrypt() {
 	require_rust
+	cargo fmt --all -- --check
 	dotnet test tools/abb-aaxclean-helper/tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj \
 		--configuration Release --nologo
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
@@ -145,6 +149,7 @@ lane_apple() {
 		return 0
 	fi
 	require_rust
+	cargo fmt --all -- --check
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- apple
 }
 
