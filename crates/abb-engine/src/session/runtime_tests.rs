@@ -275,12 +275,24 @@ impl Rig {
         self.session.dispatch(intent).await.outcome
     }
 
+    fn title_id(&self, index: usize) -> String {
+        self.session
+            .snapshot()
+            .titles
+            .expect("titles")
+            .files
+            .get(index)
+            .expect("title")
+            .input_id
+            .clone()
+    }
+
     async fn select(&self, indices: &[usize]) {
         self.send(SessionIntent::ClearSelection).await;
         for index in indices {
             let outcome = self
                 .send(SessionIntent::SelectFile {
-                    index: *index,
+                    title_id: self.title_id(*index),
                     modifiers: SelectionModifiers {
                         multi: true,
                         range: false,
@@ -760,6 +772,105 @@ async fn an_unknown_result_index_changes_nothing() {
     assert_eq!(rig.title_shown(), "ALPHA");
 }
 
+#[tokio::test]
+async fn an_unknown_select_file_title_id_changes_nothing() {
+    let rig = rig();
+    rig.load(&["alpha", "beta"]);
+    rig.select(&[0]).await;
+    rig.send(SessionIntent::SetField {
+        field: MetadataField::Date,
+        value: "soon".to_string(),
+    })
+    .await;
+    let before = rig.selected();
+
+    let outcome = rig
+        .send(SessionIntent::SelectFile {
+            title_id: "nobody".into(),
+            modifiers: SelectionModifiers::default(),
+        })
+        .await;
+
+    assert_eq!(outcome, SessionOutcome::Applied);
+    assert_eq!(rig.selected(), before);
+    assert_eq!(rig.title_shown(), "ALPHA");
+}
+
+#[tokio::test]
+async fn a_select_file_begun_after_a_reorder_still_targets_the_same_title() {
+    let rig = rig();
+    rig.load(&["alpha", "beta", "gamma"]);
+    // beta is at index 1. Reorder first so that index would now name gamma.
+    let reorder = rig.session.begin(SessionIntent::ReorderFiles {
+        title_id: "alpha".into(),
+        to: 2,
+    });
+    let select = rig.session.begin(SessionIntent::SelectFile {
+        title_id: "beta".into(),
+        modifiers: SelectionModifiers::default(),
+    });
+    reorder.finish().await;
+    select.finish().await;
+
+    let titles = rig.session.snapshot().titles.expect("titles");
+    assert_eq!(
+        titles
+            .files
+            .iter()
+            .map(|file| file.input_id.as_str())
+            .collect::<Vec<_>>(),
+        ["beta", "gamma", "alpha"]
+    );
+    assert_eq!(
+        rig.selected()
+            .into_iter()
+            .map(|index| titles.files[index].input_id.as_str())
+            .collect::<Vec<_>>(),
+        ["beta"]
+    );
+}
+
+#[tokio::test]
+async fn range_selection_resolves_anchor_and_target_by_id_after_a_reorder() {
+    let rig = rig();
+    rig.load(&["alpha", "beta", "gamma", "delta"]);
+    rig.send(SessionIntent::SelectFile {
+        title_id: "beta".into(),
+        modifiers: SelectionModifiers::default(),
+    })
+    .await;
+    rig.send(SessionIntent::ReorderFiles {
+        title_id: "alpha".into(),
+        to: 3,
+    })
+    .await;
+    rig.send(SessionIntent::SelectFile {
+        title_id: "delta".into(),
+        modifiers: SelectionModifiers {
+            multi: false,
+            range: true,
+        },
+    })
+    .await;
+
+    let titles = rig.session.snapshot().titles.expect("titles");
+    assert_eq!(
+        titles
+            .files
+            .iter()
+            .map(|file| file.input_id.as_str())
+            .collect::<Vec<_>>(),
+        ["beta", "gamma", "delta", "alpha"]
+    );
+    assert_eq!(
+        rig.selected()
+            .into_iter()
+            .map(|index| titles.files[index].input_id.as_str())
+            .collect::<Vec<_>>(),
+        ["beta", "gamma", "delta"]
+    );
+}
+
 // ---- Intents and what the host is told ----
 
 #[tokio::test]
@@ -794,7 +905,7 @@ async fn a_rejected_selection_reports_why_and_leaves_the_selection() {
 
     let outcome = rig
         .send(SessionIntent::SelectFile {
-            index: 1,
+            title_id: rig.title_id(1),
             modifiers: SelectionModifiers::default(),
         })
         .await;
@@ -901,7 +1012,7 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
     // immediate effect applies as it begins; their remaining work is
     // finished in the opposite order.
     let select = rig.session.begin(SessionIntent::SelectFile {
-        index: 1,
+        title_id: rig.title_id(1),
         modifiers: SelectionModifiers::default(),
     });
     let edit = rig.session.begin(SessionIntent::SetField {

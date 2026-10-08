@@ -69,7 +69,8 @@ one host attachment.
   dropping a Blank.
 - **Titles.** A title is one or more ordered sources and keeps its identity
   (`input_id`) through reorder, sort, grouping, and separation. Removal names
-  that identity, so a repeated click cannot remove the next title. Drafts for
+  that identity, so a repeated click cannot remove the next title. Selection
+  names that identity, so a queued reorder cannot retarget a click. Drafts for
   hidden sources survive grouping, and a grouped title's draft is kept for its
   output and never written into a source.
 - **Import.** One import runs at a time, in the order the imports were accepted

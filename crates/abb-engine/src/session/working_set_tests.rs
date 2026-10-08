@@ -121,6 +121,26 @@ fn selection_supports_single_toggle_and_range() {
 }
 
 #[test]
+fn an_unknown_select_title_id_changes_nothing() {
+    let mut set = set_with(&["a", "b"]);
+    set.select_title("a", NO_MODIFIERS);
+    set.select_title("nobody", NO_MODIFIERS);
+    assert_eq!(selected_names(&set), ["a"]);
+    assert_eq!(set.selection(0).selected_anchor, Some(0));
+}
+
+#[test]
+fn range_selection_resolves_anchor_and_target_by_id_after_reorder() {
+    let mut set = set_with(&["a", "b", "c", "d"]);
+    set.select_title("b", NO_MODIFIERS);
+    set.reorder_files(0, 3);
+    assert_eq!(names(&set), ["b", "c", "d", "a"]);
+    set.select_title("d", RANGE);
+    assert_eq!(selected_names(&set), ["b", "c", "d"]);
+    assert_eq!(set.selection(0).selected_anchor, Some(2));
+}
+
+#[test]
 fn reordering_and_sorting_keep_the_selected_titles_selected() {
     let mut set = set_with(&["Part 10.m4b", "Part 2.m4b", "part 1.m4b"]);
     set.select_file(1, NO_MODIFIERS);

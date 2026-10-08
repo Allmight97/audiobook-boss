@@ -76,8 +76,11 @@ pub enum SessionIntent {
     Import {
         paths: Vec<String>,
     },
+    /// Selects the named title. Identity is resolved against the list as it
+    /// is when the intent applies, so a queued reorder cannot retarget the click.
+    #[serde(rename_all = "camelCase")]
     SelectFile {
-        index: usize,
+        title_id: String,
         modifiers: SelectionModifiers,
     },
     SelectAll,
@@ -849,9 +852,10 @@ impl Session {
         match intent {
             I::Remote { intent } => Rest::Remote(self.inner.deps.remote.ui_begin(intent)),
             I::Import { paths } => self.begin_import(paths),
-            I::SelectFile { index, modifiers } => {
-                self.change_selection(|set| set.select_file(index, modifiers))
-            }
+            I::SelectFile {
+                title_id,
+                modifiers,
+            } => self.begin_select_file(title_id, modifiers),
             I::SelectAll => self.change_selection(WorkingSet::select_all),
             I::ClearSelection => self.change_selection(WorkingSet::clear_selection),
             I::RemoveFile { input_id } => self.change_selection(|set| {
@@ -1042,6 +1046,32 @@ impl Session {
     fn edit_titles(&self, change: impl FnOnce(&mut WorkingSet)) -> Rest {
         self.transition(|state| change(&mut state.working_set));
         Rest::Done(SessionOutcome::Applied)
+    }
+
+    /// Selects the named title against the list as it is now. An unknown id
+    /// changes nothing and does not run the draft gate.
+    fn begin_select_file(&self, title_id: String, modifiers: SelectionModifiers) -> Rest {
+        let bound = self.transition(|state| {
+            if state.working_set.index_of(&title_id).is_none() {
+                return Ok(None);
+            }
+            state.gate()?;
+            state.working_set.select_title(&title_id, modifiers);
+            Ok(Some(Bound {
+                reads: state.rebind(),
+                binding: state.binding,
+            }))
+        });
+        match bound {
+            Ok(None) => Rest::Done(SessionOutcome::Applied),
+            Ok(Some(bound)) => Rest::Reads(bound),
+            Err(GateBlock::SaveInProgress) => {
+                Rest::Done(SessionOutcome::DraftRejected { message: None })
+            }
+            Err(GateBlock::Invalid(message)) => Rest::Done(SessionOutcome::DraftRejected {
+                message: Some(message),
+            }),
+        }
     }
 
     /// A change that may move the selection: the draft gate accepts the edits

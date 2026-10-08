@@ -1055,7 +1055,12 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  *  Discovers and analyzes audio under `paths` and adds new titles, each
  *  starting from the default audio choice.
  */
-{ kind: "import"; paths: string[] } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } |
+{ kind: "import"; paths: string[] } |
+/**
+ *  Selects the named title. Identity is resolved against the list as it
+ *  is when the intent applies, so a queued reorder cannot retarget the click.
+ */
+{ kind: "selectFile"; titleId: string; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } |
 /**
  *  Moves a title one place. Named by identity, so a second click sent
  *  before the first is answered moves the same title again.
