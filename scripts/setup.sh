@@ -153,11 +153,20 @@ node_major() {
 	printf '%s\n' "${version%%.*}"
 }
 
-# Homebrew (and some other builds) print `ffmpeg -version` on stderr.
-# Discarding stderr made a just-poured 9.0.1 look like "not major 9" on macOS CI.
+# Capture stdout and stderr: Homebrew prints `-version` on stderr.
+# Parse with awk, not sed `\?`: macOS BSD sed left Homebrew's `version 9.0.1`
+# unmatched after CI poured ffmpeg 9.0.1_1.
 ffmpeg_major() {
 	local bin="$1"
-	"${bin}" -version 2>&1 | sed -n 's/.*version n\?\([0-9][0-9]*\).*/\1/p' | awk 'NR==1 {print; exit}' || true
+	"${bin}" -version 2>&1 | awk '
+		$2 == "version" {
+			v = $3
+			sub(/^n/, "", v)
+			split(v, parts, ".")
+			if (parts[1] ~ /^[0-9]+$/) print parts[1]
+			exit
+		}
+	' || true
 }
 
 # Formula prefix, not PATH: Homebrew may leave ffmpeg unlinked from bin/.
