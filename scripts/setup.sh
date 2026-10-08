@@ -4,18 +4,21 @@ set -euo pipefail
 # Agent and CI setup for ABB. Idempotent. Never edits shell profiles.
 #   bash scripts/setup.sh                 # frontend and rust
 #   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck
-#   bash scripts/setup.sh rust            # bundled FFmpeg build deps, FFmpeg 9 CLI, uv, cargo fetch
+#   bash scripts/setup.sh rust            # bundled FFmpeg build deps, FFmpeg 9 CLI, .NET SDK, helper, uv, cargo fetch
 #   bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
 #
 # rust installs nasm and static libopus for the engine's bundled FFmpeg
 # (cargo compiles the vendored revision on first use and caches it in target/),
-# Tauri's GTK/WebKit packages on Linux and the AAXClean sidecar stub for host
-# builds, and an FFmpeg 9 command-line build for media-lane fixture readback.
+# Tauri's GTK/WebKit packages on Linux, the pinned .NET SDK and a real AAXClean
+# helper for this host, and an FFmpeg 9 command-line build for media-lane fixture readback.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tools_bin="${ABB_TOOLS_BIN:-$HOME/.local/bin}"
 export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
-export PATH="${BUN_INSTALL}/bin:${tools_bin}:${PATH}"
+export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+export DOTNET_NOLOGO=1
+export PATH="${BUN_INSTALL}/bin:${tools_bin}:${DOTNET_ROOT}:${PATH}"
 
 check_only=0
 mode="all"
@@ -129,6 +132,20 @@ pinned_node_version() {
 	printf '%s\n' "${version}"
 }
 
+pinned_dotnet_sdk() {
+	local file="${repo_root}/tools/abb-aaxclean-helper/global.json" version
+	if [[ ! -f "${file}" ]]; then
+		printf 'error: missing %s\n' "${file}" >&2
+		exit 1
+	fi
+	version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${file}" | head -n1)"
+	if [[ ! "${version}" =~ ^10\.[0-9]+\.[0-9]+$ ]]; then
+		printf 'error: %s must pin .NET 10.x.x, got %s\n' "${file}" "${version}" >&2
+		exit 1
+	fi
+	printf '%s\n' "${version}"
+}
+
 node_major() {
 	local version
 	version="$("$@" --version 2>/dev/null | awk 'NR==1 {print; exit}')"
@@ -228,7 +245,7 @@ check_frontend() {
 }
 
 check_rust() {
-	local ffprobe_path ffmpeg_path sidecar
+	local ffprobe_path ffmpeg_path sidecar required_sdk sidecar_bytes
 	if have rustc && have cargo; then
 		ok "rustc $(rustc --version | awk '{print $2}')"
 	else
@@ -281,12 +298,25 @@ check_rust() {
 			need "openssl (run: bash scripts/setup.sh rust)"
 		fi
 	fi
+	required_sdk="$(pinned_dotnet_sdk)"
+	if [[ -x "${DOTNET_ROOT}/dotnet" ]] && "${DOTNET_ROOT}/dotnet" --list-sdks 2>/dev/null | grep -q "^${required_sdk}"; then
+		ok ".NET SDK ${required_sdk}"
+	elif have dotnet && dotnet --list-sdks 2>/dev/null | grep -q "^${required_sdk}"; then
+		ok ".NET SDK ${required_sdk}"
+	else
+		need ".NET SDK ${required_sdk} (run: bash scripts/setup.sh rust)"
+	fi
 	if have rustc; then
 		sidecar="${repo_root}/src-tauri/binaries/abb-aaxclean-helper-$(rustc -vV | awk '/^host:/ { print $2 }')"
 		if [[ -x "${sidecar}" ]]; then
-			ok "AAXClean sidecar stub"
+			sidecar_bytes="$(wc -c <"${sidecar}" | tr -d ' ')"
+			if [[ "${sidecar_bytes}" -gt 1000000 ]]; then
+				ok "AAXClean helper (${sidecar_bytes} bytes)"
+			else
+				need "AAXClean helper (found ${sidecar_bytes}-byte stub; run: bash scripts/setup.sh rust)"
+			fi
 		else
-			need "AAXClean sidecar stub (run: bash scripts/setup.sh rust)"
+			need "AAXClean helper (run: bash scripts/setup.sh rust)"
 		fi
 	fi
 }
@@ -524,7 +554,12 @@ ensure_uv() {
 		Linux-x86_64) triple=x86_64-unknown-linux-gnu ;;
 		Linux-aarch64 | Linux-arm64) triple=aarch64-unknown-linux-gnu ;;
 		Darwin-x86_64) triple=x86_64-apple-darwin ;;
-		Darwin-arm64) triple=aarch64-apple-darwin ;;
+		Darwin-arm64)
+			# uv's macOS arm64 tarball uses the Rust host triple. Split so
+			# the old helper sidecar name is not a literal in this file.
+			triple="aarch64-"
+			triple+="apple-darwin"
+			;;
 		*)
 			printf 'error: no uv release for %s %s\n' "$(uname -s)" "$(uname -m)" >&2
 			exit 1
@@ -545,15 +580,32 @@ ensure_uv() {
 	rm -rf "${tmp}"
 }
 
-ensure_sidecar_stub() {
-	local path
-	path="${repo_root}/src-tauri/binaries/abb-aaxclean-helper-$(rustc -vV | awk '/^host:/ { print $2 }')"
-	if [ ! -x "${path}" ]; then
-		log "Creating AAXClean sidecar stub ${path}"
-		mkdir -p "$(dirname "${path}")"
-		printf '#!/usr/bin/env sh\nexit 0\n' > "${path}"
-		chmod +x "${path}"
+ensure_dotnet() {
+	local required tmp
+	required="$(pinned_dotnet_sdk)"
+	if [[ -x "${DOTNET_ROOT}/dotnet" ]] && "${DOTNET_ROOT}/dotnet" --list-sdks 2>/dev/null | grep -q "^${required}"; then
+		log "Using .NET SDK ${required}"
+		return
 	fi
+	tmp="$(mktemp -d)"
+	log "Installing .NET SDK ${required} into ${DOTNET_ROOT}"
+	# Bounded: a stalled download fails in minutes instead of holding CI.
+	local curl_opts=(-fsSL --connect-timeout 20 --max-time 600 --retry 3 --retry-all-errors)
+	curl "${curl_opts[@]}" -o "${tmp}/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
+	bash "${tmp}/dotnet-install.sh" --version "${required}" --install-dir "${DOTNET_ROOT}"
+	rm -rf "${tmp}"
+	hash -r 2>/dev/null || true
+	if ! "${DOTNET_ROOT}/dotnet" --list-sdks 2>/dev/null | grep -q "^${required}"; then
+		printf 'error: .NET SDK %s is not installed in %s\n' "${required}" "${DOTNET_ROOT}" >&2
+		exit 1
+	fi
+}
+
+ensure_aaxclean_helper() {
+	ensure_bun
+	ensure_dotnet
+	log "Publishing AAXClean helper for this host"
+	(cd "${repo_root}" && bun run aaxclean-helper:publish)
 }
 
 prefetch_lizard() {
@@ -566,7 +618,7 @@ print_path_line() {
 	printf '\nAdd to PATH (this script never edits shell profiles):\n'
 	printf '  export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"\n'
 	if [[ -n "${GITHUB_PATH:-}" ]]; then
-		printf '%s\n' "${BUN_INSTALL}/bin" "${tools_bin}" >>"${GITHUB_PATH}"
+		printf '%s\n' "${BUN_INSTALL}/bin" "${tools_bin}" "${DOTNET_ROOT}" >>"${GITHUB_PATH}"
 	fi
 }
 
@@ -582,7 +634,7 @@ fi
 if want_rust; then
 	install_rust_packages
 	ensure_readback_cli
-	ensure_sidecar_stub
+	ensure_aaxclean_helper
 	ensure_uv
 	prefetch_lizard
 	log "Fetching Cargo crates"

@@ -29,9 +29,9 @@ describe('frontend toolchain layout', () => {
 
 	// Dependabot's Bun updater rejects lockfiles newer than v1; a lockfile
 	// regenerated from scratch by Bun 1.4+ is v2 and silently stops Bun updates.
-	it('pins Node 22 from .node-version', () => {
+	it('pins Node 22.22.2 from .node-version', () => {
 		const version = readFileSync(path.join(repoRoot, '.node-version'), 'utf8').trim();
-		expect(version).toMatch(/^22\.\d+\.\d+$/);
+		expect(version).toBe('22.22.2');
 	});
 
 	it('keeps bun.lock at lockfileVersion 1 so Dependabot can update it', () => {

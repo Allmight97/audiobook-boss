@@ -7,13 +7,16 @@ set -euo pipefail
 #
 # Lanes run one after another and keep going after a failure. Each lane prints
 # PASS or FAIL. The exit code is nonzero if any lane failed.
-# Before engine/media/host/apple, setup.sh --check rust must pass. Core checks
+# Before engine/media/host/apple/decrypt, setup.sh --check rust must pass. Core checks
 # cargo, rustfmt, clippy, and uvx only (no apt). Missing tools fail that lane
 # at once and print the exact setup command.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
-export PATH="${HOME}/.bun/bin:${HOME}/.local/bin:${PATH}"
+export PATH="${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/.dotnet:${PATH}"
+export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+export DOTNET_NOLOGO=1
 if [[ -x "${HOME}/.local/bin/ffmpeg" ]]; then
 	export ABB_FFMPEG="${HOME}/.local/bin/ffmpeg"
 	export ABB_FFPROBE="${HOME}/.local/bin/ffprobe"
@@ -28,7 +31,7 @@ usage() {
 	cat <<'USAGE'
 Usage: bash scripts/verify.sh [lane ...]
 
-Lanes: frontend, core, engine, media, host, apple, tooling
+Lanes: frontend, core, engine, media, host, apple, decrypt, tooling
 No argument runs every lane this OS supports (apple is skipped on Linux).
 USAGE
 }
@@ -37,7 +40,7 @@ is_darwin() {
 	[[ "$(uname -s)" == Darwin ]]
 }
 
-all_lanes=(frontend core engine media host apple tooling)
+all_lanes=(frontend core engine media host apple decrypt tooling)
 
 lane_known() {
 	local name="$1" lane
@@ -116,7 +119,7 @@ lane_core() {
 lane_engine() {
 	require_rust
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
-		--skip test_cases::integration_media
+		--skip test_cases::integration_media --skip test_cases::integration_decrypt
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests
 	cargo clippy --locked -p abb-engine --features bundled-ffmpeg --all-targets -- -D warnings
@@ -133,6 +136,14 @@ lane_host() {
 	cargo test --locked -p audiobook-boss --features bundled-ffmpeg
 	bash scripts/check-generated-bindings.sh --mode verify
 	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg --all-targets -- -D warnings
+}
+
+lane_decrypt() {
+	require_rust
+	dotnet test tools/abb-aaxclean-helper/tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj \
+		--configuration Release --nologo
+	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
+		test_cases::integration_decrypt
 }
 
 lane_apple() {

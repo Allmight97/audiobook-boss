@@ -19,6 +19,7 @@ import {
 	verifyMacOsBundle,
 	verifyDmgBundle,
 } from './build-app';
+import { resolveAaxcleanHelperPaths } from './publish-aaxclean-helper';
 
 const tempRoots: string[] = [];
 
@@ -356,10 +357,7 @@ describe('buildTauriApp', () => {
 		const { repoRoot } = createRepoFixture();
 		const sidecarDir = path.join(repoRoot, 'src-tauri/binaries');
 		mkdirSync(sidecarDir, { recursive: true });
-		writeFileSync(
-			path.join(sidecarDir, 'abb-aaxclean-helper-aarch64-apple-darwin'),
-			'existing helper',
-		);
+		writeFileSync(resolveAaxcleanHelperPaths(repoRoot).sidecarPath, 'existing helper');
 		const calls: Array<{
 			args: string[];
 			command: string;
@@ -410,10 +408,7 @@ describe('buildTauriApp', () => {
 		const { repoRoot } = createRepoFixture();
 		const sidecarDir = path.join(repoRoot, 'src-tauri/binaries');
 		mkdirSync(sidecarDir, { recursive: true });
-		writeFileSync(
-			path.join(sidecarDir, 'abb-aaxclean-helper-aarch64-apple-darwin'),
-			'existing helper',
-		);
+		writeFileSync(resolveAaxcleanHelperPaths(repoRoot).sidecarPath, 'existing helper');
 		const calls: Array<{ env?: NodeJS.ProcessEnv }> = [];
 		const commandRunner = ((
 			command: string,

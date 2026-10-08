@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock};
 
 mod cancellation;
-mod materializer;
+pub(crate) mod materializer;
 mod providers;
 mod scoped_output;
 mod session_lifecycle;

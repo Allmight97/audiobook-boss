@@ -21,12 +21,12 @@ Convert, tag, and organize your audiobook library with metadata that works every
 # JS/TS dependencies
 bun install
 
-# First run publishes the AAXClean sidecar (.NET 8 SDK required)
+# First run publishes the AAXClean sidecar (.NET 10 SDK required)
 # then starts Tauri with bundled FFmpeg and reusable logs.
 bun run app:dev:log
 ```
 
-Requires: macOS (Apple Silicon), Bun 1.4 or newer, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
+Requires: macOS (Apple Silicon) or x86_64 Ubuntu 22.04 or newer (glibc 2.27+, OpenSSL, WebKitGTK 4.1), Bun 1.4 or newer, Rust, and a .NET 10 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback). After clone, `bash scripts/setup.sh` installs those tools.
 
 **AAC runtime contract**: output encoder and input decoder are separate. Auto
 selects Native NMR; Apple AAC and bundled FAAC are explicit choices.
@@ -74,6 +74,29 @@ closure, and low-battery sleep remain controlled by macOS.
 After clone, `bash scripts/setup.sh` then `bash scripts/verify.sh`. Setup
 prints the PATH line and never edits shell profiles. Lanes, owner mapping, and
 focused loops: root `AGENTS.md` Environment and `scripts/AGENTS.md`.
+
+Linux (tested target): x86_64 Ubuntu 22.04 or newer, glibc 2.27+, OpenSSL, and
+WebKitGTK 4.1. `linux-arm64` publishes but is not proven on real hardware.
+
+### Windows (WSL)
+
+Windows is supported only through WSL running the Linux build.
+
+- Use WSLg: Windows 11, or Windows 10 build 19044+ with the Microsoft Store WSL.
+  Install the Linux requirements inside the WSL distro.
+- If the window opens blank, launch with `WEBKIT_DISABLE_DMABUF_RENDERER=1`,
+  and fall back to `WEBKIT_DISABLE_COMPOSITING_MODE=1`. That is a known
+  WebKitGTK and WSLg issue. These remain launch notes until someone confirms
+  them on a real WSL machine.
+- Keep the library, `target/`, and outputs on the Linux filesystem (`~/…`),
+  not `/mnt/c`. Windows drives are slower over WSL, chmod mostly does not
+  apply, and they are case-insensitive.
+- Dragging files from Windows Explorer into the app does not work under WSLg.
+  Use the file picker.
+- Known gap: ABB's Linux vault uses the kernel keyring. WSL has no persistent
+  keyring, so saved Audible credentials disappear whenever the WSL VM stops
+  (`wsl --shutdown`, a Windows reboot, or the default idle shutdown). Whether
+  that is ship-blocking for WSL users is a later decision.
 
 ### Install a local build
 
@@ -124,7 +147,8 @@ Index of common commands; `package.json` holds the shortcuts.
   marked ready, when auto-merge is enabled, by hand, and twice a week on
   `main`. Pushes and drafts start nothing. It calls `scripts/setup.sh` and
   `scripts/verify.sh` for the frontend, core crates, engine, media, host, and
-  Apple AAC on macOS. A pull request runs only the jobs its changes touch.
+  Apple AAC on macOS, and Audible decrypt on both OSes. A pull request runs
+  only the jobs its changes touch.
   GitHub also runs Pages for `site/**`.
 - Bun is the package manager, script runner, and test runner.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`

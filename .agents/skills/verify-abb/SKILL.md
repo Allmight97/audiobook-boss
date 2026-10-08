@@ -6,7 +6,8 @@ description: Drive abb-dev headlessly through golden-path features, keep JSON pl
 # Verify ABB
 
 Prove the golden path without a window: import, edit, save, export, collisions,
-cancel, and chapters. Drive `abb-dev` the same way in every environment.
+cancel, chapters, and synthetic Audible decrypt. Drive `abb-dev` the same way in
+every environment (decrypt uses `verify.sh decrypt`).
 
 ## Launch
 
@@ -42,9 +43,10 @@ until Doctor is clean.
 ## Drive
 
 Synthesize inputs with the FFmpeg 9 CLI (`-f lavfi` sine tones, as the media
-tests already do). Then run one feature at a time from `features/`. Remote and
-Audible work is blocked: it needs a real account, and this skill never reads
-stored credentials or points `aaxclean_helper` at a real helper.
+tests already do). Then run one feature at a time from `features/`. Live Audible
+download is blocked: it needs a real account, and this skill never reads stored
+credentials. Synthetic decrypt uses the published helper and the fixtures from
+`verify.sh decrypt`.
 
 ## Evidence
 
@@ -74,4 +76,5 @@ rm -rf "${STATE}" "${INPUTS}"
 | Export formats and encoders | [features/export.md](features/export.md) | Drive |
 | Collisions and cancel | [features/collisions-cancel.md](features/collisions-cancel.md) | Drive |
 | Chapters | [features/chapters.md](features/chapters.md) | Drive |
-| Remote / Audible | [features/remote-audible.md](features/remote-audible.md) | Blocked |
+| Audible decrypt | [features/decrypt.md](features/decrypt.md) | Drive |
+| Remote / Audible download | [features/remote-audible.md](features/remote-audible.md) | Blocked |

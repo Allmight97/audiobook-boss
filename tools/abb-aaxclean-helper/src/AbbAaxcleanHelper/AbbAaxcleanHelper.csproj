@@ -1,14 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>abb-aaxclean-helper</AssemblyName>
     <RootNamespace>AbbAaxcleanHelper</RootNamespace>
-    <RuntimeIdentifiers>osx-arm64</RuntimeIdentifiers>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+  <!-- Set only when `-r` is passed so `dotnet test` can build the helper without a RID. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="AAXClean" Version="3.1.0" />
+    <!-- AAXClean 3.1.0 leaks Microsoft.SourceLink.GitHub 10.0.301 as a runtime dependency; 10.0.303 fixes CVE-2026-62900 (NU1902 under net10 audit). -->
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.303" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

@@ -113,6 +113,19 @@ exit 3"#,
 }
 
 #[tokio::test]
+async fn spawned_helper_gets_dotnet_diagnostics_disabled() {
+    let harness = harness(
+        r#"printf '%s' "$DOTNET_EnableDiagnostics" > "$out"
+echo "{\"type\":\"progress\",\"operationId\":\"$op\",\"fraction\":1}"
+echo "{\"type\":\"result\",\"operationId\":\"$op\",\"bytesWritten\":1}""#,
+    );
+
+    let output = harness.run().await.expect("materialized");
+
+    assert_eq!(std::fs::read(&output).expect("output"), b"0");
+}
+
+#[tokio::test]
 async fn cancelling_an_idle_helper_reaps_it_and_cleans_up() {
     let harness = harness(r#"printf 'partial' > "$out"; exec sleep 30"#);
     let cancelled = AtomicBool::new(false);

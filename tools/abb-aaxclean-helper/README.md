@@ -16,10 +16,12 @@ must never call it directly.
 
 ```bash
 dotnet test tools/abb-aaxclean-helper
-dotnet publish tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/AbbAaxcleanHelper.csproj \
-  -c Release -f net8.0 -r osx-arm64 --self-contained true \
-  -p:PublishSingleFile=true -p:PublishTrimmed=false
+bun run aaxclean-helper:publish
 ```
+
+`global.json` pins SDK 10.0.401. The publish script picks the RID and Rust
+triple from the host (`osx-arm64` / `linux-x64` / `linux-arm64`) and writes
+`src-tauri/binaries/abb-aaxclean-helper-<triple>`.
 
 `bun run tauri dev`, Tauri builds, and `scripts/build-app.ts` publish the helper
 into `src-tauri/binaries/` before the app resolves or packages the sidecar.

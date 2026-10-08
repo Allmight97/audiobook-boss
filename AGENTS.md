@@ -67,8 +67,9 @@ installs nothing and exits nonzero if something is missing. It prints the PATH
 line (`~/.bun/bin`, `~/.local/bin`) and never edits shell profiles.
 
 `verify.sh` takes lane names: `frontend`, `core`, `engine`, `media`, `host`,
-`apple`, `tooling`. No argument runs every lane this OS supports. The commands
-for each lane live only in `verify.sh`. Owner-to-lane map: `scripts/AGENTS.md`.
+`apple`, `decrypt`, `tooling`. No argument runs every lane this OS supports. The
+commands for each lane live only in `verify.sh`. Owner-to-lane map:
+`scripts/AGENTS.md`.
 
 Codex cloud: paste `bash scripts/setup.sh` into the Codex environment settings
 field once. That setting is not in the repo.

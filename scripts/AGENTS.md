@@ -23,6 +23,9 @@ the check `main` requires. Lane commands live only in `verify.sh`.
   `-- media_execution`. Fixtures are synthesized at test time.
 - Apple AAC (`apple`, macOS only): `bash scripts/verify.sh apple`. Linux
   prints `skipped: macOS only`.
+- Audible decrypt helper (`decrypt`): `bash scripts/verify.sh decrypt`.
+  Fixtures are synthesized at test time. A wrong AAXC key is not the
+  negative case.
 - Host or IPC types (`host`): `bash scripts/verify.sh host`. Then the Vitest
   contract tests under `src/lib/` that name the changed surface. Boundary
   rules: `src-tauri/AGENTS.md` and `src/lib/tauri/AGENTS.md`.
@@ -92,7 +95,7 @@ Traps:
   10-day cooldown. Setup installs that version or exits. Update `bun.lock` in
   place at `lockfileVersion` 1, because Dependabot's Bun updater rejects newer
   versions. Node is pinned to 22.x in `.node-version`; setup installs that
-  exact build, and `--check` accepts Node 22 or newer.
+  exact 22.22.2 build, and `--check` accepts Node 22 or newer.
 
 ## Dependencies
 
@@ -120,7 +123,9 @@ Traps:
 - `bash scripts/setup.sh` installs the locked Bun, Node 22 from `.node-version`,
   frontend dependencies, actionlint, and shellcheck. `rust` adds what engine
   and host proof need (script header lists it), including `libssl-dev` on
-  Linux so `openssl-sys` can build. `--check` installs nothing.
+  Linux so `openssl-sys` can build, the .NET SDK from
+  `tools/abb-aaxclean-helper/global.json` into `~/.dotnet`, and a real AAXClean
+  helper for this host. `--check` installs nothing.
   The Claude Code cloud SessionStart hook runs `setup.sh frontend`. Cursor
   cloud runs `setup.sh` from `.cursor/environment.json`. Codex cloud uses the
   same command in its environment settings, not the repo.
@@ -136,3 +141,5 @@ Traps:
   artifact, not a regression.
 - Linux cannot prove Apple AAC (AudioToolbox) behavior; `verify.sh apple`
   skips there and the macOS rust CI leg runs it.
+- Windows is WSL-only. README "Windows (WSL)" covers WSLg, filesystem, and
+  the keyring gap.

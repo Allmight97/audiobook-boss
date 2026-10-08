@@ -42,6 +42,7 @@ jobs:
       engine: ${{ steps.filter.outputs.engine }}
       media: ${{ steps.filter.outputs.media }}
       host: ${{ steps.filter.outputs.host }}
+      decrypt: ${{ steps.filter.outputs.decrypt }}
       tooling: ${{ steps.filter.outputs.tooling }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -106,6 +107,12 @@ jobs:
               - src-tauri/**
               - src/lib/generated/**
               - scripts/check-generated-bindings.sh
+            decrypt:
+              - *shared
+              - tools/abb-aaxclean-helper/**
+              - scripts/publish-aaxclean-helper.ts
+              - crates/abb-engine/src/remote_source/**
+              - crates/abb-engine/src/test_cases/integration_decrypt*
             tooling:
               - .github/workflows/**
               - scripts/*.sh
@@ -152,7 +159,8 @@ jobs:
     needs: changes
     if: >-
       needs.changes.outputs.engine == 'true' || needs.changes.outputs.host == 'true'
-      || needs.changes.outputs.media == 'true' || needs.changes.outputs.all == 'true'
+      || needs.changes.outputs.media == 'true' || needs.changes.outputs.decrypt == 'true'
+      || needs.changes.outputs.all == 'true'
     permissions:
       contents: read
     strategy:
@@ -166,10 +174,15 @@ jobs:
       ENGINE: ${{ needs.changes.outputs.engine }}
       MEDIA: ${{ needs.changes.outputs.media }}
       HOST: ${{ needs.changes.outputs.host }}
+      DECRYPT: ${{ needs.changes.outputs.decrypt }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('tools/abb-aaxclean-helper/**/*.csproj', 'tools/abb-aaxclean-helper/global.json', 'tools/abb-aaxclean-helper/Directory.Build.props') }}
       - run: bash scripts/setup.sh rust
       - if: env.HOST == 'true' || env.ALL == 'true'
         run: bash scripts/setup.sh frontend
@@ -201,6 +214,9 @@ jobs:
           fi
           if [ "${HOST}" = true ] || [ "${ALL}" = true ]; then
             lanes+=(host)
+          fi
+          if [ "${DECRYPT}" = true ] || [ "${ALL}" = true ]; then
+            lanes+=(decrypt)
           fi
           if [ "${RUNNER_OS}" = macOS ]; then
             lanes+=(apple)

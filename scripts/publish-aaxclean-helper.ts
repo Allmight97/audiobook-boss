@@ -12,7 +12,28 @@ import os from 'node:os';
 import path from 'node:path';
 
 export const aaxcleanHelperBaseName = 'abb-aaxclean-helper';
-export const aaxcleanHelperTargetTriple = 'aarch64-apple-darwin';
+
+const minSidecarBytes = 1_000_000;
+
+export function aaxcleanHelperPublishTarget(
+	platform: NodeJS.Platform = process.platform,
+	arch: string = process.arch,
+): { rid: string; triple: string } {
+	if (platform === 'darwin' && arch === 'arm64') {
+		return { rid: 'osx-arm64', triple: 'aarch64-apple-darwin' };
+	}
+	if (platform === 'linux' && arch === 'x64') {
+		return { rid: 'linux-x64', triple: 'x86_64-unknown-linux-gnu' };
+	}
+	if (platform === 'linux' && arch === 'arm64') {
+		return { rid: 'linux-arm64', triple: 'aarch64-unknown-linux-gnu' };
+	}
+	throw new Error(
+		`AAXClean helper publish is not supported on ${platform}/${arch}. Use macOS Apple Silicon or Linux x64/arm64.`,
+	);
+}
+
+export const aaxcleanHelperTargetTriple = aaxcleanHelperPublishTarget().triple;
 
 interface AaxcleanHelperPaths {
 	projectPath: string;
@@ -20,6 +41,8 @@ interface AaxcleanHelperPaths {
 	publishedExecutablePath: string;
 	sidecarDir: string;
 	sidecarPath: string;
+	rid: string;
+	triple: string;
 }
 
 interface PublishAaxcleanHelperOptions {
@@ -41,18 +64,21 @@ export function resolveDotnetCommand(): string {
 }
 
 export function resolveAaxcleanHelperPaths(repoRoot: string): AaxcleanHelperPaths {
+	const { rid, triple } = aaxcleanHelperPublishTarget();
 	const projectPath = path.join(
 		repoRoot,
 		'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/AbbAaxcleanHelper.csproj',
 	);
-	const publishDir = path.join(repoRoot, 'tools/abb-aaxclean-helper/.publish/osx-arm64');
+	const publishDir = path.join(repoRoot, 'tools/abb-aaxclean-helper/.publish', rid);
 	const sidecarDir = path.join(repoRoot, 'src-tauri/binaries');
 	return {
 		projectPath,
 		publishDir,
 		publishedExecutablePath: path.join(publishDir, aaxcleanHelperBaseName),
 		sidecarDir,
-		sidecarPath: path.join(sidecarDir, `${aaxcleanHelperBaseName}-${aaxcleanHelperTargetTriple}`),
+		sidecarPath: path.join(sidecarDir, `${aaxcleanHelperBaseName}-${triple}`),
+		rid,
+		triple,
 	};
 }
 
@@ -73,22 +99,7 @@ export function publishAaxcleanHelper(
 	const dotnet = resolveDotnetCommand();
 	const result = (options.commandRunner ?? spawnSync)(
 		dotnet,
-		[
-			'publish',
-			paths.projectPath,
-			'-c',
-			'Release',
-			'-f',
-			'net8.0',
-			'-r',
-			'osx-arm64',
-			'--self-contained',
-			'true',
-			'-p:PublishSingleFile=true',
-			'-p:PublishTrimmed=false',
-			'-o',
-			paths.publishDir,
-		],
+		['publish', paths.projectPath, '-c', 'Release', '-r', paths.rid, '-o', paths.publishDir],
 		{
 			cwd: repoRoot,
 			stdio: 'inherit',
@@ -129,6 +140,11 @@ function helperSidecarIsFresh(repoRoot: string, sidecarPath: string): boolean {
 	if (!existsSync(sidecarPath)) {
 		return false;
 	}
+	// A leftover `exit 0` stub is executable and newer than sources; size
+	// is what distinguishes it from a real self-contained helper.
+	if (statSync(sidecarPath).size < minSidecarBytes) {
+		return false;
+	}
 	const sidecarMtime = statSync(sidecarPath).mtimeMs;
 	return latestHelperSourceMtime(repoRoot) <= sidecarMtime;
 }
@@ -150,7 +166,8 @@ function helperSourceAffectsPublish(filePath: string): boolean {
 		filePath.endsWith('.cs') ||
 		filePath.endsWith('.csproj') ||
 		filePath.endsWith('.props') ||
-		filePath.endsWith('.targets')
+		filePath.endsWith('.targets') ||
+		path.basename(filePath) === 'global.json'
 	);
 }
 
