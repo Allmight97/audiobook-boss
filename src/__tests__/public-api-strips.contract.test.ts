@@ -39,9 +39,7 @@ const SRC_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 function ownersWithIndex(kind: 'app' | 'ui'): readonly string[] {
 	const root = path.join(SRC_ROOT, kind);
 	return readdirSync(root, { withFileTypes: true })
-		.filter(
-			(entry) => entry.isDirectory() && existsSync(path.join(root, entry.name, 'index.ts')),
-		)
+		.filter((entry) => entry.isDirectory() && existsSync(path.join(root, entry.name, 'index.ts')))
 		.map((entry) => `${kind}/${entry.name}`)
 		.sort();
 }
@@ -74,11 +72,7 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 		],
 	],
 	['app/metadataLookup', metadataLookup, ['createMetadataLookupOwner']],
-	[
-		'app/metadataSession',
-		metadataSession,
-		['METADATA_FIELD_DEFINITIONS', 'createMetadataOwner'],
-	],
+	['app/metadataSession', metadataSession, ['METADATA_FIELD_DEFINITIONS', 'createMetadataOwner']],
 	['app/outputPlan', outputPlan, ['CUSTOM_TEMPLATE_PLACEHOLDER', 'createOutputOwner']],
 	['app/processing', processing, ['createProcessingOwner']],
 	[
