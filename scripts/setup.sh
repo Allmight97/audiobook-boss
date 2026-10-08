@@ -6,6 +6,7 @@ set -euo pipefail
 #   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck
 #   bash scripts/setup.sh rust            # bundled FFmpeg build deps, FFmpeg 9 CLI, .NET SDK, helper, uv, cargo fetch
 #   bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
+#   bash scripts/setup.sh --print-env     # eval-able PATH and toolchain exports
 #
 # rust installs nasm and static libopus for the engine's bundled FFmpeg
 # (cargo compiles the vendored revision on first use and caches it in target/),
@@ -22,15 +23,17 @@ cargo_bin="${CARGO_HOME:-$HOME/.cargo}/bin"
 export PATH="${BUN_INSTALL}/bin:${tools_bin}:${DOTNET_ROOT}:${HOME}/.cargo/bin:${cargo_bin}:${PATH}"
 
 check_only=0
+print_env_only=0
 mode="all"
 
 usage() {
-	sed -n '2,12p' "$0" | sed -E 's/^# ?//'
+	sed -n '2,13p' "$0" | sed -E 's/^# ?//'
 }
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--check) check_only=1 ;;
+		--print-env) print_env_only=1 ;;
 		frontend | rust)
 			if [[ "${mode}" != all ]]; then
 				printf 'error: pass one mode (frontend or rust), or none for both\n' >&2
@@ -43,7 +46,7 @@ while [[ $# -gt 0 ]]; do
 			exit 0
 			;;
 		*)
-			printf 'error: unknown argument %s (expected frontend, rust, or --check)\n' "$1" >&2
+			printf 'error: unknown argument %s (expected frontend, rust, --check, or --print-env)\n' "$1" >&2
 			exit 1
 			;;
 	esac
@@ -376,14 +379,32 @@ check_rust() {
 	fi
 }
 
+# Eval-able PATH and toolchain exports. Host env for media tests includes
+# ABB_FFMPEG / ABB_FFPROBE when setup.sh can see FFmpeg 9 (Homebrew prefix
+# or ~/.local/bin), so verify.sh does not keep a second copy of that lookup.
+print_env() {
+	local ffmpeg ffprobe ffmpeg_dir
+	if ffmpeg="$(ffmpeg_bin)"; then
+		printf 'export ABB_FFMPEG=%q\n' "${ffmpeg}"
+		ffmpeg_dir="$(dirname "${ffmpeg}")"
+		if [[ ":${PATH}:" != *":${ffmpeg_dir}:"* ]]; then
+			PATH="${ffmpeg_dir}:${PATH}"
+		fi
+	fi
+	if ffprobe="$(ffprobe_bin)"; then
+		printf 'export ABB_FFPROBE=%q\n' "${ffprobe}"
+	fi
+	printf 'export BUN_INSTALL=%q\n' "${BUN_INSTALL}"
+	printf 'export DOTNET_ROOT=%q\n' "${DOTNET_ROOT}"
+	printf 'export DOTNET_CLI_TELEMETRY_OPTOUT=1\n'
+	printf 'export DOTNET_NOLOGO=1\n'
+	printf 'export PATH=%q\n' "${PATH}"
+}
+
 print_path_line() {
 	local brew_ffmpeg_bin rustup_bin="${HOME}/.cargo/bin"
 	printf '\nAdd to PATH (this script never edits shell profiles):\n'
-	if [[ -x "${rustup_bin}/rustup" || -x "${rustup_bin}/rustc" ]]; then
-		printf '  export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"\n'
-	else
-		printf '  export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"\n'
-	fi
+	printf '  eval "$(scripts/setup.sh --print-env)"\n'
 	if [[ -n "${GITHUB_PATH:-}" ]]; then
 		printf '%s\n' "${BUN_INSTALL}/bin" "${tools_bin}" "${DOTNET_ROOT}" >>"${GITHUB_PATH}"
 		if [[ -x "${rustup_bin}/rustup" || -x "${rustup_bin}/rustc" ]]; then
@@ -394,6 +415,11 @@ print_path_line() {
 		fi
 	fi
 }
+
+if [[ "${print_env_only}" -eq 1 ]]; then
+	print_env
+	exit 0
+fi
 
 if [[ "${check_only}" -eq 1 ]]; then
 	if want_frontend; then

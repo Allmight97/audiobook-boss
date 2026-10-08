@@ -14,5 +14,5 @@ repo_root="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 bash "${repo_root}/scripts/setup.sh" frontend >&2
 
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-	echo 'export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"' >> "${CLAUDE_ENV_FILE}"
+	eval "$("${repo_root}/scripts/setup.sh" --print-env | tee -a "${CLAUDE_ENV_FILE}")"
 fi

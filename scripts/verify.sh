@@ -13,23 +13,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
-export PATH="${HOME}/.cargo/bin:${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/.dotnet:${PATH}"
-export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
-export DOTNET_CLI_TELEMETRY_OPTOUT=1
-export DOTNET_NOLOGO=1
-if [[ -x "${HOME}/.local/bin/ffmpeg" ]]; then
-	export ABB_FFMPEG="${HOME}/.local/bin/ffmpeg"
-	export ABB_FFPROBE="${HOME}/.local/bin/ffprobe"
-elif command -v brew >/dev/null 2>&1; then
-	# Same prefix setup.sh prefers: Homebrew may leave ffmpeg unlinked from bin/.
-	brew_ffmpeg="$(brew --prefix ffmpeg 2>/dev/null || true)"
-	if [[ -x "${brew_ffmpeg}/bin/ffmpeg" && -x "${brew_ffmpeg}/bin/ffprobe" ]]; then
-		export PATH="${brew_ffmpeg}/bin:${PATH}"
-		export ABB_FFMPEG="${brew_ffmpeg}/bin/ffmpeg"
-		export ABB_FFPROBE="${brew_ffmpeg}/bin/ffprobe"
-	fi
-	unset brew_ffmpeg
-fi
+eval "$(scripts/setup.sh --print-env)"
 
 core_crates=(
 	-p abb-audible-core -p abb-media-core -p abb-metadata-core

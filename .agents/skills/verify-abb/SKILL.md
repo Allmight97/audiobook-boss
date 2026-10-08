@@ -20,11 +20,7 @@ EVIDENCE=".logs/verify/${RUN_ID}"
 STATE="$(mktemp -d "${TMPDIR:-/tmp}/abb-verify-state.XXXXXX")"
 INPUTS="$(mktemp -d "${TMPDIR:-/tmp}/abb-verify-in.XXXXXX")"
 mkdir -p "${EVIDENCE}"
-export PATH="${HOME}/.cargo/bin:${HOME}/.bun/bin:${HOME}/.local/bin:${PATH}"
-if [ -x "${HOME}/.local/bin/ffmpeg" ]; then
-  export ABB_FFMPEG="${HOME}/.local/bin/ffmpeg"
-  export ABB_FFPROBE="${HOME}/.local/bin/ffprobe"
-fi
+eval "$(scripts/setup.sh --print-env)"
 ABB_DEV=(cargo run -p abb-engine --features bundled-ffmpeg --bin abb-dev --)
 ```
 

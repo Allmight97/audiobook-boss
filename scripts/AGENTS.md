@@ -130,6 +130,9 @@ Traps:
   The Claude Code cloud SessionStart hook runs `setup.sh frontend`. Cursor
   cloud runs `setup.sh` from `.cursor/environment.json`. Codex cloud uses the
   same command in its environment settings, not the repo.
+  PATH and toolchain env (`BUN_INSTALL`, `DOTNET_*`, `PATH`, and FFmpeg 9
+  `ABB_FFMPEG` / `ABB_FFPROBE` when setup can see them) have one owner:
+  `eval "$(scripts/setup.sh --print-env)"`.
 - Engine, media, host, decrypt, and apple proof use
   `--features bundled-ffmpeg-portable` on every host (`verify.sh`; no `CI=true`
   branch), including `bun run bindings:generate` from the host lane. Bare
@@ -138,8 +141,8 @@ Traps:
   later builds reuse it while compiler, target, and feature match.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
   (`ABB_FFMPEG` and `ABB_FFPROBE` override). `setup.sh rust` installs FFmpeg 9
-  into `~/.local/bin` on Linux and uses Homebrew `ffmpeg` on macOS; put
-  `~/.cargo/bin`, `~/.bun/bin`, and `~/.local/bin` on PATH. Distro FFmpeg 6.x decodes edit
+  into `~/.local/bin` on Linux and uses Homebrew `ffmpeg` on macOS. Those
+  lookups live in `--print-env`; do not copy them into callers. Distro FFmpeg 6.x decodes edit
   lists and Opus pre-skip differently, so media tests fail on it as a readback
   artifact, not a regression.
 - Linux cannot prove Apple AAC (AudioToolbox) behavior; `verify.sh apple`
