@@ -114,7 +114,10 @@ fn run_save_against_unwritable_book(source: &Path, state: &Path) -> std::process
         std::fs::set_permissions(state, std::fs::Permissions::from_mode(0o777))
             .expect("let the unprivileged host write state");
         let (uid, gid) = unprivileged_ids();
-        cmd.env("HOME", state).env("TMPDIR", state).uid(uid).gid(gid);
+        cmd.env("HOME", state)
+            .env("TMPDIR", state)
+            .uid(uid)
+            .gid(gid);
     }
     cmd.output().expect("run developer host")
 }
