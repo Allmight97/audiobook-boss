@@ -1,7 +1,3 @@
-import { existsSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
 import * as appSettings from '../app/appSettings';
@@ -34,13 +30,15 @@ import * as statusPanel from '../ui/statusPanel';
 import * as tagPreview from '../ui/tagPreview';
 import * as workCenter from '../ui/workCenter';
 
-const SRC_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const APP_OWNER_INDEXES = import.meta.glob('../app/*/index.ts');
+const UI_OWNER_INDEXES = import.meta.glob('../ui/*/index.ts');
 
-function ownersWithIndex(kind: 'app' | 'ui'): readonly string[] {
-	const root = path.join(SRC_ROOT, kind);
-	return readdirSync(root, { withFileTypes: true })
-		.filter((entry) => entry.isDirectory() && existsSync(path.join(root, entry.name, 'index.ts')))
-		.map((entry) => `${kind}/${entry.name}`)
+function ownersWithIndex(kind: 'app' | 'ui', modules: Record<string, unknown>): readonly string[] {
+	const prefix = `../${kind}/`;
+	const suffix = '/index.ts';
+	return Object.keys(modules)
+		.filter((file) => file.startsWith(prefix) && file.endsWith(suffix))
+		.map((file) => `${kind}/${file.slice(prefix.length, -suffix.length)}`)
 		.sort();
 }
 
@@ -121,9 +119,10 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 describe('owner Public API Strips', () => {
 	it('requires a STRIPS entry for every app and ui owner index.ts', () => {
 		const listed = new Set(STRIPS.map(([owner]) => owner));
-		const missing = [...ownersWithIndex('app'), ...ownersWithIndex('ui')].filter(
-			(owner) => !listed.has(owner),
-		);
+		const missing = [
+			...ownersWithIndex('app', APP_OWNER_INDEXES),
+			...ownersWithIndex('ui', UI_OWNER_INDEXES),
+		].filter((owner) => !listed.has(owner));
 		if (missing.length > 0) {
 			throw new Error(missing.map(missingStripMessage).join('\n'));
 		}
