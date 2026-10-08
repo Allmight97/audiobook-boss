@@ -593,8 +593,8 @@ ensure_readback_cli() {
 	fi
 	local asset tmp
 	case "$(uname -m)" in
-		x86_64) asset=ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz ;;
-		aarch64 | arm64) asset=ffmpeg-n9.0-latest-linuxarm64-gpl-9.0.tar.xz ;;
+		x86_64) asset="ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz" ;;
+		aarch64 | arm64) asset="ffmpeg-n9.0-latest-linuxarm64-gpl-9.0.tar.xz" ;;
 		*)
 			printf 'error: no FFmpeg CLI build for CPU %s\n' "$(uname -m)" >&2
 			exit 1
