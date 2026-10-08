@@ -20,6 +20,15 @@ export DOTNET_NOLOGO=1
 if [[ -x "${HOME}/.local/bin/ffmpeg" ]]; then
 	export ABB_FFMPEG="${HOME}/.local/bin/ffmpeg"
 	export ABB_FFPROBE="${HOME}/.local/bin/ffprobe"
+elif command -v brew >/dev/null 2>&1; then
+	# Same prefix setup.sh prefers: Homebrew may leave ffmpeg unlinked from bin/.
+	brew_ffmpeg="$(brew --prefix ffmpeg 2>/dev/null || true)"
+	if [[ -x "${brew_ffmpeg}/bin/ffmpeg" && -x "${brew_ffmpeg}/bin/ffprobe" ]]; then
+		export PATH="${brew_ffmpeg}/bin:${PATH}"
+		export ABB_FFMPEG="${brew_ffmpeg}/bin/ffmpeg"
+		export ABB_FFPROBE="${brew_ffmpeg}/bin/ffprobe"
+	fi
+	unset brew_ffmpeg
 fi
 
 core_crates=(

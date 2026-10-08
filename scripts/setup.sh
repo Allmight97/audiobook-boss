@@ -153,15 +153,32 @@ node_major() {
 	printf '%s\n' "${version%%.*}"
 }
 
+# Homebrew (and some other builds) print `ffmpeg -version` on stderr.
+# Discarding stderr made a just-poured 9.0.1 look like "not major 9" on macOS CI.
 ffmpeg_major() {
-	local bin="$1" line
-	line="$("${bin}" -version 2>/dev/null | awk 'NR==1 {print; exit}')"
-	sed -n 's/.*version n\?\([0-9][0-9]*\).*/\1/p' <<<"${line}"
+	local bin="$1"
+	"${bin}" -version 2>&1 | sed -n 's/.*version n\?\([0-9][0-9]*\).*/\1/p' | awk 'NR==1 {print; exit}' || true
+}
+
+# Formula prefix, not PATH: Homebrew may leave ffmpeg unlinked from bin/.
+brew_ffmpeg_cli() {
+	local name="$1" prefix
+	is_darwin || return 1
+	have brew || return 1
+	prefix="$(brew --prefix ffmpeg 2>/dev/null)" || return 1
+	[[ -x "${prefix}/bin/${name}" ]] || return 1
+	printf '%s\n' "${prefix}/bin/${name}"
 }
 
 ffmpeg_bin() {
-	if [[ -x "${tools_bin}/ffmpeg" && "$(ffmpeg_major "${tools_bin}/ffmpeg")" == 9 ]]; then
-		printf '%s\n' "${tools_bin}/ffmpeg"
+	local candidate
+	candidate="${tools_bin}/ffmpeg"
+	if [[ -x "${candidate}" && "$(ffmpeg_major "${candidate}")" == 9 ]]; then
+		printf '%s\n' "${candidate}"
+		return 0
+	fi
+	if candidate="$(brew_ffmpeg_cli ffmpeg)" && [[ "$(ffmpeg_major "${candidate}")" == 9 ]]; then
+		printf '%s\n' "${candidate}"
 		return 0
 	fi
 	if have ffmpeg && [[ "$(ffmpeg_major ffmpeg)" == 9 ]]; then
@@ -172,8 +189,14 @@ ffmpeg_bin() {
 }
 
 ffprobe_bin() {
-	if [[ -x "${tools_bin}/ffprobe" && "$(ffmpeg_major "${tools_bin}/ffprobe")" == 9 ]]; then
-		printf '%s\n' "${tools_bin}/ffprobe"
+	local candidate
+	candidate="${tools_bin}/ffprobe"
+	if [[ -x "${candidate}" && "$(ffmpeg_major "${candidate}")" == 9 ]]; then
+		printf '%s\n' "${candidate}"
+		return 0
+	fi
+	if candidate="$(brew_ffmpeg_cli ffprobe)" && [[ "$(ffmpeg_major "${candidate}")" == 9 ]]; then
+		printf '%s\n' "${candidate}"
 		return 0
 	fi
 	if have ffprobe && [[ "$(ffmpeg_major ffprobe)" == 9 ]]; then
@@ -468,12 +491,27 @@ ensure_readback_cli() {
 		return
 	fi
 	if is_darwin; then
+		local brew_ffmpeg brew_ffprobe
 		brew_pkgs ffmpeg
-		if ! ffmpeg_bin >/dev/null; then
-			printf 'error: Homebrew ffmpeg is not major version 9\n' >&2
-			exit 1
+		hash -r 2>/dev/null || true
+		if ffmpeg_bin >/dev/null && ffprobe_bin >/dev/null; then
+			log "Using FFmpeg 9 readback CLI"
+			return
 		fi
-		return
+		printf 'error: Homebrew ffmpeg is not major version 9\n' >&2
+		printf 'command -v ffmpeg: %s\n' "$(command -v ffmpeg 2>/dev/null || printf missing)" >&2
+		printf 'command -v ffprobe: %s\n' "$(command -v ffprobe 2>/dev/null || printf missing)" >&2
+		printf 'brew --prefix ffmpeg: %s\n' "$(brew --prefix ffmpeg 2>/dev/null || printf missing)" >&2
+		if brew_ffmpeg="$(brew_ffmpeg_cli ffmpeg)"; then
+			printf 'brew ffmpeg -version: %s\n' "$("${brew_ffmpeg}" -version 2>&1 | awk 'NR==1 {print; exit}')" >&2
+		fi
+		if brew_ffprobe="$(brew_ffmpeg_cli ffprobe)"; then
+			printf 'brew ffprobe -version: %s\n' "$("${brew_ffprobe}" -version 2>&1 | awk 'NR==1 {print; exit}')" >&2
+		fi
+		if have ffmpeg; then
+			printf 'PATH ffmpeg -version: %s\n' "$(ffmpeg -version 2>&1 | awk 'NR==1 {print; exit}')" >&2
+		fi
+		exit 1
 	fi
 	local asset tmp
 	case "$(uname -m)" in
@@ -615,10 +653,14 @@ prefetch_lizard() {
 }
 
 print_path_line() {
+	local brew_ffmpeg_bin
 	printf '\nAdd to PATH (this script never edits shell profiles):\n'
 	printf '  export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"\n'
 	if [[ -n "${GITHUB_PATH:-}" ]]; then
 		printf '%s\n' "${BUN_INSTALL}/bin" "${tools_bin}" "${DOTNET_ROOT}" >>"${GITHUB_PATH}"
+		if brew_ffmpeg_bin="$(brew_ffmpeg_cli ffmpeg)"; then
+			printf '%s\n' "$(dirname "${brew_ffmpeg_bin}")" >>"${GITHUB_PATH}"
+		fi
 	fi
 }
 
