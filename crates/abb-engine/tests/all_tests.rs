@@ -67,55 +67,56 @@ fn the_developer_tool_imports_edits_and_saves_a_real_file() {
 }
 
 #[cfg(unix)]
-struct UnwritableFile {
-    path: PathBuf,
-    immutable: bool,
-}
-
-#[cfg(unix)]
-impl Drop for UnwritableFile {
-    fn drop(&mut self) {
-        if self.immutable {
-            let _ = Command::new("chattr").arg("-i").arg(&self.path).status();
-        } else {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&self.path, std::fs::Permissions::from_mode(0o644));
-        }
-    }
-}
-
-#[cfg(unix)]
-fn make_unwritable(path: &Path) -> UnwritableFile {
-    let root = Command::new("id")
+fn euid_is_root() -> bool {
+    Command::new("id")
         .arg("-u")
         .output()
         .ok()
         .and_then(|output| String::from_utf8(output.stdout).ok())
-        .is_some_and(|uid| uid.trim() == "0");
-    if root {
-        let result = Command::new("chattr")
-            .arg("+i")
-            .arg(path)
-            .output()
-            .expect("run chattr");
-        assert!(
-            result.status.success(),
-            "chattr +i must work as root so Save cannot write: {}",
-            String::from_utf8_lossy(&result.stderr)
-        );
-        UnwritableFile {
-            path: path.to_path_buf(),
-            immutable: true,
-        }
-    } else {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o444))
-            .expect("make the book read-only");
-        UnwritableFile {
-            path: path.to_path_buf(),
-            immutable: false,
-        }
+        .is_some_and(|uid| uid.trim() == "0")
+}
+
+#[cfg(unix)]
+fn unprivileged_ids() -> (u32, u32) {
+    fn parse(flag: &str) -> Option<u32> {
+        let output = Command::new("id").args([flag, "nobody"]).output().ok()?;
+        let text = String::from_utf8(output.stdout).ok()?;
+        let trimmed = text.trim();
+        trimmed
+            .parse()
+            .ok()
+            .or_else(|| trimmed.parse::<i32>().ok().map(|id| id as u32))
     }
+    (parse("-u").unwrap_or(65534), parse("-g").unwrap_or(65534))
+}
+
+/// chmod is not enough: root ignores a 0o444 file. Settings tests put a
+/// regular file at the parent path so create_dir_all fails for every uid.
+/// Save writes this source in place, so that blocker cannot sit at the
+/// parent while Import still reads the book. Run the host unprivileged
+/// when uid 0 so the read-only file fails the write, without chattr.
+#[cfg(unix)]
+fn run_save_against_unwritable_book(source: &Path, state: &Path) -> std::process::Output {
+    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::process::CommandExt;
+
+    std::fs::set_permissions(source, std::fs::Permissions::from_mode(0o444))
+        .expect("make the book read-only");
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_abb-dev"));
+    cmd.arg(source)
+        .args(["--set", "genre=Mystery", "--save", "--state-dir"])
+        .arg(state);
+    if euid_is_root() {
+        let parent = source.parent().expect("book parent");
+        std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o755))
+            .expect("let the unprivileged host traverse the fixture");
+        std::fs::create_dir_all(state).expect("state dir");
+        std::fs::set_permissions(state, std::fs::Permissions::from_mode(0o777))
+            .expect("let the unprivileged host write state");
+        let (uid, gid) = unprivileged_ids();
+        cmd.env("HOME", state).env("TMPDIR", state).uid(uid).gid(gid);
+    }
+    cmd.output().expect("run developer host")
 }
 
 #[cfg(unix)]
@@ -123,14 +124,16 @@ fn make_unwritable(path: &Path) -> UnwritableFile {
 fn the_developer_tool_fails_when_a_save_cannot_write() {
     let root = tempfile::TempDir::new().expect("state root");
     let source = book(root.path());
-    let _unwritable = make_unwritable(&source);
-    let result = Command::new(env!("CARGO_BIN_EXE_abb-dev"))
-        .arg(&source)
-        .args(["--set", "genre=Mystery", "--save", "--state-dir"])
-        .arg(root.path().join("tool-state"))
-        .output()
-        .expect("run developer host");
-    assert!(!result.status.success(), "a failed Save must fail the run");
+    let result = run_save_against_unwritable_book(&source, &root.path().join("tool-state"));
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        !result.status.success(),
+        "a failed Save must fail the run: {stderr}"
+    );
+    assert!(
+        stderr.contains("Save failed") || stderr.contains("could not write"),
+        "expected a failed Save, got: {stderr}"
+    );
     assert_eq!(genre(&source).as_deref(), Some("Fantasy"));
 }
 

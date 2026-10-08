@@ -20,7 +20,7 @@ EVIDENCE=".logs/verify/${RUN_ID}"
 STATE="$(mktemp -d "${TMPDIR:-/tmp}/abb-verify-state.XXXXXX")"
 INPUTS="$(mktemp -d "${TMPDIR:-/tmp}/abb-verify-in.XXXXXX")"
 mkdir -p "${EVIDENCE}"
-export PATH="${HOME}/.bun/bin:${HOME}/.local/bin:${PATH}"
+export PATH="${HOME}/.cargo/bin:${HOME}/.bun/bin:${HOME}/.local/bin:${PATH}"
 if [ -x "${HOME}/.local/bin/ffmpeg" ]; then
   export ABB_FFMPEG="${HOME}/.local/bin/ffmpeg"
   export ABB_FFPROBE="${HOME}/.local/bin/ffprobe"
@@ -43,10 +43,12 @@ until Doctor is clean.
 ## Drive
 
 Synthesize inputs with the FFmpeg 9 CLI (`-f lavfi` sine tones, as the media
-tests already do). Then run one feature at a time from `features/`. Live Audible
-download is blocked: it needs a real account, and this skill never reads stored
-credentials. Synthetic decrypt uses the published helper and the fixtures from
-`verify.sh decrypt`.
+tests already do). After each ffmpeg command, check the exit code; a nonzero
+exit is a failed feature. Treat an import whose JSON has `files: []` or
+`noSupportedFiles` as a failure — an empty session is not a pass. Then run
+one feature at a time from `features/`. Live Audible download is blocked: it
+needs a real account, and this skill never reads stored credentials. Synthetic
+decrypt uses the published helper and the fixtures from `verify.sh decrypt`.
 
 ## Evidence
 

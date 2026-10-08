@@ -136,7 +136,7 @@ Traps:
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
   (`ABB_FFMPEG` and `ABB_FFPROBE` override). `setup.sh rust` installs FFmpeg 9
   into `~/.local/bin` on Linux and uses Homebrew `ffmpeg` on macOS; put
-  `~/.bun/bin` and `~/.local/bin` on PATH. Distro FFmpeg 6.x decodes edit
+  `~/.cargo/bin`, `~/.bun/bin`, and `~/.local/bin` on PATH. Distro FFmpeg 6.x decodes edit
   lists and Opus pre-skip differently, so media tests fail on it as a readback
   artifact, not a regression.
 - Linux cannot prove Apple AAC (AudioToolbox) behavior; `verify.sh apple`

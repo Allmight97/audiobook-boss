@@ -18,7 +18,8 @@ export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
 export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
-export PATH="${BUN_INSTALL}/bin:${tools_bin}:${DOTNET_ROOT}:${PATH}"
+cargo_bin="${CARGO_HOME:-$HOME/.cargo}/bin"
+export PATH="${BUN_INSTALL}/bin:${tools_bin}:${DOTNET_ROOT}:${HOME}/.cargo/bin:${cargo_bin}:${PATH}"
 
 check_only=0
 mode="all"
@@ -130,6 +131,20 @@ pinned_node_version() {
 		exit 1
 	fi
 	printf '%s\n' "${version}"
+}
+
+pinned_rust_channel() {
+	local file="${repo_root}/rust-toolchain.toml" channel
+	if [[ ! -f "${file}" ]]; then
+		printf 'error: missing %s\n' "${file}" >&2
+		exit 1
+	fi
+	channel="$(sed -n 's/^channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "${file}" | head -n1)"
+	if [[ -z "${channel}" ]]; then
+		printf 'error: %s has no channel\n' "${file}" >&2
+		exit 1
+	fi
+	printf '%s\n' "${channel}"
 }
 
 pinned_dotnet_sdk() {
@@ -277,11 +292,19 @@ check_frontend() {
 }
 
 check_rust() {
-	local ffprobe_path ffmpeg_path sidecar required_sdk sidecar_bytes
+	local ffprobe_path ffmpeg_path sidecar required_sdk sidecar_bytes required_rust rustc_ver
+	required_rust="$(pinned_rust_channel)"
 	if have rustc && have cargo; then
-		ok "rustc $(rustc --version | awk '{print $2}')"
+		rustc_ver="$(
+			cd "${repo_root}" && rustc --version 2>/dev/null | awk '{print $2}'
+		)"
+		if [[ "${rustc_ver}" == "${required_rust}" || "${rustc_ver}" == "${required_rust}".* ]]; then
+			ok "rustc ${rustc_ver}"
+		else
+			need "rustc ${required_rust} (found ${rustc_ver:-none}; rust-toolchain.toml). Add \$HOME/.cargo/bin to PATH so rustup wins over a distro rustc"
+		fi
 	else
-		need "rustc and cargo (rust-toolchain.toml pins 1.95)"
+		need "rustc and cargo ${required_rust} (rust-toolchain.toml). Add \$HOME/.cargo/bin to PATH so rustup wins over a distro rustc"
 	fi
 	if cargo fmt --version >/dev/null 2>&1; then
 		ok "rustfmt"
@@ -353,6 +376,25 @@ check_rust() {
 	fi
 }
 
+print_path_line() {
+	local brew_ffmpeg_bin rustup_bin="${HOME}/.cargo/bin"
+	printf '\nAdd to PATH (this script never edits shell profiles):\n'
+	if [[ -x "${rustup_bin}/rustup" || -x "${rustup_bin}/rustc" ]]; then
+		printf '  export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"\n'
+	else
+		printf '  export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"\n'
+	fi
+	if [[ -n "${GITHUB_PATH:-}" ]]; then
+		printf '%s\n' "${BUN_INSTALL}/bin" "${tools_bin}" "${DOTNET_ROOT}" >>"${GITHUB_PATH}"
+		if [[ -x "${rustup_bin}/rustup" || -x "${rustup_bin}/rustc" ]]; then
+			printf '%s\n' "${rustup_bin}" >>"${GITHUB_PATH}"
+		fi
+		if brew_ffmpeg_bin="$(brew_ffmpeg_cli ffmpeg)"; then
+			printf '%s\n' "$(dirname "${brew_ffmpeg_bin}")" >>"${GITHUB_PATH}"
+		fi
+	fi
+}
+
 if [[ "${check_only}" -eq 1 ]]; then
 	if want_frontend; then
 		check_frontend
@@ -360,6 +402,7 @@ if [[ "${check_only}" -eq 1 ]]; then
 	if want_rust; then
 		check_rust
 	fi
+	print_path_line
 	if [[ "${missing}" -ne 0 ]]; then
 		if want_frontend && want_rust; then
 			printf '\nInstall with: bash scripts/setup.sh\n' >&2
@@ -659,18 +702,6 @@ prefetch_lizard() {
 	# So verify.sh core still works if the network drops after setup (Codex cloud).
 	log "Prefetching lizard for the complexity check"
 	uvx --exclude-newer "10 days" --exclude-newer-package "lizard=2026-10-06" lizard --version >/dev/null
-}
-
-print_path_line() {
-	local brew_ffmpeg_bin
-	printf '\nAdd to PATH (this script never edits shell profiles):\n'
-	printf '  export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"\n'
-	if [[ -n "${GITHUB_PATH:-}" ]]; then
-		printf '%s\n' "${BUN_INSTALL}/bin" "${tools_bin}" "${DOTNET_ROOT}" >>"${GITHUB_PATH}"
-		if brew_ffmpeg_bin="$(brew_ffmpeg_cli ffmpeg)"; then
-			printf '%s\n' "$(dirname "${brew_ffmpeg_bin}")" >>"${GITHUB_PATH}"
-		fi
-	fi
 }
 
 if want_frontend; then
