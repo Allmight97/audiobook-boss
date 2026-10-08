@@ -6,17 +6,29 @@ import { describe, expect, it } from 'vitest';
 
 import * as appSettings from '../app/appSettings';
 import * as encoding from '../app/encoding';
+import * as engineLink from '../app/engineLink';
 import * as inputSession from '../app/inputSession';
 import * as metadataLookup from '../app/metadataLookup';
+import * as metadataSession from '../app/metadataSession';
 import * as outputPlan from '../app/outputPlan';
 import * as processing from '../app/processing';
 import * as remoteSource from '../app/remoteSource';
+import * as runtime from '../app/runtime';
 import * as workOperations from '../app/workOperations';
 import * as appSettingsUi from '../ui/appSettings';
+import * as collisionDialog from '../ui/collisionDialog';
+import * as coverArt from '../ui/coverArt';
+import * as encoderPanel from '../ui/encoderPanel';
 import * as fileImport from '../ui/fileImport';
 import * as fileList from '../ui/fileList';
+import * as foundation from '../ui/foundation';
+import * as jobControls from '../ui/jobControls';
 import * as leftColumn from '../ui/leftColumn';
+import * as metadataForm from '../ui/metadataForm';
+import * as metadataLookupUi from '../ui/metadataLookup';
+import * as metadataManager from '../ui/metadataManager';
 import * as outputPanel from '../ui/outputPanel';
+import * as previewAudio from '../ui/previewAudio';
 import * as remoteSourceUi from '../ui/remoteSource';
 import * as statusPanel from '../ui/statusPanel';
 import * as tagPreview from '../ui/tagPreview';
@@ -43,6 +55,7 @@ function missingStripMessage(owner: string): string {
 const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 	['app/appSettings', appSettings, ['createSettingsOwner']],
 	['app/encoding', encoding, ['createEncodingOwner']],
+	['app/engineLink', engineLink, ['createEngineLink']],
 	[
 		'app/inputSession',
 		inputSession,
@@ -61,6 +74,11 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 		],
 	],
 	['app/metadataLookup', metadataLookup, ['createMetadataLookupOwner']],
+	[
+		'app/metadataSession',
+		metadataSession,
+		['METADATA_FIELD_DEFINITIONS', 'createMetadataOwner'],
+	],
 	['app/outputPlan', outputPlan, ['CUSTOM_TEMPLATE_PLACEHOLDER', 'createOutputOwner']],
 	['app/processing', processing, ['createProcessingOwner']],
 	[
@@ -80,12 +98,26 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 			'visibleRemoteTitles',
 		],
 	],
+	['app/runtime', runtime, ['AppRuntimeProvider', 'createAppRuntime', 'useAppRuntime']],
 	['app/workOperations', workOperations, ['createWorkOperationsOwner']],
 	['ui/appSettings', appSettingsUi, ['AppSettingsDialogView', 'SettingsPersistenceNotice']],
+	['ui/collisionDialog', collisionDialog, ['CollisionDialogView']],
+	['ui/coverArt', coverArt, ['CoverArtView']],
+	['ui/encoderPanel', encoderPanel, ['EncoderView']],
 	['ui/fileImport', fileImport, ['FileImportView']],
 	['ui/fileList', fileList, ['FileListView', 'SelectedAudioSettings']],
+	[
+		'ui/foundation',
+		foundation,
+		['Button', 'CoverImage', 'CoverThumb', 'Dialog', 'Progress', 'SplitButton'],
+	],
+	['ui/jobControls', jobControls, ['ConcurrencyControl', 'GroupTitlesButton']],
 	['ui/leftColumn', leftColumn, ['FileInspectorView']],
+	['ui/metadataForm', metadataForm, ['MetadataFormView']],
+	['ui/metadataLookup', metadataLookupUi, ['MetadataLookupView']],
+	['ui/metadataManager', metadataManager, ['MetadataManagerView']],
 	['ui/outputPanel', outputPanel, ['OutputView']],
+	['ui/previewAudio', previewAudio, ['PreviewAudioControls']],
 	['ui/remoteSource', remoteSourceUi, ['RemoteSourceAcquireView']],
 	['ui/statusPanel', statusPanel, ['StatusPanelView']],
 	['ui/tagPreview', tagPreview, ['TagPreviewView']],

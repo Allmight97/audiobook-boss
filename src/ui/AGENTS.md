@@ -6,7 +6,8 @@ typed input. Owner rules: `src/app/AGENTS.md`.
 
 A view folder's `index.ts` is its Public API Strip. Import another view through
 `src/ui/<view>`; Biome rejects deeper paths. Files in one folder import each
-other relatively.
+other relatively. The exact export names are the hand-written `STRIPS` list in
+`src/__tests__/public-api-strips.contract.test.ts`.
 
 ## Composition
 
