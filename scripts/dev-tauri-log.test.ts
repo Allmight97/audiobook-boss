@@ -14,6 +14,8 @@ describe('app:dev:log entrypoint', () => {
 			readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8'),
 		) as { scripts: Record<string, string> };
 
-		expect(packageJson.scripts['bindings:generate']).toContain('--features bundled-ffmpeg');
+		expect(packageJson.scripts['bindings:generate']).toContain(
+			'--features bundled-ffmpeg-portable,binding-export',
+		);
 	});
 });

@@ -49,7 +49,8 @@ Traps:
 
 - Select Rust packages with `-p`. Workspace discovery pulls unrelated binaries
   into the target set. Binding export has its own command:
-  `bun run bindings:generate`.
+  `bun run bindings:generate` (`bundled-ffmpeg-portable`, so host-lane
+  export cannot write a native FFmpeg unit into the portable cache).
 - `bun run bindings:check:local` checks uncommitted changes against `HEAD`
   and can skip a clean committed branch. Use `bun run bindings:check` for
   committed contract changes.
@@ -131,7 +132,8 @@ Traps:
   same command in its environment settings, not the repo.
 - Engine, media, host, decrypt, and apple proof use
   `--features bundled-ffmpeg-portable` on every host (`verify.sh`; no `CI=true`
-  branch). Bare `cargo` defaults and `app:dev` stay `bundled-ffmpeg`. The first
+  branch), including `bun run bindings:generate` from the host lane. Bare
+  `cargo` defaults and `app:dev` stay `bundled-ffmpeg`. The first
   build compiles the revision in `vendor/ffmpeg-sys-next-*/ffmpeg-revision`;
   later builds reuse it while compiler, target, and feature match.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
