@@ -86,7 +86,7 @@ the owner of the truth.
   titles.
 - `metadataLookup` (session AGENTS): query text binds to its queued path and
   metadata `binding`. Advancing or rebinding drops the previous title's echo at
-  once.
+  once. Apply sends the lookup part revision the snapshot holds.
 - `outputPlan` (session AGENTS): the owner words preview text per engine
   preview kind and the size estimate. Size estimates show beside each title in
   File List; the Output and Encoder panels show none. `collision` words

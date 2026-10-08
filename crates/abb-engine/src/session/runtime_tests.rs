@@ -354,6 +354,13 @@ impl Rig {
     fn searches(&self) -> Vec<Search> {
         self.searches.lock().expect("searches").clone()
     }
+
+    fn lookup_apply(&self, index: usize) -> SessionIntent {
+        SessionIntent::LookupApply {
+            index,
+            revision: self.lookup().revision,
+        }
+    }
 }
 
 // ---- Lookup ----
@@ -552,7 +559,7 @@ async fn applying_to_the_current_title_edits_its_form_and_stays_on_it() {
     rig.send(SessionIntent::LookupOpen).await;
     let searched = rig.searches().len();
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     assert_eq!(rig.title_shown(), "Found");
     assert_eq!(
@@ -579,7 +586,7 @@ async fn applying_in_a_queue_stages_the_edit_moves_on_and_searches_the_next_titl
     rig.send(SessionIntent::LookupOpen).await;
     rig.answer_next_search(Ok(found(&["Found B"])));
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     assert_eq!(
         rig.pending("alpha"),
@@ -617,7 +624,7 @@ async fn replacing_the_cover_stages_the_result_image_with_the_text() {
     rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
         .await;
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     assert_eq!(
         rig.pending("alpha").and_then(|patch| patch.cover_art),
@@ -644,7 +651,7 @@ async fn applying_a_result_reuses_the_cover_its_preview_downloaded() {
 
     rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
         .await;
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     assert_eq!(rig.session.cover_art(), Some(written_cover()));
     assert_eq!(
@@ -664,7 +671,7 @@ async fn a_cover_that_fails_to_load_does_not_stop_the_text_from_applying() {
         .await;
     *rig.cover.lock().expect("cover") = Err(AppError::General("unreachable".to_string()));
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     let alpha = rig.pending("alpha").expect("text applied");
     assert_eq!(alpha.title, Some(PatchOp::Set("Found A".to_string())));
@@ -721,7 +728,7 @@ async fn a_result_the_gate_rejects_keeps_the_queue_on_its_title() {
     rig.send(SessionIntent::LookupOpen).await;
     let searched = rig.searches().len();
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     let lookup = rig.lookup();
     assert_eq!(lookup.status, Some(LookupStatus::NextTitleRejected));
@@ -750,7 +757,7 @@ async fn a_result_is_not_applied_when_its_title_cannot_be_selected() {
     })
     .await;
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     assert_eq!(rig.lookup().status, Some(LookupStatus::ApplyRejected));
     assert_eq!(rig.selected(), [1]);
@@ -766,7 +773,7 @@ async fn an_unknown_result_index_changes_nothing() {
     rig.send(SessionIntent::LookupOpen).await;
     let before = rig.lookup();
 
-    rig.send(SessionIntent::LookupApply { index: 9 }).await;
+    rig.send(rig.lookup_apply(9)).await;
 
     assert_eq!(rig.lookup().status, before.status);
     assert_eq!(rig.title_shown(), "ALPHA");
@@ -898,9 +905,11 @@ async fn applying_a_result_does_not_use_an_index_into_replaced_results() {
     assert_eq!(searching.await.expect("search"), SessionOutcome::Applied);
     assert_eq!(rig.lookup().results[0].title, "New");
 
-    // The host sends `rendered`, the lookup revision of the list it showed.
-    let _ = rendered;
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(SessionIntent::LookupApply {
+        index: 0,
+        revision: rendered,
+    })
+    .await;
 
     assert_eq!(
         rig.title_shown(),
@@ -1909,7 +1918,7 @@ async fn lookup_cover_reply_cannot_pull_the_selection_back_to_an_earlier_title()
     rig.send(SessionIntent::LookupOpen).await;
     rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
         .await;
-    let applying = rig.session.begin(SessionIntent::LookupApply { index: 0 });
+    let applying = rig.session.begin(rig.lookup_apply(0));
     rig.select(&[1]).await;
     cover.send(Ok(vec![1, 2, 3])).expect("cover reply");
     assert_eq!(applying.finish().await.outcome, SessionOutcome::Superseded);

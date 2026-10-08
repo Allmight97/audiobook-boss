@@ -243,7 +243,11 @@ describe('UI Workflow Smoke Test', () => {
 				kind: 'lookupSetReplaceCover',
 				replace: true,
 			});
-			expect(engine.sessionIntents).toContainEqual({ kind: 'lookupApply', index: 0 });
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'lookupApply',
+				index: 0,
+				revision: 0,
+			});
 		} finally {
 			runtime.dispose();
 		}

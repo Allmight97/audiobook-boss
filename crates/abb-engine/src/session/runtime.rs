@@ -233,6 +233,9 @@ pub enum SessionIntent {
     LookupSearch,
     LookupApply {
         index: usize,
+        /// Lookup part revision the host rendered; a mismatch changes nothing.
+        #[specta(type = specta_typescript::Number)]
+        revision: u64,
     },
     LookupSkip,
     LookupSetTitleQuery {
@@ -429,16 +432,21 @@ enum Rest {
     /// Record a choice in the settings, unless they were reset since `resets`.
     Remember(SettingsRun),
     /// Preflight, review, then export or preview.
-    Submit(Box<Draft>),
+    Submit {
+        draft: Box<Draft>,
+        resets: u64,
+    },
     /// Continue a reviewed submission under `policy`.
     Reviewed {
         draft: Box<Draft>,
         policy: CollisionPolicy,
+        resets: u64,
     },
     /// Stop a title's export, then submit `draft` (that title alone).
     Restart {
         draft: Box<Draft>,
         link: Box<ExportLink>,
+        resets: u64,
     },
     Save {
         epoch: u64,
@@ -533,13 +541,21 @@ impl Session {
                     _ => SessionOutcome::Applied,
                 }
             }
-            Rest::Submit(draft) => session.submit(*draft).await,
-            Rest::Reviewed { mut draft, policy } => {
+            Rest::Submit { draft, resets } => session.submit(*draft, resets).await,
+            Rest::Reviewed {
+                mut draft,
+                policy,
+                resets,
+            } => {
                 draft.payload.collision_policy = Some(policy);
-                session.submit(*draft).await
+                session.submit(*draft, resets).await
             }
             Rest::Save { epoch, plan } => session.save(epoch, plan).await,
-            Rest::Restart { draft, link } => session.restart(*draft, *link).await,
+            Rest::Restart {
+                draft,
+                link,
+                resets,
+            } => session.restart(*draft, *link, resets).await,
             Rest::KeepLocation {
                 title_id,
                 revision,
@@ -983,6 +999,7 @@ impl Session {
                     Some(draft) => Rest::Reviewed {
                         draft: Box::new(draft),
                         policy,
+                        resets: self.inner.resets.load(Ordering::SeqCst),
                     },
                     None => Rest::Done(SessionOutcome::Superseded),
                 }
@@ -1021,7 +1038,7 @@ impl Session {
             I::LookupSearch => Rest::LookupSearch {
                 request: self.begin_lookup_action(),
             },
-            I::LookupApply { index } => self.begin_lookup_apply(index),
+            I::LookupApply { index, revision } => self.begin_lookup_apply(index, revision),
             I::LookupSkip => Rest::LookupAdvance {
                 request: self.begin_lookup_action(),
                 step: QueueStep::Skipped,
@@ -1343,14 +1360,17 @@ impl Session {
             state.begin_submission(preview_seconds)
         });
         match draft {
-            Some(draft) => Rest::Submit(Box::new(draft)),
+            Some(draft) => Rest::Submit {
+                draft: Box::new(draft),
+                resets: self.inner.resets.load(Ordering::SeqCst),
+            },
             None => Rest::Done(SessionOutcome::Applied),
         }
     }
 
     /// Preflights a draft, holds it for review when outputs collide, then
     /// exports or previews it.
-    async fn submit(&self, draft: Draft) -> SessionOutcome {
+    async fn submit(&self, draft: Draft, resets: u64) -> SessionOutcome {
         self.publish();
         let checking = draft.clone();
         let plan = blocking(move || {
@@ -1390,9 +1410,9 @@ impl Session {
                 self.end_submission(&draft, SubmissionStatus::Blocked { message })
             }
             PlanVerdict::Review(outputs) if draft.payload.collision_policy.is_none() => {
-                self.hold_for_review(draft, outputs)
+                self.hold_for_review(draft, outputs, resets)
             }
-            _ if unreviewed => self.hold_for_review(draft, collided),
+            _ if unreviewed => self.hold_for_review(draft, collided, resets),
             PlanVerdict::Review(_) | PlanVerdict::Proceed => {
                 self.accept(
                     draft.approved(public.collision_policy, public.plan_signature),
@@ -1404,22 +1424,29 @@ impl Session {
     }
 
     /// Holds a draft for the user's collision choice, unless the engine is
-    /// closing: checked under the session lock, so shutdown's cancel of
-    /// reviews either finds this one or this sees shutdown.
+    /// closing or a Reset superseded this submit: checked under the session
+    /// lock, so shutdown's cancel of reviews either finds this one or this
+    /// sees shutdown, and a Reset during preflight drops the preflight and
+    /// unlocks the list.
     fn hold_for_review(
         &self,
         draft: Draft,
         outputs: Vec<crate::output_artifact::PlannedOutput>,
+        resets: u64,
     ) -> SessionOutcome {
-        let closing_now = self.transition(|state| {
+        let dropped = self.transition(|state| {
             if self.inner.deps.tasks.is_closed() {
                 state.finish_submission(&draft, closing());
+                return true;
+            }
+            if self.inner.resets.load(Ordering::SeqCst) != resets {
+                state.finish_submission(&draft, SubmissionStatus::Cancelled);
                 return true;
             }
             state.await_review(draft, outputs);
             false
         });
-        if closing_now {
+        if dropped {
             self.sources_released();
         }
         SessionOutcome::Applied
@@ -1876,6 +1903,7 @@ impl Session {
             Some((draft, link)) => Rest::Restart {
                 draft: Box::new(draft),
                 link: Box::new(link),
+                resets: self.inner.resets.load(Ordering::SeqCst),
             },
             None => Rest::Done(SessionOutcome::Applied),
         }
@@ -1883,7 +1911,7 @@ impl Session {
 
     /// Stops the title's export, then submits it again from the session. A
     /// title that published first keeps its output, which takes the edit.
-    async fn restart(&self, draft: Draft, link: ExportLink) -> SessionOutcome {
+    async fn restart(&self, draft: Draft, link: ExportLink, resets: u64) -> SessionOutcome {
         self.publish();
         let deps = &self.inner.deps;
         let published = deps
@@ -1891,7 +1919,7 @@ impl Session {
             .stop_title(&deps.host, &link.operation_id, link.index, &link.title)
             .await;
         if !published {
-            return self.submit(draft).await;
+            return self.submit(draft, resets).await;
         }
         let edits = self.transition(|state| {
             let tags = &state.tags;
@@ -2000,7 +2028,10 @@ impl Session {
     // ---- Lookup ----
 
     fn edit_lookup(&self, change: impl FnOnce(&mut lookup::LookupState)) -> Rest {
-        self.transition(|state| change(&mut state.lookup));
+        self.transition(|state| {
+            change(&mut state.lookup);
+            state.lookup.request += 1;
+        });
         Rest::Done(SessionOutcome::Applied)
     }
 
@@ -2124,9 +2155,11 @@ impl Session {
         Ok(true)
     }
 
-    fn begin_lookup_apply(&self, index: usize) -> Rest {
-        let request = self.begin_lookup_action();
+    fn begin_lookup_apply(&self, index: usize, revision: u64) -> Rest {
         let chosen = self.transition(|state| {
+            if state.lookup_revision() != revision {
+                return None;
+            }
             let result = state.lookup.results.get(index)?.clone();
             let Some(title) = state.lookup.current().cloned() else {
                 state.lookup.status = Some(LookupStatus::NoTitleQueued);
@@ -2142,7 +2175,7 @@ impl Session {
         });
         match chosen {
             Some(chosen) => Rest::LookupApply {
-                request,
+                request: self.begin_lookup_action(),
                 chosen: Box::new(chosen),
             },
             None => Rest::Done(SessionOutcome::Applied),

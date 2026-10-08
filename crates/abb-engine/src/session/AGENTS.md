@@ -91,8 +91,10 @@ one host attachment.
 - **Collision review and restart offers.** `output.collision_review` is the held
   question, independent of a later request's refusal. Its `review_id` advances
   for each review and survives Reset; choice and cancel intents name it, and
-  stale or duplicate answers are `Superseded`. Frontend teardown is not a user
-  cancellation. `output.submission_in_progress` owns the busy fact.
+  stale or duplicate answers are `Superseded`. A Reset during preflight, before
+  a review is held, drops that preflight and unlocks the list. Frontend teardown
+  is not a user cancellation. `output.submission_in_progress` owns the busy
+  fact.
   `output.restart_prompt` selects one unanswered current offer in title-id order
   only after the preceding answer's work settles; answering suppresses that
   offer's automatic question for the engine session, even if Restart or Keep
@@ -171,9 +173,11 @@ one host attachment.
   after `staged::RETRY_DELAY`; startup clears the rest. A download nothing was
   imported from is recorded the same way.
 - **Lookup.** A new lookup action supersedes the one in flight; a late search,
-  cover, or selection result changes nothing. A result applies only to the
-  queued title while it is the one title both selected and bound. Applied values
-  are form edits and pass the draft gate like any other.
+  cover, or selection result changes nothing. Editing the query, author, source,
+  apply mode, or cover-replace choice supersedes a search still running. Apply
+  names the lookup part's revision; a mismatch changes nothing. A result applies
+  only to the queued title while it is the one title both selected and bound.
+  Applied values are form edits and pass the draft gate like any other.
 
 ## Proof
 

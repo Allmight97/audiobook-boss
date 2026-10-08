@@ -1103,7 +1103,9 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 /**  Gives each named title the default audio choice. */
 { kind: "applyDefaultAudio"; titleIds: string[] } | { kind: "setField"; field: MetadataField; value: string } | { kind: "setFieldAction"; field: MetadataField; action: FieldAction } | { kind: "loadCoverFromFile"; path: string } | { kind: "loadCoverFromDrop"; paths: string[] } | { kind: "loadCoverFromUrl"; url: string } | { kind: "clearCover" } |
 /**  Writes every pending edit that can be written now. */
-{ kind: "save" } | { kind: "lookupOpen" } | { kind: "lookupClose" } | { kind: "lookupSearch" } | { kind: "lookupApply"; index: number } | { kind: "lookupSkip" } | { kind: "lookupSetTitleQuery"; value: string } | { kind: "lookupSetAuthorQuery"; value: string } | { kind: "lookupSetSource"; source: LookupSource } | { kind: "lookupSetApplyMode"; mode: LookupApplyMode } | { kind: "lookupSetReplaceCover"; replace: boolean };
+{ kind: "save" } | { kind: "lookupOpen" } | { kind: "lookupClose" } | { kind: "lookupSearch" } | { kind: "lookupApply"; index: number;
+/**  Lookup part revision the host rendered; a mismatch changes nothing. */
+revision: number } | { kind: "lookupSkip" } | { kind: "lookupSetTitleQuery"; value: string } | { kind: "lookupSetAuthorQuery"; value: string } | { kind: "lookupSetSource"; source: LookupSource } | { kind: "lookupSetApplyMode"; mode: LookupApplyMode } | { kind: "lookupSetReplaceCover"; replace: boolean };
 
 /**  Whether an intent took effect. Details a user needs are in the snapshot. */
 export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } | { kind: "remoteAuthStarted"; authorization: RemoteAuthStartResponse } |

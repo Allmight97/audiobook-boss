@@ -389,6 +389,10 @@ impl SessionState {
         self.parts.revision
     }
 
+    pub(crate) fn lookup_revision(&self) -> u64 {
+        self.parts.lookup.revision
+    }
+
     /// Re-derives what hosts see and stamps each changed part with a new
     /// revision. The runtime calls this once after every transition.
     pub(crate) fn settle(&mut self) {

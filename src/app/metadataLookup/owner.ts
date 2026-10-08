@@ -33,10 +33,10 @@ export type MetadataLookupOwner = {
 
 const METADATA_TITLE_INPUT_ID = 'meta-title';
 
-function intentFor(action: MetadataLookupAction): SessionIntent {
+function intentFor(action: MetadataLookupAction, lookupRevision: number): SessionIntent {
 	switch (action.type) {
 		case 'applyResult':
-			return { kind: 'lookupApply', index: action.index };
+			return { kind: 'lookupApply', index: action.index, revision: lookupRevision };
 		case 'close':
 		case 'manualEntry':
 			return { kind: 'lookupClose' };
@@ -99,7 +99,7 @@ export function createMetadataLookupOwner(deps: {
 		},
 		async run(action) {
 			try {
-				await link.send(intentFor(action));
+				await link.send(intentFor(action, link.lookup().revision));
 			} catch (error) {
 				console.error('Metadata lookup failed:', error);
 				return;
