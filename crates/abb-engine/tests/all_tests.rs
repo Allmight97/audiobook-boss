@@ -67,13 +67,63 @@ fn the_developer_tool_imports_edits_and_saves_a_real_file() {
 }
 
 #[cfg(unix)]
+struct UnwritableFile {
+    path: PathBuf,
+    immutable: bool,
+}
+
+#[cfg(unix)]
+impl Drop for UnwritableFile {
+    fn drop(&mut self) {
+        if self.immutable {
+            let _ = Command::new("chattr").arg("-i").arg(&self.path).status();
+        } else {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&self.path, std::fs::Permissions::from_mode(0o644));
+        }
+    }
+}
+
+#[cfg(unix)]
+fn make_unwritable(path: &Path) -> UnwritableFile {
+    let root = Command::new("id")
+        .arg("-u")
+        .output()
+        .ok()
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .is_some_and(|uid| uid.trim() == "0");
+    if root {
+        let result = Command::new("chattr")
+            .arg("+i")
+            .arg(path)
+            .output()
+            .expect("run chattr");
+        assert!(
+            result.status.success(),
+            "chattr +i must work as root so Save cannot write: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        UnwritableFile {
+            path: path.to_path_buf(),
+            immutable: true,
+        }
+    } else {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o444))
+            .expect("make the book read-only");
+        UnwritableFile {
+            path: path.to_path_buf(),
+            immutable: false,
+        }
+    }
+}
+
+#[cfg(unix)]
 #[test]
 fn the_developer_tool_fails_when_a_save_cannot_write() {
-    use std::os::unix::fs::PermissionsExt;
     let root = tempfile::TempDir::new().expect("state root");
     let source = book(root.path());
-    std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o444))
-        .expect("make the book read-only");
+    let _unwritable = make_unwritable(&source);
     let result = Command::new(env!("CARGO_BIN_EXE_abb-dev"))
         .arg(&source)
         .args(["--set", "genre=Mystery", "--save", "--state-dir"])

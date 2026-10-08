@@ -1,22 +1,20 @@
 name: ci
 
-# CI runs once per PR, when auto-merge is enabled ("done: prove it and merge"),
-# by hand, and twice a week on main. Opening a PR and pushing start nothing.
-# The `gate` job is the check main requires; GitHub counts only pull_request
-# runs toward it, not workflow_dispatch. A push after the last run leaves the
-# new head without one: disable and re-enable auto-merge to rerun. A skipped
-# gate counts as passing, so pushes cannot trigger a conditional run. Within
-# a PR run, each job proves only what the PR changed; manual and scheduled runs
-# prove everything, and also run `cargo audit` and `cargo deny`
-# (`supply-chain`). Dependabot PRs also wait for auto-merge. Only main runs
-# save the Rust build cache, because PRs can restore only main's caches; the
-# scheduled run also keeps it from the 7-day eviction. rust-cache drops build
-# outputs of path crates inside the workspace, so FFmpeg keeps its own cache. Every job has a
-# timeout so a stalled runner or download fails instead of waiting 6 hours.
+# CI runs when a PR opens ready or is marked ready, when auto-merge is enabled
+# (the merge attempt), by hand, and twice a week on main. Pushes start nothing,
+# and drafts never run. The `gate` job is the check main requires: a push after
+# the last run leaves the new head without one, so the merge waits for a new
+# run. Within a PR run, each job proves only what the PR changed; manual and
+# scheduled runs prove everything, and also run `cargo audit` and `cargo deny`
+# (`supply-chain`). The scheduled run keeps the FFmpeg cache
+# alive, because GitHub evicts caches unused for 7 days and only runs on main
+# save caches that PRs can restore.
+#
+# Check commands live in scripts/verify.sh. This file only selects lanes.
 
 on:
   pull_request:
-    types: [auto_merge_enabled]
+    types: [opened, ready_for_review, auto_merge_enabled]
   schedule:
     - cron: "0 6 * * 1,4"
   workflow_dispatch:
@@ -29,15 +27,11 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  CORE_CRATES: >-
-    -p abb-audible-core -p abb-media-core -p abb-metadata-core
-    -p abb-output-artifact-core -p abb-processing-core -p abb-remote-source-core
 
 jobs:
   changes:
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
@@ -48,6 +42,7 @@ jobs:
       engine: ${{ steps.filter.outputs.engine }}
       media: ${{ steps.filter.outputs.media }}
       host: ${{ steps.filter.outputs.host }}
+      tooling: ${{ steps.filter.outputs.tooling }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -68,9 +63,11 @@ jobs:
               - vitest.config.ts
               - biome.json
               - knip.json
+              - .node-version
               - scripts/**/*.ts
               - scripts/locked-bun-version.sh
-              - scripts/setup-linux-agent.sh
+              - scripts/setup.sh
+              - scripts/verify.sh
             shared: &shared
               - .github/workflows/ci.yml
               - Cargo.toml
@@ -79,7 +76,8 @@ jobs:
               - src-tauri/Cargo.toml
               - rust-toolchain.toml
               - vendor/**
-              - scripts/setup-linux-agent.sh
+              - scripts/setup.sh
+              - scripts/verify.sh
             core:
               - *shared
               - scripts/check-rust-tiers.sh
@@ -108,6 +106,10 @@ jobs:
               - src-tauri/**
               - src/lib/generated/**
               - scripts/check-generated-bindings.sh
+            tooling:
+              - .github/workflows/**
+              - scripts/*.sh
+              - .claude/hooks/**
 
 
   frontend:
@@ -117,25 +119,15 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
-      - id: bun
-        run: |
-          version="$(bash scripts/locked-bun-version.sh)"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          bun-version: ${{ steps.bun.outputs.version }}
-      - run: bun install --frozen-lockfile
-      - run: bun run fmt:check
-      - run: bun run lint:check
-      - run: bun run bindings:check:runtime-boundary
-      - run: bun run typecheck
-      - run: bun run knip
-      - run: bun run test
+          node-version-file: .node-version
+      - run: bash scripts/setup.sh frontend
+      - run: bash scripts/verify.sh frontend
 
   core:
     name: Core crate tests and clippy
@@ -144,106 +136,99 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
       # rust-toolchain.toml pins the compiler; rustup installs it on first use.
-      - run: bash scripts/check-rust-tiers.sh
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: 0.12.10
           enable-cache: false
-      - run: bash scripts/check-rust-complexity.sh
-      - run: cargo fmt --all -- --check
-      - run: cargo test --locked ${{ env.CORE_CRATES }} # zizmor: ignore[template-injection]
-      - run: cargo clippy --locked ${{ env.CORE_CRATES }} --all-targets -- -D warnings # zizmor: ignore[template-injection]
+      - run: bash scripts/verify.sh core
 
-  engine:
-    name: Engine, media lane, and host (Linux)
+  rust:
+    name: Rust (${{ matrix.os }})
     needs: changes
     if: >-
       needs.changes.outputs.engine == 'true' || needs.changes.outputs.host == 'true'
-      || needs.changes.outputs.all == 'true'
+      || needs.changes.outputs.media == 'true' || needs.changes.outputs.all == 'true'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      ALL: ${{ needs.changes.outputs.all }}
+      CORE: ${{ needs.changes.outputs.core }}
+      ENGINE: ${{ needs.changes.outputs.engine }}
+      MEDIA: ${{ needs.changes.outputs.media }}
+      HOST: ${{ needs.changes.outputs.host }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - run: bash scripts/setup.sh rust
+      - if: env.HOST == 'true' || env.ALL == 'true'
+        run: bash scripts/setup.sh frontend
+      - id: toolchain
+        run: |
+          if [ "${{ runner.os }}" = macOS ]; then
+            echo "id=$( (cc --version; xcrun --show-sdk-version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          else
+            echo "id=$( (cc --version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          fi
+      # The build script reuses FFmpeg only while compiler, opus, source and
+      # patch match, so the key carries the same inputs.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/debug/build/ffmpeg-sys-next-*/out
+          key: ffmpeg-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
+      - run: |
+          lanes=()
+          # Linux core stays the dedicated no-apt job. macOS runs core here so
+          # fmt, Clippy, and tests gate on both OSes.
+          if [ "${RUNNER_OS}" = macOS ] && { [ "${CORE}" = true ] || [ "${ALL}" = true ]; }; then
+            lanes+=(core)
+          fi
+          if [ "${ENGINE}" = true ] || [ "${ALL}" = true ]; then
+            lanes+=(engine)
+          fi
+          if [ "${MEDIA}" = true ] || [ "${ALL}" = true ]; then
+            lanes+=(media)
+          fi
+          if [ "${HOST}" = true ] || [ "${ALL}" = true ]; then
+            lanes+=(host)
+          fi
+          if [ "${RUNNER_OS}" = macOS ]; then
+            lanes+=(apple)
+          fi
+          if [ "${#lanes[@]}" -eq 0 ]; then
+            echo "No rust lanes selected for this OS"
+            exit 0
+          fi
+          bash scripts/verify.sh "${lanes[@]}"
+
+  tooling:
+    name: Workflows and shell
+    needs: changes
+    if: needs.changes.outputs.tooling == 'true' || needs.changes.outputs.all == 'true'
     permissions:
       contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      ABB_FFMPEG: /home/runner/.local/bin/ffmpeg
-      ABB_FFPROBE: /home/runner/.local/bin/ffprobe
-      ALL: ${{ needs.changes.outputs.all }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
-      - run: bash scripts/setup-linux-agent.sh --rust
-      # The FFmpeg build script checks its own source, patch and compiler
-      # identity, so a restored build that no longer matches is rebuilt.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - id: toolchain
-        run: echo "id=$( (cc --version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
-      # After rust-cache, so this saves before rust-cache's cleanup deletes the
-      # FFmpeg build. The build script reuses FFmpeg only while compiler, opus,
-      # source and patch match, so the key carries the same inputs.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: target/debug/build/ffmpeg-sys-next-*/out
-          key: ffmpeg-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
-      - if: needs.changes.outputs.engine == 'true' || env.ALL == 'true'
-        run: >-
-          cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --
-          --skip test_cases::integration_media
-      - if: needs.changes.outputs.engine == 'true' || env.ALL == 'true'
-        run: cargo test --locked -p faac-sys
-      - if: needs.changes.outputs.engine == 'true' || env.ALL == 'true'
-        # The host-API examples guard which engine internals hosts can reach.
-        run: cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
-      - if: needs.changes.outputs.media == 'true' || env.ALL == 'true'
-        run: >-
-          cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --
-          test_cases::integration_media
-      - if: needs.changes.outputs.host == 'true' || env.ALL == 'true'
-        run: cargo test --locked -p audiobook-boss --features bundled-ffmpeg
-      - if: needs.changes.outputs.host == 'true' || env.ALL == 'true'
-        run: |
-          bash scripts/setup-linux-agent.sh
-          export PATH="$HOME/.bun/bin:$PATH"
-          bash scripts/check-generated-bindings.sh --mode verify
-
-  apple-aac:
-    name: Apple AAC (macOS)
-    needs: changes
-    if: needs.changes.outputs.media == 'true' || needs.changes.outputs.all == 'true'
-    permissions:
-      contents: read
-    runs-on: macos-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          persist-credentials: false
-      # Homebrew's ffmpeg CLI (9.x) reads the outputs back.
-      - run: brew install opus pkg-config nasm ffmpeg
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - id: toolchain
-        run: echo "id=$( (cc --version; xcrun --show-sdk-version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: target/debug/build/ffmpeg-sys-next-*/out
-          key: ffmpeg-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
-      - run: cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- apple
+      - run: bash scripts/setup.sh frontend
+      - run: bash scripts/verify.sh tooling
 
   supply-chain:
     name: Advisories and licenses
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -258,10 +243,9 @@ jobs:
 
   gate:
     name: gate
-    needs: [changes, frontend, core, engine, apple-aac, supply-chain]
+    needs: [changes, frontend, core, rust, tooling, supply-chain]
     if: always() && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     permissions: {}
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')

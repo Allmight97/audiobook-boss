@@ -1,0 +1,587 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Agent and CI setup for ABB. Idempotent. Never edits shell profiles.
+#   bash scripts/setup.sh                 # frontend and rust
+#   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck
+#   bash scripts/setup.sh rust            # bundled FFmpeg build deps, FFmpeg 9 CLI, uv, cargo fetch
+#   bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
+#
+# rust installs nasm and static libopus for the engine's bundled FFmpeg
+# (cargo compiles the vendored revision on first use and caches it in target/),
+# Tauri's GTK/WebKit packages on Linux and the AAXClean sidecar stub for host
+# builds, and an FFmpeg 9 command-line build for media-lane fixture readback.
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+tools_bin="${ABB_TOOLS_BIN:-$HOME/.local/bin}"
+export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
+export PATH="${BUN_INSTALL}/bin:${tools_bin}:${PATH}"
+
+check_only=0
+mode="all"
+
+usage() {
+	sed -n '2,12p' "$0" | sed 's/^# \?//'
+}
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		--check) check_only=1 ;;
+		frontend | rust)
+			if [[ "${mode}" != all ]]; then
+				printf 'error: pass one mode (frontend or rust), or none for both\n' >&2
+				exit 1
+			fi
+			mode="$1"
+			;;
+		-h | --help)
+			usage
+			exit 0
+			;;
+		*)
+			printf 'error: unknown argument %s (expected frontend, rust, or --check)\n' "$1" >&2
+			exit 1
+			;;
+	esac
+	shift
+done
+
+log() {
+	printf '\n==> %s\n' "$*"
+}
+
+have() {
+	command -v "$1" >/dev/null 2>&1
+}
+
+os_name() {
+	uname -s
+}
+
+is_linux() {
+	[[ "$(os_name)" == Linux ]]
+}
+
+is_darwin() {
+	[[ "$(os_name)" == Darwin ]]
+}
+
+run_as_root() {
+	if [[ "$(id -u)" -eq 0 ]]; then
+		"$@"
+	elif have sudo; then
+		sudo "$@"
+	else
+		printf 'error: %s requires root or sudo\n' "$1" >&2
+		return 1
+	fi
+}
+
+sha256_of() {
+	if have sha256sum; then
+		sha256sum "$1" | awk '{print $1}'
+	else
+		shasum -a 256 "$1" | awk '{print $1}'
+	fi
+}
+
+hash_from_sums() {
+	local sums="$1" asset="$2"
+	awk -v asset="${asset}" '
+		{
+			name = $2
+			sub(/^\*/, "", name)
+			if (name == asset) {
+				print $1
+				exit
+			}
+		}
+	' "${sums}"
+}
+
+# Download a release asset and check it against the release's checksum file.
+fetch_verified() {
+	local base="$1" asset="$2" sums="$3" dest="$4"
+	local expected actual
+	# Bounded: a stalled download fails in minutes instead of holding CI.
+	local curl_opts=(-fsSL --connect-timeout 20 --max-time 600 --retry 3 --retry-all-errors)
+	curl "${curl_opts[@]}" -o "${dest}/${asset}" "${base}/${asset}"
+	curl "${curl_opts[@]}" -o "${dest}/${sums}" "${base}/${sums}"
+	expected="$(hash_from_sums "${dest}/${sums}" "${asset}")"
+	actual="$(sha256_of "${dest}/${asset}")"
+	if [[ -z "${expected}" || "${expected}" != "${actual}" ]]; then
+		printf 'error: checksum mismatch for %s\n' "${asset}" >&2
+		exit 1
+	fi
+}
+
+pinned_node_version() {
+	local file="${repo_root}/.node-version" version
+	if [[ ! -f "${file}" ]]; then
+		printf 'error: missing %s\n' "${file}" >&2
+		exit 1
+	fi
+	version="$(tr -d ' \t\r\nvV' <"${file}")"
+	if [[ ! "${version}" =~ ^22\.[0-9]+\.[0-9]+$ ]]; then
+		printf 'error: %s must pin Node 22.x.x, got %s\n' "${file}" "${version}" >&2
+		exit 1
+	fi
+	printf '%s\n' "${version}"
+}
+
+node_major() {
+	local version
+	version="$("$@" --version 2>/dev/null | awk 'NR==1 {print; exit}')"
+	version="${version#v}"
+	printf '%s\n' "${version%%.*}"
+}
+
+ffmpeg_major() {
+	local bin="$1" line
+	line="$("${bin}" -version 2>/dev/null | awk 'NR==1 {print; exit}')"
+	sed -n 's/.*version n\?\([0-9][0-9]*\).*/\1/p' <<<"${line}"
+}
+
+ffmpeg_bin() {
+	if [[ -x "${tools_bin}/ffmpeg" && "$(ffmpeg_major "${tools_bin}/ffmpeg")" == 9 ]]; then
+		printf '%s\n' "${tools_bin}/ffmpeg"
+		return 0
+	fi
+	if have ffmpeg && [[ "$(ffmpeg_major ffmpeg)" == 9 ]]; then
+		command -v ffmpeg
+		return 0
+	fi
+	return 1
+}
+
+ffprobe_bin() {
+	if [[ -x "${tools_bin}/ffprobe" && "$(ffmpeg_major "${tools_bin}/ffprobe")" == 9 ]]; then
+		printf '%s\n' "${tools_bin}/ffprobe"
+		return 0
+	fi
+	if have ffprobe && [[ "$(ffmpeg_major ffprobe)" == 9 ]]; then
+		command -v ffprobe
+		return 0
+	fi
+	return 1
+}
+
+missing=0
+
+ok() {
+	printf 'OK      %s\n' "$*"
+}
+
+need() {
+	printf 'MISSING %s\n' "$*"
+	missing=1
+}
+
+want_frontend() {
+	[[ "${mode}" == all || "${mode}" == frontend ]]
+}
+
+want_rust() {
+	[[ "${mode}" == all || "${mode}" == rust ]]
+}
+
+check_frontend() {
+	local required_bun required_node bun_ver node_ver major
+	required_bun="$(bash "${repo_root}/scripts/locked-bun-version.sh")"
+	required_node="$(pinned_node_version)"
+	if have bun; then
+		bun_ver="$(bun --version)"
+		if [[ "${bun_ver}" == "${required_bun}" ]]; then
+			ok "bun ${bun_ver}"
+		else
+			need "bun ${required_bun} (found ${bun_ver})"
+		fi
+	else
+		need "bun ${required_bun}"
+	fi
+	if have node; then
+		node_ver="$(node --version)"
+		major="$(node_major node)"
+		if [[ "${major}" =~ ^[0-9]+$ && "${major}" -ge 22 ]]; then
+			ok "node ${node_ver} (major 22+; pin ${required_node})"
+		else
+			need "node 22 or newer (found ${node_ver}; pin ${required_node})"
+		fi
+	else
+		need "node ${required_node} (major 22+)"
+	fi
+	if [[ -d "${repo_root}/node_modules" ]]; then
+		ok "node_modules"
+	else
+		need "node_modules (run: bash scripts/setup.sh frontend)"
+	fi
+	if have actionlint; then
+		ok "actionlint $(actionlint -version 2>/dev/null | awk 'NR==1{print; exit}')"
+	else
+		need "actionlint (run: bash scripts/setup.sh frontend)"
+	fi
+	if have shellcheck; then
+		ok "shellcheck"
+	else
+		need "shellcheck (run: bash scripts/setup.sh frontend)"
+	fi
+}
+
+check_rust() {
+	local ffprobe_path ffmpeg_path sidecar
+	if have rustc && have cargo; then
+		ok "rustc $(rustc --version | awk '{print $2}')"
+	else
+		need "rustc and cargo (rust-toolchain.toml pins 1.95)"
+	fi
+	if cargo fmt --version >/dev/null 2>&1; then
+		ok "rustfmt"
+	else
+		need "rustfmt (rust-toolchain.toml component)"
+	fi
+	if cargo clippy -V >/dev/null 2>&1; then
+		ok "clippy"
+	else
+		need "clippy (rust-toolchain.toml component)"
+	fi
+	if have uvx; then
+		ok "uvx"
+	else
+		need "uvx (run: bash scripts/setup.sh rust)"
+	fi
+	if have nasm; then
+		ok "nasm"
+	else
+		need "nasm (run: bash scripts/setup.sh rust)"
+	fi
+	if have pkg-config && pkg-config --exists opus; then
+		ok "libopus ($(pkg-config --modversion opus))"
+	else
+		need "libopus / pkg-config opus (run: bash scripts/setup.sh rust)"
+	fi
+	if ffmpeg_path="$(ffmpeg_bin)"; then
+		ok "ffmpeg 9 (${ffmpeg_path})"
+	else
+		need "ffmpeg 9 CLI (run: bash scripts/setup.sh rust)"
+	fi
+	if ffprobe_path="$(ffprobe_bin)"; then
+		ok "ffprobe 9 (${ffprobe_path})"
+	else
+		need "ffprobe 9 CLI (run: bash scripts/setup.sh rust)"
+	fi
+	if is_linux; then
+		if have pkg-config && pkg-config --exists webkit2gtk-4.1 gtk+-3.0; then
+			ok "GTK/WebKit (webkit2gtk-4.1)"
+		else
+			need "GTK/WebKit (run: bash scripts/setup.sh rust)"
+		fi
+	fi
+	if have rustc; then
+		sidecar="${repo_root}/src-tauri/binaries/abb-aaxclean-helper-$(rustc -vV | awk '/^host:/ { print $2 }')"
+		if [[ -x "${sidecar}" ]]; then
+			ok "AAXClean sidecar stub"
+		else
+			need "AAXClean sidecar stub (run: bash scripts/setup.sh rust)"
+		fi
+	fi
+}
+
+if [[ "${check_only}" -eq 1 ]]; then
+	if want_frontend; then
+		check_frontend
+	fi
+	if want_rust; then
+		check_rust
+	fi
+	if [[ "${missing}" -ne 0 ]]; then
+		if want_frontend && want_rust; then
+			printf '\nInstall with: bash scripts/setup.sh\n' >&2
+		elif want_frontend; then
+			printf '\nInstall with: bash scripts/setup.sh frontend\n' >&2
+		else
+			printf '\nInstall with: bash scripts/setup.sh rust\n' >&2
+		fi
+		exit 1
+	fi
+	exit 0
+fi
+
+ensure_node() {
+	local required asset tmp prefix
+	required="$(pinned_node_version)"
+	if have node && [[ "$(node --version)" == "v${required}" ]]; then
+		log "Using Node ${required}"
+		return
+	fi
+	case "$(uname -s)-$(uname -m)" in
+		Linux-x86_64) asset="node-v${required}-linux-x64.tar.xz" ;;
+		Linux-aarch64 | Linux-arm64) asset="node-v${required}-linux-arm64.tar.xz" ;;
+		Darwin-x86_64) asset="node-v${required}-darwin-x64.tar.xz" ;;
+		Darwin-arm64) asset="node-v${required}-darwin-arm64.tar.xz" ;;
+		*)
+			printf 'error: no Node release for %s %s\n' "$(uname -s)" "$(uname -m)" >&2
+			exit 1
+			;;
+	esac
+	tmp="$(mktemp -d)"
+	log "Installing Node ${required} (${asset})"
+	fetch_verified "https://nodejs.org/dist/v${required}" "${asset}" SHASUMS256.txt "${tmp}"
+	tar -xJf "${tmp}/${asset}" -C "${tmp}"
+	prefix="${tmp}/${asset%.tar.xz}"
+	mkdir -p "${tools_bin}"
+	install -m 755 "${prefix}/bin/node" "${tools_bin}/node"
+	rm -rf "${tmp}"
+	hash -r 2>/dev/null || true
+	if [[ "$(node --version)" != "v${required}" ]]; then
+		printf 'error: need Node %s; found %s\n' "${required}" "$(node --version)" >&2
+		exit 1
+	fi
+}
+
+ensure_bun() {
+	local required_bun_version asset tmp
+	required_bun_version="$(bash "${repo_root}/scripts/locked-bun-version.sh")"
+	if have bun && [[ "$(bun --version)" == "${required_bun_version}" ]]; then
+		log "Using Bun ${required_bun_version}"
+		return
+	fi
+
+	case "$(uname -s)-$(uname -m)" in
+		Linux-x86_64)
+			asset=bun-linux-x64
+			if [[ -r /proc/cpuinfo ]] && ! grep -q avx2 /proc/cpuinfo; then
+				asset=bun-linux-x64-baseline
+			fi
+			;;
+		Linux-aarch64 | Linux-arm64) asset=bun-linux-aarch64 ;;
+		Darwin-x86_64) asset=bun-darwin-x64 ;;
+		Darwin-arm64) asset=bun-darwin-aarch64 ;;
+		*)
+			printf 'error: no Bun release for %s %s\n' "$(uname -s)" "$(uname -m)" >&2
+			exit 1
+			;;
+	esac
+
+	# GitHub releases, not bun.sh: some agent network policies deny bun.sh.
+	tmp="$(mktemp -d)"
+	log "Installing Bun ${required_bun_version} (${asset})"
+	fetch_verified "https://github.com/oven-sh/bun/releases/download/bun-v${required_bun_version}" \
+		"${asset}.zip" SHASUMS256.txt "${tmp}"
+	if ! have unzip; then
+		printf 'error: unzip is required to install Bun\n' >&2
+		exit 1
+	fi
+	unzip -oq "${tmp}/${asset}.zip" -d "${tmp}"
+	mkdir -p "${BUN_INSTALL}/bin"
+	install -m 755 "${tmp}/${asset}/bun" "${BUN_INSTALL}/bin/bun"
+	rm -rf "${tmp}"
+	hash -r 2>/dev/null || true
+	if [[ "$(bun --version)" != "${required_bun_version}" ]]; then
+		printf 'error: need Bun %s; found %s\n' "${required_bun_version}" "$(bun --version)" >&2
+		exit 1
+	fi
+}
+
+brew_pkgs() {
+	if ! have brew; then
+		printf 'error: Homebrew is required on macOS\n' >&2
+		exit 1
+	fi
+	export HOMEBREW_NO_AUTO_UPDATE=1
+	export HOMEBREW_NO_ANALYTICS=1
+	log "Installing Homebrew packages: $*"
+	brew install "$@"
+}
+
+install_linux_packages() {
+	log "Installing packages for the bundled FFmpeg build and Tauri host"
+	# Retries and timeouts make a stalled mirror fail with a message.
+	local apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+	run_as_root apt-get "${apt_opts[@]}" update -q
+	run_as_root env DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install -y -q --no-install-recommends \
+		build-essential ca-certificates clang curl nasm pkg-config libopus-dev \
+		libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev librsvg2-dev \
+		shellcheck unzip
+}
+
+install_linux_shellcheck() {
+	if have shellcheck; then
+		return
+	fi
+	log "Installing shellcheck"
+	local apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+	run_as_root apt-get "${apt_opts[@]}" update -q
+	run_as_root env DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install -y -q --no-install-recommends shellcheck
+}
+
+install_rust_packages() {
+	if is_linux; then
+		install_linux_packages
+	elif is_darwin; then
+		brew_pkgs opus pkg-config nasm ffmpeg shellcheck actionlint
+	else
+		printf 'error: setup.sh supports Linux and macOS\n' >&2
+		exit 1
+	fi
+}
+
+# Media-lane fixtures and readback spawn ffmpeg/ffprobe; distro FFmpeg 6.x
+# decodes edit lists and Opus pre-skip differently than the engine's FFmpeg 9.
+ensure_readback_cli() {
+	if ffmpeg_bin >/dev/null && ffprobe_bin >/dev/null; then
+		log "Using FFmpeg 9 readback CLI"
+		return
+	fi
+	if is_darwin; then
+		brew_pkgs ffmpeg
+		if ! ffmpeg_bin >/dev/null; then
+			printf 'error: Homebrew ffmpeg is not major version 9\n' >&2
+			exit 1
+		fi
+		return
+	fi
+	local asset tmp
+	case "$(uname -m)" in
+		x86_64) asset=ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz ;;
+		aarch64 | arm64) asset=ffmpeg-n9.0-latest-linuxarm64-gpl-9.0.tar.xz ;;
+		*)
+			printf 'error: no FFmpeg CLI build for CPU %s\n' "$(uname -m)" >&2
+			exit 1
+			;;
+	esac
+	tmp="$(mktemp -d)"
+	log "Installing FFmpeg 9 readback CLI into ${tools_bin}"
+	fetch_verified https://github.com/BtbN/FFmpeg-Builds/releases/download/latest \
+		"${asset}" checksums.sha256 "${tmp}"
+	tar -xJf "${tmp}/${asset}" -C "${tmp}"
+	mkdir -p "${tools_bin}"
+	install -m 755 "${tmp}/${asset%.tar.xz}/bin/ffmpeg" "${tmp}/${asset%.tar.xz}/bin/ffprobe" "${tools_bin}/"
+	rm -rf "${tmp}"
+}
+
+actionlint_version=1.7.12
+
+ensure_actionlint() {
+	local current=""
+	if have actionlint; then
+		current="$(actionlint -version | awk 'NR==1 {print; exit}')"
+		if [[ "${current}" == "${actionlint_version}" ]]; then
+			return
+		fi
+	fi
+	if is_darwin; then
+		brew_pkgs actionlint
+		return
+	fi
+	local arch tmp asset
+	case "$(uname -m)" in
+		x86_64) arch=amd64 ;;
+		aarch64 | arm64) arch=arm64 ;;
+		*)
+			printf 'error: no actionlint build for CPU %s\n' "$(uname -m)" >&2
+			exit 1
+			;;
+	esac
+	asset="actionlint_${actionlint_version}_linux_${arch}.tar.gz"
+	tmp="$(mktemp -d)"
+	log "Installing actionlint ${actionlint_version} into ${tools_bin}"
+	fetch_verified "https://github.com/rhysd/actionlint/releases/download/v${actionlint_version}" \
+		"${asset}" "actionlint_${actionlint_version}_checksums.txt" "${tmp}"
+	tar -xzf "${tmp}/${asset}" -C "${tmp}" actionlint
+	mkdir -p "${tools_bin}"
+	install -m 755 "${tmp}/actionlint" "${tools_bin}/"
+	rm -rf "${tmp}"
+}
+
+ensure_shellcheck() {
+	if have shellcheck; then
+		return
+	fi
+	if is_linux; then
+		install_linux_shellcheck
+	elif is_darwin; then
+		brew_pkgs shellcheck
+	else
+		printf 'error: no shellcheck install for %s\n' "$(os_name)" >&2
+		exit 1
+	fi
+}
+
+uv_version=0.12.10
+
+ensure_uv() {
+	if have uvx; then
+		log "Using uvx $(uvx --version 2>/dev/null | awk 'NR==1{print; exit}')"
+		return
+	fi
+	local triple asset tmp
+	case "$(uname -s)-$(uname -m)" in
+		Linux-x86_64) triple=x86_64-unknown-linux-gnu ;;
+		Linux-aarch64 | Linux-arm64) triple=aarch64-unknown-linux-gnu ;;
+		Darwin-x86_64) triple=x86_64-apple-darwin ;;
+		Darwin-arm64) triple=aarch64-apple-darwin ;;
+		*)
+			printf 'error: no uv release for %s %s\n' "$(uname -s)" "$(uname -m)" >&2
+			exit 1
+			;;
+	esac
+	asset="uv-${triple}.tar.gz"
+	tmp="$(mktemp -d)"
+	log "Installing uv ${uv_version} into ${tools_bin}"
+	fetch_verified "https://github.com/astral-sh/uv/releases/download/${uv_version}" \
+		"${asset}" sha256.sum "${tmp}"
+	tar -xzf "${tmp}/${asset}" -C "${tmp}"
+	mkdir -p "${tools_bin}"
+	if [[ -x "${tmp}/uv-${triple}/uv" ]]; then
+		install -m 755 "${tmp}/uv-${triple}/uv" "${tmp}/uv-${triple}/uvx" "${tools_bin}/"
+	else
+		install -m 755 "${tmp}/uv" "${tmp}/uvx" "${tools_bin}/"
+	fi
+	rm -rf "${tmp}"
+}
+
+ensure_sidecar_stub() {
+	local path
+	path="${repo_root}/src-tauri/binaries/abb-aaxclean-helper-$(rustc -vV | awk '/^host:/ { print $2 }')"
+	if [ ! -x "${path}" ]; then
+		log "Creating AAXClean sidecar stub ${path}"
+		mkdir -p "$(dirname "${path}")"
+		printf '#!/usr/bin/env sh\nexit 0\n' > "${path}"
+		chmod +x "${path}"
+	fi
+}
+
+prefetch_lizard() {
+	# So verify.sh core still works if the network drops after setup (Codex cloud).
+	log "Prefetching lizard for the complexity check"
+	uvx --exclude-newer "10 days" --exclude-newer-package "lizard=2026-10-06" lizard --version >/dev/null
+}
+
+print_path_line() {
+	printf '\nAdd to PATH (this script never edits shell profiles):\n'
+	printf '  export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"\n'
+	if [[ -n "${GITHUB_PATH:-}" ]]; then
+		printf '%s\n' "${BUN_INSTALL}/bin" "${tools_bin}" >>"${GITHUB_PATH}"
+	fi
+}
+
+if want_frontend; then
+	ensure_node
+	ensure_bun
+	log "Installing frontend dependencies"
+	(cd "${repo_root}" && bun install --frozen-lockfile)
+	ensure_actionlint
+	ensure_shellcheck
+fi
+
+if want_rust; then
+	install_rust_packages
+	ensure_readback_cli
+	ensure_sidecar_stub
+	ensure_uv
+	prefetch_lizard
+	log "Fetching Cargo crates"
+	(cd "${repo_root}" && cargo fetch --locked)
+fi
+
+print_path_line

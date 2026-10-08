@@ -71,7 +71,9 @@ closure, and low-battery sleep remain controlled by macOS.
 
 ## Development
 
-Run the checks in the script guide for what you changed.
+After clone, `bash scripts/setup.sh` then `bash scripts/verify.sh`. Setup
+prints the PATH line and never edits shell profiles. Lanes, owner mapping, and
+focused loops: root `AGENTS.md` Environment and `scripts/AGENTS.md`.
 
 ### Install a local build
 
@@ -118,12 +120,12 @@ Index of common commands; `package.json` holds the shortcuts.
   `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
   release-critical drift confidence is required.
 - Dependency hygiene: `bun run audit`.
-- CI (`.github/workflows/ci.yml`): runs once per pull request when auto-merge
-  is enabled, by hand, and twice a week on `main`. Opening a pull request and
-  pushing start nothing. It checks the frontend, the core
-  crates, the engine with the real-media lane, the Tauri host, the generated
-  bindings, and Apple AAC on macOS. A pull request runs only the jobs its
-  changes touch. GitHub also runs Pages for `site/**`.
+- CI (`.github/workflows/ci.yml`): runs when a pull request opens ready or is
+  marked ready, when auto-merge is enabled, by hand, and twice a week on
+  `main`. Pushes and drafts start nothing. It calls `scripts/setup.sh` and
+  `scripts/verify.sh` for the frontend, core crates, engine, media, host, and
+  Apple AAC on macOS. A pull request runs only the jobs its changes touch.
+  GitHub also runs Pages for `site/**`.
 - Bun is the package manager, script runner, and test runner.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Build timing: use direct Cargo timing commands such as `cargo build --timings`

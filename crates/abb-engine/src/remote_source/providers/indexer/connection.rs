@@ -511,12 +511,12 @@ mod tests {
             update(Some("http://old.test"), Some("old-key")),
         )
         .expect("save baseline connection");
-        use std::os::unix::fs::PermissionsExt;
-        let permissions = std::fs::metadata(temp.path())
-            .expect("read config directory metadata")
-            .permissions();
-        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o500))
-            .expect("deny config directory writes");
+        // chmod is not enough: root ignores a 0o500 directory. A directory at
+        // the file path makes the atomic replace fail for every uid.
+        let path = connection_path(temp.path());
+        let original = std::fs::read(&path).expect("read baseline connection");
+        std::fs::remove_file(&path).expect("remove connection file");
+        std::fs::create_dir(&path).expect("block connection path with a directory");
         let results: Vec<_> = ["http://old.test", "http://new.test"]
             .into_iter()
             .map(|host| {
@@ -525,8 +525,8 @@ mod tests {
                 update_connection(temp.path(), &vault, change)
             })
             .collect();
-        std::fs::set_permissions(temp.path(), permissions)
-            .expect("restore config directory permissions");
+        std::fs::remove_dir(&path).expect("remove blocker directory");
+        std::fs::write(&path, original).expect("restore connection file");
         assert!(results.into_iter().all(|result| result.is_err()));
         let saved = get_connection(temp.path(), &vault).expect("read saved connection");
         assert_eq!(saved.base_url.as_deref(), Some("http://old.test"));

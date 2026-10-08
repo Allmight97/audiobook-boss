@@ -18,7 +18,8 @@ license = "Apache-2.0"
 # Deterministic lint posture shared by every workspace member (members opt in with
 # `[lints] workspace = true`). Warn-level keeps the surface explicit without gating
 # on src-tauri's GUI-toolkit build, which not every environment can compile.
-# CI runs Clippy for the core crates; engine and src-tauri Clippy are local checks (scripts/AGENTS.md).
+# CI runs Clippy for the core crates, the engine, and the host (`scripts/verify.sh`).
+# Workspace-wide Clippy needs --features audiobook-boss/bundled-ffmpeg,abb-engine/bundled-ffmpeg.
 [workspace.lints.rust]
 unused_imports = "warn"
 unused_variables = "warn"

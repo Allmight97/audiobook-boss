@@ -1,5 +1,3 @@
-use std::os::unix::fs::PermissionsExt;
-
 use tempfile::TempDir;
 
 use super::*;
@@ -66,12 +64,22 @@ impl Rig {
     }
 
     fn set_writable(&self, writable: bool) {
-        let mode = if writable { 0o755 } else { 0o555 };
-        std::fs::set_permissions(
-            config_dir(&self.root),
-            std::fs::Permissions::from_mode(mode),
-        )
-        .expect("set config dir permissions");
+        // chmod is not enough: root ignores a 0o555 directory. A regular file
+        // at the config path makes create_dir_all fail for every uid.
+        let dir = config_dir(&self.root);
+        if writable {
+            if dir.is_file() {
+                std::fs::remove_file(&dir).expect("remove blocker file");
+            }
+            if !dir.is_dir() {
+                std::fs::create_dir_all(&dir).expect("restore config dir");
+            }
+        } else {
+            if dir.is_dir() {
+                std::fs::remove_dir_all(&dir).expect("remove config dir");
+            }
+            std::fs::write(&dir, b"").expect("block config path with a regular file");
+        }
     }
 
     fn on_disk(&self) -> AppSettings {
@@ -81,11 +89,11 @@ impl Rig {
 
 impl Drop for Rig {
     fn drop(&mut self) {
-        // A read-only folder cannot be removed with its TempDir.
-        let _ = std::fs::set_permissions(
-            config_dir(&self.root),
-            std::fs::Permissions::from_mode(0o755),
-        );
+        let dir = config_dir(&self.root);
+        if dir.is_file() {
+            let _ = std::fs::remove_file(&dir);
+            let _ = std::fs::create_dir_all(&dir);
+        }
     }
 }
 

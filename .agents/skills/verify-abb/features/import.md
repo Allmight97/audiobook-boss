@@ -1,0 +1,15 @@
+# Import
+
+Synthesize one short AAC/M4B title and import it.
+
+```bash
+ffmpeg -hide_banner -loglevel error -f lavfi -i sine=frequency=440:sample_rate=44100:duration=1 \
+  -c:a aac -b:a 64k -metadata title=VerifyImport -metadata artist=Verify Author \
+  -y "${INPUTS}/import.m4b"
+
+"${ABB_DEV[@]}" --state-dir "${STATE}" --json "${INPUTS}/import.m4b" \
+  > "${EVIDENCE}/import.json"
+```
+
+Pass when the JSON names one valid title and the process exits 0. There is no
+export; skip ffprobe.

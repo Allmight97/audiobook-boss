@@ -55,6 +55,26 @@ simpler design.
 - Solid 2 is the frontend baseline: read `package.json` before changing Solid
   APIs, and typecheck against this checkout's lockfile.
 
+## Environment
+
+The same two commands on a Mac, a Linux box, Cursor cloud, and in CI:
+
+    bash scripts/setup.sh
+    bash scripts/verify.sh
+
+`setup.sh` takes `frontend` or `rust`, or no argument for both. `--check`
+installs nothing and exits nonzero if something is missing. It prints the PATH
+line (`~/.bun/bin`, `~/.local/bin`) and never edits shell profiles.
+
+`verify.sh` takes lane names: `frontend`, `core`, `engine`, `media`, `host`,
+`apple`, `tooling`. No argument runs every lane this OS supports. The commands
+for each lane live only in `verify.sh`. Owner-to-lane map: `scripts/AGENTS.md`.
+
+Codex cloud: paste `bash scripts/setup.sh` into the Codex environment settings
+field once. That setting is not in the repo.
+
+Golden-path verification without a window: `.agents/skills/verify-abb/SKILL.md`.
+
 ## Refactor Discipline
 
 - Name the owned invariant and its owner before refactoring; move truth to the
