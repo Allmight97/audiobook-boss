@@ -102,10 +102,14 @@ simpler design.
 
 ## Planning And Capture
 
-- Record work that outlasts the session in a GitHub issue
-  (`docs/agents/issue-tracker.md`): draft it, and publish it when the owner
-  says so. Put what another session needs in the PR body or an issue: other
-  sessions cannot read this chat.
+- Record work that outlasts the session in a GitHub issue on this repo:
+  draft it, and publish it when the owner says so. Put what another session
+  needs in the PR body or an issue: other sessions cannot read this chat.
+- Issue bodies, labels, publication, and closing follow the shared
+  `issue-hygiene` skill (`/personal-skills:issue-hygiene`; Codex
+  `$issue-hygiene`). Label meanings: `gh label list`. An issue that asks the
+  owner to choose what the user gets cites `docs/agents/observed-use.md` or
+  says "no observed case" (`.agents/skills/app-use-notes`).
 - Planning files enter the repo only as `docs/specs/<task>.md`, when the owner
   asks, and leave when the work lands.
 - An open issue is a candidate plan. Verify its claims against `main`, the
@@ -123,8 +127,9 @@ simpler design.
   <branch>`), and twice a week on `main`. Pushes and drafts start nothing.
 - Merge with a merge commit. After CI: `gh pr merge <n> --auto --merge`.
   Proven locally, or CI is down: `gh pr merge <n> --admin --merge`, naming the
-  local proof in the PR body. The owner may also say to commit straight to
-  `main` (docs, small fixes).
+  local proof in the PR body. Repo infrastructure and guidance changes with no
+  implementation (docs, `AGENTS.md`, skills, allowlists) go straight to
+  `main`, no PR.
 - A related follow-up may branch from a PR's branch as a child PR; GitHub
   retargets it to `main` when the parent merges.
 
