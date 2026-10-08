@@ -38,8 +38,8 @@ CI does not run these; run them locally when they apply:
 - Docs and guidance: `git diff --check` plus a search for the edited terms.
 
 Workspace-wide Clippy, if you run it, needs
-`--features audiobook-boss/bundled-ffmpeg,abb-engine/bundled-ffmpeg`.
-Per-package Clippy is inside `verify.sh` (`bundled-ffmpeg` on engine and host).
+`--features audiobook-boss/bundled-ffmpeg-portable,abb-engine/bundled-ffmpeg-portable`.
+Per-package Clippy is inside `verify.sh` (`bundled-ffmpeg-portable` on engine and host).
 
 CI runs these only on scheduled and manual runs (`supply-chain` job):
 `cargo audit -D warnings` (accepted advisories: `.cargo/audit.toml`) and
@@ -129,10 +129,11 @@ Traps:
   The Claude Code cloud SessionStart hook runs `setup.sh frontend`. Cursor
   cloud runs `setup.sh` from `.cursor/environment.json`. Codex cloud uses the
   same command in its environment settings, not the repo.
-- Engine and media proof use `--features bundled-ffmpeg` on Linux and macOS.
-  The first build compiles the revision in
-  `vendor/ffmpeg-sys-next-*/ffmpeg-revision`; later builds reuse it while
-  compiler, target, feature, and CPU inputs match.
+- Engine, media, host, decrypt, and apple proof use
+  `--features bundled-ffmpeg-portable` on every host (`verify.sh`; no `CI=true`
+  branch). Bare `cargo` defaults and `app:dev` stay `bundled-ffmpeg`. The first
+  build compiles the revision in `vendor/ffmpeg-sys-next-*/ffmpeg-revision`;
+  later builds reuse it while compiler, target, and feature match.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
   (`ABB_FFMPEG` and `ABB_FFPROBE` override). `setup.sh rust` installs FFmpeg 9
   into `~/.local/bin` on Linux and uses Homebrew `ffmpeg` on macOS; put

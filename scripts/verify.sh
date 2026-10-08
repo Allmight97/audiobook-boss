@@ -127,31 +127,31 @@ lane_core() {
 
 lane_engine() {
 	require_rust
-	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
+	cargo test --locked -p abb-engine --features bundled-ffmpeg-portable --lib -- \
 		--skip test_cases::integration_media --skip test_cases::integration_decrypt
-	cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
-	cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests
-	cargo clippy --locked -p abb-engine --features bundled-ffmpeg --all-targets -- -D warnings
+	cargo test --locked -p abb-engine --features bundled-ffmpeg-portable --doc
+	cargo test --locked -p abb-engine --features bundled-ffmpeg-portable --test all_tests
+	cargo clippy --locked -p abb-engine --features bundled-ffmpeg-portable --all-targets -- -D warnings
 }
 
 lane_media() {
 	require_rust
-	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
+	cargo test --locked -p abb-engine --features bundled-ffmpeg-portable --lib -- \
 		test_cases::integration_media
 }
 
 lane_host() {
 	require_rust
-	cargo test --locked -p audiobook-boss --features bundled-ffmpeg
+	cargo test --locked -p audiobook-boss --features bundled-ffmpeg-portable
 	bash scripts/check-generated-bindings.sh --mode verify
-	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg --all-targets -- -D warnings
+	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg-portable --all-targets -- -D warnings
 }
 
 lane_decrypt() {
 	require_rust
 	dotnet test tools/abb-aaxclean-helper/tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj \
 		--configuration Release --nologo
-	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
+	cargo test --locked -p abb-engine --features bundled-ffmpeg-portable --lib -- \
 		test_cases::integration_decrypt
 }
 
@@ -161,7 +161,7 @@ lane_apple() {
 		return 0
 	fi
 	require_rust
-	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- apple
+	cargo test --locked -p abb-engine --features bundled-ffmpeg-portable --lib -- apple
 }
 
 lane_tooling() {

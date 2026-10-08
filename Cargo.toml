@@ -19,7 +19,7 @@ license = "Apache-2.0"
 # `[lints] workspace = true`). Warn-level keeps the surface explicit without gating
 # on src-tauri's GUI-toolkit build, which not every environment can compile.
 # CI runs Clippy for the core crates, the engine, and the host (`scripts/verify.sh`).
-# Workspace-wide Clippy needs --features audiobook-boss/bundled-ffmpeg,abb-engine/bundled-ffmpeg.
+# Workspace-wide Clippy needs --features audiobook-boss/bundled-ffmpeg-portable,abb-engine/bundled-ffmpeg-portable.
 [workspace.lints.rust]
 unused_imports = "warn"
 unused_variables = "warn"

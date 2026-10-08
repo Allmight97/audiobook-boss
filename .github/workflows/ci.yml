@@ -196,11 +196,12 @@ jobs:
             echo "id=$( (cc --version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
           fi
       # The build script reuses FFmpeg only while compiler, opus, source and
-      # patch match, so the key carries the same inputs.
+      # patch match, so the key carries the same inputs. `portable` so a
+      # native-built cache cannot restore.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/debug/build/ffmpeg-sys-next-*/out
-          key: ffmpeg-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
+          key: ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
       - run: |
           lanes=()
           # Dedicated Ubuntu `core` job already ran fmt, core Clippy, and tests.
