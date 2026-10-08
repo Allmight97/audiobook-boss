@@ -659,8 +659,8 @@ async fn wrong_aax_activation_bytes_fail_and_leave_no_output() {
     .await
     .expect_err("wrong activation bytes must fail");
     assert!(
-        error.to_string().contains("conversion_failed") || error.to_string().contains("failed"),
-        "{error}"
+        error.to_string().contains("conversion_failed"),
+        "wrong activation bytes must fail as conversion_failed, not a missing/stub helper: {error}"
     );
     assert!(!run.output.exists(), "no committed output");
     assert!(!run.partial.exists(), "no partial output");
