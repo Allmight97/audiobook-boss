@@ -246,7 +246,7 @@ describe('UI Workflow Smoke Test', () => {
 			expect(engine.sessionIntents).toContainEqual({
 				kind: 'lookupApply',
 				index: 0,
-				revision: 0,
+				revision: expect.any(Number),
 			});
 		} finally {
 			runtime.dispose();

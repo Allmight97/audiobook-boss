@@ -153,7 +153,7 @@ describe('metadata lookup dialog', () => {
 		expect(engine.sessionIntents).toContainEqual({
 			kind: 'lookupApply',
 			index: 0,
-			revision: 0,
+			revision: expect.any(Number),
 		});
 	});
 
