@@ -25,7 +25,7 @@ check_only=0
 mode="all"
 
 usage() {
-	sed -n '2,12p' "$0" | sed 's/^# \?//'
+	sed -n '2,12p' "$0" | sed -E 's/^# ?//'
 }
 
 while [[ $# -gt 0 ]]; do
