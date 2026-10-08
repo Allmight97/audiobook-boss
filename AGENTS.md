@@ -145,20 +145,16 @@ Golden-path verification without a window: `.agents/skills/verify-abb/SKILL.md`.
 - Local proof is the primary proof: agents on the owner's machine run
   `scripts/AGENTS.md` "What to run for a change". CI is the last check and
   the main proof for cloud Linux agents.
-- A PR has two moments; nothing else starts CI or a review bot, so pushes in
-  between are free. Batch follow-up fixes into one push.
-  1. Open it ready once local proof passes (a draft only when the owner asks),
-     then comment `@codex review` once. Optional reviews: `@claude` in a
-     comment, or the `claude review` workflow when the owner enables it.
-  2. Done: `gh pr merge <n> --auto --merge` runs CI (`.github/workflows/ci.yml`)
-     once and merges with a merge commit when `gate` passes. After a later
-     push, rerun it with `gh pr merge <n> --disable-auto`, then the same
-     `--auto --merge` again (a manual `workflow_dispatch` run cannot satisfy
-     the required `gate`).
-- Proven locally, or CI is down: `gh pr merge <n> --admin --merge`, naming the
+- Open PRs ready; a draft only when the owner asks.
+  Batch follow-up fixes into one push.
+- CI (`.github/workflows/ci.yml`) runs when a PR opens ready or is marked
+  ready, when auto-merge is enabled, and twice a week on `main`. Pushes and
+  drafts start nothing.
+- Merge with a merge commit. After CI: `gh pr merge <n> --auto --merge`.
+  Proven locally, or CI is down: `gh pr merge <n> --admin --merge`, naming the
   local proof in the PR body. Repo infrastructure and guidance changes with no
   implementation (docs, `AGENTS.md`, skills, allowlists) go straight to
-  `main`, no PR. CI also runs twice a week on `main`.
+  `main`, no PR.
 - A related follow-up may branch from a PR's branch as a child PR; GitHub
   retargets it to `main` when the parent merges.
 
