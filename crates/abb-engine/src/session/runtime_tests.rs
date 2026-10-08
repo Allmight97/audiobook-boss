@@ -871,6 +871,86 @@ async fn range_selection_resolves_anchor_and_target_by_id_after_a_reorder() {
     );
 }
 
+#[tokio::test]
+async fn applying_a_result_does_not_use_an_index_into_replaced_results() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.answer_next_search(Ok(found(&["Old"])));
+    rig.send(SessionIntent::LookupOpen).await;
+    assert_eq!(rig.lookup().results[0].title, "Old");
+
+    let slow = rig.hold_next_search();
+    let searching = tokio::spawn({
+        let session = rig.session.clone();
+        async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
+    });
+    let searched = rig.searches().len();
+    while rig.searches().len() == searched {
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(rig.lookup().status, Some(LookupStatus::Searching));
+    assert_eq!(rig.lookup().results[0].title, "Old");
+    let rendered = rig.lookup().revision;
+
+    slow.send(Ok(found(&["New"])))
+        .unwrap_or_else(|_| panic!("search is waiting"));
+    assert_eq!(searching.await.expect("search"), SessionOutcome::Applied);
+    assert_eq!(rig.lookup().results[0].title, "New");
+
+    // The host sends `rendered`, the lookup revision of the list it showed.
+    let _ = rendered;
+    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+
+    assert_eq!(
+        rig.title_shown(),
+        "ALPHA",
+        "an apply that names the list the host rendered does not take an index into a later list"
+    );
+    assert_eq!(rig.lookup().results[0].title, "New");
+}
+
+#[tokio::test]
+async fn editing_the_lookup_query_drops_a_search_for_the_old_query() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.answer_next_search(Ok(found(&["First"])));
+    rig.send(SessionIntent::LookupOpen).await;
+    assert_eq!(rig.lookup().results[0].title, "First");
+
+    let slow = rig.hold_next_search();
+    let earlier = tokio::spawn({
+        let session = rig.session.clone();
+        async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
+    });
+    let searched = rig.searches().len();
+    while rig.searches().len() == searched {
+        tokio::task::yield_now().await;
+    }
+
+    rig.send(SessionIntent::LookupSetTitleQuery {
+        value: "Changed".to_string(),
+    })
+    .await;
+    slow.send(Ok(found(&["Stale"])))
+        .unwrap_or_else(|_| panic!("earlier search is waiting"));
+
+    assert_eq!(
+        earlier.await.expect("earlier search"),
+        SessionOutcome::Superseded
+    );
+    assert_eq!(rig.lookup().title_query, "Changed");
+    assert!(
+        rig.lookup()
+            .results
+            .iter()
+            .all(|result| result.title != "Stale"),
+        "results for the old query must not land under the new query text: {:?}",
+        rig.lookup().results
+    );
+}
+
 // ---- Intents and what the host is told ----
 
 #[tokio::test]
@@ -1688,6 +1768,63 @@ async fn a_download_goes_once_its_title_is_exported() {
         rig.session.snapshot().titles.expect("titles").files.len(),
         1
     );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn reset_during_preflight_drops_the_review_and_unlocks_the_list() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let out = tempfile::TempDir::new().expect("output");
+    let audio = staged_wav(staging.path(), "book");
+    rig.session.import_acquired(acquired("job-1", &audio)).await;
+    rig.send(SessionIntent::SetOutputDirectory {
+        directory: out.path().to_string_lossy().into_owned(),
+    })
+    .await;
+    rig.send(SessionIntent::SetField {
+        field: MetadataField::Title,
+        value: "Book".to_string(),
+    })
+    .await;
+    let dest = preview_path(&rig);
+    if let Some(parent) = std::path::Path::new(&dest).parent() {
+        std::fs::create_dir_all(parent).expect("output parent");
+    }
+    std::fs::write(&dest, b"already there").expect("colliding output");
+
+    rig.send(SessionIntent::Submit).await;
+    assert!(
+        matches!(
+            output(&rig).submission,
+            Some(SubmissionStatus::ReviewRequired)
+        ),
+        "this output must collide so hold_for_review is reached: {:?}",
+        output(&rig).submission
+    );
+    let review_id = output(&rig)
+        .collision_review
+        .expect("held review")
+        .review_id;
+    rig.send(SessionIntent::CancelCollisionReview { review_id })
+        .await;
+    assert!(!rig.session.snapshot().titles.expect("titles").order_locked);
+
+    let submitting = rig.session.begin(SessionIntent::Submit);
+    let _reset = rig.session.begin(SessionIntent::Reset);
+    submitting.finish().await;
+
+    let titles = rig.session.snapshot().titles.expect("titles");
+    assert!(titles.files.is_empty());
+    assert!(
+        !titles.order_locked,
+        "a reset during preflight unlocks the list"
+    );
+    assert!(
+        output(&rig).collision_review.is_none(),
+        "a reset during preflight does not hold a review: {:?}",
+        output(&rig).collision_review
+    );
+    assert!(!output(&rig).submission_in_progress);
 }
 
 #[tokio::test]
