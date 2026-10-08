@@ -107,6 +107,7 @@ jobs:
               - src-tauri/**
               - src/lib/generated/**
               - scripts/check-generated-bindings.sh
+              - package.json
             decrypt:
               - *shared
               - tools/abb-aaxclean-helper/**
@@ -117,6 +118,12 @@ jobs:
               - .github/workflows/**
               - scripts/*.sh
               - .claude/hooks/**
+              - .cursor/environment.json
+            # Orphans with no lane command:
+            # .agents/skills/** — agent skill markdown; no verify.sh lane
+            # .cargo/audit.toml — cargo audit only in the supply-chain job
+            # deny.toml — cargo deny only in the supply-chain job
+            # .github/dependabot.yml — Dependabot config; no verify.sh lane
 
 
   frontend:
