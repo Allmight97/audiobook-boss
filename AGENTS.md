@@ -64,9 +64,9 @@ The same two commands on a Mac, a Linux box, Cursor cloud, and in CI:
 
 `setup.sh` takes `frontend` or `rust`, or no argument for both. `--check`
 installs nothing and exits nonzero if something is missing. The active rustc
-must match `rust-toolchain.toml`. It prints the PATH line (`~/.cargo/bin` when
-rustup lives there, `~/.bun/bin`, `~/.local/bin`) and never edits shell
-profiles.
+must match `rust-toolchain.toml`. It never edits shell profiles; PATH comes
+from `eval "$(scripts/setup.sh --print-env)"` (`scripts/AGENTS.md`,
+Environment).
 
 `verify.sh` takes lane names: `frontend`, `core`, `engine`, `media`, `host`,
 `apple`, `decrypt`, `tooling`. No argument runs every lane this OS supports. The

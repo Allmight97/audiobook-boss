@@ -26,7 +26,7 @@ explain a material mismatch with the impact instead of silently changing it.
 | Developer/local install | Build for the compiling Apple Silicon host and replace `/Applications/AudioBook Boss.app`. |
 | DMG/package only | Build and verify a portable Apple Silicon DMG. |
 | Public/GitHub Release | Prepare metadata, build and verify the portable DMG, commit/tag/push the accepted release, and publish its verified asset. |
-| Public plus local install | Public Release plus a separate native developer install. |
+| Public plus local install | Public Release plus a separate developer install. |
 | Tag only | Create/push the requested tag; this does not create a GitHub Release. |
 
 Use the whole request and prior authorization to select the lane. If “release”

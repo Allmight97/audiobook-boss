@@ -7,9 +7,9 @@ helpers, and diagnostics. Cargo commands run from the repository root.
 
 Same on macOS and Linux. Run `bash scripts/setup.sh` once after clone (or
 `frontend` / `rust` for one half). Then `bash scripts/verify.sh <lane>` for
-the owner you touched, one expensive build at a time. Each lane mirrors a job
-in `.github/workflows/ci.yml`; its header says when jobs run, and `gate` is
-the check `main` requires. Lane commands live only in `verify.sh`.
+the owner you touched, one expensive build at a time.
+`.github/workflows/ci.yml` picks lanes by changed paths; its header says when
+CI runs, and `gate` is the check `main` requires. Lane commands live only in `verify.sh`.
 
 - Frontend (`frontend`): `bash scripts/verify.sh frontend`. One owner:
   `bun run test -- <test files>`.
@@ -144,10 +144,11 @@ Traps:
   calling `bun`, `dotnet`, or `uvx` directly; `verify.sh` runs it itself.
 - Engine, media, host, decrypt, and apple proof use
   `--features bundled-ffmpeg` on every host (`verify.sh`), including
-  `bun run bindings:generate` and `app:dev`. The first
+  `bun run bindings:generate` and `app:dev:log`. The first
   build compiles the revision in `vendor/ffmpeg-sys-next-*/ffmpeg-revision`
   into `target/abb-ffmpeg-cache`. Later builds, including `cargo clippy` after
-  `app:dev`, reuse that tree while compiler, target, and feature match. Clippy
+  `app:dev:log`, reuse that tree; `ABB-PROVENANCE.md` beside it lists what
+  invalidates it. Clippy
   still typechecks the bindings crate: Cargo treats check and build as
   different units.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
