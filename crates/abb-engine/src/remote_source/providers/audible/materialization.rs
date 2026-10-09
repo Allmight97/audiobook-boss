@@ -114,6 +114,10 @@ async fn confirm_decrypted_output(
     title_id: &str,
 ) -> Result<PathBuf> {
     let probed = path.clone();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by confirm_decrypted_output"
+    )]
     let decoded =
         tokio::task::spawn_blocking(move || crate::audio::probe_builtin_audio_decoder(&probed))
             .await
