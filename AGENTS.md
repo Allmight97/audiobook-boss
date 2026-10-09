@@ -144,24 +144,41 @@ Golden-path verification without a window: `.agents/skills/verify-abb/SKILL.md`.
 
 ## Pull Requests And CI
 
-- Local proof is the primary proof: agents on the owner's machine run
-  `scripts/AGENTS.md` "What to run for a change". CI is the last check and
-  the main proof for cloud Linux agents.
-- Open PRs ready; a draft only when the owner asks.
-  Batch follow-up fixes into one push.
-- CI runs only on the events the header of `.github/workflows/ci.yml` lists;
-  a push alone starts nothing.
-- Merge with a merge commit. `gh pr merge <n> --auto --merge` starts a run
-  and merges when `gate` passes; when `gate` is already green on the head,
-  `gh pr merge <n> --merge` skips a second identical run. A push after
-  auto-merge is on leaves the head without `gate`: run
-  `gh pr merge <n> --disable-auto`, then `--auto --merge` again (a manual run
-  does not satisfy a required check). Proven locally, or CI is down: `gh pr merge <n> --admin --merge`, naming the
-  local proof in the PR body. Repo infrastructure and guidance changes with no
-  implementation (docs, `AGENTS.md`, skills, allowlists) go straight to
-  `main`, no PR.
-- A related follow-up may branch from a PR's branch as a child PR; GitHub
-  retargets it to `main` when the parent merges.
+A list of PRs is a pile of tickets to piece together, and each extra PR is
+another CI run.
+
+- Use as few PRs as the work can coherently use. More than one only when
+  truly unavoidable. Never split work just to make it smaller.
+- Each PR is ambitious and layered. The bottom layer is the initial work;
+  every change after it depends on it or is made easier by it.
+- When one PR is not enough, use a GitHub stack. Only the bottom layer is
+  marked ready. Each layer above stays a draft until the one below merges,
+  then it is retargeted onto `main` and marked ready: that is its one
+  counting CI run. Why: a run whose base will still move is discarded.
+- Merge commits only. Merge a stack with `gh stack merge --merge` or the
+  async merge API (`merge_method: merge`). `gh pr merge` cannot merge a
+  stack, and stack auto-merge is not ready to rely on. Link the stack with
+  `gh stack` or `POST /repos/{owner}/{repo}/stacks`. Do not add a `branches:`
+  filter to CI.
+- J Star gives one yes per stack or PR. After that, agents mark each layer
+  ready, wait for `gate`, and merge it, and come back only when something
+  fails or the story changes.
+- Nothing new starts without J Star's yes, including work off a merge.
+- These rules beat another bot's request for a tiny standalone PR: push back
+  and deliver the work this way.
+- Roadmaps are J Star's call, announced case by case. Link an issue when one
+  exists; one is not required. A story-first PR body (why, outcome, which
+  user, developer, or agent story, and what each layer unlocks) is a habit,
+  not a rule.
+- Local proof is the primary proof. On the owner's machine, follow
+  `scripts/AGENTS.md` ("What to run for a change"). CI is the last check, and
+  the main proof for a cloud Linux agent. When a run starts is the header of
+  `.github/workflows/ci.yml`; a push alone starts nothing. `gate` is the
+  check `main` requires.
+- Guidance with no implementation (docs, `AGENTS.md`, skills, allowlists)
+  goes through a PR whose `gate` passes. Why: the CI gate ruleset requires
+  `gate` on `main`, and a push does not produce one. The pre-commit hook
+  (`scripts/AGENTS.md`) is the fast check before that PR.
 
 ## Review Guidelines
 
