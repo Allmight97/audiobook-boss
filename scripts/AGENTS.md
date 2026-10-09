@@ -17,7 +17,8 @@ the check `main` requires. Lane commands live only in `verify.sh`.
   `cargo test --locked -p abb-<owner>-core`.
 - Engine rules, session, settings, metadata intent (`core` for complexity,
   then `engine`): `bash scripts/verify.sh core engine`. The doctests guard
-  which engine internals hosts can reach.
+  which engine internals hosts can reach. Bundled FAAC is in the engine lane:
+  `cargo test --locked -p faac-sys`.
 - Audio, metadata writing, output artifacts, processing (`engine` and
   `media`): `bash scripts/verify.sh engine media`. Focused loop:
   `-- media_execution`. Fixtures are synthesized at test time.

@@ -32,6 +32,7 @@ jobs:
   changes:
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
@@ -133,6 +134,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -150,6 +152,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -177,6 +180,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     env:
       ALL: ${{ needs.changes.outputs.all }}
       CORE: ${{ needs.changes.outputs.core }}
@@ -202,10 +206,15 @@ jobs:
           else
             echo "id=$( (cc --version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
           fi
-      # The build script reuses FFmpeg only while compiler, opus, source and
-      # patch match, so the key carries the same inputs. `portable` so a
-      # native-built cache cannot restore. The tree is shared by build and
-      # clippy units (`target/abb-ffmpeg-cache`).
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # After rust-cache, so this saves before rust-cache's cleanup deletes
+      # path-crate outputs, including the vendored FFmpeg build. The build
+      # script reuses FFmpeg only while compiler, opus, source and patch match,
+      # so the key carries the same inputs. `portable` so a native-built cache
+      # cannot restore. The tree is shared by build and clippy units
+      # (`target/abb-ffmpeg-cache`).
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/abb-ffmpeg-cache
@@ -245,6 +254,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -256,6 +266,7 @@ jobs:
     name: Advisories and licenses
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -273,6 +284,7 @@ jobs:
     needs: [changes, frontend, core, rust, tooling, supply-chain]
     if: always() && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions: {}
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
