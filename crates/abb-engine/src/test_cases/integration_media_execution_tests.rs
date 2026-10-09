@@ -2298,7 +2298,9 @@ async fn apple_he_aac_with_itunsmpb_reimports_aligned_and_full_length() {
         "{}",
         String::from_utf8_lossy(&encoded.stderr)
     );
-    let output = MediaLane::for_inputs(vec![he]).process(None).await;
+    // Bound so its temp dir, which holds the export, outlives the readback.
+    let reimport = MediaLane::for_inputs(vec![he]);
+    let output = reimport.process(None).await;
     let decoded = decode_pcm_f32(&output);
     assert_eq!(decoded.len(), source.len(), "playable sample count");
     let lag = best_signal_lag(&source, &decoded, 1200);
