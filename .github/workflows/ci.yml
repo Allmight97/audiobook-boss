@@ -1,8 +1,8 @@
 name: ci
 
 # CI runs when a PR opens ready or is marked ready, when auto-merge is enabled
-# (the merge attempt), by hand, and twice a week on main. Pushes start nothing,
-# and drafts never run. The `gate` job is the check main requires: a push after
+# (the merge attempt), by hand, and twice a week on main. Pushes and drafts
+# start nothing. The `gate` job is the check main requires: a push after
 # the last run leaves the new head without one, so the merge waits for a new
 # run. Within a PR run, each job proves only what the PR changed; manual and
 # scheduled runs prove everything, and also run `cargo audit` and `cargo deny`

@@ -148,8 +148,8 @@ Golden-path verification without a window: `.agents/skills/verify-abb/SKILL.md`.
 - Open PRs ready; a draft only when the owner asks.
   Batch follow-up fixes into one push.
 - CI (`.github/workflows/ci.yml`) runs when a PR opens ready or is marked
-  ready, when auto-merge is enabled, and twice a week on `main`. Pushes and
-  drafts start nothing.
+  ready, when auto-merge is enabled (the merge attempt), by hand, and twice a
+  week on `main`. Pushes and drafts start nothing.
 - Merge with a merge commit. After CI: `gh pr merge <n> --auto --merge`.
   Proven locally, or CI is down: `gh pr merge <n> --admin --merge`, naming the
   local proof in the PR body. Repo infrastructure and guidance changes with no

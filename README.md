@@ -142,8 +142,8 @@ Index of common commands; `package.json` holds the shortcuts.
   release-critical drift confidence is required.
 - Dependency hygiene: `bun run audit`.
 - CI (`.github/workflows/ci.yml`): runs when a pull request opens ready or is
-  marked ready, when auto-merge is enabled, by hand, and twice a week on
-  `main`. Pushes and drafts start nothing. It calls `scripts/setup.sh` and
+  marked ready, when auto-merge is enabled (the merge attempt), by hand, and
+  twice a week on `main`. Pushes and drafts start nothing. It calls `scripts/setup.sh` and
   `scripts/verify.sh` for the frontend, core crates, engine, media, host, and
   Apple AAC on macOS, and Audible decrypt on both OSes. A pull request runs
   only the jobs its changes touch.
