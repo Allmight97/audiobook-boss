@@ -12,40 +12,29 @@ the owner you touched, one expensive build at a time.
 (a new tracked file needs a lane or a `no-lane` reason); the workflow header says when
 CI runs, and `gate` is the check `main` requires. Lane commands live only in `verify.sh`.
 
-- Frontend (`frontend`): `bash scripts/verify.sh frontend`. One owner:
-  `bun run test -- <test files>`.
-- A core crate (`core`): `bash scripts/verify.sh core`. Focused loop:
-  `cargo test --locked -p abb-<owner>-core`.
-- Engine rules, session, settings, metadata intent (`core` for complexity,
-  then `engine`): `bash scripts/verify.sh core engine`. The doctests guard
-  which engine internals hosts can reach. Bundled FAAC is in the engine lane:
-  `cargo test --locked -p faac-sys`.
-- Audio, metadata writing, output artifacts, processing (`engine` and
-  `media`): `bash scripts/verify.sh engine media`. Focused loop:
-  `-- media_execution`. Fixtures are synthesized at test time.
-- Apple AAC (`apple`, macOS only): `bash scripts/verify.sh apple`. Linux
-  prints `skipped: macOS only`.
-- Audible decrypt helper (`decrypt`): `bash scripts/verify.sh decrypt`.
-  Fixtures are synthesized at test time. A wrong AAXC key is not the
-  negative case.
-- Host or IPC types (`host`): `bash scripts/verify.sh host`. Then the Vitest
-  contract tests under `src/lib/` that name the changed surface. Boundary
-  rules: `src-tauri/AGENTS.md` and `src/lib/tauri/AGENTS.md`.
-- Workflows and shell scripts (`tooling`): `bash scripts/verify.sh tooling`.
+- Frontend (`frontend`).
+- A core crate (`core`).
+- Engine rules, session, settings, metadata intent: `core` for complexity,
+  then `engine`. The doctests guard which engine internals hosts can reach.
+  Bundled FAAC tests run in the engine lane.
+- Audio, metadata writing, output artifacts, processing: `engine` and `media`.
+  Fixtures are synthesized at test time.
+- Apple AAC (`apple`, macOS only). Linux prints `skipped: macOS only`.
+- Audible decrypt helper (`decrypt`). Fixtures are synthesized at test time.
+  A wrong AAXC key is not the negative case.
+- Host or IPC types (`host`). Then the Vitest contract tests under `src/lib/`
+  that name the changed surface. Boundary rules: `src-tauri/AGENTS.md` and
+  `src/lib/tauri/AGENTS.md`.
+- Workflows and shell scripts (`tooling`): actionlint, zizmor
+  (`scripts/check-workflows.sh`), and shellcheck.
+- Advisories and licenses (`supply-chain`): runs only when named, and in CI
+  only on scheduled and manual runs. Accepted advisories live in
+  `.cargo/audit.toml`; license and source rules in `deny.toml`.
 
-CI does not run these; run them locally when they apply:
+For a narrower loop, run one command from the lane's function in `verify.sh`
+with a test-name filter.
 
-- Workflow changes: `uvx zizmor .github/workflows` (`tooling` covers
-  actionlint).
-- Docs and guidance: `git diff --check` plus a search for the edited terms.
-
-Workspace-wide Clippy, if you run it, needs
-`--features audiobook-boss/bundled-ffmpeg,abb-engine/bundled-ffmpeg`.
-Per-package Clippy is inside `verify.sh` (`bundled-ffmpeg` on engine and host).
-
-CI runs these only on scheduled and manual runs (`supply-chain` job):
-`cargo audit -D warnings` (accepted advisories: `.cargo/audit.toml`) and
-`cargo deny check licenses sources` (`deny.toml`).
+Docs and guidance: run `git diff --check` and search for the edited terms.
 
 Traps:
 
@@ -72,10 +61,8 @@ Traps:
   `.logs/tauri-dev.log` for raw evidence, before asking for pasted terminal
   output. The five newest runs stay under `.logs/runs/<run-id>/`. Log-level
   switches: header of `scripts/dev-tauri-log.sh`.
-- `cargo run -p abb-engine --features bundled-ffmpeg --bin abb-dev -- --help`
-  drives an engine session without a window. It uses its own identity and a
-  temporary state folder, so it never touches the app's settings or
-  credentials.
+- `bash scripts/abb-dev.sh --help` drives an engine session without a
+  window (header of `scripts/abb-dev.sh`).
 - Release artifacts: use `.agents/skills/release`. `bundled-ffmpeg` always
   enables `ffmpeg-sys-next/build-portable`. Public DMG builds publish the
   AAXClean helper from current source; local app builds may reuse a fresh

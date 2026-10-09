@@ -69,7 +69,8 @@ from `eval "$(scripts/setup.sh --print-env)"` (`scripts/AGENTS.md`,
 Environment).
 
 `verify.sh` takes lane names: `frontend`, `core`, `engine`, `media`, `host`,
-`apple`, `decrypt`, `tooling`. No argument runs every lane this OS supports. The
+`apple`, `decrypt`, `tooling`, and `supply-chain` (named only). No argument
+runs every other lane this OS supports. The
 commands for each lane live only in `verify.sh`. Owner-to-lane map:
 `scripts/AGENTS.md`.
 

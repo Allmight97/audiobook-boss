@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Agent and CI setup for ABB. Idempotent. Never edits shell profiles.
 #   bash scripts/setup.sh                 # frontend and rust
-#   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck
+#   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck, uv, zizmor
 #   bash scripts/setup.sh rust            # bundled FFmpeg build deps, FFmpeg 9 CLI, .NET SDK, helper, uv, cargo fetch
 #   bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
 #   bash scripts/setup.sh --print-env     # eval-able PATH and toolchain exports
@@ -743,12 +743,6 @@ ensure_aaxclean_helper() {
 	(cd "${repo_root}" && bun run aaxclean-helper:publish)
 }
 
-prefetch_lizard() {
-	# So verify.sh core still works if the network drops after setup (Codex cloud).
-	log "Prefetching lizard for the complexity check"
-	uvx --exclude-newer "10 days" --exclude-newer-package "lizard=2026-10-06" lizard --version >/dev/null
-}
-
 # Fail before minutes of installs when a prerequisite setup cannot install.
 require_prerequisites() {
 	if is_darwin && ! have brew; then
@@ -771,6 +765,9 @@ if want_frontend; then
 	(cd "${repo_root}" && bun install --frozen-lockfile)
 	ensure_actionlint
 	ensure_shellcheck
+	ensure_uv
+	log "Prefetching zizmor for the workflow check"
+	bash "${repo_root}/scripts/check-workflows.sh" --prefetch
 fi
 
 if want_rust; then
@@ -778,7 +775,9 @@ if want_rust; then
 	ensure_readback_cli
 	ensure_aaxclean_helper
 	ensure_uv
-	prefetch_lizard
+	# So verify.sh core still works if the network drops after setup (Codex cloud).
+	log "Prefetching lizard for the complexity check"
+	bash "${repo_root}/scripts/check-rust-complexity.sh" --prefetch
 	log "Fetching Cargo crates"
 	(cd "${repo_root}" && cargo fetch --locked)
 fi

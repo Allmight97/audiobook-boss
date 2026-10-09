@@ -205,8 +205,7 @@ jobs:
       - uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
         with:
           tool: cargo-audit@0.22.1,cargo-deny@0.20.2
-      - run: cargo audit -D warnings
-      - run: cargo deny check licenses sources
+      - run: bash scripts/verify.sh supply-chain
 
   gate:
     name: gate

@@ -21,7 +21,7 @@ STATE="$(mktemp -d "${TMPDIR:-/tmp}/abb-verify-state.XXXXXX")"
 INPUTS="$(mktemp -d "${TMPDIR:-/tmp}/abb-verify-in.XXXXXX")"
 mkdir -p "${EVIDENCE}"
 eval "$(scripts/setup.sh --print-env)"
-ABB_DEV=(cargo run -p abb-engine --features bundled-ffmpeg --bin abb-dev --)
+ABB_DEV=(bash scripts/abb-dev.sh)
 ```
 
 `abb-dev` already uses its own identity (`com.audiobook-boss.devtool`). Always

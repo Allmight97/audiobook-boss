@@ -4,6 +4,7 @@ set -euo pipefail
 # Same lanes as CI. The lane list lives only in this file.
 #   bash scripts/verify.sh            # every lane this OS supports
 #   bash scripts/verify.sh frontend   # one or more lanes
+#   bash scripts/verify.sh supply-chain  # advisories and licenses (named only)
 #
 # Lanes run one after another and keep going after a failure. Each lane prints
 # PASS or FAIL. The exit code is nonzero if any lane failed.
@@ -24,8 +25,9 @@ usage() {
 	cat <<'USAGE'
 Usage: bash scripts/verify.sh [lane ...]
 
-Lanes: frontend, core, engine, media, host, apple, decrypt, tooling
+Lanes: frontend, core, engine, media, host, apple, decrypt, tooling, supply-chain
 No argument runs every lane this OS supports (apple is skipped on Linux).
+supply-chain runs only when named: it needs cargo-audit and cargo-deny.
 USAGE
 }
 
@@ -33,7 +35,8 @@ is_darwin() {
 	[[ "$(uname -s)" == Darwin ]]
 }
 
-all_lanes=(frontend core engine media host apple decrypt tooling)
+default_lanes=(frontend core engine media host apple decrypt tooling)
+all_lanes=("${default_lanes[@]}" supply-chain)
 
 lane_known() {
 	local name="$1" lane
@@ -155,21 +158,32 @@ lane_apple() {
 }
 
 lane_tooling() {
-	if ! command -v actionlint >/dev/null 2>&1 || ! command -v shellcheck >/dev/null 2>&1; then
-		printf 'MISSING actionlint and/or shellcheck\n' >&2
-		printf 'Install with: bash scripts/setup.sh frontend\n' >&2
-		return 1
-	fi
-	actionlint
+	local tool
+	for tool in actionlint shellcheck uvx; do
+		if ! command -v "${tool}" >/dev/null 2>&1; then
+			printf 'MISSING %s\nInstall with: bash scripts/setup.sh frontend\n' "${tool}" >&2
+			return 1
+		fi
+	done
+	bash scripts/check-workflows.sh
 	local scripts
 	# Globs are expanded against committed files; fail if a directory is empty.
 	scripts=(scripts/*.sh .claude/hooks/*.sh)
 	shellcheck -S warning "${scripts[@]}"
 }
 
+lane_supply_chain() {
+	if ! cargo audit --version >/dev/null 2>&1 || ! cargo deny --version >/dev/null 2>&1; then
+		printf 'MISSING cargo-audit and/or cargo-deny (CI installs them in the supply-chain job)\n' >&2
+		return 1
+	fi
+	cargo audit -D warnings
+	cargo deny check licenses sources
+}
+
 requested=()
 if [[ $# -eq 0 ]]; then
-	requested=("${all_lanes[@]}")
+	requested=("${default_lanes[@]}")
 else
 	for arg in "$@"; do
 		case "${arg}" in
@@ -196,7 +210,7 @@ run_lane() {
 	set +e
 	(
 		set -euo pipefail
-		"lane_${name}"
+		"lane_${name//-/_}"
 	)
 	status=$?
 	set -e
