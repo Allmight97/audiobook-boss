@@ -38,7 +38,9 @@ second copy of owner state.
 ## Owner Interface
 
 - Treat each owner as a deep module. Its `index.ts` is its Public API Strip.
-  Import from the owner root; Biome rejects deep imports. Cross-owner
+  Import from the owner root; Biome rejects deep imports. The exact export
+  names are the hand-written `STRIPS` list in
+  `src/__tests__/public-api-strips.contract.test.ts`. Cross-owner
   coordination uses the other owner's strip, injected when App Runtime composes
   the owners.
 - Expose a small `view()` or accessor surface plus semantic intents.
