@@ -8,9 +8,10 @@ name: ci
 # gate counts as passing, so pushes cannot trigger a conditional run. Within
 # a PR run, each job proves only what the PR changed; manual and scheduled runs
 # prove everything, and also run `cargo audit` and `cargo deny`
-# (`supply-chain`). Only main runs save the Rust
-# build cache (FFmpeg included), because PRs can restore only main's caches;
-# the scheduled run also keeps it from the 7-day eviction. Every job has a
+# (`supply-chain`). Dependabot PRs also wait for auto-merge. Only main runs
+# save the Rust build cache, because PRs can restore only main's caches; the
+# scheduled run also keeps it from the 7-day eviction. rust-cache drops build
+# outputs of path crates inside the workspace, so FFmpeg keeps its own cache. Every job has a
 # timeout so a stalled runner or download fails instead of waiting 6 hours.
 
 on:
@@ -183,6 +184,15 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - id: toolchain
+        run: echo "id=$( (cc --version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      # After rust-cache, so this saves before rust-cache's cleanup deletes the
+      # FFmpeg build. The build script reuses FFmpeg only while compiler, opus,
+      # source and patch match, so the key carries the same inputs.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/debug/build/ffmpeg-sys-next-*/out
+          key: ffmpeg-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
       - if: needs.changes.outputs.engine == 'true' || env.ALL == 'true'
         run: >-
           cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --
@@ -221,6 +231,12 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - id: toolchain
+        run: echo "id=$( (cc --version; xcrun --show-sdk-version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/debug/build/ffmpeg-sys-next-*/out
+          key: ffmpeg-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
       - run: cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- apple
 
   supply-chain:

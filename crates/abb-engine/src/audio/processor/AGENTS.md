@@ -90,5 +90,6 @@ those decisions to it.
   at source sample rate before preview, resampling, or concatenation, through
   packet skip metadata that replaces what FFmpeg derived from iTunSMPB.
   Encoder selection does not change the source's playable audio.
-- Packet-copy joins refuse only ABB's FAAC HE files (`is_abb_faac_he`); a
-  third-party HE file with iTunSMPB stays preservable as before.
+- Packet-copy joins refuse ABB's FAAC HE files by tag (`is_abb_faac_he`).
+  Other files keep main's packet checks, which already refuse a packet that
+  carries trim metadata, as a third-party file with iTunSMPB does.
