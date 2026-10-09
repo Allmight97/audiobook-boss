@@ -128,6 +128,7 @@ lane_media() {
 	cargo fmt --all -- --check
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
 		test_cases::integration_media
+	bash .agents/skills/verify-abb/run.sh
 }
 
 lane_host() {
@@ -168,7 +169,7 @@ lane_tooling() {
 	bash scripts/check-workflows.sh
 	local scripts
 	# Globs are expanded against committed files; fail if a directory is empty.
-	scripts=(scripts/*.sh .claude/hooks/*.sh)
+	scripts=(scripts/*.sh .claude/hooks/*.sh .agents/skills/verify-abb/*.sh .agents/skills/verify-abb/features/*.sh)
 	shellcheck -S warning "${scripts[@]}"
 }
 

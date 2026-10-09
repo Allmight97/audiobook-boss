@@ -48,6 +48,8 @@ engine:
 media:
   - *shared
   - crates/**
+  - scripts/abb-dev.sh
+  - .agents/skills/verify-abb/**
 host:
   - *shared
   - crates/**
