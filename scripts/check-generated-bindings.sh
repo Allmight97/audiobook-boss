@@ -89,7 +89,7 @@ has_contract_related_changes() {
 src_tauri_cargo_toml_has_contract_diff() {
   local diff_output changed_lines
 
-  diff_output="$(git diff HEAD -U0 -- src-tauri/Cargo.toml || true)"
+  diff_output="$(git diff HEAD -U0 -- src-tauri/Cargo.toml)"
 
   changed_lines="$(
     printf '%s\n' "$diff_output" |

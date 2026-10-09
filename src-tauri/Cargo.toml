@@ -62,7 +62,6 @@ custom-protocol = ["tauri/custom-protocol"]
 default = []
 binding-export = []
 bundled-ffmpeg = ["abb-engine/bundled-ffmpeg"]
-bundled-ffmpeg-portable = ["abb-engine/bundled-ffmpeg-portable"]
 
 [lints]
 workspace = true

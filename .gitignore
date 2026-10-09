@@ -75,7 +75,8 @@ __pycache__/
 /docs/**/*.html
 
 # Local AI/editor settings
-.cursor/
+.cursor/*
+!.cursor/environment.json
 .learnings/
 
 # Perf run artifacts (generated locally/CI)

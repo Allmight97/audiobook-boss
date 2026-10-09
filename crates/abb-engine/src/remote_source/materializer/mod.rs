@@ -15,17 +15,17 @@ use crate::remote_source::cancellation::ensure_not_cancelled;
 use crate::remote_source::scoped_output::StagedTempFile;
 
 const HELPER_NAME: &str = "abb-aaxclean-helper";
-const HELPER_SIDECAR_FILE: &str = "abb-aaxclean-helper-aarch64-apple-darwin";
+const HELPER_SIDECAR_FILE: &str = concat!("abb-aaxclean-helper-", env!("ABB_TARGET_TRIPLE"));
 const REQUEST_SCHEMA_VERSION: u8 = 1;
 
 #[derive(Debug, Clone)]
-pub(in crate::remote_source) struct AaxcleanMaterializer {
+pub(crate) struct AaxcleanMaterializer {
     helper_path: Arc<PathBuf>,
     registry: Arc<MaterializerProcessRegistry>,
 }
 
 #[derive(Debug)]
-pub(in crate::remote_source) struct MaterializationRequest {
+pub(crate) struct MaterializationRequest {
     pub job_id: String,
     pub operation_id: String,
     pub lane: AaxcleanLane,
@@ -36,13 +36,13 @@ pub(in crate::remote_source) struct MaterializationRequest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::remote_source) enum AaxcleanLane {
+pub(crate) enum AaxcleanLane {
     Aax,
     Aaxc,
 }
 
 #[derive(Debug)]
-pub(in crate::remote_source) enum AaxcleanSecret {
+pub(crate) enum AaxcleanSecret {
     Aax {
         activation_bytes_hex: SecretString,
     },
@@ -77,12 +77,12 @@ struct HelperMessage {
 }
 
 impl AaxcleanMaterializer {
-    pub(in crate::remote_source) fn new_for_helper(helper_path: Option<PathBuf>) -> Self {
+    pub(crate) fn new_for_helper(helper_path: Option<PathBuf>) -> Self {
         Self::new(helper_path.unwrap_or_else(resolve_helper_path))
     }
 
     #[cfg(test)]
-    pub(in crate::remote_source) fn for_tests() -> Self {
+    pub(crate) fn for_tests() -> Self {
         Self::new(PathBuf::from(HELPER_NAME))
     }
 
@@ -93,15 +93,15 @@ impl AaxcleanMaterializer {
         }
     }
 
-    pub(in crate::remote_source) fn abort_job(&self, job_id: &str) {
+    pub(crate) fn abort_job(&self, job_id: &str) {
         self.registry.kill_job(job_id);
     }
 
-    pub(in crate::remote_source) fn abort_all(&self) {
+    pub(crate) fn abort_all(&self) {
         self.registry.kill_all();
     }
 
-    pub(in crate::remote_source) async fn materialize(
+    pub(crate) async fn materialize(
         &self,
         request: MaterializationRequest,
         mut progress: impl FnMut(AcquisitionProgress),
@@ -122,6 +122,8 @@ impl AaxcleanMaterializer {
         );
 
         let mut child = Command::new(self.helper_path.as_path())
+            // Non-secret: closes the per-run diagnostics socket. Secrets stay on stdin.
+            .env("DOTNET_EnableDiagnostics", "0")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())

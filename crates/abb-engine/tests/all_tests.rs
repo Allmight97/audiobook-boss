@@ -67,21 +67,96 @@ fn the_developer_tool_imports_edits_and_saves_a_real_file() {
 }
 
 #[cfg(unix)]
+fn euid_is_root() -> bool {
+    Command::new("id")
+        .arg("-u")
+        .output()
+        .ok()
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .is_some_and(|uid| uid.trim() == "0")
+}
+
+#[cfg(unix)]
+fn unprivileged_ids() -> (u32, u32) {
+    fn parse(flag: &str) -> Option<u32> {
+        let output = Command::new("id").args([flag, "nobody"]).output().ok()?;
+        let text = String::from_utf8(output.stdout).ok()?;
+        let trimmed = text.trim();
+        trimmed
+            .parse()
+            .ok()
+            .or_else(|| trimmed.parse::<i32>().ok().map(|id| id as u32))
+    }
+    (parse("-u").unwrap_or(65534), parse("-g").unwrap_or(65534))
+}
+
+/// chmod is not enough: root ignores a 0o444 file. Settings tests put a
+/// regular file at the parent path so create_dir_all fails for every uid.
+/// Save writes this source in place, so that blocker cannot sit at the
+/// parent while Import still reads the book. Run the host unprivileged
+/// when uid 0 so the read-only file fails the write, without chattr.
+#[cfg(unix)]
+fn run_save_against_unwritable_book(source: &Path, state: &Path) -> std::process::Output {
+    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::process::CommandExt;
+
+    // allow-permission-fake: as root, abb-dev runs as nobody, which cannot write it
+    std::fs::set_permissions(source, std::fs::Permissions::from_mode(0o444))
+        .expect("make the book read-only");
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_abb-dev"));
+    cmd.arg(source)
+        .args(["--set", "genre=Mystery", "--save", "--state-dir"])
+        .arg(state);
+    if euid_is_root() {
+        let parent = source.parent().expect("book parent");
+        std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o755))
+            .expect("let the unprivileged host traverse the fixture");
+        std::fs::create_dir_all(state).expect("state dir");
+        std::fs::set_permissions(state, std::fs::Permissions::from_mode(0o777))
+            .expect("let the unprivileged host write state");
+        let (uid, gid) = unprivileged_ids();
+        cmd.env("HOME", state)
+            .env("TMPDIR", state)
+            .uid(uid)
+            .gid(gid);
+    }
+    cmd.output().expect("run developer host")
+}
+
+#[cfg(unix)]
 #[test]
 fn the_developer_tool_fails_when_a_save_cannot_write() {
-    use std::os::unix::fs::PermissionsExt;
     let root = tempfile::TempDir::new().expect("state root");
     let source = book(root.path());
-    std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o444))
-        .expect("make the book read-only");
+    let result = run_save_against_unwritable_book(&source, &root.path().join("tool-state"));
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        !result.status.success(),
+        "a failed Save must fail the run: {stderr}"
+    );
+    assert!(
+        stderr.contains("Save failed") || stderr.contains("could not write"),
+        "expected a failed Save, got: {stderr}"
+    );
+    assert_eq!(genre(&source).as_deref(), Some("Fantasy"));
+}
+
+#[test]
+fn the_developer_tool_exits_nonzero_when_importing_an_empty_directory() {
+    let root = tempfile::TempDir::new().expect("state root");
+    let empty = root.path().join("empty");
+    std::fs::create_dir(&empty).expect("empty import dir");
     let result = Command::new(env!("CARGO_BIN_EXE_abb-dev"))
-        .arg(&source)
-        .args(["--set", "genre=Mystery", "--save", "--state-dir"])
+        .arg(&empty)
+        .args(["--json", "--state-dir"])
         .arg(root.path().join("tool-state"))
         .output()
         .expect("run developer host");
-    assert!(!result.status.success(), "a failed Save must fail the run");
-    assert_eq!(genre(&source).as_deref(), Some("Fantasy"));
+    assert!(
+        !result.status.success(),
+        "importing an empty directory must fail the run: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
 }
 
 #[test]

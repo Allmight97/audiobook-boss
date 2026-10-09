@@ -1,3 +1,5 @@
+#[path = "integration_decrypt.rs"]
+mod integration_decrypt;
 #[path = "integration_media_execution_tests.rs"]
 pub(crate) mod integration_media_execution_tests;
 #[path = "integration_reqwest_resolver_tests.rs"]

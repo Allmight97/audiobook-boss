@@ -55,6 +55,31 @@ simpler design.
 - Solid 2 is the frontend baseline: read `package.json` before changing Solid
   APIs, and typecheck against this checkout's lockfile.
 
+## Environment
+
+The same two commands on a Mac, a Linux box, Cursor cloud, and in CI:
+
+    bash scripts/setup.sh
+    bash scripts/verify.sh
+
+`setup.sh` takes `frontend` or `rust`, or no argument for both. `--check`
+installs nothing and exits nonzero if something is missing. The active rustc
+must match `rust-toolchain.toml`. It never edits shell profiles (it sets this
+repo's git hook path); PATH comes
+from `eval "$(scripts/setup.sh --print-env)"` (`scripts/AGENTS.md`,
+Environment).
+
+`verify.sh` takes lane names: `frontend`, `core`, `engine`, `media`, `host`,
+`apple`, `decrypt`, `tooling`, and `supply-chain` (named only). No argument
+runs every other lane this OS supports. The
+commands for each lane live only in `verify.sh`. Owner-to-lane map:
+`scripts/AGENTS.md`.
+
+Codex cloud: paste `bash scripts/setup.sh` into the Codex environment settings
+field once. That setting is not in the repo.
+
+Golden-path verification without a window: `.agents/skills/verify-abb/SKILL.md`.
+
 ## Refactor Discipline
 
 - Name the owned invariant and its owner before refactoring; move truth to the
@@ -122,20 +147,19 @@ simpler design.
 - Local proof is the primary proof: agents on the owner's machine run
   `scripts/AGENTS.md` "What to run for a change". CI is the last check and
   the main proof for cloud Linux agents.
-- A PR has two moments; nothing else starts CI or a review bot, so pushes in
-  between are free. Batch follow-up fixes into one push.
-  1. Open it ready once local proof passes (a draft only when the owner asks),
-     then comment `@codex review` once. Optional reviews: `@claude` in a
-     comment, or the `claude review` workflow when the owner enables it.
-  2. Done: `gh pr merge <n> --auto --merge` runs CI (`.github/workflows/ci.yml`)
-     once and merges with a merge commit when `gate` passes. After a later
-     push, rerun it with `gh pr merge <n> --disable-auto`, then the same
-     `--auto --merge` again (a manual `workflow_dispatch` run cannot satisfy
-     the required `gate`).
-- Proven locally, or CI is down: `gh pr merge <n> --admin --merge`, naming the
+- Open PRs ready; a draft only when the owner asks.
+  Batch follow-up fixes into one push.
+- CI runs only on the events the header of `.github/workflows/ci.yml` lists;
+  a push alone starts nothing.
+- Merge with a merge commit. `gh pr merge <n> --auto --merge` starts a run
+  and merges when `gate` passes; when `gate` is already green on the head,
+  `gh pr merge <n> --merge` skips a second identical run. A push after
+  auto-merge is on leaves the head without `gate`: run
+  `gh pr merge <n> --disable-auto`, then `--auto --merge` again (a manual run
+  does not satisfy a required check). Proven locally, or CI is down: `gh pr merge <n> --admin --merge`, naming the
   local proof in the PR body. Repo infrastructure and guidance changes with no
   implementation (docs, `AGENTS.md`, skills, allowlists) go straight to
-  `main`, no PR. CI also runs twice a week on `main`.
+  `main`, no PR.
 - A related follow-up may branch from a PR's branch as a child PR; GitHub
   retargets it to `main` when the parent merges.
 

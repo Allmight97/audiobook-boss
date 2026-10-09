@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify ABB"
+  short_description: "Drive abb-dev headlessly and keep JSON plus ffprobe evidence"
+  default_prompt: "Use $verify-abb to verify the golden path through abb-dev without a window."

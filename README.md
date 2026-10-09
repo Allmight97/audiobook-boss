@@ -21,12 +21,12 @@ Convert, tag, and organize your audiobook library with metadata that works every
 # JS/TS dependencies
 bun install
 
-# First run publishes the AAXClean sidecar (.NET 8 SDK required)
+# First run publishes the AAXClean sidecar (.NET 10 SDK required)
 # then starts Tauri with bundled FFmpeg and reusable logs.
 bun run app:dev:log
 ```
 
-Requires: macOS (Apple Silicon), Bun 1.4 or newer, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
+Requires: macOS (Apple Silicon) or x86_64 Ubuntu 22.04 or newer (glibc 2.27+, OpenSSL, WebKitGTK 4.1), Bun 1.4 or newer, Rust (rustup), and a .NET 10 SDK for the sidecar. macOS also needs Homebrew. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback). After clone, `bash scripts/setup.sh` installs everything except rustup and Homebrew.
 
 **AAC runtime contract**: output encoder and input decoder are separate. Auto
 selects Native NMR; Apple AAC and bundled FAAC are explicit choices.
@@ -71,7 +71,32 @@ closure, and low-battery sleep remain controlled by macOS.
 
 ## Development
 
-Run the checks in the script guide for what you changed.
+After clone, `bash scripts/setup.sh` then `bash scripts/verify.sh`. Setup
+prints the line that puts its tools on PATH, installs this repo's pre-commit
+hook, and never edits shell profiles. Lanes and owner mapping: root
+`AGENTS.md` Environment and `scripts/AGENTS.md`.
+
+Linux (tested target): x86_64 Ubuntu 22.04 or newer, glibc 2.27+, OpenSSL, and
+WebKitGTK 4.1. `linux-arm64` publishes but is not proven on real hardware.
+Known gap: saved sign-ins do not survive a reboot on Linux (WSL included).
+`linux-keyutils-keyring-store` 1.0.0 is UntilReboot
+([#557](https://github.com/Allmight97/audiobook-boss/issues/557)).
+
+### Windows (WSL)
+
+Windows is supported only through WSL running the Linux build.
+
+- Use WSLg: Windows 11, or Windows 10 build 19044+ with the Microsoft Store WSL.
+  Install the Linux requirements inside the WSL distro.
+- If the window opens blank, launch with `WEBKIT_DISABLE_DMABUF_RENDERER=1`,
+  and fall back to `WEBKIT_DISABLE_COMPOSITING_MODE=1`. That is a known
+  WebKitGTK and WSLg issue. These remain launch notes until someone confirms
+  them on a real WSL machine.
+- Keep the library, `target/`, and outputs on the Linux filesystem (`~/…`),
+  not `/mnt/c`. Windows drives are slower over WSL, chmod mostly does not
+  apply, and they are case-insensitive.
+- Dragging files from Windows Explorer into the app does not work under WSLg.
+  Use the file picker.
 
 ### Install a local build
 
@@ -79,15 +104,14 @@ Build the current branch and replace `/Applications/AudioBook Boss.app` in
 place. macOS (Apple Silicon) only; the replace is silent and unprompted.
 
 ```bash
-bun run app:install-local            # native build, verify, install, prune artifacts
+bun run app:install-local            # local build, verify, install, prune artifacts
 bun run app:install-local:existing   # install an already-built bundle (--skip-build)
 ```
 
-On a supported Apple Silicon Mac, source app builds and developer installs
-target the compiling host natively. `bun run app:build` builds that native
-repo-local app. `bun run app:build:dmg` and `bun run app:build:all` instead use
-the portable Apple Silicon baseline because their DMG may run on an unknown
-recipient Mac.
+On a supported Apple Silicon Mac, `bundled-ffmpeg` always uses the portable
+Apple Silicon baseline (`ffmpeg-sys-next/build-portable`). `bun run app:build`
+builds the repo-local app; `bun run app:build:dmg` and `bun run app:build:all`
+package a DMG that may run on an unknown recipient Mac.
 
 ## Script Guide
 
@@ -98,41 +122,29 @@ Index of common commands; `package.json` holds the shortcuts.
 - Frontend checks: `bun run typecheck`,
   `bun run test -- <test files>`, plus `bun run fmt:check` / `bun run lint:check`
   when formatting or lint is in scope.
-- Focused Rust loops:
-  `cargo test --locked -p abb-audible-core`,
-  `cargo test --locked -p abb-media-core`,
-  `cargo test --locked -p abb-metadata-core`,
-  `cargo test --locked -p abb-output-artifact-core`,
-  `cargo test --locked -p abb-processing-core`,
-  `cargo test --locked -p abb-remote-source-core`,
-  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib`,
-  `cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests`, or
-  `cargo test --locked -p audiobook-boss --features bundled-ffmpeg` (Tauri host).
-- Engine without a window: `cargo run -p abb-engine --features bundled-ffmpeg
-  --bin abb-dev -- <file-or-folder>... [--set field=value] [--save]
-  [--out folder --export] [--json]` imports files into an engine session and
-  can edit and save tags, choose audio and naming, export or preview with
-  progress, cancel a title, and read back the exported tags. `--help` lists
-  every option. It keeps its own state and never touches the app's settings.
+- Rust checks: `bash scripts/verify.sh <lane>`; lanes and their owners are
+  in `scripts/AGENTS.md`.
+- Engine without a window: `bash scripts/abb-dev.sh <file-or-folder>...
+  [--set field=value] [--save] [--out folder --export] [--json]` imports files
+  into an engine session and can edit and save tags, choose audio and naming,
+  export or preview with progress, cancel a title, and read back the exported
+  tags. `--help` lists every option. It keeps its own state and never touches
+  the app's settings.
 - IPC/boundary checks: `bun run bindings:check:local` and
   `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
   release-critical drift confidence is required.
 - Dependency hygiene: `bun run audit`.
-- CI (`.github/workflows/ci.yml`): runs once per pull request when auto-merge
-  is enabled, by hand, and twice a week on `main`. Opening a pull request and
-  pushing start nothing. It checks the frontend, the core
-  crates, the engine with the real-media lane, the Tauri host, the generated
-  bindings, and Apple AAC on macOS. A pull request runs only the jobs its
-  changes touch. GitHub also runs Pages for `site/**`.
+- CI (`.github/workflows/ci.yml`): its header says when it runs. Each job runs
+  `scripts/setup.sh` and the `scripts/verify.sh` lanes that the changed paths
+  select (`scripts/lane-paths.yml`). GitHub also runs Pages for `site/**`.
 - Bun is the package manager, script runner, and test runner.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
-- Build timing: use direct Cargo timing commands such as `cargo build --timings`
-  when investigating compile cost.
+- Build timing: Cargo's `--timings` report shows where compile time goes.
 - Release lanes: use `.agents/skills/release`.
   `bun scripts/bump-version.ts <version>` updates version surfaces;
-  `bun run app:install-local` is the native developer-install lane and silently
+  `bun run app:install-local` is the developer-install lane and silently
   replaces `/Applications/AudioBook Boss.app`; `bun run app:build` builds a
-  native repo-local `.app`; `bun run app:build:dmg` builds a portable,
+  repo-local `.app`; `bun run app:build:dmg` builds a portable,
   noninteractive public DMG and rebuilds the AAXClean helper from current source.
   `bun scripts/resolve-release-dmg.ts --version <version>` resolves the artifact;
   download the uploaded asset and compare its `shasum -a 256` with the local DMG.

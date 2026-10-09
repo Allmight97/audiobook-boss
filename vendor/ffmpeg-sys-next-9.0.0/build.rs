@@ -6,10 +6,13 @@ extern crate pkg_config;
 use std::env;
 use std::fmt::Write as FmtWrite;
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
+use std::sync::OnceLock;
+use std::thread;
+use std::time::Duration;
 
 use bindgen::callbacks::{
     EnumVariantCustomBehavior, EnumVariantValue, IntKind, MacroParsingBehavior, ParseCallbacks,
@@ -267,20 +270,106 @@ fn output() -> PathBuf {
     PathBuf::from(env::var("OUT_DIR").unwrap())
 }
 
+// Cargo hashes `cargo build` (rlib) and `cargo clippy` (metadata-only) as
+// different units, so each gets its own OUT_DIR. The C library lives here,
+// keyed by build identity, so the second unit reuses the first.
+static FFMPEG_TREE: OnceLock<PathBuf> = OnceLock::new();
+
+fn ffmpeg_tree() -> PathBuf {
+    FFMPEG_TREE
+        .get()
+        .expect("prepare_ffmpeg_tree before using the FFmpeg tree")
+        .clone()
+}
+
+fn prepare_ffmpeg_tree(identity: &str) -> io::Result<()> {
+    let id_file = output().join("abb-build-identity.txt");
+    fs::write(&id_file, identity)?;
+    let hash = git_blob_hash(&id_file)?;
+    let mut target = output();
+    for _ in 0..4 {
+        target.pop();
+    }
+    // Cross builds insert `<triple>` between the target dir and the profile.
+    if target
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(looks_like_target_triple)
+    {
+        target.pop();
+    }
+    let dir = target.join("abb-ffmpeg-cache").join(hash);
+    fs::create_dir_all(&dir)?;
+    let _ = FFMPEG_TREE.set(dir);
+    Ok(())
+}
+
+fn looks_like_target_triple(name: &str) -> bool {
+    name.contains("-unknown-")
+        || name.contains("-pc-")
+        || name.contains("-apple-")
+        || name.contains("-none-")
+}
+
+struct CacheGuard(PathBuf);
+
+impl CacheGuard {
+    fn acquire(dir: &Path) -> Self {
+        // /tmp, not the cache dir: CI restores `target/abb-ffmpeg-cache`, and a
+        // saved lock pid can collide with a live process on the next runner.
+        let name = dir.file_name().and_then(|name| name.to_str()).unwrap_or("cache");
+        let path = env::temp_dir().join(format!("abb-ffmpeg-{name}.lock"));
+        loop {
+            match fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(mut file) => {
+                    let _ = writeln!(file, "{}", std::process::id());
+                    return Self(path);
+                }
+                Err(err) if err.kind() == ErrorKind::AlreadyExists => {
+                    let stale = fs::read_to_string(&path)
+                        .ok()
+                        .and_then(|text| text.trim().parse::<u32>().ok())
+                        .is_some_and(|pid| !process_alive(pid));
+                    if stale {
+                        let _ = fs::remove_file(&path);
+                        continue;
+                    }
+                    thread::sleep(Duration::from_millis(250));
+                }
+                Err(err) => panic!("abb-ffmpeg-cache lock: {err}"),
+            }
+        }
+    }
+}
+
+impl Drop for CacheGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
+
+fn process_alive(pid: u32) -> bool {
+    Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(true)
+}
+
 fn source() -> PathBuf {
-    output().join(format!("ffmpeg-{}", version()))
+    ffmpeg_tree().join(format!("ffmpeg-{}", version()))
 }
 
 fn search() -> PathBuf {
-    let mut absolute = env::current_dir().unwrap();
-    absolute.push(output());
-    absolute.push("dist");
-
-    absolute
+    ffmpeg_tree().join("dist")
 }
 
 fn fetch() -> io::Result<()> {
-    let output_base_path = output();
+    let output_base_path = ffmpeg_tree();
     let clone_dest_dir = format!("ffmpeg-{}", version());
     let _ = std::fs::remove_dir_all(output_base_path.join(&clone_dest_dir));
     fs::create_dir_all(source())?;
@@ -554,12 +643,22 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
         }
     } else {
         // Determine -march/-mtune flags for the compiler.
-        // Priority: env vars > build-portable feature > default (native)
+        // Priority: build-portable feature > env vars > default (native).
+        // ABB: build-portable refuses the env vars so an inherited
+        // FFMPEG_MARCH can neither make a distributable FFmpeg native nor
+        // change the cache identity for identical output.
         let march_env = env::var("FFMPEG_MARCH").ok();
         let mtune_env = env::var("FFMPEG_MTUNE").ok();
 
-        let (march, mtune) = if march_env.is_some() || mtune_env.is_some() {
-            // Env vars take highest priority. Empty string means omit the flag.
+        let (march, mtune) = if cfg!(feature = "build-portable") {
+            assert!(
+                march_env.is_none() && mtune_env.is_none(),
+                "build-portable is set; unset FFMPEG_MARCH and FFMPEG_MTUNE"
+            );
+            // Omit both flags so the compiler uses its baseline target.
+            (String::new(), String::new())
+        } else if march_env.is_some() || mtune_env.is_some() {
+            // Empty string means omit the flag.
             // Validate the values to prevent arbitrary string injection.
             (
                 validated_cpu_flag(
@@ -571,9 +670,6 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
                     mtune_env.unwrap_or_else(|| "native".to_string()),
                 ),
             )
-        } else if cfg!(feature = "build-portable") {
-            // Omit both flags so the compiler uses its baseline target.
-            (String::new(), String::new())
         } else {
             // Default: tune for the host architecture.
             ("native".to_string(), "native".to_string())
@@ -1253,29 +1349,34 @@ fn main() {
 
     let sysroot = find_sysroot();
     let include_paths: Vec<PathBuf> = if env::var("CARGO_FEATURE_BUILD").is_ok() {
+        let source_identity = patched_source_identity().expect("failed to identify FFmpeg source");
+        let build_identity = native_build_identity(sysroot.as_deref())
+            .expect("failed to identify FFmpeg build inputs");
+        prepare_ffmpeg_tree(&build_identity).expect("failed to prepare the FFmpeg cache");
+        let _cache_lock = CacheGuard::acquire(&ffmpeg_tree());
         println!(
             "cargo:rustc-link-search=native={}",
             search().join("lib").to_string_lossy()
         );
         link_to_libraries(statik, &target_os);
         let source_stamp = search().join("abb-source-commit");
-        let source_identity = patched_source_identity().expect("failed to identify FFmpeg source");
         let build_stamp = search().join("abb-build-inputs");
-        let build_identity = native_build_identity(sysroot.as_deref())
-            .expect("failed to identify FFmpeg build inputs");
         let cached_commit = fs::read_to_string(&source_stamp).unwrap_or_default();
         if cached_commit.trim() != source_identity
             || fs::read_to_string(&build_stamp).ok().as_deref() != Some(&build_identity)
             || fs::metadata(search().join("lib").join("libavutil.a")).is_err()
         {
+            eprintln!("abb-ffmpeg-cache: compile {}", ffmpeg_tree().display());
             if search().exists() {
                 fs::remove_dir_all(search()).expect("failed to clear stale FFmpeg build");
             }
-            fs::create_dir_all(output()).expect("failed to create build directory");
+            fs::create_dir_all(ffmpeg_tree()).expect("failed to create build directory");
             fetch().unwrap();
             build(sysroot.as_deref()).unwrap();
             fs::write(source_stamp, source_identity).expect("failed to record FFmpeg source");
             fs::write(build_stamp, build_identity).expect("failed to record FFmpeg build inputs");
+        } else {
+            eprintln!("abb-ffmpeg-cache: reuse {}", ffmpeg_tree().display());
         }
 
         // Check additional required libraries.
