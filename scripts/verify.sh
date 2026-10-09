@@ -168,6 +168,7 @@ lane_tooling() {
 	done
 	bash scripts/check-workflows.sh
 	bun scripts/check-guidance.ts
+	bun scripts/check-known-mistakes.ts
 	local scripts
 	# Globs are expanded against committed files; fail if a directory is empty.
 	scripts=(scripts/*.sh .claude/hooks/*.sh .agents/skills/verify-abb/*.sh .agents/skills/verify-abb/features/*.sh)

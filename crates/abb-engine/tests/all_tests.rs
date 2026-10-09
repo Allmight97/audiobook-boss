@@ -100,6 +100,7 @@ fn run_save_against_unwritable_book(source: &Path, state: &Path) -> std::process
     use std::os::unix::fs::PermissionsExt;
     use std::os::unix::process::CommandExt;
 
+    // allow-permission-fake: as root, abb-dev runs as nobody, which cannot write it
     std::fs::set_permissions(source, std::fs::Permissions::from_mode(0o444))
         .expect("make the book read-only");
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_abb-dev"));

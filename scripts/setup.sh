@@ -170,7 +170,7 @@ pinned_dotnet_sdk() {
 
 node_major() {
 	local version
-	version="$("$@" --version 2>/dev/null | awk 'NR==1 {print; exit}')"
+	version="$("$@" --version 2>/dev/null | awk 'NR==1 {print; exit}')" # allow-silence: no version reads as unsupported Node, which the caller reports
 	version="${version#v}"
 	printf '%s\n' "${version%%.*}"
 }
@@ -209,7 +209,7 @@ brew_ffmpeg_cli() {
 	local name="$1" prefix
 	is_darwin || return 1
 	have brew || return 1
-	prefix="$(brew --prefix ffmpeg 2>/dev/null)" || return 1
+	prefix="$(brew --prefix ffmpeg 2>/dev/null)" || return 1 # allow-silence: brew errors when ffmpeg is absent; absent is the answer
 	[[ -x "${prefix}/bin/${name}" ]] || return 1
 	printf '%s\n' "${prefix}/bin/${name}"
 }
@@ -302,7 +302,7 @@ check_rust() {
 	required_rust="$(pinned_rust_channel)"
 	if have rustc && have cargo; then
 		rustc_ver="$(
-			cd "${repo_root}" && rustc --version 2>/dev/null | awk '{print $2}'
+			cd "${repo_root}" && rustc --version | awk '{print $2}'
 		)"
 		if [[ "${rustc_ver}" == "${required_rust}" || "${rustc_ver}" == "${required_rust}".* ]]; then
 			ok "rustc ${rustc_ver}"
@@ -590,9 +590,9 @@ ensure_readback_cli() {
 			return
 		fi
 		printf 'error: Homebrew ffmpeg is not major version 9\n' >&2
-		printf 'command -v ffmpeg: %s\n' "$(command -v ffmpeg 2>/dev/null || printf missing)" >&2
-		printf 'command -v ffprobe: %s\n' "$(command -v ffprobe 2>/dev/null || printf missing)" >&2
-		printf 'brew --prefix ffmpeg: %s\n' "$(brew --prefix ffmpeg 2>/dev/null || printf missing)" >&2
+		printf 'command -v ffmpeg: %s\n' "$(command -v ffmpeg 2>/dev/null || printf missing)" >&2 # allow-silence: diagnostic line; "missing" is the answer
+		printf 'command -v ffprobe: %s\n' "$(command -v ffprobe 2>/dev/null || printf missing)" >&2 # allow-silence: diagnostic line; "missing" is the answer
+		printf 'brew --prefix ffmpeg: %s\n' "$(brew --prefix ffmpeg 2>/dev/null || printf missing)" >&2 # allow-silence: diagnostic line; "missing" is the answer
 		if brew_ffmpeg="$(brew_ffmpeg_cli ffmpeg)"; then
 			printf 'brew ffmpeg -version: %s\n' "$("${brew_ffmpeg}" -version 2>&1 | awk 'NR==1 {print; exit}')" >&2
 		fi
@@ -681,7 +681,7 @@ uv_version=0.12.10
 
 ensure_uv() {
 	if have uvx; then
-		log "Using uvx $(uvx --version 2>/dev/null | awk 'NR==1{print; exit}')"
+		log "Using $(uvx --version)"
 		return
 	fi
 	local triple asset tmp

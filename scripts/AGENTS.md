@@ -29,7 +29,10 @@ CI runs, and `gate` is the check `main` requires. Lane commands live only in `ve
 - Workflows, shell scripts, and guidance (`tooling`): actionlint, zizmor
   (`scripts/check-workflows.sh`), shellcheck, and `scripts/check-guidance.ts`,
   which fails when guidance copies a command, names a missing package script,
-  or points at a missing path.
+  or points at a missing path. `scripts/check-known-mistakes.ts` fails on
+  GNU-only shell, errors silenced inside a command substitution, and Rust
+  that fakes an I/O failure with permission bits; each error names the fix
+  and its allow marker.
 - Advisories and licenses (`supply-chain`): runs only when named, and in CI
   only on scheduled and manual runs. Accepted advisories live in
   `.cargo/audit.toml`; license and source rules in `deny.toml`.
