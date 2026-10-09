@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Fast checks on staged files, so a guidance push straight to main is checked
-# too (CI does not run on pushes). Formatters and lints only; no builds, no
-# tests. setup.sh installs it with `git config core.hooksPath .githooks`.
+# Fast checks on staged files. A guidance-only change goes through a PR
+# whose gate passes, because the CI gate ruleset requires gate on main
+# (root AGENTS.md, Pull Requests And CI). CI does not run on a push.
+# Formatters and lints only; no builds, no tests. setup.sh installs it
+# with `git config core.hooksPath .githooks`.
 # Skip once with `git commit --no-verify`; CI still runs the full lanes.
 set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
