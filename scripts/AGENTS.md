@@ -95,8 +95,10 @@ Traps:
   for CI and agent setup. Dependabot updates the `bun` devDependency under the
   10-day cooldown. Setup installs that version or exits. Update `bun.lock` in
   place at `lockfileVersion` 1, because Dependabot's Bun updater rejects newer
-  versions. Node is pinned to 22.x in `.node-version`; setup installs that
-  exact 22.22.2 build, and `--check` accepts Node 22 or newer.
+  versions. Node is pinned to 22.x in `.node-version`. Setup and `--check` accept
+  any Node 22 or newer on PATH; setup installs the pinned build into
+  `~/.local/bin` only when none is found, since that folder is usually on the
+  owner's login PATH.
 
 ## Dependencies
 
@@ -127,12 +129,18 @@ Traps:
   Linux so `openssl-sys` can build, the .NET SDK from
   `tools/abb-aaxclean-helper/global.json` into `~/.dotnet`, and a real AAXClean
   helper for this host. `--check` installs nothing.
+  It cannot install rustup, or Homebrew on macOS; it stops first with the
+  install link. On Linux it installs curl, unzip, and xz first when missing.
+  Without root or sudo, frontend setup skips shellcheck; only
+  `verify.sh tooling` needs it.
   The Claude Code cloud SessionStart hook runs `setup.sh frontend`. Cursor
   cloud runs `setup.sh` from `.cursor/environment.json`. Codex cloud uses the
   same command in its environment settings, not the repo.
   PATH and toolchain env (`BUN_INSTALL`, `DOTNET_*`, `PATH`, and FFmpeg 9
   `ABB_FFMPEG` / `ABB_FFPROBE` when setup can see them) have one owner:
-  `eval "$(scripts/setup.sh --print-env)"`.
+  `eval "$(scripts/setup.sh --print-env)"`. Cloud setup steps do not pass
+  their environment to agent shells, so run that eval in a shell before
+  calling `bun`, `dotnet`, or `uvx` directly; `verify.sh` runs it itself.
 - Engine, media, host, decrypt, and apple proof use
   `--features bundled-ffmpeg` on every host (`verify.sh`), including
   `bun run bindings:generate` and `app:dev`. The first

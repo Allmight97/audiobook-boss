@@ -27,7 +27,7 @@ print_env_only=0
 mode="all"
 
 usage() {
-	sed -n '2,13p' "$0" | sed -E 's/^# ?//'
+	sed -n '4,14p' "$0" | sed -E 's/^# ?//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -71,6 +71,10 @@ is_linux() {
 
 is_darwin() {
 	[[ "$(os_name)" == Darwin ]]
+}
+
+can_run_as_root() {
+	[[ "$(id -u)" -eq 0 ]] || have sudo
 }
 
 run_as_root() {
@@ -171,6 +175,13 @@ node_major() {
 	printf '%s\n' "${version%%.*}"
 }
 
+node_is_supported() {
+	local major
+	have node || return 1
+	major="$(node_major node)"
+	[[ "${major}" =~ ^[0-9]+$ && "${major}" -ge 22 ]]
+}
+
 # Capture stdout and stderr: Homebrew prints `-version` on stderr.
 # Parse with awk, not sed `\?`: macOS BSD sed left Homebrew's `version 9.0.1`
 # unmatched after CI poured ffmpeg 9.0.1_1.
@@ -253,7 +264,7 @@ want_rust() {
 }
 
 check_frontend() {
-	local required_bun required_node bun_ver node_ver major
+	local required_bun required_node bun_ver
 	required_bun="$(bash "${repo_root}/scripts/locked-bun-version.sh")"
 	required_node="$(pinned_node_version)"
 	if have bun; then
@@ -266,14 +277,10 @@ check_frontend() {
 	else
 		need "bun ${required_bun}"
 	fi
-	if have node; then
-		node_ver="$(node --version)"
-		major="$(node_major node)"
-		if [[ "${major}" =~ ^[0-9]+$ && "${major}" -ge 22 ]]; then
-			ok "node ${node_ver} (major 22+; pin ${required_node})"
-		else
-			need "node 22 or newer (found ${node_ver}; pin ${required_node})"
-		fi
+	if node_is_supported; then
+		ok "node $(node --version) (major 22+; pin ${required_node})"
+	elif have node; then
+		need "node 22 or newer (found $(node --version); pin ${required_node})"
 	else
 		need "node ${required_node} (major 22+)"
 	fi
@@ -281,16 +288,6 @@ check_frontend() {
 		ok "node_modules"
 	else
 		need "node_modules (run: bash scripts/setup.sh frontend)"
-	fi
-	if have actionlint; then
-		ok "actionlint $(actionlint -version 2>/dev/null | awk 'NR==1{print; exit}')"
-	else
-		need "actionlint (run: bash scripts/setup.sh frontend)"
-	fi
-	if have shellcheck; then
-		ok "shellcheck"
-	else
-		need "shellcheck (run: bash scripts/setup.sh frontend)"
 	fi
 }
 
@@ -307,7 +304,7 @@ check_rust() {
 			need "rustc ${required_rust} (found ${rustc_ver:-none}; rust-toolchain.toml). Add \$HOME/.cargo/bin to PATH so rustup wins over a distro rustc"
 		fi
 	else
-		need "rustc and cargo ${required_rust} (rust-toolchain.toml). Add \$HOME/.cargo/bin to PATH so rustup wins over a distro rustc"
+		need "rustc and cargo ${required_rust} (rust-toolchain.toml). Install rustup from https://rustup.rs"
 	fi
 	if cargo fmt --version >/dev/null 2>&1; then
 		ok "rustfmt"
@@ -442,11 +439,13 @@ if [[ "${check_only}" -eq 1 ]]; then
 	exit 0
 fi
 
+# Any Node 22+ already on PATH is kept: tools_bin is usually on the owner's
+# login PATH, so installing there would replace their node in every shell.
 ensure_node() {
 	local required asset tmp prefix
 	required="$(pinned_node_version)"
-	if have node && [[ "$(node --version)" == "v${required}" ]]; then
-		log "Using Node ${required}"
+	if node_is_supported; then
+		log "Using Node $(node --version)"
 		return
 	fi
 	case "$(uname -s)-$(uname -m)" in
@@ -519,25 +518,35 @@ ensure_bun() {
 }
 
 brew_pkgs() {
-	if ! have brew; then
-		printf 'error: Homebrew is required on macOS\n' >&2
-		exit 1
-	fi
 	export HOMEBREW_NO_AUTO_UPDATE=1
 	export HOMEBREW_NO_ANALYTICS=1
 	log "Installing Homebrew packages: $*"
 	brew install "$@"
 }
 
-install_linux_packages() {
-	log "Installing packages for the bundled FFmpeg build and Tauri host"
+apt_install() {
 	# Retries and timeouts make a stalled mirror fail with a message.
 	local apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
 	run_as_root apt-get "${apt_opts[@]}" update -q
-	run_as_root env DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install -y -q --no-install-recommends \
-		build-essential ca-certificates clang curl nasm pkg-config libopus-dev \
+	run_as_root env DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install -y -q --no-install-recommends "$@"
+}
+
+# Node, Bun, and the FFmpeg CLI download with curl and unpack .tar.xz and .zip.
+# A minimal Ubuntu image has none of these, and frontend setup runs first.
+ensure_download_tools() {
+	is_linux || return 0
+	if have curl && have unzip && have xz && [[ -s /etc/ssl/certs/ca-certificates.crt ]]; then
+		return
+	fi
+	log "Installing download tools"
+	apt_install ca-certificates curl unzip xz-utils
+}
+
+install_linux_packages() {
+	log "Installing packages for the bundled FFmpeg build and Tauri host"
+	apt_install build-essential clang nasm pkg-config libopus-dev \
 		libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev librsvg2-dev \
-		libssl-dev shellcheck unzip
+		libssl-dev shellcheck
 }
 
 install_linux_shellcheck() {
@@ -545,9 +554,7 @@ install_linux_shellcheck() {
 		return
 	fi
 	log "Installing shellcheck"
-	local apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
-	run_as_root apt-get "${apt_opts[@]}" update -q
-	run_as_root env DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install -y -q --no-install-recommends shellcheck
+	apt_install shellcheck
 }
 
 install_rust_packages() {
@@ -649,6 +656,12 @@ ensure_shellcheck() {
 		return
 	fi
 	if is_linux; then
+		# Only the tooling lane needs shellcheck; a frontend-only agent
+		# without root (Claude cloud hook) must still finish setup.
+		if ! can_run_as_root; then
+			log "Skipping shellcheck: apt needs root or sudo. Only verify.sh tooling uses it."
+			return
+		fi
 		install_linux_shellcheck
 	elif is_darwin; then
 		brew_pkgs shellcheck
@@ -729,6 +742,21 @@ prefetch_lizard() {
 	log "Prefetching lizard for the complexity check"
 	uvx --exclude-newer "10 days" --exclude-newer-package "lizard=2026-10-06" lizard --version >/dev/null
 }
+
+# Fail before minutes of installs when a prerequisite setup cannot install.
+require_prerequisites() {
+	if is_darwin && ! have brew; then
+		printf 'error: Homebrew is required on macOS. Install it from https://brew.sh, then rerun.\n' >&2
+		exit 1
+	fi
+	if want_rust && ! have cargo; then
+		printf 'error: Rust is missing. Install rustup from https://rustup.rs (it reads rust-toolchain.toml), then rerun.\n' >&2
+		exit 1
+	fi
+}
+
+require_prerequisites
+ensure_download_tools
 
 if want_frontend; then
 	ensure_node
