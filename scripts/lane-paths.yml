@@ -26,6 +26,7 @@ shared: &shared
   - scripts/lane-paths.yml
   - Cargo.toml
   - Cargo.lock
+  - clippy.toml
   - crates/*/Cargo.toml
   - src-tauri/Cargo.toml
   - rust-toolchain.toml
