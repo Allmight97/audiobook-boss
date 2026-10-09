@@ -31,21 +31,6 @@ pub(super) fn account_message(base: Option<&str>, survives_restart: bool) -> Opt
     }
 }
 
-/// Linux store choice. Secret Service only when one answers on the session bus.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum LinuxCredentialBackend {
-    SecretService,
-    Keyutils,
-}
-
-fn linux_credential_backend(secret_service_answers: bool) -> LinuxCredentialBackend {
-    if secret_service_answers {
-        LinuxCredentialBackend::SecretService
-    } else {
-        LinuxCredentialBackend::Keyutils
-    }
-}
-
 /// `UntilDelete` is on-disk storage. Anything shorter, including keyutils'
 /// `UntilReboot`, is gone after a restart, so the account view must say so.
 fn sign_in_survives_restart(persistence: keyring_core::CredentialPersistence) -> bool {
@@ -125,20 +110,11 @@ fn open_secret_service() -> Option<std::sync::Arc<zbus_secret_service_keyring_st
 
 #[cfg(target_os = "linux")]
 fn register_native_store() -> Result<()> {
-    let secret_service = open_secret_service();
-    match linux_credential_backend(secret_service.is_some()) {
-        LinuxCredentialBackend::SecretService => {
-            let Some(store) = secret_service else {
-                return Err(AppError::ResourceCleanup(
-                    "Secure storage is unavailable: secret service did not answer".to_string(),
-                ));
-            };
-            keyring_core::set_default_store(store);
-        }
-        LinuxCredentialBackend::Keyutils => {
-            let store = linux_keyutils_keyring_store::Store::new().map_err(store_unavailable)?;
-            keyring_core::set_default_store(store);
-        }
+    if let Some(store) = open_secret_service() {
+        keyring_core::set_default_store(store);
+    } else {
+        let store = linux_keyutils_keyring_store::Store::new().map_err(store_unavailable)?;
+        keyring_core::set_default_store(store);
     }
     Ok(())
 }
@@ -210,18 +186,6 @@ mod tests {
         assert_eq!(
             first.service,
             KeyringSecretVault::for_app_identifier("com.audiobook-boss.dev.first").service
-        );
-    }
-
-    #[test]
-    fn linux_backend_uses_secret_service_only_when_it_answers() {
-        assert_eq!(
-            linux_credential_backend(true),
-            LinuxCredentialBackend::SecretService
-        );
-        assert_eq!(
-            linux_credential_backend(false),
-            LinuxCredentialBackend::Keyutils
         );
     }
 
