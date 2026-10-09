@@ -16,6 +16,9 @@ mod license;
 mod materialization;
 mod supplemental_pdf;
 
+#[cfg(test)]
+pub(crate) use acquisition::{run_protected_materialization, ProtectedMaterializationRun};
+
 use acquisition::acquire;
 use library::parse_library_titles;
 

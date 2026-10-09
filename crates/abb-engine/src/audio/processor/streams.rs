@@ -433,6 +433,15 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
     }
 }
 
+/// Trial-decode with FFmpeg's built-in decoder for this stream, never `aac_at`.
+///
+/// Audible materialization uses this so a wrong AAXC key fails on every host.
+/// Import may still fall back to `aac_at`.
+pub(crate) fn probe_builtin_audio_decoder(path: &Path) -> Result<()> {
+    ff::init().map_err(AppError::Ffmpeg)?;
+    probe_decoder_candidate(path, DecoderCandidate::Default)
+}
+
 fn select_decoder_candidate(
     path: &Path,
     params: &ff::codec::Parameters,

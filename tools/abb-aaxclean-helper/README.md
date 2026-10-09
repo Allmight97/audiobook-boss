@@ -11,6 +11,7 @@ must never call it directly.
 - Secrets are accepted only through stdin. Do not pass activation bytes, keys,
   IVs, vouchers, license blobs, signed URLs, or raw provider responses in argv,
   environment variables, filenames, stderr, or logs.
+- For AAXC, exit 0 with a `result` line does not prove the key.
 
 ## Build
 

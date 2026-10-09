@@ -54,6 +54,7 @@ mod streams;
 
 pub(crate) use streams::assess_preservation;
 pub(in crate::audio) use streams::inspect_audio_decoder;
+pub(crate) use streams::probe_builtin_audio_decoder;
 
 pub struct AudioExecutionRequest {
     context: ProcessingContext,
