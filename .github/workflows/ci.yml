@@ -204,10 +204,11 @@ jobs:
           fi
       # The build script reuses FFmpeg only while compiler, opus, source and
       # patch match, so the key carries the same inputs. `portable` so a
-      # native-built cache cannot restore.
+      # native-built cache cannot restore. The tree is shared by build and
+      # clippy units (`target/abb-ffmpeg-cache`).
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: target/debug/build/ffmpeg-sys-next-*/out
+          path: target/abb-ffmpeg-cache
           key: ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
       - run: |
           lanes=()

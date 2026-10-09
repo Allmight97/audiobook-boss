@@ -135,8 +135,11 @@ Traps:
 - Engine, media, host, decrypt, and apple proof use
   `--features bundled-ffmpeg` on every host (`verify.sh`), including
   `bun run bindings:generate` and `app:dev`. The first
-  build compiles the revision in `vendor/ffmpeg-sys-next-*/ffmpeg-revision`;
-  later builds reuse it while compiler, target, and feature match.
+  build compiles the revision in `vendor/ffmpeg-sys-next-*/ffmpeg-revision`
+  into `target/abb-ffmpeg-cache`. Later builds, including `cargo clippy` after
+  `app:dev`, reuse that tree while compiler, target, and feature match. Clippy
+  still typechecks the bindings crate: Cargo treats check and build as
+  different units.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
   (`ABB_FFMPEG` and `ABB_FFPROBE` override). `setup.sh rust` installs FFmpeg 9
   into `~/.local/bin` on Linux and uses Homebrew `ffmpeg` on macOS. Those

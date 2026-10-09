@@ -23,8 +23,11 @@ new codec, pixel-format and frame side-data identifiers explicitly.
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,
 SDK/sysroot and relevant compiler environment. Rebuild notifications are emitted
-before deciding reuse. The build names the static libopus archive's directory
-for the linker, since Linux pkg-config omits system library directories.
+before deciding reuse. The C library is stored in `target/abb-ffmpeg-cache/<identity>`
+rather than Cargo's per-unit `OUT_DIR`, because `cargo build` and `cargo clippy`
+are different units and would otherwise each compile FFmpeg. The build names the
+static libopus archive's directory for the linker, since Linux pkg-config omits
+system library directories.
 Native and portable CPU mechanisms come from upstream sys 9.0.0; ABB's
 `bundled-ffmpeg` feature always enables `build-portable`.
 
