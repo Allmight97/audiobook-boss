@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Fast checks on staged files, so a guidance push straight to main is checked
+# too (CI does not run on pushes). Formatters and lints only; no builds, no
+# tests. setup.sh installs it with `git config core.hooksPath .githooks`.
+# Skip once with `git commit --no-verify`; CI still runs the full lanes.
+set -euo pipefail
+repo_root="$(git rev-parse --show-toplevel)"
+cd "${repo_root}"
+eval "$(scripts/setup.sh --print-env)"
+
+staged=()
+while IFS= read -r file; do
+	staged+=("${file}")
+done < <(git diff --cached --name-only --diff-filter=ACMR)
+[[ ${#staged[@]} -gt 0 ]] || exit 0
+git diff --cached --check
+
+has() {
+	local pattern="$1" file
+	for file in "${staged[@]}"; do
+		[[ "${file}" =~ ${pattern} ]] && return 0
+	done
+	return 1
+}
+
+require() {
+	command -v "$1" >/dev/null 2>&1 && return 0
+	printf 'pre-commit: %s is missing; run: bash scripts/setup.sh\n' "$1" >&2
+	exit 1
+}
+
+if has '\.rs$'; then
+	require cargo
+	cargo fmt --all -- --check
+fi
+if has '\.(ts|tsx|js|json|jsonc|css)$'; then
+	require bun
+	bunx @biomejs/biome format --no-errors-on-unmatched "${staged[@]}"
+fi
+if has '(^|/)(AGENTS|CLAUDE|REVIEW|README)\.md$|^\.agents/|^docs/'; then
+	require bun
+	bun scripts/check-guidance.ts
+fi
+if has '\.(sh|rs)$|^\.githooks/'; then
+	require bun
+	bun scripts/check-known-mistakes.ts
+fi
+shell_files=()
+for file in "${staged[@]}"; do
+	if [[ "${file}" == *.sh || "${file}" == .githooks/* ]]; then
+		shell_files+=("${file}")
+	fi
+done
+if [[ ${#shell_files[@]} -gt 0 ]]; then
+	require shellcheck
+	shellcheck -S warning "${shell_files[@]}"
+fi

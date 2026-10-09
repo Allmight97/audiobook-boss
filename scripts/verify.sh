@@ -171,7 +171,7 @@ lane_tooling() {
 	bun scripts/check-known-mistakes.ts
 	local scripts
 	# Globs are expanded against committed files; fail if a directory is empty.
-	scripts=(scripts/*.sh .claude/hooks/*.sh .agents/skills/verify-abb/*.sh .agents/skills/verify-abb/features/*.sh)
+	scripts=(scripts/*.sh .claude/hooks/*.sh .githooks/* .agents/skills/verify-abb/*.sh .agents/skills/verify-abb/features/*.sh)
 	shellcheck -S warning "${scripts[@]}"
 }
 

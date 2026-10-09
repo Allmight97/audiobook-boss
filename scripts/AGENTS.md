@@ -40,7 +40,10 @@ CI runs, and `gate` is the check `main` requires. Lane commands live only in `ve
 For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.
 
-Docs and guidance: run `git diff --check` and search for the edited terms.
+`bash scripts/setup.sh` installs `.githooks/pre-commit` (repo-local
+`core.hooksPath`). It runs the fast checks on staged files: whitespace,
+rustfmt, Biome format, the guidance and known-mistakes lints, and
+shellcheck. It is the only check a guidance push straight to `main` gets.
 
 Traps:
 

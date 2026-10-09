@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Agent and CI setup for ABB. Idempotent. Never edits shell profiles.
+# Agent and CI setup for ABB. Idempotent. Never edits shell profiles; sets
+# this repo's core.hooksPath so commits run .githooks/pre-commit.
 #   bash scripts/setup.sh                 # frontend and rust
 #   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck, uv, zizmor
 #   bash scripts/setup.sh rust            # bundled FFmpeg build deps, FFmpeg 9 CLI, .NET SDK, helper, uv, cargo fetch
@@ -27,7 +28,7 @@ print_env_only=0
 mode="all"
 
 usage() {
-	sed -n '4,14p' "$0" | sed -E 's/^# ?//'
+	awk 'NR > 3 && /^#/ { sub(/^# ?/, ""); print; next } NR > 3 { exit }' "$0"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -294,6 +295,11 @@ check_frontend() {
 		ok "node_modules"
 	else
 		need "node_modules (run: bash scripts/setup.sh frontend)"
+	fi
+	if [[ "$(git -C "${repo_root}" config --get core.hooksPath || true)" == .githooks ]]; then # allow-silence: an unset key exits 1 and means not installed
+		ok "git hooks"
+	else
+		need "git hooks (run: bash scripts/setup.sh frontend)"
 	fi
 }
 
@@ -743,6 +749,14 @@ ensure_aaxclean_helper() {
 	(cd "${repo_root}" && bun run aaxclean-helper:publish)
 }
 
+# Repo-local git config, not a shell profile: commits run .githooks/pre-commit.
+install_git_hooks() {
+	if [[ "$(git -C "${repo_root}" config --get core.hooksPath || true)" != .githooks ]]; then # allow-silence: an unset key exits 1 and means not installed
+		log "Installing git hooks (core.hooksPath .githooks)"
+		git -C "${repo_root}" config core.hooksPath .githooks
+	fi
+}
+
 # Fail before minutes of installs when a prerequisite setup cannot install.
 require_prerequisites() {
 	if is_darwin && ! have brew; then
@@ -757,6 +771,7 @@ require_prerequisites() {
 
 require_prerequisites
 ensure_download_tools
+install_git_hooks
 
 if want_frontend; then
 	ensure_node

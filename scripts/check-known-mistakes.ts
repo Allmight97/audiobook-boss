@@ -23,7 +23,8 @@ interface Rule {
 	message: string;
 }
 
-const OWNED_SHELL = (file: string) => file.endsWith('.sh') && !file.startsWith('vendor/');
+const OWNED_SHELL = (file: string) =>
+	(file.endsWith('.sh') && !file.startsWith('vendor/')) || file.startsWith('.githooks/');
 // All owned Rust, because test modules also live inline in source files.
 const OWNED_RUST = (file: string) => file.endsWith('.rs') && !file.startsWith('vendor/');
 

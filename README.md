@@ -72,8 +72,9 @@ closure, and low-battery sleep remain controlled by macOS.
 ## Development
 
 After clone, `bash scripts/setup.sh` then `bash scripts/verify.sh`. Setup
-prints the PATH line and never edits shell profiles. Lanes, owner mapping, and
-focused loops: root `AGENTS.md` Environment and `scripts/AGENTS.md`.
+prints the line that puts its tools on PATH, installs this repo's pre-commit
+hook, and never edits shell profiles. Lanes and owner mapping: root
+`AGENTS.md` Environment and `scripts/AGENTS.md`.
 
 Linux (tested target): x86_64 Ubuntu 22.04 or newer, glibc 2.27+, OpenSSL, and
 WebKitGTK 4.1. `linux-arm64` publishes but is not proven on real hardware.
