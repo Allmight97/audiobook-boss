@@ -97,8 +97,10 @@ simpler design.
      (`audiobook-boss`) and the binding tests;
   4. DOM and UI state: Vitest under `src/`.
 - UI behavior also needs visual review where tests cannot prove UX.
-- An owned import/export surface change updates the nearest `AGENTS.md` and
-  its contract test; that update needs no new permission.
+- An owned import/export surface change updates the nearest `AGENTS.md`. A
+  frontend owner or view `index.ts` also updates its hand-written STRIPS list
+  in `src/__tests__/public-api-strips.contract.test.ts`. That update needs no
+  new permission.
 
 ## Planning And Capture
 

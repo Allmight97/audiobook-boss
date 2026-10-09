@@ -38,8 +38,9 @@ chain; this file says how to review against them.
 - Every finding names the rule it breaks (file and heading) or a concrete
   input that produces the wrong result. Read the code a finding depends on
   before posting it.
-- A change to an owned import/export surface without its `AGENTS.md` and
-  contract-test update is Important.
+- A change to an owned import/export surface without its `AGENTS.md` update
+  is Important. A frontend owner or view strip without its STRIPS list
+  update is also Important.
 
 ## Summary
 

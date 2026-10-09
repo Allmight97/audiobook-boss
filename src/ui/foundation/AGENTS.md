@@ -4,7 +4,8 @@
 
 Shared visual behavior crosses `src/ui/foundation/index.ts`, its Public API
 Strip. Views import from `src/ui/foundation`. Native CSS is the only styling
-language.
+language. The exact export names are the hand-written `STRIPS` list in
+`src/__tests__/public-api-strips.contract.test.ts`.
 
 ## Rules
 
