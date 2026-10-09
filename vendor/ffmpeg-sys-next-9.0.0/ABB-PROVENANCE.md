@@ -29,7 +29,10 @@ are different units and would otherwise each compile FFmpeg. The build names the
 static libopus archive's directory for the linker, since Linux pkg-config omits
 system library directories.
 Native and portable CPU mechanisms come from upstream sys 9.0.0; ABB's
-`bundled-ffmpeg` feature always enables `build-portable`.
+`bundled-ffmpeg` feature always enables `build-portable`. Upstream lets
+`FFMPEG_MARCH`/`FFMPEG_MTUNE` override `build-portable`; ABB refuses either
+variable under `build-portable`, so an inherited `FFMPEG_MARCH=native` cannot
+make a distributable build native.
 
 The header-only CUDA shim adds `CUarray` and `CUDA_ARRAY3D_DESCRIPTOR` so bindgen
 can parse the selected headers. Layout follows nv-codec-headers revision

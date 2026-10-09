@@ -643,12 +643,22 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
         }
     } else {
         // Determine -march/-mtune flags for the compiler.
-        // Priority: env vars > build-portable feature > default (native)
+        // Priority: build-portable feature > env vars > default (native).
+        // ABB: build-portable refuses the env vars so an inherited
+        // FFMPEG_MARCH can neither make a distributable FFmpeg native nor
+        // change the cache identity for identical output.
         let march_env = env::var("FFMPEG_MARCH").ok();
         let mtune_env = env::var("FFMPEG_MTUNE").ok();
 
-        let (march, mtune) = if march_env.is_some() || mtune_env.is_some() {
-            // Env vars take highest priority. Empty string means omit the flag.
+        let (march, mtune) = if cfg!(feature = "build-portable") {
+            assert!(
+                march_env.is_none() && mtune_env.is_none(),
+                "build-portable is set; unset FFMPEG_MARCH and FFMPEG_MTUNE"
+            );
+            // Omit both flags so the compiler uses its baseline target.
+            (String::new(), String::new())
+        } else if march_env.is_some() || mtune_env.is_some() {
+            // Empty string means omit the flag.
             // Validate the values to prevent arbitrary string injection.
             (
                 validated_cpu_flag(
@@ -660,9 +670,6 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
                     mtune_env.unwrap_or_else(|| "native".to_string()),
                 ),
             )
-        } else if cfg!(feature = "build-portable") {
-            // Omit both flags so the compiler uses its baseline target.
-            (String::new(), String::new())
         } else {
             // Default: tune for the host architecture.
             ("native".to_string(), "native".to_string())
