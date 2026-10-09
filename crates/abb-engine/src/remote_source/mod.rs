@@ -15,6 +15,8 @@ mod ui;
 
 /// How long Amazon may take to register a completed sign-in.
 const AUTH_REGISTRATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+#[cfg(test)]
+pub(crate) use providers::audible::{run_protected_materialization, ProtectedMaterializationRun};
 pub use ui::{
     IndexerDraftSnapshot, IndexerWorkSnapshot, ReleaseGrabSnapshot, ReleaseGrabStatus,
     RemoteAuthStatus, RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiIntent, RemoteUiSnapshot,

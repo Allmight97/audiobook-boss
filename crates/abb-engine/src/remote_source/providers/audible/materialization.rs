@@ -76,6 +76,11 @@ pub(super) async fn materialize_protected_download(
             is_cancelled,
         )
         .await;
+    // AAXC exit 0 does not prove the key. Reject output the built-in decoder cannot read.
+    let result = match result {
+        Ok(path) => confirm_decrypted_output(path, &output_temp_path, job_id, title_id).await,
+        Err(error) => Err(error),
+    };
 
     match result {
         Ok(path) => Ok(finalize_materialized_source(
@@ -100,6 +105,39 @@ pub(super) async fn materialize_protected_download(
             Err(error)
         }
     }
+}
+
+async fn confirm_decrypted_output(
+    path: PathBuf,
+    output_temp_path: &Path,
+    job_id: &str,
+    title_id: &str,
+) -> Result<PathBuf> {
+    let probed = path.clone();
+    let decoded =
+        tokio::task::spawn_blocking(move || crate::audio::probe_builtin_audio_decoder(&probed))
+            .await
+            .map_err(|error| {
+                AppError::General(format!("AAXClean decrypt check task failed: {error}"))
+            })?;
+    if let Err(_decode_error) = decoded {
+        log::warn!(
+            "remote_source audible stage=decrypt_output_rejected job_id={} title_ref={}",
+            job_id,
+            title_ref(title_id)
+        );
+        let _ = remove_if_present(&path);
+        let _ = remove_if_present(output_temp_path);
+        return Err(undecodable_decrypt_output());
+    }
+    Ok(path)
+}
+
+fn undecodable_decrypt_output() -> AppError {
+    AppError::General(
+        "AAXClean decrypt did not produce decodable audio. Provider-private details were withheld from UI and logs."
+            .to_string(),
+    )
 }
 
 /// Purge delays between retry attempts; transient locks (AV scans, indexing)
