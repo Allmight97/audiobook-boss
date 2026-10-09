@@ -4,7 +4,7 @@ name: ci
 # (the merge attempt), by hand, and twice a week on main. Pushes and drafts
 # start nothing. The `gate` job is the check main requires: a push after
 # the last run leaves the new head without one, so the merge waits for a new
-# run. Within a PR run, each job proves only what the PR changed; manual and
+# run (AGENTS.md, Pull Requests And CI, says how to start one). Within a PR run, each job proves only what the PR changed; manual and
 # scheduled runs prove everything, and also run `cargo audit` and `cargo deny`
 # (`supply-chain`). The scheduled run keeps the FFmpeg cache
 # alive, because GitHub evicts caches unused for 7 days and only runs on main
@@ -218,7 +218,7 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/abb-ffmpeg-cache
-          key: ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml') }}
+          key: ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml', 'crates/abb-engine/Cargo.toml', 'src-tauri/Cargo.toml') }}
       - run: |
           lanes=()
           # Dedicated Ubuntu `core` job already ran fmt, core Clippy, and tests.

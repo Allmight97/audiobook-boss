@@ -150,8 +150,12 @@ Golden-path verification without a window: `.agents/skills/verify-abb/SKILL.md`.
 - CI (`.github/workflows/ci.yml`) runs when a PR opens ready or is marked
   ready, when auto-merge is enabled (the merge attempt), by hand, and twice a
   week on `main`. Pushes and drafts start nothing.
-- Merge with a merge commit. After CI: `gh pr merge <n> --auto --merge`.
-  Proven locally, or CI is down: `gh pr merge <n> --admin --merge`, naming the
+- Merge with a merge commit. `gh pr merge <n> --auto --merge` starts a run
+  and merges when `gate` passes; when `gate` is already green on the head,
+  `gh pr merge <n> --merge` skips a second identical run. A push after
+  auto-merge is on leaves the head without `gate`: run
+  `gh pr merge <n> --disable-auto`, then `--auto --merge` again (a manual run
+  does not satisfy a required check). Proven locally, or CI is down: `gh pr merge <n> --admin --merge`, naming the
   local proof in the PR body. Repo infrastructure and guidance changes with no
   implementation (docs, `AGENTS.md`, skills, allowlists) go straight to
   `main`, no PR.
