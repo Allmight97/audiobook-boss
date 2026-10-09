@@ -39,7 +39,7 @@ impl EngineTasks {
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
         if self.is_closed() {
-            return Err(AppError::closing());
+            return Err(AppError::Closing);
         }
         Ok(register())
     }
@@ -71,7 +71,7 @@ impl EngineTasks {
     ) -> Result<T> {
         tokio::select! {
             result = work => result,
-            () = self.closing.cancelled() => Err(AppError::closing()),
+            () = self.closing.cancelled() => Err(AppError::Closing),
         }
     }
 

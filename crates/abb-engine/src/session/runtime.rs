@@ -1499,7 +1499,7 @@ impl Session {
                     title: draft.title.clone(),
                 }
             }
-            Err(error) if error.is_closing() => closing(),
+            Err(AppError::Closing) => closing(),
             Err(error) => failed(&error),
         };
         self.end_submission(&draft, status)

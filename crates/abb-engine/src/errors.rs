@@ -65,6 +65,9 @@ pub enum AppError {
 
     #[error("{0}")]
     Cancellation(String),
+
+    #[error("Operation failed: ABB is closing.")]
+    Closing,
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
@@ -72,14 +75,6 @@ pub type Result<T> = std::result::Result<T, AppError>;
 impl AppError {
     pub fn cancelled() -> Self {
         Self::Cancellation("Processing was cancelled".to_string())
-    }
-
-    pub(crate) fn closing() -> Self {
-        Self::General("ABB is closing.".into())
-    }
-
-    pub(crate) fn is_closing(&self) -> bool {
-        matches!(self, Self::General(message) if message == "ABB is closing.")
     }
 }
 
@@ -166,6 +161,12 @@ impl From<&AppError> for AppErrorEnvelope {
                 AppErrorCode::InternalError,
                 AppErrorCategory::Internal,
                 format!("Operation failed: {message}"),
+                None,
+            ),
+            AppError::Closing => Self::new(
+                AppErrorCode::InternalError,
+                AppErrorCategory::Internal,
+                error.to_string(),
                 None,
             ),
             AppError::ImageProcessing(message) => Self::new(
