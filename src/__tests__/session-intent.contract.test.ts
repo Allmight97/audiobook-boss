@@ -28,7 +28,16 @@ const ALLOWED_INTEGER_FIELDS: readonly AllowedIntegerField[] = [
 		field: 'to',
 		reason: 'source order inside a title already named by title_id.',
 	},
-	{ variant: 'LookupApply', field: 'index', reason: 'search-result index.' },
+	{
+		variant: 'LookupApply',
+		field: 'index',
+		reason: 'search-result index, paired with revision.',
+	},
+	{
+		variant: 'LookupApply',
+		field: 'revision',
+		reason: 'lookup part revision the host rendered; a mismatch changes nothing.',
+	},
 	{ variant: 'Preview', field: 'seconds', reason: 'preview duration, not a title position.' },
 	{
 		variant: 'ChooseCollisionPolicy',
