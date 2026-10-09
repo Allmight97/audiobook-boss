@@ -72,9 +72,11 @@ windows-native-keyring-store = "1.1.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Secret Service when the session bus answers; keyutils only until restart.
-# zbus is already linked (keepawake). See remote_source/vault.rs.
+# async-io, not tokio: the tokio feature is crate-wide on zbus, and keepawake's
+# blocking bus calls then try to start a runtime inside the engine's runtime.
+# See remote_source/vault.rs.
 linux-keyutils-keyring-store = "1.0.0"
-zbus-secret-service-keyring-store = { version = "1.0.1", features = ["rt-tokio-crypto-rust"] }
+zbus-secret-service-keyring-store = { version = "1.0.1", features = ["rt-async-io-crypto-rust"] }
 
 [features]
 default = []
