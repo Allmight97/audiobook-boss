@@ -8,17 +8,17 @@ The upstream manifest declares WTFPL.
 Native AAC's NMR coder. The Rust build consumes this file and verifies the
 fetched commit. ABB retains the CoreAudio framework link.
 
-The September 18, 2026 selection is
-`be387f252de068a38e3b0f5f40404ec55c14578c`. Compared with the previous selection,
-NMR's `libavcodec/aaccoder_nmr.h` is unchanged. The refresh includes MP4 metadata
-allocation/read validation fixes and shared media I/O changes; it is not an NMR
-algorithm update. Existing feature selection and external dependencies remain
-unchanged. The wrapper represents the new ASTC codec identifier explicitly.
-
-On September 23, upstream HEAD `4a511dc8eba349b43817e49661b28d521c6b604a`
-contained no changes to the selected AAC/NMR encoder sources. ABB retains this
-pin rather than taking unrelated decoder, platform, and muxer changes solely
-to advance the revision label.
+The October 7, 2026 selection is
+`17ec99894249a68444d145ea8870713a4fb7f342`, upstream master HEAD that day. It
+takes the NMR encoder series merged October 4 (`72d8fb25b6`, `77506207d2`,
+`a86dc8bd2a`, `98afaae587`, `03ce7af84b`, psy `f68ccd1b39` and `88e8cfc801`):
+allocation retune and bandwidth ladder, pressure-independent intensity stereo
+for correlated long-window bands above 8 kHz (`aac_is` default unchanged at 1),
+and the new `aac_rc` rate-control option (default `cbr`). It also takes AAC
+decoder fixes (`9cee5ae719`, `23316a12ac`, `e383b7d532`) and the swresample
+rematrix series (`70e948e2e5`, `4bab8327f9`, `09f879b074`, `a17a624069`).
+Feature selection and external dependencies are unchanged. The wrapper maps the
+new codec, pixel-format and frame side-data identifiers explicitly.
 
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,

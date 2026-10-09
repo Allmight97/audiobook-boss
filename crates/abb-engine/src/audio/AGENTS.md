@@ -31,9 +31,10 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
 - Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, and Opus differences inside
   this module unless a caller needs a stable capability fact.
 - Encoder Auto resolves to Native NMR; Apple and FAAC stay explicit choices.
-  Native AAC uses NMR with upstream psychoacoustic defaults and explicit target
-  bitrate and search speed. FAAC offers profile Auto/LC/HE and ABR/VBR and
-  resolves its profile once at open from output settings.
+  Native AAC uses NMR with upstream psychoacoustic defaults and explicit CBR
+  rate control, target bitrate, and search speed. FAAC offers profile
+  Auto/LC/HE and ABR/VBR and resolves its profile once at open from output
+  settings.
 - Auto adapts an unsupported bitrate mode to the resolved encoder default;
   explicit encoder requests reject incompatible modes.
 - Resolve Auto channels once at the Audio execution boundary: all valid inputs

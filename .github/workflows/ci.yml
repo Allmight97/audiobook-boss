@@ -1,18 +1,22 @@
 name: ci
 
-# CI runs when a PR opens ready or is marked ready, when auto-merge is enabled
-# (the merge attempt), by hand, and twice a week on main. Pushes start nothing,
-# and drafts never run. The `gate` job is the check main requires: a push after
-# the last run leaves the new head without one, so the merge waits for a new
-# run. Within a PR run, each job proves only what the PR changed; manual and
-# scheduled runs prove everything, and also run `cargo audit` and `cargo deny`
-# (`supply-chain`). The scheduled run keeps the FFmpeg cache
-# alive, because GitHub evicts caches unused for 7 days and only runs on main
-# save caches that PRs can restore.
+# CI runs once per PR, when auto-merge is enabled ("done: prove it and merge"),
+# by hand, and twice a week on main. Opening a PR and pushing start nothing.
+# The `gate` job is the check main requires; GitHub counts only pull_request
+# runs toward it, not workflow_dispatch. A push after the last run leaves the
+# new head without one: disable and re-enable auto-merge to rerun. A skipped
+# gate counts as passing, so pushes cannot trigger a conditional run. Within
+# a PR run, each job proves only what the PR changed; manual and scheduled runs
+# prove everything, and also run `cargo audit` and `cargo deny`
+# (`supply-chain`). Dependabot PRs also wait for auto-merge. Only main runs
+# save the Rust build cache, because PRs can restore only main's caches; the
+# scheduled run also keeps it from the 7-day eviction. rust-cache drops build
+# outputs of path crates inside the workspace, so FFmpeg keeps its own cache. Every job has a
+# timeout so a stalled runner or download fails instead of waiting 6 hours.
 
 on:
   pull_request:
-    types: [opened, ready_for_review, auto_merge_enabled]
+    types: [auto_merge_enabled]
   schedule:
     - cron: "0 6 * * 1,4"
   workflow_dispatch:
@@ -33,6 +37,7 @@ jobs:
   changes:
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
@@ -112,6 +117,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -138,6 +144,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -162,6 +169,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       ABB_FFMPEG: /home/runner/.local/bin/ffmpeg
       ABB_FFPROBE: /home/runner/.local/bin/ffprobe
@@ -171,10 +179,16 @@ jobs:
         with:
           persist-credentials: false
       - run: bash scripts/setup-linux-agent.sh --rust
+      # The FFmpeg build script checks its own source, patch and compiler
+      # identity, so a restored build that no longer matches is rebuilt.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - id: toolchain
         run: echo "id=$( (cc --version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
-      # The build script reuses FFmpeg only while compiler, opus, source and
-      # patch match, so the key carries the same inputs.
+      # After rust-cache, so this saves before rust-cache's cleanup deletes the
+      # FFmpeg build. The build script reuses FFmpeg only while compiler, opus,
+      # source and patch match, so the key carries the same inputs.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/debug/build/ffmpeg-sys-next-*/out
@@ -183,6 +197,8 @@ jobs:
         run: >-
           cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --
           --skip test_cases::integration_media
+      - if: needs.changes.outputs.engine == 'true' || env.ALL == 'true'
+        run: cargo test --locked -p faac-sys
       - if: needs.changes.outputs.engine == 'true' || env.ALL == 'true'
         # The host-API examples guard which engine internals hosts can reach.
         run: cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
@@ -205,12 +221,16 @@ jobs:
     permissions:
       contents: read
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
       # Homebrew's ffmpeg CLI (9.x) reads the outputs back.
       - run: brew install opus pkg-config nasm ffmpeg
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - id: toolchain
         run: echo "id=$( (cc --version; xcrun --show-sdk-version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -223,6 +243,7 @@ jobs:
     name: Advisories and licenses
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -240,6 +261,7 @@ jobs:
     needs: [changes, frontend, core, engine, apple-aac, supply-chain]
     if: always() && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions: {}
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
