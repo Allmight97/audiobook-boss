@@ -10,7 +10,7 @@ use crate::remote_source::types::{
     RemoteReleaseGrabResponse, RemoteReleaseSearchRequest, RemoteReleaseSearchResponse,
     RemoteSourceAccountState, RemoteSourceProviderCapabilities,
 };
-use crate::remote_source::vault::SecretVault;
+use crate::remote_source::vault::{account_message, SecretVault};
 
 use connection::{
     api_key_vault_key, configured_connection, draft_credentials, get_connection, update_connection,
@@ -35,13 +35,15 @@ impl IndexerProvider {
         vault: &dyn SecretVault,
     ) -> Result<RemoteSourceAccountState> {
         let connection = get_connection(config_dir, vault)?;
+        let survives = vault.survives_restart();
         if connection.base_url.is_none() || !connection.api_key_configured {
             return Ok(RemoteSourceAccountState {
                 provider_id: ProviderId::Indexer,
                 status: RemoteAccountStatus::NeedsAuth,
                 account: None,
-                message: Some(
-                    "Configure Indexer URL and API key in Settings before searching.".to_string(),
+                message: account_message(
+                    Some("Configure Indexer URL and API key in Settings before searching."),
+                    survives,
                 ),
             });
         }
@@ -54,7 +56,7 @@ impl IndexerProvider {
                 account_id: "indexer".to_string(),
                 display_name: connection.base_url.clone().unwrap_or_default(),
             }),
-            message: None,
+            message: account_message(None, survives),
         })
     }
 
@@ -203,9 +205,14 @@ mod tests {
     #[derive(Default)]
     struct TestVault {
         secret: Option<SecretString>,
+        ephemeral: bool,
     }
 
     impl SecretVault for TestVault {
+        fn survives_restart(&self) -> bool {
+            !self.ephemeral
+        }
+
         fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
             assert!(key.starts_with("indexer.api_key:"));
             Ok(self.secret.clone())
@@ -239,6 +246,7 @@ mod tests {
             let temp = TempDir::new().expect("temporary config directory");
             let vault = TestVault {
                 secret: secret.map(|key| SecretString::from(key.to_string())),
+                ephemeral: false,
             };
             update_connection(
                 temp.path(),
@@ -260,5 +268,46 @@ mod tests {
                 expected == RemoteAccountStatus::Connected
             );
         }
+    }
+
+    #[test]
+    fn account_state_says_the_key_will_not_be_remembered_when_the_store_does_not_survive_restart() {
+        let temp = TempDir::new().expect("temporary config directory");
+        let vault = TestVault {
+            ephemeral: true,
+            ..TestVault::default()
+        };
+        let needs_key =
+            IndexerProvider::account_state(temp.path(), &vault).expect("read account state");
+        assert_eq!(
+            needs_key.message.as_deref(),
+            Some(concat!(
+                "Configure Indexer URL and API key in Settings before searching. ",
+                "Sign-in won't be remembered after a restart."
+            ))
+        );
+
+        update_connection(
+            temp.path(),
+            &vault,
+            RemoteIndexerConnectionUpdate {
+                base_url: Some("http://indexer.test".to_string()),
+                api_key: None,
+                clear_api_key: None,
+                category_ids: None,
+            },
+        )
+        .expect("save url");
+        let vault = TestVault {
+            secret: Some(SecretString::from("key".to_string())),
+            ephemeral: true,
+        };
+        let connected =
+            IndexerProvider::account_state(temp.path(), &vault).expect("read account state");
+        assert_eq!(connected.status, RemoteAccountStatus::Connected);
+        assert_eq!(
+            connected.message.as_deref(),
+            Some("Sign-in won't be remembered after a restart.")
+        );
     }
 }

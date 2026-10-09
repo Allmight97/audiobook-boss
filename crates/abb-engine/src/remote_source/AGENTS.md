@@ -27,6 +27,10 @@ when an imported download goes).
   cannot read, replace, or delete production provider credentials. The
   production identifier keeps its shipped service name; isolated profiles need
   their own sign-in and keys.
+- On Linux the vault uses the Secret Service when one answers on the session
+  bus, and kernel keyutils otherwise. Keyutils lasts until restart; the account
+  message says sign-in will not be remembered. The warning follows the store's
+  persistence (`UntilDelete` survives). No second copy of a secret is written.
 - Staged remote writes (`scoped_output.rs`): `prepare` (stale-partial
   pre-clean) -> partial write -> cancel check -> same-directory
   `rename_and_commit`. Drop cleans uncommitted paths. `ProvisionalCommittedFile`

@@ -281,3 +281,38 @@ it('clears a previous frontend account-read failure when reopening retries the l
 	await owner.open();
 	expect(owner.view().statusMessage).toBe('');
 });
+
+it('keeps an ephemeral sign-in warning visible after Audible and Indexer are connected', async () => {
+	const warning = "Sign-in won't be remembered after a restart.";
+	const { owner, engine } = await open();
+	engine.change((state) => {
+		state.remote.account = {
+			providerId: 'audible',
+			status: 'connected',
+			account: {
+				providerId: 'audible',
+				accountId: 'audible-us',
+				displayName: 'Listener',
+			},
+			message: warning,
+		};
+		state.remote.libraryStatus = { kind: 'succeeded' };
+	});
+	expect(owner.view().statusMessage).toBe(`0 Audible titles loaded. ${warning}`);
+
+	engine.change((state) => {
+		state.remote.lane = 'indexer';
+		state.remote.account = {
+			providerId: 'indexer',
+			status: 'connected',
+			account: {
+				providerId: 'indexer',
+				accountId: 'indexer',
+				displayName: 'http://indexer.test',
+			},
+			message: warning,
+		};
+		state.remote.indexer.message = 'Indexer ready';
+	});
+	expect(owner.view().statusMessage).toBe(`Indexer ready ${warning}`);
+});

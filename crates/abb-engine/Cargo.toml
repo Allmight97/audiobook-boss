@@ -71,7 +71,10 @@ keepawake = "0.6.1"
 windows-native-keyring-store = "1.1.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+# Secret Service when the session bus answers; keyutils only until restart.
+# zbus is already linked (keepawake). See remote_source/vault.rs.
 linux-keyutils-keyring-store = "1.0.0"
+zbus-secret-service-keyring-store = { version = "1.0.1", features = ["rt-tokio-crypto-rust"] }
 
 [features]
 default = []

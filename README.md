@@ -78,25 +78,29 @@ hook, and never edits shell profiles. Lanes and owner mapping: root
 
 Linux (tested target): x86_64 Ubuntu 22.04 or newer, glibc 2.27+, OpenSSL, and
 WebKitGTK 4.1. `linux-arm64` publishes but is not proven on real hardware.
-Known gap: saved sign-ins do not survive a reboot on Linux (WSL included).
-`linux-keyutils-keyring-store` 1.0.0 is UntilReboot
+A saved Audible sign-in and indexer key go to the desktop secret service when
+one is running, so they survive a reboot. With no secret service, they last
+until the next restart, and the account view says sign-in will not be
+remembered
 ([#557](https://github.com/Allmight97/audiobook-boss/issues/557)).
 
 ### Windows (WSL)
 
-Windows is supported only through WSL running the Linux build.
+Windows through WSL is not a supported launch yet. A real Windows machine
+still has to run the checks in
+[#557](https://github.com/Allmight97/audiobook-boss/issues/557). Until that
+run is recorded, the notes below are untested:
 
-- Use WSLg: Windows 11, or Windows 10 build 19044+ with the Microsoft Store WSL.
-  Install the Linux requirements inside the WSL distro.
-- If the window opens blank, launch with `WEBKIT_DISABLE_DMABUF_RENDERER=1`,
-  and fall back to `WEBKIT_DISABLE_COMPOSITING_MODE=1`. That is a known
-  WebKitGTK and WSLg issue. These remain launch notes until someone confirms
-  them on a real WSL machine.
-- Keep the library, `target/`, and outputs on the Linux filesystem (`~/…`),
-  not `/mnt/c`. Windows drives are slower over WSL, chmod mostly does not
-  apply, and they are case-insensitive.
-- Dragging files from Windows Explorer into the app does not work under WSLg.
-  Use the file picker.
+- WSLg (Windows 11, or Windows 10 build 19044+ with the Microsoft Store WSL)
+  may be required. Install the Linux requirements inside the distro.
+- A blank window may need `WEBKIT_DISABLE_DMABUF_RENDERER=1`, then
+  `WEBKIT_DISABLE_COMPOSITING_MODE=1`. That is a known WebKitGTK and WSLg
+  issue. Do not set either one until a real machine shows it is needed.
+- The library, `target/`, and outputs may need to stay on the Linux filesystem
+  (`~/…`), not `/mnt/c`. Windows drives are slower over WSL, chmod mostly does
+  not apply, and they are case-insensitive. This has not been measured.
+- Dragging files from Windows Explorer into the app may not work under WSLg.
+  The file picker is the path to try.
 
 ### Install a local build
 

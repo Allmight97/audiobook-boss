@@ -115,7 +115,9 @@ the owner of the truth.
   initiating intent outcome; snapshots never reopen a browser. Render
   `settled` and `handoff` facts and infer no terminal precedence. Status stays
   with its originating provider, and a new request refusal shows even when an
-  older job has a retained message. Filtering and sorting keep the engine's
+  older job has a retained message. A connected account message stays on the
+  idle status line, including after the library loads, so an ephemeral sign-in
+  stays visible. Filtering and sorting keep the engine's
   selection. Release rows key on `(indexerId, guid)`, including Grab and Retry.
   Sent means the provider accepted, not that the download finished.
 - `workOperations` (`crates/abb-engine/src/work_runtime/AGENTS.md`): WorkRuntime

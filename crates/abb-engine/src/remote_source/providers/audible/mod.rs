@@ -20,7 +20,7 @@ use acquisition::acquire;
 use library::parse_library_titles;
 
 use crate::errors::{AppError, Result};
-use crate::remote_source::vault::SecretVault;
+use crate::remote_source::vault::{account_message, SecretVault};
 use crate::remote_source::{
     AccountRef, ProviderId, RemoteAccountStatus, RemoteLibraryResponse, RemoteSourceAccountState,
     RemoteSourceProviderCapabilities, RemoteTitle,
@@ -118,12 +118,13 @@ impl AudibleProvider {
     pub(in crate::remote_source) fn account_state(
         vault: &dyn SecretVault,
     ) -> Result<RemoteSourceAccountState> {
+        let survives = vault.survives_restart();
         let Some(secret) = vault.get_secret(AUTH_SECRET_KEY)? else {
             return Ok(RemoteSourceAccountState {
                 provider_id: ProviderId::Audible,
                 status: RemoteAccountStatus::NeedsAuth,
                 account: None,
-                message: Some("Connect Audible to load your library.".to_string()),
+                message: account_message(Some("Connect Audible to load your library."), survives),
             });
         };
 
@@ -146,7 +147,7 @@ impl AudibleProvider {
                 account_id: ACCOUNT_ID.to_string(),
                 display_name,
             }),
-            message: None,
+            message: account_message(None, survives),
         })
     }
 
@@ -576,6 +577,7 @@ mod tests {
         delete_error: Mutex<Option<AppError>>,
         set_calls: Mutex<Vec<String>>,
         delete_calls: Mutex<Vec<String>>,
+        ephemeral: std::sync::atomic::AtomicBool,
     }
 
     impl MockSecretVault {
@@ -604,9 +606,17 @@ mod tests {
         fn delete_calls(&self) -> Vec<String> {
             self.delete_calls.lock().expect("lock").clone()
         }
+        fn set_ephemeral(&self) {
+            self.ephemeral
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 
     impl SecretVault for MockSecretVault {
+        fn survives_restart(&self) -> bool {
+            !self.ephemeral.load(std::sync::atomic::Ordering::Relaxed)
+        }
+
         fn get_secret(&self, key: &str) -> AppResult<Option<SecretString>> {
             if let Some(error) = self.get_error.lock().expect("lock").take() {
                 return Err(error);
@@ -683,6 +693,10 @@ mod tests {
 
         assert_eq!(state.status, RemoteAccountStatus::NeedsAuth);
         assert!(state.account.is_none());
+        assert_eq!(
+            state.message.as_deref(),
+            Some("Connect Audible to load your library.")
+        );
     }
 
     #[test]
@@ -696,6 +710,31 @@ mod tests {
         let account = state.account.expect("account");
         assert_eq!(account.account_id, ACCOUNT_ID);
         assert_eq!(account.display_name, "Fixture Listener");
+        assert!(state.message.is_none());
+    }
+
+    #[test]
+    fn account_state_says_sign_in_will_not_be_remembered_when_the_store_does_not_survive_restart() {
+        let vault = MockSecretVault::default();
+        vault.set_ephemeral();
+
+        let needs_auth = AudibleProvider::account_state(&vault).expect("state");
+        assert_eq!(needs_auth.status, RemoteAccountStatus::NeedsAuth);
+        assert_eq!(
+            needs_auth.message.as_deref(),
+            Some(concat!(
+                "Connect Audible to load your library. ",
+                "Sign-in won't be remembered after a restart."
+            ))
+        );
+
+        vault.seed_auth(AUTH_SECRET_KEY, &fixture_auth());
+        let connected = AudibleProvider::account_state(&vault).expect("state");
+        assert_eq!(connected.status, RemoteAccountStatus::Connected);
+        assert_eq!(
+            connected.message.as_deref(),
+            Some("Sign-in won't be remembered after a restart.")
+        );
     }
 
     #[test]
