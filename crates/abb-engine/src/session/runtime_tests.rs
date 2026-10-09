@@ -896,6 +896,10 @@ async fn applying_a_result_does_not_use_an_index_into_replaced_results() {
     assert_eq!(rig.lookup().results[0].title, "Old");
 
     let slow = rig.hold_next_search();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by applying_a_result_does_not_use_an_index_into_replaced_results"
+    )]
     let searching = tokio::spawn({
         let session = rig.session.clone();
         async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
@@ -937,6 +941,10 @@ async fn editing_the_lookup_query_drops_a_search_for_the_old_query() {
     assert_eq!(rig.lookup().results[0].title, "First");
 
     let slow = rig.hold_next_search();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by editing_the_lookup_query_drops_a_search_for_the_old_query"
+    )]
     let earlier = tokio::spawn({
         let session = rig.session.clone();
         async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
