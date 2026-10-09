@@ -10,7 +10,8 @@ name: ci
 # alive, because GitHub evicts caches unused for 7 days and only runs on main
 # save caches that PRs can restore.
 #
-# Check commands live in scripts/verify.sh. This file only selects lanes.
+# Check commands live in scripts/verify.sh; which lanes a changed path selects
+# lives in scripts/lane-paths.yml. This file only runs the selected lanes.
 
 on:
   pull_request:
@@ -53,79 +54,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          filters: |
-            frontend:
-              - .github/workflows/ci.yml
-              - src/**
-              - package.json
-              - bun.lock
-              - bunfig.toml
-              - tsconfig.json
-              - vite.config.ts
-              - vitest.config.ts
-              - biome.json
-              - knip.json
-              - .node-version
-              - scripts/**/*.ts
-              - scripts/locked-bun-version.sh
-              - scripts/setup.sh
-              - scripts/verify.sh
-            shared: &shared
-              - .github/workflows/ci.yml
-              - Cargo.toml
-              - Cargo.lock
-              - crates/*/Cargo.toml
-              - src-tauri/Cargo.toml
-              - rust-toolchain.toml
-              - vendor/**
-              - scripts/setup.sh
-              - scripts/verify.sh
-            core:
-              - *shared
-              - scripts/check-rust-tiers.sh
-              - scripts/check-rust-complexity.sh
-              - scripts/rust-complexity-allowlist.txt
-              - crates/*/src/**
-              - src-tauri/src/**
-              - crates/abb-*-core/**
-            engine:
-              - *shared
-              - crates/**
-            media:
-              - *shared
-              - crates/abb-media-core/**
-              - crates/abb-metadata-core/**
-              - crates/abb-output-artifact-core/**
-              - crates/abb-processing-core/**
-              - crates/abb-engine/src/audio/**
-              - crates/abb-engine/src/metadata/**
-              - crates/abb-engine/src/output_artifact/**
-              - crates/abb-engine/src/processing/**
-              - crates/abb-engine/src/test_cases/integration_media*
-            host:
-              - *shared
-              - crates/**
-              - src-tauri/**
-              - src/lib/generated/**
-              - scripts/check-generated-bindings.sh
-              - package.json
-            decrypt:
-              - *shared
-              - tools/abb-aaxclean-helper/**
-              - scripts/publish-aaxclean-helper.ts
-              - crates/abb-engine/src/remote_source/**
-              - crates/abb-engine/src/test_cases/integration_decrypt*
-            tooling:
-              - .github/workflows/**
-              - scripts/*.sh
-              - .claude/hooks/**
-              - .cursor/environment.json
-            # Orphans with no lane command:
-            # .agents/skills/** — agent skill markdown; no verify.sh lane
-            # .cargo/audit.toml — cargo audit only in the supply-chain job
-            # deny.toml — cargo deny only in the supply-chain job
-            # .github/dependabot.yml — Dependabot config; no verify.sh lane
-
+          filters: scripts/lane-paths.yml
 
   frontend:
     name: Frontend typecheck and tests

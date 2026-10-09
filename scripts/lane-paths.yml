@@ -1,0 +1,87 @@
+# Which verify.sh lanes a changed path selects in a pull request.
+# .github/workflows/ci.yml reads this file through dorny/paths-filter (picomatch,
+# dot: true). scripts/lane-paths.test.ts fails when a tracked file matches no
+# lane and no `no-lane` entry; each `no-lane` entry needs a trailing # reason.
+frontend:
+  - .github/workflows/ci.yml
+  - scripts/lane-paths.yml
+  - src/**
+  - index.html
+  - public/**
+  - package.json
+  - bun.lock
+  - bunfig.toml
+  - tsconfig.json
+  - vite.config.ts
+  - vitest.config.ts
+  - biome.json
+  - knip.json
+  - .node-version
+  - scripts/**/*.ts
+  - scripts/locked-bun-version.sh
+  - scripts/setup.sh
+  - scripts/verify.sh
+shared: &shared
+  - .github/workflows/ci.yml
+  - scripts/lane-paths.yml
+  - Cargo.toml
+  - Cargo.lock
+  - crates/*/Cargo.toml
+  - src-tauri/Cargo.toml
+  - rust-toolchain.toml
+  - vendor/**
+  - scripts/setup.sh
+  - scripts/verify.sh
+core:
+  - *shared
+  - scripts/check-rust-tiers.sh
+  - scripts/check-rust-complexity.sh
+  - scripts/rust-complexity-allowlist.txt
+  - crates/*/src/**
+  - src-tauri/src/**
+  - crates/abb-*-core/**
+engine:
+  - *shared
+  - crates/**
+# Real-media tests drive the whole engine (session, work runtime, output
+# commit), so any crate change can break them.
+media:
+  - *shared
+  - crates/**
+host:
+  - *shared
+  - crates/**
+  - src-tauri/**
+  - src/lib/generated/**
+  - scripts/check-generated-bindings.sh
+  - package.json
+decrypt:
+  - *shared
+  - tools/abb-aaxclean-helper/**
+  - scripts/publish-aaxclean-helper.ts
+  - crates/abb-engine/src/remote_source/**
+  - crates/abb-engine/src/test_cases/integration_decrypt*
+tooling:
+  - .github/workflows/**
+  - scripts/lane-paths.yml
+  - scripts/*.sh
+  - .claude/**
+  - .cursor/**
+  - .agents/**
+  - docs/**
+  - "**/AGENTS.md"
+  - CLAUDE.md
+  - README.md
+  - REVIEW.md
+no-lane:
+  - CHANGELOG.md # release history; the release skill writes it
+  - LICENSE # legal text
+  - .gitignore # read by git only
+  - .cbmignore # read by an editor tool only
+  - .git-blame-ignore-revs # read by git blame only
+  - .vscode/** # editor recommendations
+  - .github/FUNDING.yml # GitHub sponsor button
+  - .github/dependabot.yml # read by Dependabot; no lane can run it
+  - .cargo/audit.toml # read by cargo audit in the scheduled supply-chain job
+  - deny.toml # read by cargo deny in the scheduled supply-chain job
+  - site/** # built and deployed by .github/workflows/pages.yml

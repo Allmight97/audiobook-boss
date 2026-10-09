@@ -8,7 +8,8 @@ helpers, and diagnostics. Cargo commands run from the repository root.
 Same on macOS and Linux. Run `bash scripts/setup.sh` once after clone (or
 `frontend` / `rust` for one half). Then `bash scripts/verify.sh <lane>` for
 the owner you touched, one expensive build at a time.
-`.github/workflows/ci.yml` picks lanes by changed paths; its header says when
+`scripts/lane-paths.yml` maps changed paths to lanes for `.github/workflows/ci.yml`
+(a new tracked file needs a lane or a `no-lane` reason); the workflow header says when
 CI runs, and `gate` is the check `main` requires. Lane commands live only in `verify.sh`.
 
 - Frontend (`frontend`): `bash scripts/verify.sh frontend`. One owner:
