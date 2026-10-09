@@ -26,8 +26,10 @@ CI runs, and `gate` is the check `main` requires. Lane commands live only in `ve
 - Host or IPC types (`host`). Then the Vitest contract tests under `src/lib/`
   that name the changed surface. Boundary rules: `src-tauri/AGENTS.md` and
   `src/lib/tauri/AGENTS.md`.
-- Workflows and shell scripts (`tooling`): actionlint, zizmor
-  (`scripts/check-workflows.sh`), and shellcheck.
+- Workflows, shell scripts, and guidance (`tooling`): actionlint, zizmor
+  (`scripts/check-workflows.sh`), shellcheck, and `scripts/check-guidance.ts`,
+  which fails when guidance copies a command, names a missing package script,
+  or points at a missing path.
 - Advisories and licenses (`supply-chain`): runs only when named, and in CI
   only on scheduled and manual runs. Accepted advisories live in
   `.cargo/audit.toml`; license and source rules in `deny.toml`.
@@ -131,13 +133,12 @@ Traps:
   `eval "$(scripts/setup.sh --print-env)"`. Cloud setup steps do not pass
   their environment to agent shells, so run that eval in a shell before
   calling `bun`, `dotnet`, or `uvx` directly; `verify.sh` runs it itself.
-- Engine, media, host, decrypt, and apple proof use
-  `--features bundled-ffmpeg` on every host (`verify.sh`), including
-  `bun run bindings:generate` and `app:dev:log`. The first
-  build compiles the revision in `vendor/ffmpeg-sys-next-*/ffmpeg-revision`
-  into `target/abb-ffmpeg-cache`. Later builds, including `cargo clippy` after
-  `app:dev:log`, reuse that tree; `ABB-PROVENANCE.md` beside it lists what
-  invalidates it. Clippy
+- Engine, media, host, decrypt, and apple proof build the engine with
+  bundled FFmpeg on every host, as do `bun run bindings:generate` and
+  `bun run app:dev:log`. The first build compiles the revision in
+  `vendor/ffmpeg-sys-next-*/ffmpeg-revision` into `target/abb-ffmpeg-cache`.
+  Later builds, including Clippy after `bun run app:dev:log`, reuse that tree;
+  `ABB-PROVENANCE.md` beside the revision lists what invalidates it. Clippy
   still typechecks the bindings crate: Cargo treats check and build as
   different units.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH

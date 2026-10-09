@@ -2,12 +2,12 @@
 
 Read for Solid rendering, reactivity, disposal, or component-testing questions.
 
-- Packages: `solid-js`, `vite-plugin-solid`, `@solidjs/testing-library`;
+- Packages: `solid-js`, `@solidjs/vite-plugin`, `@solidjs/testing-library`;
   resolve versions from this checkout's `bun.lock`.
 - Installed declarations: `node_modules/solid-js/types/index.d.ts`; check
   package exports when another entrypoint is involved.
 - Upstreams: [Solid](https://github.com/solidjs/solid),
-  [Vite plugin](https://github.com/solidjs/vite-plugin-solid), and
+  [Vite plugin](https://github.com/solidjs/solid-vite-plugin), and
   [testing library](https://github.com/solidjs/solid-testing-library).
 - Optional Context7 hints: `/solidjs/solid` or `/websites/docs_solidjs_com`.
 

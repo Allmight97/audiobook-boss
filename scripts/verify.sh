@@ -160,13 +160,14 @@ lane_apple() {
 
 lane_tooling() {
 	local tool
-	for tool in actionlint shellcheck uvx; do
+	for tool in actionlint shellcheck uvx bun; do
 		if ! command -v "${tool}" >/dev/null 2>&1; then
 			printf 'MISSING %s\nInstall with: bash scripts/setup.sh frontend\n' "${tool}" >&2
 			return 1
 		fi
 	done
 	bash scripts/check-workflows.sh
+	bun scripts/check-guidance.ts
 	local scripts
 	# Globs are expanded against committed files; fail if a directory is empty.
 	scripts=(scripts/*.sh .claude/hooks/*.sh .agents/skills/verify-abb/*.sh .agents/skills/verify-abb/features/*.sh)

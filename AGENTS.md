@@ -148,9 +148,8 @@ Golden-path verification without a window: `.agents/skills/verify-abb/SKILL.md`.
   the main proof for cloud Linux agents.
 - Open PRs ready; a draft only when the owner asks.
   Batch follow-up fixes into one push.
-- CI (`.github/workflows/ci.yml`) runs when a PR opens ready or is marked
-  ready, when auto-merge is enabled (the merge attempt), by hand, and twice a
-  week on `main`. Pushes and drafts start nothing.
+- CI runs only on the events the header of `.github/workflows/ci.yml` lists;
+  a push alone starts nothing.
 - Merge with a merge commit. `gh pr merge <n> --auto --merge` starts a run
   and merges when `gate` passes; when `gate` is already green on the head,
   `gh pr merge <n> --merge` skips a second identical run. A push after

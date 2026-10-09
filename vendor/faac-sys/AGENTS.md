@@ -30,6 +30,6 @@
 - Set the `faac-sys` package version to the release version; `build.rs` turns
   it into the library's runtime version. Update the identity in
   `ABB-PROVENANCE.md`.
-- Proof: `cargo test --locked -p faac-sys`, plus the FAAC cases in the engine
-  media lane (`scripts/AGENTS.md`). A changed encoder delay fails the
+- Proof: `bash scripts/verify.sh engine media` (the `faac-sys` tests run in
+  `engine`, the FAAC encode cases in `media`). A changed encoder delay fails the
   adapter's open check; follow the processor guidance before changing timing.

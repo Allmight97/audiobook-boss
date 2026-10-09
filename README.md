@@ -121,16 +121,8 @@ Index of common commands; `package.json` holds the shortcuts.
 - Frontend checks: `bun run typecheck`,
   `bun run test -- <test files>`, plus `bun run fmt:check` / `bun run lint:check`
   when formatting or lint is in scope.
-- Focused Rust loops:
-  `cargo test --locked -p abb-audible-core`,
-  `cargo test --locked -p abb-media-core`,
-  `cargo test --locked -p abb-metadata-core`,
-  `cargo test --locked -p abb-output-artifact-core`,
-  `cargo test --locked -p abb-processing-core`,
-  `cargo test --locked -p abb-remote-source-core`,
-  `cargo test --locked -p abb-engine --features bundled-ffmpeg --lib`,
-  `cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests`, or
-  `cargo test --locked -p audiobook-boss --features bundled-ffmpeg` (Tauri host).
+- Rust checks: `bash scripts/verify.sh <lane>`; lanes and their owners are
+  in `scripts/AGENTS.md`.
 - Engine without a window: `bash scripts/abb-dev.sh <file-or-folder>...
   [--set field=value] [--save] [--out folder --export] [--json]` imports files
   into an engine session and can edit and save tags, choose audio and naming,
@@ -141,17 +133,12 @@ Index of common commands; `package.json` holds the shortcuts.
   `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
   release-critical drift confidence is required.
 - Dependency hygiene: `bun run audit`.
-- CI (`.github/workflows/ci.yml`): runs when a pull request opens ready or is
-  marked ready, when auto-merge is enabled (the merge attempt), by hand, and
-  twice a week on `main`. Pushes and drafts start nothing. It calls `scripts/setup.sh` and
-  `scripts/verify.sh` for the frontend, core crates, engine, media, host, and
-  Apple AAC on macOS, and Audible decrypt on both OSes. A pull request runs
-  only the jobs its changes touch.
-  GitHub also runs Pages for `site/**`.
+- CI (`.github/workflows/ci.yml`): its header says when it runs. Each job runs
+  `scripts/setup.sh` and the `scripts/verify.sh` lanes that the changed paths
+  select (`scripts/lane-paths.yml`). GitHub also runs Pages for `site/**`.
 - Bun is the package manager, script runner, and test runner.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
-- Build timing: use direct Cargo timing commands such as `cargo build --timings`
-  when investigating compile cost.
+- Build timing: Cargo's `--timings` report shows where compile time goes.
 - Release lanes: use `.agents/skills/release`.
   `bun scripts/bump-version.ts <version>` updates version surfaces;
   `bun run app:install-local` is the developer-install lane and silently
