@@ -27,13 +27,13 @@ describe('frontend toolchain layout', () => {
 		expect(locked).toMatch(/^\d+\.\d+\.\d+$/);
 	});
 
-	// Dependabot's Bun updater rejects lockfiles newer than v1; a lockfile
-	// regenerated from scratch by Bun 1.4+ is v2 and silently stops Bun updates.
-	it('pins Node 22.22.2 from .node-version', () => {
+	it('pins an exact Node version that setup.sh can download', () => {
 		const version = readFileSync(path.join(repoRoot, '.node-version'), 'utf8').trim();
-		expect(version).toBe('22.22.2');
+		expect(version).toMatch(/^\d+\.\d+\.\d+$/);
 	});
 
+	// Dependabot's Bun updater rejects lockfiles newer than v1; a lockfile
+	// regenerated from scratch by Bun 1.4+ is v2 and silently stops Bun updates.
 	it('keeps bun.lock at lockfileVersion 1 so Dependabot can update it', () => {
 		const lock = readFileSync(path.join(repoRoot, 'bun.lock'), 'utf8');
 		expect(lock).toMatch(/^\{\s*"lockfileVersion": 1,/);

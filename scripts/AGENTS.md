@@ -95,10 +95,11 @@ Traps:
   for CI and agent setup. Dependabot updates the `bun` devDependency under the
   10-day cooldown. Setup installs that version or exits. Update `bun.lock` in
   place at `lockfileVersion` 1, because Dependabot's Bun updater rejects newer
-  versions. Node is pinned to 22.x in `.node-version`. Setup and `--check` accept
-  any Node 22 or newer on PATH; setup installs the pinned build into
-  `~/.local/bin` only when none is found, since that folder is usually on the
-  owner's login PATH.
+  versions. Node is pinned in `.node-version` (an exact version; only dev tools
+  such as Vite and Vitest run on it, the app does not ship it). Setup and
+  `--check` accept any Node at or above that major on PATH; setup installs
+  the pinned build into `~/.local/bin` only when none is found, since that
+  folder is usually on the owner's login PATH.
 
 ## Dependencies
 
@@ -123,7 +124,7 @@ Traps:
 
 ## Environment
 
-- `bash scripts/setup.sh` installs the locked Bun, Node 22 from `.node-version`,
+- `bash scripts/setup.sh` installs the locked Bun, Node from `.node-version`,
   frontend dependencies, actionlint, and shellcheck. `rust` adds what engine
   and host proof need (script header lists it), including `libssl-dev` on
   Linux so `openssl-sys` can build, the .NET SDK from

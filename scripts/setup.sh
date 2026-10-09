@@ -133,8 +133,8 @@ pinned_node_version() {
 		exit 1
 	fi
 	version="$(tr -d ' \t\r\nvV' <"${file}")"
-	if [[ ! "${version}" =~ ^22\.[0-9]+\.[0-9]+$ ]]; then
-		printf 'error: %s must pin Node 22.x.x, got %s\n' "${file}" "${version}" >&2
+	if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+		printf 'error: %s must pin an exact Node version (x.y.z), got %s\n' "${file}" "${version}" >&2
 		exit 1
 	fi
 	printf '%s\n' "${version}"
@@ -175,11 +175,17 @@ node_major() {
 	printf '%s\n' "${version%%.*}"
 }
 
+pinned_node_major() {
+	local version
+	version="$(pinned_node_version)"
+	printf '%s\n' "${version%%.*}"
+}
+
 node_is_supported() {
 	local major
 	have node || return 1
 	major="$(node_major node)"
-	[[ "${major}" =~ ^[0-9]+$ && "${major}" -ge 22 ]]
+	[[ "${major}" =~ ^[0-9]+$ && "${major}" -ge "$(pinned_node_major)" ]]
 }
 
 # Capture stdout and stderr: Homebrew prints `-version` on stderr.
@@ -278,11 +284,11 @@ check_frontend() {
 		need "bun ${required_bun}"
 	fi
 	if node_is_supported; then
-		ok "node $(node --version) (major 22+; pin ${required_node})"
+		ok "node $(node --version) (pin ${required_node})"
 	elif have node; then
-		need "node 22 or newer (found $(node --version); pin ${required_node})"
+		need "node ${required_node%%.*} or newer (found $(node --version); pin ${required_node})"
 	else
-		need "node ${required_node} (major 22+)"
+		need "node ${required_node}"
 	fi
 	if [[ -d "${repo_root}/node_modules" ]]; then
 		ok "node_modules"
@@ -439,7 +445,7 @@ if [[ "${check_only}" -eq 1 ]]; then
 	exit 0
 fi
 
-# Any Node 22+ already on PATH is kept: tools_bin is usually on the owner's
+# Any Node at or above the pinned major already on PATH is kept: tools_bin is usually on the owner's
 # login PATH, so installing there would replace their node in every shell.
 ensure_node() {
 	local required asset tmp prefix
