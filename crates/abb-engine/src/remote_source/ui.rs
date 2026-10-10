@@ -1123,12 +1123,10 @@ impl RemoteSourceRuntime {
             // Shutdown stops a batch before its next release is sent.
             let result = match &turn {
                 Ok(_) => {
-                    self.inner
-                        .tasks
-                        .until_closing(self.grab_release(RemoteReleaseGrabRequest {
-                            release: release.clone(),
-                        }))
-                        .await
+                    self.grab_release(RemoteReleaseGrabRequest {
+                        release: release.clone(),
+                    })
+                    .await
                 }
                 Err(error) => Err(AppError::InvalidInput(error.to_string())),
             };
@@ -1193,13 +1191,18 @@ impl RemoteSourceRuntime {
 
 impl RemoteSourceRuntime {
     async fn refresh_ui_library(&self, request: u64) -> Result<RemoteUiResult> {
-        let result = self
-            .inner
-            .tasks
-            .until_closing(super::AudibleProvider::load_library(
-                self.inner.vault.as_ref(),
-            ))
-            .await;
+        let result = async {
+            let auth = self
+                .vault_blocking(|runtime| {
+                    super::AudibleProvider::stored_auth(runtime.inner.vault.as_ref())
+                })
+                .await?;
+            self.inner
+                .tasks
+                .until_closing(super::AudibleProvider::load_library(auth))
+                .await
+        }
+        .await;
         if !self.ui().library_result(request, &result) {
             return Ok(RemoteUiResult::Superseded);
         }
@@ -1367,16 +1370,12 @@ impl RemoteUiRun {
                 revision,
                 update,
             } => {
-                let tasks = runtime.inner.tasks.clone();
-                let result = tasks
-                    .until_closing(runtime.test_indexer_connection(update))
-                    .await;
+                let result = runtime.test_indexer_connection(update).await;
                 runtime.ui().tested(request, revision, &result);
                 result.map(|_| RemoteUiResult::Applied)
             }
             UiAction::Search { request, query } => {
-                let tasks = runtime.inner.tasks.clone();
-                let result = tasks.until_closing(runtime.search_releases(query)).await;
+                let result = runtime.search_releases(query).await;
                 runtime.ui().searched(request, &result);
                 result.map(|_| RemoteUiResult::Applied)
             }

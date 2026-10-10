@@ -28,6 +28,18 @@ function requestFailure(remote: RemoteUiSnapshot): string {
 	return '';
 }
 
+function connectedAccountNote(remote: RemoteUiSnapshot): string {
+	if (remote.account?.status !== 'connected') return '';
+	return remote.account.message ?? '';
+}
+
+/** A connected account message is how the engine says a sign-in will not last. */
+function withConnectedAccountNote(status: string, remote: RemoteUiSnapshot): string {
+	const note = connectedAccountNote(remote);
+	if (!note || status.includes(note)) return status;
+	return status ? `${status} ${note}` : note;
+}
+
 function audibleStatus(remote: RemoteUiSnapshot, library: RemoteLibrarySnapshot): string {
 	const job = remote.acquisition;
 	// A download outranks an earlier library-load failure; the rows it came from are still shown.
@@ -42,12 +54,18 @@ function audibleStatus(remote: RemoteUiSnapshot, library: RemoteLibrarySnapshot)
 	if (remote.auth.kind === 'awaitingHandoff')
 		return 'Complete Audible authorization in your browser, then enter the handoff path, or Connect again.';
 	if (remote.libraryStatus.kind === 'succeeded') {
-		return (
+		const loaded =
 			uniqueDiagnosticMessage(library.diagnostics) ||
-			`${library.titles.length} Audible titles loaded.`
-		);
+			`${library.titles.length} Audible titles loaded.`;
+		return withConnectedAccountNote(loaded, remote);
 	}
 	return remote.account?.message ?? '';
+}
+
+function indexerStatus(remote: RemoteUiSnapshot): string {
+	if (remote.lane !== 'indexer') return remote.indexer.message;
+	const status = requestFailure(remote) || remote.indexer.message;
+	return withConnectedAccountNote(status, remote);
 }
 
 export function createRemoteSourceStateStore(
@@ -91,10 +109,7 @@ export function createRemoteSourceStateStore(
 						: job
 							? (job.settled ? handoffMessage(job) : null) || statusFromAcquisitionJob(job)
 							: ''),
-				indexer:
-					errors.indexer ||
-					(remote.lane === 'indexer' ? requestFailure(remote) : '') ||
-					remote.indexer.message,
+				indexer: errors.indexer || indexerStatus(remote),
 			},
 		};
 	};

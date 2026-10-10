@@ -206,18 +206,30 @@ impl RemoteAcquisitionLifecycle {
         let _active_work = runtime.inner.power.begin();
         let result = match plan.provider_id {
             super::RemoteProviderId::Audible => {
-                super::providers::audible::AudibleProvider::acquire(
-                    runtime.inner.vault.as_ref(),
-                    &self.materializer,
-                    &plan,
-                    &job_id,
-                    &job_dir,
-                    |progress| {
-                        self.update_job_progress(&job_id, progress);
-                    },
-                    || self.job_is_cancelled(&job_id),
-                )
-                .await
+                let auth = runtime
+                    .vault_blocking(|runtime| {
+                        super::providers::audible::AudibleProvider::stored_auth(
+                            runtime.inner.vault.as_ref(),
+                        )
+                    })
+                    .await;
+                match auth {
+                    Ok(auth) => {
+                        super::providers::audible::AudibleProvider::acquire(
+                            auth,
+                            &self.materializer,
+                            &plan,
+                            &job_id,
+                            &job_dir,
+                            |progress| {
+                                self.update_job_progress(&job_id, progress);
+                            },
+                            || self.job_is_cancelled(&job_id),
+                        )
+                        .await
+                    }
+                    Err(error) => Err(error),
+                }
             }
             super::RemoteProviderId::Indexer => Err(AppError::InvalidInput(
                 "Indexer grabs do not create acquisition jobs.".to_string(),

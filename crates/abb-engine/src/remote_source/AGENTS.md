@@ -27,6 +27,10 @@ when an imported download goes).
   cannot read, replace, or delete production provider credentials. The
   production identifier keeps its shipped service name; isolated profiles need
   their own sign-in and keys.
+- On Linux the vault uses the Secret Service when one answers on the session
+  bus, and kernel keyutils otherwise. Keyutils lasts until restart; the account
+  message says sign-in will not be remembered. The warning follows the store's
+  persistence (`UntilDelete` survives). No second copy of a secret is written.
 - Staged remote writes (`scoped_output.rs`): `prepare` (stale-partial
   pre-clean) -> partial write -> cancel check -> same-directory
   `rename_and_commit`. Drop cleans uncommitted paths. `ProvisionalCommittedFile`
@@ -92,8 +96,10 @@ progress is published at most every 100 ms, a stage change at once. Snapshot
   reserves credentials until registration and persistence settle. StartAuth,
   Disconnect, acquisition, and lane replacement are refused during completion.
   Shutdown cancels registration before the credential commit is admitted and
-  awaits an admitted blocking commit. Started keychain reads are awaited too;
-  none starts once closing, so a system prompt cannot hold quit.
+  awaits an admitted blocking commit. Keychain reads for Indexer search, grab,
+  and Test, the Audible library, and acquisition run on a blocking thread that
+  the caller awaits. None starts once closing; `until_closing` wraps only the
+  network future, so a started read is awaited.
 - Accepted disconnect reserves the UI guard's disconnecting fact through vault
   work outside the guard; account_status Running exposes that pending work.
   Credential deletion failure preserves account/library choices and reports

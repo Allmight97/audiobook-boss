@@ -6,18 +6,17 @@ mod supplemental;
 mod validation;
 
 use super::audio_download::download_audio;
+use super::client_from_auth;
 use super::diagnostics::AudibleAcquisitionError;
 use super::license::{
     license_decrypt_context_from_auth, lookup_title_details, provider_protocol_lane_message,
     request_license_lane, strategy_label, AudibleTitleDetails, LicenseLane,
 };
 use super::materialization::materialize_protected_download;
-use super::{auth_from_vault, client_from_auth};
 use crate::errors::Result;
 use crate::remote_source::materializer::AaxcleanMaterializer;
 use crate::remote_source::scoped_output::ProvisionalCommittedFile;
 use crate::remote_source::staging;
-use crate::remote_source::vault::SecretVault;
 use crate::remote_source::{
     AcquisitionJob, AcquisitionPlan, MaterializedSourceFile, ProviderId,
     RemoteAcquisitionFailureKind, RemoteAcquisitionStatus, RemoteSourceDiagnostic,
@@ -73,7 +72,7 @@ pub(in crate::remote_source::providers::audible) struct TitleAcquisitionCtx<'a> 
 }
 
 pub(super) async fn acquire(
-    vault: &dyn SecretVault,
+    auth: Auth,
     materializer: &AaxcleanMaterializer,
     plan: &AcquisitionPlan,
     job_id: &str,
@@ -82,7 +81,6 @@ pub(super) async fn acquire(
     is_cancelled: impl Fn() -> bool,
 ) -> Result<AcquisitionJob> {
     ensure_not_cancelled(&is_cancelled)?;
-    let auth = auth_from_vault(vault)?;
     let license_decrypt_context = license_decrypt_context_from_auth(&auth);
     let client = client_from_auth(auth.clone())?;
     let mut job = AcquisitionJob {
