@@ -150,7 +150,11 @@ describe('metadata lookup dialog', () => {
 		const sent = engine.sessionIntents.map((intent) => intent.kind);
 		expect(sent.indexOf('lookupSetReplaceCover')).toBeLessThan(sent.indexOf('lookupApply'));
 		expect(engine.sessionIntents).toContainEqual({ kind: 'lookupSetReplaceCover', replace: true });
-		expect(engine.sessionIntents).toContainEqual({ kind: 'lookupApply', index: 0 });
+		expect(engine.sessionIntents).toContainEqual({
+			kind: 'lookupApply',
+			index: 0,
+			revision: expect.any(Number),
+		});
 	});
 
 	it('sends a skip and shows the next queued title', async () => {

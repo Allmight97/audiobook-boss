@@ -310,6 +310,27 @@ impl WorkingSet {
 
     // ---- Selection ----
 
+    /// Selects the named title. Unknown ids change nothing. Range selection
+    /// resolves the stored anchor by identity against current order, then
+    /// the target, so a reorder in between cannot retarget either end.
+    pub(crate) fn select_title(&mut self, title_id: &str, modifiers: SelectionModifiers) {
+        let Some(index) = self.index_of(title_id) else {
+            return;
+        };
+        if modifiers.range {
+            self.selected_anchor = self.anchor_index();
+        }
+        self.select_file(index, modifiers);
+    }
+
+    fn anchor_index(&self) -> Option<usize> {
+        let id = self
+            .selected_anchor
+            .and_then(|index| self.files.get(index))
+            .map(identity)?;
+        self.index_of(id)
+    }
+
     pub(crate) fn select_file(&mut self, index: usize, modifiers: SelectionModifiers) {
         if index >= self.files.len() {
             return;

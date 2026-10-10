@@ -15,6 +15,8 @@ mod ui;
 
 /// How long Amazon may take to register a completed sign-in.
 const AUTH_REGISTRATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+#[cfg(test)]
+pub(crate) use providers::audible::{run_protected_materialization, ProtectedMaterializationRun};
 pub use ui::{
     IndexerDraftSnapshot, IndexerWorkSnapshot, ReleaseGrabSnapshot, ReleaseGrabStatus,
     RemoteAuthStatus, RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiIntent, RemoteUiSnapshot,
@@ -209,9 +211,11 @@ impl RemoteSourceRuntime {
                 // awaited by EngineTasks and must finish once started.
                 let runtime = self.clone();
                 let write = self.inner.tasks.admit(|| {
-                    tokio::task::spawn_blocking(move || {
+                    #[expect(clippy::disallowed_methods, reason = "joined by complete_auth")]
+                    let write = tokio::task::spawn_blocking(move || {
                         AudibleProvider::persist_auth(runtime.inner.vault.as_ref(), &auth)
-                    })
+                    });
+                    write
                 })?;
                 write.await.map_err(|_| {
                     AppError::General("Audible credential persistence failed.".into())
@@ -327,11 +331,15 @@ impl RemoteSourceRuntime {
     // so both run on a blocking thread and never stall the caller's executor.
     pub(crate) async fn get_indexer_connection(&self) -> Result<types::RemoteIndexerConnection> {
         let runtime = self.clone();
-        tokio::task::spawn_blocking(move || {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by get_indexer_connection"
+        )]
+        let read = tokio::task::spawn_blocking(move || {
             IndexerProvider::get_connection(&runtime.inner.config_dir, runtime.inner.vault.as_ref())
-        })
-        .await
-        .map_err(|error| AppError::General(error.to_string()))?
+        });
+        read.await
+            .map_err(|error| AppError::General(error.to_string()))?
     }
 
     /// Saves the connection. Refused while a search or grab runs; releases
@@ -348,15 +356,20 @@ impl RemoteSourceRuntime {
         })?;
         self.forget_sent_releases();
         let runtime = self.clone();
-        tokio::task::spawn_blocking(move || {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by update_indexer_connection"
+        )]
+        let write = tokio::task::spawn_blocking(move || {
             IndexerProvider::update_connection(
                 &runtime.inner.config_dir,
                 runtime.inner.vault.as_ref(),
                 update,
             )
-        })
-        .await
-        .map_err(|error| AppError::General(error.to_string()))?
+        });
+        write
+            .await
+            .map_err(|error| AppError::General(error.to_string()))?
     }
 
     pub(crate) async fn test_indexer_connection(

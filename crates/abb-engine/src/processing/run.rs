@@ -29,6 +29,10 @@ pub(crate) async fn process_inspected_with_options(
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
     let result = async {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by process_inspected_with_options"
+        )]
         let execution = tokio::task::spawn_blocking(move || {
             prepare_inspected_execution(&payload, inspected).map(|plan| (payload, plan))
         })

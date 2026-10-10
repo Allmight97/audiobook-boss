@@ -43,7 +43,9 @@ with a test-name filter.
 `bash scripts/setup.sh` installs `.githooks/pre-commit` (repo-local
 `core.hooksPath`). It runs the fast checks on staged files: whitespace,
 rustfmt, Biome format, the guidance and known-mistakes lints, and
-shellcheck. It is the only check a guidance push straight to `main` gets.
+shellcheck. A guidance-only change goes through a PR whose `gate` passes,
+because the CI gate ruleset requires `gate` on `main` (root `AGENTS.md`,
+Pull Requests And CI). This hook is the fast check on the commit.
 
 Traps:
 

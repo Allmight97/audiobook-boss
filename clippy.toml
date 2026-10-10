@@ -1,0 +1,5 @@
+disallowed-methods = [
+    { path = "tokio::task::spawn", reason = "spawn through EngineTasks (crates/abb-engine/src/engine.rs): tasks.spawn / tasks.admit, so shutdown admits, tracks, and cancels it. A child task joined by an already-tracked parent may #[expect(clippy::disallowed_methods, reason = \"joined by <parent>\")]." },
+    { path = "tokio::task::spawn_blocking", reason = "spawn through EngineTasks (crates/abb-engine/src/engine.rs): tasks.spawn / tasks.admit, so shutdown admits, tracks, and cancels it. A child task joined by an already-tracked parent may #[expect(clippy::disallowed_methods, reason = \"joined by <parent>\")]." },
+    { path = "std::thread::spawn", reason = "spawn through EngineTasks (crates/abb-engine/src/engine.rs): tasks.spawn / tasks.admit, so shutdown admits, tracks, and cancels it. A child task joined by an already-tracked parent may #[expect(clippy::disallowed_methods, reason = \"joined by <parent>\")]." },
+]

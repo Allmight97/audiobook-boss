@@ -94,6 +94,10 @@ mod tests {
         let path = folder.path().join("book.m4b");
         let first = lock_output_file(&path);
         let entered = Arc::new(AtomicBool::new(false));
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by a_second_writer_waits_for_the_first_to_let_go"
+        )]
         let second = std::thread::spawn({
             let entered = Arc::clone(&entered);
             // Another spelling of the same file shares the lock.

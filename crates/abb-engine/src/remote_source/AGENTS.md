@@ -127,4 +127,7 @@ progress is published at most every 100 ms, a stage change at once. Snapshot
 Providers return typed unsupported/protected/auth statuses. Acquisition success
 means real materialized files: manual-import fallback and placeholder sources
 do not exist. Dash/Widevine acquisition stays unsupported until ABB has its own
-CDM, MPD/PSSH, and content-key design.
+CDM, MPD/PSSH, and content-key design. An Audible AAX or AAXC file is
+materialized only when its output decodes as audio with FFmpeg's built-in
+decoder. A wrong key fails as `MaterializationFailed`, and the message names
+the decrypt. For AAXC, helper exit 0 is not that proof.

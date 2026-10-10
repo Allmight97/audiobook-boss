@@ -23,6 +23,10 @@ async fn reqwest_replaces_port_zero_with_url_port() -> Result<(), Box<dyn std::e
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by reqwest_replaces_port_zero_with_url_port"
+    )]
     let server = tokio::spawn(async move {
         let (mut stream, _) = timeout(LOCAL_REQUEST_TIMEOUT, listener.accept()).await??;
         let mut buffer = [0u8; 1024];

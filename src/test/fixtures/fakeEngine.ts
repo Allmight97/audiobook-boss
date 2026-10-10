@@ -478,6 +478,31 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		};
 	}
 
+	function selectNamed(
+		titleId: string,
+		modifiers: { readonly multi: boolean; readonly range: boolean },
+	): void {
+		const index = state.titles.files.findIndex((file) => file.inputId === titleId);
+		if (index < 0) return;
+		const current = state.selection.selectedIndices;
+		const anchor = state.selection.selectedAnchor;
+		if (modifiers.range && anchor !== null) {
+			const [from, to] = [Math.min(anchor, index), Math.max(anchor, index)];
+			select(Array.from({ length: to - from + 1 }, (_, offset) => from + offset));
+			state.selection.selectedAnchor = index;
+			return;
+		}
+		if (modifiers.multi) {
+			select(
+				current.includes(index)
+					? current.filter((selected) => selected !== index)
+					: [...current, index],
+			);
+			return;
+		}
+		select([index]);
+	}
+
 	function appendFiles(files: AudioFile[]): void {
 		const known = new Set(state.titles.files.map((file) => file.path));
 		const added = files.filter((file) => !known.has(file.path));
@@ -505,22 +530,9 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				if (locked) titles.notice = { kind: 'orderLocked' };
 				else appendFiles(engine.analyze(intent.paths));
 				break;
-			case 'selectFile': {
-				const current = state.selection.selectedIndices;
-				const anchor = state.selection.selectedAnchor;
-				if (intent.modifiers.range && anchor !== null) {
-					const [from, to] = [Math.min(anchor, intent.index), Math.max(anchor, intent.index)];
-					select(Array.from({ length: to - from + 1 }, (_, offset) => from + offset));
-					state.selection.selectedAnchor = intent.index;
-				} else if (intent.modifiers.multi) {
-					select(
-						current.includes(intent.index)
-							? current.filter((index) => index !== intent.index)
-							: [...current, intent.index],
-					);
-				} else select([intent.index]);
+			case 'selectFile':
+				selectNamed(intent.titleId, intent.modifiers);
 				break;
-			}
 			case 'selectAll':
 				select(titles.files.map((_, index) => index));
 				break;

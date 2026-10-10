@@ -75,9 +75,6 @@ impl WorkRuntime {
         on_finished: Option<OnFinished>,
         inspected: crate::processing::plan::InspectedProcessingPlan,
     ) -> Result<WorkSubmissionAccepted> {
-        if self.inner.tasks.is_closed() {
-            return Err(AppError::General("ABB is closing.".to_string()));
-        }
         if request.title.trim().is_empty() {
             return Err(AppError::InvalidInput(
                 "Processing operations need a title naming their books.".into(),

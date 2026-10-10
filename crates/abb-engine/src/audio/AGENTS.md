@@ -25,6 +25,9 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   same open/readback as execution, including upstream bitrate clamps.
 - Linkage is not file compatibility: per-file trial decoding selects the
   decoder (`processor/streams.rs` tests the linked AAC decoders).
+- `probe_builtin_audio_decoder` is that probe with FFmpeg's built-in decoder
+  only. Audible materialization uses it so a wrong AAXC key fails on every
+  host; import may still try `aac_at`.
 
 ## Encoder Routes
 
