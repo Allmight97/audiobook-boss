@@ -118,7 +118,7 @@ fn update_api_key(
     }
 }
 
-pub(super) struct ConfiguredIndexerConnection {
+pub(in crate::remote_source) struct ConfiguredIndexerConnection {
     pub base_url: String,
     pub category_ids: Vec<u32>,
     pub api_key: SecretString,

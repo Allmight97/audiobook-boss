@@ -3,6 +3,8 @@ mod prowlarr;
 
 use std::path::Path;
 
+use secrecy::SecretString;
+
 use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
     AccountRef, ProviderId, RemoteAccountStatus, RemoteIndexerConnection,
@@ -17,6 +19,7 @@ use connection::{
 };
 use prowlarr::{build_search_params, ProwlarrSearchOutcome};
 
+pub(in crate::remote_source) use connection::ConfiguredIndexerConnection;
 pub(in crate::remote_source) use prowlarr::ReqwestProwlarrAdapter;
 
 #[derive(Debug, Clone)]
@@ -75,13 +78,26 @@ impl IndexerProvider {
         update_connection(config_dir, vault, update)
     }
 
-    pub(in crate::remote_source) async fn search_releases(
+    pub(in crate::remote_source) fn configured_connection(
         config_dir: &Path,
         vault: &dyn SecretVault,
+    ) -> Result<ConfiguredIndexerConnection> {
+        configured_connection(config_dir, vault)
+    }
+
+    pub(in crate::remote_source) fn draft_credentials(
+        config_dir: &Path,
+        vault: &dyn SecretVault,
+        update: RemoteIndexerConnectionUpdate,
+    ) -> Result<(String, SecretString)> {
+        draft_credentials(config_dir, vault, update)
+    }
+
+    pub(in crate::remote_source) async fn search_releases(
         adapter: &ReqwestProwlarrAdapter,
+        connection: ConfiguredIndexerConnection,
         request: RemoteReleaseSearchRequest,
     ) -> Result<RemoteReleaseSearchResponse> {
-        let connection = configured_connection(config_dir, vault)?;
         let params = build_search_params(&request, &connection.category_ids)?;
         let outcome = adapter
             .search(&connection.base_url, &connection.api_key, &params)
@@ -90,9 +106,8 @@ impl IndexerProvider {
     }
 
     pub(in crate::remote_source) async fn grab_release(
-        config_dir: &Path,
-        vault: &dyn SecretVault,
         adapter: &ReqwestProwlarrAdapter,
+        connection: ConfiguredIndexerConnection,
         request: RemoteReleaseGrabRequest,
     ) -> Result<RemoteReleaseGrabResponse> {
         validate_grab_release(&request.release)?;
@@ -103,19 +118,15 @@ impl IndexerProvider {
             request_id, request.release.indexer_id, request.release.indexer,
             request.release.title, request.release.protocol
         );
-        let result = async {
-            let connection = configured_connection(config_dir, vault)?;
-            adapter
-                .grab(
-                    &connection.base_url,
-                    &connection.api_key,
-                    &request.release.guid,
-                    request.release.indexer_id,
-                    &request_id.to_string(),
-                )
-                .await
-        }
-        .await;
+        let result = adapter
+            .grab(
+                &connection.base_url,
+                &connection.api_key,
+                &request.release.guid,
+                request.release.indexer_id,
+                &request_id.to_string(),
+            )
+            .await;
         let outcome = match &result {
             Ok(outcome) if outcome.accepted => "handoff_confirmed",
             Ok(_) => "rejected",
@@ -131,12 +142,10 @@ impl IndexerProvider {
     }
 
     pub(in crate::remote_source) async fn test_connection(
-        config_dir: &Path,
-        vault: &dyn SecretVault,
         adapter: &ReqwestProwlarrAdapter,
-        update: RemoteIndexerConnectionUpdate,
+        base_url: String,
+        api_key: SecretString,
     ) -> Result<crate::remote_source::types::RemoteIndexerConnectionTestResult> {
-        let (base_url, api_key) = draft_credentials(config_dir, vault, update)?;
         let outcome = adapter.system_status(&base_url, &api_key).await?;
         Ok(
             crate::remote_source::types::RemoteIndexerConnectionTestResult {

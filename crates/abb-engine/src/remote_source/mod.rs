@@ -265,13 +265,22 @@ impl RemoteSourceRuntime {
     ) -> Result<types::RemoteReleaseSearchResponse> {
         let _turn = self.indexer_turn()?;
         self.forget_sent_releases();
-        IndexerProvider::search_releases(
-            &self.inner.config_dir,
-            self.inner.vault.as_ref(),
-            &self.inner.indexer_adapter,
-            request,
-        )
-        .await
+        let connection = self
+            .vault_blocking(|runtime| {
+                IndexerProvider::configured_connection(
+                    &runtime.inner.config_dir,
+                    runtime.inner.vault.as_ref(),
+                )
+            })
+            .await?;
+        self.inner
+            .tasks
+            .until_closing(IndexerProvider::search_releases(
+                &self.inner.indexer_adapter,
+                connection,
+                request,
+            ))
+            .await
     }
 
     /// Sends a release to the downloader, once per search: a release already
@@ -293,12 +302,24 @@ impl RemoteSourceRuntime {
             });
         }
         let _active_work = self.inner.power.begin();
-        let response = IndexerProvider::grab_release(
-            &self.inner.config_dir,
-            self.inner.vault.as_ref(),
-            &self.inner.indexer_adapter,
-            request,
-        )
+        let response = async {
+            let connection = self
+                .vault_blocking(|runtime| {
+                    IndexerProvider::configured_connection(
+                        &runtime.inner.config_dir,
+                        runtime.inner.vault.as_ref(),
+                    )
+                })
+                .await?;
+            self.inner
+                .tasks
+                .until_closing(IndexerProvider::grab_release(
+                    &self.inner.indexer_adapter,
+                    connection,
+                    request,
+                ))
+                .await
+        }
         .await;
         if !response.as_ref().is_ok_and(|response| response.accepted) {
             self.sent_releases().remove(&key);
@@ -327,19 +348,28 @@ impl RemoteSourceRuntime {
         self.sent_releases().clear();
     }
 
-    // Reading or writing the connection can wait on an OS credential prompt,
-    // so both run on a blocking thread and never stall the caller's executor.
-    pub(crate) async fn get_indexer_connection(&self) -> Result<types::RemoteIndexerConnection> {
+    /// Runs vault reads or writes on a blocking thread and waits for them, so
+    /// an OS keyring prompt blocks that thread and not the executor. Callers
+    /// must not wrap this in `until_closing`: that would drop a started read.
+    async fn vault_blocking<T: Send + 'static>(
+        &self,
+        work: impl FnOnce(&RemoteSourceRuntime) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
         let runtime = self.clone();
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "joined by get_indexer_connection"
-        )]
-        let read = tokio::task::spawn_blocking(move || {
-            IndexerProvider::get_connection(&runtime.inner.config_dir, runtime.inner.vault.as_ref())
-        });
+        let read = self.inner.tasks.admit(|| {
+            #[expect(clippy::disallowed_methods, reason = "joined by vault_blocking")]
+            let read = tokio::task::spawn_blocking(move || work(&runtime));
+            read
+        })?;
         read.await
             .map_err(|error| AppError::General(error.to_string()))?
+    }
+
+    pub(crate) async fn get_indexer_connection(&self) -> Result<types::RemoteIndexerConnection> {
+        self.vault_blocking(|runtime| {
+            IndexerProvider::get_connection(&runtime.inner.config_dir, runtime.inner.vault.as_ref())
+        })
+        .await
     }
 
     /// Saves the connection. Refused while a search or grab runs; releases
@@ -355,34 +385,37 @@ impl RemoteSourceRuntime {
             )
         })?;
         self.forget_sent_releases();
-        let runtime = self.clone();
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "joined by update_indexer_connection"
-        )]
-        let write = tokio::task::spawn_blocking(move || {
+        self.vault_blocking(move |runtime| {
             IndexerProvider::update_connection(
                 &runtime.inner.config_dir,
                 runtime.inner.vault.as_ref(),
                 update,
             )
-        });
-        write
-            .await
-            .map_err(|error| AppError::General(error.to_string()))?
+        })
+        .await
     }
 
     pub(crate) async fn test_indexer_connection(
         &self,
         update: types::RemoteIndexerConnectionUpdate,
     ) -> Result<types::RemoteIndexerConnectionTestResult> {
-        IndexerProvider::test_connection(
-            &self.inner.config_dir,
-            self.inner.vault.as_ref(),
-            &self.inner.indexer_adapter,
-            update,
-        )
-        .await
+        let (base_url, api_key) = self
+            .vault_blocking(move |runtime| {
+                IndexerProvider::draft_credentials(
+                    &runtime.inner.config_dir,
+                    runtime.inner.vault.as_ref(),
+                    update,
+                )
+            })
+            .await?;
+        self.inner
+            .tasks
+            .until_closing(IndexerProvider::test_connection(
+                &self.inner.indexer_adapter,
+                base_url,
+                api_key,
+            ))
+            .await
     }
 
     pub(crate) async fn start_acquisition(
@@ -820,6 +853,51 @@ pub(crate) mod tests {
             matches!(save, Err(AppError::InvalidInput(message)) if message.contains("search or grab"))
         );
         drop(searching);
+    }
+
+    struct ReadCountingVault(Arc<std::sync::atomic::AtomicUsize>);
+
+    impl vault::SecretVault for ReadCountingVault {
+        fn get_secret(&self, _key: &str) -> Result<Option<SecretString>> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(None)
+        }
+
+        fn set_secret(&self, _key: &str, _value: SecretString) -> Result<()> {
+            Ok(())
+        }
+
+        fn delete_secret(&self, _key: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn no_credential_read_starts_once_the_engine_is_closing() {
+        let root = TempDir::new().expect("temp root");
+        std::fs::write(
+            root.path().join("indexer.toml"),
+            "url = \"http://indexer.test\"\ncategories = [3000]\n",
+        )
+        .expect("write connection");
+        let reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let runtime = test_runtime_with(
+            &root,
+            Some(Box::new(ReadCountingVault(reads.clone()))),
+            None,
+        );
+        runtime.inner.tasks.close();
+
+        let result = runtime
+            .search_releases(types::RemoteReleaseSearchRequest {
+                author: None,
+                title: Some("Example".to_string()),
+                query: None,
+            })
+            .await;
+
+        assert!(matches!(result, Err(AppError::Closing)));
+        assert_eq!(reads.load(std::sync::atomic::Ordering::SeqCst), 0);
     }
 
     #[test]

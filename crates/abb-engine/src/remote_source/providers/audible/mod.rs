@@ -158,10 +158,14 @@ impl AudibleProvider {
         vault.delete_secret(AUTH_SECRET_KEY)
     }
 
+    pub(in crate::remote_source) fn stored_auth(vault: &dyn SecretVault) -> Result<Auth> {
+        auth_from_vault(vault)
+    }
+
     pub(in crate::remote_source) async fn load_library(
-        vault: &dyn SecretVault,
+        auth: Auth,
     ) -> Result<RemoteLibraryResponse> {
-        let client = client_from_vault(vault)?;
+        let client = client_from_auth(auth)?;
         let titles = load_all_library_titles(&client).await?;
         Ok(RemoteLibraryResponse {
             provider_id: ProviderId::Audible,
@@ -171,7 +175,7 @@ impl AudibleProvider {
     }
 
     pub(in crate::remote_source) async fn acquire(
-        vault: &dyn SecretVault,
+        auth: Auth,
         materializer: &crate::remote_source::materializer::AaxcleanMaterializer,
         plan: &crate::remote_source::AcquisitionPlan,
         job_id: &str,
@@ -180,7 +184,7 @@ impl AudibleProvider {
         is_cancelled: impl Fn() -> bool,
     ) -> Result<crate::remote_source::AcquisitionJob> {
         acquire(
-            vault,
+            auth,
             materializer,
             plan,
             job_id,
@@ -273,10 +277,6 @@ pub(super) fn library_request_params(page: Option<u16>) -> Value {
         params["page"] = json!(page);
     }
     params
-}
-
-fn client_from_vault(vault: &dyn SecretVault) -> Result<AudibleClient> {
-    client_from_auth(auth_from_vault(vault)?)
 }
 
 pub(super) fn auth_from_vault(vault: &dyn SecretVault) -> Result<Auth> {
