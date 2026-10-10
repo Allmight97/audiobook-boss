@@ -131,6 +131,25 @@ fn store_unavailable(error: keyring_core::Error) -> AppError {
     AppError::ResourceCleanup(format!("Secure storage is unavailable: {error}"))
 }
 
+fn delete_entry(entry: keyring_core::Entry) -> Result<()> {
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+        Err(error) => Err(AppError::ResourceCleanup(format!(
+            "Failed to delete provider secret from secure storage: {error}"
+        ))),
+    }
+}
+
+/// A launch that finds no Secret Service falls back to keyutils, so a
+/// Disconnect also removes any keyutils copy left from such a launch.
+#[cfg(target_os = "linux")]
+fn keyutils_entry(service: &str, key: &str) -> Result<keyring_core::Entry> {
+    use keyring_core::api::CredentialStoreApi;
+    linux_keyutils_keyring_store::Store::new()
+        .and_then(|store| store.build(service, key, None))
+        .map_err(store_unavailable)
+}
+
 impl SecretVault for KeyringSecretVault {
     fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
         let entry = self.entry(key)?;
@@ -153,13 +172,10 @@ impl SecretVault for KeyringSecretVault {
     }
 
     fn delete_secret(&self, key: &str) -> Result<()> {
-        let entry = self.entry(key)?;
-        match entry.delete_credential() {
-            Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
-            Err(error) => Err(AppError::ResourceCleanup(format!(
-                "Failed to delete provider secret from secure storage: {error}"
-            ))),
-        }
+        delete_entry(self.entry(key)?)?;
+        #[cfg(target_os = "linux")]
+        delete_entry(keyutils_entry(&self.service, key)?)?;
+        Ok(())
     }
 
     fn survives_restart(&self) -> bool {
