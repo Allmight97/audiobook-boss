@@ -149,6 +149,10 @@ struct ProviderSearchOutput {
     diagnostics: Vec<MetadataLookupDiagnostic>,
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "joined by collect_provider_searches"
+)]
 async fn collect_provider_searches(
     client: &Client,
     search_query: &str,
@@ -253,6 +257,10 @@ async fn fetch_audnexus_with_audible(
             let client = client.clone();
             let region = region.to_string();
             let item = item.clone();
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "joined by fetch_audnexus_with_audible"
+            )]
             let handle = tokio::spawn(async move {
                 match fetch_audnexus_book(&client, &item.asin, &region).await {
                     Ok(result) => (result, false),

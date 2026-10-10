@@ -155,6 +155,7 @@ impl AaxcleanMaterializer {
             .stderr
             .take()
             .ok_or_else(|| materializer_failure("helper stderr"))?;
+        #[expect(clippy::disallowed_methods, reason = "joined by materialize")]
         let stderr_task = tokio::spawn(drain_helper_stderr(stderr));
 
         let stdout = child

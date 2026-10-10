@@ -54,6 +54,7 @@ mod streams;
 
 pub(crate) use streams::assess_preservation;
 pub(in crate::audio) use streams::inspect_audio_decoder;
+pub(crate) use streams::probe_builtin_audio_decoder;
 
 pub struct AudioExecutionRequest {
     context: ProcessingContext,
@@ -190,6 +191,7 @@ pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<P
         .collect()
 }
 
+#[expect(clippy::disallowed_methods, reason = "joined by execute_audio_engine")]
 pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<String> {
     if request.handling == AudioHandling::Preserve {
         return tokio::task::spawn_blocking(move || {

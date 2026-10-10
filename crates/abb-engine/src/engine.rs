@@ -39,7 +39,7 @@ impl EngineTasks {
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
         if self.is_closed() {
-            return Err(AppError::General("ABB is closing.".into()));
+            return Err(AppError::Closing);
         }
         Ok(register())
     }
@@ -71,11 +71,11 @@ impl EngineTasks {
     ) -> Result<T> {
         tokio::select! {
             result = work => result,
-            () = self.closing.cancelled() => Err(AppError::General("ABB is closing.".into())),
+            () = self.closing.cancelled() => Err(AppError::Closing),
         }
     }
 
-    pub(crate) fn is_closed(&self) -> bool {
+    fn is_closed(&self) -> bool {
         self.tracker.is_closed()
     }
 
@@ -404,6 +404,10 @@ impl Engine {
 
     // ---- Metadata ----
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by Engine::read_audio_metadata"
+    )]
     pub async fn read_audio_metadata(&self, file_path: String) -> Result<AudiobookMetadata> {
         tokio::task::spawn_blocking(move || {
             let validated_path = audio::validate_input_audio_path(&PathBuf::from(&file_path))?;

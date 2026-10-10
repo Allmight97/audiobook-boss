@@ -161,11 +161,16 @@ mod tests {
         let arrivals = [2, 0, 1].map(|sequence| {
             let order = Arc::clone(&order);
             let ran = Arc::clone(&ran);
-            tokio::spawn(async move {
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "joined by intents_that_arrive_out_of_order_run_in_the_order_sent"
+            )]
+            let intent = tokio::spawn(async move {
                 let turn = order.turn(1, sequence).await.expect("its turn");
                 ran.lock().expect("ran").push(sequence);
                 drop(turn);
-            })
+            });
+            intent
         });
         for arrival in arrivals {
             arrival.await.expect("intent ran");
@@ -201,11 +206,16 @@ mod tests {
         let later = [2, 1].map(|sequence| {
             let order = Arc::clone(&order);
             let ran = Arc::clone(&ran);
-            tokio::spawn(async move {
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "joined by a_waiting_or_running_intent_is_never_skipped"
+            )]
+            let intent = tokio::spawn(async move {
                 let turn = order.turn(1, sequence).await.expect("its turn");
                 ran.lock().expect("ran").push(sequence);
                 drop(turn);
-            })
+            });
+            intent
         });
         tokio::time::sleep(super::MISSING_INTENT_WAIT * 3).await;
         assert!(ran.lock().expect("ran").is_empty(), "intent 0 still runs");
@@ -221,6 +231,10 @@ mod tests {
     async fn an_intent_from_a_replaced_frontend_is_refused() {
         let order = Arc::new(IntentOrder::default());
         order.attach(1);
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by an_intent_from_a_replaced_frontend_is_refused"
+        )]
         let late = tokio::spawn({
             let order = Arc::clone(&order);
             async move { order.turn(1, 3).await.err() }

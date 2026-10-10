@@ -88,6 +88,20 @@ describe('input owner', () => {
 		expect(await select()).toBe(false);
 	});
 
+	it('addresses selection by the title the user clicked', async () => {
+		const app = await open();
+		const clicked = audioFile('/books/b.m4b');
+		engine.loadTitles([audioFile('/books/a.m4b'), clicked]);
+		await app.input.selectFile({ index: 1, modifiers: { multi: false, range: false } });
+		expect(engine.sessionIntents.filter((intent) => intent.kind === 'selectFile')).toEqual([
+			{
+				kind: 'selectFile',
+				titleId: clicked.inputId,
+				modifiers: { multi: false, range: false },
+			},
+		]);
+	});
+
 	it('addresses removal by the title the user clicked', async () => {
 		const app = await open();
 		const clicked = audioFile('/books/a.m4b');

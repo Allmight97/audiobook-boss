@@ -37,8 +37,8 @@ One bullet per view. A view without a bullet has no trap beyond its owner.
   user picks a common format before editing encoder fields. Encoder fields show
   only under User Preference.
 - `fileList`: every selection-changing action awaits an Input intent so the
-  engine's draft gate runs. Removal passes the title's identity, never its
-  position. The listbox owns keyboard handling; rows are not tab stops.
+  engine's draft gate runs. Removal and selection pass the title's identity,
+  never its position. The listbox owns keyboard handling; rows are not tab stops.
   `pointerReorder.ts` serves the outer list and `TitleSources`, and removes its
   listeners on dispose and on `pointercancel`. `AudioHandlingControl` renders
   in a portal that overlays the list without changing row height; hover or

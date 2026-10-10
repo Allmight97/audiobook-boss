@@ -76,8 +76,11 @@ pub enum SessionIntent {
     Import {
         paths: Vec<String>,
     },
+    /// Selects the named title. Identity is resolved against the list as it
+    /// is when the intent applies, so a queued reorder cannot retarget the click.
+    #[serde(rename_all = "camelCase")]
     SelectFile {
-        index: usize,
+        title_id: String,
         modifiers: SelectionModifiers,
     },
     SelectAll,
@@ -230,6 +233,9 @@ pub enum SessionIntent {
     LookupSearch,
     LookupApply {
         index: usize,
+        /// Lookup part revision the host rendered; a mismatch changes nothing.
+        #[specta(type = specta_typescript::Number)]
+        revision: u64,
     },
     LookupSkip,
     LookupSetTitleQuery {
@@ -426,16 +432,21 @@ enum Rest {
     /// Record a choice in the settings, unless they were reset since `resets`.
     Remember(SettingsRun),
     /// Preflight, review, then export or preview.
-    Submit(Box<Draft>),
+    Submit {
+        draft: Box<Draft>,
+        resets: u64,
+    },
     /// Continue a reviewed submission under `policy`.
     Reviewed {
         draft: Box<Draft>,
         policy: CollisionPolicy,
+        resets: u64,
     },
     /// Stop a title's export, then submit `draft` (that title alone).
     Restart {
         draft: Box<Draft>,
         link: Box<ExportLink>,
+        resets: u64,
     },
     Save {
         epoch: u64,
@@ -530,13 +541,21 @@ impl Session {
                     _ => SessionOutcome::Applied,
                 }
             }
-            Rest::Submit(draft) => session.submit(*draft).await,
-            Rest::Reviewed { mut draft, policy } => {
+            Rest::Submit { draft, resets } => session.submit(*draft, resets).await,
+            Rest::Reviewed {
+                mut draft,
+                policy,
+                resets,
+            } => {
                 draft.payload.collision_policy = Some(policy);
-                session.submit(*draft).await
+                session.submit(*draft, resets).await
             }
             Rest::Save { epoch, plan } => session.save(epoch, plan).await,
-            Rest::Restart { draft, link } => session.restart(*draft, *link).await,
+            Rest::Restart {
+                draft,
+                link,
+                resets,
+            } => session.restart(*draft, *link, resets).await,
             Rest::KeepLocation {
                 title_id,
                 revision,
@@ -687,6 +706,7 @@ impl Session {
         self.inner.deps.tasks.spawn(async move {
             for ticket in tickets {
                 let resolving = ticket.clone();
+                #[expect(clippy::disallowed_methods, reason = "joined by resolve_plans")]
                 let result = tokio::task::spawn_blocking(move || resolving.resolve())
                     .await
                     .unwrap_or_else(|error| Err(error.to_string().into()));
@@ -849,9 +869,10 @@ impl Session {
         match intent {
             I::Remote { intent } => Rest::Remote(self.inner.deps.remote.ui_begin(intent)),
             I::Import { paths } => self.begin_import(paths),
-            I::SelectFile { index, modifiers } => {
-                self.change_selection(|set| set.select_file(index, modifiers))
-            }
+            I::SelectFile {
+                title_id,
+                modifiers,
+            } => self.begin_select_file(title_id, modifiers),
             I::SelectAll => self.change_selection(WorkingSet::select_all),
             I::ClearSelection => self.change_selection(WorkingSet::clear_selection),
             I::RemoveFile { input_id } => self.change_selection(|set| {
@@ -979,6 +1000,7 @@ impl Session {
                     Some(draft) => Rest::Reviewed {
                         draft: Box::new(draft),
                         policy,
+                        resets: self.inner.resets.load(Ordering::SeqCst),
                     },
                     None => Rest::Done(SessionOutcome::Superseded),
                 }
@@ -1017,7 +1039,7 @@ impl Session {
             I::LookupSearch => Rest::LookupSearch {
                 request: self.begin_lookup_action(),
             },
-            I::LookupApply { index } => self.begin_lookup_apply(index),
+            I::LookupApply { index, revision } => self.begin_lookup_apply(index, revision),
             I::LookupSkip => Rest::LookupAdvance {
                 request: self.begin_lookup_action(),
                 step: QueueStep::Skipped,
@@ -1042,6 +1064,32 @@ impl Session {
     fn edit_titles(&self, change: impl FnOnce(&mut WorkingSet)) -> Rest {
         self.transition(|state| change(&mut state.working_set));
         Rest::Done(SessionOutcome::Applied)
+    }
+
+    /// Selects the named title against the list as it is now. An unknown id
+    /// changes nothing and does not run the draft gate.
+    fn begin_select_file(&self, title_id: String, modifiers: SelectionModifiers) -> Rest {
+        let bound = self.transition(|state| {
+            if state.working_set.index_of(&title_id).is_none() {
+                return Ok(None);
+            }
+            state.gate()?;
+            state.working_set.select_title(&title_id, modifiers);
+            Ok(Some(Bound {
+                reads: state.rebind(),
+                binding: state.binding,
+            }))
+        });
+        match bound {
+            Ok(None) => Rest::Done(SessionOutcome::Applied),
+            Ok(Some(bound)) => Rest::Reads(bound),
+            Err(GateBlock::SaveInProgress) => {
+                Rest::Done(SessionOutcome::DraftRejected { message: None })
+            }
+            Err(GateBlock::Invalid(message)) => Rest::Done(SessionOutcome::DraftRejected {
+                message: Some(message),
+            }),
+        }
     }
 
     /// A change that may move the selection: the draft gate accepts the edits
@@ -1304,23 +1352,19 @@ impl Session {
     // ---- Export ----
 
     fn begin_submission(&self, preview_seconds: Option<f64>) -> Rest {
-        let closing = self.inner.deps.tasks.is_closed();
-        let draft = self.transition(|state| {
-            if closing {
-                state.refuse_submission(SubmitRefusal::Closing);
-                return None;
-            }
-            state.begin_submission(preview_seconds)
-        });
+        let draft = self.transition(|state| state.begin_submission(preview_seconds));
         match draft {
-            Some(draft) => Rest::Submit(Box::new(draft)),
+            Some(draft) => Rest::Submit {
+                draft: Box::new(draft),
+                resets: self.inner.resets.load(Ordering::SeqCst),
+            },
             None => Rest::Done(SessionOutcome::Applied),
         }
     }
 
     /// Preflights a draft, holds it for review when outputs collide, then
     /// exports or previews it.
-    async fn submit(&self, draft: Draft) -> SessionOutcome {
+    async fn submit(&self, draft: Draft, resets: u64) -> SessionOutcome {
         self.publish();
         let checking = draft.clone();
         let plan = blocking(move || {
@@ -1360,9 +1404,9 @@ impl Session {
                 self.end_submission(&draft, SubmissionStatus::Blocked { message })
             }
             PlanVerdict::Review(outputs) if draft.payload.collision_policy.is_none() => {
-                self.hold_for_review(draft, outputs)
+                self.hold_for_review(draft, outputs, resets)
             }
-            _ if unreviewed => self.hold_for_review(draft, collided),
+            _ if unreviewed => self.hold_for_review(draft, collided, resets),
             PlanVerdict::Review(_) | PlanVerdict::Proceed => {
                 self.accept(
                     draft.approved(public.collision_policy, public.plan_signature),
@@ -1374,25 +1418,38 @@ impl Session {
     }
 
     /// Holds a draft for the user's collision choice, unless the engine is
-    /// closing: checked under the session lock, so shutdown's cancel of
-    /// reviews either finds this one or this sees shutdown.
+    /// closing or a Reset superseded this submit. Closing is registered under
+    /// admit, so shutdown's cancel of reviews either finds this one or this
+    /// sees shutdown. A Reset during preflight drops the preflight and
+    /// unlocks the list.
     fn hold_for_review(
         &self,
         draft: Draft,
         outputs: Vec<crate::output_artifact::PlannedOutput>,
+        resets: u64,
     ) -> SessionOutcome {
-        let closing_now = self.transition(|state| {
-            if self.inner.deps.tasks.is_closed() {
-                state.finish_submission(&draft, closing());
-                return true;
+        let closing_draft = draft.clone();
+        match self.inner.deps.tasks.admit(|| {
+            self.transition(|state| {
+                if self.inner.resets.load(Ordering::SeqCst) != resets {
+                    state.finish_submission(&draft, SubmissionStatus::Cancelled);
+                    return true;
+                }
+                state.await_review(draft, outputs);
+                false
+            })
+        }) {
+            Ok(true) => {
+                self.sources_released();
+                SessionOutcome::Applied
             }
-            state.await_review(draft, outputs);
-            false
-        });
-        if closing_now {
-            self.sources_released();
+            Ok(false) => SessionOutcome::Applied,
+            Err(_) => {
+                self.transition(|state| state.finish_submission(&closing_draft, closing()));
+                self.sources_released();
+                SessionOutcome::Applied
+            }
         }
-        SessionOutcome::Applied
     }
 
     async fn accept(
@@ -1442,7 +1499,7 @@ impl Session {
                     title: draft.title.clone(),
                 }
             }
-            Err(_) if deps.tasks.is_closed() => closing(),
+            Err(AppError::Closing) => closing(),
             Err(error) => failed(&error),
         };
         self.end_submission(&draft, status)
@@ -1471,15 +1528,22 @@ impl Session {
             }
         }
         let artwork = super::preview::PreviewArtwork::from_plan(&inspected);
-        // Checked after the flags are visible, so shutdown either sees
+        // Admitted after the flags are visible, so shutdown either sees
         // this preview to cancel or the preview sees shutdown.
-        if deps.tasks.is_closed() {
+        if self
+            .inner
+            .deps
+            .tasks
+            .admit(|| {
+                self.transition(|state| {
+                    state.preview.artwork = artwork;
+                    state.start_preview(&id);
+                });
+            })
+            .is_err()
+        {
             return self.end_submission(&draft, closing());
         }
-        self.transition(|state| {
-            state.preview.artwork = artwork;
-            state.start_preview(&id);
-        });
         self.publish();
         let result = process_inspected_with_options(
             &_active_run,
@@ -1834,18 +1898,12 @@ impl Session {
     }
 
     fn begin_restart(&self, title_id: &str, revision: u64) -> Rest {
-        let closing = self.inner.deps.tasks.is_closed();
-        let started = self.transition(|state| {
-            if closing {
-                state.refuse_submission(SubmitRefusal::Closing);
-                return None;
-            }
-            state.begin_restart(title_id, revision)
-        });
+        let started = self.transition(|state| state.begin_restart(title_id, revision));
         match started {
             Some((draft, link)) => Rest::Restart {
                 draft: Box::new(draft),
                 link: Box::new(link),
+                resets: self.inner.resets.load(Ordering::SeqCst),
             },
             None => Rest::Done(SessionOutcome::Applied),
         }
@@ -1853,7 +1911,7 @@ impl Session {
 
     /// Stops the title's export, then submits it again from the session. A
     /// title that published first keeps its output, which takes the edit.
-    async fn restart(&self, draft: Draft, link: ExportLink) -> SessionOutcome {
+    async fn restart(&self, draft: Draft, link: ExportLink, resets: u64) -> SessionOutcome {
         self.publish();
         let deps = &self.inner.deps;
         let published = deps
@@ -1861,7 +1919,7 @@ impl Session {
             .stop_title(&deps.host, &link.operation_id, link.index, &link.title)
             .await;
         if !published {
-            return self.submit(draft).await;
+            return self.submit(draft, resets).await;
         }
         let edits = self.transition(|state| {
             let tags = &state.tags;
@@ -1970,7 +2028,10 @@ impl Session {
     // ---- Lookup ----
 
     fn edit_lookup(&self, change: impl FnOnce(&mut lookup::LookupState)) -> Rest {
-        self.transition(|state| change(&mut state.lookup));
+        self.transition(|state| {
+            change(&mut state.lookup);
+            state.lookup.request += 1;
+        });
         Rest::Done(SessionOutcome::Applied)
     }
 
@@ -2094,9 +2155,11 @@ impl Session {
         Ok(true)
     }
 
-    fn begin_lookup_apply(&self, index: usize) -> Rest {
-        let request = self.begin_lookup_action();
+    fn begin_lookup_apply(&self, index: usize, revision: u64) -> Rest {
         let chosen = self.transition(|state| {
+            if state.lookup_revision() != revision {
+                return None;
+            }
             let result = state.lookup.results.get(index)?.clone();
             let Some(title) = state.lookup.current().cloned() else {
                 state.lookup.status = Some(LookupStatus::NoTitleQueued);
@@ -2112,7 +2175,7 @@ impl Session {
         });
         match chosen {
             Some(chosen) => Rest::LookupApply {
-                request,
+                request: self.begin_lookup_action(),
                 chosen: Box::new(chosen),
             },
             None => Rest::Done(SessionOutcome::Applied),
@@ -2319,6 +2382,7 @@ fn now() -> std::time::Instant {
     tokio::time::Instant::now().into_std()
 }
 
+#[expect(clippy::disallowed_methods, reason = "joined by blocking")]
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T> + Send + 'static,
 ) -> Result<T> {
@@ -2338,12 +2402,14 @@ async fn read_all(tickets: Vec<ReadTicket>) -> Vec<(ReadTicket, Result<Audiobook
         .into_iter()
         .map(|ticket| {
             let limit = Arc::clone(&limit);
-            tokio::spawn(async move {
+            #[expect(clippy::disallowed_methods, reason = "joined by read_all")]
+            let read = tokio::spawn(async move {
                 let _permit = limit.acquire_owned().await;
                 let path = ticket.path.clone();
                 let result = blocking(move || read_tags(&path)).await;
                 (ticket, result)
-            })
+            });
+            read
         })
         .collect();
     let mut finished = Vec::with_capacity(reads.len());

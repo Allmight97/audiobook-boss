@@ -573,7 +573,7 @@ install_rust_packages() {
 	if is_linux; then
 		install_linux_packages
 	elif is_darwin; then
-		brew_pkgs opus pkg-config nasm ffmpeg shellcheck actionlint
+		brew_pkgs opus pkg-config nasm shellcheck actionlint
 	else
 		printf 'error: setup.sh supports Linux and macOS\n' >&2
 		exit 1

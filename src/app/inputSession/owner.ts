@@ -165,8 +165,16 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 				changed();
 			} catch {}
 		},
+		// Positions are read from the list the user acted on; the engine is
+		// told which title, so an earlier reorder still in flight cannot retarget it.
 		selectFile(command) {
-			return applied({ kind: 'selectFile', index: command.index, modifiers: command.modifiers });
+			const file = link.titles().files[command.index];
+			if (!file) return Promise.resolve(false);
+			return applied({
+				kind: 'selectFile',
+				titleId: fileIdentityKey(file),
+				modifiers: command.modifiers,
+			});
 		},
 		async selectAll() {
 			await link.send({ kind: 'selectAll' });

@@ -1055,7 +1055,12 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  *  Discovers and analyzes audio under `paths` and adds new titles, each
  *  starting from the default audio choice.
  */
-{ kind: "import"; paths: string[] } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } |
+{ kind: "import"; paths: string[] } |
+/**
+ *  Selects the named title. Identity is resolved against the list as it
+ *  is when the intent applies, so a queued reorder cannot retarget the click.
+ */
+{ kind: "selectFile"; titleId: string; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } |
 /**
  *  Moves a title one place. Named by identity, so a second click sent
  *  before the first is answered moves the same title again.
@@ -1098,7 +1103,9 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 /**  Gives each named title the default audio choice. */
 { kind: "applyDefaultAudio"; titleIds: string[] } | { kind: "setField"; field: MetadataField; value: string } | { kind: "setFieldAction"; field: MetadataField; action: FieldAction } | { kind: "loadCoverFromFile"; path: string } | { kind: "loadCoverFromDrop"; paths: string[] } | { kind: "loadCoverFromUrl"; url: string } | { kind: "clearCover" } |
 /**  Writes every pending edit that can be written now. */
-{ kind: "save" } | { kind: "lookupOpen" } | { kind: "lookupClose" } | { kind: "lookupSearch" } | { kind: "lookupApply"; index: number } | { kind: "lookupSkip" } | { kind: "lookupSetTitleQuery"; value: string } | { kind: "lookupSetAuthorQuery"; value: string } | { kind: "lookupSetSource"; source: LookupSource } | { kind: "lookupSetApplyMode"; mode: LookupApplyMode } | { kind: "lookupSetReplaceCover"; replace: boolean };
+{ kind: "save" } | { kind: "lookupOpen" } | { kind: "lookupClose" } | { kind: "lookupSearch" } | { kind: "lookupApply"; index: number;
+/**  Lookup part revision the host rendered; a mismatch changes nothing. */
+revision: number } | { kind: "lookupSkip" } | { kind: "lookupSetTitleQuery"; value: string } | { kind: "lookupSetAuthorQuery"; value: string } | { kind: "lookupSetSource"; source: LookupSource } | { kind: "lookupSetApplyMode"; mode: LookupApplyMode } | { kind: "lookupSetReplaceCover"; replace: boolean };
 
 /**  Whether an intent took effect. Details a user needs are in the snapshot. */
 export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } | { kind: "remoteAuthStarted"; authorization: RemoteAuthStartResponse } |

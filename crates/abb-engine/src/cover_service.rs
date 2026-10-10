@@ -162,6 +162,7 @@ impl CoverService {
     }
 }
 
+#[expect(clippy::disallowed_methods, reason = "joined by blocking")]
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T> + Send + 'static,
 ) -> Result<T> {

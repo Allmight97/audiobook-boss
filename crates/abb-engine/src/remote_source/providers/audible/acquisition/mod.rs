@@ -372,6 +372,99 @@ pub(super) fn unsupported_result_for_unmaterializable_lane(
     }
 }
 
+/// Drives protected-download materialization the way acquisition does, including
+/// the MaterializationFailed mapping, so the decrypt lane can prove a wrong
+/// key without standing up a license request.
+#[cfg(test)]
+#[derive(Debug)]
+pub(crate) struct ProtectedMaterializationRun {
+    pub output: std::path::PathBuf,
+    pub partial: std::path::PathBuf,
+}
+
+#[cfg(test)]
+pub(crate) async fn run_protected_materialization(
+    downloaded_path: &Path,
+    item_dir: &Path,
+    secret: &crate::remote_source::materializer::AaxcleanSecret,
+) -> std::result::Result<
+    ProtectedMaterializationRun,
+    (RemoteSourceDiagnostic, ProtectedMaterializationRun),
+> {
+    let title_id = "B0DECRYPT";
+    let title_name = "Synthetic Book";
+    let output = staged_materialized_path(item_dir, Some(title_name), title_id);
+    let partial = crate::remote_source::scoped_output::partial_sibling(&output);
+    let run = ProtectedMaterializationRun {
+        output: output.clone(),
+        partial,
+    };
+    let ctx = TitleAcquisitionCtx {
+        job_id: "decrypt-job",
+        title_id,
+        item_id: "decrypt-op",
+        item_dir,
+        progress_context: TitleProgressContext {
+            title_id,
+            item_index: 1,
+            total_items: 1,
+        },
+    };
+    let materializer = AaxcleanMaterializer::new_for_helper(None);
+    match materialize_protected_download(
+        &materializer,
+        downloaded_path,
+        Some(title_name),
+        &license_lane_for_secret(secret),
+        ctx,
+        &mut |_| {},
+        &|| false,
+    )
+    .await
+    {
+        Ok(source) => {
+            assert_eq!(source.path, output, "materialized path");
+            Ok(run)
+        }
+        Err(error) => Err((
+            AudibleAcquisitionError::materialization(error)
+                .into_diagnostic(Some(title_id.to_string())),
+            run,
+        )),
+    }
+}
+
+#[cfg(test)]
+fn license_lane_for_secret(
+    secret: &crate::remote_source::materializer::AaxcleanSecret,
+) -> LicenseLane {
+    use crate::remote_source::materializer::AaxcleanSecret;
+
+    let (strategy, decryption_material) = match secret {
+        AaxcleanSecret::Aax {
+            activation_bytes_hex,
+        } => (
+            AcquisitionStrategy::DownloadThenDecryptAax,
+            abb_audible_core::AudibleDecryptionMaterial::Aax {
+                activation_bytes_hex: activation_bytes_hex.clone(),
+            },
+        ),
+        AaxcleanSecret::Aaxc { key_hex, iv_hex } => (
+            AcquisitionStrategy::DownloadThenDecryptAaxc,
+            abb_audible_core::AudibleDecryptionMaterial::Aaxc {
+                key_hex: key_hex.clone(),
+                iv_hex: iv_hex.clone(),
+            },
+        ),
+    };
+    LicenseLane {
+        content_url: String::new(),
+        strategy,
+        decryption_material: Some(decryption_material),
+        supplemental_pdf_url: None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

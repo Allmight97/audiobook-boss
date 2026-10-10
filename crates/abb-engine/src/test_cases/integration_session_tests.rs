@@ -872,8 +872,11 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
     })
     .await;
     // Different titles, so the two exports do not collide with each other.
+    let beta_id = desk.engine.session_snapshot().titles.expect("titles").files[1]
+        .input_id
+        .clone();
     desk.send(SessionIntent::SelectFile {
-        index: 1,
+        title_id: beta_id,
         modifiers: abb_engine::session::SelectionModifiers::default(),
     })
     .await;

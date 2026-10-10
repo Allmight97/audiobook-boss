@@ -275,12 +275,24 @@ impl Rig {
         self.session.dispatch(intent).await.outcome
     }
 
+    fn title_id(&self, index: usize) -> String {
+        self.session
+            .snapshot()
+            .titles
+            .expect("titles")
+            .files
+            .get(index)
+            .expect("title")
+            .input_id
+            .clone()
+    }
+
     async fn select(&self, indices: &[usize]) {
         self.send(SessionIntent::ClearSelection).await;
         for index in indices {
             let outcome = self
                 .send(SessionIntent::SelectFile {
-                    index: *index,
+                    title_id: self.title_id(*index),
                     modifiers: SelectionModifiers {
                         multi: true,
                         range: false,
@@ -341,6 +353,13 @@ impl Rig {
 
     fn searches(&self) -> Vec<Search> {
         self.searches.lock().expect("searches").clone()
+    }
+
+    fn lookup_apply(&self, index: usize) -> SessionIntent {
+        SessionIntent::LookupApply {
+            index,
+            revision: self.lookup().revision,
+        }
     }
 }
 
@@ -403,6 +422,10 @@ async fn the_open_lookup_is_published_before_its_search_answers() {
     rig.select(&[0]).await;
     let answer = rig.hold_next_search();
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by the_open_lookup_is_published_before_its_search_answers"
+    )]
     let opening = tokio::spawn({
         let session = rig.session.clone();
         async move { session.dispatch(SessionIntent::LookupOpen).await }
@@ -510,6 +533,10 @@ async fn a_newer_search_keeps_its_results_when_an_earlier_one_answers_last() {
     rig.select(&[0]).await;
     rig.send(SessionIntent::LookupOpen).await;
     let slow = rig.hold_next_search();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by a_newer_search_keeps_its_results_when_an_earlier_one_answers_last"
+    )]
     let earlier = tokio::spawn({
         let session = rig.session.clone();
         async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
@@ -540,7 +567,7 @@ async fn applying_to_the_current_title_edits_its_form_and_stays_on_it() {
     rig.send(SessionIntent::LookupOpen).await;
     let searched = rig.searches().len();
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     assert_eq!(rig.title_shown(), "Found");
     assert_eq!(
@@ -567,7 +594,7 @@ async fn applying_in_a_queue_stages_the_edit_moves_on_and_searches_the_next_titl
     rig.send(SessionIntent::LookupOpen).await;
     rig.answer_next_search(Ok(found(&["Found B"])));
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     assert_eq!(
         rig.pending("alpha"),
@@ -605,7 +632,7 @@ async fn replacing_the_cover_stages_the_result_image_with_the_text() {
     rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
         .await;
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     assert_eq!(
         rig.pending("alpha").and_then(|patch| patch.cover_art),
@@ -632,7 +659,7 @@ async fn applying_a_result_reuses_the_cover_its_preview_downloaded() {
 
     rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
         .await;
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     assert_eq!(rig.session.cover_art(), Some(written_cover()));
     assert_eq!(
@@ -652,7 +679,7 @@ async fn a_cover_that_fails_to_load_does_not_stop_the_text_from_applying() {
         .await;
     *rig.cover.lock().expect("cover") = Err(AppError::General("unreachable".to_string()));
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     let alpha = rig.pending("alpha").expect("text applied");
     assert_eq!(alpha.title, Some(PatchOp::Set("Found A".to_string())));
@@ -709,7 +736,7 @@ async fn a_result_the_gate_rejects_keeps_the_queue_on_its_title() {
     rig.send(SessionIntent::LookupOpen).await;
     let searched = rig.searches().len();
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     let lookup = rig.lookup();
     assert_eq!(lookup.status, Some(LookupStatus::NextTitleRejected));
@@ -738,7 +765,7 @@ async fn a_result_is_not_applied_when_its_title_cannot_be_selected() {
     })
     .await;
 
-    rig.send(SessionIntent::LookupApply { index: 0 }).await;
+    rig.send(rig.lookup_apply(0)).await;
 
     assert_eq!(rig.lookup().status, Some(LookupStatus::ApplyRejected));
     assert_eq!(rig.selected(), [1]);
@@ -754,10 +781,199 @@ async fn an_unknown_result_index_changes_nothing() {
     rig.send(SessionIntent::LookupOpen).await;
     let before = rig.lookup();
 
-    rig.send(SessionIntent::LookupApply { index: 9 }).await;
+    rig.send(rig.lookup_apply(9)).await;
 
     assert_eq!(rig.lookup().status, before.status);
     assert_eq!(rig.title_shown(), "ALPHA");
+}
+
+#[tokio::test]
+async fn an_unknown_select_file_title_id_changes_nothing() {
+    let rig = rig();
+    rig.load(&["alpha", "beta"]);
+    rig.select(&[0]).await;
+    rig.send(SessionIntent::SetField {
+        field: MetadataField::Date,
+        value: "soon".to_string(),
+    })
+    .await;
+    let before = rig.selected();
+
+    let outcome = rig
+        .send(SessionIntent::SelectFile {
+            title_id: "nobody".into(),
+            modifiers: SelectionModifiers::default(),
+        })
+        .await;
+
+    assert_eq!(outcome, SessionOutcome::Applied);
+    assert_eq!(rig.selected(), before);
+    assert_eq!(rig.title_shown(), "ALPHA");
+}
+
+#[tokio::test]
+async fn a_select_file_begun_after_a_reorder_still_targets_the_same_title() {
+    let rig = rig();
+    rig.load(&["alpha", "beta", "gamma"]);
+    // beta is at index 1. Reorder first so that index would now name gamma.
+    let reorder = rig.session.begin(SessionIntent::ReorderFiles {
+        title_id: "alpha".into(),
+        to: 2,
+    });
+    let select = rig.session.begin(SessionIntent::SelectFile {
+        title_id: "beta".into(),
+        modifiers: SelectionModifiers::default(),
+    });
+    reorder.finish().await;
+    select.finish().await;
+
+    let titles = rig.session.snapshot().titles.expect("titles");
+    assert_eq!(
+        titles
+            .files
+            .iter()
+            .map(|file| file.input_id.as_str())
+            .collect::<Vec<_>>(),
+        ["beta", "gamma", "alpha"]
+    );
+    assert_eq!(
+        rig.selected()
+            .into_iter()
+            .map(|index| titles.files[index].input_id.as_str())
+            .collect::<Vec<_>>(),
+        ["beta"]
+    );
+}
+
+#[tokio::test]
+async fn range_selection_resolves_anchor_and_target_by_id_after_a_reorder() {
+    let rig = rig();
+    rig.load(&["alpha", "beta", "gamma", "delta"]);
+    rig.send(SessionIntent::SelectFile {
+        title_id: "beta".into(),
+        modifiers: SelectionModifiers::default(),
+    })
+    .await;
+    rig.send(SessionIntent::ReorderFiles {
+        title_id: "alpha".into(),
+        to: 3,
+    })
+    .await;
+    rig.send(SessionIntent::SelectFile {
+        title_id: "delta".into(),
+        modifiers: SelectionModifiers {
+            multi: false,
+            range: true,
+        },
+    })
+    .await;
+
+    let titles = rig.session.snapshot().titles.expect("titles");
+    assert_eq!(
+        titles
+            .files
+            .iter()
+            .map(|file| file.input_id.as_str())
+            .collect::<Vec<_>>(),
+        ["beta", "gamma", "delta", "alpha"]
+    );
+    assert_eq!(
+        rig.selected()
+            .into_iter()
+            .map(|index| titles.files[index].input_id.as_str())
+            .collect::<Vec<_>>(),
+        ["beta", "gamma", "delta"]
+    );
+}
+
+#[tokio::test]
+async fn applying_a_result_does_not_use_an_index_into_replaced_results() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.answer_next_search(Ok(found(&["Old"])));
+    rig.send(SessionIntent::LookupOpen).await;
+    assert_eq!(rig.lookup().results[0].title, "Old");
+
+    let slow = rig.hold_next_search();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by applying_a_result_does_not_use_an_index_into_replaced_results"
+    )]
+    let searching = tokio::spawn({
+        let session = rig.session.clone();
+        async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
+    });
+    let searched = rig.searches().len();
+    while rig.searches().len() == searched {
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(rig.lookup().status, Some(LookupStatus::Searching));
+    assert_eq!(rig.lookup().results[0].title, "Old");
+    let rendered = rig.lookup().revision;
+
+    slow.send(Ok(found(&["New"])))
+        .unwrap_or_else(|_| panic!("search is waiting"));
+    assert_eq!(searching.await.expect("search"), SessionOutcome::Applied);
+    assert_eq!(rig.lookup().results[0].title, "New");
+
+    rig.send(SessionIntent::LookupApply {
+        index: 0,
+        revision: rendered,
+    })
+    .await;
+
+    assert_eq!(
+        rig.title_shown(),
+        "ALPHA",
+        "an apply that names the list the host rendered does not take an index into a later list"
+    );
+    assert_eq!(rig.lookup().results[0].title, "New");
+}
+
+#[tokio::test]
+async fn editing_the_lookup_query_drops_a_search_for_the_old_query() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.answer_next_search(Ok(found(&["First"])));
+    rig.send(SessionIntent::LookupOpen).await;
+    assert_eq!(rig.lookup().results[0].title, "First");
+
+    let slow = rig.hold_next_search();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by editing_the_lookup_query_drops_a_search_for_the_old_query"
+    )]
+    let earlier = tokio::spawn({
+        let session = rig.session.clone();
+        async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
+    });
+    let searched = rig.searches().len();
+    while rig.searches().len() == searched {
+        tokio::task::yield_now().await;
+    }
+
+    rig.send(SessionIntent::LookupSetTitleQuery {
+        value: "Changed".to_string(),
+    })
+    .await;
+    slow.send(Ok(found(&["Stale"])))
+        .unwrap_or_else(|_| panic!("earlier search is waiting"));
+
+    assert_eq!(
+        earlier.await.expect("earlier search"),
+        SessionOutcome::Superseded
+    );
+    assert_eq!(rig.lookup().title_query, "Changed");
+    assert!(
+        rig.lookup()
+            .results
+            .iter()
+            .all(|result| result.title != "Stale"),
+        "results for the old query must not land under the new query text: {:?}",
+        rig.lookup().results
+    );
 }
 
 // ---- Intents and what the host is told ----
@@ -794,7 +1010,7 @@ async fn a_rejected_selection_reports_why_and_leaves_the_selection() {
 
     let outcome = rig
         .send(SessionIntent::SelectFile {
-            index: 1,
+            title_id: rig.title_id(1),
             modifiers: SelectionModifiers::default(),
         })
         .await;
@@ -901,7 +1117,7 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
     // immediate effect applies as it begins; their remaining work is
     // finished in the opposite order.
     let select = rig.session.begin(SessionIntent::SelectFile {
-        index: 1,
+        title_id: rig.title_id(1),
         modifiers: SelectionModifiers::default(),
     });
     let edit = rig.session.begin(SessionIntent::SetField {
@@ -1009,6 +1225,10 @@ async fn a_host_that_attached_mid_intent_learns_its_result_from_an_event() {
     rig.send(SessionIntent::LookupOpen).await;
     let answer = rig.hold_next_search();
     let search = rig.session.begin(SessionIntent::LookupSearch);
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by a_host_that_attached_mid_intent_learns_its_result_from_an_event"
+    )]
     let finished = tokio::spawn(search.finish());
     tokio::task::yield_now().await;
 
@@ -1579,6 +1799,63 @@ async fn a_download_goes_once_its_title_is_exported() {
     );
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn reset_during_preflight_drops_the_review_and_unlocks_the_list() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let out = tempfile::TempDir::new().expect("output");
+    let audio = staged_wav(staging.path(), "book");
+    rig.session.import_acquired(acquired("job-1", &audio)).await;
+    rig.send(SessionIntent::SetOutputDirectory {
+        directory: out.path().to_string_lossy().into_owned(),
+    })
+    .await;
+    rig.send(SessionIntent::SetField {
+        field: MetadataField::Title,
+        value: "Book".to_string(),
+    })
+    .await;
+    let dest = preview_path(&rig);
+    if let Some(parent) = std::path::Path::new(&dest).parent() {
+        std::fs::create_dir_all(parent).expect("output parent");
+    }
+    std::fs::write(&dest, b"already there").expect("colliding output");
+
+    rig.send(SessionIntent::Submit).await;
+    assert!(
+        matches!(
+            output(&rig).submission,
+            Some(SubmissionStatus::ReviewRequired)
+        ),
+        "this output must collide so hold_for_review is reached: {:?}",
+        output(&rig).submission
+    );
+    let review_id = output(&rig)
+        .collision_review
+        .expect("held review")
+        .review_id;
+    rig.send(SessionIntent::CancelCollisionReview { review_id })
+        .await;
+    assert!(!rig.session.snapshot().titles.expect("titles").order_locked);
+
+    let submitting = rig.session.begin(SessionIntent::Submit);
+    let _reset = rig.session.begin(SessionIntent::Reset);
+    submitting.finish().await;
+
+    let titles = rig.session.snapshot().titles.expect("titles");
+    assert!(titles.files.is_empty());
+    assert!(
+        !titles.order_locked,
+        "a reset during preflight unlocks the list"
+    );
+    assert!(
+        output(&rig).collision_review.is_none(),
+        "a reset during preflight does not hold a review: {:?}",
+        output(&rig).collision_review
+    );
+    assert!(!output(&rig).submission_in_progress);
+}
+
 #[tokio::test]
 async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks() {
     let rig = rig();
@@ -1595,6 +1872,10 @@ async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_u
 
     let audio = staged_wav(staging.path(), "book");
     let session = rig.session.clone();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks"
+    )]
     let handoff =
         tokio::spawn(async move { session.import_acquired(acquired("job-1", &audio)).await });
     for _ in 0..20 {
@@ -1661,7 +1942,7 @@ async fn lookup_cover_reply_cannot_pull_the_selection_back_to_an_earlier_title()
     rig.send(SessionIntent::LookupOpen).await;
     rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
         .await;
-    let applying = rig.session.begin(SessionIntent::LookupApply { index: 0 });
+    let applying = rig.session.begin(rig.lookup_apply(0));
     rig.select(&[1]).await;
     cover.send(Ok(vec![1, 2, 3])).expect("cover reply");
     assert_eq!(applying.finish().await.outcome, SessionOutcome::Superseded);

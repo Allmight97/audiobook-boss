@@ -28,6 +28,7 @@ fn body() -> Vec<u8> {
     (0..BODY_LEN).map(|index| (index % 251) as u8).collect()
 }
 
+#[expect(clippy::disallowed_methods, reason = "joined by start_stub")]
 async fn start_stub(script: Vec<Serve>) -> Stub {
     let ca_key = rcgen::KeyPair::generate().expect("ca key");
     let mut ca_params = rcgen::CertificateParams::new(Vec::<String>::new()).expect("ca params");

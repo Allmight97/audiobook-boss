@@ -1210,23 +1210,26 @@ impl RemoteSourceRuntime {
     async fn refresh_ui_account(&self, lane: ProviderId, request: u64) -> Result<RemoteUiResult> {
         // A keychain read can wait on a system prompt; one started now would
         // hold shutdown behind it.
-        if self.inner.tasks.is_closed() {
-            return Err(AppError::General("ABB is closing.".into()));
-        }
         let runtime = self.clone();
         // Once the keychain read starts, await its blocking worker so shutdown
         // cannot return while it still uses the vault.
-        let result = tokio::task::spawn_blocking(move || runtime.account_state(lane))
+        let result = self
+            .inner
+            .tasks
+            .admit(|| {
+                #[expect(clippy::disallowed_methods, reason = "joined by refresh_ui_account")]
+                let read = tokio::task::spawn_blocking(move || runtime.account_state(lane));
+                read
+            })?
             .await
             .map_err(|_| AppError::General("Account read failed.".into()))
             .and_then(|result| result);
-        let library_request = {
+        let library_eligible = {
             let mut state = self.ui();
             if !state.account_reply(lane, request, &result) {
                 return Ok(RemoteUiResult::Superseded);
             }
-            (lane == ProviderId::Audible
-                && !self.inner.tasks.is_closed()
+            lane == ProviderId::Audible
                 && !state.snapshot.acquiring
                 && state
                     .snapshot
@@ -1235,13 +1238,14 @@ impl RemoteSourceRuntime {
                     .is_none_or(|job| job.settled)
                 && result
                     .as_ref()
-                    .is_ok_and(|account| account.status == super::RemoteAccountStatus::Connected))
-            .then(|| state.begin_library())
+                    .is_ok_and(|account| account.status == super::RemoteAccountStatus::Connected)
         };
         self.publish_ui();
         result?;
-        if let Some(request) = library_request {
-            return self.refresh_ui_library(request).await;
+        if library_eligible {
+            if let Ok(request) = self.inner.tasks.admit(|| self.ui().begin_library()) {
+                return self.refresh_ui_library(request).await;
+            }
         }
         Ok(RemoteUiResult::Applied)
     }
@@ -1280,6 +1284,7 @@ impl RemoteSourceRuntime {
         // Admission keeps disconnecting set while the blocking vault operation
         // runs, so no acquisition can be admitted during credential deletion.
         let runtime = self.clone();
+        #[expect(clippy::disallowed_methods, reason = "joined by disconnect_ui")]
         let result = tokio::task::spawn_blocking(move || runtime.disconnect_credentials(provider))
             .await
             .map_err(|_| AppError::General("Account disconnect failed.".into()))

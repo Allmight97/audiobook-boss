@@ -2,18 +2,18 @@
 //!
 //! Fixtures are synthesized at test time from a lavfi sine book. Compare the
 //! helper output against that generated source (packets, duration, tags,
-//! chapters), never against fixed hashes. The negative case uses wrong AAX
-//! activation bytes; a wrong AAXC key can exit 0 with garbage audio on a
-//! short file and is out of scope here.
+//! chapters), never against fixed hashes. A wrong AAX activation fails inside
+//! the helper. A wrong AAXC key can still exit 0; materialization must reject
+//! that output.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
 use aes::Aes128;
-use cbc::cipher::{block_padding::NoPadding, BlockModeEncrypt, KeyIvInit};
+use cbc::cipher::{block_padding::NoPadding, BlockModeDecrypt, BlockModeEncrypt, KeyIvInit};
 use secrecy::SecretString;
 use sha1::{Digest, Sha1};
 use tempfile::TempDir;
@@ -21,6 +21,9 @@ use tempfile::TempDir;
 use crate::errors::AppError;
 use crate::remote_source::materializer::{
     AaxcleanLane, AaxcleanMaterializer, AaxcleanSecret, MaterializationRequest,
+};
+use crate::remote_source::{
+    ProtectedMaterializationRun, RemoteAcquisitionFailureKind, RemoteSourceDiagnostic,
 };
 
 const AAXC_KEY_HEX: &str = "000102030405060708090a0b0c0d0e0f";
@@ -33,6 +36,7 @@ const AUDIBLE_FIXED_KEY: [u8; 16] = [
 ];
 
 type Aes128CbcEnc = cbc::Encryptor<Aes128>;
+type Aes128CbcDec = cbc::Decryptor<Aes128>;
 
 struct DecryptBooks {
     _dir: TempDir,
@@ -450,6 +454,101 @@ fn aes128_cbc_encrypt(key: &[u8], iv: &[u8], data: &[u8]) -> Vec<u8> {
         .to_vec()
 }
 
+fn aes128_cbc_decrypt(key: &[u8], iv: &[u8], data: &[u8]) -> Vec<u8> {
+    assert_eq!(data.len() % 16, 0);
+    let mut buf = data.to_vec();
+    Aes128CbcDec::new_from_slices(key, iv)
+        .expect("aes key/iv")
+        .decrypt_padded::<NoPadding>(&mut buf)
+        .expect("decrypt")
+        .to_vec()
+}
+
+/// AAXClean rejects a decrypted frame whose first 12 bits are all ones
+/// (`AacValidateFilter`). Frames shorter than 16 bytes are checked as stored.
+enum AaxcFrameCheck {
+    Encrypted([u8; 16]),
+    Clear(Vec<u8>),
+}
+
+fn aaxc_frame_checks(aaxc: &[u8]) -> Vec<AaxcFrameCheck> {
+    let top = boxes(aaxc, 0, aaxc.len());
+    let moov = *find_type(&top, b"moov");
+    let trak = audio_trak(aaxc, moov);
+    let chain = find_path(
+        aaxc,
+        trak.pos + trak.hdr,
+        trak.pos + trak.size,
+        &[*b"mdia", *b"minf", *b"stbl"],
+    )
+    .expect("mdia/minf/stbl");
+    let (ranges, _) = sample_ranges(aaxc, chain[2]);
+    let mut seen = HashSet::new();
+    let mut frames = Vec::new();
+    for (off, size) in ranges {
+        if size >= 16 {
+            let mut block = [0u8; 16];
+            block.copy_from_slice(&aaxc[off..off + 16]);
+            if seen.insert(block) {
+                frames.push(AaxcFrameCheck::Encrypted(block));
+            }
+        } else {
+            frames.push(AaxcFrameCheck::Clear(aaxc[off..off + size].to_vec()));
+        }
+    }
+    frames
+}
+
+fn aaxclean_rejects_sync_word(frame: &[u8]) -> bool {
+    frame.len() < 2 || (u16::from_be_bytes([frame[0], frame[1]]) & 0xfff0) == 0xfff0
+}
+
+fn aaxclean_frame_check_accepts(frames: &[AaxcFrameCheck], key: &[u8; 16], iv: &[u8; 16]) -> bool {
+    frames.iter().all(|frame| match frame {
+        AaxcFrameCheck::Clear(raw) => !aaxclean_rejects_sync_word(raw),
+        AaxcFrameCheck::Encrypted(block) => {
+            let plain = aes128_cbc_decrypt(key, iv, block);
+            !aaxclean_rejects_sync_word(&plain)
+        }
+    })
+}
+
+fn increment_key(key: &mut [u8; 16]) {
+    for byte in key.iter_mut().rev() {
+        *byte = byte.wrapping_add(1);
+        if *byte != 0 {
+            return;
+        }
+    }
+}
+
+/// A key other than the fixture key for which no decrypted frame starts with
+/// 12 one-bits, so AAXClean's frame check lets the helper exit 0.
+fn wrong_aaxc_key_hex(aaxc: &[u8]) -> String {
+    let frames = aaxc_frame_checks(aaxc);
+    assert!(!frames.is_empty(), "synthetic AAXC has audio frames");
+    let iv = hex_16(AAXC_IV_HEX);
+    let right = hex_16(AAXC_KEY_HEX);
+    let mut key = [0xff_u8; 16];
+    for _ in 0..4096 {
+        if key != right && aaxclean_frame_check_accepts(&frames, &key, &iv) {
+            return hex_encode(&key);
+        }
+        increment_key(&mut key);
+    }
+    panic!("no wrong AAXC key passed AAXClean's frame check for this fixture");
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for &byte in bytes {
+        encoded.push(DIGITS[(byte >> 4) as usize] as char);
+        encoded.push(DIGITS[(byte & 0x0f) as usize] as char);
+    }
+    encoded
+}
+
 fn sha1(data: &[u8]) -> [u8; 20] {
     Sha1::digest(data).into()
 }
@@ -571,52 +670,60 @@ fn assert_matches_source(output: &Path, source: &Path) {
     }
 }
 
-#[derive(Debug)]
-struct MaterializeOut {
-    _root: TempDir,
-    output: PathBuf,
-    partial: PathBuf,
-}
-
-async fn materialize(
+/// Runs the helper through the materializer and returns whether it exited 0
+/// with a non-empty result. The temp output is dropped with this call.
+async fn helper_accepts(
     lane: AaxcleanLane,
     input: PathBuf,
     secret: AaxcleanSecret,
-) -> Result<MaterializeOut, (AppError, MaterializeOut)> {
+) -> Result<(), AppError> {
     let root = TempDir::new().expect("materialize root");
     let output = root.path().join("book.m4b");
     let partial = root.path().join("book.m4b.partial");
     let materializer = AaxcleanMaterializer::new_for_helper(None);
-    let result = materializer
+    materializer
         .materialize(
             MaterializationRequest {
                 job_id: "decrypt-job".into(),
                 operation_id: "decrypt-op".into(),
                 lane,
                 input_path: input,
-                output_temp_path: partial.clone(),
-                output_path: output.clone(),
+                output_temp_path: partial,
+                output_path: output,
                 secret,
             },
             |_| {},
             || false,
         )
-        .await;
-    let run = MaterializeOut {
-        _root: root,
-        output,
-        partial,
-    };
-    match result {
-        Ok(_) => Ok(run),
-        Err(error) => Err((error, run)),
-    }
+        .await
+        .map(|_| ())
 }
 
 fn aaxc_secret() -> AaxcleanSecret {
+    aaxc_secret_with(AAXC_KEY_HEX)
+}
+
+fn aaxc_secret_with(key_hex: &str) -> AaxcleanSecret {
     AaxcleanSecret::Aaxc {
-        key_hex: SecretString::from(AAXC_KEY_HEX),
+        key_hex: SecretString::from(key_hex),
         iv_hex: SecretString::from(AAXC_IV_HEX),
+    }
+}
+
+async fn materialize_protected(
+    source: &Path,
+    download_name: &str,
+    secret: AaxcleanSecret,
+) -> Result<
+    (TempDir, ProtectedMaterializationRun),
+    (RemoteSourceDiagnostic, TempDir, ProtectedMaterializationRun),
+> {
+    let root = TempDir::new().expect("protected download root");
+    let input = root.path().join(download_name);
+    std::fs::copy(source, &input).expect("copy protected download");
+    match crate::remote_source::run_protected_materialization(&input, root.path(), &secret).await {
+        Ok(run) => Ok((root, run)),
+        Err((diagnostic, run)) => Err((diagnostic, root, run)),
     }
 }
 
@@ -629,41 +736,106 @@ fn aax_secret(activation: &str) -> AaxcleanSecret {
 #[tokio::test]
 async fn aax_decrypts_to_the_generated_source() {
     let books = books();
-    let output = materialize(
-        AaxcleanLane::Aax,
-        books.aax.clone(),
-        aax_secret(AAX_ACTIVATION_HEX),
-    )
-    .await
-    .unwrap_or_else(|(error, _)| panic!("aax decrypt failed: {error}"));
-    assert_matches_source(&output.output, &books.source);
+    let (_root, run) =
+        materialize_protected(&books.aax, "source.aax", aax_secret(AAX_ACTIVATION_HEX))
+            .await
+            .unwrap_or_else(|(diagnostic, _, _)| {
+                panic!("aax decrypt failed: {}", diagnostic.message)
+            });
+    assert_matches_source(&run.output, &books.source);
 }
 
 #[tokio::test]
 async fn aaxc_decrypts_to_the_generated_source() {
     let books = books();
-    let output = materialize(AaxcleanLane::Aaxc, books.aaxc.clone(), aaxc_secret())
+    let (_root, run) = materialize_protected(&books.aaxc, "source.aaxc", aaxc_secret())
         .await
-        .unwrap_or_else(|(error, _)| panic!("aaxc decrypt failed: {error}"));
-    assert_matches_source(&output.output, &books.source);
+        .unwrap_or_else(|(diagnostic, _, _)| panic!("aaxc decrypt failed: {}", diagnostic.message));
+    assert_matches_source(&run.output, &books.source);
 }
 
 #[tokio::test]
 async fn wrong_aax_activation_bytes_fail_and_leave_no_output() {
     let books = books();
-    let (error, run) = materialize(
-        AaxcleanLane::Aax,
-        books.aax.clone(),
+    let (diagnostic, _root, run) = materialize_protected(
+        &books.aax,
+        "source.aax",
         aax_secret(AAX_WRONG_ACTIVATION_HEX),
     )
     .await
     .expect_err("wrong activation bytes must fail");
+    assert_eq!(
+        diagnostic.kind,
+        RemoteAcquisitionFailureKind::MaterializationFailed
+    );
     assert!(
-        error.to_string().contains("conversion_failed"),
-        "wrong activation bytes must fail as conversion_failed, not a missing/stub helper: {error}"
+        diagnostic.message.contains("conversion_failed"),
+        "wrong activation bytes must fail as conversion_failed, not a missing/stub helper: {}",
+        diagnostic.message
     );
     assert!(!run.output.exists(), "no committed output");
     assert!(!run.partial.exists(), "no partial output");
+}
+
+#[tokio::test]
+async fn wrong_aaxc_key_fails_at_materialization_when_helper_accepts_it() {
+    let books = books();
+    let aaxc = std::fs::read(&books.aaxc).expect("read aaxc fixture");
+    let key = wrong_aaxc_key_hex(&aaxc);
+    assert_ne!(
+        key, AAXC_KEY_HEX,
+        "the searched key must not be the real key"
+    );
+
+    // The helper still exits 0: AAXClean's frame check does not know this key is wrong.
+    helper_accepts(
+        AaxcleanLane::Aaxc,
+        books.aaxc.clone(),
+        aaxc_secret_with(&key),
+    )
+    .await
+    .expect("helper must exit 0 for a wrong key its frame check accepts");
+
+    let (diagnostic, _root, run) =
+        materialize_protected(&books.aaxc, "source.aaxc", aaxc_secret_with(&key))
+            .await
+            .expect_err(
+                "wrong AAXC key must fail at materialization, not return Ok for later validation",
+            );
+    assert_eq!(
+        diagnostic.kind,
+        RemoteAcquisitionFailureKind::MaterializationFailed
+    );
+    assert!(
+        diagnostic.message.contains("decrypt"),
+        "message must name the decrypt: {}",
+        diagnostic.message
+    );
+    assert!(
+        diagnostic.message.contains("decodable audio"),
+        "message must say the decrypt output is not audio: {}",
+        diagnostic.message
+    );
+    assert!(
+        !diagnostic.message.to_ascii_lowercase().contains(&key),
+        "message must not include the key: {}",
+        diagnostic.message
+    );
+    assert!(
+        !diagnostic
+            .message
+            .to_ascii_lowercase()
+            .contains(AAXC_IV_HEX),
+        "message must not include the iv: {}",
+        diagnostic.message
+    );
+    assert!(
+        !diagnostic.message.contains('/'),
+        "message must not include a path: {}",
+        diagnostic.message
+    );
+    assert!(!run.output.exists(), "no committed m4b");
+    assert!(!run.partial.exists(), "no partial");
 }
 
 #[tokio::test]

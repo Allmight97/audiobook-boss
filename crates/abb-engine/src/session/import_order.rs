@@ -52,6 +52,10 @@ mod tests {
         let first = order.take();
         let second = order.take();
         let ran = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by turns_run_in_the_order_taken_even_when_awaited_backwards"
+        )]
         let later = tokio::spawn({
             let order = std::sync::Arc::clone(&order);
             let ran = std::sync::Arc::clone(&ran);
