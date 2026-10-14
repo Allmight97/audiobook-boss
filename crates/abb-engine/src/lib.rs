@@ -58,7 +58,7 @@ pub mod remote_source;
 pub mod session;
 pub mod work_runtime;
 
-pub use diagnostics::ffmpeg_build_identity;
+pub use diagnostics::media_build_identity;
 pub use engine::{Engine, EngineConfig, QuitConsent, RunningWork, ShutdownOutcome};
 pub use errors::{
     sanitize_path_for_display, sanitize_path_str_for_display, AppError, AppErrorCategory,

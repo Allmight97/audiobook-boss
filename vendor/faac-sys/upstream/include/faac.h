@@ -18,10 +18,10 @@
  *
  * This is the only public surface for the encoder. The legacy faacEnc* API
  * (faacEncOpen/faacEncGetCurrentConfiguration/faacEncSetConfiguration/
- * faacEncEncode/faacEncClose) has been removed; see docs/libfaac.html for a
+ * faacEncEncode/faacEncClose) has been removed; see docs/libfaac.md for a
  * porting guide.
  *
- * Design summary (see docs/libfaac.html for the full narrative):
+ * Design summary (see docs/libfaac.md for the full narrative):
  *   - Parameters are supplied once, up front, to faac_encoder_open(), so the
  *     encoder never exists in a half-configured state and all derived values
  *     (frame size, output-buffer bound, effective sample rate, resolved object
@@ -29,7 +29,8 @@
  *   - Every fallible call returns a faac_status; faac_strerror() maps a status
  *     to a human-readable string.
  *   - Fixed-width integer types and width-pinned enums keep the ABI identical
- *     across LP64/LLP64 platforms and regardless of -fshort-enums.
+ *     across 64-bit platforms (LP64 and LLP64), regardless of -fshort-enums.
+ *     32-bit targets have their own layout because of pointer fields.
  *   - faac_params grows only additively: new releases append named fields and
  *     grow sizeof(faac_params); callers MUST zero-initialize via
  *     faac_params_init() so struct_size lets the library reconcile versions.
@@ -57,16 +58,21 @@ extern "C" {
  *
  *   #if defined(FAAC_VERSION_MAJOR) && (FAAC_VERSION_MAJOR >= 1)
  */
-#define FAAC_VERSION_MAJOR 2
+#define FAAC_VERSION_MAJOR 3
 #define FAAC_VERSION_MINOR 0
 #define FAAC_VERSION_PATCH 0
 #define FAAC_VERSION_HEX \
     ((FAAC_VERSION_MAJOR << 16) | (FAAC_VERSION_MINOR << 8) | FAAC_VERSION_PATCH)
 
-/* Export/visibility marker. */
+/* Windows exports from the DLL build only (FAAC_BUILDING). No dllimport: the API
+ * has no data, so DLL and static consumers link the same way with no define. */
 #ifndef FAACAPI
 # if defined(_WIN32)
-#  define FAACAPI __declspec(dllexport)
+#  ifdef FAAC_BUILDING
+#   define FAACAPI __declspec(dllexport)
+#  else
+#   define FAACAPI
+#  endif
 # elif defined(__GNUC__) && (__GNUC__ >= 4)
 #  define FAACAPI __attribute__((visibility("default")))
 # else
@@ -152,7 +158,7 @@ enum faac_input_format {
     FAAC_INPUT_16BIT,                /* native-endian int16                      */
     FAAC_INPUT_24BIT,                /* native-endian int24 in 24 bits           */
     FAAC_INPUT_32BIT,                /* native-endian int24 in 32 bits           */
-    FAAC_INPUT_FLOAT,                /* 32-bit float                             */
+    FAAC_INPUT_FLOAT,                /* 32-bit float, 16-bit scale (+-32768)     */
     FAAC_INPUT_MAX = 0x7fffffff
 };
 
@@ -163,6 +169,10 @@ enum faac_input_format {
  * the whole struct (including padding) and stamps struct_size, which is how the
  * library stays compatible as this struct grows. Construct one from scratch and
  * open() will reject it. The struct only ever grows by appending named fields.
+ *
+ * Maintainers: appended fields must start at or after the previous sizeof(struct),
+ * never in its tail padding: struct_size cannot distinguish a new field there
+ * from padding supplied by an older caller.
  */
 typedef struct faac_params {
     uint32_t                struct_size;   /* set by faac_params_init() */
@@ -180,7 +190,7 @@ typedef struct faac_params {
     uint8_t                 reserved[1];   /* explicit pad; must remain 0              */
 
     uint32_t                bit_rate;      /* target bits/sec PER CHANNEL; 0 = use quant_quality */
-    uint32_t                bandwidth;     /* cutoff in Hz; 0 = from bit_rate, the curve's top in VBR */
+    uint32_t                bandwidth;     /* cutoff in Hz; 0 = from bit_rate, the curve's top in VBR (full band above 48 kHz at default quality or higher) */
     uint32_t                quant_quality; /* quantizer quality 1..5000; 0 = derive from bit_rate.
                                             * With bit_rate it only seeds the rate loop.          */
 
@@ -242,9 +252,10 @@ typedef struct faac_encoder_info {
     uint32_t                max_bit_rate;     /* resolved peak cap, 0 if unlimited                   */
 
     /* Priming delay in samples/channel at the output rate, as gapless tags
-     * (iTunSMPB, edit list) declare it. Use verbatim for tagging -- not the same
-     * as frame_samples for HE-AAC, and excludes the SBR decoder delay, which
-     * decoders add themselves. */
+     * (iTunSMPB) declare it. An MP4 edit list counts in the track timescale,
+     * which for HE-AAC is the core rate, so the frontend's writer halves this
+     * value there. Not the same as frame_samples for HE-AAC, and excludes the
+     * SBR decoder delay, which decoders add themselves. */
     uint32_t                encoder_delay;
 
     enum faac_rate_control  rate_control;     /* resolved mode (AUTO becomes VBR or ABR)          */
@@ -259,6 +270,10 @@ typedef struct faac_encoder_info {
  * grows only by appending fields, so a newer library stays compatible with an
  * older caller's smaller struct. version/copyright are static and library-owned;
  * do not free them.
+ *
+ * Maintainers: appended fields must start at or after the previous sizeof(struct),
+ * never in its tail padding: struct_size cannot distinguish a new field there
+ * from padding in the older layout.
  */
 typedef struct faac_library_info {
     uint32_t                struct_size;    /* set by caller to sizeof(faac_library_info) */
@@ -279,7 +294,7 @@ FAACAPI faac_status faac_get_library_info(faac_library_info *out);
  * sizeof(faac_params)), so a caller stays safe even if the loaded library's
  * faac_params has grown since the caller was built. Returns
  * FAAC_ERR_INVALID_ARGUMENT if p is NULL or caller_size is smaller than
- * faac_params's original (baseline) layout.
+ * faac_params's SONAME-2 baseline layout, through rate_control.
  *
  * caller_size was added in SONAME 2; code that must build against both:
  *   #if FAAC_VERSION_MAJOR >= 2

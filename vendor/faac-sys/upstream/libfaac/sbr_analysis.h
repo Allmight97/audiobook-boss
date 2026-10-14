@@ -38,9 +38,6 @@ typedef struct SignalAnalysisChannel {
 } SignalAnalysisChannel;
 
 typedef struct SignalAnalysis {
-    int numSlots;
-    int sampled;
-
     /* Frame envelope grid configuration. Synchronized across all channels. */
     SbrFrameClass frameClass;
     int numEnvelopes;

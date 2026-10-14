@@ -40,7 +40,7 @@ Resampler *ResampleInit(int channels)
 {
     Resampler *r = (Resampler *)AllocMemory(sizeof(Resampler));
     if (!r) return NULL;
-    SetMemory(r, 0, sizeof(Resampler));
+    memset(r, 0, sizeof(Resampler));
     r->channels = channels;
     return r;
 }
@@ -59,14 +59,15 @@ int Resample(Resampler *r, int input_len)
     int ch, i, j;
 
     for (ch = 0; ch < r->channels; ch++) {
-        float * __restrict in  = r->fullRate[ch];
-        float * __restrict out = r->halfRate[ch];
+        float *in = r->fullRate[ch];
+        float *out = r->halfRate[ch];
         float * __restrict hist = r->buf[ch];
 
         /* Fixed-size buffers to avoid VLA (MSVC portability): history + one
          * full-rate HE frame (2 * FRAME_LEN input samples). */
         float combined[RESAMPLE_FILTER_LEN - 1 + 2 * FRAME_LEN];
 
+        /* Save the input before writing the aliased half-rate output. */
         memcpy(combined,     hist, H         * sizeof(float));
         memcpy(combined + H, in,   input_len * sizeof(float));
 

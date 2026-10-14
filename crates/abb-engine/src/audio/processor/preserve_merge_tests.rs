@@ -1,4 +1,4 @@
-use crate::audio::{AudioExecutionRequest, SampleRateConfig};
+use crate::audio::{AacDecoder, AudioExecutionRequest, SampleRateConfig};
 use crate::errors::AppError;
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::processing::{
@@ -55,7 +55,8 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
             cancelled.store(true, Ordering::Release);
         }
     }));
-    let file_info = crate::audio::get_file_list_info(&sources).expect("probe MP3 fixtures");
+    let file_info =
+        crate::audio::get_file_list_info(&sources, AacDecoder::Auto).expect("probe MP3 fixtures");
     assert_eq!(file_info.invalid_count, 0, "fixtures probe as valid MP3");
 
     let error = crate::audio::execute_audio_engine(

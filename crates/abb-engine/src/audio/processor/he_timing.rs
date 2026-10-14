@@ -2,9 +2,10 @@
 //! recognized by their encoding-tool tag, and third-party files that declare
 //! iTunSMPB gapless info (Apple's encoder and the `faac` frontend measured).
 //!
-//! Neither convention counts the HE decoder's SBR delay in its priming, and
+//! Neither convention counts the HE decoder's SBR delay in its priming.
 //! FFmpeg's native HE decoder emits that delay untrimmed, so the window adds
-//! it. Both read every access unit: an edit list can drop the final unit,
+//! it. FAAD3 trims its reported delay itself, so its window holds priming
+//! alone. Both read every access unit: an edit list can drop the final unit,
 //! which holds the delayed tail.
 
 use crate::errors::{AppError, Result};
@@ -27,6 +28,15 @@ fn core_priming(tool: Option<&str>) -> Option<i64> {
 /// Whether this is an ABB-produced FAAC HE file, whose timing only ABB knows.
 pub(super) fn is_abb_faac_he(input: &ff::format::context::Input) -> bool {
     core_priming(input.metadata().get("encoder")).is_some()
+}
+
+/// Who removes the HE decoder's SBR delay from the decoded PCM.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SbrDelayOwner {
+    /// This window. FFmpeg's native decoder emits the delay untrimmed.
+    Window,
+    /// The decoder. FAAD3 reports and trims its own delay.
+    Decoder,
 }
 
 /// iTunSMPB priming, playable length, and padding, in the track's time base.
@@ -107,9 +117,13 @@ pub(super) struct HeDecodeWindow {
 impl HeDecodeWindow {
     /// The window for ABB's FAAC HE files, or for an HE-AAC file (`he`) that
     /// declares iTunSMPB. Any other input keeps FFmpeg's own trimming.
-    pub fn from_input(input: &ff::format::context::Input, he: bool) -> Result<Option<Self>> {
+    pub fn from_input(
+        input: &ff::format::context::Input,
+        he: bool,
+        sbr_delay_owner: SbrDelayOwner,
+    ) -> Result<Option<Self>> {
         if let Some(priming) = core_priming(input.metadata().get("encoder")) {
-            return Self::abb_faac(input, priming).map(Some);
+            return Self::abb_faac(input, priming, sbr_delay_owner).map(Some);
         }
         if !he {
             return Ok(None);
@@ -122,13 +136,17 @@ impl HeDecodeWindow {
             log::warn!("he_gapless status=ignored reason=unreadable_itunsmpb");
             return Ok(None);
         };
-        Self::itunes(input, gapless)
+        Self::itunes(input, gapless, sbr_delay_owner)
     }
 
     /// Trusts the tag only when the stream's duration agrees with it, as either
     /// the playable length or the whole coded length; a stale tag would
     /// otherwise cut the end of the audio. Disagreement keeps FFmpeg's trimming.
-    fn itunes(input: &ff::format::context::Input, gapless: Gapless) -> Result<Option<Self>> {
+    fn itunes(
+        input: &ff::format::context::Input,
+        gapless: Gapless,
+        sbr_delay_owner: SbrDelayOwner,
+    ) -> Result<Option<Self>> {
         let clock = audio_clock(input)?;
         let to_output = |ticks: i64| ticks.rescale(clock.time_base, ff::Rational(1, clock.rate));
         let (priming, samples) = (to_output(gapless.priming), to_output(gapless.samples));
@@ -137,16 +155,20 @@ impl HeDecodeWindow {
             log::warn!("he_gapless status=ignored reason=itunsmpb_disagrees_with_duration");
             return Ok(None);
         }
-        let window = Self::new(priming, samples, clock.rate)?;
+        let window = Self::new(priming, samples, clock.rate, sbr_delay_owner)?;
         log::info!(
-            "he_gapless status=applied source=itunsmpb start_sample={} end_sample={}",
+            "he_gapless status=applied source=itunsmpb start_sample={} end_sample={} sbr_delay_owner={sbr_delay_owner:?}",
             window.start_sample,
             window.end_sample
         );
         Ok(Some(window))
     }
 
-    fn abb_faac(input: &ff::format::context::Input, priming: i64) -> Result<Self> {
+    fn abb_faac(
+        input: &ff::format::context::Input,
+        priming: i64,
+        sbr_delay_owner: SbrDelayOwner,
+    ) -> Result<Self> {
         let clock = audio_clock(input)?;
         if clock.duration <= 0 {
             return Err(AppError::InvalidInput(
@@ -156,11 +178,14 @@ impl HeDecodeWindow {
         let samples = clock
             .duration
             .rescale(clock.time_base, ff::Rational(1, clock.rate));
-        Self::new(priming, samples, clock.rate)
+        Self::new(priming, samples, clock.rate, sbr_delay_owner)
     }
 
-    fn new(priming: i64, samples: i64, rate: i32) -> Result<Self> {
-        let start_sample = priming + SBR_DELAY;
+    fn new(priming: i64, samples: i64, rate: i32, sbr_delay_owner: SbrDelayOwner) -> Result<Self> {
+        let start_sample = match sbr_delay_owner {
+            SbrDelayOwner::Window => priming + SBR_DELAY,
+            SbrDelayOwner::Decoder => priming,
+        };
         let end_sample = start_sample
             .checked_add(samples)
             .filter(|end| *end > start_sample)

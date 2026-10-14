@@ -33,11 +33,7 @@ static inline int sbr_env_of_slot(int numEnvelopes, const int *envStart, int slo
 void SbrAnalyze(SignalAnalysis *sa, float *fullPtrs[], int nch, const bool *isLfe, int numSamples, struct SBRInfo *sbr)
 {
     int num_slots = numSamples / SBR_QMF_BANDS_64;
-    int sampled = (num_slots - 1) / FAAC_SBR_DECIMATION + 1;
     float workspace[SBR_QMF_HIST_LEN + 2 * FRAME_LEN];
-
-    sa->numSlots = num_slots;
-    sa->sampled = sampled;
 
     /* Pass 1: Time-domain transient detection. Identifies the temporal position
      * and strength of transients across all channels. */

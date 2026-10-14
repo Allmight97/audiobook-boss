@@ -69,9 +69,6 @@ typedef struct faacEncStruct {
     /* Filterbank buffers */
     float *freqBuff[MAX_CHANNELS];
 
-    /* Channel and Coder data for all channels */
-    CoderInfo coderInfo[MAX_CHANNELS];
-
     /* Element-centric configuration */
     AACElement elements[MAX_CHANNELS];
     int numElements;
@@ -109,15 +106,18 @@ typedef struct faacEncStruct {
     struct SBRContext *sbrContext;   /* SBR analysis state and bitstream data */
 
     /* Peak-limiter retry scratch: one buffer per channel holding book[] at
-     * [0] and sf[] at [MAX_SCFAC_BANDS]. */
-    int *peakSnap[MAX_CHANNELS];
+     * [0] and sf[] at [MAX_SCFAC_BANDS] bytes. */
+    unsigned char *peakSnap[MAX_CHANNELS];
 
     RateControl rc;
+
+    /* Keep frame controls before the large per-channel coding state. */
+    CoderInfo coderInfo[MAX_CHANNELS];
 } faacEncStruct;
 
 /* Configuration worker behind faac_encoder_open(): validates the config,
  * resolves AUTO/HE-AAC, and (re)initializes the encoder. Returns 1 on success,
- * 0 on failure. */
+ * 0 for an invalid configuration, -1 when an allocation failed. */
 int faacEncApplyConfig(faacEncStruct* hEncoder,
                        faacEncConfigurationPtr config);
 

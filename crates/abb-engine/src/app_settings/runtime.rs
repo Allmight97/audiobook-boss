@@ -14,6 +14,7 @@ use super::{
     get_app_settings, save_app_settings, AcquisitionLane, AppSettings, AppSettingsPatch,
     ConcurrencyPreference, EncoderDefaults, OutputDefaults, PinnedDefaults, StartupBehavior,
 };
+use crate::audio::AacDecoder;
 use crate::errors::{AppError, AppErrorEnvelope};
 use crate::power::PowerManager;
 use crate::processing::{JobRegistry, MaxConcurrentJobsCapabilities};
@@ -37,6 +38,11 @@ pub enum SettingsIntent {
     },
     SetKeepAwake {
         enabled: bool,
+    },
+    /// Chooses the decoder for AAC sources in imports, previews, and exports
+    /// accepted from now on.
+    SetAacDecoder {
+        decoder: AacDecoder,
     },
     SetStartupBehavior {
         behavior: StartupBehavior,
@@ -188,6 +194,11 @@ impl SettingsRuntime {
         (runtime, jobs, startup)
     }
 
+    /// The AAC decoder in effect, for an import or a submission accepted now.
+    pub(crate) async fn aac_decoder(&self) -> AacDecoder {
+        self.inner.state.lock().await.accepted.aac_decoder
+    }
+
     pub(crate) async fn snapshot(&self) -> SettingsSnapshot {
         self.snapshot_of(&*self.inner.state.lock().await)
     }
@@ -325,6 +336,16 @@ impl SettingsRuntime {
                     state,
                     AppSettingsPatch {
                         keep_awake_while_working: Some(enabled),
+                        ..Default::default()
+                    },
+                )
+                .await
+            }
+            SettingsIntent::SetAacDecoder { decoder } => {
+                self.accept(
+                    state,
+                    AppSettingsPatch {
+                        aac_decoder: Some(decoder),
                         ..Default::default()
                     },
                 )

@@ -13,6 +13,8 @@
  * Lesser General Public License for more details.
  */
 
+#include "common_symbols.h"
+
 #ifndef _FFT_H_
 #define _FFT_H_
 
