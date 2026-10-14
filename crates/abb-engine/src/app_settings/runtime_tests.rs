@@ -246,6 +246,11 @@ async fn a_pinned_launch_does_not_report_last_used_values_it_did_not_start_from(
         1,
     ));
 
+    assert_eq!(
+        storage::load(&config_dir(&rig.root)).reset,
+        vec![crate::app_settings::SettingsUnit::EncoderDefaults],
+        "fixture premise: the last-used encoder is refused"
+    );
     let snapshot = rig.settings.snapshot().await;
     assert_eq!(
         snapshot.settings.encoder_defaults.format,

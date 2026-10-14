@@ -976,9 +976,9 @@ fn mp3_save_writes_series_without_mp4_freeform_names() {
     );
 }
 
-/// Synthesizes one second of audio carrying a JPEG and a PNG picture: attached
-/// pictures in MP3, FLAC and M4B, attachments in Matroska, a
-/// METADATA_BLOCK_PICTURE comment in Opus.
+/// Synthesizes one second of audio carrying a JPEG and a PNG picture
+/// (attached pictures in MP3, FLAC and M4B, attachments in Matroska), or for
+/// Opus one JPEG METADATA_BLOCK_PICTURE comment.
 fn write_two_picture_fixture(dir: &Path, extension: &str) -> PathBuf {
     let path = dir.join(format!("two-pictures.{extension}"));
     let jpeg = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/support/minimal.jpg");
@@ -2428,6 +2428,11 @@ async fn preserving_with_repaired_chapters_keeps_every_source_picture() {
             both,
             "{extension} fixture"
         );
+        assert_eq!(
+            chapters_of(&source).len(),
+            3,
+            "{extension}: fixture premise: the marker survives muxing"
+        );
         let request = TitleAudioRequest {
             format,
             intent: AudioIntent::Preserve,
@@ -2475,6 +2480,16 @@ async fn preserving_an_m4b_whose_chapters_end_short_keeps_its_freeform_tags() {
     let end = duration_ms(&audio);
     let source = tmp.path().join("book.m4b");
     mux_chapters(&audio, &[("One", 0, 400), ("Two", 400, end - 60)], &source);
+    let accepted = get_file_list_info(&[&source]).expect("import M4B").files[0]
+        .chapter_plan
+        .clone()
+        .expect("accepted chapter plan")
+        .chapters;
+    assert_ne!(
+        chapters_of(&source).last().map(|(_, _, end)| *end),
+        accepted.last().map(|chapter| chapter.end_ms),
+        "fixture premise: repair moves only the last chapter end"
+    );
     let asin = mp4ameta::FreeformIdent::new_static("com.apple.iTunes", "ASIN");
     let mut tag = mp4ameta::Tag::read_from_path(&source).expect("read fixture tags");
     tag.set_data(asin, mp4ameta::Data::Utf8("B000000001".into()));
