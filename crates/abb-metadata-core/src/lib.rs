@@ -859,7 +859,10 @@ fn scrub_invalid_series_part_for_naming(value: &mut Option<String>) {
 }
 
 mod chapters;
-pub use chapters::{parse_cue, validate_chapters, ChapterSpec, CueInterpretation, CueSheet};
+pub use chapters::{
+    normalize_embedded_chapters, parse_cue, validate_chapters, ChapterSpec, CueInterpretation,
+    CueSheet,
+};
 
 #[cfg(test)]
 mod tests {

@@ -66,11 +66,17 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
             audio_file.tag_title = properties.tag_title;
             audio_file.tag_artist = properties.tag_artist;
             audio_file.chapters = properties.chapters;
-            let (plan, cue) = crate::metadata::inspect_chapter_source(
+            let (plan, cue) = match crate::metadata::inspect_chapter_source(
                 &canonical_path,
                 (properties.duration * 1000.0).round() as i64,
                 &audio_file.chapters,
-            )?;
+            ) {
+                Ok(inspected) => inspected,
+                Err(error) => {
+                    audio_file.error = Some(error.to_string());
+                    return Ok(audio_file);
+                }
+            };
             audio_file.chapter_plan = Some(plan);
             audio_file.cue_source = cue;
             audio_file.selected_decoder = properties

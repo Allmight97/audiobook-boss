@@ -120,9 +120,16 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 
 ## CUE And Accepted Chapters
 
-- `abb-metadata-core` owns `parse_cue`, `validate_chapters`, `ChapterSpec`,
-  `CueInterpretation`, and `CueSheet`. CUE conversion rounds the checked
-  rational timestamp once to the nearest millisecond. Runtime `cue.rs` owns
+- `abb-metadata-core` owns `parse_cue`, `validate_chapters`,
+  `normalize_embedded_chapters`, `ChapterSpec`, `CueInterpretation`, and
+  `CueSheet`. CUE conversion rounds the checked rational timestamp once to the
+  nearest millisecond. A CUE sheet stays strict and its errors name its line;
+  chapter errors name the chapter number and title.
+- Embedded chapters are repaired once, in `inspect_chapter_source`: sorted by
+  start, zero-length markers dropped, each end moved to the next start and the
+  last to the audio end. A chapter that starts outside the audio, or an end
+  that would move more than 1 s, refuses that file. Why: real rips drift by a
+  few ms, and a larger move would guess at the book's structure. Runtime `cue.rs` owns
   bounded sibling discovery, diagnostics, and source fingerprints; FILE text
   never chooses another audio path and never refuses a sheet (a colon or a
   Windows path is a real rip's label).
@@ -137,6 +144,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   container discovery for artifact readers. `verify_chapters` checks names,
   starts, ends, and count after final metadata writes and before artifact
   commit. Selected chapter write/readback failures propagate.
+- Every route writes the accepted plan, never the raw source chapters.
+  `remux_preserved_audio_container` takes the accepted chapters and leaves a
+  staged copy alone only when its container and chapters already match.
 
 ## Opus Container Timing
 

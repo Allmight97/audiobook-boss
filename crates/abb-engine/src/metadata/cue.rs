@@ -1,6 +1,7 @@
 //! Sibling CUE discovery and immutable, source-bound chapter intake facts.
 use super::{parse_cue, validate_chapters, ChapterSpec, CueInterpretation};
 use crate::errors::{AppError, Result};
+use abb_metadata_core::normalize_embedded_chapters;
 use std::io::Read;
 use std::path::Path;
 
@@ -52,13 +53,16 @@ pub(crate) fn validate_source_fingerprint(stat: &std::fs::Metadata, expected: &s
     Ok(())
 }
 
+/// Embedded chapters are repaired once here, so every route writes and
+/// verifies the same accepted plan.
 pub(crate) fn inspect_chapter_source(
     path: &Path,
     duration_ms: i64,
     embedded: &[ChapterSpec],
 ) -> Result<(ChapterPlan, Option<CueSource>)> {
+    let embedded = normalize_embedded_chapters(embedded, duration_ms)?;
     let mut plan = ChapterPlan {
-        chapters: embedded.to_vec(),
+        chapters: embedded.clone(),
         from_cue: false,
         source_fingerprint: source_fingerprint(path)?,
     };

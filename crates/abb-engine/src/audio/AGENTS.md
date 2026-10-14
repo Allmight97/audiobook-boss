@@ -103,7 +103,9 @@ guard that prevents recurrence.
 ## Chapter Intake
 
 Analysis attaches CUE diagnostics and a source-fingerprinted candidate chapter
-plan to each MP3. `apply_chapter_plans` validates accepted plans against the
+plan to each MP3, and repairs embedded chapters into each file's plan
+(`metadata/AGENTS.md`). A file whose chapters cannot be repaired is listed
+invalid with the reason; the rest of the import continues. `apply_chapter_plans` validates accepted plans against the
 audio identity and duration before dispatch. CUE confirmation or Ignore is
 explicit; multi-source CUE merging is rejected. Encoders consume accepted
 chapters. Preview omits chapters.

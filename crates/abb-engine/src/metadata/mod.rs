@@ -215,11 +215,14 @@ pub(crate) fn finish_artifact_tags(
     Ok(rewrote)
 }
 
-/// Changes only the container on an owned staging artifact, retaining its audio,
-/// accepted chapters, and metadata. Callers never pass an original source here.
+/// Puts an owned staging artifact into the target container with the accepted
+/// chapters, keeping its audio, cover, and tags. A file already in that
+/// container with exactly those chapters is left alone. Callers never pass an
+/// original source here.
 pub(crate) fn remux_preserved_audio_container(
     path: &std::path::Path,
     extension: &str,
+    chapters: &[ChapterSpec],
 ) -> Result<()> {
     let target = match extension {
         "m4a" | "m4b" => "mp4",
@@ -231,30 +234,30 @@ pub(crate) fn remux_preserved_audio_container(
             ))
         }
     };
-    if container::classify(path)?.remux_output_format() == Some(target) {
-        return Ok(());
-    }
-    let metadata = read_metadata(path)?;
-    let passthrough = extract_passthrough_metadata(&[PassthroughSource {
+    let source = extract_passthrough_metadata(&[PassthroughSource {
         path: path.into(),
         duration: None,
         is_valid: true,
         chapters: None,
-    }])
-    .into_option();
+    }]);
+    if container::classify(path)?.remux_output_format() == Some(target)
+        && source.chapters == chapters
+    {
+        return Ok(());
+    }
+    let metadata = read_metadata(path)?;
+    let passthrough = PassthroughMetadata {
+        chapters: chapters.to_vec(),
+        cover_art: source.cover_art,
+    };
     let plan = MetadataWritePlan::from_metadata(metadata.clone());
     remux::rewrite_metadata_with_ffmpeg_plan_as(
         path,
         Some(&plan),
-        passthrough.as_ref(),
+        Some(&passthrough),
         Some(target),
     )?;
-    finish_artifact_tags(
-        path,
-        Some(&metadata),
-        passthrough.as_ref().map(|value| value.chapters.as_slice()),
-        || {},
-    )?;
+    finish_artifact_tags(path, Some(&metadata), None, || {})?;
     Ok(())
 }
 
