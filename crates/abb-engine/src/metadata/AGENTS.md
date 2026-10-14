@@ -57,7 +57,14 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `prepare_output_cover_art` prepares write-ready cover bytes once after merge:
   JPEG already at the write target (JPEG, 800px or smaller) stays as is; other
   covers go through `optimize_cover_art` before native mux, remux, or
-  mp4ameta. A cover is converted in exactly two places: here, and in
+  mp4ameta. A source cover that cannot be prepared (over 4096 px, an
+  undecodable format, truncated) is dropped from both the metadata and the
+  passthrough copy, and a warning is returned for the title; a cover the user
+  chose (`CoverArtPassthroughPolicy::Chosen`) stays required and fails the
+  title. The policy comes from the intent, because the source's own tags
+  already carry its cover. Why: a damaged source picture must not cost the
+  user the book, and a cover they picked must not vanish silently.
+  A cover is converted in exactly two places: here, and in
   `cover_source.rs` when the user loads a file or URL cover. Covers embedded in
   source files stay unconverted until write-prep, so displays show the source's
   real bytes.

@@ -348,6 +348,62 @@ async fn save_with_no_export_running_writes_the_file_in_place() {
     assert_eq!(save.children.len(), 1);
 }
 
+/// A JPEG larger than ABB will decode for an output cover.
+fn oversized_jpeg() -> Vec<u8> {
+    let mut bytes = Vec::new();
+    image::DynamicImage::new_rgb8(5_000, 5_000)
+        .write_to(
+            &mut std::io::Cursor::new(&mut bytes),
+            image::ImageFormat::Jpeg,
+        )
+        .expect("encode 5000 px JPEG");
+    bytes
+}
+
+#[tokio::test]
+async fn a_source_cover_too_large_to_prepare_is_dropped_with_a_warning() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    abb_engine::save_metadata_intent(
+        &book,
+        &abb_engine::MetadataIntentPatch {
+            cover_art: Some(abb_engine::PatchOp::Set(oversized_jpeg())),
+            ..Default::default()
+        },
+    )
+    .expect("embed the oversized cover in the source");
+    desk.import(&book).await;
+
+    let export = desk.export().await;
+    desk.wait_until("the export ends", |desk| {
+        finished(desk.export_status(&export))
+    })
+    .await;
+
+    let operations = desk.engine.list_work_operations().expect("operations");
+    let title = &operations
+        .operations
+        .iter()
+        .find(|operation| operation.operation_id == export)
+        .expect("export is listed")
+        .children[0];
+    assert_eq!(
+        desk.export_status(&export),
+        WorkOperationStatus::Completed,
+        "{:?}",
+        title.message
+    );
+    assert!(
+        title.warnings.len() == 1 && title.warnings[0].contains("cover"),
+        "{:?}",
+        title.warnings
+    );
+    let output = desk.output_of(&export);
+    assert_eq!(read_metadata(&output).expect("read output").cover_art, None);
+}
+
 #[tokio::test]
 async fn a_title_saved_in_place_still_takes_audio_choices() {
     let desk = Desk::new();

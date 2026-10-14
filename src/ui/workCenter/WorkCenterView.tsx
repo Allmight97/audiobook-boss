@@ -86,10 +86,12 @@ function summaryText(operation: OperationSnapshot): string {
 }
 
 /** Why a title failed, or what to know about a finished one: a companion
- * warning and the latest tag edit's outcome both show. */
+ * warning, the title's own warnings, and the latest tag edit's outcome all show. */
 function childReason(child: ChildJobSnapshot): string | null {
 	if (child.status === 'failed') return child.message ?? null;
-	const notes = [child.supplementalWarning, outputUpdateText(child)].filter(Boolean);
+	const notes = [child.supplementalWarning, ...child.warnings, outputUpdateText(child)].filter(
+		Boolean,
+	);
 	return notes.length > 0 ? notes.join(' ') : null;
 }
 

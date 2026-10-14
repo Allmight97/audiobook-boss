@@ -284,7 +284,15 @@ function finishedPreview(): ProcessCommandResult {
 	return {
 		summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
 		terminalClass: 'success',
-		results: [{ inputIndex: 0, status: 'success', message: 'Preview finished', jobId: 'fake-job' }],
+		results: [
+			{
+				inputIndex: 0,
+				status: 'success',
+				message: 'Preview finished',
+				jobId: 'fake-job',
+				warnings: [],
+			},
+		],
 	};
 }
 

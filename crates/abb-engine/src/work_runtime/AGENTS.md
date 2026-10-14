@@ -49,7 +49,9 @@
   terminal outcome, including in mixed-success batches.
 - A child's `supplemental_warning` carries Processing's partial-publication
   fact: the audiobook was published but a requested companion PDF was not. The
-  child stays Completed; the session keeps that title's download.
+  child stays Completed; the session keeps that title's download. A child's
+  `warnings` copy the title's display-only notes from `ProcessResultEntry`;
+  the Work Center shows them on the finished title, and they retain nothing.
 - Own child `startedAtMs` / `finishedAtMs` in retained snapshots: first active
   progress through output completion (100%, excluding the earlier cleanup
   event). Keep each child's finish when the batch settles; missing timestamps

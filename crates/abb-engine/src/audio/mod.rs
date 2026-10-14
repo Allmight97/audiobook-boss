@@ -133,7 +133,7 @@ pub(crate) use imports::{discover_audio_import_paths, supported_audio_import_met
 pub use imports::{SupportedAudioImportFormat, SupportedAudioImportMetadata};
 pub(crate) use path_validation::{validate_input_audio_path, validate_input_image_path};
 pub(crate) use processor::{
-    execute_audio_engine, probe_builtin_audio_decoder, AudioExecutionRequest,
+    execute_audio_engine, probe_builtin_audio_decoder, AudioExecutionRequest, AudioRunOutcome,
 };
 pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
 pub(crate) use settings::{

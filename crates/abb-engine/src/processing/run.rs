@@ -919,7 +919,11 @@ mod tests {
         let final_audio = root.path().join("Book.m4b");
         std::fs::write(&final_audio, b"published audiobook").expect("published audio");
 
-        let outcome = title_outcome(Ok("Exported Book.m4b".to_string()), None, None, || {
+        let audio = crate::audio::AudioRunOutcome {
+            message: "Exported Book.m4b".to_string(),
+            warnings: Vec::new(),
+        };
+        let outcome = title_outcome(Ok(audio), None, None, || {
             commit_supplemental_assets(OutputKind::Final, &[asset], &final_audio)
         });
 

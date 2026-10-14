@@ -122,6 +122,7 @@ function mockOperationSnapshot(
 			message: null,
 			outputPath: null,
 			supplementalWarning: null,
+			warnings: [],
 			outputUpdate: null,
 		})),
 		terminalSummary: null,

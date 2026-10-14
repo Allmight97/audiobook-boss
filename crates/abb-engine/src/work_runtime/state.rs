@@ -357,6 +357,7 @@ impl WorkRuntimeState {
                 child.cancellable = false;
                 child.message = Some(entry.message.clone());
                 child.supplemental_warning = entry.supplemental_warning.clone();
+                child.warnings = entry.warnings.clone();
                 child.output_path = entry.output_path.clone();
                 if let Some(warning) = &entry.supplemental_warning {
                     warning_logs.push((warning.clone(), child.child_job_id.clone()));

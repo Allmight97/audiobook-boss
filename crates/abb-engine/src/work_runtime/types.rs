@@ -132,6 +132,9 @@ pub struct ChildJobSnapshot {
     /// The audiobook was published but its companion files were not; the
     /// child's sources stay retained. See `ProcessResultEntry`.
     pub supplemental_warning: Option<String>,
+    /// Display-only notes on a finished title, such as a source cover that was
+    /// left off. See `ProcessResultEntry`.
+    pub warnings: Vec<String>,
     /// The latest metadata edit accepted for this title's output.
     pub output_update: Option<crate::processing::OutputUpdate>,
 }

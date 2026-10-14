@@ -55,6 +55,7 @@ fn review_required_skipped_result(
         output_path: None,
         preview_actual_seconds: None,
         supplemental_warning: None,
+        warnings: Vec::new(),
         job_id,
     }
 }
@@ -76,6 +77,7 @@ pub(super) fn skipped_result(
         output_path: None,
         preview_actual_seconds: None,
         supplemental_warning: None,
+        warnings: Vec::new(),
         job_id,
     }
 }
@@ -99,6 +101,7 @@ pub(super) fn terminal_cancelled_result(
         output_path: None,
         preview_actual_seconds: None,
         supplemental_warning: None,
+        warnings: Vec::new(),
         job_id,
     }
 }
@@ -116,6 +119,7 @@ pub(in crate::processing) fn terminal_failure_result(
         output_path: None,
         preview_actual_seconds: None,
         supplemental_warning: None,
+        warnings: Vec::new(),
         job_id,
     }
 }

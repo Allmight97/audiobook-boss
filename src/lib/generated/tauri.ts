@@ -294,6 +294,11 @@ export type ChildJobSnapshot = {
 	 *  child's sources stay retained. See `ProcessResultEntry`.
 	 */
 	supplementalWarning: string | null,
+	/**
+	 *  Display-only notes on a finished title, such as a source cover that was
+	 *  left off. See `ProcessResultEntry`.
+	 */
+	warnings: string[],
 	/**  The latest metadata edit accepted for this title's output. */
 	outputUpdate: OutputUpdate | null,
 };
@@ -850,6 +855,11 @@ export type ProcessResultEntry = {
 	 *  retained so reprocessing can publish the companions.
 	 */
 	supplementalWarning: string | null,
+	/**
+	 *  Display-only notes on a successful title, such as a source cover that
+	 *  was left off. They change no outcome.
+	 */
+	warnings: string[],
 };
 
 export type ProcessResultStatus = "success" | "skipped" | "cancelled" | "failed";

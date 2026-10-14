@@ -9,6 +9,7 @@ pub(in crate::processing) enum ProcessingJobTerminalOutcome {
         output_path: Option<String>,
         preview_actual_seconds: Option<f64>,
         supplemental_warning: Option<String>,
+        warnings: Vec<String>,
     },
     Cancelled(AppError),
     Failed(AppErrorEnvelope),

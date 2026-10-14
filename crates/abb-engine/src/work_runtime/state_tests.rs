@@ -177,6 +177,7 @@ fn terminal_result_updates_summary_and_child_rows_in_input_order() {
             output_path: Some("/library/first.m4b".to_string()),
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: Some("job-1".to_string()),
         },
         ProcessResultEntry {
@@ -187,6 +188,7 @@ fn terminal_result_updates_summary_and_child_rows_in_input_order() {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: Some("job-2".to_string()),
         },
     ]);
@@ -245,6 +247,7 @@ fn entry(input_index: usize, status: ProcessResultStatus) -> ProcessResultEntry 
         output_path: None,
         preview_actual_seconds: None,
         supplemental_warning: None,
+        warnings: Vec::new(),
         job_id: Some(format!("job-{input_index}")),
     }
 }

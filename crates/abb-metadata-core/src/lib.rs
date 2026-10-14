@@ -369,10 +369,6 @@ impl MetadataIntentPatch {
         metadata
     }
 
-    pub fn clears_cover_art(&self) -> bool {
-        matches!(self.cover_art, Some(PatchOp::Clear))
-    }
-
     pub fn touches_series_family(&self) -> bool {
         self.series.is_some()
             || self.series_part.is_some()

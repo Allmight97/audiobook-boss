@@ -11,6 +11,8 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   `settings_encoder`, `path_validation`, `cleanup`) stay private.
 - `validate_resolved_audio_inputs` stays processor-private. Preflight and
   execution validate through the resolved audio plan.
+- `execute_audio_engine` returns `AudioRunOutcome`: the success message and
+  the title's display-only warnings.
 - `AudioExecutionRequest` takes encoder settings from the processing context,
   so it cannot carry conflicting copies. Inspection owns source preservation
   capability; the title planner owns the recommendation.

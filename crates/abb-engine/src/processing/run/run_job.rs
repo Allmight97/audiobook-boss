@@ -115,6 +115,7 @@ pub(crate) async fn run_processing_job(
             output_path,
             preview_actual_seconds,
             supplemental_warning,
+            warnings,
         } => {
             request.registry.complete_job(job_id).await;
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Success);
@@ -127,6 +128,7 @@ pub(crate) async fn run_processing_job(
                 preview_actual_seconds,
                 job_id: Some(job_id.to_string()),
                 supplemental_warning,
+                warnings,
             })
         }
         ProcessingJobTerminalOutcome::Cancelled(error) => {
@@ -245,13 +247,13 @@ pub(crate) fn commit_supplemental_assets(
 /// the audiobook is published, so a companion failure stays a warning on a
 /// successful title rather than failing it.
 pub(crate) fn title_outcome(
-    audio: Result<String>,
+    audio: Result<crate::audio::AudioRunOutcome>,
     output_path: Option<String>,
     preview_actual_seconds: Option<f64>,
     publish_companions: impl FnOnce() -> Result<()>,
 ) -> ProcessingJobTerminalOutcome {
-    let message = match audio {
-        Ok(message) => message,
+    let audio = match audio {
+        Ok(audio) => audio,
         Err(error) => return classify_processing_error(error),
     };
     let supplemental_warning = publish_companions().err().map(|error| {
@@ -259,10 +261,11 @@ pub(crate) fn title_outcome(
         AppErrorEnvelope::from(&error).message
     });
     ProcessingJobTerminalOutcome::Success {
-        message,
+        message: audio.message,
         output_path,
         preview_actual_seconds,
         supplemental_warning,
+        warnings: audio.warnings,
     }
 }
 

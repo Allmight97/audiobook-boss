@@ -390,7 +390,7 @@ async fn print_export(engine: &Engine, operation: &OperationSnapshot) {
     println!("Export: {:?}", operation.status);
     for child in &operation.children {
         println!("  {}: {:?}", child.label, child.status);
-        if let Some(warning) = &child.supplemental_warning {
+        for warning in child.supplemental_warning.iter().chain(&child.warnings) {
             println!("    warning: {warning}");
         }
         let Some(path) = &child.output_path else {
@@ -656,6 +656,7 @@ mod tests {
                         "label": index.to_string(), "status": status,
                         "lane": "encodeCpu", "progress": progress,
                         "sourceInputIds": [], "cancellable": false, "cancelRequested": false,
+                        "warnings": [],
                     })
                 })
                 .collect();

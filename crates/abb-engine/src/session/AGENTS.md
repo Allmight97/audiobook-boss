@@ -164,7 +164,8 @@ one host attachment.
   session itself (`Session::handoff`), and its titles are recorded as staged in
   the same transition that lists them (`staged.rs`). A download is removed a
   whole acquisition at a time once every title from it completed an export
-  without a companion warning or left the list (hidden grouped sources count as
+  without a companion warning (a title's display-only `warnings` do not count)
+  or left the list (hidden grouped sources count as
   listed), and no unfinished export, submission, or Save writing holds its
   files. Files being removed count as busy: Save holds them and a submission
   using them is refused. Every transition that leaves a download removable

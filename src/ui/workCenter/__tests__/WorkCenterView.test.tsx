@@ -42,6 +42,7 @@ function completedOperation(): OperationSnapshot {
 				cancelRequested: false,
 				startedAtMs: 2_000,
 				finishedAtMs: 19_685,
+				warnings: [],
 			},
 			{
 				sourceInputIds: [],
@@ -55,6 +56,7 @@ function completedOperation(): OperationSnapshot {
 				cancelRequested: false,
 				startedAtMs: 2_000,
 				finishedAtMs: 15_150,
+				warnings: [],
 			},
 		],
 		errors: [],
@@ -132,6 +134,23 @@ it('shows a finished file whose PDF was not saved as done, with every warning', 
 	expect(
 		screen.getByText(
 			'Audiobook output was created, but the PDF could not be committed. Tags not updated: Disk full.',
+		),
+	).toBeVisible();
+});
+
+it('shows why a finished title has no cover', () => {
+	const operation = completedOperation();
+	operation.children[0] = {
+		...operation.children[0]!,
+		warnings: [
+			'The cover from the source file could not be used (Image too large), so this audiobook has no cover.',
+		],
+	};
+	showOperation(operation);
+	expect(screen.getByText('Done in 00:18')).toBeVisible();
+	expect(
+		screen.getByText(
+			'The cover from the source file could not be used (Image too large), so this audiobook has no cover.',
 		),
 	).toBeVisible();
 });

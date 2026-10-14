@@ -597,7 +597,8 @@ async fn import_configure_process_produces_decodable_m4b_with_truthful_duration(
 
     let result = execute_audio_engine(lane.execution_request(ProcessingSession::new(), None))
         .await
-        .expect("native processing of generated WAV fixtures succeeds");
+        .expect("native processing of generated WAV fixtures succeeds")
+        .message;
 
     let output = lane.output_path();
     assert!(output.exists(), "final artifact exists at planned path");
@@ -2187,7 +2188,7 @@ async fn run_planned_title(
     payload: abb_engine::processing::ProcessPayload,
     metadata: Option<std::collections::HashMap<String, MetadataIntentPatch>>,
     workspace: &Path,
-) -> Result<PathBuf, AppError> {
+) -> Result<(PathBuf, abb_engine::audio::AudioRunOutcome), AppError> {
     let inspected =
         crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), None)?;
     let job = inspected.plan.jobs.into_iter().next().expect("one title");
@@ -2220,13 +2221,13 @@ async fn run_planned_title(
         OutputConfig::from_plan(job.output),
         workspace.to_path_buf(),
     );
-    execute_audio_engine(
+    let outcome = execute_audio_engine(
         AudioExecutionRequest::new(context, info, job.metadata, job.cover_art_passthrough)
             .with_handling(job.audio_plan.handling)
             .with_metadata_intent(job.metadata_intent),
     )
     .await?;
-    Ok(destination)
+    Ok((destination, outcome))
 }
 
 fn single_title_payload(
@@ -2315,7 +2316,7 @@ async fn drifting_embedded_chapters_convert_on_every_route() {
             settings: (intent == AudioIntent::Encode).then(native_encoder_settings),
             sample_rate: SampleRateConfig::Auto,
         };
-        let output = run_planned_title(
+        let (output, _) = run_planned_title(
             single_title_payload(&source, &tmp.path().join(format!("out-{name}")), request),
             None,
             &tmp.path().join("work"),
@@ -2324,6 +2325,94 @@ async fn drifting_embedded_chapters_convert_on_every_route() {
         .unwrap_or_else(|error| panic!("{name}: {error}"));
         assert_eq!(chapters_of(&output), expected, "{name}");
     }
+}
+
+fn oversized_jpeg(path: &Path) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    image::DynamicImage::new_rgb8(5_000, 5_000)
+        .write_to(&mut std::io::Cursor::new(&mut bytes), ImageFormat::Jpeg)
+        .expect("encode 5000 px JPEG");
+    fs::write(path, &bytes).expect("write 5000 px JPEG");
+    bytes
+}
+
+/// A joined title's source cover that cannot be prepared is left off with a
+/// warning; a cover the user chose for the same title still stops it.
+#[tokio::test]
+async fn joined_title_drops_an_unpreparable_source_cover_but_not_a_chosen_one() {
+    use abb_engine::audio::{AudioIntent, AudiobookFormat, TitleAudioRequest};
+    let tmp = TempDir::new().expect("cover workspace");
+    let cover = tmp.path().join("cover.jpg");
+    let cover_bytes = oversized_jpeg(&cover);
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+    let paths = ["first.mp3", "second.mp3"].map(|name| tmp.path().join(name));
+    for (index, path) in paths.iter().enumerate() {
+        let mut command = Command::new(&binary);
+        command
+            .args(["-v", "error", "-y", "-f", "lavfi", "-i"])
+            .arg(format!(
+                "sine=frequency={}:sample_rate=44100:duration=0.31",
+                440 + index * 440
+            ));
+        if index == 0 {
+            command.arg("-i").arg(&cover).args([
+                "-map",
+                "0:a",
+                "-map",
+                "1",
+                "-c:v",
+                "copy",
+                "-disposition:v",
+                "attached_pic",
+                "-id3v2_version",
+                "3",
+            ]);
+        }
+        assert!(command
+            .args(["-c:a", "libmp3lame", "-b:a", "96k", "-write_xing", "0"])
+            .arg(path)
+            .status()
+            .expect("MP3 fixture encoder")
+            .success());
+    }
+    let payload = |output: &str| -> abb_engine::processing::ProcessPayload {
+        let output_dir = tmp.path().join(output);
+        fs::create_dir_all(&output_dir).expect("output folder");
+        serde_json::from_value(serde_json::json!({
+            "inputFiles": [&paths[0]],
+            "titleSources": {paths[0].to_str().expect("utf8 path"): paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
+            "audioRequests": [TitleAudioRequest {
+                format: AudiobookFormat::Mp3,
+                intent: AudioIntent::Preserve,
+                settings: None,
+                sample_rate: SampleRateConfig::Auto,
+            }],
+            "outputDir": output_dir
+        }))
+        .expect("joined title request")
+    };
+
+    let (output, outcome) = run_planned_title(payload("source"), None, &tmp.path().join("work"))
+        .await
+        .expect("the title converts without its source cover");
+    assert_eq!(read_metadata(&output).expect("read output").cover_art, None);
+    assert!(
+        outcome.warnings.len() == 1 && outcome.warnings[0].contains("cover"),
+        "{:?}",
+        outcome.warnings
+    );
+
+    let chosen = std::collections::HashMap::from([(
+        paths[0].to_string_lossy().into_owned(),
+        MetadataIntentPatch {
+            cover_art: Some(PatchOp::Set(cover_bytes)),
+            ..Default::default()
+        },
+    )]);
+    let error = run_planned_title(payload("chosen"), Some(chosen), &tmp.path().join("work"))
+        .await
+        .expect_err("a chosen cover is required");
+    assert!(error.to_string().contains("Image"), "{error}");
 }
 
 /// One file whose chapters cannot be repaired is marked with the reason; the

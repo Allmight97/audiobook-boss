@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use ffmpeg_next as ff;
 
 use crate::errors::Result;
-use crate::metadata::AudiobookMetadata;
+use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 
 /// Metadata-owned facts needed to extract chapters and cover art from source files.
 #[derive(Debug, Clone)]
@@ -76,27 +76,44 @@ pub(crate) fn merge_passthrough_cover_art(
 /// JPEG already at or under the write target is left untouched. PNG and oversized
 /// JPEG go through `optimize_cover_art` so both encoder paths mux MJPEG and
 /// mp4ameta writes the same JPEG `covr`. Passthrough cover bytes are dropped after
-/// they have been adopted so remux cannot re-select the raw original.
+/// they have been adopted so remux cannot re-select the raw original. A source
+/// cover that cannot be prepared is dropped and the returned warning says so; a
+/// chosen cover that cannot be prepared fails the title.
 pub(crate) fn prepare_output_cover_art(
     metadata: Option<AudiobookMetadata>,
     passthrough: Option<PassthroughMetadata>,
-) -> Result<(Option<AudiobookMetadata>, Option<PassthroughMetadata>)> {
+    policy: CoverArtPassthroughPolicy,
+) -> Result<(
+    Option<AudiobookMetadata>,
+    Option<PassthroughMetadata>,
+    Option<String>,
+)> {
     let mut metadata = merge_passthrough_cover_art(metadata, passthrough.as_ref());
-    if let Some(cover) = metadata.as_mut().and_then(|value| value.cover_art.as_mut()) {
-        if !cover.is_empty() {
-            *cover = crate::metadata::prepare_cover_art_for_write(cover)?;
-        }
-    }
-    let passthrough = if metadata
-        .as_ref()
-        .and_then(|value| value.cover_art.as_ref())
-        .is_some_and(|bytes| !bytes.is_empty())
-    {
-        passthrough.and_then(PassthroughMetadata::without_cover_art)
-    } else {
-        passthrough
+    let Some(cover) = metadata
+        .as_mut()
+        .and_then(|value| value.cover_art.as_mut())
+        .filter(|bytes| !bytes.is_empty())
+    else {
+        return Ok((metadata, passthrough, None));
     };
-    Ok((metadata, passthrough))
+    let passthrough = passthrough.and_then(PassthroughMetadata::without_cover_art);
+    match crate::metadata::prepare_cover_art_for_write(cover) {
+        Ok(prepared) => *cover = prepared,
+        Err(error) if policy != CoverArtPassthroughPolicy::Chosen => {
+            log::warn!(
+                "cover_art_plan decision=drop_source_cover reason=prepare_failed error={error}"
+            );
+            if let Some(value) = metadata.as_mut() {
+                value.cover_art = None;
+            }
+            let warning = format!(
+                "The cover from the source file could not be used ({error}), so this audiobook has no cover."
+            );
+            return Ok((metadata, passthrough, Some(warning)));
+        }
+        Err(error) => return Err(error),
+    }
+    Ok((metadata, passthrough, None))
 }
 
 fn synthesize_chapters_from_files(files: &[PassthroughSource]) -> Vec<ChapterSpec> {
@@ -472,8 +489,10 @@ mod tests {
             cover_art: Some(jpeg.clone()),
         };
 
-        let (metadata, passthrough) = prepare_output_cover_art(None, Some(passthrough))
-            .expect("write-ready cover should prepare");
+        let (metadata, passthrough, warning) =
+            prepare_output_cover_art(None, Some(passthrough), CoverArtPassthroughPolicy::Preserve)
+                .expect("write-ready cover should prepare");
+        assert_eq!(warning, None);
 
         assert_eq!(
             metadata.expect("cover adopted onto metadata").cover_art,

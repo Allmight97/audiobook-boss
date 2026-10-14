@@ -65,6 +65,7 @@ function completedExportOperation(operationId: string): OperationSnapshot {
 				cancelRequested: false,
 				message: 'Complete.',
 				supplementalWarning: undefined,
+				warnings: [],
 			},
 		],
 		terminalSummary: {

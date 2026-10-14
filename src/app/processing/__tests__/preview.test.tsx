@@ -61,6 +61,7 @@ function preview(): NonNullable<SessionOutput['previewRun']> {
 					message: null,
 					outputPath: null,
 					supplementalWarning: null,
+					warnings: [],
 					outputUpdate: null,
 				},
 			],
