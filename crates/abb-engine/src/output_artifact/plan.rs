@@ -99,16 +99,7 @@ fn resolve_output_plan_with_cache(
     abb_output_artifact_core::check_output_name_lengths(requested_final_path)?;
     let requested_path = requested_final_path.to_path_buf();
     let collision = detect_output_collision(&requested_path, claimed, source_paths, cache)?;
-    let hard_block = collision
-        .as_ref()
-        .map(|value| {
-            matches!(
-                value.kind,
-                OutputCollisionKind::SourceDestinationOverlap
-                    | OutputCollisionKind::CanonicalPathOverlap
-            )
-        })
-        .unwrap_or(false);
+    let hard_block = abb_output_artifact_core::collision_is_hard_block(collision.as_ref());
     let batch_like_collision = collision
         .as_ref()
         .map(|value| match value.kind {
