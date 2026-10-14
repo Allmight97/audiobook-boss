@@ -55,7 +55,9 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   output review, and terminal reporting.
 - Companion PDFs commit after the audiobook is published. A companion failure
   leaves the title Success with `ProcessResultEntry.supplemental_warning` set,
-  so a published title stays Success.
+  so a published title stays Success. Planning refuses a title with a
+  companion PDF whose name beside the audiobook would be over 255 bytes, so
+  that failure comes before encoding.
 
 ## Progress and stages
 

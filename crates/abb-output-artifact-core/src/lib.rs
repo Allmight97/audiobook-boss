@@ -140,6 +140,55 @@ pub fn derive_output_artifact_path(
     }
 }
 
+/// The companion PDF ABB writes beside a final audiobook.
+pub fn supplemental_pdf_path(final_audio_path: &Path) -> PathBuf {
+    let parent = final_audio_path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = final_audio_path
+        .file_stem()
+        .map(|value| value.to_string_lossy())
+        .unwrap_or_else(|| "Book".into());
+    parent.join(format!("{stem} - Supplemental PDF.pdf"))
+}
+
+/// APFS and ext4 limit a name to 255 bytes. NTFS and SMB count 255 UTF-16
+/// units, which a 255-byte UTF-8 name never exceeds.
+const MAX_NAME_BYTES: usize = 255;
+
+pub fn name_fits(name: &std::ffi::OsStr) -> bool {
+    name.len() <= MAX_NAME_BYTES
+}
+
+/// Refuses an artifact path whose folder or file name would be over the name
+/// limit, before any work starts.
+pub fn check_output_name_lengths(artifact_path: &Path) -> Result<()> {
+    for component in artifact_path.components() {
+        if let Component::Normal(name) = component {
+            check_name_fits(name, "The output name")?;
+        }
+    }
+    Ok(())
+}
+
+/// Refuses a final audiobook path whose companion PDF name would be over the
+/// name limit. Only a title with a Supplemental PDF needs it.
+pub fn check_supplemental_pdf_name(final_audio_path: &Path) -> Result<()> {
+    match supplemental_pdf_path(final_audio_path).file_name() {
+        Some(name) => check_name_fits(name, "The Supplemental PDF name"),
+        None => Ok(()),
+    }
+}
+
+fn check_name_fits(name: &std::ffi::OsStr, what: &str) -> Result<()> {
+    if name_fits(name) {
+        return Ok(());
+    }
+    let shown: String = name.to_string_lossy().chars().take(60).collect();
+    Err(OutputArtifactCoreError::InvalidInput(format!(
+        "{what} \"{shown}…\" would be {} bytes; names can be at most {MAX_NAME_BYTES} bytes. Shorten the title or the naming template.",
+        name.len()
+    )))
+}
+
 pub fn build_output_path_preview(
     base_dir: &Path,
     metadata: Option<&NamingMetadata>,

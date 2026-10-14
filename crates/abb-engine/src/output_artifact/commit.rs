@@ -2,6 +2,7 @@ use super::collision::path_entry_exists;
 use super::types::{OutputKind, PlannedOutputAction};
 use crate::audio::CleanupGuard;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::file_replace::SiblingTemp;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -27,6 +28,8 @@ fn destination_refused_commit_error(final_path: &Path, error: impl std::fmt::Dis
     ))
 }
 
+/// Copies the staged output into a new file at `destination_path` and flushes
+/// it. Callers pass a fresh `SiblingTemp` path, whose guard removes a failed copy.
 fn copy_staged_output_to_new_file(temp_output: &Path, destination_path: &Path) -> Result<()> {
     let mut source = std::fs::File::open(temp_output).map_err(|error| {
         AppError::FileValidation(format!(
@@ -35,150 +38,173 @@ fn copy_staged_output_to_new_file(temp_output: &Path, destination_path: &Path) -
             error
         ))
     })?;
-    let mut destination = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(destination_path)
-        .map_err(|error| {
-            if error.kind() == ErrorKind::AlreadyExists {
-                return collision_state_changed_error(destination_path);
-            }
-            destination_refused_commit_error(destination_path, error)
-        })?;
-    std::io::copy(&mut source, &mut destination)
-        .map_err(|error| destination_refused_commit_error(destination_path, error))?;
-    destination
-        .sync_all()
-        .map_err(|error| destination_refused_commit_error(destination_path, error))?;
-    drop(source);
-    Ok(())
+    std::fs::File::create_new(destination_path)
+        .and_then(|mut destination| {
+            std::io::copy(&mut source, &mut destination)?;
+            destination.sync_all()
+        })
+        .map_err(|error| destination_refused_commit_error(destination_path, error))
 }
 
-fn install_without_replacing(temp_output: &Path, final_path: &Path) -> Result<PathBuf> {
+fn flush_staged_output(temp_output: &Path) -> Result<()> {
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(temp_output)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| {
+            AppError::FileValidation(format!(
+                "Cannot flush temporary output '{}' before publishing: {}",
+                sanitize_path_for_display(temp_output),
+                error
+            ))
+        })
+}
+
+/// Links `source` at `final_path`, which fails rather than replace an entry
+/// there. `Ok(false)`: publish by copy instead.
+fn link_without_replacing(source: &Path, final_path: &Path) -> Result<bool> {
+    match std::fs::hard_link(source, final_path) {
+        Ok(()) => Ok(true),
+        Err(error) => classify_link_failure(&error, final_path),
+    }
+}
+
+/// A taken name is a collision. Any other failure goes to the copy paths,
+/// which never replace an entry, because network and FUSE disks report a
+/// missing hard-link feature with many different errors.
+fn classify_link_failure(error: &std::io::Error, final_path: &Path) -> Result<bool> {
+    if matches!(
+        error.kind(),
+        ErrorKind::AlreadyExists | ErrorKind::PermissionDenied
+    ) && path_entry_exists(final_path)?
+    {
+        return Err(collision_state_changed_error(final_path));
+    }
+    if !matches!(
+        error.kind(),
+        ErrorKind::CrossesDevices | ErrorKind::PermissionDenied | ErrorKind::Unsupported
+    ) {
+        log::warn!(
+            "finalize_move method=hard-link status=err dest={} err={}",
+            final_path.display(),
+            error
+        );
+    }
+    Ok(false)
+}
+
+/// Installs a fully copied and flushed temp at a free `final_path` on a disk
+/// without hard links: an empty placeholder claims the name (refused if taken),
+/// then the temp is renamed over that placeholder.
+fn publish_by_placeholder(destination_temp: SiblingTemp, final_path: &Path) -> Result<()> {
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(final_path)
+        .map_err(|error| {
+            if error.kind() == ErrorKind::AlreadyExists {
+                return collision_state_changed_error(final_path);
+            }
+            destination_refused_commit_error(final_path, error)
+        })?;
+    // shortcut: a crash between the placeholder and the rename leaves an empty file under the final name; upgrade to a no-replace rename (renameat2, renamex_np) if that is seen.
+    destination_temp
+        .commit_with(final_path, |temp, destination| {
+            std::fs::rename(temp, destination)
+        })
+        .map_err(|error| {
+            if std::fs::symlink_metadata(final_path)
+                .is_ok_and(|entry| entry.is_file() && entry.len() == 0)
+            {
+                let _ = std::fs::remove_file(final_path);
+            }
+            destination_refused_commit_error(final_path, error)
+        })
+}
+
+/// Publishes `temp_output` under `final_path` without replacing anything
+/// there. On another disk the bytes are copied and flushed beside the final
+/// name first, so the name appears only with complete content.
+fn publish_without_replacing(temp_output: &Path, final_path: &Path) -> Result<PathBuf> {
     let started = Instant::now();
     if path_entry_exists(final_path)? {
         return Err(collision_state_changed_error(final_path));
     }
-
-    match std::fs::hard_link(temp_output, final_path) {
-        Ok(()) => {
-            log::info!(
-                "finalize_move method=hard-link status=ok elapsed_ms={} dest={}",
-                started.elapsed().as_millis(),
-                final_path.display(),
-            );
-            return Ok(final_path.to_path_buf());
-        }
-        Err(error)
-            if matches!(
-                error.kind(),
-                ErrorKind::AlreadyExists | ErrorKind::PermissionDenied
-            ) && path_entry_exists(final_path)? =>
-        {
-            return Err(collision_state_changed_error(final_path));
-        }
-        Err(error)
-            if matches!(
-                error.kind(),
-                ErrorKind::CrossesDevices | ErrorKind::PermissionDenied | ErrorKind::Unsupported
-            ) => {}
-        Err(error) => {
-            log::warn!(
-                "finalize_move method=hard-link status=err dest={} err={}",
-                final_path.display(),
-                error
-            );
-        }
+    flush_staged_output(temp_output)?;
+    if link_without_replacing(temp_output, final_path)? {
+        log::info!(
+            "finalize_move method=hard-link status=ok elapsed_ms={} dest={}",
+            started.elapsed().as_millis(),
+            final_path.display(),
+        );
+        return Ok(final_path.to_path_buf());
     }
+    publish_copy_without_replacing(temp_output, final_path)
+}
 
-    let mut created_destination = false;
-    let copy_result = (|| -> Result<()> {
-        let mut source = std::fs::File::open(temp_output).map_err(|error| {
-            AppError::FileValidation(format!(
-                "Cannot open temporary output '{}' for final copy: {}",
-                sanitize_path_for_display(temp_output),
-                error
-            ))
-        })?;
-        let mut destination = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(final_path)
-            .map_err(|error| {
-                if error.kind() == ErrorKind::AlreadyExists {
-                    return collision_state_changed_error(final_path);
-                }
-                destination_refused_commit_error(final_path, error)
-            })?;
-        created_destination = true;
-        std::io::copy(&mut source, &mut destination)
-            .map_err(|error| destination_refused_commit_error(final_path, error))?;
-        destination
-            .sync_all()
-            .map_err(|error| destination_refused_commit_error(final_path, error))?;
-        drop(source);
-        drop(destination);
-        Ok(())
-    })();
-
-    if let Err(error) = copy_result {
-        if created_destination {
-            let _ = std::fs::remove_file(final_path);
-        }
-        return Err(error);
-    }
-
+/// Copies `source` into a flushed temp beside `final_path`, then links it
+/// there without replacing anything. `source` never shares the published file.
+pub(super) fn publish_copy_without_replacing(source: &Path, final_path: &Path) -> Result<PathBuf> {
+    let started = Instant::now();
+    let destination_temp = replacement_temp(final_path)?;
+    copy_staged_output_to_new_file(source, destination_temp.path())?;
+    let method = if link_without_replacing(destination_temp.path(), final_path)? {
+        "copy-link"
+    } else {
+        publish_by_placeholder(destination_temp, final_path)?;
+        "copy-placeholder-rename"
+    };
     log::info!(
-        "finalize_move method=copy-create-new status=ok elapsed_ms={} dest={}",
+        "finalize_move method={method} status=ok elapsed_ms={} dest={}",
         started.elapsed().as_millis(),
         final_path.display()
     );
     Ok(final_path.to_path_buf())
 }
 
-const REPLACEMENT_TEMP_PREFIX: &str = ".abb_replace_install_";
-
-fn destination_replacement_temp_path(final_path: &Path) -> Result<PathBuf> {
-    let parent = final_path.parent().ok_or_else(|| {
-        AppError::FileValidation(format!(
-            "Output path '{}' has no parent directory.",
-            sanitize_path_for_display(final_path)
-        ))
-    })?;
+/// `replace_install_<key>`: the key is the final name's hash, so a sweep can
+/// find this file's stale temps by name without matching another file's.
+fn replacement_temp_tag(final_path: &Path) -> Result<String> {
     let file_name = final_path.file_name().ok_or_else(|| {
         AppError::FileValidation(format!(
             "Output path '{}' has no file name.",
             sanitize_path_for_display(final_path)
         ))
     })?;
-    Ok(parent.join(format!(
-        "{REPLACEMENT_TEMP_PREFIX}{}_{}",
-        uuid::Uuid::new_v4(),
-        file_name.to_string_lossy()
-    )))
+    let hash = abb_media_core::sha256_hex(file_name.as_encoded_bytes());
+    Ok(format!("replace_install_{}", &hash[..16]))
 }
 
-/// Removes stale `.abb_replace_install_<uuid>_<final name>` files left in the
-/// destination directory by a hard crash mid replace-commit (#391 residual).
-/// Error paths already clean these; only process death between the copy and
-/// the atomic replace can strand one. ABB cannot sweep user-chosen output
+fn replacement_temp(final_path: &Path) -> Result<SiblingTemp> {
+    SiblingTemp::beside(final_path, &replacement_temp_tag(final_path)?, "").map_err(|error| {
+        AppError::FileValidation(format!(
+            "Output path '{}' has no parent directory: {error}",
+            sanitize_path_for_display(final_path)
+        ))
+    })
+}
+
+/// Removes stale `.abb_replace_install_<key>_<uuid>` files left in the
+/// destination directory by a hard crash mid-commit (#391 residual). Error
+/// paths already clean these; only process death between the copy and the
+/// final link or replace can strand one. ABB cannot sweep user-chosen output
 /// directories at startup, so the sweep runs when ABB is about to commit the
-/// same final artifact again — it matches ABB's own temp naming for exactly
-/// this file name, touches regular files only, and never blocks the commit.
-fn remove_stale_replacement_temps(final_path: &Path) {
-    let (Some(parent), Some(file_name)) = (final_path.parent(), final_path.file_name()) else {
+/// same final artifact again — it matches only this file name's key, touches
+/// regular files only, and never blocks the commit.
+pub(super) fn remove_stale_replacement_temps(final_path: &Path) {
+    let (Some(parent), Ok(tag)) = (final_path.parent(), replacement_temp_tag(final_path)) else {
         return;
     };
     let Ok(entries) = std::fs::read_dir(parent) else {
         return;
     };
-    let suffix = format!("_{}", file_name.to_string_lossy());
+    let prefix = format!(".abb_{tag}_");
     for entry in entries.flatten() {
         let entry_name = entry.file_name();
         let Some(entry_name) = entry_name.to_str() else {
             continue;
         };
-        if !entry_name.starts_with(REPLACEMENT_TEMP_PREFIX) || !entry_name.ends_with(&suffix) {
+        if !entry_name.starts_with(&prefix) {
             continue;
         }
         // DirEntry::file_type does not follow symlinks: links and directories
@@ -211,6 +237,7 @@ where
     R: FnMut(&Path, &Path) -> std::io::Result<()>,
 {
     let started = Instant::now();
+    flush_staged_output(temp_output)?;
     match replace_file(temp_output, final_path) {
         Ok(()) => {
             log::info!(
@@ -237,26 +264,17 @@ where
         }
     }
 
-    let destination_temp = destination_replacement_temp_path(final_path)?;
-    if let Err(error) = copy_staged_output_to_new_file(temp_output, &destination_temp) {
-        let _ = std::fs::remove_file(&destination_temp);
-        return Err(error);
-    }
-
-    match replace_file(&destination_temp, final_path) {
-        Ok(()) => {
-            log::info!(
-                "finalize_move method=copy-replace status=ok elapsed_ms={} dest={}",
-                started.elapsed().as_millis(),
-                final_path.display()
-            );
-            Ok(final_path.to_path_buf())
-        }
-        Err(error) => {
-            let _ = std::fs::remove_file(&destination_temp);
-            Err(destination_refused_commit_error(final_path, error))
-        }
-    }
+    let destination_temp = replacement_temp(final_path)?;
+    copy_staged_output_to_new_file(temp_output, destination_temp.path())?;
+    destination_temp
+        .commit_with(final_path, &mut replace_file)
+        .map_err(|error| destination_refused_commit_error(final_path, error))?;
+    log::info!(
+        "finalize_move method=copy-replace status=ok elapsed_ms={} dest={}",
+        started.elapsed().as_millis(),
+        final_path.display()
+    );
+    Ok(final_path.to_path_buf())
 }
 
 fn replace_existing_from_staged_output(temp_output: &Path, final_path: &Path) -> Result<PathBuf> {
@@ -281,7 +299,7 @@ fn commit_temp_output_to_artifact(
     remove_stale_replacement_temps(final_path);
     match action {
         PlannedOutputAction::Write | PlannedOutputAction::RenameNew => {
-            return install_without_replacing(&temp_output, final_path);
+            return publish_without_replacing(&temp_output, final_path);
         }
         PlannedOutputAction::ReplaceExisting => {}
         PlannedOutputAction::SkipExisting | PlannedOutputAction::ReviewRequired => {

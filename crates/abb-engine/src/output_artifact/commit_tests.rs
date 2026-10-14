@@ -5,6 +5,14 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tempfile::TempDir;
 
+fn replacement_temp_named(final_path: &Path, suffix: &str) -> std::path::PathBuf {
+    let tag = replacement_temp_tag(final_path).expect("final path has a name");
+    final_path
+        .parent()
+        .expect("final path has a folder")
+        .join(format!(".abb_{tag}_{suffix}"))
+}
+
 #[test]
 fn commit_output_artifact_preserves_moved_output_on_post_move_cancel() {
     let root = TempDir::new().expect("temp root");
@@ -316,9 +324,7 @@ fn commit_removes_stale_replacement_temp_for_same_final_artifact() {
     std::fs::write(&temp_output, b"new").expect("write temp output");
     // Simulate a hard crash mid replace-commit: full-size copy stranded
     // beside the destination.
-    let stale_temp = root
-        .path()
-        .join(".abb_replace_install_0000-crashed_book.m4b");
+    let stale_temp = replacement_temp_named(&final_output, "0000-crashed");
     std::fs::write(&stale_temp, b"stranded copy").expect("write stale temp");
 
     let committed =
@@ -338,15 +344,14 @@ fn commit_preserves_unrelated_and_imitation_entries_in_destination() {
     std::fs::write(&temp_output, b"new").expect("write temp output");
 
     // Same ABB prefix, different final artifact: not ours to sweep here.
-    let other_artifact_temp = root
-        .path()
-        .join(".abb_replace_install_0000-crashed_other.m4b");
+    let other_artifact_temp =
+        replacement_temp_named(&root.path().join("other.m4b"), "0000-crashed");
     std::fs::write(&other_artifact_temp, b"other").expect("write other temp");
     // User dotfile without ABB naming.
     let user_dotfile = root.path().join(".book.m4b");
     std::fs::write(&user_dotfile, b"user").expect("write user dotfile");
     // Directory imitating the temp naming: regular files only.
-    let imitation_dir = root.path().join(".abb_replace_install_dir_book.m4b");
+    let imitation_dir = replacement_temp_named(&final_output, "dir");
     std::fs::create_dir(&imitation_dir).expect("create imitation dir");
 
     commit_temp_output_to_artifact(temp_output, &final_output, PlannedOutputAction::Write)
@@ -372,7 +377,7 @@ fn commit_preserves_symlink_imitating_replacement_temp() {
     std::fs::write(&temp_output, b"new").expect("write temp output");
     let target = root.path().join("target.m4b");
     std::fs::write(&target, b"target").expect("write target");
-    let link = root.path().join(".abb_replace_install_link_book.m4b");
+    let link = replacement_temp_named(&final_output, "link");
     std::os::unix::fs::symlink(&target, &link).expect("create symlink");
 
     commit_temp_output_to_artifact(temp_output, &final_output, PlannedOutputAction::Write)
@@ -380,4 +385,148 @@ fn commit_preserves_symlink_imitating_replacement_temp() {
 
     assert!(link.exists(), "symlink imitating temp naming is preserved");
     assert!(target.exists(), "symlink target is preserved");
+}
+
+#[test]
+fn commit_keeps_the_active_replacement_temp_of_a_sibling_title() {
+    let root = TempDir::new().expect("temp root");
+    let temp_output = root.path().join("temp-output.m4b");
+    let final_output = root.path().join("book.m4b");
+    std::fs::write(&temp_output, b"new").expect("write temp output");
+    let sibling_temp = replacement_temp_named(&root.path().join("a_book.m4b"), "0000-active");
+    std::fs::write(&sibling_temp, b"sibling copy in progress").expect("write sibling temp");
+
+    commit_temp_output_to_artifact(temp_output, &final_output, PlannedOutputAction::Write)
+        .expect("commit succeeds");
+
+    assert!(
+        sibling_temp.exists(),
+        "another title's active replacement temp is not swept"
+    );
+}
+
+#[test]
+fn replace_existing_commits_a_204_byte_final_name_across_disks() {
+    let root = TempDir::new().expect("temp root");
+    let worker = root.path().join("local-worker");
+    let destination_dir = root.path().join("destination");
+    std::fs::create_dir_all(&worker).expect("worker");
+    std::fs::create_dir_all(&destination_dir).expect("destination");
+    let temp_output = worker.join("temp-output.m4b");
+    let final_output = destination_dir.join(format!("{}.m4b", "a".repeat(200)));
+    std::fs::write(&temp_output, b"new").expect("write temp output");
+    std::fs::write(&final_output, b"old").expect("write existing output");
+    let calls = Cell::new(0);
+
+    replace_existing_from_staged_output_with(&temp_output, &final_output, |source, dest| {
+        calls.set(calls.get() + 1);
+        if calls.get() == 1 {
+            return Err(io::Error::new(
+                io::ErrorKind::CrossesDevices,
+                "cross-device",
+            ));
+        }
+        crate::file_replace::replace_file(source, dest)
+    })
+    .expect("a long final name still commits");
+
+    assert_eq!(std::fs::read(&final_output).expect("read final"), b"new");
+}
+
+#[cfg(unix)]
+#[test]
+fn write_publish_of_a_dangling_staged_output_leaves_no_final_name() {
+    let root = TempDir::new().expect("temp root");
+    let temp_output = root.path().join("temp-output.m4b");
+    let final_output = root.path().join("book.m4b");
+    std::os::unix::fs::symlink(root.path().join("lost.m4b"), &temp_output)
+        .expect("staged output points at nothing");
+
+    let result =
+        commit_temp_output_to_artifact(temp_output, &final_output, PlannedOutputAction::Write);
+
+    assert!(
+        result.is_err(),
+        "a staged output with no content is refused"
+    );
+    assert!(
+        std::fs::symlink_metadata(&final_output).is_err(),
+        "no entry appears under the final name"
+    );
+}
+
+#[test]
+fn write_publish_of_a_directory_staged_output_leaves_no_final_name() {
+    let root = TempDir::new().expect("temp root");
+    let temp_output = root.path().join("temp-output.m4b");
+    let final_output = root.path().join("book.m4b");
+    std::fs::create_dir(&temp_output).expect("staged path is a directory");
+
+    commit_temp_output_to_artifact(temp_output, &final_output, PlannedOutputAction::Write)
+        .expect_err("a directory cannot be published");
+
+    assert!(
+        !final_output.exists(),
+        "no file appears under the final name"
+    );
+}
+
+#[test]
+fn placeholder_publish_installs_the_copied_temp_under_a_free_name() {
+    let root = TempDir::new().expect("temp root");
+    let final_output = root.path().join("book.m4b");
+    let temp = replacement_temp(&final_output).expect("temp");
+    std::fs::write(temp.path(), b"complete book").expect("write temp");
+    let temp_path = temp.path().to_path_buf();
+
+    publish_by_placeholder(temp, &final_output).expect("publish");
+
+    assert_eq!(
+        std::fs::read(&final_output).expect("read"),
+        b"complete book"
+    );
+    assert!(!temp_path.exists(), "the temp became the final file");
+}
+
+#[test]
+fn placeholder_publish_refuses_a_taken_name_and_keeps_that_file() {
+    let root = TempDir::new().expect("temp root");
+    let final_output = root.path().join("book.m4b");
+    std::fs::write(&final_output, b"someone else's book").expect("write existing");
+    let temp = replacement_temp(&final_output).expect("temp");
+    std::fs::write(temp.path(), b"complete book").expect("write temp");
+    let temp_path = temp.path().to_path_buf();
+
+    let error = publish_by_placeholder(temp, &final_output).expect_err("name is taken");
+
+    assert!(error.to_string().contains("Review collisions"), "{error}");
+    assert_eq!(
+        std::fs::read(&final_output).expect("read"),
+        b"someone else's book"
+    );
+    assert!(!temp_path.exists(), "the refused temp is removed");
+}
+
+#[test]
+fn a_taken_name_is_a_collision_and_any_other_link_failure_copies() {
+    let root = TempDir::new().expect("temp root");
+    let taken = root.path().join("taken.m4b");
+    std::fs::write(&taken, b"someone else's book").expect("write existing");
+    let free = root.path().join("free.m4b");
+
+    let error = classify_link_failure(&io::Error::from(io::ErrorKind::AlreadyExists), &taken)
+        .expect_err("a taken name");
+    assert!(error.to_string().contains("Review collisions"), "{error}");
+    for kind in [
+        io::ErrorKind::CrossesDevices,
+        io::ErrorKind::PermissionDenied,
+        io::ErrorKind::Unsupported,
+        io::ErrorKind::InvalidInput,
+        io::ErrorKind::Other,
+    ] {
+        assert!(
+            !classify_link_failure(&io::Error::from(kind), &free).expect("copy path"),
+            "{kind:?}"
+        );
+    }
 }

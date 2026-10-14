@@ -285,6 +285,7 @@ pub(crate) fn prepare_inspected_execution(
     let mut ledger = OutputPlanLedger::new();
     for job in &mut plan.jobs {
         job.output = ledger.refresh(&job.output, plan.collision_policy, &sources)?;
+        check_companion_pdf_name(payload, job.input_index, &job.output)?;
     }
     plan.plan_signature =
         build_plan_signature(plan.preview_seconds, plan.collision_policy, &plan.jobs);
@@ -360,6 +361,7 @@ fn build_title_processing_jobs(
             collision_policy,
             &validated_input_paths,
         )?;
+        check_companion_pdf_name(payload, index, &output)?;
         jobs.push(PlannedProcessingJob {
             input_index: index,
             input_path: path,
@@ -374,6 +376,21 @@ fn build_title_processing_jobs(
     }
 
     Ok(jobs)
+}
+
+/// A title with a Supplemental PDF is refused before encoding when the PDF's
+/// name beside the audiobook would not fit.
+fn check_companion_pdf_name(
+    payload: &ProcessPayload,
+    index: usize,
+    output: &ResolvedOutputPlan,
+) -> Result<()> {
+    if output.kind != OutputKind::Final
+        || super::run::supplemental_assets_for_input(payload, index).is_empty()
+    {
+        return Ok(());
+    }
+    abb_output_artifact_core::check_supplemental_pdf_name(&output.resolved_path).map_err(Into::into)
 }
 
 pub(super) fn title_file_info(all: &FileListInfo, paths: &[PathBuf]) -> Result<FileListInfo> {

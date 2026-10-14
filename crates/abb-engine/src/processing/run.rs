@@ -14,6 +14,7 @@ mod run_job;
 mod run_options;
 mod run_validation;
 
+pub(crate) use run_job::supplemental_assets_for_input;
 pub(crate) use run_options::ProcessingRunOptions;
 use run_validation::inspect_and_validate_external_processing_contract;
 
@@ -838,6 +839,44 @@ mod tests {
                 .expect("idle registry should allow concurrency updates"),
             1
         );
+    }
+
+    #[test]
+    fn preflight_refuses_a_too_long_companion_pdf_name_only_when_the_title_has_one() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let source = temp_dir.path().join("source.wav");
+        crate::test_cases::integration_media_execution_tests::write_sine_wav(&source, 0.2, 440.0);
+        let source_key = source.to_string_lossy().to_string();
+        std::fs::create_dir(temp_dir.path().join("out")).expect("create output folder");
+        let metadata = HashMap::from([(
+            source_key.clone(),
+            crate::metadata::MetadataIntentPatch {
+                title: Some(crate::metadata::PatchOp::Set("a".repeat(236))),
+                ..Default::default()
+            },
+        )]);
+        let without_pdf = process_payload(|payload| {
+            payload.input_files = vec![source_key.clone()];
+            payload.input_ids = Some(vec![Some("input-1".to_string())]);
+            payload.output_dir = temp_dir.path().join("out").to_string_lossy().to_string();
+        });
+        let mut with_pdf = without_pdf.clone();
+        with_pdf.supplemental_assets_by_input_id = Some(HashMap::from([(
+            "input-1".to_string(),
+            vec![supplemental_asset(
+                temp_dir.path().join("book.pdf"),
+                "input-1",
+                b"%PDF-",
+            )],
+        )]));
+
+        preflight_payload(without_pdf, Some(metadata.clone()), None)
+            .expect("a long name without a PDF plans");
+        let error = preflight_payload(with_pdf, Some(metadata), None)
+            .expect_err("the companion PDF name would be too long");
+
+        assert!(error.to_string().contains("Supplemental PDF"), "{error}");
+        assert!(error.to_string().contains("255 bytes"), "{error}");
     }
 
     #[test]

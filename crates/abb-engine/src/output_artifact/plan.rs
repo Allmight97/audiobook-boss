@@ -96,6 +96,7 @@ fn resolve_output_plan_with_cache(
     source_paths: &[PathBuf],
     cache: &mut OutputCollisionCache,
 ) -> Result<ResolvedOutputPlan> {
+    abb_output_artifact_core::check_output_name_lengths(requested_final_path)?;
     let requested_path = requested_final_path.to_path_buf();
     let collision = detect_output_collision(&requested_path, claimed, source_paths, cache)?;
     let hard_block = collision
@@ -120,12 +121,7 @@ fn resolve_output_plan_with_cache(
         })
         .unwrap_or(false);
     let rename_candidate = if collision.is_some() && !hard_block {
-        Some(next_rename_candidate(
-            &requested_path,
-            claimed,
-            source_paths,
-            cache,
-        )?)
+        next_rename_candidate(&requested_path, claimed, source_paths, cache)?
     } else {
         None
     };
@@ -146,9 +142,11 @@ fn resolve_output_plan_with_cache(
     };
 
     let resolved_path = match action {
-        PlannedOutputAction::RenameNew => rename_candidate
-            .clone()
-            .ok_or_else(|| AppError::General("Missing rename candidate".to_string()))?,
+        PlannedOutputAction::RenameNew => rename_candidate.clone().ok_or_else(|| {
+            AppError::InvalidInput(
+                "A renamed output name would be over 255 bytes. Shorten the title or the naming template, or replace the existing file.".to_string(),
+            )
+        })?,
         _ => requested_path.clone(),
     };
 
@@ -262,6 +260,45 @@ mod tests {
 
         assert_eq!(plan.action, PlannedOutputAction::SkipExisting);
         assert_eq!(plan.resolved_path, existing_path);
+    }
+
+    #[test]
+    fn resolve_output_plan_refuses_a_256_byte_file_name_before_any_work() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let requested = temp_dir.path().join(format!("{}.m4b", "a".repeat(252)));
+
+        let error = resolve_output_plan(
+            &requested,
+            OutputKind::Final,
+            CollisionPolicy::Fail,
+            &HashSet::new(),
+            &[],
+        )
+        .expect_err("an overlong name is refused");
+
+        assert!(error.to_string().contains("255 bytes"), "{error}");
+    }
+
+    #[test]
+    fn resolve_output_plan_replaces_a_full_length_name_whose_rename_would_be_overlong() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let requested = temp_dir.path().join(format!("{}.m4b", "a".repeat(243)));
+        let preview = temp_dir
+            .path()
+            .join(format!("{}.preview.m4b", "a".repeat(243)));
+        write(&preview, b"existing preview").expect("write existing preview");
+
+        let plan = resolve_output_plan(
+            &requested,
+            OutputKind::Preview,
+            CollisionPolicy::ReplaceExisting,
+            &HashSet::new(),
+            &[],
+        )
+        .expect("a valid replacement is planned");
+
+        assert_eq!(plan.action, PlannedOutputAction::ReplaceExisting);
+        assert_eq!(plan.resolved_path, preview);
     }
 
     #[test]
