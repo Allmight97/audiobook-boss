@@ -102,6 +102,14 @@ When one appears, name the affected boundary, state the assumption used to
 continue, and add or propose the smallest regression test, invariant, or doc
 guard that prevents recurrence.
 
+## Import Discovery
+
+`discover_audio_import_paths` never fails a whole import: each path it cannot
+read (dropped path, subfolder, entry, or file that fails
+`validate_input_audio_path`) is returned in `skipped` with its error, and the
+walk continues. Unsupported extensions and nested symlinks are left out
+silently. The session decides what a skip means for the user.
+
 ## Chapter Intake
 
 Analysis attaches CUE diagnostics and a source-fingerprinted candidate chapter

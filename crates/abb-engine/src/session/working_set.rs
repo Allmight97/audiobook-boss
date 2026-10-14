@@ -48,7 +48,8 @@ pub enum CueChoice {
     Ignore,
 }
 
-/// Why the last import added nothing. Hosts word these for the user.
+/// What the last import could not do: why it added nothing, or which dropped
+/// paths it skipped. Hosts word these for the user.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum InputNotice {
@@ -60,8 +61,9 @@ pub enum InputNotice {
     },
     /// Every analyzed file was already in the list.
     DuplicatesOnly,
-    DiscoveryFailed {
-        error: AppErrorEnvelope,
+    /// Paths that could not be read; the rest of the import was added.
+    SkippedPaths {
+        skipped: Vec<crate::audio::SkippedImportPath>,
     },
     AnalysisFailed {
         error: AppErrorEnvelope,

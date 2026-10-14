@@ -510,12 +510,17 @@ export type IndexerWorkSnapshot = {
 	message: string,
 };
 
-/**  Why the last import added nothing. Hosts word these for the user. */
+/**
+ *  What the last import could not do: why it added nothing, or which dropped
+ *  paths it skipped. Hosts word these for the user.
+ */
 export type InputNotice =
 /**  The order is locked while processing; nothing can be added. */
 { kind: "orderLocked" } | { kind: "noSupportedFiles"; formatsText: string } |
 /**  Every analyzed file was already in the list. */
-{ kind: "duplicatesOnly" } | { kind: "discoveryFailed"; error: AppErrorEnvelope } | { kind: "analysisFailed"; error: AppErrorEnvelope };
+{ kind: "duplicatesOnly" } |
+/**  Paths that could not be read; the rest of the import was added. */
+{ kind: "skippedPaths"; skipped: SkippedImportPath[] } | { kind: "analysisFailed"; error: AppErrorEnvelope };
 
 export type LookupApplyMode =
 /**  Apply to the current title and stay on it. */
@@ -1226,6 +1231,12 @@ export type SettingsUpdateEvent = SettingsSnapshot;
 export type SizeEstimate = { kind: "bytes"; bytes: number } |
 /**  A quality setting owns the bitrate, so size follows the audio. */
 { kind: "variesWithAudio" };
+
+/**  A path an import could not read, and why. */
+export type SkippedImportPath = {
+	path: string,
+	reason: string,
+};
 
 export type SortDirection = "none" | "ascending" | "descending";
 

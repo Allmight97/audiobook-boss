@@ -1041,6 +1041,38 @@ async fn importing_a_folder_with_no_audio_explains_what_is_supported() {
 }
 
 #[tokio::test]
+async fn importing_lists_what_it_read_and_names_what_it_skipped() {
+    let rig = rig();
+    let folder = tempfile::TempDir::new().expect("temp dir");
+    let book = staged_wav(folder.path(), "book");
+    let missing = folder.path().join("missing.wav");
+
+    rig.send(SessionIntent::Import {
+        paths: vec![
+            book.to_string_lossy().into_owned(),
+            missing.to_string_lossy().into_owned(),
+        ],
+    })
+    .await;
+
+    let titles = rig.session.snapshot().titles.expect("titles part");
+    assert_eq!(
+        rig.listed_paths(),
+        vec![book.canonicalize().expect("canonical book")]
+    );
+    let Some(InputNotice::SkippedPaths { skipped }) = titles.notice else {
+        panic!("expected the skipped path notice, got {:?}", titles.notice);
+    };
+    assert_eq!(skipped.len(), 1);
+    assert_eq!(skipped[0].path, missing.display().to_string());
+    assert!(
+        skipped[0].reason.contains("missing.wav"),
+        "{}",
+        skipped[0].reason
+    );
+}
+
+#[tokio::test]
 async fn a_cover_url_is_required_before_anything_loads() {
     let rig = rig();
     rig.load(&["alpha"]);
@@ -1729,6 +1761,30 @@ async fn an_acquired_title_is_listed_with_its_companions_and_its_download_goes_w
         .expect("titles")
         .companions
         .is_empty());
+}
+
+#[tokio::test]
+async fn a_download_with_an_unreadable_file_is_not_listed_at_all() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+    let mut job = acquired("job-1", &audio);
+    let mut missing = job.materialized_files[0].clone();
+    missing.path = staging.path().join("part 2.wav");
+    job.materialized_files.push(missing);
+
+    let handoff = rig.session.import_acquired(job).await;
+
+    assert!(
+        matches!(
+            handoff,
+            crate::remote_source::AcquisitionHandoff::Removed {
+                reason: crate::remote_source::HandoffRefusal::ImportFailed { .. }
+            }
+        ),
+        "{handoff:?}"
+    );
+    assert!(rig.listed_paths().is_empty());
 }
 
 #[tokio::test(start_paused = true)]

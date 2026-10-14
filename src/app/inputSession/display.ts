@@ -41,7 +41,7 @@ export function formatFileDetails(
 	return `Error: ${file.error || 'Invalid file'}`;
 }
 
-/** Words the engine's reason an import added nothing. */
+/** Words what the engine says the last import could not do. */
 function inputNoticeText(notice: InputNotice | null): string {
 	switch (notice?.kind) {
 		case undefined:
@@ -52,10 +52,10 @@ function inputNoticeText(notice: InputNotice | null): string {
 			return `No supported audio files found. Please use ${notice.formatsText} files.`;
 		case 'duplicatesOnly':
 			return 'No new files added. All analyzed files were already in the list.';
-		case 'discoveryFailed':
-			return toUserMessage(notice.error, {
-				fallback: 'Failed to discover audio files. Please try again.',
-			});
+		case 'skippedPaths':
+			return `Skipped what ABB could not read: ${notice.skipped
+				.map(({ path, reason }) => `${path} (${reason})`)
+				.join('; ')}`;
 		case 'analysisFailed':
 			return toUserMessage(notice.error, {
 				fallback: 'Failed to analyze files. Please try again.',

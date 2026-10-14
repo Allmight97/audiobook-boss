@@ -64,6 +64,19 @@ describe('input owner', () => {
 			};
 		});
 		expect(app.input.view().errorMessage).toBe('Disk unreadable');
+
+		engine.change((state) => {
+			state.titles.notice = {
+				kind: 'skippedPaths',
+				skipped: [
+					{ path: '/books/Locked', reason: 'Permission denied' },
+					{ path: '/books/bad.mp3', reason: 'Invalid characters' },
+				],
+			};
+		});
+		expect(app.input.view().errorMessage).toBe(
+			'Skipped what ABB could not read: /books/Locked (Permission denied); /books/bad.mp3 (Invalid characters)',
+		);
 	});
 
 	it('explains a picker that could not open and sends no import', async () => {
