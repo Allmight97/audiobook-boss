@@ -6,6 +6,8 @@ minimumReleaseAge = 864000
 
 # Keep unrelated transitive resolutions gated during explicit prerelease updates.
 minimumReleaseAgeExcludes = [
+  # Owner-approved Bun 1.4.3 (published 2026-10-10). Remove after 2026-10-20.
+  "bun",
   "solid-js",
   "@solidjs/web",
   "@solidjs/signals",

@@ -23,12 +23,12 @@ abb-output-artifact-core = { path = "../abb-output-artifact-core" }
 abb-processing-core = { path = "../abb-processing-core" }
 abb-remote-source-core = { path = "../abb-remote-source-core" }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-toml = "1.1.4"
+serde_json = "1.0.154"
+toml = "1.1.8"
 thiserror = "2.0.18"
-tokio = { version = "1.52.1", features = ["full"] }
-tokio-util = { version = "0.7.19", features = ["rt"] }
-uuid = { version = "1.23.1", features = ["v4"] }
+tokio = { version = "1.53.3", features = ["full"] }
+tokio-util = { version = "0.7.20", features = ["rt"] }
+uuid = { version = "1.28.0", features = ["v4"] }
 log = "0.4.29"
 ffmpeg-next = "9.0.0"
 ffmpeg-sys-next = { version = "9.0.0", default-features = false }
@@ -50,9 +50,9 @@ percent-encoding = "2.3.2"
 # RCs. Bump together with the host crate, deliberately, and regenerate bindings.
 specta = "=2.0.0-rc.25"
 specta-typescript = "=0.0.12"
-keyring-core = "1.0.0"
+keyring-core = "1.0.1"
 secrecy = "0.10.3"
-sha2 = "0.11.0"
+sha2 = "0.11.1"
 audible_api = "0.1.0"
 
 # Platform-native OS credential stores, registered directly through keyring-core
@@ -99,10 +99,10 @@ sha1 = "0.10.6"
 ffmpeg-next = "9.0.0"
 # Local TLS stub for the Audible download harness (no real Audible account).
 rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "pem"] }
-tokio-rustls = { version = "0.26.4", default-features = false, features = ["aws_lc_rs"] }
-proptest = "1.11.0"
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["aws_lc_rs"] }
+proptest = "1.12.0"
 # Paused time for tests of delayed work.
-tokio = { version = "1.52.1", features = ["full", "test-util"] }
+tokio = { version = "1.53.3", features = ["full", "test-util"] }
 
 [lints]
 workspace = true
