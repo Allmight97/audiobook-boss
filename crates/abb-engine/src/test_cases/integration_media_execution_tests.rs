@@ -2454,6 +2454,65 @@ async fn preserving_with_repaired_chapters_keeps_every_source_picture() {
     }
 }
 
+/// An MP4 chapter track that ends short of the audio is repaired only in its
+/// last end, which MP4 players derive from the audio length. Preserving the
+/// book must still copy it as is: a remux through FFmpeg's mov writer drops
+/// the freeform tags ABB does not model.
+#[tokio::test]
+async fn preserving_an_m4b_whose_chapters_end_short_keeps_its_freeform_tags() {
+    use abb_engine::audio::{AudioIntent, AudiobookFormat, TitleAudioRequest};
+    let tmp = TempDir::new().expect("M4B preserve workspace");
+    let audio = tmp.path().join("plain.m4a");
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+    assert!(Command::new(&binary)
+        .args(["-v", "error", "-y", "-f", "lavfi", "-i"])
+        .arg("sine=frequency=440:sample_rate=44100:duration=0.9")
+        .args(["-ac", "1", "-c:a", "aac"])
+        .arg(&audio)
+        .status()
+        .expect("AAC fixture encoder")
+        .success());
+    let end = duration_ms(&audio);
+    let source = tmp.path().join("book.m4b");
+    mux_chapters(&audio, &[("One", 0, 400), ("Two", 400, end - 60)], &source);
+    let asin = mp4ameta::FreeformIdent::new_static("com.apple.iTunes", "ASIN");
+    let mut tag = mp4ameta::Tag::read_from_path(&source).expect("read fixture tags");
+    tag.set_data(asin, mp4ameta::Data::Utf8("B000000001".into()));
+    tag.write_with_path(
+        &source,
+        &mp4ameta::WriteConfig {
+            write_meta_items: true,
+            ..mp4ameta::WriteConfig::NONE
+        },
+    )
+    .expect("plant ASIN");
+
+    let request = TitleAudioRequest {
+        format: AudiobookFormat::M4b,
+        intent: AudioIntent::Preserve,
+        settings: None,
+        sample_rate: SampleRateConfig::Auto,
+    };
+    let (output, _) = run_planned_title(
+        single_title_payload(&source, &tmp.path().join("out.m4b"), request),
+        None,
+        &tmp.path().join("work"),
+    )
+    .await
+    .expect("preserve M4B");
+
+    let tag = mp4ameta::Tag::read_from_path(&output).expect("read preserved tags");
+    assert_eq!(tag.strings_of(&asin).next(), Some("B000000001"));
+    let starts: Vec<_> = chapters_of(&output)
+        .into_iter()
+        .map(|(title, start, _)| (title, start))
+        .collect();
+    assert_eq!(
+        starts,
+        vec![(Some("One".to_string()), 0), (Some("Two".to_string()), 400)]
+    );
+}
+
 fn oversized_jpeg(path: &Path) -> Vec<u8> {
     let mut bytes = Vec::new();
     image::DynamicImage::new_rgb8(5_000, 5_000)

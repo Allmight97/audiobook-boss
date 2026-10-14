@@ -156,10 +156,13 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - `PassthroughSource.chapters` carries accepted data when present; `None` is
   container discovery for artifact readers. `verify_chapters` checks names,
   starts, ends, and count after final metadata writes and before artifact
-  commit. Selected chapter write/readback failures propagate.
+  commit; in MP4 it skips ends, which players derive from the next start and
+  the audio end. Selected chapter write/readback failures propagate.
 - Every route writes the accepted plan, never the raw source chapters.
   `remux_preserved_audio_container` takes the accepted chapters and leaves a
-  staged copy alone only when its container and chapters already match. A
+  staged copy alone only when its container and chapters (by the same MP4
+  rule) already match. Why: FFmpeg's mov writer drops the freeform tags ABB
+  does not model, so an MP4 is remuxed only for a real chapter change. A
   same-container remux carries no cover, so every picture the file holds is
   copied (the first is not a chosen cover); a container change carries the
   first picture over as the cover.

@@ -283,32 +283,47 @@ fn verify_chapters_inner(path: &std::path::Path, expected: &[ChapterSpec]) -> Re
             end_ms: rescale_to_ms(chapter.end(), chapter.time_base()),
         })
         .collect();
-    let mismatch = actual.iter().zip(expected).position(|(a, e)| {
-        a.title.as_deref().unwrap_or("") != e.title.as_deref().unwrap_or("")
-            || a.start_ms != e.start_ms
-            || a.end_ms != e.end_ms
-    });
+    let ends_stored = !input.format().name().split(',').any(|name| name == "mp4");
+    let mismatch = first_chapter_difference(&actual, expected, ends_stored);
     log::info!(
         "metadata_chapters artifact={} expected={} actual={} first_mismatch={:?}",
         crate::diagnostics::artifact_id(path),
         expected.len(),
         actual.len(),
-        mismatch.or_else(
-            || (actual.len() != expected.len()).then_some(actual.len().min(expected.len()))
-        )
+        mismatch
     );
-    if let Some(index) = mismatch {
-        let (a, e) = (&actual[index], &expected[index]);
+    if let Some((index, (a, e))) =
+        mismatch.and_then(|index| Some((index, (actual.get(index)?, expected.get(index)?))))
+    {
         log::info!("metadata_chapter_mismatch artifact={} index={} title_matches={} expected_start_ms={} actual_start_ms={} expected_end_ms={} actual_end_ms={}",
             crate::diagnostics::artifact_id(path), index, a.title.as_deref().unwrap_or("") == e.title.as_deref().unwrap_or(""),
             e.start_ms, a.start_ms, e.end_ms, a.end_ms);
     }
-    if actual.len() != expected.len() || mismatch.is_some() {
+    if mismatch.is_some() {
         return Err(crate::errors::AppError::InvalidInput(
             "Final output did not preserve the accepted chapter names and positions.".into(),
         ));
     }
     Ok(())
+}
+
+/// The first chapter where `actual` and `expected` differ, a missing one
+/// included. MP4 players end a chapter where the next starts (the last at the
+/// audio end), so without `ends_stored` only titles and starts count.
+pub(super) fn first_chapter_difference(
+    actual: &[ChapterSpec],
+    expected: &[ChapterSpec],
+    ends_stored: bool,
+) -> Option<usize> {
+    actual
+        .iter()
+        .zip(expected)
+        .position(|(a, e)| {
+            a.title.as_deref().unwrap_or("") != e.title.as_deref().unwrap_or("")
+                || a.start_ms != e.start_ms
+                || ends_stored && a.end_ms != e.end_ms
+        })
+        .or_else(|| (actual.len() != expected.len()).then_some(actual.len().min(expected.len())))
 }
 
 fn rescale_to_ms(value: i64, time_base: ff::Rational) -> i64 {

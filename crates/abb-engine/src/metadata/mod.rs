@@ -222,8 +222,8 @@ pub(crate) fn finish_artifact_tags(
 
 /// Puts an owned staging artifact into the target container with the accepted
 /// chapters, keeping its audio, pictures, and tags. A file already in that
-/// container with exactly those chapters is left alone. Callers never pass an
-/// original source here.
+/// container with those chapters (for MP4, those titles and starts) is left
+/// alone. Callers never pass an original source here.
 pub(crate) fn remux_preserved_audio_container(
     path: &std::path::Path,
     extension: &str,
@@ -246,7 +246,10 @@ pub(crate) fn remux_preserved_audio_container(
         chapters: None,
     }]);
     let same_container = container::classify(path)?.remux_output_format() == Some(target);
-    if same_container && source.chapters == chapters {
+    if same_container
+        && passthrough::first_chapter_difference(&source.chapters, chapters, target != "mp4")
+            .is_none()
+    {
         return Ok(());
     }
     let mut metadata = read_metadata(path)?;
