@@ -52,7 +52,9 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
 ## Path Display Policy
 
 - Filesystem and process identity uses `Path`, `OsStr`, or `OsString`.
-- User-facing diagnostics use sanitized display strings. Started jobs record
+- User-facing diagnostics use sanitized display strings. The import notice is
+  the exception: it lists each skipped path in full, because a bare name
+  cannot tell same-named files in different folders apart. Started jobs record
   ordered source paths at info level, with debug escaping so same-named files
   stay distinguishable.
 - Lossy strings serve display ordering only, never identity or command argv.

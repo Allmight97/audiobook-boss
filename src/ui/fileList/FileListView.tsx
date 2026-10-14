@@ -339,7 +339,8 @@ export function FileListView(props: {
 												{(cue) => (
 													<div class="file-cue-details">
 														<span>
-															{acceptedChapterCount(file)} chapters from{' '}
+															{acceptedChapterCount(file)} chapter
+															{acceptedChapterCount(file) === 1 ? '' : 's'} from{' '}
 															{cue().status === 'embeddedPreferred'
 																? 'embedded audio'
 																: cue().fileName}

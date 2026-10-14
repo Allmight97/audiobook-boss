@@ -106,10 +106,9 @@ pub(crate) fn prepare_output_cover_art(
             if let Some(value) = metadata.as_mut() {
                 value.cover_art = None;
             }
-            let warning = format!(
-                "The cover from the source file could not be used ({error}), so this audiobook has no cover."
-            );
-            return Ok((metadata, passthrough, Some(warning)));
+            let warning =
+                "The source file's cover could not be used, so this audiobook has no cover.";
+            return Ok((metadata, passthrough, Some(warning.to_string())));
         }
         Err(error) => return Err(error),
     }

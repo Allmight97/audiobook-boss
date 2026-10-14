@@ -69,13 +69,25 @@ describe('input owner', () => {
 			state.titles.notice = {
 				kind: 'skippedPaths',
 				skipped: [
-					{ path: '/books/Locked', reason: 'Permission denied' },
-					{ path: '/books/bad.mp3', reason: 'Invalid characters' },
+					{
+						path: '/books/Locked',
+						reason:
+							'File validation failed: Cannot read the folder: Permission denied (os error 13)',
+					},
+					{
+						path: '/books/missing.mp3',
+						reason:
+							'File validation failed: Cannot read it: No such file or directory (os error 2)',
+					},
 				],
 			};
 		});
 		expect(app.input.view().errorMessage).toBe(
-			'Skipped what ABB could not read: /books/Locked (Permission denied); /books/bad.mp3 (Invalid characters)',
+			[
+				'Skipped what ABB could not read:',
+				'/books/Locked (File validation failed: Cannot read the folder: Permission denied (os error 13))',
+				'/books/missing.mp3 (File validation failed: Cannot read it: No such file or directory (os error 2))',
+			].join('\n'),
 		);
 	});
 

@@ -2583,7 +2583,8 @@ async fn joined_title_drops_an_unpreparable_source_cover_but_not_a_chosen_one() 
         .expect("the title converts without its source cover");
     assert_eq!(read_metadata(&output).expect("read output").cover_art, None);
     assert!(
-        outcome.warnings.len() == 1 && outcome.warnings[0].contains("cover"),
+        outcome.warnings
+            == ["The source file's cover could not be used, so this audiobook has no cover."],
         "{:?}",
         outcome.warnings
     );

@@ -135,11 +135,7 @@ fn discover_input_path(path: &Path, discovery: &mut ImportDiscovery, seen: &mut 
         Err(error) => {
             return discovery.skip(
                 path,
-                AppError::FileValidation(format!(
-                    "Cannot read metadata for '{}': {}",
-                    sanitize_path_for_display(path),
-                    error
-                )),
+                AppError::FileValidation(format!("Cannot read it: {error}")),
             )
         }
     };
@@ -164,10 +160,7 @@ fn discover_input_path(path: &Path, discovery: &mut ImportDiscovery, seen: &mut 
 
     discovery.skip(
         path,
-        AppError::FileValidation(format!(
-            "Path is not a file or directory: {}",
-            sanitize_path_for_display(path)
-        )),
+        AppError::FileValidation("It is not a file or folder.".to_string()),
     );
 }
 
@@ -184,11 +177,7 @@ fn discover_directory(path: &Path, discovery: &mut ImportDiscovery, seen: &mut H
             Err(error) => {
                 discovery.skip(
                     &directory,
-                    AppError::FileValidation(format!(
-                        "Cannot read directory '{}': {}",
-                        sanitize_path_for_display(&directory),
-                        error
-                    )),
+                    AppError::FileValidation(format!("Cannot read the folder: {error}")),
                 );
                 continue;
             }

@@ -142,16 +142,12 @@ it('shows why a finished title has no cover', () => {
 	const operation = completedOperation();
 	operation.children[0] = {
 		...operation.children[0]!,
-		warnings: [
-			'The cover from the source file could not be used (Image too large), so this audiobook has no cover.',
-		],
+		warnings: ["The source file's cover could not be used, so this audiobook has no cover."],
 	};
 	showOperation(operation);
 	expect(screen.getByText('Done in 00:18')).toBeVisible();
 	expect(
-		screen.getByText(
-			'The cover from the source file could not be used (Image too large), so this audiobook has no cover.',
-		),
+		screen.getByText("The source file's cover could not be used, so this audiobook has no cover."),
 	).toBeVisible();
 });
 

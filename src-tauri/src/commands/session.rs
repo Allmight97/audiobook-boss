@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use abb_engine::app_settings::{SettingsIntent, SettingsReply, SettingsSnapshot};
 use abb_engine::session::{SessionIntent, SessionOutcome, SessionReply, SessionUpdate};
-use abb_engine::{AppError, AppErrorEnvelope};
+use abb_engine::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
 use serde::Serialize;
 
 use crate::commands::{CommandResult, EngineState};
@@ -99,7 +99,12 @@ pub async fn open_preview_output(
     if let SessionOutcome::PreviewOutput { path: Some(path) } = &reply.outcome {
         if let Err(error) = app.opener().open_path(path, None::<&str>) {
             reply.outcome = SessionOutcome::Rejected {
-                error: AppErrorEnvelope::from(&AppError::General(error.to_string())),
+                error: AppErrorEnvelope::new(
+                    AppErrorCode::InternalError,
+                    AppErrorCategory::Internal,
+                    error.to_string(),
+                    None,
+                ),
             };
         }
     }

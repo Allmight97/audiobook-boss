@@ -53,9 +53,10 @@ function inputNoticeText(notice: InputNotice | null): string {
 		case 'duplicatesOnly':
 			return 'No new files added. All analyzed files were already in the list.';
 		case 'skippedPaths':
-			return `Skipped what ABB could not read: ${notice.skipped
-				.map(({ path, reason }) => `${path} (${reason})`)
-				.join('; ')}`;
+			return [
+				'Skipped what ABB could not read:',
+				...notice.skipped.map(({ path, reason }) => `${path} (${reason})`),
+			].join('\n');
 		case 'analysisFailed':
 			return toUserMessage(notice.error, {
 				fallback: 'Failed to analyze files. Please try again.',

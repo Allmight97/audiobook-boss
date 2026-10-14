@@ -1066,8 +1066,10 @@ async fn importing_lists_what_it_read_and_names_what_it_skipped() {
     assert_eq!(skipped.len(), 1);
     assert_eq!(skipped[0].path, missing.display().to_string());
     assert!(
-        skipped[0].reason.contains("missing.wav"),
-        "{}",
+        skipped[0]
+            .reason
+            .starts_with("File validation failed: Cannot read it:"),
+        "the path is listed beside the reason, not inside it: {}",
         skipped[0].reason
     );
 }
