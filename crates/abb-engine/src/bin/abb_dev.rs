@@ -339,7 +339,9 @@ async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, 
     submission(engine).ok_or_else(|| "the engine did not answer the review".to_string())
 }
 
-/// Waits for an export, cancelling one title once it runs if asked.
+/// Waits for an export. A requested title is cancelled while it is still
+/// queued, before the poll interval, so a fast passthrough cannot finish it
+/// unseen.
 async fn follow(
     engine: &Engine,
     operation_id: &OperationId,
@@ -362,17 +364,22 @@ async fn follow(
         ) {
             return Ok(operation);
         }
-        if !cancelled && operation.status == WorkOperationStatus::Running {
+        if !cancelled {
             let index = cancel_title.unwrap_or(1) - 1;
-            let child = operation
-                .children
-                .get(index)
-                .ok_or_else(|| format!("there is no title {}", index + 1))?;
-            engine
-                .cancel_work_operation(operation_id.clone(), Some(child.child_job_id.clone()))
-                .map_err(|error| error.to_string())?;
-            eprintln!("Cancelled title {}: {}", index + 1, child.label);
-            cancelled = true;
+            let open = operation.children.get(index).is_some_and(|child| {
+                matches!(
+                    child.status,
+                    ChildJobStatus::Queued | ChildJobStatus::Running
+                )
+            });
+            if open {
+                let child = &operation.children[index];
+                engine
+                    .cancel_work_operation(operation_id.clone(), Some(child.child_job_id.clone()))
+                    .map_err(|error| error.to_string())?;
+                eprintln!("Cancelled title {}: {}", index + 1, child.label);
+                cancelled = true;
+            }
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
