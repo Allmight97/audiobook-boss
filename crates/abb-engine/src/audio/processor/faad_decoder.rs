@@ -314,8 +314,10 @@ impl FaadDecoder {
             discard,
         });
         let decoded = self.output[..unit.written]
-            .chunks_exact(SAMPLE_BYTES)
-            .map(|b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]]));
+            .as_chunks::<SAMPLE_BYTES>()
+            .0
+            .iter()
+            .map(|b| f32::from_ne_bytes(*b));
         let delayed = self.delay_left.min(frames);
         self.delay_left -= delayed;
         self.trimmer.counts.delay_samples += delayed as u64;
@@ -392,7 +394,12 @@ impl FaadDecoder {
         );
         frame.set_rate(self.format.rate);
         let bytes = &mut frame.data_mut(0)[..samples.len() * SAMPLE_BYTES];
-        for (chunk, sample) in bytes.chunks_exact_mut(SAMPLE_BYTES).zip(samples) {
+        for (chunk, sample) in bytes
+            .as_chunks_mut::<SAMPLE_BYTES>()
+            .0
+            .iter_mut()
+            .zip(samples)
+        {
             chunk.copy_from_slice(&sample.to_ne_bytes());
         }
         frame
