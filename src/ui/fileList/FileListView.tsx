@@ -1,5 +1,6 @@
 import {
 	displayedTitleForFile,
+	acceptedChapterCount,
 	formatFileDetails,
 	formatAudioProperties,
 	interpretFileListKeyDown,
@@ -314,12 +315,14 @@ export function FileListView(props: {
 												{grouped()
 													? invalidSource()
 														? formatFileDetails(invalidSource() ?? file)
-														: formatFileDetails({
-																...file,
-																duration: sources().reduce((n, f) => n + (f.duration ?? 0), 0),
-																size: sources().reduce((n, f) => n + (f.size ?? 0), 0),
-																chapters: sources().flatMap((f) => f.chapters ?? []),
-															})
+														: formatFileDetails(
+																{
+																	...file,
+																	duration: sources().reduce((n, f) => n + (f.duration ?? 0), 0),
+																	size: sources().reduce((n, f) => n + (f.size ?? 0), 0),
+																},
+																sources().reduce((n, f) => n + acceptedChapterCount(f), 0),
+															)
 													: formatFileDetails(file)}
 											</div>
 											<div class="file-audio-row">
@@ -336,7 +339,7 @@ export function FileListView(props: {
 												{(cue) => (
 													<div class="file-cue-details">
 														<span>
-															{file.chapterPlan?.chapters.length ?? 0} chapters from{' '}
+															{acceptedChapterCount(file)} chapters from{' '}
 															{cue().status === 'embeddedPreferred'
 																? 'embedded audio'
 																: cue().fileName}

@@ -20,11 +20,20 @@ export function displayedArtistForFile(file: AudioFile): string {
 	return file.tagArtist?.trim() ?? '';
 }
 
-export function formatFileDetails(file: AudioFile): string {
+/** The chapters a file converts with: its accepted plan once the engine made
+ * one (repaired embedded or CUE chapters), else its embedded chapters. */
+export function acceptedChapterCount(file: AudioFile): number {
+	return (file.chapterPlan?.chapters ?? file.chapters ?? []).length;
+}
+
+export function formatFileDetails(
+	file: AudioFile,
+	chapterCount = acceptedChapterCount(file),
+): string {
 	const artist = displayedArtistForFile(file);
 	const artistPrefix = artist ? `${artist} • ` : '';
-	const chapterSuffix = file.chapters?.length
-		? ` • ${file.chapters.length} chapter${file.chapters.length === 1 ? '' : 's'}`
+	const chapterSuffix = chapterCount
+		? ` • ${chapterCount} chapter${chapterCount === 1 ? '' : 's'}`
 		: '';
 	if (file.isValid && file.duration && file.size) {
 		return `${artistPrefix}${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}${chapterSuffix}`;

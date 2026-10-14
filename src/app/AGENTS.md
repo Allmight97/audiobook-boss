@@ -16,6 +16,9 @@ second copy of owner state.
   disclosure, transient typing echo, visible filter and sort, and opening the
   authorization browser. These never decide accepted file work or terminal
   truth.
+- Input shows a file's chapter count from `acceptedChapterCount`: the accepted
+  chapter plan when the engine made one, else the embedded chapters. Why: the
+  engine repairs embedded chapters, so the raw list can count a dropped marker.
 
 ## Engine Link
 
