@@ -145,7 +145,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
                 Arc::new(move |job_id| {
                     removed.lock().expect("removed").push(job_id.to_string());
                     let fail = failing
-                        .fetch_update(
+                        .try_update(
                             std::sync::atomic::Ordering::SeqCst,
                             std::sync::atomic::Ordering::SeqCst,
                             |left| left.checked_sub(1),
