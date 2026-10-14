@@ -71,6 +71,9 @@ the same code.
   outcome rather than choosing MP4/FFmpeg strategy modules.
 - Final artifact paths, collision review, replacement, and commit truth cross
   `crate::output_artifact`.
+- Crash-safe file replacement (`SiblingTemp`, `write_atomically`,
+  `replace_file`) belongs to `file_replace.rs` (rustdoc); owners call it
+  instead of renaming over a file themselves.
 - Exports and previews start from the session (`Submit`, `Preview`). An
   export enters WorkRuntime through `submit_processing_operation`; a preview
   runs `process_inspected_with_options` with a stable identity, actual cancel

@@ -15,7 +15,9 @@
   (`EngineCapability` for `engineLink`), each with a live implementation over
   `tauriClient`. Tests replace them; production wires the live ones.
 - Session and settings changes cross as one numbered dispatch per owner
-  (`sessionDispatch`, `settingsDispatch`) after `attachFrontend`. The
+  (`sessionDispatch`, `settingsDispatch`) after `attachFrontend`;
+  `openPreviewOutput` also takes a numbered session turn
+  (`src-tauri/AGENTS.md`). The
   `session-update` and `settings-update` events carry engine changes between
   replies. Remote account and auth state, choices, acquisition, and preview
   progress travel in the session snapshot. Library contents have their own

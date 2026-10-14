@@ -43,14 +43,11 @@
   `.abb_replace_<uuid>`. Temp names never embed the final name, so any final
   name that passes preflight commits.
 - Preflight (`resolve_output_plan`) refuses a path component or preview name
-  over 255 UTF-16 units (bytes on Linux; `abb_output_artifact_core::name_fits`)
-  before collision probes
-  (`abb_output_artifact_core::check_output_name_lengths`). A title with a
-  Supplemental PDF also has its companion PDF name checked at planning
-  (`processing/plan.rs`, `check_supplemental_pdf_name`), before encoding;
-  titles without one are not limited by it. A rename alternative that would
-  be too long only removes the rename option, so a valid ReplaceExisting
-  still plans.
+  over 255 UTF-16 units (bytes on Linux) before collision probes
+  (`abb_output_artifact_core::check_output_name_lengths`). A rename
+  alternative that would be too long only removes the rename option, so a
+  valid ReplaceExisting still plans. Companion PDF names:
+  `processing/AGENTS.md`.
 
 ## Edit Rules
 

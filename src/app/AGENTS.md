@@ -16,9 +16,6 @@ second copy of owner state.
   disclosure, transient typing echo, visible filter and sort, and opening the
   authorization browser. These never decide accepted file work or terminal
   truth.
-- Input shows a file's chapter count from `acceptedChapterCount`: the accepted
-  chapter plan when the engine made one, else the embedded chapters. Why: a
-  CUE plan replaces the embedded chapters.
 
 ## Engine Link
 
@@ -28,12 +25,12 @@ second copy of owner state.
   read the link. `workOperations` is the exception: it reads WorkRuntime
   through `tauriClient`.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
-  for intents whose outcome and completion nobody awaits; its method is not
-  `async` and a view calls it without `void`. A refusal of a `post` shows as
-  the link's `refusal` (`RefusedChangeNotice`). Every `send` caller (an echo
-  cleared, focus moved, a selection's accepted flag) passes its rejection to
-  `link.refuse`, so every session refusal shows the same way. The host runs
-  both in the order called.
+  for intents whose outcome and completion nobody awaits; its refusal shows as
+  the link's `refusal` (`RefusedChangeNotice`). A `send` caller with its own
+  status line shows a rejection there (cover loads, processing, Remote
+  Source); the metadata echo, lookup actions and file selection pass it to
+  `link.refuse`, the same notice `post` uses. The host runs both in the order
+  called.
 - A part that arrives unchanged keeps object identity for its files and lookup
   results. Solid rows are not rebuilt, and a click does not land on a replaced
   element.
@@ -84,9 +81,9 @@ the owner of the truth.
   shows the concurrency view (Auto shows the capability's `autoEffective`, not
   the current fixed count), and holds dialog state. Settings intents go
   through `sendSettings` (their own numbered order); a dialog control's
-  failure shows beside that control (`runDialogAction`). The session records audio
-  and output defaults and announces them with `settings-update`; views send
-  Settings intents only.
+  failure shows beside that control (`runDialogAction`). The session records
+  audio and output defaults and announces them with `settings-update`; views
+  send Settings intents only.
 - `encoding` (session AGENTS): `project.ts` disables an option because the
   engine's facts say so. `editFor` turns a control value into an `AudioEdit`;
   a value no control offers sends nothing. What Auto resolves to comes from the
@@ -94,6 +91,9 @@ the owner of the truth.
   imports and name no source; existing titles change only through Apply App
   Settings. `selectionView` and `refusal` render engine facts and combine no
   titles.
+- `inputSession` (session AGENTS): chapter counts come from
+  `acceptedChapterCount`: the plan the file converts with, else its embedded
+  chapters. Why: a CUE plan replaces the embedded chapters.
 - `metadataLookup` (session AGENTS): query text binds to its queued path and
   metadata `binding`. Advancing or rebinding drops the previous title's echo at
   once. Apply sends the lookup part revision the snapshot holds.

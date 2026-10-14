@@ -51,7 +51,7 @@
   fact: the audiobook was published but a requested companion PDF was not. The
   child stays Completed; the session keeps that title's download. A child's
   `warnings` copy the title's display-only notes from `ProcessResultEntry`;
-  the Work Center shows them on the finished title, and they retain nothing.
+  the Work Center shows them on the finished title.
 - Own child `startedAtMs` / `finishedAtMs` in retained snapshots: first active
   progress through the output's Completed event. Keep each child's finish when
   the batch settles; missing timestamps mean unknown, so derive them from

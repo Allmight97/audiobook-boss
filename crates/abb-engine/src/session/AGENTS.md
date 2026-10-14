@@ -77,10 +77,10 @@ one host attachment.
   (`import_order.rs`), whatever order their tasks start. A Reset drops an import
   still running, including its failure notice. While the list is locked, an
   import (and analysis that overlaps a submission) waits and appends after
-  unlock. A dropped path that cannot be read (missing, a symlink, an
-  unreadable subfolder, an invalid name) is skipped with its reason and the
-  rest is added; the `SkippedPaths` notice is set in the transition that lists
-  the titles, after `append_analyzed` (which clears the notice).
+  unlock. A path that discovery skips (`audio/AGENTS.md`, Import Discovery)
+  is listed with its reason and the rest is added; the `SkippedPaths` notice
+  is set in the transition that lists the titles, after `append_analyzed`
+  (which clears the notice).
 - **Cover.** A cover change applies only when exactly one valid title is
   selected. A later cover choice or Clear supersedes a load still running.
 - **Save targets.** Save covers every pending edit on a valid single-source

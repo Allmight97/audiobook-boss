@@ -66,7 +66,8 @@ when an imported download goes).
   hints, not direct-download facts. A requested PDF with no hint imports the
   audio and adds a non-blocking `SupplementalPdfUnavailable` diagnostic. A
   hinted PDF stays required. When the reply is Amazon's sign-in redirect or
-  page (`/ap/signin` in the redirect or the first 64 KiB), the failure says
+  page (`/ap/signin` in the redirect or the first `SIGN_IN_PAGE_SCAN_BYTES`
+  of the body), the failure says
   "Sign in to Audible again to get the PDF"; other non-PDF replies keep their
   reason.
 - Every Audible API call (library pages, title lookup, license) goes through
@@ -76,16 +77,15 @@ when an imported download goes).
   403 is `AuthRejected`; on a license request only 401 is, because a 403 can
   refuse one title (entitlement, region) or be a rate limit with a working
   sign-in, so it fails that title only. Any other non-success is a failure,
-  never a JSON body read as data. The `stage=api_reply` log line carries
-  `job_id` and `title_ref` for acquisition requests. ABB owns the
-  library query (`library_request_params`). A failed library page fails the
+  never a JSON body read as data. ABB owns the library query
+  (`library_request_params`). A failed library page fails the
   whole scan: "No partial library was loaded".
-- Audible downloads use clients with a 60 s read timeout. A failed reconnect,
-  a broken body, or a short body is retried after base×2^n (1 s base: 2, 4,
-  8, 16 s), at most `MAX_DOWNLOAD_ATTEMPTS` tries in a row without new bytes;
-  bytes arriving reset that count. A failed first connect, an HTTP error
-  status, or a resumed reply whose known total size differs from the first
-  known total ends the download.
+- Audible downloads use clients with a read timeout (`READ_TIMEOUT`). A failed
+  reconnect, a broken body, or a short body is retried with doubling waits
+  from `RETRY_BASE`, at most `MAX_DOWNLOAD_ATTEMPTS` tries in a row without
+  new bytes; bytes arriving reset that count. A failed first connect, an HTTP
+  error status, or a resumed reply whose known total size differs from the
+  first known total ends the download.
 
 ## Handoff
 
@@ -152,8 +152,9 @@ Providers return typed unsupported/protected/auth statuses. An Audible
 `AuthRejected` reply (see the scope rule above) on the library or on an
 acquisition (`AuthRequired` diagnostic) sets the UI
 state's sign-in-rejected fact: the account shows NeedsAuth with the reason, and
-a later keychain read cannot turn it back to Connected. Only a completed sign-in
-or a disconnect clears it. ABB never deletes the stored sign-in on a refusal. Acquisition success
+a later keychain read cannot turn it back to Connected. Only a completed
+sign-in or a disconnect clears it. ABB never deletes the stored sign-in on a
+refusal. Acquisition success
 means real materialized files: manual-import fallback and placeholder sources
 do not exist. Dash/Widevine acquisition stays unsupported until ABB has its own
 CDM, MPD/PSSH, and content-key design. An Audible AAX or AAXC file is

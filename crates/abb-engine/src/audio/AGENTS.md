@@ -11,8 +11,6 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   `settings_encoder`, `path_validation`, `cleanup`) stay private.
 - `validate_resolved_audio_inputs` stays processor-private. Preflight and
   execution validate through the resolved audio plan.
-- `execute_audio_engine` returns `AudioRunOutcome`: the success message and
-  the title's display-only warnings.
 - `AudioExecutionRequest` takes encoder settings from the processing context,
   so it cannot carry conflicting copies. Inspection owns source preservation
   capability; the title planner owns the recommendation.
@@ -114,11 +112,12 @@ silently. The session decides what a skip means for the user.
 
 ## Chapter Intake
 
-Analysis attaches CUE diagnostics and a source-fingerprinted candidate chapter
-plan to each MP3, and repairs embedded chapters into each file's plan
-(`metadata/AGENTS.md`). A file whose chapters cannot be repaired is listed
-invalid with the reason; the rest of the import continues. `apply_chapter_plans` validates accepted plans against the
-audio identity and duration before dispatch. CUE confirmation or Ignore is
+Analysis gives each valid file a source-fingerprinted chapter plan from its
+repaired embedded chapters (`metadata/AGENTS.md`). An MP3 also gets CUE
+diagnostics and, when its sheet reads, a CUE plan. A file whose chapters
+cannot be repaired is listed invalid with the reason; the rest of the import
+continues. `apply_chapter_plans` validates accepted plans against the audio
+identity and duration before dispatch. CUE confirmation or Ignore is
 explicit; multi-source CUE merging is rejected. Encoders consume accepted
 chapters. Preview omits chapters.
 

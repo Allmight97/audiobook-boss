@@ -18,21 +18,20 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   Its pre-write callback lets Audio report progress, so Audio never asks which
   container strategy applies. Single-file Preserve is the exception: it may
   Save a patch after `remux_preserved_audio_container`, and a non-MP4 Save is
-  a remux, so `audio/processor/preserve.rs` verifies the chapters after it. The FFmpeg mov muxer silently
-  drops dict keys outside its known-atom table (series, series-part,
-  sort_album), so MP4-family tag truth never depends on a bare remux.
+  a remux, so `audio/processor/preserve.rs` verifies the chapters after it.
+  The FFmpeg mov muxer silently drops dict keys outside its known-atom table
+  (series, series-part, sort_album), so MP4-family tag truth never depends on
+  a bare remux.
   `finalize_artifact_metadata` is the same finish for a preserved merge, after
   a remux that carries chapters and cover.
-- A Save (`save_metadata_with_plan`) never opens the original for writing.
-  It writes a sibling `.abb_meta_*` copy (a clone of the source tagged by
+- A Save (`save_metadata_with_plan`) never opens the original for writing. It
+  writes a sibling `.abb_meta_*` copy (a clone of the source tagged by
   mp4ameta for MP4, a remux for others), refuses the copy when its audio
   stream count differs or its duration is more than 0.5 s away, and swaps it
   in through `file_replace::SiblingTemp` (flushed, original permissions).
-  Durations count only when FFmpeg measured both files or estimated both from
-  a bitrate; a joined MP3 reads as an estimate while its remuxed copy is
-  measured, so then (and for raw ADTS) only the stream count is checked.
-  Why: a crash or a bad write must leave the original whole. The mp4ameta
-  bridge and the remux writer write at the path they are given, so encode and
+  `check_saved_audio` says when two durations are comparable. Why: a crash or
+  a bad write must leave the original whole. The mp4ameta bridge and the remux
+  writer write at the path they are given, so encode and
   `finalize_artifact_metadata` pay no extra copy; single-file Preserve with a
   patch and post-publish title tag saves go through the Save, copy and check
   included. Any failure removes the temp after FFmpeg's handles close.
@@ -117,11 +116,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   set/clear removes those user-comment aliases; an absent field preserves them.
   `iTun*` COMM descriptors are technical passthrough records, never display or
   clear candidates. This policy lives in `field_schema::comment_key_rank`.
-- FFmpeg-written containers (ID3, Vorbis comments, Matroska) carry only
-  `series` / `series-part`. The uppercase `SERIES` / `SERIES-PART` mirrors are
-  MP4 freeform atoms, written only by the mp4ameta sink; their FFmpeg names
-  (`----:com.apple.iTunes:SERIES`) stay read and clear keys, so a stray TXXX
-  frame from an older ABB still reads and a series edit removes it.
+- `----:com.apple.iTunes:SERIES` / `SERIES-PART` are FFmpeg read and clear
+  keys, never write keys; the mp4ameta sink writes the MP4 mirrors. So a stray
+  tag from an older ABB still reads and a series edit removes it. Series
+  strategy: the `audiobook-metadata` skill.
 - MP4 artist and composer reads join repeated values with `;`, matching
   FFmpeg's text projection. Artist values take precedence over album-artist
   fallback. Unrelated save intent preserves repeated source values; processing
@@ -137,7 +135,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `normalize_embedded_chapters`, `ChapterSpec`, `CueInterpretation`, and
   `CueSheet`. CUE conversion rounds the checked rational timestamp once to the
   nearest millisecond. A CUE sheet stays strict and its errors name its line;
-  chapter errors name the chapter number and title.
+  chapter errors name the chapter number and title. Runtime `cue.rs` owns
+  bounded sibling discovery, diagnostics, and source fingerprints; FILE text
+  never chooses another audio path and never refuses a sheet (a colon or a
+  Windows path is a real rip's label).
 - Embedded chapters are repaired once, in `inspect_chapter_source`: sorted by
   start, zero-length markers dropped, each end moved to the next start and the
   last to the audio end. A chapter that starts outside the audio, or an end
@@ -145,10 +146,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   few ms, and a larger move would guess at the book's structure. A length
   FFmpeg estimated from a bitrate (`length_is_estimated`: no length header, or
   a joined MP3) is no audio end: the last chapter keeps its own end and no
-  start is refused against it. Runtime `cue.rs` owns
-  bounded sibling discovery, diagnostics, and source fingerprints; FILE text
-  never chooses another audio path and never refuses a sheet (a colon or a
-  Windows path is a real rip's label).
+  start is refused against it.
 - `ChapterPlan`, `CueSource`, and `CueStatus` carry intake facts. Audio consumes
   crate-local `inspect_chapter_source`, `validate_chapter_plan`, and
   `validate_source_fingerprint`; the last compares metadata from an already-open

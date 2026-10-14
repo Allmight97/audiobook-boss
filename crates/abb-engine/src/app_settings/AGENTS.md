@@ -10,8 +10,7 @@ default the session records reaches hosts as `EngineEvent::Settings`.
 - The strip is the `pub use` list in `mod.rs`: intent and snapshot types plus
   the setting types.
 - `SettingsRuntime` is engine-internal. Load and save are private to this
-  module, so every write goes through the runtime. The acquisition lane is
-  read from `settings`; the snapshot has no second copy.
+  module, so every write goes through the runtime.
 
 ## Settings Runtime
 
@@ -45,21 +44,20 @@ default the session records reaches hosts as `EngineEvent::Settings`.
   `storage.rs` owns `settings.toml` in the host's config folder: one section
   per area, in a saved shape kept apart from the IPC types so a change to
   what hosts send cannot change what a saved file means.
-- Loading never fails. No file means the defaults. Each recovery unit
-  (keep-awake, job limit, acquisition lane, encoder defaults, output folder
-  and naming, startup behavior, pinned defaults) loads on its own: a value
-  this release refuses resets only that unit, and an absent one takes its
+- Loading never fails. No file means the defaults. There is no file-format
+  migration: files from builds before `settings.toml` are never read. Each
+  recovery unit (`SettingsUnit`) loads on its own: a value that fails
+  validation (damaged outside ABB, or a bug; a release that narrows a value
+  follows the rule below) resets only that unit, and an absent one takes its
   default silently. Pinned defaults are all or nothing. Unknown fields are
-  ignored. `SettingsSnapshot.recovery` names the reset units until the next
-  accepted change, leaving out the job limit and defaults a pinned launch
-  replaced. Only the user's next accepted change rewrites the file; closing
-  does not. Why: ABB never resets user data without asking.
+  ignored. `SettingsSnapshot.recovery` names the reset units and the kept file
+  until the next accepted change, leaving out the job limit and defaults a
+  pinned launch replaced. Only the user's next accepted change rewrites the
+  file; closing does not. Why: ABB never resets user data without asking.
 - A file that cannot be read or is not TOML is kept as
   `settings.toml.unusable-<nanos>` before defaults are used. It is hard-linked,
   so an existing name is never replaced. Until it is kept (or gone), no save
   writes over it: `save_error` reports why, and every write retries keeping it.
-  There is no file-format migration: files from builds before `settings.toml`
-  are never read.
 - A user's saved choice keeps its meaning across releases. A change that
   removes or narrows a saved value either keeps every sample in `samples/`
   loading with every choice it holds, or maps each old value in `storage.rs`,
