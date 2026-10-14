@@ -908,8 +908,8 @@ mod tests {
         assert_eq!(supplemental_assets_for_input(&payload, 1), vec![asset]);
     }
 
-    #[test]
-    fn supplemental_commit_failure_keeps_published_title_successful_with_warning() {
+    #[tokio::test]
+    async fn supplemental_commit_failure_keeps_published_title_successful_with_warning() {
         let root = TempDir::new().expect("temp root");
         let original_bytes = b"%PDF-1.7\nbody";
         let source = root.path().join("source.pdf");
@@ -923,9 +923,10 @@ mod tests {
             message: "Exported Book.m4b".to_string(),
             warnings: Vec::new(),
         };
-        let outcome = title_outcome(Ok(audio), None, None, || {
-            commit_supplemental_assets(OutputKind::Final, &[asset], &final_audio)
-        });
+        let outcome = title_outcome(Ok(audio), None, None, async || {
+            commit_supplemental_assets(OutputKind::Final, vec![asset], final_audio.clone()).await
+        })
+        .await;
 
         let ProcessingJobTerminalOutcome::Success {
             message,
@@ -948,16 +949,19 @@ mod tests {
         );
     }
 
-    #[test]
-    fn failed_audio_never_publishes_companions() {
+    #[tokio::test]
+    async fn failed_audio_never_publishes_companions() {
         let outcome = title_outcome(
             Err(crate::errors::AppError::FileValidation(
                 "encode failed".into(),
             )),
             None,
             None,
-            || panic!("companions must not publish without an audiobook"),
-        );
+            async || -> crate::errors::Result<()> {
+                panic!("companions must not publish without an audiobook")
+            },
+        )
+        .await;
 
         assert!(matches!(outcome, ProcessingJobTerminalOutcome::Failed(_)));
     }

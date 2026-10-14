@@ -1,6 +1,6 @@
 use crate::audio;
 use crate::audio::{AudioExecutionRequest, EncoderSettings, FileListInfo};
-use crate::errors::{AppErrorEnvelope, Result};
+use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::host::Host;
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{
@@ -101,14 +101,39 @@ pub(crate) async fn run_processing_job(
         .with_metadata_intent(request.metadata_intent),
     )
     .await;
-    let result = title_outcome(audio_result, output_path, preview_seconds_resolved, || {
-        commit_supplemental_assets(
-            request.output_plan.kind,
-            &request.supplemental_assets,
-            &request.output_plan.resolved_path,
-        )
-    });
+    let result = title_outcome(
+        audio_result,
+        output_path,
+        preview_seconds_resolved,
+        async move || {
+            commit_supplemental_assets(
+                request.output_plan.kind,
+                request.supplemental_assets,
+                request.output_plan.resolved_path,
+            )
+            .await
+        },
+    )
+    .await;
 
+    settle_job(
+        &request.registry,
+        job_id,
+        request.input_index,
+        &lifecycle_log,
+        result,
+    )
+    .await
+}
+
+/// Records a title's terminal outcome in the registry and its lifecycle log.
+async fn settle_job(
+    registry: &crate::ManagedJobRegistry,
+    job_id: JobId,
+    input_index: usize,
+    lifecycle_log: &ProcessingJobLifecycleLog,
+    result: ProcessingJobTerminalOutcome,
+) -> Result<ProcessResultEntry> {
     match result {
         ProcessingJobTerminalOutcome::Success {
             message,
@@ -117,10 +142,10 @@ pub(crate) async fn run_processing_job(
             supplemental_warning,
             warnings,
         } => {
-            request.registry.complete_job(job_id).await;
+            registry.complete_job(job_id).await;
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Success);
             Ok(ProcessResultEntry {
-                input_index: request.input_index,
+                input_index,
                 status: ProcessResultStatus::Success,
                 message,
                 error: None,
@@ -132,18 +157,15 @@ pub(crate) async fn run_processing_job(
             })
         }
         ProcessingJobTerminalOutcome::Cancelled(error) => {
-            request.registry.complete_job(job_id).await;
+            registry.complete_job(job_id).await;
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Cancelled);
             Err(error)
         }
         ProcessingJobTerminalOutcome::Failed(envelope) => {
-            request
-                .registry
-                .fail_job(job_id, envelope.message.clone())
-                .await;
+            registry.fail_job(job_id, envelope.message.clone()).await;
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
             Ok(terminal_failure_result(
-                request.input_index,
+                input_index,
                 Some(job_id.to_string()),
                 envelope,
             ))
@@ -231,32 +253,42 @@ pub(crate) fn supplemental_assets_for_input(
         .collect()
 }
 
-pub(crate) fn commit_supplemental_assets(
+/// Publishes the title's companions off the async threads: the commit waits on
+/// the output's file lock and copies files.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "joined by commit_supplemental_assets"
+)]
+pub(crate) async fn commit_supplemental_assets(
     output_kind: OutputKind,
-    assets: &[SupplementalProcessingAsset],
-    output_path: &Path,
+    assets: Vec<SupplementalProcessingAsset>,
+    output_path: PathBuf,
 ) -> Result<()> {
-    let request = assets.iter().fold(
-        SupplementalOutputAssetsCommitRequest::new(output_kind, output_path),
-        |request, asset| request.with_asset(&asset.path, asset.size_bytes, &asset.sha256),
-    );
-    commit_supplemental_output_assets_for_output(request)
+    tokio::task::spawn_blocking(move || {
+        let request = assets.iter().fold(
+            SupplementalOutputAssetsCommitRequest::new(output_kind, &output_path),
+            |request, asset| request.with_asset(&asset.path, asset.size_bytes, &asset.sha256),
+        );
+        commit_supplemental_output_assets_for_output(request)
+    })
+    .await
+    .map_err(|error| AppError::General(format!("Companion publish stopped: {error}")))?
 }
 
 /// Maps audio execution to the title's outcome. Companions commit only after
 /// the audiobook is published, so a companion failure stays a warning on a
 /// successful title rather than failing it.
-pub(crate) fn title_outcome(
+pub(crate) async fn title_outcome(
     audio: Result<crate::audio::AudioRunOutcome>,
     output_path: Option<String>,
     preview_actual_seconds: Option<f64>,
-    publish_companions: impl FnOnce() -> Result<()>,
+    publish_companions: impl AsyncFnOnce() -> Result<()>,
 ) -> ProcessingJobTerminalOutcome {
     let audio = match audio {
         Ok(audio) => audio,
         Err(error) => return classify_processing_error(error),
     };
-    let supplemental_warning = publish_companions().err().map(|error| {
+    let supplemental_warning = publish_companions().await.err().map(|error| {
         log::warn!("supplemental_pdf_commit status=failed title_status=success");
         AppErrorEnvelope::from(&error).message
     });
@@ -283,6 +315,10 @@ pub(crate) struct RegisteredProcessingJob {
     pub(crate) lifecycle_log: ProcessingJobLifecycleLog,
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "joined by register_job_and_validate_output"
+)]
 pub(crate) async fn register_job_and_validate_output(
     registry: &crate::ManagedJobRegistry,
     output_path: &Path,
@@ -301,10 +337,14 @@ pub(crate) async fn register_job_and_validate_output(
         operation_kind: log_context.operation_kind,
     });
 
-    let validation = match audio_handling {
-        AudioHandling::Encode => crate::audio::validate_output_path(output_path),
-        AudioHandling::Preserve => crate::audio::validate_preserved_output_path(output_path),
-    };
+    let checked_path = output_path.to_path_buf();
+    let validation = tokio::task::spawn_blocking(move || match audio_handling {
+        AudioHandling::Encode => crate::audio::validate_output_path(&checked_path),
+        AudioHandling::Preserve => crate::audio::validate_preserved_output_path(&checked_path),
+    })
+    .await
+    .map_err(|error| AppError::General(format!("Output check stopped: {error}")))
+    .and_then(|validation| validation);
     if let Err(error) = validation {
         let envelope = AppErrorEnvelope::from(&error);
         lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));

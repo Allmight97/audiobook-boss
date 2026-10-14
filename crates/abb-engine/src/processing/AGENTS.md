@@ -61,6 +61,10 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   download. Planning refuses a title with a
   companion PDF whose name beside the audiobook would be over 255 bytes, so
   that failure comes before encoding.
+- `run_job.rs` runs the output-path check and the companion commit (which
+  waits on `lock_output_file`) on `spawn_blocking`, so a slow disk or a held
+  lock never stalls an async worker. A stopped check fails the job through
+  registration cleanup; a stopped companion commit is a companion warning.
 
 ## Progress and stages
 
