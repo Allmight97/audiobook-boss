@@ -28,7 +28,7 @@ it('names the settings a launch reset until the next change', async () => {
 	await renderNotice({ reset: ['jobLimit', 'pinnedDefaults'] });
 
 	const notice = screen.getByTestId('settings-recovery-notice');
-	expect(notice).toHaveTextContent('job limit, pinned defaults');
+	expect(notice).toHaveTextContent('number of jobs, pinned defaults');
 
 	await runtime!.settings.setKeepAwakeWhileWorking(false);
 	await vi.waitFor(() =>
@@ -40,6 +40,6 @@ it('names the file an unreadable settings file was kept as', async () => {
 	await renderNotice({ reset: [], setAsideAs: 'settings.toml.unusable-17' });
 
 	expect(screen.getByTestId('settings-recovery-notice')).toHaveTextContent(
-		'The file was kept as settings.toml.unusable-17.',
+		"The file was kept as settings.toml.unusable-17 in ABB's settings folder.",
 	);
 });

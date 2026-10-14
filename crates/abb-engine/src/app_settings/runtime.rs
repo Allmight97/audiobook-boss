@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     storage, AcquisitionLane, AppSettings, AppSettingsPatch, ConcurrencyPreference,
-    EncoderDefaults, OutputDefaults, PinnedDefaults, SettingsRecovery, StartupBehavior,
+    EncoderDefaults, OutputDefaults, PinnedDefaults, SettingsRecovery, SettingsUnit,
+    StartupBehavior,
 };
 use crate::errors::{AppError, AppErrorEnvelope};
 use crate::power::PowerManager;
@@ -184,11 +185,24 @@ impl SettingsRuntime {
             jobs.max_concurrent()
         );
         power.set_enabled(accepted.keep_awake_while_working);
+        let mut state = State::default();
+        let mut reset = loaded.reset;
+        if matches!(accepted.startup_behavior, StartupBehavior::PinnedDefaults)
+            && accepted.pinned_defaults.is_some()
+        {
+            reset.retain(|unit| {
+                !matches!(
+                    unit,
+                    SettingsUnit::JobLimit
+                        | SettingsUnit::EncoderDefaults
+                        | SettingsUnit::OutputDefaults
+                )
+            });
+        }
         let mut recovery = SettingsRecovery {
-            reset: loaded.reset,
+            reset,
             set_aside_as: None,
         };
-        let mut state = State::default();
         match loaded.set_aside {
             Some(Ok(kept)) => recovery.set_aside_as = kept,
             Some(Err(error)) => {

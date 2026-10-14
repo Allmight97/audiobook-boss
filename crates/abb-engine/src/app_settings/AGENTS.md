@@ -51,7 +51,9 @@ default the session records reaches hosts as `EngineEvent::Settings`.
   this release refuses resets only that unit, and an absent one takes its
   default silently. Pinned defaults are all or nothing. Unknown fields are
   ignored. `SettingsSnapshot.recovery` names the reset units until the next
-  accepted change.
+  accepted change, leaving out the job limit and defaults a pinned launch
+  replaced. Only the user's next accepted change rewrites the file; closing
+  does not. Why: ABB never resets user data without asking.
 - A file that cannot be read or is not TOML is kept as
   `settings.toml.unusable-<nanos>` before defaults are used. It is hard-linked,
   so an existing name is never replaced. Until it is kept (or gone), no save

@@ -16,7 +16,7 @@ export function SettingsPersistenceNotice(): JSX.Element {
 			<div class="settings-persistence-notice" role="status" aria-live="polite">
 				<Show when={settings.recoveryNotice()}>
 					<div class="settings-persistence-copy" data-testid="settings-recovery-notice">
-						<strong>Some settings were reset</strong>
+						<strong>Settings were reset</strong>
 						<p>{settings.recoveryNotice()}</p>
 					</div>
 				</Show>

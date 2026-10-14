@@ -96,11 +96,11 @@ function describe(error: unknown): string {
 
 const UNIT_LABELS: Record<SettingsUnit, string> = {
 	keepAwake: 'keep computer awake while working',
-	jobLimit: 'job limit',
+	jobLimit: 'number of jobs',
 	acquisitionLane: 'default import source',
 	encoderDefaults: 'audio defaults',
 	outputDefaults: 'output folder and naming',
-	startupBehavior: 'startup behavior',
+	startupBehavior: 'startup settings',
 	pinnedDefaults: 'pinned defaults',
 };
 
@@ -180,7 +180,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 				);
 			if (recovery.setAsideAs)
 				parts.push(
-					`ABB couldn't read your settings file, so every setting is back to its default. The file was kept as ${recovery.setAsideAs}.`,
+					`ABB couldn't read your settings file, so every setting is back to its default. The file was kept as ${recovery.setAsideAs} in ABB's settings folder.`,
 				);
 			return parts.join(' ');
 		},
