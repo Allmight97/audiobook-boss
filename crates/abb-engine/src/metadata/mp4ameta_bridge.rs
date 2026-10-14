@@ -85,9 +85,6 @@ fn write_metadata_with_plan_inner(path: &Path, plan: &MetadataWritePlan) -> Resu
 
 fn apply_metadata(tag: &mut Tag, plan: &MetadataWritePlan) -> Result<()> {
     let metadata = &plan.metadata;
-    let (effective_title, effective_series, effective_series_part) =
-        resolve_effective_metadata(tag, metadata);
-
     let ops = plan_metadata_field_ops(metadata);
     {
         let mut sink = Mp4ametaSink::new(tag);
@@ -97,13 +94,7 @@ fn apply_metadata(tag: &mut Tag, plan: &MetadataWritePlan) -> Result<()> {
 
     clear_series_movement_fields_if_needed(tag, metadata);
 
-    apply_album_sort(
-        tag,
-        &plan.album_sort,
-        effective_title.as_deref(),
-        effective_series.as_deref(),
-        effective_series_part.as_deref(),
-    );
+    apply_album_sort(tag, &plan.album_sort);
 
     apply_cover_art(tag, metadata)?;
 
@@ -134,40 +125,7 @@ fn apply_cover_art(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
     Ok(())
 }
 
-fn resolve_effective_metadata(
-    tag: &Tag,
-    metadata: &AudiobookMetadata,
-) -> (Option<String>, Option<String>, Option<String>) {
-    let existing_title = tag.title().map(str::to_string);
-    let (existing_series, _) = split_series_list(read_series_raw(tag).as_deref());
-    let (existing_series_part, _) = split_series_list(read_series_part_raw(tag).as_deref());
-
-    let effective_title = metadata
-        .title
-        .as_deref()
-        .map(str::to_string)
-        .or(existing_title);
-    let effective_series = metadata
-        .series
-        .as_deref()
-        .map(str::to_string)
-        .or(existing_series);
-    let effective_series_part = metadata
-        .series_part
-        .as_deref()
-        .map(str::to_string)
-        .or(existing_series_part);
-
-    (effective_title, effective_series, effective_series_part)
-}
-
-fn apply_album_sort(
-    tag: &mut Tag,
-    action: &AlbumSortWriteAction,
-    effective_title: Option<&str>,
-    effective_series: Option<&str>,
-    effective_series_part: Option<&str>,
-) {
+fn apply_album_sort(tag: &mut Tag, action: &AlbumSortWriteAction) {
     match action {
         AlbumSortWriteAction::Preserve => {}
         AlbumSortWriteAction::Set(value) => {
@@ -179,19 +137,6 @@ fn apply_album_sort(
         }
         AlbumSortWriteAction::Clear => {
             tag.remove_album_sort_order();
-        }
-        AlbumSortWriteAction::Recompute => {
-            let computed = match (effective_series, effective_title) {
-                (Some(series), Some(title)) => {
-                    crate::metadata::compute_album_sort(series, effective_series_part, title)
-                }
-                _ => None,
-            };
-            if let Some(computed) = computed {
-                tag.set_album_sort_order(&computed);
-            } else {
-                tag.remove_album_sort_order();
-            }
         }
     }
 }

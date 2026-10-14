@@ -89,15 +89,7 @@ pub fn parse_cue(text: &str, duration_ms: i64) -> Result<CueSheet> {
                 if file_name.is_some() {
                     return Err(invalid(line_number, "multiple FILE sheets are unsupported"));
                 }
-                let name = quoted(value, line_number)?;
-                if name.is_empty() || name.contains(['/', '\\', ':']) || name == "." || name == ".."
-                {
-                    return Err(invalid(
-                        line_number,
-                        "FILE must name a local sibling, not a directory or URL",
-                    ));
-                }
-                file_name = Some(name);
+                file_name = Some(quoted(value, line_number)?);
             }
             "TRACK" => {
                 let fields: Vec<_> = value.split_whitespace().collect();
@@ -255,8 +247,24 @@ mod tests {
         );
     }
     #[test]
+    fn cue_file_text_is_a_label_and_never_refuses_a_sheet() {
+        for file in ["Dune: Book One.mp3", "C:\\Rips\\Dune.mp3", "../book.mp3"] {
+            let sheet = parse_cue(
+                &format!("FILE \"{file}\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:00:00"),
+                20_000,
+            )
+            .expect(file);
+            assert_eq!(sheet.file_name, file);
+        }
+        parse_cue(
+            "FILE \"C:\\Rips\\Dune.mp3\" WAVE\nTRACK 01 AUDIO\nINDEX 01 00:00:00",
+            20_000,
+        )
+        .expect("WAVE sheet");
+    }
+    #[test]
     fn cue_rejects_unsafe_ambiguous_and_invalid_sheets() {
-        for text in ["FILE \"../book.mp3\" MP3", "FILE \"a.mp3\" MP3\nFILE \"b.mp3\" MP3", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:60:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:00:100", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:00:00\nINDEX 01 00:01:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:02:00\nTRACK 02 AUDIO\nINDEX 01 00:01:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:20:00"] {
+        for text in ["FILE \"a.mp3\" MP3\nFILE \"b.mp3\" MP3", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:60:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:00:100", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:00:00\nINDEX 01 00:01:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:02:00\nTRACK 02 AUDIO\nINDEX 01 00:01:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:20:00"] {
             assert!(parse_cue(text, 20_000).expect_err(text).to_string().contains("CUE line"));
         }
     }

@@ -943,6 +943,38 @@ async fn metadata_save_writes_external_ffprobe_visible_mp4_tags() {
     assert_ffprobe_tag(&tags, "disc", "1/2");
 }
 
+/// The iTunes freeform names are MP4 atoms; in an ID3 file they would be
+/// stray TXXX frames that no reader maps to a series.
+#[test]
+fn mp3_save_writes_series_without_mp4_freeform_names() {
+    let tmp = TempDir::new().expect("MP3 save workspace");
+    let mp3 = tmp.path().join("book.mp3");
+    write_sine_mp3(&mp3, 0.5, 440.0);
+    save_metadata_intent(
+        &mp3,
+        &MetadataIntentPatch {
+            series: Some(PatchOp::Set("Dune".into())),
+            series_part: Some(PatchOp::Set("1".into())),
+            ..Default::default()
+        },
+    )
+    .expect("MP3 series save");
+    let tags = ffprobe_format_tags(&mp3);
+    assert_ffprobe_tag(&tags, "series", "Dune");
+    assert_ffprobe_tag(&tags, "series-part", "1");
+    assert!(
+        !tags.keys().any(|key| key.contains("com.apple.iTunes")),
+        "{tags:?}"
+    );
+    assert_eq!(
+        read_metadata(&mp3)
+            .expect("read saved MP3")
+            .series
+            .as_deref(),
+        Some("Dune")
+    );
+}
+
 /// Synthesizes one second of audio carrying a JPEG and a PNG picture: attached
 /// pictures in MP3, FLAC and M4B, attachments in Matroska, a
 /// METADATA_BLOCK_PICTURE comment in Opus.

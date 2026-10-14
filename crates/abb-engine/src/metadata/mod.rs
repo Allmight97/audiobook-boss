@@ -156,8 +156,8 @@ fn audio_shape(path: &std::path::Path) -> Result<(i64, usize)> {
 /// pass, as a preserved merge needs: a remux pass carries chapters and cover
 /// art, then MP4-family tag truth is rewritten through the mp4ameta adapter
 /// chosen by actual container classification. The FFmpeg mov muxer silently
-/// drops dictionary keys outside its known-atom table (series, series-part, the
-/// iTunes freeform mirrors, sort_album), so MP4-family artifacts must not rely
+/// drops dictionary keys outside its known-atom table (series, series-part,
+/// sort_album), so MP4-family artifacts must not rely
 /// on the remux for tag truth. Re-exported at the crate root for the
 /// media-execution lane's artifact-finalize proof.
 pub fn finalize_artifact_metadata(

@@ -1,8 +1,8 @@
 //! Canonical metadata field schema shared by ffmpeg and mp4ameta adapters.
 
 use crate::metadata::tag_registry::{
-    ITUNES_SERIES, ITUNES_SERIES_PART, SERIES, SERIES_CLEAR_KEYS, SERIES_PART,
-    SERIES_PART_CLEAR_KEYS, SERIES_PART_READ_KEYS, SERIES_READ_KEYS,
+    SERIES, SERIES_CLEAR_KEYS, SERIES_PART, SERIES_PART_CLEAR_KEYS, SERIES_PART_READ_KEYS,
+    SERIES_READ_KEYS,
 };
 
 const TRACK_NUMBER_READ_KEYS: [&str; 3] = ["track", "tracknumber", "trkn"];
@@ -114,8 +114,8 @@ impl TagField {
             TagField::Date => &["date"],
             TagField::Comment => &["comment"],
             TagField::Description => &["description"],
-            TagField::Series => &[SERIES, ITUNES_SERIES],
-            TagField::SeriesPart => &[SERIES_PART, ITUNES_SERIES_PART],
+            TagField::Series => &[SERIES],
+            TagField::SeriesPart => &[SERIES_PART],
             TagField::Track => &["track"],
             TagField::Disk => &["disc"],
         }

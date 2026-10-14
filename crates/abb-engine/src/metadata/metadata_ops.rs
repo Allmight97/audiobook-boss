@@ -114,7 +114,6 @@ pub(crate) fn log_write_plan(plan: &super::MetadataWritePlan, writer: &str, arti
         super::AlbumSortWriteAction::Preserve => "preserve",
         super::AlbumSortWriteAction::Set(_) => "set",
         super::AlbumSortWriteAction::Clear => "clear",
-        super::AlbumSortWriteAction::Recompute => "recompute",
     };
     log_field_decisions(&plan.metadata, sort, writer, artifact);
 }

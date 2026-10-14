@@ -17,8 +17,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   preserve): MP4-family tag rewrite through mp4ameta, then accepted-chapter
   verification. Its pre-write callback lets Audio report progress, so Audio
   never asks which container strategy applies. The FFmpeg mov muxer silently
-  drops dict keys outside its known-atom table (series, series-part, freeform
-  mirrors, sort_album), so MP4-family tag truth never depends on a bare remux.
+  drops dict keys outside its known-atom table (series, series-part,
+  sort_album), so MP4-family tag truth never depends on a bare remux.
   `finalize_artifact_metadata` is the same finish for a preserved merge, after
   a remux that carries chapters and cover.
 - A Save (`save_metadata_with_plan`) never opens the original for writing.
@@ -104,6 +104,11 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   set/clear removes those user-comment aliases; an absent field preserves them.
   `iTun*` COMM descriptors are technical passthrough records, never display or
   clear candidates. This policy lives in `field_schema::comment_key_rank`.
+- FFmpeg-written containers (ID3, Vorbis comments, Matroska) carry only
+  `series` / `series-part`. The uppercase `SERIES` / `SERIES-PART` mirrors are
+  MP4 freeform atoms, written only by the mp4ameta sink; their FFmpeg names
+  (`----:com.apple.iTunes:SERIES`) stay read and clear keys, so a stray TXXX
+  frame from an older ABB still reads and a series edit removes it.
 - MP4 artist and composer reads join repeated values with `;`, matching
   FFmpeg's text projection. Artist values take precedence over album-artist
   fallback. Unrelated save intent preserves repeated source values; processing
@@ -119,7 +124,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `CueInterpretation`, and `CueSheet`. CUE conversion rounds the checked
   rational timestamp once to the nearest millisecond. Runtime `cue.rs` owns
   bounded sibling discovery, diagnostics, and source fingerprints; FILE text
-  never chooses another audio path.
+  never chooses another audio path and never refuses a sheet (a colon or a
+  Windows path is a real rip's label).
 - `ChapterPlan`, `CueSource`, and `CueStatus` carry intake facts. Audio consumes
   crate-local `inspect_chapter_source`, `validate_chapter_plan`, and
   `validate_source_fingerprint`; the last compares metadata from an already-open

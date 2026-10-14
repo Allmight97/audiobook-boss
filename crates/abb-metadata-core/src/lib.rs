@@ -103,7 +103,6 @@ pub enum PatchOp<T> {
 pub enum AlbumSortPatchOp {
     Set(String),
     Clear,
-    Recompute,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,7 +110,6 @@ pub enum AlbumSortWriteAction {
     Preserve,
     Set(String),
     Clear,
-    Recompute,
 }
 
 #[derive(Debug, Clone)]
@@ -354,8 +352,7 @@ impl MetadataIntentPatch {
     }
 
     /// What `base` shows with this patch applied, without validating it. Used
-    /// to project pending edits over known tags; `Recompute` leaves the album
-    /// sort as it is because only a write resolves it.
+    /// to project pending edits over known tags.
     pub fn overlay(&self, base: &AudiobookMetadata) -> AudiobookMetadata {
         let mut metadata = base.clone();
         // Processing semantics never fail: set assigns and clear removes.
@@ -367,7 +364,7 @@ impl MetadataIntentPatch {
         match &self.album_sort {
             Some(AlbumSortPatchOp::Set(value)) => metadata.album_sort = Some(value.clone()),
             Some(AlbumSortPatchOp::Clear) => metadata.album_sort = None,
-            Some(AlbumSortPatchOp::Recompute) | None => {}
+            None => {}
         }
         metadata
     }
@@ -441,7 +438,6 @@ impl MetadataIntentPatch {
                 metadata.album_sort = Some(String::new());
                 AlbumSortWriteAction::Clear
             }
-            Some(AlbumSortPatchOp::Recompute) => AlbumSortWriteAction::Recompute,
             None => AlbumSortWriteAction::Preserve,
         };
 
@@ -839,9 +835,6 @@ fn apply_album_sort_patch(patch: &Option<AlbumSortPatchOp>, metadata: &mut Audio
         AlbumSortPatchOp::Clear => {
             metadata.album_sort = None;
         }
-        AlbumSortPatchOp::Recompute => {
-            metadata.album_sort = recompute_album_sort(metadata);
-        }
     }
 }
 
@@ -924,7 +917,7 @@ mod tests {
     }
 
     #[test]
-    fn overlay_sets_and_clears_without_validating_and_leaves_recompute_alone() {
+    fn overlay_sets_and_clears_without_validating() {
         let base = AudiobookMetadata {
             title: Some("Old".into()),
             genre: Some("Fantasy".into()),
@@ -937,7 +930,6 @@ mod tests {
             genre: Some(PatchOp::Clear),
             // Invalid for a write, but a projection must still show it.
             series_part: Some(PatchOp::Set("1/2".into())),
-            album_sort: Some(AlbumSortPatchOp::Recompute),
             ..Default::default()
         }
         .overlay(&base);
@@ -1014,7 +1006,7 @@ mod tests {
     }
 
     #[test]
-    fn metadata_intent_patch_supports_album_sort_set_clear_and_recompute() {
+    fn metadata_intent_patch_supports_album_sort_set_and_clear() {
         let set_plan = MetadataIntentPatch {
             album_sort: Some(AlbumSortPatchOp::Set("Custom Sort".to_string())),
             ..Default::default()
@@ -1035,15 +1027,6 @@ mod tests {
         .expect("album sort clear should compile");
         assert_eq!(clear_plan.metadata.album_sort.as_deref(), Some(""));
         assert_eq!(clear_plan.album_sort, AlbumSortWriteAction::Clear);
-
-        let recompute_plan = MetadataIntentPatch {
-            album_sort: Some(AlbumSortPatchOp::Recompute),
-            ..Default::default()
-        }
-        .to_write_plan_with_source(AudiobookMetadata::default())
-        .expect("album sort recompute should compile");
-        assert_eq!(recompute_plan.metadata.album_sort, None);
-        assert_eq!(recompute_plan.album_sort, AlbumSortWriteAction::Recompute);
     }
 
     #[test]
@@ -1103,7 +1086,7 @@ mod tests {
     }
 
     #[test]
-    fn processing_patch_apply_to_metadata_handles_set_clear_absent_and_recompute() {
+    fn processing_patch_apply_to_metadata_handles_set_clear_and_absent() {
         let base = AudiobookMetadata {
             title: Some("Old Title".to_string()),
             artist: Some("Old Artist".to_string()),
@@ -1118,7 +1101,6 @@ mod tests {
             title: Some(PatchOp::Set("New Title".to_string())),
             artist: Some(PatchOp::Clear),
             series_part: Some(PatchOp::Set("2".to_string())),
-            album_sort: Some(AlbumSortPatchOp::Recompute),
             date: Some(PatchOp::Set("2024-09-01".to_string())),
             cover_art: Some(PatchOp::Clear),
             ..Default::default()
@@ -1130,10 +1112,7 @@ mod tests {
 
         assert_eq!(resolved.title.as_deref(), Some("New Title"));
         assert_eq!(resolved.artist, None);
-        assert_eq!(
-            resolved.album_sort.as_deref(),
-            Some("Series 02 - New Title")
-        );
+        assert_eq!(resolved.album_sort.as_deref(), Some("Old Sort"));
         assert_eq!(resolved.date.as_deref(), Some("2024-09"));
         assert_eq!(resolved.cover_art, None);
     }
