@@ -1410,6 +1410,10 @@ async fn qt_chapter_track_times_span_the_book_when_cover_art_is_muxed() {
 /// generation stays independent of ABB's linked decoder/encoder feature set;
 /// the test below still exercises the real linked MP3 import path.
 fn write_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
+    write_sine_mp3_with(path, seconds, freq_hz, &["-b:a", "64k"]);
+}
+
+fn write_sine_mp3_with(path: &Path, seconds: f64, freq_hz: f64, encoder_args: &[&str]) {
     let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
     let source = format!("sine=frequency={freq_hz}:sample_rate={SAMPLE_RATE}");
     let duration = seconds.to_string();
@@ -1428,10 +1432,9 @@ fn write_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
             "1",
             "-codec:a",
             "libmp3lame",
-            "-b:a",
-            "64k",
-            "-y",
         ])
+        .args(encoder_args)
+        .arg("-y")
         .arg(path)
         .output()
         .unwrap_or_else(|error| {
@@ -2325,6 +2328,83 @@ async fn drifting_embedded_chapters_convert_on_every_route() {
         .unwrap_or_else(|error| panic!("{name}: {error}"));
         assert_eq!(chapters_of(&output), expected, "{name}");
     }
+}
+
+/// A first part with its length header followed by raw MPEG audio is what
+/// joining tools leave. FFmpeg reads that file's length from a bitrate (the
+/// header no longer fits the file), while a Save's remuxed copy carries a
+/// measured length, so the two numbers differ with no audio lost. Neither the
+/// chapter intake nor the Save check may treat that estimate as the audio end.
+#[test]
+fn a_joined_mp3_imports_with_its_chapters_and_saves_its_tags() {
+    let tmp = TempDir::new().expect("joined MP3 workspace");
+    let first = tmp.path().join("part-1.mp3");
+    let second = tmp.path().join("part-2.mp3");
+    write_sine_mp3_with(&first, 1.0, 440.0, &["-ar", "44100", "-b:a", "32k"]);
+    write_sine_mp3_with(
+        &second,
+        2.0,
+        660.0,
+        &[
+            "-ar",
+            "44100",
+            "-b:a",
+            "160k",
+            "-write_xing",
+            "0",
+            "-id3v2_version",
+            "0",
+        ],
+    );
+    let chaptered = tmp.path().join("part-1-chapters.mp3");
+    mux_chapters(
+        &first,
+        &[("Opening", 0, 1_000), ("Closing", 1_000, 3_000)],
+        &chaptered,
+    );
+    let joined = tmp.path().join("joined.mp3");
+    let mut bytes = fs::read(&chaptered).expect("read first part");
+    bytes.extend(fs::read(&second).expect("read second part"));
+    fs::write(&joined, bytes).expect("join parts");
+    let imported = get_file_list_info(&[&joined]).expect("probe joined MP3");
+    let file = &imported.files[0];
+    assert!(file.is_valid, "{:?}", file.error);
+    let estimated = file.duration.expect("joined length");
+    assert!(
+        (estimated - 3.0).abs() > 1.0,
+        "fixture premise: FFmpeg misreads the joined length ({estimated} s)"
+    );
+    let accepted: Vec<_> = file
+        .chapter_plan
+        .as_ref()
+        .expect("accepted chapter plan")
+        .chapters
+        .iter()
+        .map(|chapter| (chapter.title.clone(), chapter.start_ms, chapter.end_ms))
+        .collect();
+    assert_eq!(
+        accepted,
+        vec![
+            (Some("Opening".to_string()), 0, 1_000),
+            (Some("Closing".to_string()), 1_000, 3_000),
+        ]
+    );
+
+    save_metadata_intent(
+        &joined,
+        &MetadataIntentPatch {
+            title: Some(PatchOp::Set("Joined".into())),
+            ..Default::default()
+        },
+    )
+    .expect("joined MP3 save");
+    assert_eq!(
+        read_metadata(&joined)
+            .expect("read saved MP3")
+            .title
+            .as_deref(),
+        Some("Joined")
+    );
 }
 
 fn oversized_jpeg(path: &Path) -> Vec<u8> {

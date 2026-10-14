@@ -54,13 +54,16 @@ pub(crate) fn validate_source_fingerprint(stat: &std::fs::Metadata, expected: &s
 }
 
 /// Embedded chapters are repaired once here, so every route writes and
-/// verifies the same accepted plan.
+/// verifies the same accepted plan. A `length_estimated` duration is no audio
+/// end for that repair.
 pub(crate) fn inspect_chapter_source(
     path: &Path,
     duration_ms: i64,
+    length_estimated: bool,
     embedded: &[ChapterSpec],
 ) -> Result<(ChapterPlan, Option<CueSource>)> {
-    let embedded = normalize_embedded_chapters(embedded, duration_ms)?;
+    let embedded =
+        normalize_embedded_chapters(embedded, (!length_estimated).then_some(duration_ms))?;
     let mut plan = ChapterPlan {
         chapters: embedded.clone(),
         from_cue: false,
@@ -194,11 +197,11 @@ mod tests {
             "FILE \"two.mp3\" MP3\nTRACK 01 AUDIO\nTITLE \"Second\"\nINDEX 01 00:01:00",
         )
         .expect("standard sidecar");
-        let (first, cue) = inspect_chapter_source(&one, 2000, &[]).expect("first intake");
+        let (first, cue) = inspect_chapter_source(&one, 2000, false, &[]).expect("first intake");
         let cue = cue.expect("first sidecar");
         assert_eq!(cue.status, CueStatus::NeedsConfirmation);
         assert!(cue.message.contains("stale.mp3"));
-        let (second, cue) = inspect_chapter_source(&two, 2000, &[]).expect("second intake");
+        let (second, cue) = inspect_chapter_source(&two, 2000, false, &[]).expect("second intake");
         assert_eq!(cue.expect("standard sidecar").status, CueStatus::Ready);
         std::fs::write(dir.join("one.cue"), "FILE \"../unsafe.mp3\" MP3")
             .expect("change sidecar after intake");
@@ -239,7 +242,7 @@ mod tests {
                 .contains("CUE-bearing")
         );
         assert_eq!(
-            inspect_chapter_source(&one, 2000, &[])
+            inspect_chapter_source(&one, 2000, false, &[])
                 .expect("invalid diagnostic")
                 .1
                 .expect("sidecar")
@@ -252,7 +255,7 @@ mod tests {
         // On case-sensitive volumes these are two candidates; on insensitive
         // volumes the second write changes the single candidate to invalid text.
         assert_eq!(
-            inspect_chapter_source(&two, 2000, &[])
+            inspect_chapter_source(&two, 2000, false, &[])
                 .expect("ambiguous diagnostic")
                 .1
                 .expect("sidecar")
@@ -260,7 +263,7 @@ mod tests {
             CueStatus::Invalid
         );
         assert_eq!(
-            inspect_chapter_source(&two, 2000, &second.chapters)
+            inspect_chapter_source(&two, 2000, false, &second.chapters)
                 .expect("embedded precedence")
                 .1
                 .expect("sidecar")

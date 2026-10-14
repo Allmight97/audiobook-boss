@@ -26,6 +26,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   mp4ameta for MP4, a remux for others), refuses the copy when its audio
   stream count differs or its duration is more than 0.5 s away, and swaps it
   in through `file_replace::SiblingTemp` (flushed, original permissions).
+  Durations count only when FFmpeg measured both files or estimated both from
+  a bitrate; a joined MP3 reads as an estimate while its remuxed copy is
+  measured, so then (and for raw ADTS) only the stream count is checked.
   Why: a crash or a bad write must leave the original whole. The mp4ameta
   bridge and the remux writer write at the path they are given, so staged
   artifacts pay no extra copy. Any failure removes the temp after FFmpeg's
@@ -136,7 +139,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   start, zero-length markers dropped, each end moved to the next start and the
   last to the audio end. A chapter that starts outside the audio, or an end
   that would move more than 1 s, refuses that file. Why: real rips drift by a
-  few ms, and a larger move would guess at the book's structure. Runtime `cue.rs` owns
+  few ms, and a larger move would guess at the book's structure. A length
+  FFmpeg estimated from a bitrate (`length_is_estimated`: no length header, or
+  a joined MP3) is no audio end: the last chapter keeps its own end and no
+  start is refused against it. Runtime `cue.rs` owns
   bounded sibling discovery, diagnostics, and source fingerprints; FILE text
   never chooses another audio path and never refuses a sheet (a colon or a
   Windows path is a real rip's label).

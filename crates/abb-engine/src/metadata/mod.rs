@@ -61,6 +61,7 @@ pub(crate) use thumbnail::render_display_thumbnail;
 pub(crate) use thumbnail::{optimize_cover_art, prepare_cover_art_for_write};
 
 pub use cover_art::{add_cover_art_stream_pre_header, write_cover_art_packet_post_header};
+pub(crate) use ffi::length_is_estimated;
 pub use ffmpeg_dict::set_container_metadata;
 pub(crate) use passthrough::prepare_output_cover_art;
 pub use passthrough::{
@@ -114,14 +115,18 @@ fn commit_checked_save(
 }
 
 /// Refuses a saved copy whose audio stream count differs from the original's
-/// or whose duration is more than 0.5 s away. A loss under 0.5 s passes. An
-/// original without a known duration (raw ADTS) is checked by stream count only.
+/// or whose duration is more than 0.5 s away. A loss under 0.5 s passes.
+/// Durations count only when FFmpeg measured both or estimated both from a
+/// bitrate: a joined MP3 reads as an estimate while its remuxed copy is
+/// measured. Without comparable durations (that case, raw ADTS) only the
+/// stream count is checked.
 fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Result<()> {
     const TOLERANCE_US: u64 = 500_000;
-    let (original_us, original_streams) = audio_shape(original)?;
-    let (saved_us, saved_streams) = audio_shape(saved)?;
+    let (original_us, original_estimated, original_streams) = audio_shape(original)?;
+    let (saved_us, saved_estimated, saved_streams) = audio_shape(saved)?;
     let unknown = ffmpeg_next::ffi::AV_NOPTS_VALUE;
     let duration_moved = original_us != unknown
+        && original_estimated == saved_estimated
         && (saved_us == unknown || original_us.abs_diff(saved_us) > TOLERANCE_US);
     if original_streams == saved_streams && !duration_moved {
         return Ok(());
@@ -143,13 +148,13 @@ fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Res
     )))
 }
 
-fn audio_shape(path: &std::path::Path) -> Result<(i64, usize)> {
+fn audio_shape(path: &std::path::Path) -> Result<(i64, bool, usize)> {
     let input = ffmpeg_next::format::input(path).map_err(AppError::Ffmpeg)?;
     let audio_streams = input
         .streams()
         .filter(|stream| stream.parameters().medium() == ffmpeg_next::media::Type::Audio)
         .count();
-    Ok((input.duration(), audio_streams))
+    Ok((input.duration(), length_is_estimated(&input), audio_streams))
 }
 
 /// Finalizes a freshly produced artifact's metadata in one container-aware

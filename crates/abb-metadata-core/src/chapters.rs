@@ -207,10 +207,11 @@ const MAX_EMBEDDED_REPAIR_MS: i64 = 1_000;
 /// Repairs the drift real files carry in embedded chapters: sorts by start,
 /// drops zero-length markers, ends each chapter where the next starts and the
 /// last one at the audio end. Refuses a chapter that starts outside the audio
-/// or whose end would move by more than one second.
+/// or whose end would move by more than one second. With no known audio end
+/// (FFmpeg only estimated the length), the last chapter keeps its own end.
 pub fn normalize_embedded_chapters(
     chapters: &[ChapterSpec],
-    duration_ms: i64,
+    audio_end_ms: Option<i64>,
 ) -> Result<Vec<ChapterSpec>> {
     let mut sorted: Vec<(usize, &ChapterSpec)> = chapters.iter().enumerate().collect();
     sorted.sort_by_key(|(_, chapter)| chapter.start_ms);
@@ -220,19 +221,20 @@ pub fn normalize_embedded_chapters(
         .map(|(position, (_, chapter))| (position + 1, *chapter))
         .filter(|(_, chapter)| chapter.end_ms > chapter.start_ms)
         .collect();
-    if let Some((number, chapter)) = kept
-        .iter()
-        .find(|(_, chapter)| chapter.start_ms < 0 || chapter.start_ms >= duration_ms)
-    {
+    if let Some((number, chapter)) = kept.iter().find(|(_, chapter)| {
+        chapter.start_ms < 0 || audio_end_ms.is_some_and(|end| chapter.start_ms >= end)
+    }) {
         return Err(chapter_error(*number, chapter, "starts outside the audio"));
     }
     let mut repaired = Vec::with_capacity(kept.len());
     for (index, (number, chapter)) in kept.iter().enumerate() {
-        let (end_ms, boundary) = kept
-            .get(index + 1)
-            .map_or((duration_ms, "the end of the audio"), |(_, next)| {
-                (next.start_ms, "where the next chapter starts")
-            });
+        let (end_ms, boundary) = match kept.get(index + 1) {
+            Some((_, next)) => (next.start_ms, "where the next chapter starts"),
+            None => (
+                audio_end_ms.unwrap_or(chapter.end_ms),
+                "the end of the audio",
+            ),
+        };
         if (end_ms - chapter.end_ms).abs() > MAX_EMBEDDED_REPAIR_MS {
             let away = (end_ms - chapter.end_ms).abs() as f64 / 1_000.0;
             return Err(chapter_error(
@@ -320,12 +322,24 @@ mod tests {
                 chapter("Marker", 4_200, 4_200),
                 chapter("One", 0, 4_990),
             ],
-            10_000,
+            Some(10_000),
         )
         .expect("small drift is repaired");
         assert_eq!(
             repaired,
             vec![chapter("One", 0, 5_000), chapter("Two", 5_000, 10_000)]
+        );
+    }
+    #[test]
+    fn an_estimated_audio_length_neither_moves_nor_refuses_the_last_chapter() {
+        let kept = normalize_embedded_chapters(
+            &[chapter("One", 0, 4_990), chapter("Two", 5_000, 90_000)],
+            None,
+        )
+        .expect("no audio end to measure against");
+        assert_eq!(
+            kept,
+            vec![chapter("One", 0, 5_000), chapter("Two", 5_000, 90_000)]
         );
     }
     #[test]
@@ -335,7 +349,7 @@ mod tests {
                 chapter("One", 0, 5_000),
                 chapter("Epilogue", 10_000, 12_000),
             ],
-            10_000,
+            Some(10_000),
         )
         .expect_err("a chapter cannot start at the audio end")
         .to_string();
@@ -346,7 +360,7 @@ mod tests {
         assert!(!past_end.contains("CUE"), "{past_end}");
         let gap = normalize_embedded_chapters(
             &[chapter("One", 0, 3_000), chapter("Two", 5_000, 10_000)],
-            10_000,
+            Some(10_000),
         )
         .expect_err("a two-second gap is not drift")
         .to_string();
