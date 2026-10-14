@@ -13,10 +13,12 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   source metadata.
 - Audio maps `AudioFile` to `PassthroughSource` at call sites; metadata never
   imports `crate::audio::AudioFile`.
-- `finish_artifact_tags` is the one last step after any mux or remux (native or
-  preserve): MP4-family tag rewrite through mp4ameta, then accepted-chapter
-  verification. Its pre-write callback lets Audio report progress, so Audio
-  never asks which container strategy applies. The FFmpeg mov muxer silently
+- `finish_artifact_tags` is the last step after a native mux or a remux:
+  MP4-family tag rewrite through mp4ameta, then accepted-chapter verification.
+  Its pre-write callback lets Audio report progress, so Audio never asks which
+  container strategy applies. Single-file Preserve is the exception: it may
+  Save a patch after `remux_preserved_audio_container`, and a non-MP4 Save is
+  a remux, so `audio/processor/preserve.rs` verifies the chapters after it. The FFmpeg mov muxer silently
   drops dict keys outside its known-atom table (series, series-part,
   sort_album), so MP4-family tag truth never depends on a bare remux.
   `finalize_artifact_metadata` is the same finish for a preserved merge, after
@@ -30,9 +32,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   a bitrate; a joined MP3 reads as an estimate while its remuxed copy is
   measured, so then (and for raw ADTS) only the stream count is checked.
   Why: a crash or a bad write must leave the original whole. The mp4ameta
-  bridge and the remux writer write at the path they are given, so staged
-  artifacts pay no extra copy. Any failure removes the temp after FFmpeg's
-  handles close.
+  bridge and the remux writer write at the path they are given, so encode and
+  `finalize_artifact_metadata` pay no extra copy; single-file Preserve with a
+  patch and post-publish title tag saves go through the Save, copy and check
+  included. Any failure removes the temp after FFmpeg's handles close.
 - The remux read loop ends only at end of file; any other read error, one
   corrupt packet included, fails the write. Why: skipping or stopping early
   would save a shorter book.
