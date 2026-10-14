@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use audible_api::api::Client as AudibleClient;
 use audible_api::auth::oauth::{build_oauth_url, extract_auth_code};
 use audible_api::auth::register::register;
 use audible_api::auth::{localization, Auth};
@@ -20,6 +19,8 @@ mod supplemental_pdf;
 pub(crate) use acquisition::{run_protected_materialization, ProtectedMaterializationRun};
 
 use acquisition::acquire;
+use http::{ApiCall, AudibleApi};
+pub(in crate::remote_source) use http::{AudibleRequestError, SIGN_IN_REJECTED_MESSAGE};
 use library::parse_library_titles;
 
 use crate::errors::{AppError, Result};
@@ -37,7 +38,7 @@ const AUTH_SECRET_KEY: &str = "audible.us.auth";
 const AUDIBLE_LIBRARY_PAGE_SIZE: u16 = 1000;
 const MAX_AUDIBLE_LIBRARY_PAGES: u16 = 100;
 const MAX_DOWNLOAD_REDIRECTS: usize = 5;
-const MAX_DOWNLOAD_ATTEMPTS: usize = 4;
+const MAX_DOWNLOAD_ATTEMPTS: u32 = 5;
 const AUDIBLE_DOWNLOAD_USER_AGENT: &str = "Audible/671 CFNetwork/1240.0.4 Darwin/20.6.0";
 const AUDIBLE_IOS_DEVICE_TYPE: &str = "A2CZJZGLK2JJVM";
 
@@ -164,9 +165,8 @@ impl AudibleProvider {
 
     pub(in crate::remote_source) async fn load_library(
         auth: Auth,
-    ) -> Result<RemoteLibraryResponse> {
-        let client = client_from_auth(auth)?;
-        let titles = load_all_library_titles(&client).await?;
+    ) -> std::result::Result<RemoteLibraryResponse, AudibleRequestError> {
+        let titles = load_all_library_titles(&AudibleApi::new(auth)?).await?;
         Ok(RemoteLibraryResponse {
             provider_id: ProviderId::Audible,
             titles,
@@ -196,11 +196,13 @@ impl AudibleProvider {
     }
 }
 
-pub(super) async fn load_all_library_titles(client: &AudibleClient) -> Result<Vec<RemoteTitle>> {
+async fn load_all_library_titles(
+    api: &AudibleApi,
+) -> std::result::Result<Vec<RemoteTitle>, AudibleRequestError> {
     let mut titles = Vec::new();
     let mut seen_title_ids = HashSet::new();
 
-    let first_payload = fetch_library_page(client, None).await?;
+    let first_payload = fetch_library_page(api, None).await?;
     let (first_count, first_new_count) =
         append_unique_library_titles(&mut titles, &mut seen_title_ids, &first_payload);
     log::info!(
@@ -213,7 +215,7 @@ pub(super) async fn load_all_library_titles(client: &AudibleClient) -> Result<Ve
     }
 
     for page in 1..=MAX_AUDIBLE_LIBRARY_PAGES {
-        let payload = fetch_library_page(client, Some(page)).await?;
+        let payload = fetch_library_page(api, Some(page)).await?;
         let (page_count, new_count) =
             append_unique_library_titles(&mut titles, &mut seen_title_ids, &payload);
         log::info!(
@@ -230,14 +232,28 @@ pub(super) async fn load_all_library_titles(client: &AudibleClient) -> Result<Ve
 
     Err(AppError::General(format!(
         "Audible library scan exceeded ABB's pagination safety limit of {MAX_AUDIBLE_LIBRARY_PAGES} pages. No partial library was loaded."
-    )))
+    ))
+    .into())
 }
 
-async fn fetch_library_page(client: &AudibleClient, page: Option<u16>) -> Result<Value> {
-    client
-        .get_library(Some(library_request_params(page)))
-        .await
-        .map_err(|_| provider_private_failure("library request"))
+async fn fetch_library_page(
+    api: &AudibleApi,
+    page: Option<u16>,
+) -> std::result::Result<Value, AudibleRequestError> {
+    api.get(
+        "/1.0/library",
+        &library_request_params(page),
+        ApiCall::account("library request"),
+    )
+    .await
+    .map_err(|error| match error {
+        AudibleRequestError::Failed(_) => AppError::General(
+            "An Audible library page could not be loaded. No partial library was loaded."
+                .to_string(),
+        )
+        .into(),
+        rejected => rejected,
+    })
 }
 
 fn append_unique_library_titles(
@@ -288,11 +304,6 @@ pub(super) fn auth_from_vault(vault: &dyn SecretVault) -> Result<Auth> {
     })
 }
 
-pub(super) fn client_from_auth(auth: Auth) -> Result<AudibleClient> {
-    AudibleClient::new(auth)
-        .map_err(|error| AppError::General(format!("Failed to create Audible client: {error}")))
-}
-
 fn extract_audible_auth_code(response_url: &str) -> Result<String> {
     extract_auth_code(response_url).map_err(|_| {
         AppError::InvalidInput(
@@ -312,7 +323,7 @@ mod probe;
 mod tests {
     use super::audio_download::build_download_request;
     use super::library_probe::library_probe_summary;
-    use super::license::{license_request_payload, license_request_spec};
+    use super::license::{license_request_path, license_request_payload};
     use super::*;
     use crate::remote_source::scoped_output::partial_sibling;
     use reqwest::header::{RANGE, USER_AGENT};
@@ -507,35 +518,26 @@ mod tests {
     #[test]
     fn license_request_matches_aaxc_adaptive_license_shape() {
         let payload = license_request_payload();
-        let spec = license_request_spec("B000000001", &payload);
 
-        assert_eq!(spec.method, "POST");
         assert_eq!(
-            spec.url,
-            format!("https://api.audible.{DOMAIN}/1.0/content/B000000001/licenserequest")
+            license_request_path("B000000001"),
+            "/1.0/content/B000000001/licenserequest"
         );
-        assert!(!spec.url.contains('?'));
-        assert_eq!(spec.body["quality"], "High");
-        assert_eq!(spec.body["consumption_type"], "Download");
-        assert_eq!(spec.body["tenant_id"], "Audible");
+        assert_eq!(payload["quality"], "High");
+        assert_eq!(payload["consumption_type"], "Download");
+        assert_eq!(payload["tenant_id"], "Audible");
         assert_eq!(
-            spec.body["response_groups"],
+            payload["response_groups"],
             "last_position_heard,pdf_url,content_reference,chapter_info"
         );
+        assert_eq!(payload["supported_media_features"]["drm_types"][0], "Adrm");
+        assert_eq!(payload["supported_media_features"]["drm_types"][1], "Mpeg");
         assert_eq!(
-            spec.body["supported_media_features"]["drm_types"][0],
-            "Adrm"
-        );
-        assert_eq!(
-            spec.body["supported_media_features"]["drm_types"][1],
-            "Mpeg"
-        );
-        assert_eq!(
-            spec.body["supported_media_features"]["codecs"][0],
+            payload["supported_media_features"]["codecs"][0],
             "mp4a.40.2"
         );
         assert_eq!(
-            spec.body["supported_media_features"]["chapter_titles_type"],
+            payload["supported_media_features"]["chapter_titles_type"],
             "Tree"
         );
     }

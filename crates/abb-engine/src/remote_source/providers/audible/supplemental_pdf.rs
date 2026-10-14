@@ -1,7 +1,7 @@
 use audible_api::auth::Auth;
 use reqwest::header::{HeaderValue, ACCEPT, COOKIE, LOCATION, USER_AGENT};
 use std::path::Path;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use abb_audible_core::title_ref;
 use abb_media_core::{
@@ -13,6 +13,9 @@ use super::http::no_redirect_client;
 use super::{AUDIBLE_DOWNLOAD_USER_AGENT, DOMAIN, MAX_DOWNLOAD_REDIRECTS};
 use crate::remote_source::scoped_output::{ProvisionalCommittedFile, StagedTempFile};
 use crate::remote_source::SupplementalAsset;
+
+const SIGN_IN_PATH: &str = "/ap/signin";
+const SIGN_IN_PAGE_SCAN_BYTES: u64 = 64 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct SupplementalPdfFailure {
@@ -171,7 +174,6 @@ async fn download_supplemental_pdf_with_client(
         .await
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
     let path = generated_staging_path(request.job_dir, "pdf");
-    // Guard cleans the partial + (uncommitted) final on every early return / `?`.
     let mut staged = StagedTempFile::new(&path);
     staged.prepare().map_err(|error| {
         log::warn!(
@@ -207,7 +209,12 @@ async fn download_supplemental_pdf_with_client(
         return Err(SupplementalPdfFailure::new("empty", None));
     }
     if !identity.has_pdf_magic {
-        return Err(SupplementalPdfFailure::new("pdf_magic", None));
+        let category = if is_sign_in_page(staged.partial_path()).await {
+            "sign_in"
+        } else {
+            "pdf_magic"
+        };
+        return Err(SupplementalPdfFailure::new(category, None));
     }
     staged.rename_and_commit(is_cancelled).await.map_err(|error| {
         log::warn!(
@@ -294,6 +301,9 @@ async fn fetch_pdf_to_partial(
                 response.headers().get(LOCATION),
                 transport_policy,
             )?;
+            if is_sign_in_url(&next) {
+                return Err(SupplementalPdfFailure::new("sign_in", Some(status)));
+            }
             redirect_count += 1;
             url = next;
             continue;
@@ -339,6 +349,29 @@ async fn fetch_pdf_to_partial(
         );
         return Ok(identity);
     }
+}
+
+fn is_sign_in_url(url: &reqwest::Url) -> bool {
+    url.host_str()
+        .is_some_and(|host| host.split('.').any(|label| label == "amazon"))
+        && url.path().starts_with(SIGN_IN_PATH)
+}
+
+async fn is_sign_in_page(path: &Path) -> bool {
+    let mut head = Vec::new();
+    let Ok(file) = tokio::fs::File::open(path).await else {
+        return false;
+    };
+    if file
+        .take(SIGN_IN_PAGE_SCAN_BYTES)
+        .read_to_end(&mut head)
+        .await
+        .is_err()
+    {
+        return false;
+    }
+    head.windows(SIGN_IN_PATH.len())
+        .any(|window| window == SIGN_IN_PATH.as_bytes())
 }
 
 /// Stream the response body to the staged partial path, enforcing the size cap
@@ -388,6 +421,7 @@ async fn stream_pdf_body(
 
 pub(super) fn supplemental_pdf_failure_message(failure: SupplementalPdfFailure) -> String {
     match failure.category {
+        "sign_in" => "Sign in to Audible again to get the PDF.".to_string(),
         "missing_cookie_auth" | "invalid_cookie_auth" => {
             "Audible Supplemental PDF authentication material was unavailable. Provider-private details were withheld from UI and logs.".to_string()
         }
@@ -833,6 +867,102 @@ mod tests {
                     !path.ends_with(".pdf") && !path.ends_with(".partial")
                 }),
             "non-PDF response should not leave staged PDF files"
+        );
+    }
+
+    async fn fetch_with_one_reply(
+        reply: Vec<u8>,
+        extra_host: Option<&str>,
+    ) -> SupplementalPdfFailure {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let client = local_client(addr, extra_host);
+        let reply = String::from_utf8(reply)
+            .expect("utf8 reply")
+            .replace("{port}", &addr.port().to_string());
+        #[expect(clippy::disallowed_methods, reason = "joined by fetch_with_one_reply")]
+        let server = tokio::spawn(async move { serve_one(&listener, reply.as_bytes()).await });
+        let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
+        let root = tempfile::TempDir::new().expect("temp root");
+        let start_url = reqwest::Url::parse(&format!(
+            "http://www.audible.com:{}/companion-file/B000000001",
+            addr.port()
+        ))
+        .expect("url");
+
+        let failure = download_supplemental_pdf_with_client(
+            &client,
+            SupplementalPdfRequest {
+                auth: &auth,
+                title_id: "B000000001",
+                job_id: "job-1",
+                input_id: "input-1",
+                file_name: "Supplemental PDF.pdf",
+                api_pdf_hint_present: true,
+                job_dir: root.path(),
+            },
+            start_url,
+            SupplementalPdfTransportPolicy::HttpForTests,
+            &|| false,
+        )
+        .await
+        .expect_err("no PDF arrives");
+        let _ = server.await.expect("server task");
+        failure
+    }
+
+    fn html_reply(body: &str) -> Vec<u8> {
+        format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        )
+        .into_bytes()
+    }
+
+    #[tokio::test]
+    async fn an_amazon_sign_in_page_asks_the_user_to_sign_in_again() {
+        let failure = fetch_with_one_reply(
+            html_reply(
+                r#"<html><form name="signIn" method="post" action="https://www.amazon.com/ap/signin"></form></html>"#,
+            ),
+            None,
+        )
+        .await;
+
+        assert_eq!(
+            supplemental_pdf_failure_message(failure),
+            "Sign in to Audible again to get the PDF."
+        );
+    }
+
+    #[tokio::test]
+    async fn a_redirect_to_amazon_sign_in_asks_the_user_to_sign_in_again() {
+        let failure = fetch_with_one_reply(
+            b"HTTP/1.1 302 Found\r\nLocation: http://www.amazon.com:{port}/ap/signin?openid.return_to=x\r\nContent-Length: 0\r\n\r\n".to_vec(),
+            Some("www.amazon.com"),
+        )
+        .await;
+
+        assert_eq!(
+            supplemental_pdf_failure_message(failure),
+            "Sign in to Audible again to get the PDF."
+        );
+    }
+
+    #[tokio::test]
+    async fn other_html_keeps_the_not_a_pdf_failure() {
+        let failure = fetch_with_one_reply(
+            html_reply("<html><body>Service unavailable</body></html>"),
+            None,
+        )
+        .await;
+
+        assert_eq!(failure.category, "pdf_magic");
+        assert_ne!(
+            supplemental_pdf_failure_message(failure),
+            "Sign in to Audible again to get the PDF."
         );
     }
 

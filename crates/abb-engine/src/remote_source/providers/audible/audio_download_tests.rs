@@ -16,6 +16,10 @@ enum Serve {
     Truncate(usize),
     /// Send this many bytes, pause, then send the rest.
     Pause(usize),
+    /// Read the request, then close without a response.
+    Close,
+    /// Send the requested range in full, claiming a different total size.
+    Resized,
 }
 
 struct Stub {
@@ -67,17 +71,27 @@ async fn start_stub(script: Vec<Serve>) -> Stub {
             };
             let start = read_range_start(&mut tls).await;
             recorded.lock().expect("ranges").push(start);
+            if matches!(serve, Serve::Close) {
+                let _ = tls.shutdown().await;
+                continue;
+            }
             let remaining = &body[start as usize..];
+            let total = if matches!(serve, Serve::Resized) {
+                BODY_LEN + 1
+            } else {
+                BODY_LEN
+            };
             let head = format!(
                 "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {}-{}/{}\r\nConnection: close\r\n\r\n",
                 remaining.len(),
                 start,
                 BODY_LEN - 1,
-                BODY_LEN
+                total
             );
             let _ = tls.write_all(head.as_bytes()).await;
             match serve {
-                Serve::Full => {
+                Serve::Close => {}
+                Serve::Full | Serve::Resized => {
                     let _ = tls.write_all(remaining).await;
                 }
                 Serve::Truncate(sent) => {
@@ -138,12 +152,17 @@ async fn a_truncated_download_resumes_to_the_exact_bytes() {
     let root = tempfile::TempDir::new().expect("temp root");
     let target = root.path().join("book.aaxc");
 
-    let bytes =
-        download_to_path_with_client(&stub.client, &stub.url, &target, LOG, &mut |_| {}, &|| {
-            false
-        })
-        .await
-        .expect("resumed download");
+    let bytes = download_to_path_with_client(
+        &stub.client,
+        &stub.url,
+        &target,
+        Duration::ZERO,
+        LOG,
+        &mut |_| {},
+        &|| false,
+    )
+    .await
+    .expect("resumed download");
 
     assert_eq!(bytes, BODY_LEN as u64);
     assert_eq!(std::fs::read(&target).expect("downloaded bytes"), body());
@@ -152,25 +171,105 @@ async fn a_truncated_download_resumes_to_the_exact_bytes() {
 }
 
 #[tokio::test]
-async fn retry_exhaustion_fails_without_leaving_files() {
-    let stub = start_stub(vec![Serve::Truncate(100); MAX_DOWNLOAD_ATTEMPTS]).await;
+async fn a_refused_reconnect_is_retried_and_keeps_the_bytes() {
+    let stub = start_stub(vec![Serve::Truncate(400), Serve::Close, Serve::Full]).await;
     let root = tempfile::TempDir::new().expect("temp root");
     let target = root.path().join("book.aaxc");
 
-    let error =
-        download_to_path_with_client(&stub.client, &stub.url, &target, LOG, &mut |_| {}, &|| {
-            false
-        })
-        .await
-        .expect_err("every attempt truncates");
+    let bytes = download_to_path_with_client(
+        &stub.client,
+        &stub.url,
+        &target,
+        Duration::ZERO,
+        LOG,
+        &mut |_| {},
+        &|| false,
+    )
+    .await
+    .expect("resumed download");
+
+    assert_eq!(bytes, BODY_LEN as u64);
+    assert_eq!(std::fs::read(&target).expect("downloaded bytes"), body());
+    assert_eq!(*stub.range_starts.lock().expect("ranges"), [0, 400, 400]);
+}
+
+#[tokio::test]
+async fn bytes_that_arrive_reset_the_try_budget() {
+    let mut script = vec![Serve::Truncate(100); MAX_DOWNLOAD_ATTEMPTS as usize + 1];
+    script.push(Serve::Full);
+    let stub = start_stub(script).await;
+    let root = tempfile::TempDir::new().expect("temp root");
+    let target = root.path().join("book.aaxc");
+
+    let bytes = download_to_path_with_client(
+        &stub.client,
+        &stub.url,
+        &target,
+        Duration::ZERO,
+        LOG,
+        &mut |_| {},
+        &|| false,
+    )
+    .await
+    .expect("every try made progress");
+
+    assert_eq!(bytes, BODY_LEN as u64);
+    assert_eq!(std::fs::read(&target).expect("downloaded bytes"), body());
+}
+
+#[tokio::test]
+async fn a_resumed_reply_with_another_total_size_is_rejected() {
+    let stub = start_stub(vec![Serve::Truncate(400), Serve::Resized]).await;
+    let root = tempfile::TempDir::new().expect("temp root");
+    let target = root.path().join("book.aaxc");
+
+    let error = download_to_path_with_client(
+        &stub.client,
+        &stub.url,
+        &target,
+        Duration::ZERO,
+        LOG,
+        &mut |_| {},
+        &|| false,
+    )
+    .await
+    .expect_err("the file changed size between tries");
 
     assert!(
-        error.to_string().contains("read"),
+        error.to_string().contains("size"),
+        "unexpected error: {error}"
+    );
+    assert!(!target.exists());
+    assert!(!partial_sibling(&target).exists());
+}
+
+#[tokio::test]
+async fn retry_exhaustion_fails_without_leaving_files() {
+    let mut script = vec![Serve::Truncate(100)];
+    script.extend([Serve::Close; MAX_DOWNLOAD_ATTEMPTS as usize - 1]);
+    let stub = start_stub(script).await;
+    let root = tempfile::TempDir::new().expect("temp root");
+    let target = root.path().join("book.aaxc");
+
+    let error = download_to_path_with_client(
+        &stub.client,
+        &stub.url,
+        &target,
+        Duration::ZERO,
+        LOG,
+        &mut |_| {},
+        &|| false,
+    )
+    .await
+    .expect_err("no try after the first brings bytes");
+
+    assert!(
+        error.to_string().contains("request"),
         "unexpected error: {error}"
     );
     assert_eq!(
         *stub.range_starts.lock().expect("ranges"),
-        [0, 100, 200, 300]
+        [0, 100, 100, 100, 100]
     );
     assert!(!target.exists());
     assert!(!partial_sibling(&target).exists());
@@ -187,6 +286,7 @@ async fn cancelling_mid_download_removes_the_partial_file() {
         &stub.client,
         &stub.url,
         &target,
+        Duration::ZERO,
         LOG,
         &mut |_| cancelled.store(true, Ordering::SeqCst),
         &|| cancelled.load(Ordering::SeqCst),
