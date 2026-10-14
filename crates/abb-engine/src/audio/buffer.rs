@@ -308,8 +308,8 @@ impl SampleAccumulator {
         dst.copy_from_slice(&buffer[start..start + take_total]);
         if config.format == ff::format::Sample::F32(ff::format::sample::Type::Packed) {
             let mut report = SanitizeReport::default();
-            for bytes in dst.chunks_exact_mut(4) {
-                let value = f32::from_ne_bytes(bytes.try_into().expect("four-byte float"));
+            for bytes in dst.as_chunks_mut::<4>().0 {
+                let value = f32::from_ne_bytes(*bytes);
                 bytes.copy_from_slice(&report.sanitize(value).to_ne_bytes());
             }
             report.log("channel_index=packed", take);

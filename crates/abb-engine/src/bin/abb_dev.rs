@@ -47,7 +47,7 @@ Options:
   --preview <seconds>     Render the first seconds of each title instead.
   --on-collision <policy> What to do when an export already exists: rename,
                           replace, or skip. Without it, a collision stops.
-  --cancel-title <n>      Cancel the nth title (from 1) once the export runs.
+  --cancel-title <n>      Cancel the nth title (from 1) while queued or running.
   --json                  Print the session as JSON.
   --state-dir <dir>       Keep engine state here instead of a folder that is
                           removed when the tool exits.
@@ -339,7 +339,9 @@ async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, 
     submission(engine).ok_or_else(|| "the engine did not answer the review".to_string())
 }
 
-/// Waits for an export, cancelling one title once it runs if asked.
+/// Waits for an export. A requested title is cancelled while it is still
+/// queued, before the poll interval, so a fast passthrough cannot finish it
+/// unseen.
 async fn follow(
     engine: &Engine,
     operation_id: &OperationId,
@@ -354,6 +356,23 @@ async fn follow(
             .into_iter()
             .find(|operation| &operation.operation_id == operation_id)
             .ok_or("the export is no longer listed")?;
+        if !cancelled {
+            let index = cancel_title.unwrap_or(1) - 1;
+            let child = operation
+                .children
+                .get(index)
+                .ok_or_else(|| format!("there is no title {}", index + 1))?;
+            if matches!(
+                child.status,
+                ChildJobStatus::Queued | ChildJobStatus::Running
+            ) {
+                engine
+                    .cancel_work_operation(operation_id.clone(), Some(child.child_job_id.clone()))
+                    .map_err(|error| error.to_string())?;
+                eprintln!("Cancelled title {}: {}", index + 1, child.label);
+                cancelled = true;
+            }
+        }
         if !matches!(
             operation.status,
             WorkOperationStatus::Accepted
@@ -361,18 +380,6 @@ async fn follow(
                 | WorkOperationStatus::Cancelling
         ) {
             return Ok(operation);
-        }
-        if !cancelled && operation.status == WorkOperationStatus::Running {
-            let index = cancel_title.unwrap_or(1) - 1;
-            let child = operation
-                .children
-                .get(index)
-                .ok_or_else(|| format!("there is no title {}", index + 1))?;
-            engine
-                .cancel_work_operation(operation_id.clone(), Some(child.child_job_id.clone()))
-                .map_err(|error| error.to_string())?;
-            eprintln!("Cancelled title {}: {}", index + 1, child.label);
-            cancelled = true;
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
@@ -409,14 +416,20 @@ async fn print_export(engine: &Engine, operation: &OperationSnapshot) {
     }
 }
 
-/// Succeeds only when every title was published, or when the only titles
-/// not published are the one `--cancel-title` cancelled.
-fn export_verdict(operation: &OperationSnapshot, cancelled_one: bool) -> Result<(), String> {
-    let published = |child: &abb_engine::work_runtime::ChildJobSnapshot| {
-        child.status == ChildJobStatus::Completed
-            || (cancelled_one && child.status == ChildJobStatus::Cancelled)
-    };
-    if operation.children.iter().all(published) {
+/// Succeeds only when the requested title was cancelled and every other
+/// title was published.
+fn export_verdict(
+    operation: &OperationSnapshot,
+    cancel_title: Option<usize>,
+) -> Result<(), String> {
+    if operation.children.iter().enumerate().all(|(index, child)| {
+        let expected = if cancel_title == Some(index + 1) {
+            ChildJobStatus::Cancelled
+        } else {
+            ChildJobStatus::Completed
+        };
+        child.status == expected
+    }) {
         Ok(())
     } else {
         Err(format!("the export ended {:?}", operation.status))
@@ -433,7 +446,7 @@ async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
             eprintln!("Exporting {title}");
             let operation = follow(engine, &operation_id, options.cancel_title).await?;
             print_export(engine, &operation).await;
-            export_verdict(&operation, options.cancel_title.is_some())
+            export_verdict(&operation, options.cancel_title)
         }
         SubmissionStatus::PreviewFinished { result } => {
             for entry in &result.results {
@@ -618,4 +631,48 @@ async fn main() -> ExitCode {
         }
     };
     exit_code(status)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn export_verdict_requires_the_requested_title_to_be_cancelled() {
+        for (statuses, succeeds) in [
+            (["completed", "completed"], false),
+            (["cancelled", "completed"], true),
+            (["completed", "cancelled"], false),
+        ] {
+            let progress = serde_json::json!({
+                "stage": "complete", "percentage": 100.0, "message": "done",
+            });
+            let children: Vec<_> = statuses
+                .iter()
+                .enumerate()
+                .map(|(index, status)| {
+                    serde_json::json!({
+                        "childJobId": index.to_string(), "operationId": "export",
+                        "label": index.to_string(), "status": status,
+                        "lane": "encodeCpu", "progress": progress,
+                        "sourceInputIds": [], "cancellable": false, "cancelRequested": false,
+                    })
+                })
+                .collect();
+            let operation: OperationSnapshot = serde_json::from_value(serde_json::json!({
+                "operationId": "export", "sequence": 1, "revision": 1,
+                "kind": "processingBatch", "title": "export",
+                "status": if statuses.contains(&"cancelled") { "mixed" } else { "completed" },
+                "createdAtMs": 0, "cancellable": false, "cancelRequested": true,
+                "lanes": [], "sourceInputIds": [], "progress": progress,
+                "children": children, "errors": [], "logTail": [],
+            }))
+            .expect("export snapshot");
+            assert_eq!(
+                export_verdict(&operation, Some(1)).is_ok(),
+                succeeds,
+                "{statuses:?}"
+            );
+        }
+    }
 }

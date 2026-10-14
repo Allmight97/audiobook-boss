@@ -188,3 +188,23 @@ fn the_developer_tool_exports_with_the_edited_tags() {
     assert_eq!(genre(&out.join("Alpha.m4b")).as_deref(), Some("Mystery"));
     assert_eq!(genre(&source).as_deref(), Some("Fantasy"));
 }
+
+#[test]
+fn the_developer_tool_rejects_an_out_of_range_cancel_title() {
+    let root = tempfile::TempDir::new().expect("state root");
+    let source = book(root.path());
+    let result = Command::new(env!("CARGO_BIN_EXE_abb-dev"))
+        .arg(&source)
+        .args(["--export", "--cancel-title", "2", "--out"])
+        .arg(root.path().join("exports"))
+        .arg("--state-dir")
+        .arg(root.path().join("tool-state"))
+        .output()
+        .expect("run developer host");
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        !result.status.success(),
+        "invalid cancel must fail: {stderr}"
+    );
+    assert!(stderr.contains("there is no title 2"), "{stderr}");
+}

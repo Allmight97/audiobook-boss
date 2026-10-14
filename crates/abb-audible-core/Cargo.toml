@@ -11,11 +11,11 @@ doctest = false
 [dependencies]
 abb-media-core = { path = "../abb-media-core" }
 abb-remote-source-core = { path = "../abb-remote-source-core" }
-serde_json = "1.0.149"
+serde_json = "1.0.154"
 base64 = "0.23.1"
 aes = "0.9.3"
 cbc = "0.2.1"
-sha2 = "0.11.0"
+sha2 = "0.11.1"
 secrecy = "0.10.3"
 
 [lints]

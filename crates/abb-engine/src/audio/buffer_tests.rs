@@ -26,7 +26,13 @@ fn packed_mono_frame(samples: &[f32]) -> ff::frame::Audio {
     let layout = ff::ChannelLayout::default(1);
     let mut frame = ff::frame::Audio::new(PACKED, samples.len(), layout);
     frame.set_rate(44_100);
-    for (bytes, value) in frame.data_mut(0).chunks_exact_mut(4).zip(samples) {
+    for (bytes, value) in frame
+        .data_mut(0)
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip(samples)
+    {
         bytes.copy_from_slice(&value.to_ne_bytes());
     }
     frame
@@ -78,8 +84,10 @@ fn packed_float_samples_clamp_finite_overshoot_and_zero_non_finite_values() {
     ]));
 
     let values: Vec<f32> = ready[0].data(0)[..20]
-        .chunks_exact(4)
-        .map(|bytes| f32::from_ne_bytes(bytes.try_into().expect("four bytes")))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|bytes| f32::from_ne_bytes(*bytes))
         .collect();
     assert_eq!(values, [1.0, -1.0, 0.5, 0.0, 0.0]);
 }

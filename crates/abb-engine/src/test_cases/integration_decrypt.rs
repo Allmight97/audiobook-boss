@@ -716,14 +716,14 @@ async fn materialize_protected(
     secret: AaxcleanSecret,
 ) -> Result<
     (TempDir, ProtectedMaterializationRun),
-    (RemoteSourceDiagnostic, TempDir, ProtectedMaterializationRun),
+    Box<(RemoteSourceDiagnostic, TempDir, ProtectedMaterializationRun)>,
 > {
     let root = TempDir::new().expect("protected download root");
     let input = root.path().join(download_name);
     std::fs::copy(source, &input).expect("copy protected download");
     match crate::remote_source::run_protected_materialization(&input, root.path(), &secret).await {
         Ok(run) => Ok((root, run)),
-        Err((diagnostic, run)) => Err((diagnostic, root, run)),
+        Err((diagnostic, run)) => Err(Box::new((diagnostic, root, run))),
     }
 }
 
@@ -739,9 +739,7 @@ async fn aax_decrypts_to_the_generated_source() {
     let (_root, run) =
         materialize_protected(&books.aax, "source.aax", aax_secret(AAX_ACTIVATION_HEX))
             .await
-            .unwrap_or_else(|(diagnostic, _, _)| {
-                panic!("aax decrypt failed: {}", diagnostic.message)
-            });
+            .unwrap_or_else(|failure| panic!("aax decrypt failed: {}", failure.0.message));
     assert_matches_source(&run.output, &books.source);
 }
 
@@ -750,14 +748,14 @@ async fn aaxc_decrypts_to_the_generated_source() {
     let books = books();
     let (_root, run) = materialize_protected(&books.aaxc, "source.aaxc", aaxc_secret())
         .await
-        .unwrap_or_else(|(diagnostic, _, _)| panic!("aaxc decrypt failed: {}", diagnostic.message));
+        .unwrap_or_else(|failure| panic!("aaxc decrypt failed: {}", failure.0.message));
     assert_matches_source(&run.output, &books.source);
 }
 
 #[tokio::test]
 async fn wrong_aax_activation_bytes_fail_and_leave_no_output() {
     let books = books();
-    let (diagnostic, _root, run) = materialize_protected(
+    let (diagnostic, _root, run) = *materialize_protected(
         &books.aax,
         "source.aax",
         aax_secret(AAX_WRONG_ACTIVATION_HEX),
@@ -797,7 +795,7 @@ async fn wrong_aaxc_key_fails_at_materialization_when_helper_accepts_it() {
     .expect("helper must exit 0 for a wrong key its frame check accepts");
 
     let (diagnostic, _root, run) =
-        materialize_protected(&books.aaxc, "source.aaxc", aaxc_secret_with(&key))
+        *materialize_protected(&books.aaxc, "source.aaxc", aaxc_secret_with(&key))
             .await
             .expect_err(
                 "wrong AAXC key must fail at materialization, not return Ok for later validation",

@@ -294,8 +294,10 @@ fn decode_pcm_f32(path: &Path) -> Vec<f32> {
     );
     decoded
         .stdout
-        .chunks_exact(4)
-        .map(|bytes| f32::from_le_bytes(bytes.try_into().expect("fixture value")))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|bytes| f32::from_le_bytes(*bytes))
         .collect()
 }
 
@@ -1890,7 +1892,7 @@ async fn assert_auto_merge_stereo(settings: EncoderSettings) {
         let probe = get_file_list_info(&[&output]).expect("re-probe mixed-channel M4B");
         assert_eq!(probe.files[0].channels, Some(2), "Auto preserves stereo");
         let samples = decode_pcm_f32(&output);
-        let frames = samples.chunks_exact(2);
+        let frames = samples.as_chunks::<2>().0;
         let count = frames.len() as f64;
         let mut energy = [0.0_f64; 3];
         for frame in frames {
@@ -2268,7 +2270,7 @@ async fn faac_lc_and_auto_vbr_reimport_preserve_audio_interval() {
 fn fill_with_filtered_noise(pcm16: &mut [u8]) {
     let mut state = 42u32;
     let mut filtered = 0.0_f64;
-    for sample in pcm16.chunks_exact_mut(2) {
+    for sample in pcm16.as_chunks_mut::<2>().0 {
         state = state.wrapping_mul(1664525).wrapping_add(1013904223);
         let noise = f64::from(state) / f64::from(u32::MAX) - 0.5;
         filtered = filtered * 0.85 + noise * 0.15;
@@ -2356,7 +2358,9 @@ async fn assert_faac_reimport(
         // A forced-stereo output carries the mono reference in each channel.
         let decoded = if output_settings.channels == ChannelConfig::Stereo {
             decoded
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|frame| frame[0])
                 .collect::<Vec<_>>()
         } else {
@@ -2713,7 +2717,9 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         );
         if channels == 2 {
             let difference_energy: f64 = decoded
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|frame| f64::from(frame[0] - frame[1]).powi(2))
                 .sum();
             assert!(
