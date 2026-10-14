@@ -114,6 +114,17 @@ describe('input owner', () => {
 		expect(await select()).toBe(true);
 		engine.respond = (): SessionOutcome => ({ kind: 'draftRejected', message: 'Bad date' });
 		expect(await select()).toBe(false);
+		engine.respond = (): SessionOutcome => ({
+			kind: 'rejected',
+			error: {
+				code: 'internal_error',
+				category: 'internal',
+				message: 'Session closed',
+				detail: null,
+			},
+		});
+		expect(await select()).toBe(false);
+		expect(app.engine.refusal()).toBe('Session closed');
 	});
 
 	it('addresses selection by the title the user clicked', async () => {

@@ -81,7 +81,12 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	}
 
 	async function applied(intent: SessionIntent): Promise<boolean> {
-		return (await link.send(intent)).kind === 'applied';
+		try {
+			return (await link.send(intent)).kind === 'applied';
+		} catch (error) {
+			link.refuse(intent, error);
+			return false;
+		}
 	}
 
 	function importPaths(paths: ReadonlyArray<string>): void {

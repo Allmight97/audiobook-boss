@@ -30,8 +30,8 @@ second copy of owner state.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
   for intents whose outcome and completion nobody awaits; its method is not
   `async` and a view calls it without `void`. A refusal of a `post` shows as
-  the link's `refusal` (`RefusedChangeNotice`). A `send` caller that needs only
-  completion (an echo cleared, focus moved) passes its rejection to
+  the link's `refusal` (`RefusedChangeNotice`). Every `send` caller (an echo
+  cleared, focus moved, a selection's accepted flag) passes its rejection to
   `link.refuse`, so every session refusal shows the same way. The host runs
   both in the order called.
 - A part that arrives unchanged keeps object identity for its files and lookup
