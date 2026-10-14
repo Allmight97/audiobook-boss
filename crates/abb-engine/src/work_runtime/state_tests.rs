@@ -837,22 +837,14 @@ fn child_completion_timing_excludes_queue_and_survives_later_batch_settlement() 
     state
         .apply_progress_event(&operation_id, &converting_event(0.0, "Start", 0), 1_000)
         .expect("operation timing snapshot");
-    let cleanup = ProgressEvent {
-        stage: EventStage::Completed,
-        ..converting_event(95.0, "Cleaning", 0)
-    };
-    let snapshot = state
-        .apply_progress_event(&operation_id, &cleanup, 12_000)
-        .expect("operation timing snapshot");
-    assert_eq!(snapshot.children[0].started_at_ms, Some(1_000));
-    assert_eq!(snapshot.children[0].finished_at_ms, None);
     let complete = ProgressEvent {
-        percentage: 100.0,
-        ..cleanup
+        stage: EventStage::Completed,
+        ..converting_event(100.0, "Complete", 0)
     };
     let snapshot = state
         .apply_progress_event(&operation_id, &complete, 14_150)
         .expect("operation timing snapshot");
+    assert_eq!(snapshot.children[0].started_at_ms, Some(1_000));
     assert_eq!(snapshot.children[0].finished_at_ms, Some(14_150));
     assert_eq!(snapshot.children[1].started_at_ms, None);
     state

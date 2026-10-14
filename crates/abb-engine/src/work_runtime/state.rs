@@ -198,8 +198,7 @@ impl WorkRuntimeState {
             }
             if child_status == ChildJobStatus::Running {
                 child.started_at_ms.get_or_insert(now_ms);
-            } else if event.stage != EventStage::Completed || event.percentage >= 100.0 {
-                // Cleanup also uses Completed, below 100%; the output is not ready yet.
+            } else {
                 child.finished_at_ms.get_or_insert(now_ms);
             }
             child.status = child_status;

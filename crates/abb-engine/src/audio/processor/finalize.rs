@@ -37,9 +37,6 @@ pub(super) fn complete_staged_output(
     ensure_not_cancelled_before_commit(context)?;
     super::run_diagnostics::log_output_observation(context, &staged_output);
 
-    let ui = context.new_emitter();
-    ui.emit_cleanup("Cleaning up...");
-
     let commit_request =
         OutputCommitRequest::new(context.output.final_path(), context.output.commit_action());
     log::info!("media_handoff stage=publish session_id={} job_id={} source_artifact={} destination_artifact={} destination_state={:?}",
@@ -83,7 +80,7 @@ pub(super) fn complete_staged_output(
         outcome.cancelled,
         outcome.cleanup_warning.as_deref(),
     );
-    ui.emit_complete(success.ui_message);
+    context.new_emitter().emit_complete(success.ui_message);
     log::info!("🎉 {}", success.result_message);
     Ok(success.result_message)
 }
