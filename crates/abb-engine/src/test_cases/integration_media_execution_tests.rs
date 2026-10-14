@@ -915,7 +915,15 @@ async fn metadata_save_writes_external_ffprobe_visible_mp4_tags() {
         disk: Some(PatchOp::Set((1, Some(2)))),
         ..Default::default()
     };
+    #[cfg(unix)]
+    let inode_before = std::os::unix::fs::MetadataExt::ino(&fs::metadata(&output).expect("stat"));
     save_metadata_intent(&output, &patch).expect("metadata save through mp4ameta path");
+    // A new inode at the path proves the save wrote a copy and swapped it in.
+    #[cfg(unix)]
+    assert_ne!(
+        std::os::unix::fs::MetadataExt::ino(&fs::metadata(&output).expect("stat")),
+        inode_before
+    );
 
     let tags = ffprobe_format_tags(&output);
     assert_ffprobe_tag(&tags, "title", "External Probe Title");
@@ -933,6 +941,132 @@ async fn metadata_save_writes_external_ffprobe_visible_mp4_tags() {
     assert_ffprobe_tag(&tags, "SERIES-PART", "2; 7");
     assert_ffprobe_tag(&tags, "track", "3/9");
     assert_ffprobe_tag(&tags, "disc", "1/2");
+}
+
+/// Synthesizes one second of audio carrying a JPEG and a PNG picture: attached
+/// pictures in MP3, FLAC and M4B, attachments in Matroska, a
+/// METADATA_BLOCK_PICTURE comment in Opus.
+fn write_two_picture_fixture(dir: &Path, extension: &str) -> PathBuf {
+    let path = dir.join(format!("two-pictures.{extension}"));
+    let jpeg = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/support/minimal.jpg");
+    let png = dir.join("back.png");
+    let mut png_bytes = Vec::new();
+    image::DynamicImage::new_rgb8(4, 4)
+        .write_to(&mut std::io::Cursor::new(&mut png_bytes), ImageFormat::Png)
+        .expect("encode PNG fixture");
+    fs::write(&png, png_bytes).expect("write PNG fixture");
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
+    let mut command = Command::new(&binary);
+    command.args([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=d=1",
+    ]);
+    match extension {
+        "mka" => {
+            command.args(["-c:a", "flac", "-attach", jpeg]);
+            command.args(["-metadata:s:t:0", "mimetype=image/jpeg"]);
+            command.args(["-metadata:s:t:0", "filename=cover.jpg", "-attach"]);
+            command.arg(&png);
+            command.args(["-metadata:s:t:1", "mimetype=image/png"]);
+            command.args(["-metadata:s:t:1", "filename=back.png"]);
+        }
+        "opus" => {
+            command.args(["-c:a", "libopus", "-metadata"]);
+            command.arg(format!(
+                "METADATA_BLOCK_PICTURE={}",
+                flac_picture_block_base64()
+            ));
+        }
+        _ => {
+            command.args(["-i", jpeg, "-i"]).arg(&png);
+            command.args(["-map", "0", "-map", "1", "-map", "2", "-c:v", "copy"]);
+            command.args(["-disposition:v", "attached_pic", "-c:a"]);
+            command.arg(match extension {
+                "mp3" => "libmp3lame",
+                "flac" => "flac",
+                _ => "aac",
+            });
+        }
+    }
+    let output = command.arg("-y").arg(&path).output().expect("spawn ffmpeg");
+    assert!(
+        output.status.success(),
+        "ffmpeg failed to synthesize {}: {}",
+        path.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    path
+}
+
+fn flac_picture_block_base64() -> String {
+    use base64::Engine as _;
+    let jpeg = minimal_jpg_bytes();
+    let mut block = Vec::new();
+    block.extend_from_slice(&3u32.to_be_bytes());
+    block.extend_from_slice(&10u32.to_be_bytes());
+    block.extend_from_slice(b"image/jpeg");
+    for value in [0u32, 1, 1, 24, 0] {
+        block.extend_from_slice(&value.to_be_bytes());
+    }
+    block.extend_from_slice(&(jpeg.len() as u32).to_be_bytes());
+    block.extend_from_slice(&jpeg);
+    base64::engine::general_purpose::STANDARD.encode(block)
+}
+
+fn attached_picture_codecs(path: &Path) -> Vec<ffmpeg_next::codec::Id> {
+    let input = ffmpeg_next::format::input(path).expect("probe fixture");
+    let mut codecs: Vec<_> = input
+        .streams()
+        .filter(|stream| {
+            stream
+                .disposition()
+                .contains(ffmpeg_next::format::stream::Disposition::ATTACHED_PIC)
+        })
+        .map(|stream| stream.parameters().id())
+        .collect();
+    codecs.sort_by_key(|id| format!("{id:?}"));
+    codecs
+}
+
+#[test]
+fn a_save_without_cover_intent_keeps_every_attached_picture() {
+    let dir = TempDir::new().expect("temp dir");
+    let both = [ffmpeg_next::codec::Id::MJPEG, ffmpeg_next::codec::Id::PNG];
+    let retitle = MetadataIntentPatch {
+        title: Some(PatchOp::Set("Retitled".to_string())),
+        ..Default::default()
+    };
+    for extension in ["mp3", "flac", "mka"] {
+        let path = write_two_picture_fixture(dir.path(), extension);
+        assert_eq!(attached_picture_codecs(&path), both, "{extension} fixture");
+
+        save_metadata_intent(&path, &retitle).expect("title-only save");
+
+        assert_eq!(attached_picture_codecs(&path), both, "{extension} save");
+        let reread = read_metadata(&path).expect("reread");
+        assert_eq!(reread.title.as_deref(), Some("Retitled"), "{extension}");
+    }
+
+    let m4b = write_two_picture_fixture(dir.path(), "m4b");
+    assert_eq!(attached_picture_codecs(&m4b), both, "m4b fixture");
+    let text_only = AudiobookMetadata {
+        title: Some("Retitled".to_string()),
+        ..Default::default()
+    };
+    finalize_artifact_metadata(&m4b, Some(&text_only), None).expect("m4b remux finalize");
+    assert_eq!(attached_picture_codecs(&m4b), both, "m4b remux");
+
+    let opus = write_two_picture_fixture(dir.path(), "opus");
+    let before = fs::read(&opus).expect("read opus");
+    // The Ogg muxer refuses picture streams, so this Save fails as it did
+    // before; the original must stay intact.
+    save_metadata_intent(&opus, &retitle).expect_err("Ogg cannot carry a picture stream");
+    assert_eq!(fs::read(&opus).expect("reread opus"), before);
 }
 
 fn minimal_jpg_bytes() -> Vec<u8> {

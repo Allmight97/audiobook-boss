@@ -76,21 +76,80 @@ pub fn save_metadata_intent(path: &std::path::Path, patch: &MetadataIntentPatch)
     save_metadata_with_plan(path, &plan)
 }
 
+/// Saves into a sibling copy (a clone of the source for MP4, a remux for
+/// others), checks the copy's audio against the original, then swaps it in.
+/// The original is never opened for writing.
 pub(crate) fn save_metadata_with_plan(
     path: &std::path::Path,
     plan: &MetadataWritePlan,
 ) -> Result<()> {
-    match crate::diagnostics::stage("metadata_classify", path, || container::classify(path))? {
+    let route = crate::diagnostics::stage("metadata_classify", path, || container::classify(path))?;
+    let saved = remux::meta_temp(path)?;
+    match route {
         container::ContainerRoute::Mp4Family => {
-            mp4ameta_bridge::write_metadata_with_plan(path, plan)
+            crate::diagnostics::stage("metadata_copy_source", path, || {
+                std::fs::copy(path, saved.path()).map_err(AppError::Io)
+            })?;
+            mp4ameta_bridge::write_metadata_with_plan(saved.path(), plan)?;
         }
-        route => remux::rewrite_metadata_with_ffmpeg_plan_as(
+        route => remux::remux_into(
             path,
+            saved.path(),
             Some(plan),
             None,
             route.remux_output_format(),
-        ),
+        )?,
     }
+    commit_checked_save(path, saved)
+}
+
+fn commit_checked_save(
+    original: &std::path::Path,
+    saved: crate::file_replace::SiblingTemp,
+) -> Result<()> {
+    check_saved_audio(original, saved.path())?;
+    crate::diagnostics::stage("metadata_replace", original, || {
+        saved.commit(original).map_err(AppError::Io)
+    })
+}
+
+/// Refuses a saved copy whose audio stream count differs from the original's
+/// or whose duration is more than 0.5 s away. A loss under 0.5 s passes. An
+/// original without a known duration (raw ADTS) is checked by stream count only.
+fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Result<()> {
+    const TOLERANCE_US: u64 = 500_000;
+    let (original_us, original_streams) = audio_shape(original)?;
+    let (saved_us, saved_streams) = audio_shape(saved)?;
+    let unknown = ffmpeg_next::ffi::AV_NOPTS_VALUE;
+    let duration_moved = original_us != unknown
+        && (saved_us == unknown || original_us.abs_diff(saved_us) > TOLERANCE_US);
+    if original_streams == saved_streams && !duration_moved {
+        return Ok(());
+    }
+    let seconds = |us: i64| {
+        if us == unknown {
+            "unknown".to_string()
+        } else {
+            format!("{:.1} s", us as f64 / 1_000_000.0)
+        }
+    };
+    Err(AppError::FileValidation(format!(
+        "The original '{}' was kept unchanged: the saved copy's audio did not match it (length {} vs {}, audio streams {} vs {}).",
+        crate::errors::sanitize_path_for_display(original),
+        seconds(saved_us),
+        seconds(original_us),
+        saved_streams,
+        original_streams
+    )))
+}
+
+fn audio_shape(path: &std::path::Path) -> Result<(i64, usize)> {
+    let input = ffmpeg_next::format::input(path).map_err(AppError::Ffmpeg)?;
+    let audio_streams = input
+        .streams()
+        .filter(|stream| stream.parameters().medium() == ffmpeg_next::media::Type::Audio)
+        .count();
+    Ok((input.duration(), audio_streams))
 }
 
 /// Finalizes a freshly produced artifact's metadata in one container-aware
@@ -197,4 +256,27 @@ pub(crate) fn remux_preserved_audio_container(
         || {},
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_cases::integration_media_execution_tests::write_sine_wav;
+
+    #[test]
+    fn a_saved_copy_shorter_than_the_original_is_refused_and_the_original_kept() {
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        let original = dir.path().join("book.wav");
+        write_sine_wav(&original, 2.0, 440.0);
+        let before = std::fs::read(&original).expect("read original");
+        let saved = remux::meta_temp(&original).expect("temp");
+        write_sine_wav(saved.path(), 1.0, 440.0);
+        let saved_path = saved.path().to_path_buf();
+
+        let error = commit_checked_save(&original, saved).expect_err("shorter copy refused");
+
+        assert!(error.to_string().contains("unchanged"), "{error}");
+        assert_eq!(std::fs::read(&original).expect("reread original"), before);
+        assert!(!saved_path.exists(), "the refused copy is removed");
+    }
 }

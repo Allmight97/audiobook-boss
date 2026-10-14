@@ -21,8 +21,24 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   mirrors, sort_album), so MP4-family tag truth never depends on a bare remux.
   `finalize_artifact_metadata` is the same finish for a preserved merge, after
   a remux that carries chapters and cover.
-- Remux owns its sibling `.abb_meta_*` output from creation until it replaces
-  the source; any failure removes it after FFmpeg's handles close.
+- A Save (`save_metadata_with_plan`) never opens the original for writing.
+  It writes a sibling `.abb_meta_*` copy (a clone of the source tagged by
+  mp4ameta for MP4, a remux for others), refuses the copy when its audio
+  stream count differs or its duration is more than 0.5 s away, and swaps it
+  in through `file_replace::SiblingTemp` (flushed, original permissions).
+  Why: a crash or a bad write must leave the original whole. The mp4ameta
+  bridge and the remux writer write at the path they are given, so staged
+  artifacts pay no extra copy. Any failure removes the temp after FFmpeg's
+  handles close.
+- The remux read loop ends only at end of file; any other read error, one
+  corrupt packet included, fails the write. Why: skipping or stopping early
+  would save a shorter book.
+- A remux with no cover intent copies every source picture unchanged; an
+  explicit or passthrough cover replaces them. Matroska pictures are written
+  back as attachments (its muxer drops attached-picture streams), and PNG
+  pictures take their dimensions from the image header (the bundled FFmpeg has
+  no PNG decoder). Ogg cannot carry picture streams, so a Save of an Opus file
+  with an embedded picture fails and keeps the original.
 - Pure intent, validation, naming, and write-plan facts live in
   `abb-metadata-core`; this directory owns container adapters and runtime file
   behavior.

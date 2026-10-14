@@ -149,24 +149,28 @@ fn parse_total_value(value: &str) -> Option<u32> {
 
 /// Extracts the first attached picture (cover art) from the container streams.
 pub(super) fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
-    use ff::format::stream::Disposition;
+    ictx.streams()
+        .find_map(|stream| attached_pic_bytes(&stream))
+}
 
-    for stream in ictx.streams() {
-        if stream.disposition().contains(Disposition::ATTACHED_PIC) {
-            // SAFETY: `stream` borrows the live `ictx`, so its `AVStream` pointer is valid. The code reads
-            // `attached_pic` only after the `ATTACHED_PIC` check, requires non-null data and positive size, and
-            // copies the bytes into an owned `Vec` before the borrow ends.
-            unsafe {
-                let av_stream = stream.as_ptr();
-                let pic = (*av_stream).attached_pic;
-                if !pic.data.is_null() && pic.size > 0 {
-                    let bytes = std::slice::from_raw_parts(pic.data, pic.size as usize);
-                    return Some(bytes.to_vec());
-                }
-            }
-        }
+/// The picture bytes of an attached-picture stream.
+pub(super) fn attached_pic_bytes(stream: &ff::format::stream::Stream) -> Option<Vec<u8>> {
+    if !stream
+        .disposition()
+        .contains(ff::format::stream::Disposition::ATTACHED_PIC)
+    {
+        return None;
     }
-    None
+    // SAFETY: `stream` borrows the live input, so its `AVStream` pointer is valid. The code reads
+    // `attached_pic` only after the `ATTACHED_PIC` check, requires non-null data and positive size, and
+    // copies the bytes into an owned `Vec` before the borrow ends.
+    unsafe {
+        let pic = (*stream.as_ptr()).attached_pic;
+        if pic.data.is_null() || pic.size <= 0 {
+            return None;
+        }
+        Some(std::slice::from_raw_parts(pic.data, pic.size as usize).to_vec())
+    }
 }
 
 // EXCEPTION: tiny helper inline tests — first_tag_with_lookup is private, no I/O

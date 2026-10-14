@@ -5,18 +5,19 @@ use ffmpeg_next as ff;
 use std::time::Instant;
 
 use super::cover_art::embedding::{
-    add_cover_art_stream_pre_header, write_cover_art_packet_post_header,
+    add_cover_art_stream_pre_header, add_matroska_attachment, write_cover_art_packet_post_header,
 };
 use super::cover_art::ResolvedCover;
 use super::ffi::set_stream_disposition_and_clear_codec_tag;
+use crate::file_replace::SiblingTemp;
 
 /// Rewrite metadata and optional passthrough state using ffmpeg-next via remux/stream-copy.
-/// - Copies all non-attached_pic streams (audio + chapters handled separately)
+/// - Copies all streams except data streams; attached pictures stay unless a
+///   cover is written
 /// - Preserves or replaces chapters depending on provided passthrough data
-/// - If metadata.cover_art is provided, replaces existing attached_pic with the new one
-/// - Otherwise keeps existing cover art unless passthrough cover art is provided
+/// - An explicit or passthrough cover replaces the source pictures
 /// - Sets container metadata when provided
-/// - Writes to a temp file and atomically replaces the original
+/// - Writes to a sibling temp and replaces the original only when complete
 pub fn rewrite_metadata_with_ffmpeg(
     input_path: &std::path::Path,
     metadata: Option<&AudiobookMetadata>,
@@ -32,6 +33,38 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     passthrough: Option<&PassthroughMetadata>,
     output_format: Option<&str>,
 ) -> Result<()> {
+    let temp = meta_temp(input_path)?;
+    remux_into(
+        input_path,
+        temp.path(),
+        metadata,
+        passthrough,
+        output_format,
+    )?;
+    crate::diagnostics::stage("metadata_replace", input_path, || {
+        temp.commit(input_path).map_err(AppError::Io)
+    })
+}
+
+/// The sibling `.abb_meta_<uuid>.<ext>` a rewrite of `input_path` is written
+/// into; its extension lets FFmpeg pick the muxer when no format is named.
+pub(super) fn meta_temp(input_path: &std::path::Path) -> Result<SiblingTemp> {
+    let ext = input_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("m4b");
+    SiblingTemp::beside(input_path, "meta", &format!(".{ext}")).map_err(AppError::Io)
+}
+
+/// Remuxes `input_path` with new metadata into `temp_path`. FFmpeg's handles
+/// are closed when this returns.
+pub(super) fn remux_into(
+    input_path: &std::path::Path,
+    temp_path: &std::path::Path,
+    metadata: Option<&MetadataWritePlan>,
+    passthrough: Option<&PassthroughMetadata>,
+    output_format: Option<&str>,
+) -> Result<()> {
     use crate::diagnostics::stage;
 
     let started = Instant::now();
@@ -39,9 +72,6 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     let mut ictx = stage("metadata_open_input", input_path, || {
         ff::format::input(input_path).map_err(AppError::Ffmpeg)
     })?;
-    // Declared before `octx`: an early return closes FFmpeg's handle, then removes the file.
-    let temp = RemuxTemp::own(build_temp_output_path(input_path)?);
-    let temp_path = temp.path.as_path();
     log::info!(
         "media_handoff stage=remux_create source_artifact={} destination_artifact={}",
         crate::diagnostics::artifact_id(input_path),
@@ -72,16 +102,7 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
         crate::diagnostics::artifact_id(input_path), ictx.format().name(), octx.format().name(),
         passthrough.map_or(0, |value| value.chapters.len()));
     let metadata_value = metadata.map(|plan| &plan.metadata);
-    let source_cover = if metadata_value
-        .and_then(|value| value.cover_art.as_ref())
-        .is_none()
-    {
-        super::reader::extract_attached_pic(&ictx)
-    } else {
-        None
-    };
-    let cover = ResolvedCover::select(metadata_value, passthrough)
-        .or_else(|| source_cover.as_ref().map(ResolvedCover::Passthrough));
+    let cover = ResolvedCover::select(metadata_value, passthrough);
     let replace_cover = cover.is_some()
         || metadata_value
             .and_then(|value| value.cover_art.as_ref())
@@ -127,76 +148,12 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
         octx.write_trailer().map_err(AppError::Ffmpeg)
     })?;
 
-    // Release FFmpeg's file handles before replacing the source path.
-    drop(octx);
-    drop(ictx);
-
-    stage("metadata_replace", input_path, || temp.replace(input_path))?;
     log::info!(
         "metadata_remux status=ok elapsed_ms={} path={}",
         started.elapsed().as_millis(),
         input_path.display()
     );
     Ok(())
-}
-
-/// Owns the sibling `.abb_meta_*` output until it replaces the source.
-struct RemuxTemp {
-    path: std::path::PathBuf,
-    owned: bool,
-}
-
-impl RemuxTemp {
-    fn own(path: std::path::PathBuf) -> Self {
-        Self { path, owned: true }
-    }
-
-    /// Installs the finished output over `source`; afterwards nothing remains to remove.
-    fn replace(mut self, source: &std::path::Path) -> Result<()> {
-        crate::file_replace::replace_file(&self.path, source).map_err(AppError::Io)?;
-        self.owned = false;
-        Ok(())
-    }
-}
-
-impl Drop for RemuxTemp {
-    fn drop(&mut self) {
-        if !self.owned {
-            return;
-        }
-        match std::fs::remove_file(&self.path) {
-            Ok(()) => log::warn!(
-                "metadata_remux cleanup removed_partial={}",
-                crate::diagnostics::artifact_id(&self.path)
-            ),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => log::error!(
-                "metadata_remux cleanup failed partial={} error={error}",
-                crate::diagnostics::artifact_id(&self.path)
-            ),
-        }
-    }
-}
-
-fn build_temp_output_path(input_path: &std::path::Path) -> Result<std::path::PathBuf> {
-    let parent = input_path
-        .parent()
-        .map(std::path::Path::to_path_buf)
-        .ok_or_else(|| {
-            AppError::FileValidation(format!(
-                "Input path has no parent directory: {}",
-                input_path.display()
-            ))
-        })?;
-    let ext = input_path
-        .extension()
-        .and_then(|value| value.to_str())
-        .unwrap_or("m4b");
-    let temp_path = parent.join(format!(".abb_meta_{}.{}", uuid::Uuid::new_v4(), ext));
-    if temp_path.exists() {
-        std::fs::remove_file(&temp_path).map_err(AppError::Io)?;
-    }
-    Ok(temp_path)
 }
 
 fn copy_streams(
@@ -233,6 +190,20 @@ fn copy_streams(
             continue;
         }
 
+        if is_attached_pic && octx.format().name() == "matroska" {
+            // The Matroska muxer drops attached-picture streams; its demuxer
+            // turned the source's picture attachments into them.
+            if let Some(bytes) = super::reader::attached_pic_bytes(&istream) {
+                add_matroska_attachment(
+                    octx,
+                    &bytes,
+                    istream.parameters().id(),
+                    istream.metadata().to_owned(),
+                )?;
+            }
+            continue;
+        }
+
         let codec_ctx = ff::codec::context::Context::from_parameters(istream.parameters())
             .map_err(AppError::Ffmpeg)?;
         let mut ostream = octx.add_stream_with(&codec_ctx).map_err(AppError::Ffmpeg)?;
@@ -249,11 +220,40 @@ fn copy_streams(
         }
         ostream.set_metadata(istream.metadata().to_owned());
         set_stream_disposition_and_clear_codec_tag(&mut ostream, in_disposition);
+        if is_attached_pic {
+            set_missing_picture_dimensions(&istream, &mut ostream);
+        }
 
         stream_mapping[index] = ostream.index() as isize;
     }
 
     Ok(stream_mapping)
+}
+
+/// The bundled FFmpeg has no PNG decoder, so a PNG picture probes without
+/// dimensions and every muxer but FLAC's refuses to copy it; the image header
+/// supplies them.
+fn set_missing_picture_dimensions(
+    istream: &ff::format::stream::Stream,
+    ostream: &mut ff::format::stream::StreamMut,
+) {
+    // SAFETY: `ostream` is a live exclusive borrow; its `codecpar` is
+    // checked for null before the writes.
+    unsafe {
+        let parameters = (*ostream.as_mut_ptr()).codecpar;
+        if parameters.is_null() || ((*parameters).width > 0 && (*parameters).height > 0) {
+            return;
+        }
+        let Some(bytes) = super::reader::attached_pic_bytes(istream) else {
+            return;
+        };
+        if let Some((width, height)) = super::cover_art::detect_cover_art_format(&bytes)
+            .and_then(|format| super::cover_art::format::detect_image_dimensions(&bytes, format))
+        {
+            (*parameters).width = width;
+            (*parameters).height = height;
+        }
+    }
 }
 
 fn copy_chapters(
@@ -313,8 +313,17 @@ fn stream_copy_packets(
     let exact_opus_clock =
         ictx.format().name().contains("matroska") && octx.format().name() == "mp4";
     let mut opus_positions = vec![None; ictx.streams().len()];
-    for (input_stream, mut packet) in ictx.packets() {
-        let in_index = input_stream.index();
+    loop {
+        let mut packet = ff::Packet::empty();
+        match packet.read(ictx) {
+            Ok(()) => {}
+            Err(ff::Error::Eof) => break,
+            Err(error) => return Err(AppError::Ffmpeg(error)),
+        }
+        let in_index = packet.stream();
+        let input_stream = ictx
+            .stream(in_index)
+            .ok_or_else(|| AppError::General("Remux input stream is missing.".into()))?;
         let out_index = *stream_mapping.get(in_index).unwrap_or(&-1);
         if out_index < 0 {
             continue;
