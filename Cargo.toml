@@ -36,7 +36,7 @@ disallowed_methods = "warn"
 
 [patch.crates-io]
 ffmpeg-next = { path = "vendor/ffmpeg-next-9.0.0" }
-ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next-9.0.0" }
+ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next-9.0.1" }
 
 # Image codecs run optimized in dev and test builds, so cover loading there
 # shows release speed; unoptimized decoding is many times slower.

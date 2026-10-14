@@ -18,7 +18,7 @@ describe('check-guidance', () => {
 		expect(isGuidanceFile('.agents/skills/release/references/execution.md')).toBe(true);
 		expect(isGuidanceFile('README.md')).toBe(true);
 		expect(isGuidanceFile('CHANGELOG.md')).toBe(false);
-		expect(isGuidanceFile('vendor/ffmpeg-sys-next-9.0.0/README.md')).toBe(false);
+		expect(isGuidanceFile('vendor/ffmpeg-sys-next-9.0.1/README.md')).toBe(false);
 	});
 
 	it('passes guidance that names lanes and scripts', () => {

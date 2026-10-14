@@ -1914,6 +1914,7 @@ fn main() {
     let mut builder = bindgen::Builder::default()
         // Shim dir first, so our stubs win over the real SDK headers on the path (by design, to avoid generating bindings for full SDKs).
         .clang_arg(&hwcontext_stub_dir)
+        .clang_arg("-fno-builtin")
         .clang_args(clang_includes)
         .ctypes_prefix("libc")
         // https://github.com/rust-lang/rust-bindgen/issues/550
@@ -2109,6 +2110,7 @@ fn main() {
         .header(search_include(&include_paths, "libavutil/samplefmt.h"))
         .header(search_include(&include_paths, "libavutil/sha.h"))
         .header(search_include(&include_paths, "libavutil/sha512.h"))
+        .header(search_include(&include_paths, "libavutil/spherical.h"))
         .header(search_include(&include_paths, "libavutil/stereo3d.h"))
         .header(search_include(&include_paths, "libavutil/avstring.h"))
         .header(search_include(&include_paths, "libavutil/threadmessage.h"))
