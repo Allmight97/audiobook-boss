@@ -13,10 +13,19 @@ fetched commit. ABB retains the CoreAudio framework link.
 The October 14, 2026 selection is
 `2ec8998c3daf6aa31a4afec963bff9b5ecbfdee7`, upstream master HEAD that day.
 It keeps the October 7 pin's NMR encoder (`17ec99894249`, including
-`98afaae587` and `aac_rc` default `cbr`) and takes the later mov demuxer
-bounds and edit-list fixes plus the USAC decoder fixes on master since that
-pin. The wrapper maps `AV_CODEC_ID_RW2` and `AV_PKT_DATA_GAIN_MAP_PARAMS`.
-Feature selection and external dependencies are unchanged.
+`98afaae587` and `aac_rc` default `cbr`); no commit since touches the AAC
+encoder or swresample. It takes the mov demuxer edit-list fixes
+(`e11ab82858`, `1ed0bf80ad`, `9bca133c03`, `9181f3a924`, `10b6349503`,
+`58416458a0`), fragment index bounds (`5e8f97c467`, `5647739ddd`,
+`0260f625ba`), `dec3` extradata export (`08d62c60e8`), HEIF item and gain-map
+bounds and export (`793f6013e7`, `860267bd62`, `466ea98db4`, `e3f5f17548`,
+`03405b27ff`, `686b79d469`, `00249664de`; refactors `06af0fdbf7`,
+`3a4bbdc2d8`, `034a53bd6e`, `626b8aa343`, `fc5fab9a87`), movenc
+stream-group cleanup (`6fdfafa31a`, `8b1d0643c9`), and the AAC/USAC decoder
+fixes (`561130d30b`, `dbe7ccee05`, `d314aa0c8f`, `88117dbe4c`, `7442df24f5`,
+`694934cc05`). The wrapper maps `AV_CODEC_ID_RW2` and
+`AV_PKT_DATA_GAIN_MAP_PARAMS`. Feature selection and external dependencies are
+unchanged.
 
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,
