@@ -1,24 +1,31 @@
 # ABB FFmpeg sys build patch
 
-Base: crates.io `ffmpeg-sys-next` 9.0.0 archive, SHA-256
-`9b939bf79dd5949412a4b81cfe21a07f48ea21b47fcbb5f57816c8c2de5ae30b`.
-The upstream manifest declares WTFPL.
+Base: crates.io `ffmpeg-sys-next` 9.0.1 archive, SHA-256
+`c6f932d8c1cede016c65d4f1435f323369c99c74df55143b18676aa10e7603f9`.
+The upstream manifest declares WTFPL. 9.0.1 adds `-fno-builtin` to bindgen so
+the generated bindings do not declare libc runtime symbols, and it parses
+`libavutil/spherical.h`.
 
 `ffmpeg-revision` selects the immutable FFmpeg development source required by
 Native AAC's NMR coder. The Rust build consumes this file and verifies the
 fetched commit. ABB retains the CoreAudio framework link.
 
-The October 7, 2026 selection is
-`17ec99894249a68444d145ea8870713a4fb7f342`, upstream master HEAD that day. It
-takes the NMR encoder series merged October 4 (`72d8fb25b6`, `77506207d2`,
-`a86dc8bd2a`, `98afaae587`, `03ce7af84b`, psy `f68ccd1b39` and `88e8cfc801`):
-allocation retune and bandwidth ladder, pressure-independent intensity stereo
-for correlated long-window bands above 8 kHz (`aac_is` default unchanged at 1),
-and the new `aac_rc` rate-control option (default `cbr`). It also takes AAC
-decoder fixes (`9cee5ae719`, `23316a12ac`, `e383b7d532`) and the swresample
-rematrix series (`70e948e2e5`, `4bab8327f9`, `09f879b074`, `a17a624069`).
-Feature selection and external dependencies are unchanged. The wrapper maps the
-new codec, pixel-format and frame side-data identifiers explicitly.
+The October 14, 2026 selection is
+`2ec8998c3daf6aa31a4afec963bff9b5ecbfdee7`, upstream master HEAD that day.
+It keeps the October 7 pin's NMR encoder (`17ec99894249`, including
+`98afaae587` and `aac_rc` default `cbr`); no commit since touches the AAC
+encoder or swresample. It takes the mov demuxer edit-list fixes
+(`e11ab82858`, `1ed0bf80ad`, `9bca133c03`, `9181f3a924`, `10b6349503`,
+`58416458a0`), fragment index bounds (`5e8f97c467`, `5647739ddd`,
+`0260f625ba`), `dec3` extradata export (`08d62c60e8`), HEIF item and gain-map
+bounds and export (`793f6013e7`, `860267bd62`, `466ea98db4`, `e3f5f17548`,
+`03405b27ff`, `686b79d469`, `00249664de`; refactors `06af0fdbf7`,
+`3a4bbdc2d8`, `034a53bd6e`, `626b8aa343`, `fc5fab9a87`), movenc
+stream-group cleanup (`6fdfafa31a`, `8b1d0643c9`), and the AAC/USAC decoder
+fixes (`561130d30b`, `dbe7ccee05`, `d314aa0c8f`, `88117dbe4c`, `7442df24f5`,
+`694934cc05`). The wrapper maps `AV_CODEC_ID_RW2` and
+`AV_PKT_DATA_GAIN_MAP_PARAMS`. Feature selection and external dependencies are
+unchanged.
 
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,
@@ -28,7 +35,7 @@ rather than Cargo's per-unit `OUT_DIR`, because `cargo build` and `cargo clippy`
 are different units and would otherwise each compile FFmpeg. The build names the
 static libopus archive's directory for the linker, since Linux pkg-config omits
 system library directories.
-Native and portable CPU mechanisms come from upstream sys 9.0.0; ABB's
+Native and portable CPU mechanisms come from upstream sys 9.0.1; ABB's
 `bundled-ffmpeg` feature always enables `build-portable`. Upstream lets
 `FFMPEG_MARCH`/`FFMPEG_MTUNE` override `build-portable`; ABB refuses either
 variable under `build-portable`, so an inherited `FFMPEG_MARCH=native` cannot

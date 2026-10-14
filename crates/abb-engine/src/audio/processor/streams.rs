@@ -307,6 +307,9 @@ fn friendly_codec_label_from_id(codec_id: ff::codec::Id) -> Option<String> {
 }
 
 fn aac_object_type_from_parameters(params: &ff::codec::Parameters) -> Option<u32> {
+    if params.id() != ff::codec::Id::AAC {
+        return None;
+    }
     // SAFETY: copy the probed profile while the codec parameters remain borrowed.
     // A backward-compatible HE ASC starts with the LC core's object type; the
     // demuxer's probed profile also accounts for its SBR/PS extension.
@@ -319,9 +322,6 @@ fn aac_object_type_from_parameters(params: &ff::codec::Parameters) -> Option<u32
 }
 
 fn aac_label_from_parameters(params: &ff::codec::Parameters) -> Option<&'static str> {
-    if params.id() != ff::codec::Id::AAC {
-        return None;
-    }
     aac_object_type_from_parameters(params).and_then(aac_audio_object_type_label)
 }
 
@@ -711,7 +711,7 @@ fn create_resampler(
 #[cfg(test)]
 mod tests {
     use super::{
-        aac_audio_object_type_label, build_aac_decoder_candidates,
+        aac_audio_object_type_label, aac_object_type_from_parameters, build_aac_decoder_candidates,
         build_aac_decoder_candidates_for_object_type, build_decoder_candidates_from_parameters,
         detect_aac_decoder_availability, format_decoder_selection_failure,
         friendly_codec_label_from_id, parse_aac_audio_object_type, AacDecoderAvailability,
@@ -819,6 +819,24 @@ mod tests {
         let candidates = build_decoder_candidates_from_parameters(&params);
 
         assert_eq!(candidates, vec![DecoderCandidate::Default]);
+    }
+
+    #[test]
+    fn non_aac_extradata_is_not_read_as_an_aac_object_type() {
+        let mut params = ff::codec::Parameters::new();
+        // SAFETY: `params` owns a fresh `AVCodecParameters`; the extradata buffer
+        // comes from av_mallocz with the required padding, and `params` frees it.
+        unsafe {
+            let raw = params.as_mut_ptr();
+            (*raw).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_EAC3;
+            let padding = ffmpeg_next::ffi::AV_INPUT_BUFFER_PADDING_SIZE as usize;
+            let data = ffmpeg_next::ffi::av_mallocz(2 + padding).cast::<u8>();
+            *data = 0x28;
+            (*raw).extradata = data;
+            (*raw).extradata_size = 2;
+        }
+
+        assert_eq!(aac_object_type_from_parameters(&params), None);
     }
 
     #[test]
