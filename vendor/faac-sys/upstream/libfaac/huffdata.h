@@ -16,9 +16,8 @@
 #ifndef HUFFDATA_H
 #define HUFFDATA_H
 
-#include "huff2.h"
-
 #include <stdint.h>
+
 
 typedef struct {
     uint16_t len;
@@ -41,6 +40,7 @@ extern const hcode16_t book08[64];
 extern const hcode16_t book09[169];
 extern const hcode16_t book10[169];
 extern const hcode16_t book11[289];
-extern const hcode32_t book12[2 * SF_DELTA + 1];
+/* Scalefactor-delta book: ISO/IEC 14496-3 SF_DELTA range is +/-60. */
+extern const hcode32_t book12[121];
 
 #endif /* HUFFDATA_H */

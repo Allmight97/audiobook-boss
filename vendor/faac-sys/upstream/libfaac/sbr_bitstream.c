@@ -17,7 +17,7 @@
 
 #include "sbr.h"
 #include "sbr_internal.h"
-#include "sbr_tables.h"
+#include "sbr_huff_tables.h"
 #include "bitstream.h"
 #include "channels.h"
 #include "util.h"
@@ -115,7 +115,7 @@ static int write_sbr_envelope(const SBRInfo *sbr, const SbrFrameData *fd, BitStr
 
     if (write) AccumBegin(&acc, bs);
     for (int e = 0; e < fd->numEnvelopes; e++) {
-        const int *env_ch = fd->ch[ch].envData[e];
+        const int8_t *env_ch = fd->ch[ch].envData[e];
         if (write) AccumPutBits(&acc, (uint32_t)clamp_int(env_ch[0], 0, first_max), first_bits);
         bits += first_bits;
         for (int b = 1; b < nb; b++)

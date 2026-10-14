@@ -32,8 +32,8 @@ typedef float resfloat;
 
 typedef struct Resampler {
     float  buf     [MAX_CHANNELS][RESAMPLE_FILTER_LEN]; /* FIR overlap state (carries between frames) */
-    float  fullRate[MAX_CHANNELS][2 * FRAME_LEN];       /* full-rate input: caller fills, SBR reads, FIR consumes */
-    float  halfRate[MAX_CHANNELS][FRAME_LEN];           /* downsampled output: written by Resample */
+    float *fullRate[MAX_CHANNELS];                    /* borrowed input FIFO */
+    float *halfRate[MAX_CHANNELS];                    /* aliases the consumed FIFO front */
     int        channels;
 } Resampler;
 

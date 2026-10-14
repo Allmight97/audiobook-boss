@@ -1,4 +1,5 @@
 import type {
+	AacDecoder as GeneratedAacDecoder,
 	AcquisitionLane as GeneratedAcquisitionLane,
 	AppSettings as GeneratedAppSettings,
 	ConcurrencyPreference as GeneratedConcurrencyPreference,
@@ -14,6 +15,7 @@ import type { NullToOptionalDeep } from './ipc';
 
 export type ConcurrencyPreference = GeneratedConcurrencyPreference;
 export type AcquisitionLane = GeneratedAcquisitionLane;
+export type AacDecoder = GeneratedAacDecoder;
 export type StartupBehavior = GeneratedStartupBehavior;
 export type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
 	settings: EncoderSettings;

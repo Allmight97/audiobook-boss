@@ -115,6 +115,7 @@ static float gain_with_overflow_clamp(int *sfac, float band_peak)
 #define PEAK_ENERGY_WEIGHT     0.45f    // tonal (peak-energy) share of the remainder
 #define LOUDNESS_EXPONENT      0.4f     // Zwicker-ish loudness compression
 #define AVG_ENERGY_FLOOR_FRAC  0.0010f  // -30 dB floor, keeps quiet bands from collapsing the target
+#define SF_SMOOTH              0.6f     // long-block pull of each scalefactor towards its neighbours
 #define PEAK_ENERGY_FLOOR_FRAC 0.0050f  // ~-23 dB floor, same purpose for peak energy
 #define QUIET_BAND_FRAC        0.0003f  // ~-35 dB below the frame mean: masked by the frame as a whole
 
@@ -301,31 +302,36 @@ static void assign_band_codebooks(CoderInfo * __restrict ci, const float * __res
 {
     int gsize = ci->groups.len[gnum];
     float pns_threshold = 0.1f * (float)pnslevel;
+    int smooth = ci->block_type != ONLY_SHORT_WINDOW;
+    int base = ci->bandcnt;
+    int n = ci->sfbn;
+    /* per band: sf bias minus the wanted scalefactor, or INT_MIN if not coded */
+    int want[MAX_SCFAC_BANDS];
     int sb;
 
-    for (sb = 0; sb < ci->sfbn && ci->bandcnt < MAX_SCFAC_BANDS; sb++)
+    if (n > MAX_SCFAC_BANDS - base)
+        n = MAX_SCFAC_BANDS - base;
+
+    /* Pass 1: settle zero and PNS bands, and the scalefactor each coded band wants. */
+    for (sb = 0; sb < n; sb++)
     {
-        int band = ci->bandcnt;
+        int band = base + sb;
 
 #ifdef FAAC_STATS
         g_faacStats.totalBands++;
 #endif
 
+        want[sb] = INT_MIN;
         if (ci->book[band] != HCB_NONE)
-        {
-            ci->bandcnt++;
             continue;
-        }
 
-        int lo = ci->sfb_offset[sb], hi = ci->sfb_offset[sb + 1];
-        int width = hi - lo;
+        int width = ci->sfb_offset[sb + 1] - ci->sfb_offset[sb];
         float avg_per_window = be[sb].sum / (float)gsize;
         float rms = sqrtf(avg_per_window / width);
 
         if (rms < SILENCE_RMS || target[sb] == 0.0f)
         {
             ci->book[band] = HCB_ZERO;
-            ci->bandcnt++;
             continue;
         }
 
@@ -347,7 +353,6 @@ static void assign_band_codebooks(CoderInfo * __restrict ci, const float * __res
                 if (!r)
                 {
                     ci->book[band] = HCB_ZERO;
-                    ci->bandcnt++;
                     continue;
                 }
                 ci->msUsed[band] = 0;
@@ -360,41 +365,66 @@ static void assign_band_codebooks(CoderInfo * __restrict ci, const float * __res
             g_faacStats.pnsBands++;
 #endif
             ci->sf[band] += lrintf(sf_enrg_avg);
-            ci->bandcnt++;
             continue;
         }
 
         float log10_w_sf = (width < 128) ? log10_width_sf_lut[width] : log10f((float)width) * SF_STEP_ENRG;
         int sfac = lrintf(log10f(target[sb]) * sfstep - sf_enrg_avg + log10_w_sf);
-        int sf_rel = SF_OFFSET - sfac;
-        int sf_bias = ci->sf[band];
-
-        if (sf_rel < SF_MIN)
+        if (SF_OFFSET - sfac < SF_MIN)
         {
             ci->book[band] = HCB_ZERO;
+            ci->sf[band] += SF_OFFSET - sfac;
+            continue;
         }
-        else
-        {
-            int sf_abs;
-            float gain = resolve_band_gain(sfac, sf_bias, sqrtf(be[sb].peak_energy), *p_last_abs, &sf_rel, &sf_abs);
-            int *xi = qs + *p_qlen;
-            int win, maxq = 0;
-
-            for (win = 0; win < gsize; win++)
-            {
-                int qm = qfunc(xr0 + win * BLOCK_LEN_SHORT + lo, xi + win * width, width >> 2, gain);
-                if (qm > maxq) maxq = qm;
-            }
-            /* huffbook picks the final book; record the lowest that covers maxq */
-            ci->book[band] = !maxq ? HCB_ZERO : maxq <= LAV_1 ? HCB_1 : maxq <= LAV_2 ? HCB_3
-                           : maxq <= LAV_4 ? HCB_5 : maxq <= LAV_7 ? HCB_7 : maxq <= LAV_12 ? HCB_9 : HCB_ESC;
-            if (maxq)
-                *p_qlen += gsize * width;
-            *p_last_abs = sf_abs;
-        }
-
-        ci->sf[ci->bandcnt++] += sf_rel;
+        want[sb] = ci->sf[band] - sfac;
     }
+
+    /* Pass 2: quantize the coded bands. Long blocks first pull each
+     * scalefactor most of the way towards the mean of its coded neighbours:
+     * the masking target tracks local band energy too steeply, which
+     * quantizes peaks too coarsely and the bands beside them too finely. */
+    for (sb = 0; sb < n; sb++)
+    {
+        int band = base + sb;
+
+        if (want[sb] == INT_MIN)
+            continue;
+
+        int sf_bias = ci->sf[band];
+        int sfac = sf_bias - want[sb];
+        if (smooth)
+        {
+            int cnt = 0, sum = 0;
+            if (sb > 0 && want[sb - 1] != INT_MIN) { sum += want[sb - 1]; cnt++; }
+            if (sb + 1 < n && want[sb + 1] != INT_MIN) { sum += want[sb + 1]; cnt++; }
+            if (cnt)
+                sfac += lrintf(SF_SMOOTH * ((float)want[sb] - (float)sum / (float)cnt));
+            /* smoothing must not turn a coded band into a zero band */
+            if (SF_OFFSET - sfac < SF_MIN)
+                sfac = SF_OFFSET - SF_MIN;
+        }
+
+        int lo = ci->sfb_offset[sb];
+        int width = ci->sfb_offset[sb + 1] - lo;
+        int sf_rel, sf_abs;
+        float gain = resolve_band_gain(sfac, sf_bias, sqrtf(be[sb].peak_energy), *p_last_abs, &sf_rel, &sf_abs);
+        int *xi = qs + *p_qlen;
+        int win, maxq = 0;
+
+        for (win = 0; win < gsize; win++)
+        {
+            int qm = qfunc(xr0 + win * BLOCK_LEN_SHORT + lo, xi + win * width, width >> 2, gain);
+            if (qm > maxq) maxq = qm;
+        }
+        /* huffbook picks the final book; record the lowest that covers maxq */
+        ci->book[band] = !maxq ? HCB_ZERO : maxq <= LAV_1 ? HCB_1 : maxq <= LAV_2 ? HCB_3
+                       : maxq <= LAV_4 ? HCB_5 : maxq <= LAV_7 ? HCB_7 : maxq <= LAV_12 ? HCB_9 : HCB_ESC;
+        if (maxq)
+            *p_qlen += gsize * width;
+        *p_last_abs = sf_abs;
+        ci->sf[band] += sf_rel;
+    }
+    ci->bandcnt = base + n;
 }
 
 void ResetCoderSections(CoderInfo *coder)

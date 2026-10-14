@@ -33,16 +33,17 @@ typedef struct SBRChannel {
  * slot and SbrWrite reads an older one, so the delay costs a ring index. Caching
  * a copy anywhere else reintroduces the skew this ring exists to remove. */
 typedef struct SbrFrameData {
-    int numEnvelopes;
-    int eff_amp_res;
-    SbrFrameClass frameClass;
-    int tEnv[SBR_MAX_ENVELOPES + 1];
-    int bsPointer;
-    int freqRes; /* 1 = high-res band table, 0 = low-res (half the bands) */
+    uint8_t numEnvelopes;
+    uint8_t eff_amp_res;
+    uint8_t frameClass;
+    uint8_t tEnv[SBR_MAX_ENVELOPES + 1];
+    uint8_t bsPointer;
+    uint8_t freqRes; /* 1 = high-res band table, 0 = low-res (half the bands) */
     /* The noise floor and inverse-filter mode are stream constants
      * (SBR_NOISE_LEVEL_DEFAULT, SBR_INVF_MODE), so only the envelope is carried. */
     struct {
-        int envData[SBR_MAX_ENVELOPES][SBR_MAX_BANDS];
+        /* Absolute levels are 0..127; deltas are -60..60. */
+        int8_t envData[SBR_MAX_ENVELOPES][SBR_MAX_BANDS];
     } ch[MAX_CHANNELS];
 } SbrFrameData;
 
@@ -58,7 +59,7 @@ struct SBRInfo {
     int numBands;
     int bandEdges[SBR_MAX_BANDS + 1];
     int numBandsLow; /* low-res band count: every other high-res edge */
-    int bandEdgesLow[SBR_MAX_BANDS + 1];
+    int bandEdgesLow[(SBR_MAX_BANDS + 1) / 2 + 1];
 
     /* --- bitstream header fields --- */
     int bs_freq_res;       /* envelope frequency resolution: 1 = HIGH (f_master) */

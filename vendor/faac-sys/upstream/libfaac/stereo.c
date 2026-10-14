@@ -14,6 +14,7 @@
  */
 
 #define _USE_MATH_DEFINES
+#include <float.h>
 #include <math.h>
 #include "stereo.h"
 #include "huff2.h"
@@ -231,7 +232,9 @@ static inline int process_cpe(CoderInfo * restrict cl, CoderInfo * restrict cr,
              * to save a square root. */
             float th = (el + er + 2.0f * sqrtf(el * er)) * inv_isthr;
             int hcb = (es >= th) ? HCB_INTENSITY : (ed >= th ? HCB_INTENSITY2 : HCB_NONE);
-            if (hcb != HCB_NONE) {
+            /* A subnormal etot overflows inv_etot to inf, and lrintf of the
+             * resulting log10f is undefined. */
+            if (hcb != HCB_NONE && etot >= FLT_MIN) {
                 float inv_etot = 1.0f / etot;
                 int sf  = lrintf(log10f(el * inv_etot) * SF_STEP_ENRG);
                 int pan = lrintf(log10f(er * inv_etot) * SF_STEP_ENRG) - sf;

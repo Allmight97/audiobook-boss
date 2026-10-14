@@ -129,7 +129,7 @@ static float compute_lpc(int order, const float * r, float * k)
 /* Reflection coefficients live in (-1, 1); arcsine-warp them before
  * quantizing so equal code steps land closer to equal perceptual steps
  * near the +-1 ends, per the tns_data() coefficient law in the spec. */
-static void quantize_coeffs(int order, int res, float * k, int * idx)
+static void quantize_coeffs(int order, int res, float * k, int8_t * idx)
 {
     const float s_p = (float)(((1 << (res - 1)) - 0.5f) / (M_PI / 2));
     const float s_n = (float)(((1 << (res - 1)) + 0.5f) / (M_PI / 2));
@@ -162,6 +162,8 @@ static void finalize_filter(int order, const float * k, float * a)
 {
     int i, m;
 
+    /* Each step consumes k[m] before updating only earlier coefficients,
+     * so the reflection-coefficient storage can also hold the polynomial. */
     a[0] = 1.0f;
     for (m = 1; m <= order; m++) {
         float km = k[m];
@@ -325,7 +327,7 @@ static int tns_fit_range(int b_start, int b_stop, const int *sfbOffsetTable,
         }
     }
 
-    finalize_filter(order, k, filter->aCoeffs);
+    finalize_filter(order, k, k);
 
     /* compute_lpc's gain estimate was on the un-quantized coefficients;
      * quantization can erode it enough that the filter actually being
@@ -337,7 +339,7 @@ static int tns_fit_range(int b_start, int b_stop, const int *sfbOffsetTable,
          * r. Only the filtered energy needs a pass here. */
         float filt_e = 0.0f;
 
-        filter_spec(length, order, filter->aCoeffs, wspec, trial);
+        filter_spec(length, order, k, wspec, trial);
         for (i = 0; i < length; i++)
             filt_e += trial[i] * trial[i];
         if (filt_e < TNS_MIN_ENERGY)
@@ -346,7 +348,7 @@ static int tns_fit_range(int b_start, int b_stop, const int *sfbOffsetTable,
             return 0;
     }
 
-    filter_spec(length, order, filter->aCoeffs, band, trial);
+    filter_spec(length, order, k, band, trial);
     memcpy(band, trial, length * sizeof(float));
     return 1;
 }

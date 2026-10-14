@@ -20,7 +20,7 @@ changes need have passed on the current files: `.claude/done-gate.json` names
 - A core crate (`core`).
 - Engine rules, session, settings, metadata intent: `core` for complexity,
   then `engine`. The doctests guard which engine internals hosts can reach.
-  Bundled FAAC tests run in the engine lane.
+  Bundled FAAC and FAAD tests run in the engine lane.
 - Audio, metadata writing, output artifacts, processing: `engine` and `media`.
   Fixtures are synthesized at test time. `media` also runs the verify-abb
   feature scripts through `scripts/abb-dev.sh`.

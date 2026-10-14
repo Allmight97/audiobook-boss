@@ -1,0 +1,54 @@
+#ifndef FAAD_SYMBOLS_H
+#define FAAD_SYMBOLS_H
+
+#define adts_decode_header faad_adts_decode_header
+#define apply_is_stereo faad_apply_is_stereo
+#define apply_ms_stereo faad_apply_ms_stereo
+#define apply_pns faad_apply_pns
+#define apply_tns faad_apply_tns
+#define asc_decode faad_asc_decode
+#define bits_byte_align faad_bits_byte_align
+#define bits_get faad_bits_get
+#define bits_get_consumed faad_bits_get_consumed
+#define bits_init faad_bits_init
+#define bits_show faad_bits_show
+#define bits_skip faad_bits_skip
+#define decode_cce faad_decode_cce
+#define decode_cpe faad_decode_cpe
+#define decode_dse faad_decode_dse
+#define decode_ics faad_decode_ics
+#define decode_pce faad_decode_pce
+#define decode_scale_factor_data faad_decode_scale_factor_data
+#define decode_sce faad_decode_sce
+#define decode_spectral_data faad_decode_spectral_data
+#define get_sr_index faad_get_sr_index
+#define imdct_and_window faad_imdct_and_window
+#define init_dequant_tables faad_init_dequant_tables
+#define init_huffman_luts faad_init_huffman_luts
+#define init_is_tables faad_init_is_tables
+#define init_ps_tables faad_init_ps_tables
+#define init_qmf_twiddles faad_init_qmf_twiddles
+#define init_windows faad_init_windows
+#define ps_frame_begin faad_ps_frame_begin
+#define ps_frame_input faad_ps_frame_input
+#define ps_huff_icc_df faad_ps_huff_icc_df
+#define ps_huff_icc_dt faad_ps_huff_icc_dt
+#define ps_huff_iid_df faad_ps_huff_iid_df
+#define ps_huff_iid_df_fine faad_ps_huff_iid_df_fine
+#define ps_huff_iid_dt faad_ps_huff_iid_dt
+#define ps_huff_iid_dt_fine faad_ps_huff_iid_dt_fine
+#define ps_huff_ipd_df faad_ps_huff_ipd_df
+#define ps_huff_ipd_dt faad_ps_huff_ipd_dt
+#define ps_huff_opd_df faad_ps_huff_opd_df
+#define ps_huff_opd_dt faad_ps_huff_opd_dt
+#define ps_read_data faad_ps_read_data
+#define ps_slot faad_ps_slot
+#define sbr_apply faad_sbr_apply
+#define sbr_books faad_sbr_books
+#define sbr_decode_extension faad_sbr_decode_extension
+#define sbr_huff_decode faad_sbr_huff_decode
+#define sbr_noise_table faad_sbr_noise_table
+#define setup_sfb_offsets faad_setup_sfb_offsets
+#define g_faadStats faad_g_stats
+
+#endif

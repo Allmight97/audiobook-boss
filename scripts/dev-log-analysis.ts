@@ -687,7 +687,7 @@ export function analyzeDevLog(
 			.slice(-100),
 		mediaDiagnostics: lines
 			.filter((line) =>
-				/media_stage |media_job |media_handoff |media_cleanup |metadata_plan |metadata_route |metadata_cover |metadata_chapters |metadata_chapter_mismatch |cover_art_plan |encoder_effective |encoder_config /.test(
+				/decode_open |decode_summary |media_stage |media_job |media_handoff |media_cleanup |metadata_plan |metadata_route |metadata_cover |metadata_chapters |metadata_chapter_mismatch |cover_art_plan |encoder_effective |encoder_config /.test(
 					line,
 				),
 			)
@@ -829,7 +829,7 @@ export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 		...analysis.audioDecisions,
 		'```',
 		'',
-		'## Encoding, Metadata, and File Handoffs',
+		'## Decoding, Encoding, Metadata, and File Handoffs',
 		'',
 		'Recent bounded diagnostics; the raw logs retain the complete run. Artifact IDs link stages to media_job records.',
 		'',

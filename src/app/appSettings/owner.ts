@@ -1,5 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type {
+	AacDecoder,
 	AcquisitionLane,
 	AppSettings,
 	ConcurrencyPreference,
@@ -35,6 +36,8 @@ export type AppSettingsDialogState = {
 	saveError: string;
 	powerSaveState: SettingsSaveState;
 	powerSaveError: string;
+	decoderSaveState: SettingsSaveState;
+	decoderSaveError: string;
 	startupSaveState: SettingsSaveState;
 	startupSaveError: string;
 };
@@ -57,6 +60,7 @@ export type SettingsOwner = {
 	closeDialog(): void;
 	setDialogOpen(open: boolean): void;
 	setKeepAwakeWhileWorking(enabled: boolean): Promise<void>;
+	setAacDecoder(decoder: AacDecoder): Promise<void>;
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
@@ -69,7 +73,7 @@ export type SettingsOwnerDeps = {
 
 /** The dialog's own progress: which control is saving and how it ended. */
 type DialogProgress = Omit<AppSettingsDialogState, 'settings'>;
-type ProgressKey = 'save' | 'powerSave' | 'startupSave';
+type ProgressKey = 'save' | 'powerSave' | 'decoderSave' | 'startupSave';
 
 function idleDialog(): DialogProgress {
 	return {
@@ -78,6 +82,8 @@ function idleDialog(): DialogProgress {
 		saveError: '',
 		powerSaveState: 'idle',
 		powerSaveError: '',
+		decoderSaveState: 'idle',
+		decoderSaveError: '',
 		startupSaveState: 'idle',
 		startupSaveError: '',
 	};
@@ -218,6 +224,10 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		async setKeepAwakeWhileWorking(enabled) {
 			if (dialog.powerSaveState === 'saving') return;
 			await runDialogAction('powerSave', { kind: 'setKeepAwake', enabled });
+		},
+		async setAacDecoder(decoder) {
+			if (dialog.decoderSaveState === 'saving') return;
+			await runDialogAction('decoderSave', { kind: 'setAacDecoder', decoder });
 		},
 		async saveCurrentSettingsAsPinnedDefaults() {
 			await runDialogAction('startupSave', { kind: 'pinCurrentDefaults' });

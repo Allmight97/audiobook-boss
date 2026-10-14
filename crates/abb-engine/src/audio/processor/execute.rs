@@ -68,6 +68,7 @@ pub(crate) fn merge_audio_files_with_context(
         context.sample_rate,
         file_paths,
         total_duration,
+        context.aac_decoder,
     );
 
     log::info!(

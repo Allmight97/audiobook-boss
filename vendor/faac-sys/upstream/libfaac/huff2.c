@@ -143,8 +143,7 @@ static void huffcode_write(const int * __restrict qs, int len, int bnum, CoderIn
     case HCB_2:
         for (i = 0; i < len; i += 4) {
             int idx = 40 + DIM_S4*DIM_S4*DIM_S4 * qs[i] + DIM_S4*DIM_S4 * qs[i+1] + DIM_S4 * qs[i+2] + qs[i+3];
-            coder->s[datacnt].data = book[idx].data;
-            coder->s[datacnt++].len = book[idx].len;
+            coder->s[datacnt++] = (uint32_t)book[idx].data | ((uint32_t)book[idx].len << 24);
         }
         break;
     case HCB_3:
@@ -159,16 +158,14 @@ static void huffcode_write(const int * __restrict qs, int len, int bnum, CoderIn
             if (q1) { blen++; data = (data << 1) | (q1 < 0); }
             if (q2) { blen++; data = (data << 1) | (q2 < 0); }
             if (q3) { blen++; data = (data << 1) | (q3 < 0); }
-            coder->s[datacnt].data = data;
-            coder->s[datacnt++].len = blen;
+            coder->s[datacnt++] = (uint32_t)data | ((uint32_t)blen << 24);
         }
         break;
     case HCB_5:
     case HCB_6:
         for (i = 0; i < len; i += 2) {
             int idx = 40 + DIM_S2 * qs[i] + qs[i+1];
-            coder->s[datacnt].data = book[idx].data;
-            coder->s[datacnt++].len = book[idx].len;
+            coder->s[datacnt++] = (uint32_t)book[idx].data | ((uint32_t)book[idx].len << 24);
         }
         break;
     case HCB_7:
@@ -181,8 +178,7 @@ static void huffcode_write(const int * __restrict qs, int len, int bnum, CoderIn
             int data = book[idx].data;
             if (q0) { blen++; data = (data << 1) | (q0 < 0); }
             if (q1) { blen++; data = (data << 1) | (q1 < 0); }
-            coder->s[datacnt].data = data;
-            coder->s[datacnt++].len = blen;
+            coder->s[datacnt++] = (uint32_t)data | ((uint32_t)blen << 24);
         }
         break;
     case HCB_9:
@@ -195,8 +191,7 @@ static void huffcode_write(const int * __restrict qs, int len, int bnum, CoderIn
             int data = book[idx].data;
             if (q0) { blen++; data = (data << 1) | (q0 < 0); }
             if (q1) { blen++; data = (data << 1) | (q1 < 0); }
-            coder->s[datacnt].data = data;
-            coder->s[datacnt++].len = blen;
+            coder->s[datacnt++] = (uint32_t)data | ((uint32_t)blen << 24);
         }
         break;
     case HCB_ESC:
@@ -215,19 +210,16 @@ static void huffcode_write(const int * __restrict qs, int len, int bnum, CoderIn
                 blen++;
                 data = (data << 1) | (qs[i+1] < 0);
             }
-            coder->s[datacnt].data = data;
-            coder->s[datacnt++].len = blen;
+            coder->s[datacnt++] = (uint32_t)data | ((uint32_t)blen << 24);
             if (x0 >= LAV_ESC) {
                 int esc_code = 0;
                 int esc_len = escape(x0, &esc_code);
-                coder->s[datacnt].data = esc_code;
-                coder->s[datacnt++].len = esc_len;
+                coder->s[datacnt++] = (uint32_t)esc_code | ((uint32_t)esc_len << 24);
             }
             if (x1 >= LAV_ESC) {
                 int esc_code = 0;
                 int esc_len = escape(x1, &esc_code);
-                coder->s[datacnt].data = esc_code;
-                coder->s[datacnt++].len = esc_len;
+                coder->s[datacnt++] = (uint32_t)esc_code | ((uint32_t)esc_len << 24);
             }
         }
         break;
