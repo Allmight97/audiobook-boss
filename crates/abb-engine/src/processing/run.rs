@@ -876,7 +876,7 @@ mod tests {
             .expect_err("the companion PDF name would be too long");
 
         assert!(error.to_string().contains("Supplemental PDF"), "{error}");
-        assert!(error.to_string().contains("255 bytes"), "{error}");
+        assert!(error.to_string().contains("at most 255"), "{error}");
     }
 
     #[test]

@@ -135,7 +135,7 @@ fn resolve_output_plan_with_cache(
     let resolved_path = match action {
         PlannedOutputAction::RenameNew => rename_candidate.clone().ok_or_else(|| {
             AppError::InvalidInput(
-                "A renamed output name would be over 255 bytes. Shorten the title or the naming template, or replace the existing file.".to_string(),
+                "A renamed output name would be too long for a file name. Shorten the title or the naming template, or replace the existing file.".to_string(),
             )
         })?,
         _ => requested_path.clone(),
@@ -267,7 +267,7 @@ mod tests {
         )
         .expect_err("an overlong name is refused");
 
-        assert!(error.to_string().contains("255 bytes"), "{error}");
+        assert!(error.to_string().contains("at most 255"), "{error}");
     }
 
     #[test]

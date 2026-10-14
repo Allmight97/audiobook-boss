@@ -59,8 +59,8 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   Audio's display-only notes on a successful title (`AudioRunOutcome`), such
   as a source cover that was left off; they change no outcome and retain no
   download. Planning refuses a title with a
-  companion PDF whose name beside the audiobook would be over 255 bytes, so
-  that failure comes before encoding.
+  companion PDF whose name beside the audiobook would be too long for a file
+  name (`name_fits`), so that failure comes before encoding.
 - `run_job.rs` runs the output-path check and the companion commit (which
   waits on `lock_output_file`) on `spawn_blocking`, so a slow disk or a held
   lock never stalls an async worker. A stopped check fails the job through

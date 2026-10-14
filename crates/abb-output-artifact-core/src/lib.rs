@@ -150,12 +150,26 @@ pub fn supplemental_pdf_path(final_audio_path: &Path) -> PathBuf {
     parent.join(format!("{stem} - Supplemental PDF.pdf"))
 }
 
-/// APFS and ext4 limit a name to 255 bytes. NTFS and SMB count 255 UTF-16
-/// units, which a 255-byte UTF-8 name never exceeds.
-const MAX_NAME_BYTES: usize = 255;
+/// A file or folder name holds at most 255 units: UTF-16 units on APFS,
+/// HFS+, exFAT, NTFS and SMB; bytes on Linux disks (ext4, btrfs). A name's
+/// UTF-8 bytes are never fewer than its UTF-16 units.
+const MAX_NAME_UNITS: usize = 255;
+const NAME_UNIT: &str = if cfg!(target_os = "linux") {
+    "bytes"
+} else {
+    "characters"
+};
+
+fn name_length(name: &std::ffi::OsStr) -> usize {
+    if cfg!(target_os = "linux") {
+        name.len()
+    } else {
+        name.to_string_lossy().encode_utf16().count()
+    }
+}
 
 pub fn name_fits(name: &std::ffi::OsStr) -> bool {
-    name.len() <= MAX_NAME_BYTES
+    name_length(name) <= MAX_NAME_UNITS
 }
 
 /// Refuses an artifact path whose folder or file name would be over the name
@@ -184,8 +198,8 @@ fn check_name_fits(name: &std::ffi::OsStr, what: &str) -> Result<()> {
     }
     let shown: String = name.to_string_lossy().chars().take(60).collect();
     Err(OutputArtifactCoreError::InvalidInput(format!(
-        "{what} \"{shown}…\" would be {} bytes; names can be at most {MAX_NAME_BYTES} bytes. Shorten the title or the naming template.",
-        name.len()
+        "{what} \"{shown}…\" would be {} {NAME_UNIT}; a name can be at most {MAX_NAME_UNITS}. Shorten the title or the naming template.",
+        name_length(name)
     )))
 }
 
@@ -637,6 +651,18 @@ mod tests {
             subseries_part: Some("1".to_string()),
             ..Default::default()
         })
+    }
+
+    #[test]
+    fn a_name_is_measured_the_way_the_output_disk_counts_it() {
+        let cjk = "\u{672c}".repeat(100);
+        assert_eq!(
+            name_fits(std::ffi::OsStr::new(&cjk)),
+            !cfg!(target_os = "linux"),
+            "100 CJK characters are 100 UTF-16 units and 300 bytes"
+        );
+        assert!(name_fits(std::ffi::OsStr::new(&"a".repeat(255))));
+        assert!(!name_fits(std::ffi::OsStr::new(&"\u{672c}".repeat(256))));
     }
 
     #[test]
