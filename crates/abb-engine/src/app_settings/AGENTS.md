@@ -10,7 +10,8 @@ default the session records reaches hosts as `EngineEvent::Settings`.
 - The strip is the `pub use` list in `mod.rs`: intent and snapshot types plus
   the setting types.
 - `SettingsRuntime` is engine-internal. Load and save are private to this
-  module, so every write goes through the runtime.
+  module, so every write goes through the runtime. The acquisition lane is
+  read from `settings`; the snapshot has no second copy.
 
 ## Settings Runtime
 
@@ -44,12 +45,21 @@ default the session records reaches hosts as `EngineEvent::Settings`.
   `storage.rs` owns `settings.toml` in the host's config folder: one section
   per area, in a saved shape kept apart from the IPC types so a change to
   what hosts send cannot change what a saved file means.
-- Loading never fails. No file means the defaults; a file damaged outside ABB
-  is logged and not used, and the next save replaces it. There is no
-  file-format migration: files from builds before `settings.toml` are never
-  read.
+- Loading never fails. No file means the defaults. Each recovery unit
+  (keep-awake, job limit, acquisition lane, encoder defaults, output folder
+  and naming, startup behavior, pinned defaults) loads on its own: a value
+  this release refuses resets only that unit, and an absent one takes its
+  default silently. Pinned defaults are all or nothing. Unknown fields are
+  ignored. `SettingsSnapshot.recovery` names the reset units until the next
+  accepted change.
+- A file that cannot be read or is not TOML is kept as
+  `settings.toml.unusable-<nanos>` before defaults are used. It is hard-linked,
+  so an existing name is never replaced. Until it is kept (or gone), no save
+  writes over it: `save_error` reports why, and every write retries keeping it.
+  There is no file-format migration: files from builds before `settings.toml`
+  are never read.
 - A user's saved choice keeps its meaning across releases. A change that
-  removes or narrows a saved value either keeps the sample in `samples/`
+  removes or narrows a saved value either keeps every sample in `samples/`
   loading with every choice it holds, or maps each old value in `storage.rs`,
   with the owner's approval and a one-time notice. A new saved field needs a
   default so earlier samples still load, and a new sample of the new shape.

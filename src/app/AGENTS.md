@@ -73,10 +73,11 @@ One bullet per owner: the invariant the code does not show. Engine paths name
 the owner of the truth.
 
 - `appSettings` (`crates/abb-engine/src/app_settings/AGENTS.md`): the owner
-  words durability from `saveError`, shows the concurrency view (Auto shows the
-  capability's `autoEffective`, not the current fixed count), and holds dialog
-  state. The session records audio and output defaults and announces them with
-  `settings-update`; views send Settings intents only.
+  words durability from `saveError` and the reset notice from `recovery`,
+  shows the concurrency view (Auto shows the capability's `autoEffective`, not
+  the current fixed count), and holds dialog state. The session records audio
+  and output defaults and announces them with `settings-update`; views send
+  Settings intents only.
 - `encoding` (session AGENTS): `project.ts` disables an option because the
   engine's facts say so. `editFor` turns a control value into an `AudioEdit`;
   a value no control offers sends nothing. What Auto resolves to comes from the

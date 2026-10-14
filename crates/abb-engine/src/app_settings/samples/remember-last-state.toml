@@ -1,0 +1,28 @@
+# A settings file as ABB saves it when the user never pinned defaults and
+# never chose an output folder. contract_tests.rs checks it loads unchanged.
+
+[general]
+keep_awake_while_working = true
+max_concurrent_jobs = "auto"
+default_acquisition_lane = "audible"
+
+[audio]
+format = "m4b"
+intent = "encode"
+sample_rate = "auto"
+
+[audio.encoder]
+type = "faac"
+bitrate_kbps = 64
+bitrate_mode = "vbr"
+vbr_quality = 100
+channels = "auto"
+native_aac_speed = 0
+faac_profile = "he_aac_v1"
+
+[output.naming]
+preset = "absDefault"
+include_year = true
+
+[startup]
+behavior = "rememberLastState"

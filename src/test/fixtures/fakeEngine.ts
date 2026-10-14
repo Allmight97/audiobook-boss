@@ -124,6 +124,8 @@ export type FakeEngine = EngineCapability & {
 	settingsWriteError?: Rejection;
 	/** Refuses the next concurrency change, as running jobs would. */
 	concurrencyError?: Rejection;
+	/** What loading the saved settings could not keep; the next accepted change clears it. */
+	recovery?: SettingsSnapshot['recovery'];
 	/** Records settings the way the engine does after a session edit, and announces them. */
 	recordSettings(patch: Partial<AppSettings>): void;
 	/**
@@ -677,7 +679,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				},
 			},
 			startupDefaults: startup,
-			defaultAcquisitionLane: settings.defaultAcquisitionLane,
+			recovery: engine.recovery,
 		});
 	}
 
@@ -754,6 +756,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			nextSettingsSequence += 1;
 			engine.settingsIntents.push(structuredClone(intent));
 			const outcome = applySettings(intent);
+			if (outcome.kind === 'applied' && intent.kind !== 'retry') engine.recovery = undefined;
 			settingsRevision += 1;
 			return { outcome, snapshot: settingsSnapshot() };
 		},

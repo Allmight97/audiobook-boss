@@ -31,7 +31,7 @@ describe('tauriClient', () => {
 					capabilities: runtimeSettingsCapabilitiesFixture().maxConcurrentJobs,
 				},
 				startupDefaults: null,
-				defaultAcquisitionLane: 'indexer',
+				recovery: null,
 			},
 		});
 
@@ -52,7 +52,7 @@ describe('tauriClient', () => {
 		});
 		expect(reply.outcome).toEqual({ kind: 'applied' });
 		expect(reply.snapshot.settings).toBeUndefined();
-		expect(reply.snapshot.defaultAcquisitionLane).toBe('indexer');
+		expect(reply.snapshot.recovery).toBeUndefined();
 	});
 
 	it('keeps explicit nulls in audio requests and drops them from audio files', async () => {

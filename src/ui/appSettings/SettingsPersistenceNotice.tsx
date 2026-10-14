@@ -8,8 +8,18 @@ export function SettingsPersistenceNotice(): JSX.Element {
 	const settings = useAppRuntime().settings;
 	const durability = settings.durability;
 	return (
-		<Show when={durability().message || settings.concurrency().errorMessage}>
+		<Show
+			when={
+				settings.recoveryNotice() || durability().message || settings.concurrency().errorMessage
+			}
+		>
 			<div class="settings-persistence-notice" role="status" aria-live="polite">
+				<Show when={settings.recoveryNotice()}>
+					<div class="settings-persistence-copy" data-testid="settings-recovery-notice">
+						<strong>Some settings were reset</strong>
+						<p>{settings.recoveryNotice()}</p>
+					</div>
+				</Show>
 				<Show when={durability().message}>
 					<div class="settings-persistence-copy">
 						<strong>Settings haven't been saved</strong>

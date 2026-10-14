@@ -5,6 +5,7 @@ import type {
 	ConcurrencyPreference,
 	SettingsIntent,
 	SettingsOutcome,
+	SettingsUnit,
 	StartupBehavior,
 } from '../../types/appSettings';
 import { toUserMessage } from '../../lib/tauri/appError';
@@ -46,6 +47,8 @@ export type AppSettingsDialogState = {
  */
 export type SettingsOwner = {
 	readonly durability: Accessor<SettingsDurability>;
+	/** What this launch could not keep from the saved settings; empty when nothing. */
+	readonly recoveryNotice: Accessor<string>;
 	retryPersistence(): Promise<void>;
 	readonly concurrency: Accessor<ConcurrencyView>;
 	readonly defaultAcquisitionLane: Accessor<AcquisitionLane>;
@@ -86,6 +89,16 @@ function idleDialog(): DialogProgress {
 function describe(error: unknown): string {
 	return toUserMessage(error, { fallback: 'Settings update failed.' });
 }
+
+const UNIT_LABELS: Record<SettingsUnit, string> = {
+	keepAwake: 'keep computer awake while working',
+	jobLimit: 'job limit',
+	acquisitionLane: 'default import source',
+	encoderDefaults: 'audio defaults',
+	outputDefaults: 'output folder and naming',
+	startupBehavior: 'startup behavior',
+	pinnedDefaults: 'pinned defaults',
+};
 
 function selectionOf(preference: ConcurrencyPreference): string {
 	return preference.mode === 'fixed' ? String(preference.value) : 'auto';
@@ -163,6 +176,20 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 				? { state: 'error', message: toUserMessage(error) }
 				: { state: 'saved', message: '' };
 		},
+		recoveryNotice: () => {
+			const recovery = link.settings().recovery;
+			if (!recovery) return '';
+			const parts = [];
+			if (recovery.reset.length > 0)
+				parts.push(
+					`ABB no longer accepts these saved settings, so they are back to their defaults: ${recovery.reset.map((unit) => UNIT_LABELS[unit]).join(', ')}.`,
+				);
+			if (recovery.setAsideAs)
+				parts.push(
+					`ABB couldn't read your settings file, so every setting is back to its default. The file was kept as ${recovery.setAsideAs}.`,
+				);
+			return parts.join(' ');
+		},
 		async retryPersistence() {
 			writesInFlight += 1;
 			changed();
@@ -186,7 +213,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 				fixedOptions: capabilities.fixedOptions,
 			};
 		},
-		defaultAcquisitionLane: () => link.settings().defaultAcquisitionLane,
+		defaultAcquisitionLane: () => link.settings().settings?.defaultAcquisitionLane ?? 'audible',
 		dialog: () => {
 			rev();
 			return { ...dialog, settings: link.settings().settings ?? null };

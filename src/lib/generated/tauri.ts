@@ -1168,6 +1168,17 @@ export type SettingsOutcome = { kind: "applied" } |
 /**  Nothing changed. */
 { kind: "rejected"; error: AppErrorEnvelope };
 
+/**  What loading the saved settings could not keep. */
+export type SettingsRecovery = {
+	/**  Settings whose saved value was refused; they took their defaults. */
+	reset: SettingsUnit[],
+	/**
+	 *  The name an unreadable settings file was kept under; every setting
+	 *  took its default.
+	 */
+	setAsideAs: string | null,
+};
+
 export type SettingsReply = {
 	outcome: SettingsOutcome,
 	snapshot: SettingsSnapshot,
@@ -1185,8 +1196,18 @@ export type SettingsSnapshot = {
 	 *  chose that and has pinned some, otherwise the last used.
 	 */
 	startupDefaults: PinnedDefaults,
-	defaultAcquisitionLane: AcquisitionLane,
+	/**
+	 *  What this launch could not keep from the saved settings. Absent after
+	 *  the next accepted change.
+	 */
+	recovery: SettingsRecovery | null,
 };
+
+/**
+ *  A setting that loading recovers on its own: a saved value this release
+ *  refuses resets only that setting.
+ */
+export type SettingsUnit = "keepAwake" | "jobLimit" | "acquisitionLane" | "encoderDefaults" | "outputDefaults" | "startupBehavior" | "pinnedDefaults";
 
 /**  The settings after a change made outside a settings intent. */
 export type SettingsUpdateEvent = SettingsSnapshot;

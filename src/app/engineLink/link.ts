@@ -245,7 +245,6 @@ function emptySettings(): SettingsSnapshot {
 				fixedOptions: [],
 			},
 		},
-		defaultAcquisitionLane: 'audible',
 	};
 }
 

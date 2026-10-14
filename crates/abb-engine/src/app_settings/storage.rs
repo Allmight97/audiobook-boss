@@ -5,11 +5,12 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::app_settings::{
-    AcquisitionLane, AppSettings, AppSettingsPatch, ConcurrencyPreference, EncoderDefaults,
-    OutputDefaults, PinnedDefaults, StartupBehavior,
+    AcquisitionLane, AppSettings, ConcurrencyPreference, EncoderDefaults, OutputDefaults,
+    PinnedDefaults, SettingsUnit, StartupBehavior,
 };
 use crate::audio::{
     AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
@@ -20,29 +21,148 @@ use crate::output_artifact::{NamingPreset, OutputNamingConfig};
 
 const SETTINGS_FILE_NAME: &str = "settings.toml";
 
-/// The saved settings, or the defaults when there are none. A file damaged
-/// outside ABB is not used and is replaced by the next save.
-pub(super) fn load(config_dir: &Path) -> AppSettings {
-    let content = match std::fs::read_to_string(settings_path(config_dir)) {
-        Ok(content) => content,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return AppSettings::default(),
-        Err(error) => {
-            log::warn!("App settings could not be read; using defaults: {error}");
-            return AppSettings::default();
-        }
+pub(super) struct Loaded {
+    pub(super) settings: AppSettings,
+    /// Settings whose saved value was refused and took its default.
+    pub(super) reset: Vec<SettingsUnit>,
+    /// Present when the file could not be read or parsed: the name it was
+    /// kept under, or why it could not be kept.
+    pub(super) set_aside: Option<io::Result<Option<String>>>,
+}
+
+/// The saved settings, or the defaults when there are none. Each setting is
+/// recovered on its own; an absent one takes its default silently.
+pub(super) fn load(config_dir: &Path) -> Loaded {
+    let table = match std::fs::read_to_string(settings_path(config_dir)) {
+        Ok(content) => toml::from_str::<toml::Table>(&content).map_err(|error| error.to_string()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(toml::Table::new()),
+        Err(error) => Err(error.to_string()),
     };
-    toml::from_str::<SavedSettings>(&content)
-        .map_err(|error| error.to_string())
-        .and_then(AppSettings::try_from)
-        .and_then(|settings| {
-            settings
-                .merge(AppSettingsPatch::default())
-                .map_err(|error| error.to_string())
-        })
-        .unwrap_or_else(|error| {
-            log::warn!("App settings were not usable; using defaults: {error}");
-            AppSettings::default()
-        })
+    match table {
+        Ok(table) => recover(&table),
+        Err(error) => {
+            log::warn!("App settings file is unusable; using defaults: {error}");
+            Loaded {
+                settings: AppSettings::default(),
+                reset: Vec::new(),
+                set_aside: Some(set_aside(config_dir)),
+            }
+        }
+    }
+}
+
+fn recover(table: &toml::Table) -> Loaded {
+    let defaults = AppSettings::default();
+    let mut reset = Vec::new();
+    let settings = AppSettings {
+        keep_awake_while_working: pick(
+            &mut reset,
+            SettingsUnit::KeepAwake,
+            read(table, &["general", "keep_awake_while_working"], Ok),
+        )
+        .unwrap_or(defaults.keep_awake_while_working),
+        max_concurrent_jobs: pick(
+            &mut reset,
+            SettingsUnit::JobLimit,
+            read(table, &["general", "max_concurrent_jobs"], job_limit),
+        )
+        .unwrap_or(defaults.max_concurrent_jobs),
+        default_acquisition_lane: pick(
+            &mut reset,
+            SettingsUnit::AcquisitionLane,
+            read(table, &["general", "default_acquisition_lane"], Ok),
+        )
+        .unwrap_or(defaults.default_acquisition_lane),
+        encoder_defaults: pick(
+            &mut reset,
+            SettingsUnit::EncoderDefaults,
+            read::<Audio, _>(table, &["audio"], EncoderDefaults::try_from),
+        )
+        .unwrap_or(defaults.encoder_defaults),
+        output_defaults: pick(
+            &mut reset,
+            SettingsUnit::OutputDefaults,
+            read(table, &["output"], |output: Output| Ok(output.into())),
+        )
+        .unwrap_or(defaults.output_defaults),
+        startup_behavior: pick(
+            &mut reset,
+            SettingsUnit::StartupBehavior,
+            read(table, &["startup", "behavior"], Ok),
+        )
+        .unwrap_or(defaults.startup_behavior),
+        pinned_defaults: pick(
+            &mut reset,
+            SettingsUnit::PinnedDefaults,
+            read::<Pinned, _>(table, &["startup", "pinned"], PinnedDefaults::try_from),
+        ),
+    };
+    Loaded {
+        settings,
+        reset,
+        set_aside: None,
+    }
+}
+
+/// The value at `path`, converted; `None` when it is absent.
+fn read<S: DeserializeOwned, T>(
+    table: &toml::Table,
+    path: &[&str],
+    convert: impl FnOnce(S) -> std::result::Result<T, String>,
+) -> std::result::Result<Option<T>, String> {
+    let Some((key, sections)) = path.split_last() else {
+        return Ok(None);
+    };
+    let mut current = table;
+    for section in sections {
+        match current.get(*section) {
+            None => return Ok(None),
+            Some(toml::Value::Table(inner)) => current = inner,
+            Some(_) => return Err(format!("[{section}] is not a section")),
+        }
+    }
+    let Some(value) = current.get(*key) else {
+        return Ok(None);
+    };
+    let saved = value
+        .clone()
+        .try_into::<S>()
+        .map_err(|error| error.to_string())?;
+    convert(saved).map(Some)
+}
+
+fn pick<T>(
+    reset: &mut Vec<SettingsUnit>,
+    unit: SettingsUnit,
+    value: std::result::Result<Option<T>, String>,
+) -> Option<T> {
+    value.unwrap_or_else(|error| {
+        log::warn!("Saved setting {unit:?} is not usable; using its default: {error}");
+        reset.push(unit);
+        None
+    })
+}
+
+/// Keeps the settings file under a name no other file holds, so no later
+/// save can destroy it. `None` when there is no file to keep.
+pub(super) fn set_aside(config_dir: &Path) -> io::Result<Option<String>> {
+    let path = settings_path(config_dir);
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let name = format!("{SETTINGS_FILE_NAME}.unusable-{stamp}");
+    // A hard link fails when the name exists; a rename would replace it.
+    match std::fs::hard_link(&path, config_dir.join(&name)) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    }
+    log::warn!("Unusable settings file was kept as {name}");
+    if let Err(error) = std::fs::remove_file(&path) {
+        log::warn!("Unusable settings file could not be removed after it was kept: {error}");
+    }
+    Ok(Some(name))
 }
 
 pub(super) fn save(config_dir: &Path, settings: &AppSettings) -> Result<()> {
@@ -56,7 +176,7 @@ fn settings_path(config_dir: &Path) -> PathBuf {
     config_dir.join(SETTINGS_FILE_NAME)
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct SavedSettings {
     general: General,
     audio: Audio,
@@ -64,14 +184,14 @@ struct SavedSettings {
     startup: Startup,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct General {
     keep_awake_while_working: bool,
     max_concurrent_jobs: AutoOr<usize>,
     default_acquisition_lane: AcquisitionLane,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct Startup {
     behavior: StartupBehavior,
     pinned: Option<Pinned>,
@@ -138,13 +258,13 @@ impl From<ConcurrencyPreference> for AutoOr<usize> {
     }
 }
 
-impl From<AutoOr<usize>> for ConcurrencyPreference {
-    fn from(saved: AutoOr<usize>) -> Self {
-        match saved {
-            AutoOr::Auto(_) => Self::Auto,
-            AutoOr::Value(count) => Self::Fixed(count),
-        }
-    }
+fn job_limit(saved: AutoOr<usize>) -> std::result::Result<ConcurrencyPreference, String> {
+    let preference = match saved {
+        AutoOr::Auto(_) => ConcurrencyPreference::Auto,
+        AutoOr::Value(count) => ConcurrencyPreference::Fixed(count),
+    };
+    preference.validate().map_err(|error| error.to_string())?;
+    Ok(preference)
 }
 
 impl From<SampleRateConfig> for AutoOr<u32> {
@@ -221,28 +341,14 @@ impl From<&AppSettings> for SavedSettings {
     }
 }
 
-impl TryFrom<SavedSettings> for AppSettings {
+impl TryFrom<Pinned> for PinnedDefaults {
     type Error = String;
 
-    fn try_from(saved: SavedSettings) -> std::result::Result<Self, String> {
+    fn try_from(pinned: Pinned) -> std::result::Result<Self, String> {
         Ok(Self {
-            keep_awake_while_working: saved.general.keep_awake_while_working,
-            max_concurrent_jobs: saved.general.max_concurrent_jobs.into(),
-            default_acquisition_lane: saved.general.default_acquisition_lane,
-            encoder_defaults: saved.audio.try_into()?,
-            output_defaults: saved.output.into(),
-            startup_behavior: saved.startup.behavior,
-            pinned_defaults: saved
-                .startup
-                .pinned
-                .map(|pinned| -> std::result::Result<_, String> {
-                    Ok(PinnedDefaults {
-                        max_concurrent_jobs: pinned.max_concurrent_jobs.into(),
-                        encoder_defaults: pinned.audio.try_into()?,
-                        output_defaults: pinned.output.into(),
-                    })
-                })
-                .transpose()?,
+            max_concurrent_jobs: job_limit(pinned.max_concurrent_jobs)?,
+            encoder_defaults: pinned.audio.try_into()?,
+            output_defaults: pinned.output.into(),
         })
     }
 }
@@ -273,7 +379,7 @@ impl TryFrom<Audio> for EncoderDefaults {
 
     fn try_from(audio: Audio) -> std::result::Result<Self, String> {
         let encoder = audio.encoder;
-        Ok(Self {
+        let mut defaults = Self {
             format: audio.format,
             intent: audio.intent,
             sample_rate: audio.sample_rate.into(),
@@ -285,7 +391,9 @@ impl TryFrom<Audio> for EncoderDefaults {
                 native_aac_speed: encoder.native_aac_speed,
                 faac_profile: encoder.faac_profile,
             },
-        })
+        };
+        defaults.validate().map_err(|error| error.to_string())?;
+        Ok(defaults)
     }
 }
 
@@ -305,13 +413,15 @@ impl From<&OutputDefaults> for Output {
 
 impl From<Output> for OutputDefaults {
     fn from(output: Output) -> Self {
-        Self {
+        let mut defaults = Self {
             output_directory: output.folder,
             output_naming: OutputNamingConfig {
                 preset: output.naming.preset,
                 include_year: output.naming.include_year,
                 custom_template: output.naming.custom_template,
             },
-        }
+        };
+        defaults.normalize();
+        defaults
     }
 }
