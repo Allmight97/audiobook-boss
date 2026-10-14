@@ -118,6 +118,7 @@ describe('Solid input workbench', () => {
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
+		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
 		// The engine holds different choices for the first two titles.
 		engine.change((state) => {
 			const first = state.audio.titles[files[0]!.path]!;
@@ -233,6 +234,7 @@ describe('Solid input workbench', () => {
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
+		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
 		engine.seedGroup(files);
 		await waitFor(() => {
 			const row = screen.getByRole('option', { name: 'valid.m4b' });
@@ -249,6 +251,7 @@ describe('Solid input workbench', () => {
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
+		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
 		engine.seedGroup(files);
 		engine.change((state) => {
 			state.titles.companions = { [files[1]!.inputId!]: ['Guide.pdf'] };
@@ -270,6 +273,7 @@ describe('Solid input workbench', () => {
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
+		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
 		engine.seedTitleAudio(files[0]!.path, titleAudioRequest({ format: 'mp3', settings: null }));
 		// The engine grouped the first two, whose audio disagrees.
 		engine.seedGroup([files[0]!, files[1]!], { choiceRequired: true });

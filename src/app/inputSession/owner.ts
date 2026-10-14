@@ -29,6 +29,7 @@ export type InputOwner = {
 	/** Whether a downloaded title has companion PDFs. */
 	hasCompanions(inputId: string | undefined): boolean;
 	companionSummary(inputIds: ReadonlyArray<string | undefined>): CompanionSummary;
+	/** Resolves once the picker closes and the import is sent, before it lands. */
 	importIntent(intent: ImportIntent): Promise<void>;
 	hydrateSupportText(): Promise<void>;
 	/** Resolves true when the selection changed and its tags have loaded. */
