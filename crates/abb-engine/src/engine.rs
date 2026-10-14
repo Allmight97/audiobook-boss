@@ -1,8 +1,9 @@
 //! The engine's host-facing interface and lifetime.
 
 use std::collections::BTreeSet;
+use std::fs::{File, OpenOptions, TryLockError};
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::app_settings::{
@@ -92,10 +93,35 @@ impl EngineTasks {
     }
 }
 
+/// Only another engine holding the lock stops a start; a folder that cannot
+/// be locked (a filesystem without `flock`) is used unlocked.
+fn lock_cache_dir(cache_dir: &Path) -> Result<Option<File>> {
+    let unlocked = |error: std::io::Error| {
+        log::warn!("The working folder is not locked against a second ABB: {error}");
+        Ok(None)
+    };
+    let opened = std::fs::create_dir_all(cache_dir).and_then(|()| {
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(cache_dir.join("engine.lock"))
+    });
+    let file = match opened {
+        Ok(file) => file,
+        Err(error) => return unlocked(error),
+    };
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(TryLockError::WouldBlock) => Err(AppError::AlreadyRunning(cache_dir.to_path_buf())),
+        Err(TryLockError::Error(error)) => unlocked(error),
+    }
+}
+
 /// What a host supplies to start the engine.
 pub struct EngineConfig {
     /// Root for engine-owned working files: processing workspaces and staged
-    /// remote downloads. The engine clears abandoned contents at start.
+    /// remote downloads. The engine locks it, then clears abandoned contents.
     pub cache_dir: PathBuf,
     /// Root for durable settings.
     pub config_dir: PathBuf,
@@ -112,7 +138,8 @@ pub struct EngineConfig {
 ///
 /// One engine owns one storage namespace (`cache_dir`, `config_dir`,
 /// `app_identifier`): starting it removes working files a previous run left
-/// behind, so two engines must not share those roots.
+/// behind, so it holds an OS lock on `cache_dir` for its life and a second
+/// start on the same folder fails with [`AppError::AlreadyRunning`].
 #[derive(Clone)]
 pub struct Engine {
     inner: Arc<EngineInner>,
@@ -126,6 +153,7 @@ struct EngineInner {
     session: Session,
     /// Every background task the engine starts; shutdown waits for them.
     tasks: EngineTasks,
+    _cache_dir_lock: Option<File>,
 }
 
 /// Work still running that quitting would stop.
@@ -171,9 +199,10 @@ impl RunningWork {
 }
 
 impl Engine {
-    /// Starts the engine: clears working files abandoned by a previous run,
-    /// then puts the saved settings in effect.
+    /// Starts the engine: locks `cache_dir`, clears working files abandoned
+    /// by a previous run, then puts the saved settings in effect.
     pub fn start(config: EngineConfig) -> Result<Self> {
+        let cache_dir_lock = lock_cache_dir(&config.cache_dir)?;
         let power = PowerManager::default();
         let host = Host::new(config.events, power.clone());
         let tasks = EngineTasks::default();
@@ -221,6 +250,7 @@ impl Engine {
                 remote_source,
                 session,
                 tasks,
+                _cache_dir_lock: cache_dir_lock,
             }),
         })
     }

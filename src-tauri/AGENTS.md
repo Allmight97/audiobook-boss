@@ -20,6 +20,10 @@ offer, add it to the engine's host interface.
   and holds no state.
 - **Covers.** `cover_protocol.rs` serves the `abb-cover` scheme: it passes each
   request path to `Engine::cover` and maps the answer to an HTTP status.
+- **Second copy.** When `Engine::start` fails with `AlreadyRunning`, setup
+  hides the window, shows the message in a native dialog, and exits on OK
+  without an engine. `Quit` and `FrontendLink` are managed before the engine
+  starts so that exit path and the hidden webview's commands never panic.
 - **Quit.** `lib.rs` holds every quit until `Engine::shutdown` settles. Running
   work, a slow shutdown, and unsaved settings reach the user as choices. The
   process exits early only when the user chooses Quit Now.

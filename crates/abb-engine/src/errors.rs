@@ -68,6 +68,9 @@ pub enum AppError {
 
     #[error("Operation failed: ABB is closing.")]
     Closing,
+
+    #[error("ABB is already running: another copy is using {}", .0.display())]
+    AlreadyRunning(std::path::PathBuf),
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
@@ -163,7 +166,7 @@ impl From<&AppError> for AppErrorEnvelope {
                 format!("Operation failed: {message}"),
                 None,
             ),
-            AppError::Closing => Self::new(
+            AppError::Closing | AppError::AlreadyRunning(_) => Self::new(
                 AppErrorCode::InternalError,
                 AppErrorCategory::Internal,
                 error.to_string(),

@@ -97,6 +97,42 @@ async fn leftover_downloads_that_cannot_be_removed_do_not_stop_abb_from_starting
     assert_eq!(engine.shutdown().await, ShutdownOutcome::Settled);
 }
 
+#[tokio::test]
+async fn a_second_abb_on_the_same_folders_refuses_to_start_and_leaves_live_work_alone() {
+    let root = TempDir::new().expect("engine root");
+    let config = || EngineConfig {
+        cache_dir: root.path().join("cache"),
+        config_dir: root.path().join("config"),
+        app_identifier: "com.audiobook-boss.test".to_string(),
+        events: Arc::new(abb_engine::DiscardEvents),
+        aaxclean_helper: None,
+    };
+    let first = Engine::start(config()).expect("first ABB starts");
+    let workspace = root.path().join("cache/processing/sessions/live-export");
+    let download = root
+        .path()
+        .join("cache/remote-source/sessions/live-download");
+    for live in [&workspace, &download] {
+        fs::create_dir_all(live).expect("live work folder");
+        fs::write(live.join("part.m4b"), b"audio").expect("live work file");
+    }
+
+    let second = Engine::start(config());
+
+    assert!(workspace.join("part.m4b").exists());
+    assert!(download.join("part.m4b").exists());
+    let error = second.err().expect("second ABB refuses to start");
+    assert!(
+        error.to_string().contains("ABB is already running"),
+        "{error}"
+    );
+
+    assert_eq!(first.shutdown().await, ShutdownOutcome::Settled);
+    drop(first);
+    let third = Engine::start(config()).expect("ABB starts after the first one quit");
+    assert_eq!(third.shutdown().await, ShutdownOutcome::Settled);
+}
+
 /// One engine over its own throwaway roots, with one tagged audiobook.
 struct Desk {
     root: TempDir,
