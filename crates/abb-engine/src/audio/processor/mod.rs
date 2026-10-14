@@ -12,7 +12,6 @@
 // Imports for orchestrator function
 use crate::audio::cleanup::CleanupGuard;
 use crate::audio::file_list::FileListInfo;
-use crate::audio::metrics::ProcessingMetrics;
 use crate::audio::settings_encoder::EncoderSettings;
 use crate::audio::AudioFile;
 use crate::errors::Result;
@@ -22,7 +21,6 @@ use crate::metadata::{
 };
 use crate::processing::AudioHandling;
 use crate::processing::ProcessingContext;
-use std::time::Duration;
 
 // Submodules
 mod encoder;
@@ -317,8 +315,6 @@ fn process_audiobook_with_context(
     metadata: Option<AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
 ) -> Result<AudioRunOutcome> {
-    let mut metrics = ProcessingMetrics::new();
-
     // Stage 1: Validate + Prepare (from prepare module)
     let mut workflow_cleanup = CleanupGuard::new(context.session.id());
     let workflow = prepare::validate_and_prepare(&context, &files, &mut workflow_cleanup)?;
@@ -331,17 +327,6 @@ fn process_audiobook_with_context(
 
     let (effective_metadata, passthrough_metadata, cover_warning) =
         prepare_output_cover_art(metadata, passthrough_metadata, cover_art_passthrough)?;
-
-    // Metrics accumulation (estimates)
-    for file in &files {
-        if file.is_valid {
-            if let Some(duration) = file.duration {
-                let estimated_bytes =
-                    (duration * context.effective_bitrate_kbps() as f64 * 125.0) as usize;
-                metrics.update_file_processed(Duration::from_secs_f64(duration), estimated_bytes);
-            }
-        }
-    }
 
     // Stage 2: Execute (execute module)
     let merged_output = execute::execute_processing(
@@ -361,15 +346,6 @@ fn process_audiobook_with_context(
         passthrough_metadata.as_ref(),
     )?;
     let _ = workflow_cleanup.remove_path(&workflow_temp_dir);
-
-    // Suppress full-run metrics summary during preview; log preview-specific stats instead
-    if context.preview.is_some() {
-        // In preview mode, skip the full metrics summary (not representative).
-        // The UI receives precise seconds via the command payload.
-        log::info!("Preview run completed (metrics summary suppressed for preview mode)");
-    } else {
-        log::info!("{}", metrics.format_summary());
-    }
     Ok(AudioRunOutcome {
         message,
         warnings: cover_warning.into_iter().collect(),

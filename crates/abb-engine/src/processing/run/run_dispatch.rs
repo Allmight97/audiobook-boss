@@ -194,10 +194,6 @@ fn finalize_batch_results(
     progress_listener: Option<&ProgressEventListener>,
 ) -> Result<Vec<ProcessResultEntry>> {
     let finalized = collect_batch_results(payload.input_files.len(), outcomes)?;
-    log::debug!(
-        "batch terminal classification: {:?}",
-        finalized.terminal_class
-    );
     for event in finalized.failure_events {
         emit_terminal_failed_event(
             progress_listener,

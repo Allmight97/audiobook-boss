@@ -15,7 +15,6 @@ pub(crate) use constants::ALLOWED_IMAGE_EXTENSIONS;
 mod extensions;
 mod file_list;
 mod imports;
-mod metrics;
 mod path_validation;
 mod processor;
 mod settings;

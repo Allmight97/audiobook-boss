@@ -1,10 +1,15 @@
 mod classification_tests {
     use super::super::classification::{
-        cancellation_error_for_failed_entry, classify_processing_error, classify_terminal_results,
-        is_cancellation_error, ProcessingJobTerminalOutcome, RunTerminalClass,
+        cancellation_error_for_failed_entry, classify_processing_error, is_cancellation_error,
+        ProcessingJobTerminalOutcome,
     };
     use crate::errors::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
-    use crate::processing::{ProcessResultEntry, ProcessResultStatus};
+    use crate::processing::{ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
+    use abb_processing_core::RunTerminalClass;
+
+    fn classify_terminal_results(results: &[ProcessResultEntry]) -> RunTerminalClass {
+        ProcessCommandResult::new(results.to_vec()).terminal_class
+    }
 
     #[test]
     fn terminal_classification_uses_structured_status_not_result_message() {
