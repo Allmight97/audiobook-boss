@@ -221,7 +221,7 @@ pub(crate) fn finish_artifact_tags(
 }
 
 /// Puts an owned staging artifact into the target container with the accepted
-/// chapters, keeping its audio, cover, and tags. A file already in that
+/// chapters, keeping its audio, pictures, and tags. A file already in that
 /// container with exactly those chapters is left alone. Callers never pass an
 /// original source here.
 pub(crate) fn remux_preserved_audio_container(
@@ -245,15 +245,22 @@ pub(crate) fn remux_preserved_audio_container(
         is_valid: true,
         chapters: None,
     }]);
-    if container::classify(path)?.remux_output_format() == Some(target)
-        && source.chapters == chapters
-    {
+    let same_container = container::classify(path)?.remux_output_format() == Some(target);
+    if same_container && source.chapters == chapters {
         return Ok(());
     }
-    let metadata = read_metadata(path)?;
+    let mut metadata = read_metadata(path)?;
+    // A same-container remux copies every picture the file holds; a cover
+    // would replace them. A container change carries the first one over.
+    let cover_art = if same_container {
+        metadata.cover_art = None;
+        None
+    } else {
+        source.cover_art
+    };
     let passthrough = PassthroughMetadata {
         chapters: chapters.to_vec(),
-        cover_art: source.cover_art,
+        cover_art,
     };
     let plan = MetadataWritePlan::from_metadata(metadata.clone());
     remux::rewrite_metadata_with_ffmpeg_plan_as(

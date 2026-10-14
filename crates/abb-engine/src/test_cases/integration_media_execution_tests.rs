@@ -1456,8 +1456,8 @@ fn write_chaptered_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
     mux_chapters(&audio, &[("Opening", 0, 450), ("Closing", 450, 900)], path);
 }
 
-/// Copies `audio` into `path` with `chapters` (title, start ms, end ms) as its
-/// embedded chapters, exactly as given.
+/// Copies every stream of `audio` into `path` with `chapters` (title, start
+/// ms, end ms) as its embedded chapters, exactly as given.
 fn mux_chapters(audio: &Path, chapters: &[(&str, i64, i64)], path: &Path) {
     let metadata = path.with_extension("ffmetadata");
     let mut text = ";FFMETADATA1\n".to_string();
@@ -1476,12 +1476,12 @@ fn mux_chapters(audio: &Path, chapters: &[(&str, i64, i64)], path: &Path) {
         .arg(&metadata)
         .args([
             "-map",
-            "0:a:0",
+            "0",
             "-map_metadata",
             "1",
             "-map_chapters",
             "1",
-            "-codec:a",
+            "-c",
             "copy",
         ]);
     if path.extension().is_some_and(|ext| ext == "mp3") {
@@ -2407,6 +2407,51 @@ fn a_joined_mp3_imports_with_its_chapters_and_saves_its_tags() {
             .as_deref(),
         Some("Joined")
     );
+}
+
+/// A Preserve that rewrites a same-container file's chapters carries the
+/// file's own pictures through unchanged: none of them is a chosen cover.
+#[tokio::test]
+async fn preserving_with_repaired_chapters_keeps_every_source_picture() {
+    use abb_engine::audio::{AudioIntent, AudiobookFormat, TitleAudioRequest};
+    let dir = TempDir::new().expect("picture preserve workspace");
+    let both = [ffmpeg_next::codec::Id::MJPEG, ffmpeg_next::codec::Id::PNG];
+    for (extension, format) in [("mp3", AudiobookFormat::Mp3), ("m4b", AudiobookFormat::M4b)] {
+        let source = dir.path().join(format!("chaptered.{extension}"));
+        mux_chapters(
+            &write_two_picture_fixture(dir.path(), extension),
+            &[("One", 0, 400), ("Two", 400, 950), ("Marker", 600, 600)],
+            &source,
+        );
+        assert_eq!(
+            attached_picture_codecs(&source),
+            both,
+            "{extension} fixture"
+        );
+        let request = TitleAudioRequest {
+            format,
+            intent: AudioIntent::Preserve,
+            settings: None,
+            sample_rate: SampleRateConfig::Auto,
+        };
+        let (output, _) = run_planned_title(
+            single_title_payload(
+                &source,
+                &dir.path().join(format!("out.{extension}")),
+                request,
+            ),
+            None,
+            &dir.path().join("work"),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{extension}: {error}"));
+        assert_eq!(
+            chapters_of(&output).len(),
+            2,
+            "{extension}: repaired chapters written"
+        );
+        assert_eq!(attached_picture_codecs(&output), both, "{extension} output");
+    }
 }
 
 fn oversized_jpeg(path: &Path) -> Vec<u8> {
