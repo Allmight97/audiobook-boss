@@ -2295,24 +2295,26 @@ async fn drifting_embedded_chapters_convert_on_every_route() {
             ],
             &source,
         );
-        let plan = get_file_list_info(&[&source])
-            .expect("drifting chapters import")
-            .files[0]
+        let imported = get_file_list_info(&[&source]).expect("drifting chapters import");
+        let file = &imported.files[0];
+        let plan = &file
             .chapter_plan
-            .clone()
+            .as_ref()
             .expect("accepted chapter plan")
             .chapters;
         let expected = vec![
             (Some("One".to_string()), 0, 400),
             (Some("Two".to_string()), 400, end),
         ];
-        assert_eq!(
-            plan.iter()
+        let listed = |chapters: &[abb_engine::audio::AudioChapter]| {
+            chapters
+                .iter()
                 .map(|chapter| (chapter.title.clone(), chapter.start_ms, chapter.end_ms))
-                .collect::<Vec<_>>(),
-            expected,
-            "{name}"
-        );
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(listed(plan), expected, "{name}");
+        // An ignored CUE falls back to these, so they must be the repaired ones.
+        assert_eq!(listed(&file.chapters), expected, "{name}");
         let request = TitleAudioRequest {
             format,
             intent,

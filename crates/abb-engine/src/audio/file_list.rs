@@ -70,7 +70,7 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
                 &canonical_path,
                 (properties.duration * 1000.0).round() as i64,
                 properties.length_estimated,
-                &audio_file.chapters,
+                &mut audio_file.chapters,
             ) {
                 Ok(inspected) => inspected,
                 Err(error) => {

@@ -154,7 +154,7 @@ mod tests {
     };
 
     fn inspect_source_fingerprint(path: &std::path::Path) -> String {
-        crate::metadata::inspect_chapter_source(path, 1_000, false, &[])
+        crate::metadata::inspect_chapter_source(path, 1_000, false, &mut Vec::new())
             .expect("inspect source identity")
             .0
             .source_fingerprint
