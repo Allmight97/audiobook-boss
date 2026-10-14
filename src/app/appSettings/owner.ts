@@ -38,6 +38,8 @@ export type AppSettingsDialogState = {
 	powerSaveError: string;
 	startupSaveState: SettingsSaveState;
 	startupSaveError: string;
+	laneSaveState: SettingsSaveState;
+	laneSaveError: string;
 };
 
 /**
@@ -72,7 +74,7 @@ export type SettingsOwnerDeps = {
 
 /** The dialog's own progress: which control is saving and how it ended. */
 type DialogProgress = Omit<AppSettingsDialogState, 'settings'>;
-type ProgressKey = 'save' | 'powerSave' | 'startupSave';
+type ProgressKey = 'save' | 'powerSave' | 'startupSave' | 'laneSave';
 
 function idleDialog(): DialogProgress {
 	return {
@@ -83,6 +85,8 @@ function idleDialog(): DialogProgress {
 		powerSaveError: '',
 		startupSaveState: 'idle',
 		startupSaveError: '',
+		laneSaveState: 'idle',
+		laneSaveError: '',
 	};
 }
 
@@ -140,16 +144,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	/** Why an intent did not apply: the engine refused it, or it never arrived. */
 	function failure(outcome: SettingsOutcome | { error: unknown }): string | null {
 		return 'error' in outcome ? describe(outcome.error) : null;
-	}
-
-	/** Records defaults a panel accepted. A failed write shows through `durability`. */
-	async function remember(intent: Extract<SettingsIntent, { kind: 'remember' }>): Promise<void> {
-		writesInFlight += 1;
-		changed();
-		const outcome = await send(intent);
-		writesInFlight -= 1;
-		changed();
-		if ('error' in outcome) console.error('Failed to record settings:', outcome.error);
 	}
 
 	/** Runs a dialog action and shows its progress on the control that started it. */
@@ -227,8 +221,9 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			concurrencyError = error ?? '';
 			changed();
 		},
-		setDefaultAcquisitionLane: (defaultAcquisitionLane) =>
-			remember({ kind: 'remember', defaultAcquisitionLane }),
+		async setDefaultAcquisitionLane(defaultAcquisitionLane) {
+			await runDialogAction('laneSave', { kind: 'remember', defaultAcquisitionLane });
+		},
 		setControlsEnabled(enabled) {
 			controlsEnabled = enabled;
 			changed();

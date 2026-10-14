@@ -28,8 +28,12 @@ second copy of owner state.
   read the link. `workOperations` is the exception: it reads WorkRuntime
   through `tauriClient`.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
-  for intents whose outcome nobody awaits. The host runs both in the order
-  called.
+  for intents whose outcome and completion nobody awaits; its method is not
+  `async` and a view calls it without `void`. A refusal of a `post` shows as
+  the link's `refusal` (`RefusedChangeNotice`). A `send` caller that needs only
+  completion (an echo cleared, focus moved) passes its rejection to
+  `link.refuse`, so every session refusal shows the same way. The host runs
+  both in the order called.
 - A part that arrives unchanged keeps object identity for its files and lookup
   results. Solid rows are not rebuilt, and a click does not land on a replaced
   element.
@@ -78,7 +82,9 @@ the owner of the truth.
 - `appSettings` (`crates/abb-engine/src/app_settings/AGENTS.md`): the owner
   words durability from `saveError` and the reset notice from `recovery`,
   shows the concurrency view (Auto shows the capability's `autoEffective`, not
-  the current fixed count), and holds dialog state. The session records audio
+  the current fixed count), and holds dialog state. Settings intents go
+  through `sendSettings` (their own numbered order); a dialog control's
+  failure shows beside that control (`runDialogAction`). The session records audio
   and output defaults and announces them with `settings-update`; views send
   Settings intents only.
 - `encoding` (session AGENTS): `project.ts` disables an option because the

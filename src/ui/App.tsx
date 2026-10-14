@@ -33,7 +33,7 @@ export function App(): JSX.Element {
 		function handleGlobalKeyDown(event: KeyboardEvent): void {
 			if ((event.metaKey || event.ctrlKey) && event.key === 's') {
 				event.preventDefault();
-				void saveMetadata();
+				saveMetadata();
 			}
 			if ((event.metaKey || event.ctrlKey) && event.key === ',') {
 				event.preventDefault();

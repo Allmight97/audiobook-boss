@@ -189,9 +189,9 @@ describe('Solid input workbench', () => {
 		runtime = runtimeFor({ files: [file] });
 		await renderApp(runtime);
 		await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
+		const indicator = await screen.findByRole('button', { name: 'Audio plan for estimate.m4b' });
 		expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
 
-		const indicator = screen.getByRole('button', { name: 'Audio plan for estimate.m4b' });
 		await user.click(indicator);
 		const popup = screen.getByRole('dialog', { name: 'Audio plan' });
 		expect(popup).toHaveTextContent('Checking source audio…');

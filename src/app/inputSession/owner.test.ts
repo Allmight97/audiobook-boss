@@ -30,6 +30,7 @@ describe('input owner', () => {
 
 		await app.input.importIntent({ type: 'importPaths', paths: ['/books/a.m4b'] });
 
+		await vi.waitFor(() => expect(app.input.view().files).toHaveLength(1));
 		expect(engine.sessionIntents).toContainEqual({ kind: 'import', paths: ['/books/a.m4b'] });
 		const view = app.input.view();
 		expect(view.files.map((file) => file.path)).toEqual(['/books/a.m4b']);
@@ -43,8 +44,10 @@ describe('input owner', () => {
 		await app.input.importIntent({ type: 'importPaths', paths: ['/books/a.m4b'] });
 
 		await app.input.importIntent({ type: 'importPaths', paths: ['/books/a.m4b'] });
-		expect(app.input.view().errorMessage).toBe(
-			'No new files added. All analyzed files were already in the list.',
+		await vi.waitFor(() =>
+			expect(app.input.view().errorMessage).toBe(
+				'No new files added. All analyzed files were already in the list.',
+			),
 		);
 
 		engine.change((state) => {
@@ -106,13 +109,62 @@ describe('input owner', () => {
 		const app = await open();
 		const clicked = audioFile('/books/a.m4b');
 		engine.loadTitles([clicked, audioFile('/books/b.m4b')]);
-		await app.input.removeFile(clicked);
-		await app.input.removeFile(clicked);
-		expect(engine.sessionIntents.filter((intent) => intent.kind === 'removeFile')).toEqual([
-			{ kind: 'removeFile', inputId: clicked.inputId },
-			{ kind: 'removeFile', inputId: clicked.inputId },
-		]);
+		app.input.removeFile(clicked);
+		app.input.removeFile(clicked);
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents.filter((intent) => intent.kind === 'removeFile')).toEqual([
+				{ kind: 'removeFile', inputId: clicked.inputId },
+				{ kind: 'removeFile', inputId: clicked.inputId },
+			]),
+		);
 		expect(app.input.view().files.map((file) => file.path)).toEqual(['/books/b.m4b']);
+	});
+
+	it('returns at once and shows the change when the engine replies', async () => {
+		const app = await open();
+		const clicked = audioFile('/books/a.m4b');
+		engine.loadTitles([clicked, audioFile('/books/b.m4b')]);
+		let release: () => void = () => {};
+		engine.respond = (intent) =>
+			intent.kind === 'removeFile'
+				? new Promise<undefined>((resolve) => {
+						release = () => resolve(undefined);
+					})
+				: undefined;
+
+		expect(app.input.removeFile(clicked)).toBeUndefined();
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents.map((intent) => intent.kind)).toContain('removeFile'),
+		);
+		expect(app.input.view().files).toHaveLength(2);
+
+		release();
+		await vi.waitFor(() =>
+			expect(app.input.view().files.map((file) => file.path)).toEqual(['/books/b.m4b']),
+		);
+		expect(app.engine.refusal()).toBeNull();
+	});
+
+	it('shows why the engine refused a change nothing waited for', async () => {
+		const app = await open();
+		engine.loadTitles([audioFile('/books/a.m4b')]);
+		engine.respond = (intent): SessionOutcome | undefined =>
+			intent.kind === 'clearAll'
+				? {
+						kind: 'rejected',
+						error: {
+							code: 'invalid_input',
+							category: 'validation',
+							message: 'The list is locked.',
+							detail: null,
+						},
+					}
+				: undefined;
+
+		app.input.clearAllFiles();
+
+		await vi.waitFor(() => expect(app.engine.refusal()).toBe('The list is locked.'));
+		expect(app.input.view().files).toHaveLength(1);
 	});
 
 	it('keeps drag-over state in the view and out of the engine', async () => {

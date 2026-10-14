@@ -113,8 +113,13 @@ export type FakeEngine = EngineCapability & {
 	readonly tags: Map<string, FileTags>;
 	/** What importing a set of paths yields. Defaults to one valid file per path. */
 	analyze: (paths: readonly string[]) => AudioFile[];
-	/** Answers an intent in place of the fake's default behavior. */
-	respond?: (intent: SessionIntent) => SessionOutcome | Promise<SessionOutcome> | undefined;
+	/**
+	 * Answers an intent in place of the fake's default behavior. A reply of
+	 * `undefined`, at once or later, falls back to it.
+	 */
+	respond?: (
+		intent: SessionIntent,
+	) => SessionOutcome | Promise<SessionOutcome | undefined> | undefined;
 	/**
 	 * How the engine answers a submit, preview, or collision choice. Defaults
 	 * to an accepted export, a finished preview, and a cancelled review.

@@ -56,6 +56,48 @@ describe('metadata owner', () => {
 		]);
 	});
 
+	it('shows a refused edit and drops its typed text', async () => {
+		const app = await open();
+		engine.respond = (intent): SessionOutcome | undefined =>
+			intent.kind === 'setField'
+				? {
+						kind: 'rejected',
+						error: {
+							code: 'invalid_input',
+							category: 'validation',
+							message: 'That title cannot be edited now.',
+							detail: null,
+						},
+					}
+				: undefined;
+
+		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Typed' });
+		expect(title(app).value).toBe('Typed');
+
+		await vi.waitFor(() => expect(app.engine.refusal()).toBe('That title cannot be edited now.'));
+		expect(title(app).value).toBe('Alpha');
+	});
+
+	it('shows why the engine refused a save', async () => {
+		const app = await open();
+		engine.respond = (intent): SessionOutcome | undefined =>
+			intent.kind === 'save'
+				? {
+						kind: 'rejected',
+						error: {
+							code: 'invalid_input',
+							category: 'validation',
+							message: 'Nothing to save.',
+							detail: null,
+						},
+					}
+				: undefined;
+
+		expect(app.metadata.save()).toBeUndefined();
+
+		await vi.waitFor(() => expect(app.engine.refusal()).toBe('Nothing to save.'));
+	});
+
 	it('maps each form control to the engine field it edits', async () => {
 		const app = await open();
 
@@ -174,15 +216,17 @@ describe('metadata owner', () => {
 			return { kind: 'applied' };
 		};
 
-		await app.metadata.loadCoverArtFromUrl(' https://example.com/cover.jpg ');
+		app.metadata.loadCoverArtFromUrl(' https://example.com/cover.jpg ');
 
+		await vi.waitFor(() =>
+			expect(app.metadata.view().cover.message).toEqual({
+				kind: 'success',
+				text: 'Cover art loaded from URL.',
+			}),
+		);
 		expect(engine.sessionIntents).toContainEqual({
 			kind: 'loadCoverFromUrl',
 			url: 'https://example.com/cover.jpg',
-		});
-		expect(app.metadata.view().cover.message).toEqual({
-			kind: 'success',
-			text: 'Cover art loaded from URL.',
 		});
 		expect(app.metadata.view().cover.urlInputValue).toBe('https://example.com/cover.jpg');
 

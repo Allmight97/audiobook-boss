@@ -70,13 +70,13 @@ export function createMetadataLookupOwner(deps: {
 		};
 		typed[key] = entry;
 		changed();
+		const intent: SessionIntent =
+			key === 'titleQuery'
+				? { kind: 'lookupSetTitleQuery', value }
+				: { kind: 'lookupSetAuthorQuery', value };
 		link
-			.send(
-				key === 'titleQuery'
-					? { kind: 'lookupSetTitleQuery', value }
-					: { kind: 'lookupSetAuthorQuery', value },
-			)
-			.catch((error: unknown) => console.error('Failed to record the lookup query:', error))
+			.send(intent)
+			.catch((error: unknown) => link.refuse(intent, error))
 			.finally(() => {
 				if (typed[key] !== entry) return;
 				delete typed[key];
@@ -98,10 +98,11 @@ export function createMetadataLookupOwner(deps: {
 			});
 		},
 		async run(action) {
+			const intent = intentFor(action, link.lookup().revision);
 			try {
-				await link.send(intentFor(action, link.lookup().revision));
+				await link.send(intent);
 			} catch (error) {
-				console.error('Metadata lookup failed:', error);
+				link.refuse(intent, error);
 				return;
 			}
 			if (action.type === 'manualEntry') {

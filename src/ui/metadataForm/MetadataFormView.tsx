@@ -124,7 +124,7 @@ export function MetadataFormView(): JSX.Element {
 					tone="primary"
 					data-testid="metadata-save-btn"
 					disabled={view().saveInProgress}
-					onClick={() => void saveMetadata()}
+					onClick={() => saveMetadata()}
 				>
 					Save All Changes
 				</Button>

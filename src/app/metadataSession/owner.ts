@@ -3,6 +3,7 @@ import type {
 	MetadataField,
 	MetadataStatus,
 	OutputEdits,
+	SessionIntent,
 	SessionMetadata,
 } from '../../types/session';
 import { coverSrc } from '../../lib/tauri/coverSrc';
@@ -54,9 +55,9 @@ export type MetadataOwner = {
 	setCoverUrlInput(value: string): void;
 	clearCoverArt(): void;
 	loadCoverArtFromPicker(): Promise<void>;
-	loadCoverArtFromUrl(rawInput: string): Promise<void>;
+	loadCoverArtFromUrl(rawInput: string): void;
 	applyCoverArtDrop(paths: ReadonlyArray<string>): Promise<boolean>;
-	save(): Promise<void>;
+	save(): void;
 	reset(): void;
 };
 
@@ -239,9 +240,10 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			const entry = { value: command.value, binding: link.metadata().binding };
 			typed.set(field, entry);
 			changed();
+			const intent: SessionIntent = { kind: 'setField', field, value: command.value };
 			link
-				.send({ kind: 'setField', field, value: command.value })
-				.catch((error: unknown) => console.error('Failed to record a metadata edit:', error))
+				.send(intent)
+				.catch((error: unknown) => link.refuse(intent, error))
 				.finally(() => {
 					// Later keystrokes keep their own text until their own reply.
 					if (typed.get(field) !== entry) return;
@@ -291,13 +293,13 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			}
 			if (selected) await loadCoverFromFile(selected);
 		},
-		async loadCoverArtFromUrl(rawInput) {
+		loadCoverArtFromUrl(rawInput) {
 			const url = rawInput.trim();
 			if (url) {
 				urlInputValue = url;
 				changed();
 			}
-			await link.send({ kind: 'loadCoverFromUrl', url });
+			link.post({ kind: 'loadCoverFromUrl', url });
 		},
 		async applyCoverArtDrop(paths) {
 			try {
@@ -312,8 +314,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				return false;
 			}
 		},
-		async save() {
-			await link.send({ kind: 'save' });
+		save() {
+			link.post({ kind: 'save' });
 		},
 		reset() {
 			if (messageTimer !== undefined) clearTimeout(messageTimer);

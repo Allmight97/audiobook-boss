@@ -35,6 +35,8 @@ export type EngineLink = {
 	/** Sends an intent whose outcome the caller does not need. A refusal is
 	 * kept as `refusal` until dismissed. */
 	post(intent: SessionIntent): void;
+	/** Keeps a `send` caller's refusal as `refusal`, the way `post` does. */
+	refuse(intent: SessionIntent, error: unknown): void;
 	/** Why the latest posted intent was refused, worded for the user. */
 	readonly refusal: Accessor<string | null>;
 	dismissRefusal(): void;
@@ -407,6 +409,13 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 			});
 	}
 
+	function refuse(intent: SessionIntent, error: unknown): void {
+		if (disposed || isCancellation(error)) return;
+		console.error(`Session intent ${intent.kind} failed:`, error);
+		refusal = toUserMessage(error, { fallback: "That change couldn't be applied." });
+		bumpRefusal((n) => n + 1);
+	}
+
 	return {
 		titles: () => {
 			titlesRev();
@@ -446,13 +455,9 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		},
 		send,
 		post(intent) {
-			send(intent).catch((error: unknown) => {
-				if (disposed || isCancellation(error)) return;
-				console.error(`Session intent ${intent.kind} failed:`, error);
-				refusal = toUserMessage(error, { fallback: "That change couldn't be applied." });
-				bumpRefusal((n) => n + 1);
-			});
+			send(intent).catch((error: unknown) => refuse(intent, error));
 		},
+		refuse,
 		refusal: () => {
 			refusalRev();
 			return refusal;
