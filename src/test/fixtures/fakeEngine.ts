@@ -109,6 +109,8 @@ export type FakeEngine = EngineCapability & {
 	/** Every session intent received, in order. */
 	readonly sessionIntents: SessionIntent[];
 	readonly settingsIntents: SettingsIntent[];
+	/** Preview outputs the host opened, in order. */
+	readonly openedPreviews: string[];
 	/** What reading each file's tags yields. */
 	readonly tags: Map<string, FileTags>;
 	/** What importing a set of paths yields. Defaults to one valid file per path. */
@@ -746,6 +748,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	Object.assign(engine, {
 		sessionIntents: [],
 		settingsIntents: [],
+		openedPreviews: [],
 		tags: new Map(),
 		analyze: (paths: readonly string[]) => paths.map((path) => audioFile(path)),
 		answerSubmission: defaultSubmissionAnswer,
@@ -762,6 +765,15 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			engine.sessionIntents.push(structuredClone(intent));
 			const outcome = (await engine.respond?.(intent)) ?? apply(intent);
 			return { outcome, update: settle() };
+		},
+		async openPreviewOutput(client: number, sequence: number, runId: string) {
+			const reply = await engine.sessionDispatch(client, sequence, {
+				kind: 'takePreviewOutput',
+				runId,
+			});
+			if (reply.outcome.kind === 'previewOutput' && reply.outcome.path)
+				engine.openedPreviews.push(reply.outcome.path);
+			return reply;
 		},
 		async settingsDispatch(_client: number, sequence: number, intent: SettingsIntent) {
 			if (sequence !== nextSettingsSequence)

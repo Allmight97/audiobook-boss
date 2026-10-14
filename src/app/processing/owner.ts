@@ -1,7 +1,6 @@
 import { createEffect, createSignal, onCleanup, untrack, type Accessor } from 'solid-js';
 import type { SettingsOwner } from '../appSettings';
 import type { EngineLink } from '../engineLink';
-import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { RestartOffer, SessionIntent } from '../../types/session';
 import { renderSubmission } from './submit';
@@ -82,16 +81,10 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			}
 			if (preview.openReady && claiming !== id) {
 				claiming = id;
-				void deps.link
-					.send({ kind: 'takePreviewOutput', runId: id })
-					.then(async (reply) => {
-						if (reply.kind === 'previewOutput' && reply.path)
-							await tauriClient.openPath(reply.path);
-					})
-					.catch((error: unknown) => {
-						if (!disposed)
-							statusView.showError(`Preview could not be opened: ${toUserMessage(error)}`);
-					});
+				deps.link.openPreview(id).catch((error: unknown) => {
+					if (!disposed)
+						statusView.showError(`Preview could not be opened: ${toUserMessage(error)}`);
+				});
 			}
 		},
 	);

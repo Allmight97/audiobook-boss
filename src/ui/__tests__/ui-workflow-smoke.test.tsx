@@ -24,7 +24,6 @@ const native = vi.hoisted(() => ({
 	openFile: vi.fn(),
 	listWorkOperations: vi.fn(),
 	cancelWorkOperation: vi.fn(),
-	openPath: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({ tauriClient: native }));

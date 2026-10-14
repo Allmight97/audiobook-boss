@@ -4,7 +4,6 @@ import { render, screen } from '@solidjs/testing-library';
 import { AppRuntimeProvider } from '../../runtime';
 import { StatusPanelView } from '../../../ui/statusPanel';
 import { PreviewAudioControls } from '../../../ui/previewAudio';
-import { tauriClient } from '../../../lib/tauri/client';
 import { createFakeEngine } from '../../../test/fixtures/fakeEngine';
 import type { SessionOutcome, SessionOutput } from '../../../types/session';
 import { createAppRuntime, type AppRuntime } from '../../runtime';
@@ -117,7 +116,6 @@ describe('engine preview adapter', () => {
 	});
 
 	it('opens only a path the engine grants, once, and never opens a cancelled run', async () => {
-		const open = vi.spyOn(tauriClient, 'openPath').mockResolvedValue(undefined);
 		const engine = createFakeEngine();
 		engine.respond = (intent) =>
 			intent.kind === 'takePreviewOutput'
@@ -133,11 +131,11 @@ describe('engine preview adapter', () => {
 		engine.change((state) => {
 			state.output.previewRun = complete;
 		});
-		await vi.waitFor(() => expect(open).toHaveBeenCalledWith('/tmp/Book.preview.m4b'));
+		await vi.waitFor(() => expect(engine.openedPreviews).toEqual(['/tmp/Book.preview.m4b']));
 		engine.change((state) => {
 			state.output.previewRun = { ...complete };
 		});
-		expect(open).toHaveBeenCalledTimes(1);
+		expect(engine.openedPreviews).toHaveLength(1);
 		const cancelled = preview();
 		cancelled.operation.operationId = 'preview-2';
 		cancelled.operation.status = 'cancelled';
@@ -148,13 +146,12 @@ describe('engine preview adapter', () => {
 			state.output.submissionInProgress = false;
 		});
 		expect(app.processing.isProcessing()).toBe(false);
-		expect(open).toHaveBeenCalledTimes(1);
+		expect(engine.openedPreviews).toHaveLength(1);
 		expect(
 			engine.sessionIntents.filter((intent) => intent.kind === 'takePreviewOutput'),
 		).toHaveLength(1);
 	});
 	it('finishes an accepted open when its frontend is disposed while the reply is pending', async () => {
-		const open = vi.spyOn(tauriClient, 'openPath').mockResolvedValue(undefined);
 		const engine = createFakeEngine();
 		let finish!: (reply: SessionOutcome) => void;
 		engine.respond = (intent) =>
@@ -176,6 +173,6 @@ describe('engine preview adapter', () => {
 		await vi.waitFor(() => expect(finish).toBeDefined());
 		app.dispose();
 		finish({ kind: 'previewOutput', path: '/tmp/accepted.preview.m4b' });
-		await vi.waitFor(() => expect(open).toHaveBeenCalledWith('/tmp/accepted.preview.m4b'));
+		await vi.waitFor(() => expect(engine.openedPreviews).toEqual(['/tmp/accepted.preview.m4b']));
 	});
 });

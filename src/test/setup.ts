@@ -281,7 +281,6 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 
 // Mock Tauri's opener plugin
 vi.mock('@tauri-apps/plugin-opener', () => ({
-	openPath: vi.fn().mockResolvedValue(undefined),
 	openUrl: vi.fn().mockResolvedValue(undefined),
 }));
 

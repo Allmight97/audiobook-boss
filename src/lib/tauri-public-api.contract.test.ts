@@ -5,6 +5,7 @@ import { tauriClient, TAURI_APP_EVENT_NAMES, TAURI_COMMAND_NAMES } from './tauri
 const EXPECTED_COMMAND_NAMES = [
 	'attach_frontend',
 	'session_dispatch',
+	'open_preview_output',
 	'settings_dispatch',
 	'cancel_work_operation',
 	'get_supported_audio_import_metadata',
@@ -21,17 +22,16 @@ const EXPECTED_APP_EVENT_NAMES = [
 const EXPECTED_TAURI_CLIENT_METHODS = [
 	'attachFrontend',
 	'sessionDispatch',
+	'openPreviewOutput',
 	'settingsDispatch',
 	'cancelWorkOperation',
 	'getSupportedAudioImportMetadata',
 	'listen',
 	'listWorkOperations',
 	'logFrontend',
-	'open',
 	'openDirectory',
 	'openFile',
 	'openFiles',
-	'openPath',
 	'revealPath',
 	'openUrl',
 ] as const;

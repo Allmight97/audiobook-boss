@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use abb_engine::app_settings::{SettingsIntent, SettingsReply, SettingsSnapshot};
-use abb_engine::session::{SessionIntent, SessionReply, SessionUpdate};
+use abb_engine::session::{SessionIntent, SessionOutcome, SessionReply, SessionUpdate};
 use abb_engine::{AppError, AppErrorEnvelope};
 use serde::Serialize;
 
@@ -75,6 +75,35 @@ pub async fn session_dispatch(
         engine.session_begin(intent)
     };
     Ok(run.finish().await)
+}
+
+/// Claims a finished preview's output, numbered with the session intents, and
+/// opens it with the user's default app. The path never comes from the webview.
+#[tauri::command]
+#[specta::specta]
+pub async fn open_preview_output(
+    app: tauri::AppHandle,
+    engine: EngineState<'_>,
+    link: Link<'_>,
+    client: u64,
+    sequence: u64,
+    run_id: String,
+) -> CommandResult<SessionReply> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let run = {
+        let _turn = link.session.turn(client, sequence).await.map_err(refused)?;
+        engine.session_begin(SessionIntent::TakePreviewOutput { run_id })
+    };
+    let mut reply = run.finish().await;
+    if let SessionOutcome::PreviewOutput { path: Some(path) } = &reply.outcome {
+        if let Err(error) = app.opener().open_path(path, None::<&str>) {
+            reply.outcome = SessionOutcome::Rejected {
+                error: AppErrorEnvelope::from(&AppError::General(error.to_string())),
+            };
+        }
+    }
+    Ok(reply)
 }
 
 /// Applies one intent to the settings and returns the settings in effect.

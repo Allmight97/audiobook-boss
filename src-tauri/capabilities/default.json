@@ -9,14 +9,6 @@
     "dialog:allow-open",
     "opener:allow-reveal-item-in-dir",
     {
-      "identifier": "opener:allow-open-path",
-      "allow": [
-        { "path": "$HOME/**" },
-        { "path": "$TEMP/**" },
-        { "path": "/Volumes/**" }
-      ]
-    },
-    {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "http://*" }, { "url": "https://*" }]
     }

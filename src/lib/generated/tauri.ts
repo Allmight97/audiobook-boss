@@ -14,6 +14,11 @@ export const commands = {
 	 */
 	sessionDispatch: (client: number, sequence: number, intent: SessionIntent) => typedError<SessionReply, AppErrorEnvelope>(__TAURI_INVOKE("session_dispatch", { client, sequence, intent })),
 	/**
+	 *  Claims a finished preview's output, numbered with the session intents, and
+	 *  opens it with the user's default app. The path never comes from the webview.
+	 */
+	openPreviewOutput: (client: number, sequence: number, runId: string) => typedError<SessionReply, AppErrorEnvelope>(__TAURI_INVOKE("open_preview_output", { client, sequence, runId })),
+	/**
 	 *  Applies one intent to the settings and returns the settings in effect.
 	 *  Settings intents run one at a time in `sequence` order.
 	 */

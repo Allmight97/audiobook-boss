@@ -110,9 +110,11 @@ the owner of the truth.
   render its snapshot and aggregate nothing. `cancelPreview` carries the run
   identity and an optional child identity; whole-preview cancel needs no native
   job id, and disposal does not cancel. After `artworkReady` the artwork shows
-  from the run's `coverSrc` address. A finished preview opens only the path
-  `takePreviewOutput` grants, even when the requesting frontend is disposed
-  before the reply. Submit and Cancel availability follow the engine preview
+  from the run's `coverSrc` address. A finished preview opens through
+  `link.openPreview(runId)`: the host claims the path with `takePreviewOutput`
+  and opens it, so the webview holds no permission to open a file path, and
+  the open happens even when the requesting frontend is disposed before the
+  reply. Submit and Cancel availability follow the engine preview
   state, including for a frontend that attaches to an active run. Preview
   duration is screen-local state in `PreviewAudioControls`. Each owner instance
   owns its status store and publisher.
