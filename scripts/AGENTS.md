@@ -5,16 +5,23 @@ helpers, and diagnostics. Cargo commands run from the repository root.
 
 ## What to run for a change
 
-Same on macOS and Linux. Run `bash scripts/setup.sh` once after clone (or
-`frontend` / `rust` for one half). Then `bash scripts/verify.sh <lane>` for
-the owner you touched, one expensive build at a time.
-`scripts/lane-paths.yml` maps changed paths to lanes for `.github/workflows/ci.yml`
-(a new tracked file needs a lane or a `no-lane` reason); the workflow header says when
-CI runs, and `gate` is the check `main` requires. Lane commands live only in `verify.sh`.
-The Claude Code `done-gate` mod blocks "done" until the lanes a session's
-changes need have passed on the current files: `.claude/done-gate.json` names
-`scripts/verification.ts`, which answers from `lane-paths.yml`. A piped run
-(`verify.sh … | tail`) is not proof, because its exit code is the pipe's.
+Same on macOS and Linux. Run `bash scripts/setup.sh` once after clone. Run
+`bash scripts/verify.sh --changed origin/main` for the affected lanes whose
+current inputs have no passing receipt, or name lanes to run them afresh.
+`scripts/verification.ts` owns path selection, platform job planning, and proof
+validity; `scripts/lane-paths.yml` owns the patterns and explicit exemptions.
+It rejects unmapped tracked or changed paths before CI schedules any job.
+`verify.sh` owns the lane list and commands. Rust builds sharing `target/`
+run serially because Cargo locks their compiler output.
+
+Each run keeps logs, input fingerprints, tool identities, and per-lane results
+under `.logs/verification/`. A passing receipt is reusable only for the same
+inputs, platform, and environment. An edit during a lane invalidates its
+result. Unsupported Apple checks say SKIP, never PASS. Supply-chain checks
+always run afresh because the advisory database changes independently of Git.
+The Claude Code done-gate invokes the same resolver through
+`.claude/done-gate.json`; it consumes these receipts rather than shell text.
+Other harnesses use the same verifier and evidence files.
 
 - Frontend (`frontend`).
 - A core crate (`core`).
@@ -37,8 +44,8 @@ changes need have passed on the current files: `.claude/done-gate.json` names
   GNU-only shell, errors silenced inside a command substitution, and Rust
   that fakes an I/O failure with permission bits; each error names the fix
   and its allow marker.
-- Advisories and licenses (`supply-chain`): runs only when named, and in CI
-  only on scheduled and manual runs. Accepted advisories live in
+- JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
+  on dependency or policy changes and daily advisory refreshes. Accepted advisories live in
   `.cargo/audit.toml`; license and source rules in `deny.toml`.
 
 For a narrower loop, run one command from the lane's function in `verify.sh`
@@ -115,9 +122,9 @@ Traps:
   Dependabot uses the same cooldown, to limit exposure to fresh supply-chain
   compromises. Cargo has no release-age gate, so review a manual `cargo update`
   for that risk. A security fix may skip the wait with focused proof.
-  Python tools run through `uvx --exclude-newer "10 days"`, the same wait
-  without a version pin; an owner-approved early release goes in
-  `--exclude-newer-package` with a removal date.
+  Python checks pin their tool version in the owning script and retain the
+  10-day resolution wait. An owner-approved early release needs an explicit
+  exception with a removal date.
   `bun run update:rc` updates the prerelease families listed in `bunfig.toml`.
 - `package.json` `overrides` keeps one `@tauri-apps/api` version across the app
   and its plugins, at the same minor version as the Rust `tauri` crate. Move

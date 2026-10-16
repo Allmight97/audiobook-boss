@@ -1,4 +1,4 @@
 {
 	"checks": ["^(bash )?(\\./)?scripts/verify\\.sh( [a-z-]+)*$"],
-	"resolve": ["bun", "scripts/verification.ts"]
+	"resolve": ["bun", "scripts/verification.ts", "resolve"]
 }
