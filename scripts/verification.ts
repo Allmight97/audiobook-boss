@@ -48,6 +48,7 @@ interface Receipt extends Inputs {
 	durationSeconds: number;
 	finishedAt: string;
 	log: string;
+	observedAfter?: Inputs;
 }
 
 export function requiredLanes(map: LaneMap, lanes: string[], files: string[]): string[] {
@@ -188,7 +189,7 @@ function changedFiles(root: string, base: string): string[] {
 
 function version(command: string, args: string[]): string {
 	const result = spawnSync(command, args, { encoding: 'utf8', timeout: 15_000 });
-	return result.status === 0 ? `${result.stdout}${result.stderr}`.trim() : 'unavailable';
+	return result.status === 0 ? result.stdout.trim() || result.stderr.trim() : 'unavailable';
 }
 
 function toolIdentity(lane: string): Record<string, string> {
@@ -340,6 +341,7 @@ function record(
 		durationSeconds,
 		finishedAt: new Date().toISOString(),
 		log: path.relative(root, path.join(run, `${lane}.log`)),
+		...(status === 'invalidated' ? { observedAfter: after } : {}),
 	};
 	writeJson(path.join(run, `${lane}.json`), receipt);
 	writeJson(receiptPath(root, lane), receipt);
