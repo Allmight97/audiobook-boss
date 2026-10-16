@@ -31,7 +31,7 @@ Other harnesses use the same verifier and evidence files.
 - Audio, metadata writing, output artifacts, processing: `engine` and `media`.
   Fixtures are synthesized at test time. `media` also runs the verify-abb
   feature scripts through `scripts/abb-dev.sh`.
-- Apple AAC (`apple`, macOS only). Linux prints `skipped: macOS only`.
+- Apple AAC (`apple`, macOS only).
 - Audible decrypt helper (`decrypt`). Fixtures are synthesized at test time.
   A wrong AAXC key is not the negative case.
 - Host or IPC types (`host`). Then the Vitest contract tests under `src/lib/`
@@ -45,7 +45,8 @@ Other harnesses use the same verifier and evidence files.
   that fakes an I/O failure with permission bits; each error names the fix
   and its allow marker.
 - JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
-  on dependency or policy changes and daily advisory refreshes. Accepted advisories live in
+  on dependency or policy changes and daily advisory refreshes. Accepted
+  advisories live in
   `.cargo/audit.toml`; license and source rules in `deny.toml`.
 
 For a narrower loop, run one command from the lane's function in `verify.sh`
@@ -54,7 +55,8 @@ with a test-name filter.
 `bash scripts/setup.sh` installs `.githooks/pre-commit` (repo-local
 `core.hooksPath`). It checks an isolated snapshot of the index: whitespace,
 rustfmt, Biome format, the guidance and known-mistakes lints, and shellcheck.
-Unstaged edits cannot change the verdict, and the hook never changes the index. A guidance-only change goes through a PR whose `gate` passes,
+Unstaged edits cannot change the verdict, and the hook never changes the index.
+A guidance-only change goes through a PR whose `gate` passes,
 because the CI gate ruleset requires `gate` on `main` (root `AGENTS.md`,
 Pull Requests And CI). This hook is the fast check on the commit.
 

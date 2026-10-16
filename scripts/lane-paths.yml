@@ -1,7 +1,6 @@
 # Which verify.sh lanes a changed path selects in a pull request.
-# .github/workflows/ci.yml reads this file through dorny/paths-filter (picomatch,
-# dot: true). scripts/lane-paths.test.ts fails when a tracked file matches no
-# lane and no `no-lane` entry; each `no-lane` entry needs a trailing # reason.
+# scripts/verification.ts reads this with picomatch (dot: true) before any
+# job is scheduled. Each `no-lane` entry needs a trailing # reason.
 frontend:
   - .github/workflows/ci.yml
   - scripts/lane-paths.yml
@@ -62,8 +61,7 @@ decrypt:
   - *shared
   - tools/abb-aaxclean-helper/**
   - scripts/publish-aaxclean-helper.ts
-  - crates/abb-engine/src/remote_source/**
-  - crates/abb-engine/src/test_cases/integration_decrypt*
+  - crates/**
 supply-chain:
   - Cargo.lock
   - Cargo.toml

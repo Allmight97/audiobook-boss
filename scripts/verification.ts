@@ -99,7 +99,13 @@ export function planJobs(lanes: string[]): Jobs {
 export function receiptMatches(receipt: unknown, fingerprint: string): boolean {
 	if (typeof receipt !== 'object' || receipt === null) return false;
 	const value = receipt as Partial<Receipt>;
-	return value.status === 'pass' && value.fingerprint === fingerprint;
+	return (
+		value.status === 'pass' &&
+		value.fingerprint === fingerprint &&
+		value.tools !== undefined &&
+		Object.values(value.tools).length > 0 &&
+		Object.values(value.tools).every((tool) => tool !== 'unavailable')
+	);
 }
 
 export function gateFailures(jobs: Jobs, results: Record<string, { result?: string }>): string[] {
@@ -192,7 +198,7 @@ function version(command: string, args: string[]): string {
 	return result.status === 0 ? result.stdout.trim() || result.stderr.trim() : 'unavailable';
 }
 
-function toolIdentity(lane: string): Record<string, string> {
+function toolIdentity(root: string, lane: string): Record<string, string> {
 	const tools: Record<string, string> = { bun: version('bun', ['--version']) };
 	if (['frontend', 'tooling', 'host'].includes(lane)) tools.node = version('node', ['--version']);
 	if (['core', 'engine', 'media', 'host', 'apple', 'decrypt', 'supply-chain'].includes(lane)) {
@@ -206,7 +212,15 @@ function toolIdentity(lane: string): Record<string, string> {
 		tools.ffprobe = version(process.env.ABB_FFPROBE ?? 'ffprobe', ['-version']);
 		if (process.platform === 'darwin') tools.sdk = version('xcrun', ['--show-sdk-version']);
 	}
-	if (lane === 'decrypt') tools.dotnet = version('dotnet', ['--version']);
+	if (lane === 'decrypt') {
+		tools.dotnet = version('dotnet', ['--version']);
+		const host = /^host: (.+)$/m.exec(tools.rustc)?.[1];
+		const helper = path.join(root, 'src-tauri/binaries', `abb-aaxclean-helper-${host}`);
+		tools.helper =
+			host && existsSync(helper)
+				? createHash('sha256').update(readFileSync(helper)).digest('hex')
+				: 'unavailable';
+	}
 	if (lane === 'core')
 		tools.lizard = version('bash', ['scripts/check-rust-complexity.sh', '--version']);
 	if (lane === 'tooling') {
@@ -243,7 +257,7 @@ function inputs(root: string, lane: string, map: LaneMap): Inputs {
 		'.gitignore',
 	];
 	const files = repositoryFiles(root).filter((file) => matches(file) || common.includes(file));
-	const tools = toolIdentity(lane);
+	const tools = toolIdentity(root, lane);
 	const environment = Object.fromEntries(
 		[
 			'PATH',

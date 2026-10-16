@@ -61,11 +61,20 @@ describe('platform job planning', () => {
 
 describe('proof receipts', () => {
 	it('accepts only a pass for the same input fingerprint', () => {
-		expect(receiptMatches({ status: 'pass', fingerprint: 'same' }, 'same')).toBe(true);
+		expect(
+			receiptMatches({ status: 'pass', fingerprint: 'same', tools: { bun: '1.4.3' } }, 'same'),
+		).toBe(true);
+		expect(
+			receiptMatches({ status: 'pass', fingerprint: 'same', tools: { cc: 'unavailable' } }, 'same'),
+		).toBe(false);
 		for (const status of ['fail', 'skip', 'invalidated']) {
-			expect(receiptMatches({ status, fingerprint: 'same' }, 'same')).toBe(false);
+			expect(receiptMatches({ status, fingerprint: 'same', tools: { bun: '1.4.3' } }, 'same')).toBe(
+				false,
+			);
 		}
-		expect(receiptMatches({ status: 'pass', fingerprint: 'old' }, 'changed')).toBe(false);
+		expect(
+			receiptMatches({ status: 'pass', fingerprint: 'old', tools: { bun: '1.4.3' } }, 'changed'),
+		).toBe(false);
 	});
 });
 

@@ -135,13 +135,14 @@ Index of common commands; `package.json` holds the shortcuts.
   tags. `--help` lists every option. It keeps its own state and never touches
   the app's settings.
 - IPC/boundary checks: `bun run bindings:check` and
-  `bun run bindings:check:runtime-boundary`. Verification leaves the checked files untouched.
+  `bun run bindings:check:runtime-boundary`. Verification leaves the checked
+  files untouched.
 - Dependency hygiene: `bun run audit`.
 - CI (`.github/workflows/ci.yml`): its header says when it runs. Each job runs
   `scripts/setup.sh` and the `scripts/verify.sh` lanes that the changed paths
   select (`scripts/lane-paths.yml`). GitHub also runs Pages for `site/**`.
 - Bun is the package manager, script runner, and test runner.
-- IPC bindings: `bun run bindings:generate`, `bun run bindings:check`
+- IPC bindings: `bun run bindings:generate`, `bun run bindings:check`.
 - Build timing: Cargo's `--timings` report shows where compile time goes.
 - Release lanes: use `.agents/skills/release`.
   `bun scripts/bump-version.ts <version>` updates version surfaces;
