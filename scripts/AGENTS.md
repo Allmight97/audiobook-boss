@@ -13,7 +13,7 @@ the owner you touched, one expensive build at a time.
 CI runs, and `gate` is the check `main` requires. Lane commands live only in `verify.sh`.
 The Claude Code `done-gate` mod blocks "done" until the lanes a session's
 changes need have passed on the current files: `.claude/done-gate.json` names
-`scripts/unmet-lanes.ts`, which answers from `lane-paths.yml`. A piped run
+`scripts/verification.ts`, which answers from `lane-paths.yml`. A piped run
 (`verify.sh … | tail`) is not proof, because its exit code is the pipe's.
 
 - Frontend (`frontend`).

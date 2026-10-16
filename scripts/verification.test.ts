@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lanesRun, unmetLanes } from './unmet-lanes';
+import { lanesRun, unmetLanes } from './verification';
 
 const lanes = ['frontend', 'core', 'engine', 'tooling'];
 const map = {
@@ -12,6 +12,12 @@ const map = {
 };
 
 describe('unmetLanes', () => {
+	it('rejects an unmapped file instead of reporting that no proof is needed', () => {
+		expect(() => unmetLanes(map, lanes, { changed: ['future/worker.rs'], passes: [] })).toThrow(
+			/future\/worker.rs/,
+		);
+	});
+
 	it('names every lane a changed file needs when nothing passed', () => {
 		expect(unmetLanes(map, lanes, { changed: ['crates/abb-engine/src/a.rs'], passes: [] })).toEqual(
 			['core', 'engine'],

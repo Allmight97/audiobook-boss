@@ -28,6 +28,21 @@ export interface GateInput {
 
 const VERIFY = /^(?:bash\s+)?(?:\.\/)?scripts\/verify\.sh((?:\s+[a-z-]+)*)$/;
 
+export function requiredLanes(
+	map: Record<string, string[]>,
+	lanes: string[],
+	files: string[],
+): string[] {
+	const known = picomatch(Object.values(map).flat(Number.POSITIVE_INFINITY), { dot: true });
+	const unmapped = files.filter((file) => !known(file));
+	if (unmapped.length > 0) {
+		throw new Error(`Unmapped verification paths: ${unmapped.join(', ')}`);
+	}
+	return lanes.filter((lane) =>
+		files.some((file) => picomatch(map[lane] ?? [], { dot: true })(file)),
+	);
+}
+
 export function lanesRun(command: string, defaultLanes: string[]): string[] {
 	const match = VERIFY.exec(command.trim());
 	if (match === null) {
@@ -42,11 +57,7 @@ export function unmetLanes(
 	defaultLanes: string[],
 	input: GateInput,
 ): string[] {
-	const matchers = Object.entries(map)
-		.filter(([lane]) => defaultLanes.includes(lane))
-		.map(([lane, patterns]) => ({ lane, isMatch: picomatch(patterns, { dot: true }) }));
-	const needed = (files: string[]) =>
-		matchers.filter(({ isMatch }) => files.some((file) => isMatch(file))).map(({ lane }) => lane);
+	const needed = (files: string[]) => requiredLanes(map, defaultLanes, files);
 	return needed(input.changed).filter(
 		(lane) =>
 			!input.passes.some(
