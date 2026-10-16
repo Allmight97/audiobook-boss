@@ -1,12 +1,12 @@
 name: claude review
 
-# One Claude review per ready PR, following REVIEW.md. Needs the
+# Review each ready PR revision, following REVIEW.md. Needs the
 # CLAUDE_CODE_OAUTH_TOKEN repository secret; missing credentials fail explicitly.
 # Toggle this workflow in GitHub Actions; claude.yml handles mentions separately.
 
 on:
   pull_request:
-    types: [opened, ready_for_review, reopened]
+    types: [opened, ready_for_review, reopened, synchronize]
 
 permissions: {}
 
@@ -44,7 +44,9 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             Review this pull request by following REVIEW.md at the repository root.
-            Post findings as inline comments and finish with one summary comment.
+            Review the current head revision. Recheck earlier findings against it.
+            Post actionable findings as inline comments. Update your existing summary
+            comment when present; otherwise finish with one summary comment.
           # Pinned so reviews never fall back to the action's older default model.
           claude_args: |
             --model claude-opus-5-5 --effort high

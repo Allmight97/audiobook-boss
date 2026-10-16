@@ -1,29 +1,20 @@
 name: ci
 
-# CI runs when a PR opens ready or is marked ready, when auto-merge is enabled
-# (the merge attempt), by hand, and twice a week on main. Pushes and drafts
-# start nothing. The `gate` job is the check main requires. A push after the
-# last run leaves the new head without one; which run counts is AGENTS.md,
-# Pull Requests And CI. Within a PR run, each job proves only what the PR changed; manual and
-# scheduled runs prove everything, and also run `cargo audit` and `cargo deny`
-# (`supply-chain`). The scheduled run keeps the FFmpeg cache
-# alive, because GitHub evicts caches unused for 7 days and only runs on main
-# save caches that PRs can restore.
-#
-# Check commands live in scripts/verify.sh; which lanes a changed path selects
-# lives in scripts/lane-paths.yml. This file only runs the selected lanes.
-
+# Ready PR revisions run affected lanes. Merged PRs prove and warm main.
+# Schedules refresh advisories only; manual runs prove everything.
+# scripts/verification.ts selects jobs and rejects missing proof; verify.sh owns commands.
 on:
   pull_request:
-    types: [opened, ready_for_review, auto_merge_enabled]
+    types: [opened, ready_for_review, synchronize, reopened, edited, closed]
+  merge_group:
   schedule:
-    - cron: "0 6 * * 1,4"
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 permissions: {}
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.action == 'closed' && github.ref || github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -31,35 +22,43 @@ env:
 
 jobs:
   changes:
-    if: github.event.pull_request.draft != true
+    if: github.event.pull_request.draft != true && (github.event.action != 'closed' || github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
     outputs:
-      all: ${{ github.event_name != 'pull_request' }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-      core: ${{ steps.filter.outputs.core }}
-      engine: ${{ steps.filter.outputs.engine }}
-      media: ${{ steps.filter.outputs.media }}
-      host: ${{ steps.filter.outputs.host }}
-      decrypt: ${{ steps.filter.outputs.decrypt }}
-      tooling: ${{ steps.filter.outputs.tooling }}
+      frontend: ${{ steps.plan.outputs.frontend }}
+      core: ${{ steps.plan.outputs.core }}
+      tooling: ${{ steps.plan.outputs.tooling }}
+      supply_chain: ${{ steps.plan.outputs.supply_chain }}
+      rust_needed: ${{ steps.plan.outputs.rust_needed }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      plan: ${{ steps.plan.outputs.plan }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          fetch-depth: 2
           persist-credentials: false
-      - id: filter
-        if: github.event_name == 'pull_request'
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        with:
-          filters: scripts/lane-paths.yml
+      - run: bash scripts/setup.sh frontend
+      - id: plan
+        env:
+          BASE: ${{ github.event.action != 'closed' && github.event.pull_request.base.sha || '' }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = schedule ]; then
+            bun scripts/verification.ts plan --advisories
+          elif [ -n "$BASE" ]; then
+            bun scripts/verification.ts plan "$BASE"
+          else
+            bun scripts/verification.ts plan
+          fi
 
   frontend:
     name: Frontend typecheck and tests
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.all == 'true'
+    if: needs.changes.outputs.frontend == 'true'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -73,11 +72,18 @@ jobs:
           node-version-file: .node-version
       - run: bash scripts/setup.sh frontend
       - run: bash scripts/verify.sh frontend
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: proof-frontend
+          path: .logs/verification
+          include-hidden-files: true
+          retention-days: 14
 
   core:
     name: Core crate tests and clippy
     needs: changes
-    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.all == 'true'
+    if: needs.changes.outputs.core == 'true'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -86,37 +92,32 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
+      - run: bash scripts/setup.sh frontend
       # rust-toolchain.toml pins the compiler; rustup installs it on first use.
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: 0.12.10
           enable-cache: false
       - run: bash scripts/verify.sh core
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: proof-core
+          path: .logs/verification
+          include-hidden-files: true
+          retention-days: 14
 
   rust:
     name: Rust (${{ matrix.os }})
     needs: changes
-    # `core` starts the matrix so macOS still gates fmt and core Clippy.
-    # Ubuntu rust then skips the core lane; the dedicated core job already ran it.
-    if: >-
-      needs.changes.outputs.core == 'true' || needs.changes.outputs.engine == 'true'
-      || needs.changes.outputs.host == 'true' || needs.changes.outputs.media == 'true'
-      || needs.changes.outputs.decrypt == 'true' || needs.changes.outputs.all == 'true'
+    if: needs.changes.outputs.rust_needed == 'true'
     permissions:
       contents: read
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
-    env:
-      ALL: ${{ needs.changes.outputs.all }}
-      CORE: ${{ needs.changes.outputs.core }}
-      ENGINE: ${{ needs.changes.outputs.engine }}
-      MEDIA: ${{ needs.changes.outputs.media }}
-      HOST: ${{ needs.changes.outputs.host }}
-      DECRYPT: ${{ needs.changes.outputs.decrypt }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -125,19 +126,20 @@ jobs:
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('tools/abb-aaxclean-helper/**/*.csproj', 'tools/abb-aaxclean-helper/global.json', 'tools/abb-aaxclean-helper/Directory.Build.props') }}
-      - run: bash scripts/setup.sh rust
-      - if: env.HOST == 'true' || env.ALL == 'true'
-        run: bash scripts/setup.sh frontend
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          cache-workspace-crates: true
+      - run: bash scripts/setup.sh frontend
+      - if: matrix.native
+        run: bash scripts/setup.sh rust
       - id: toolchain
+        if: matrix.native
         run: |
           if [ "${{ runner.os }}" = macOS ]; then
             echo "id=$( (cc --version; xcrun --show-sdk-version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
           else
             echo "id=$( (cc --version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
           fi
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
       # After rust-cache, so this saves before rust-cache's cleanup deletes
       # path-crate outputs, including the vendored FFmpeg build. The build
       # script reuses FFmpeg only while compiler, opus, source and patch match,
@@ -145,41 +147,30 @@ jobs:
       # cannot restore. The tree is shared by build and clippy units
       # (`target/abb-ffmpeg-cache`).
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.native
         with:
           path: target/abb-ffmpeg-cache
-          key: ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'rust-toolchain.toml', 'crates/abb-engine/Cargo.toml', 'src-tauri/Cargo.toml') }}
-      - run: |
-          lanes=()
-          # Dedicated Ubuntu `core` job already ran fmt, core Clippy, and tests.
-          # macOS runs that lane here so those checks still gate on a Mac.
-          if [ "${RUNNER_OS}" = macOS ] && { [ "${CORE}" = true ] || [ "${ALL}" = true ]; }; then
-            lanes+=(core)
-          fi
-          if [ "${ENGINE}" = true ] || [ "${ALL}" = true ]; then
-            lanes+=(engine)
-          fi
-          if [ "${MEDIA}" = true ] || [ "${ALL}" = true ]; then
-            lanes+=(media)
-          fi
-          if [ "${HOST}" = true ] || [ "${ALL}" = true ]; then
-            lanes+=(host)
-          fi
-          if [ "${DECRYPT}" = true ] || [ "${ALL}" = true ]; then
-            lanes+=(decrypt)
-          fi
-          if [ "${RUNNER_OS}" = macOS ]; then
-            lanes+=(apple)
-          fi
-          if [ "${#lanes[@]}" -eq 0 ]; then
-            echo "No rust lanes selected for this OS"
-            exit 0
-          fi
+          key: ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'vendor/opus/**') }}
+          restore-keys: ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-
+      - env:
+          LANES: ${{ join(matrix.lanes, ' ') }}
+        run: |
+          read -r -a lanes <<< "$LANES"
           bash scripts/verify.sh "${lanes[@]}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: proof-${{ matrix.os }}
+          path: |
+            .logs/verification
+            .logs/verify
+          include-hidden-files: true
+          retention-days: 14
 
   tooling:
     name: Workflows and shell
     needs: changes
-    if: needs.changes.outputs.tooling == 'true' || needs.changes.outputs.all == 'true'
+    if: needs.changes.outputs.tooling == 'true'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -190,10 +181,18 @@ jobs:
           persist-credentials: false
       - run: bash scripts/setup.sh frontend
       - run: bash scripts/verify.sh tooling
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: proof-tooling
+          path: .logs/verification
+          include-hidden-files: true
+          retention-days: 14
 
   supply-chain:
     name: Advisories and licenses
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: changes
+    if: needs.changes.outputs.supply_chain == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -202,19 +201,32 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
+      - run: bash scripts/setup.sh frontend
       - uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
         with:
           tool: cargo-audit@0.22.1,cargo-deny@0.20.2
       - run: bash scripts/verify.sh supply-chain
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: proof-supply-chain
+          path: .logs/verification
+          include-hidden-files: true
+          retention-days: 14
 
   gate:
     name: gate
     needs: [changes, frontend, core, rust, tooling, supply-chain]
-    if: always() && github.event.pull_request.draft != true
+    if: always() && github.event.pull_request.draft != true && (github.event.action != 'closed' || github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions: {}
+    permissions:
+      contents: read
     steps:
-      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
-      - run: echo "Every job that ran passed."
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - run: bash scripts/setup.sh frontend
+      - env:
+          VERIFY_NEEDS: ${{ toJSON(needs) }}
+        run: bun scripts/verification.ts gate

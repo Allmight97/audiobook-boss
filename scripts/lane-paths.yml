@@ -64,6 +64,18 @@ decrypt:
   - scripts/publish-aaxclean-helper.ts
   - crates/abb-engine/src/remote_source/**
   - crates/abb-engine/src/test_cases/integration_decrypt*
+supply-chain:
+  - Cargo.lock
+  - Cargo.toml
+  - crates/*/Cargo.toml
+  - src-tauri/Cargo.toml
+  - package.json
+  - bun.lock
+  - bunfig.toml
+  - .cargo/audit.toml
+  - deny.toml
+  - scripts/verify.sh
+  - .github/workflows/ci.yml
 tooling:
   - .github/workflows/**
   - scripts/lane-paths.yml
@@ -86,6 +98,4 @@ no-lane:
   - .vscode/** # editor recommendations
   - .github/FUNDING.yml # GitHub sponsor button
   - .github/dependabot.yml # read by Dependabot; no lane can run it
-  - .cargo/audit.toml # read by cargo audit in the scheduled supply-chain job
-  - deny.toml # read by cargo deny in the scheduled supply-chain job
   - site/** # built and deployed by .github/workflows/pages.yml
