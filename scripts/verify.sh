@@ -144,7 +144,7 @@ lane_host() {
 	require_rust
 	cargo fmt --all -- --check
 	cargo test --locked -p audiobook-boss --features bundled-ffmpeg
-	bash scripts/check-generated-bindings.sh --mode verify
+	bash scripts/check-generated-bindings.sh
 	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg --all-targets -- -D warnings
 }
 

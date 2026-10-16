@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use specta_typescript::Typescript;
 use tauri_specta::{Builder, ErrorHandlingMode};
@@ -30,28 +30,19 @@ pub fn builder() -> Builder<tauri::Wry> {
         .dangerously_cast_bigints_to_number()
 }
 
-pub fn default_typescript_output_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("src")
-        .join("lib")
-        .join("generated")
-        .join("tauri.ts")
-}
-
-pub fn export_typescript_bindings() -> std::result::Result<(), Box<dyn std::error::Error>> {
-    let output_path = default_typescript_output_path();
-
+pub fn export_typescript_bindings(
+    output_path: &Path,
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
     if let Some(parent) = output_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
 
-    builder().export(Typescript::default(), &output_path)?;
+    builder().export(Typescript::default(), output_path)?;
 
-    let generated = std::fs::read_to_string(&output_path)?;
+    let generated = std::fs::read_to_string(output_path)?;
     let normalized = trim_generated_typescript(&generated);
     if normalized != generated {
-        std::fs::write(&output_path, normalized)?;
+        std::fs::write(output_path, normalized)?;
     }
 
     Ok(())

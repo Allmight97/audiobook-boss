@@ -52,9 +52,9 @@ For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.
 
 `bash scripts/setup.sh` installs `.githooks/pre-commit` (repo-local
-`core.hooksPath`). It runs the fast checks on staged files: whitespace,
-rustfmt, Biome format, the guidance and known-mistakes lints, and
-shellcheck. A guidance-only change goes through a PR whose `gate` passes,
+`core.hooksPath`). It checks an isolated snapshot of the index: whitespace,
+rustfmt, Biome format, the guidance and known-mistakes lints, and shellcheck.
+Unstaged edits cannot change the verdict, and the hook never changes the index. A guidance-only change goes through a PR whose `gate` passes,
 because the CI gate ruleset requires `gate` on `main` (root `AGENTS.md`,
 Pull Requests And CI). This hook is the fast check on the commit.
 
@@ -63,9 +63,8 @@ Traps:
 - Select Rust packages with `-p`. Workspace discovery pulls unrelated binaries
   into the target set. Binding export has its own command:
   `bun run bindings:generate` (`bundled-ffmpeg`).
-- `bun run bindings:check:local` checks uncommitted changes against `HEAD`
-  and can skip a clean committed branch. Use `bun run bindings:check` for
-  committed contract changes.
+- `bun run bindings:check` generates into temporary output and leaves the
+  candidate untouched. `bun run bindings:generate` intentionally updates it.
 - Each git worktree holds its own `target/`. Remove finished worktrees.
 - `bun run build` may still print the known DEP0205 and Vite plugin-timing
   warnings.
@@ -88,7 +87,7 @@ Traps:
 - Release artifacts: use `.agents/skills/release`. `bundled-ffmpeg` always
   enables `ffmpeg-sys-next/build-portable`. Public DMG builds publish the
   AAXClean helper from current source; local app builds may reuse a fresh
-  helper sidecar.
+  helper sidecar whose source, SDK, target, and executable digests still match.
 
 ## Script rules
 
