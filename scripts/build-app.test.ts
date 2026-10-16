@@ -357,6 +357,7 @@ describe('buildTauriApp', () => {
 			args: string[],
 			options?: { env?: NodeJS.ProcessEnv; stdio?: unknown },
 		) => {
+			if (args[0] === '--version') return { status: 0, stdout: '10.0.401\n' };
 			calls.push({ command, args, env: options?.env, stdio: options?.stdio });
 			if (args[0] === 'publish') {
 				const outputDir = args[args.indexOf('-o') + 1] as string;
@@ -401,6 +402,7 @@ describe('buildTauriApp', () => {
 			args: string[],
 			options?: { env?: NodeJS.ProcessEnv },
 		) => {
+			if (args[0] === '--version') return { status: 0, stdout: '10.0.401\n' };
 			calls.push({ env: options?.env });
 			if (args[0] === 'publish') {
 				const outputDir = args[args.indexOf('-o') + 1] as string;
@@ -416,9 +418,8 @@ describe('buildTauriApp', () => {
 			nonInteractiveDmg: false,
 		});
 
-		expect(calls).toHaveLength(1);
-		expect(calls[0]?.env?.CI).toBe(process.env.CI);
-		expect(calls[0]?.env).toBe(process.env);
+		expect(calls.at(-1)?.env?.CI).toBe(process.env.CI);
+		expect(calls.at(-1)?.env).toBe(process.env);
 	});
 });
 

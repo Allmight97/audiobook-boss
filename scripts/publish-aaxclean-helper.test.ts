@@ -1,4 +1,12 @@
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdtempSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+	utimesSync,
+} from 'node:fs';
 import type { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -67,6 +75,13 @@ describe('aaxcleanHelperPublishTarget', () => {
 	});
 });
 
+function withSdk(runner: typeof spawnSync): typeof spawnSync {
+	return ((command: string, args: string[], options: unknown) =>
+		args[0] === '--version'
+			? { status: 0, stdout: '10.0.401\n' }
+			: runner(command, args, options as Parameters<typeof spawnSync>[2])) as typeof spawnSync;
+}
+
 describe('publishAaxcleanHelper', () => {
 	it('rejects a signal-terminated publish and does not copy leftover output', () => {
 		const repoRoot = createHelperRepoFixture();
@@ -81,9 +96,9 @@ describe('publishAaxcleanHelper', () => {
 			signal: 'SIGTERM',
 		})) as typeof spawnSync;
 
-		expect(() => publishAaxcleanHelper(repoRoot, { commandRunner, force: true })).toThrow(
-			'AAXClean helper publish failed (signal SIGTERM)',
-		);
+		expect(() =>
+			publishAaxcleanHelper(repoRoot, { commandRunner: withSdk(commandRunner), force: true }),
+		).toThrow('AAXClean helper publish failed (signal SIGTERM)');
 		expect(existsSync(paths.publishedExecutablePath)).toBe(false);
 		expect(readFileSync(paths.sidecarPath, 'utf8')).toBe('previous sidecar');
 	});
@@ -96,7 +111,7 @@ describe('publishAaxcleanHelper', () => {
 
 		const commandRunner = ((command: string, args: string[]) => {
 			expect(command).toContain('dotnet');
-			expect(args).toEqual([
+			expect(args.slice(0, 8)).toEqual([
 				'publish',
 				paths.projectPath,
 				'-c',
@@ -111,7 +126,9 @@ describe('publishAaxcleanHelper', () => {
 			return { status: 0 };
 		}) as typeof spawnSync;
 
-		expect(publishAaxcleanHelper(repoRoot, { commandRunner, force: true })).toBe(paths.sidecarPath);
+		expect(
+			publishAaxcleanHelper(repoRoot, { commandRunner: withSdk(commandRunner), force: true }),
+		).toBe(paths.sidecarPath);
 		expect(readFileSync(paths.sidecarPath, 'utf8')).toBe('fresh helper');
 		expect(path.basename(paths.sidecarPath)).toBe(
 			`${aaxcleanHelperBaseName}-${aaxcleanHelperTargetTriple}`,
@@ -131,7 +148,37 @@ describe('publishAaxcleanHelper', () => {
 			return { status: 0 };
 		}) as typeof spawnSync;
 
-		expect(publishAaxcleanHelper(repoRoot, { commandRunner })).toBe(paths.sidecarPath);
+		expect(publishAaxcleanHelper(repoRoot, { commandRunner: withSdk(commandRunner) })).toBe(
+			paths.sidecarPath,
+		);
 		expect(readFileSync(paths.sidecarPath, 'utf8')).toBe('real helper');
 	});
+});
+
+it('rebuilds changed helper content even when source timestamps are preserved', () => {
+	const root = createHelperRepoFixture();
+	let publishes = 0;
+	let sdk = '10.0.401';
+	const runner = ((_command: string, args: string[]) => {
+		if (args[0] === '--version') return { status: 0, stdout: `${sdk}\n` };
+		publishes++;
+		const out = args[args.indexOf('-o') + 1];
+		mkdirSync(out, { recursive: true });
+		writeFileSync(path.join(out, aaxcleanHelperBaseName), Buffer.alloc(1_000_001, publishes));
+		return { status: 0 };
+	}) as typeof spawnSync;
+	publishAaxcleanHelper(root, { commandRunner: runner });
+	const source = path.join(root, 'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/Program.cs');
+	writeFileSync(source, '// changed content with restored timestamps');
+	utimesSync(source, 10, 10);
+	publishAaxcleanHelper(root, { commandRunner: runner });
+	expect(publishes).toBe(2);
+	publishAaxcleanHelper(root, { commandRunner: runner });
+	expect(publishes).toBe(2);
+	sdk = '10.0.402';
+	publishAaxcleanHelper(root, { commandRunner: runner });
+	expect(publishes).toBe(3);
+	writeFileSync(resolveAaxcleanHelperPaths(root).sidecarPath, 'damaged executable');
+	publishAaxcleanHelper(root, { commandRunner: runner });
+	expect(publishes).toBe(4);
 });
