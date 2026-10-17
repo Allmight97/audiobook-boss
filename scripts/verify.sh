@@ -14,7 +14,6 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
-eval "$(scripts/setup.sh --print-env)"
 
 core_crates=(
 	-p abb-audible-core -p abb-media-core -p abb-metadata-core
@@ -23,11 +22,12 @@ core_crates=(
 
 usage() {
 	cat <<'USAGE'
-Usage: bash scripts/verify.sh [lane ...]
+Usage: bash scripts/verify.sh [lane ...] | --changed <base>
 
 Lanes: frontend, core, engine, media, host, apple, decrypt, tooling, supply-chain
 No argument runs every lane this OS supports (apple is skipped on Linux).
-supply-chain runs only when named: it needs cargo-audit and cargo-deny.
+supply-chain runs when named or selected by changed dependency/policy files.
+--changed runs only affected lanes without a current passing input receipt.
 USAGE
 }
 
@@ -37,6 +37,15 @@ is_darwin() {
 
 default_lanes=(frontend core engine media host apple decrypt tooling)
 all_lanes=("${default_lanes[@]}" supply-chain)
+if [[ "${1:-}" == --list ]]; then
+	printf '%s\n' "${all_lanes[@]}"
+	exit 0
+fi
+if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
+	usage
+	exit 0
+fi
+eval "$(scripts/setup.sh --print-env)"
 
 lane_known() {
 	local name="$1" lane
@@ -135,7 +144,7 @@ lane_host() {
 	require_rust
 	cargo fmt --all -- --check
 	cargo test --locked -p audiobook-boss --features bundled-ffmpeg
-	bash scripts/check-generated-bindings.sh --mode verify
+	bash scripts/check-generated-bindings.sh
 	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg --all-targets -- -D warnings
 }
 
@@ -166,6 +175,7 @@ lane_tooling() {
 			return 1
 		fi
 	done
+	bun run test -- --project tooling scripts
 	bash scripts/check-workflows.sh
 	bun scripts/check-guidance.ts
 	bun scripts/check-known-mistakes.ts
@@ -180,12 +190,21 @@ lane_supply_chain() {
 		printf 'MISSING cargo-audit and/or cargo-deny (CI installs them in the supply-chain job)\n' >&2
 		return 1
 	fi
-	cargo audit -D warnings
-	cargo deny check licenses sources
+	local status=0
+	bun audit || status=1
+	cargo audit -D warnings || status=1
+	cargo deny check licenses sources || status=1
+	return "${status}"
 }
 
 requested=()
-if [[ $# -eq 0 ]]; then
+if [[ "${1:-}" == --changed ]]; then
+	[[ $# -eq 2 ]] || { usage >&2; exit 2; }
+	needed="$(bun scripts/verification.ts needed "$2")"
+	while IFS= read -r lane; do
+		[[ -z "${lane}" ]] || requested+=("${lane}")
+	done <<<"${needed}"
+elif [[ $# -eq 0 ]]; then
 	requested=("${default_lanes[@]}")
 else
 	for arg in "$@"; do
@@ -207,16 +226,38 @@ fi
 failed=0
 results=()
 
+mkdir -p "${repo_root}/.logs/verification"
+run_dir="$(mktemp -d "${repo_root}/.logs/verification/run-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")"
+
 run_lane() {
-	local name="$1" status
+	local name="$1" status started elapsed
+	local pipeline_status=()
 	printf '\n======== %s ========\n' "${name}"
+	if ! bun scripts/verification.ts prepare "${run_dir}" "${name}"; then
+		results+=("FAIL ${name} (input capture)")
+		failed=1
+		return
+	fi
+	started="$(date +%s)"
+	if [[ "${name}" == apple ]] && ! is_darwin; then
+		printf 'SKIP apple: macOS only\n' | tee "${run_dir}/${name}.log"
+		bun scripts/verification.ts record "${run_dir}" "${name}" skip 0
+		results+=("SKIP ${name}")
+		return
+	fi
 	set +e
 	(
 		set -euo pipefail
 		"lane_${name//-/_}"
-	)
-	status=$?
+	) 2>&1 | tee "${run_dir}/${name}.log"
+	pipeline_status=("${PIPESTATUS[@]}")
 	set -e
+	status="${pipeline_status[0]}"
+	[[ "${pipeline_status[1]}" -eq 0 ]] || status=1
+	elapsed="$(( $(date +%s) - started ))"
+	if ! bun scripts/verification.ts record "${run_dir}" "${name}" "${status}" "${elapsed}"; then
+		status=1
+	fi
 	if [[ "${status}" -eq 0 ]]; then
 		printf 'PASS %s\n' "${name}"
 		results+=("PASS ${name}")
@@ -236,4 +277,6 @@ for line in "${results[@]}"; do
 	printf '%s\n' "${line}"
 done
 
+printf 'Evidence: %s\n' "${run_dir}"
+bun scripts/verification.ts summarize "${run_dir}"
 exit "${failed}"

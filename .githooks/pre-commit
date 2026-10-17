@@ -1,21 +1,37 @@
 #!/usr/bin/env bash
 # Fast checks on staged files. A guidance-only change goes through a PR
 # whose gate passes, because the CI gate ruleset requires gate on main
-# (root AGENTS.md, Pull Requests And CI). CI does not run on a push.
+# (root AGENTS.md, Pull Requests And CI).
 # Formatters and lints only; no builds, no tests. setup.sh installs it
 # with `git config core.hooksPath .githooks`.
 # Skip once with `git commit --no-verify`; CI still runs the full lanes.
 set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "${repo_root}"
-eval "$(scripts/setup.sh --print-env)"
 
+snapshot="$(mktemp -d "${TMPDIR:-/tmp}/abb-staged.XXXXXX")"
+trap 'rm -rf "${snapshot}"' EXIT
+git diff --cached --name-only --diff-filter=ACMR -z >"${snapshot}/paths"
 staged=()
-while IFS= read -r file; do
+while IFS= read -r -d '' file; do
 	staged+=("${file}")
-done < <(git diff --cached --name-only --diff-filter=ACMR)
+done <"${snapshot}/paths"
 [[ ${#staged[@]} -gt 0 ]] || exit 0
 git diff --cached --check
+
+# Check the index's bytes so partial staging cannot validate a different commit.
+git_dir="$(git rev-parse --absolute-git-dir)"
+index_file="$(git rev-parse --git-path index)"
+[[ "${index_file}" == /* ]] || index_file="${repo_root}/${index_file}"
+mkdir "${snapshot}/tree"
+git checkout-index --all --prefix="${snapshot}/tree/"
+if [[ -d "${repo_root}/node_modules" ]]; then
+	ln -s "${repo_root}/node_modules" "${snapshot}/tree/node_modules"
+fi
+printf 'gitdir: %s\n' "${git_dir}" >"${snapshot}/tree/.git"
+export GIT_DIR="${git_dir}" GIT_INDEX_FILE="${index_file}" GIT_WORK_TREE="${snapshot}/tree"
+cd "${snapshot}/tree"
+eval "$(scripts/setup.sh --print-env)"
 
 has() {
 	local pattern="$1" file

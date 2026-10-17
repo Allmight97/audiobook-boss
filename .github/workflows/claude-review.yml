@@ -1,6 +1,7 @@
 name: claude review
 
-# One Claude review per ready PR, following REVIEW.md. Needs the
+# One Claude review when a PR opens ready or leaves draft, following REVIEW.md;
+# pushes start none. A review that posts nothing fails. Needs the
 # CLAUDE_CODE_OAUTH_TOKEN repository secret; missing credentials fail explicitly.
 # Toggle this workflow in GitHub Actions; claude.yml handles mentions separately.
 
@@ -36,7 +37,10 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+      - id: start
+        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - uses: anthropics/claude-code-action@cab360f6565aa35a51d6ce9e43f1f4287c0a32ea # v1.0.241
+        id: review
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
@@ -49,3 +53,34 @@ jobs:
           claude_args: |
             --model claude-opus-5-5 --effort high
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+      # Text from the review is wrapped in stop-commands so it cannot issue workflow commands.
+      - name: Fail when the review posted nothing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SINCE: ${{ steps.start.outputs.at }}
+          EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
+        run: |
+          posted="$(
+            {
+              gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/reviews" \
+                --jq '.[] | select(.user.login == "claude[bot]") | .submitted_at'
+              gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/comments" \
+                --jq '.[] | select(.user.login == "claude[bot]") | .created_at, .updated_at'
+              gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" \
+                --jq '.[] | select(.user.login == "claude[bot]") | .created_at, .updated_at'
+            } | awk -v since="${SINCE}" '$0 >= since' | wc -l
+          )"
+          if [ "${posted}" -gt 0 ]; then
+            exit 0
+          fi
+          token="$(openssl rand -hex 16)"
+          echo "::stop-commands::${token}"
+          if [ -f "${EXECUTION_FILE}" ]; then
+            jq -r '.[] | select(.type == "result")
+              | (.permission_denials[]? | "denied: \(.tool_name) \(.tool_input | tostring)"),
+                "final message: \(.result // "")"' "${EXECUTION_FILE}"
+          fi
+          echo "::${token}::"
+          echo "::error::The Claude review posted no review or comment on this PR."
+          exit 1

@@ -6,11 +6,15 @@
 # uvx takes the newest lizard at least 10 days old (scripts/AGENTS.md,
 # Dependencies). The owner let lizard 1.24.1 through early because it counts
 # Rust match arms; delete --exclude-newer-package after 2026-10-16.
-# Usage: bash scripts/check-rust-complexity.sh [--prefetch]
+# Usage: bash scripts/check-rust-complexity.sh [--prefetch | --version]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 lizard=(uvx --exclude-newer "10 days" --exclude-newer-package "lizard=2026-10-06" lizard)
+if [[ "${1:-}" == --version ]]; then
+	"${lizard[@]}" --version
+	exit 0
+fi
 if [[ "${1:-}" == --prefetch ]]; then
 	"${lizard[@]}" --version >/dev/null
 	exit 0
