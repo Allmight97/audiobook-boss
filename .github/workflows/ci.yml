@@ -1,14 +1,17 @@
 name: ci
 
 # Ready PR revisions run affected lanes. Merged PRs prove and warm main.
-# Schedules refresh advisories only; manual runs prove everything.
+# Advisories refresh daily. Monday and Thursday prove everything so caches stay
+# used (GitHub evicts a cache after 7 days unused); manual runs prove everything.
+# A closed PR deletes its own caches so they cannot evict main's (10 GB cap).
 # scripts/verification.ts selects jobs and rejects missing proof; verify.sh owns commands.
 on:
   pull_request:
-    types: [opened, ready_for_review, synchronize, reopened, edited, closed]
+    types: [opened, ready_for_review, synchronize, reopened, closed]
   merge_group:
   schedule:
     - cron: "0 6 * * *"
+    - cron: "30 6 * * 1,4"
   workflow_dispatch:
 
 permissions: {}
@@ -46,8 +49,9 @@ jobs:
         env:
           BASE: ${{ github.event.action != 'closed' && github.event.pull_request.base.sha || '' }}
           EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
         run: |
-          if [ "$EVENT" = schedule ]; then
+          if [ "$EVENT" = schedule ] && [ "$SCHEDULE" = "0 6 * * *" ]; then
             bun scripts/verification.ts plan --advisories
           elif [ -n "$BASE" ]; then
             bun scripts/verification.ts plan "$BASE"
@@ -233,3 +237,21 @@ jobs:
       - env:
           VERIFY_NEEDS: ${{ toJSON(needs) }}
         run: bun scripts/verification.ts gate
+
+  cache-cleanup:
+    name: Delete closed PR caches
+    needs: gate
+    if: always() && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_REF: refs/pull/${{ github.event.pull_request.number }}/merge
+      HEAD_REF: refs/heads/${{ github.head_ref }}
+    steps:
+      - run: |
+          for ref in "$PR_REF" "$HEAD_REF"; do
+            gh cache delete --all --ref "$ref" --succeed-on-no-caches --repo "$GITHUB_REPOSITORY"
+          done
