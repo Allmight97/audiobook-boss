@@ -17,10 +17,14 @@ run serially because Cargo locks their compiler output.
 Each run keeps logs, input fingerprints, tool identities, and per-lane results
 under `.logs/verification/`. A passing receipt is reusable only for the same
 inputs, platform, and environment. An edit during a lane invalidates its
-result. Unsupported Apple checks say SKIP, never PASS. Supply-chain checks
-always run afresh because the advisory database changes independently of Git.
+result. Unsupported Apple checks say SKIP, never PASS. A supply-chain pass
+counts like any lane's; the daily CI advisory run catches advisories published
+after it.
 The Claude Code done-gate invokes the same resolver through
-`.claude/done-gate.json`; it consumes these receipts rather than shell text.
+`.claude/done-gate.json` after loading `setup.sh --print-env`, as `verify.sh`
+does; it consumes these receipts rather than shell text. PATH is not part of a
+receipt's environment, so a pass recorded in one harness's shell counts in
+another; the recorded tool versions still invalidate it.
 Other harnesses use the same verifier and evidence files.
 
 - Frontend (`frontend`).

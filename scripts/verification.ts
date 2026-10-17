@@ -260,7 +260,6 @@ function inputs(root: string, lane: string, map: LaneMap): Inputs {
 	const tools = toolIdentity(root, lane);
 	const environment = Object.fromEntries(
 		[
-			'PATH',
 			'CC',
 			'CFLAGS',
 			'CXXFLAGS',
@@ -315,7 +314,6 @@ function remaining(root: string, map: LaneMap, lanes: string[], files: string[])
 		selected.push('apple');
 	return selected.filter(
 		(lane) =>
-			lane === 'supply-chain' ||
 			!receiptMatches(readReceipt(receiptPath(root, lane)), inputs(root, lane, map).fingerprint),
 	);
 }

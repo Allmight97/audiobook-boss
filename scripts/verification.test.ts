@@ -131,7 +131,7 @@ it('fingerprints directory aliases such as .claude/skills without reading a dire
 });
 
 describe('verification execution and harness handoff', () => {
-	it('retains failure evidence, accepts redirected passing proof, and invalidates an edited input', () => {
+	it('retains failure evidence, lets the done-gate from any harness accept the proof, and invalidates an edited input', () => {
 		const root = mkdtempSync(path.join(os.tmpdir(), 'abb-verify-run-'));
 		const sourceRoot = path.resolve(import.meta.dirname, '..');
 		try {
@@ -140,7 +140,18 @@ describe('verification execution and harness handoff', () => {
 				copyFileSync(path.join(sourceRoot, 'scripts', file), path.join(root, 'scripts', file));
 			writeFileSync(path.join(root, '.gitignore'), '.logs/\nnode_modules\nbin/\n');
 			symlinkSync(path.join(sourceRoot, 'node_modules'), path.join(root, 'node_modules'));
-			writeFileSync(path.join(root, 'scripts/setup.sh'), '#!/bin/bash\nexit 0\n', { mode: 0o755 });
+			writeFileSync(
+				path.join(root, 'scripts/setup.sh'),
+				`#!/bin/bash
+if [[ "$1" == --print-env ]]; then printf 'export ABB_FFMPEG=/setup/ffmpeg\\nexport PATH="/setup/bin:%s"\\n' "$PATH"; fi
+`,
+				{ mode: 0o755 },
+			);
+			mkdirSync(path.join(root, '.claude'));
+			copyFileSync(
+				path.join(sourceRoot, '.claude/done-gate.json'),
+				path.join(root, '.claude/done-gate.json'),
+			);
 			writeFileSync(path.join(root, 'scripts/lane-paths.yml'), 'frontend:\n - "**"\n');
 			writeFileSync(path.join(root, 'src/input.ts'), 'before');
 			const realBun = execFileSync('which', ['bun'], { encoding: 'utf8' }).trim();
@@ -186,14 +197,18 @@ if [[ "$*" == 'run lint:check' ]]; then exit "${'$'}{VERIFY_TEST_EXIT:-0}"; fi
 			expect(failure.status).toBe('fail');
 			expect(readFileSync(path.join(root, failure.log), 'utf8')).toContain('run lint:check');
 			expect(run('0').status).toBe(0);
-			const resolve = () =>
-				spawnSync(realBun, ['scripts/verification.ts', 'resolve'], {
+			const [command, ...args] = JSON.parse(
+				readFileSync(path.join(root, '.claude/done-gate.json'), 'utf8'),
+			).resolve as string[];
+			const resolve = (harnessPath = env.PATH) =>
+				spawnSync(command, args, {
 					cwd: root,
-					env,
+					env: { ...env, PATH: harnessPath },
 					encoding: 'utf8',
 					input: JSON.stringify({ changed: ['src/input.ts'], passes: [] }),
 				});
 			expect(resolve().stdout).toBe('');
+			expect(resolve(`${env.PATH}:/another-harness/bin`).stdout).toBe('');
 			expect(JSON.parse(readFileSync(receiptFile, 'utf8')).status).toBe('pass');
 			writeFileSync(path.join(root, 'src/input.ts'), 'after');
 			expect(resolve().stdout.trim()).toBe('bash scripts/verify.sh frontend');
