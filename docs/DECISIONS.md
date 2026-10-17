@@ -42,3 +42,8 @@ runs. The previous group isolated the closed run on its own ref.
 `scripts/check-assertion-ratchet.ts` counts TypeScript assertion lines. It does
 not count Rust `assert!` macros, and it does not treat a weaker matcher (for
 example `toEqual` replaced by `toBeDefined`) as a dropped assertion.
+
+Deleting a test together with any one relative import exempts the whole test,
+even when another imported module is still present. Deleting a test together
+with the same-stem source file is the same exemption. The checker does not
+require every imported module to disappear.

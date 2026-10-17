@@ -62,6 +62,10 @@ describe('check-assertion-ratchet', () => {
 		expect(assertionCount('expect(1).toBe(1);\nassert(true);\nconst x = 1;')).toBe(2);
 		expect(assertionCount('// expect(real).toBe(1);\n/* assert(false); */')).toBe(0);
 		expect(skippedTestCount("it.skip('a', () => {});\n// it.todo('b')")).toBe(1);
+		expect(skippedTestCount('const sample = "it.skip(\'a\')";')).toBe(0);
+		expect(skippedTestCount("it.skipIf(true)('a', () => expect(1).toBe(1));")).toBe(1);
+		expect(skippedTestCount("test.skipIf(false)('a', () => {});")).toBe(1);
+		expect(skippedTestCount("xit('a', () => {});\nxdescribe('s', () => {});")).toBe(2);
 	});
 
 	it('flags a dropped assertion and exempts a test deleted with its code', () => {
@@ -115,5 +119,22 @@ describe('check-assertion-ratchet', () => {
 		expect(found.find((finding) => finding.file === 'src/renamed.test.ts')?.message).toMatch(
 			/renamed to src\/renamed\.unit\.ts/,
 		);
+	});
+
+	it('flags skipIf and xit added to a test', () => {
+		const root = repo();
+		const base = commit(root, {
+			'src/a.test.ts': "it('a', () => expect(1).toBe(1));\n",
+		});
+		const head = commit(root, {
+			'src/a.test.ts':
+				"it.skipIf(true)('a', () => expect(1).toBe(1));\nxit('b', () => expect(2).toBe(2));\n",
+		});
+		expect(findings(root, base, head)).toEqual([
+			{
+				file: 'src/a.test.ts',
+				message: expect.stringMatching(/skipped or todo tests increased from 0 to 2/),
+			},
+		]);
 	});
 });
