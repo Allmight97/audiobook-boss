@@ -111,7 +111,7 @@ describe('publishAaxcleanHelper', () => {
 
 		const commandRunner = ((command: string, args: string[]) => {
 			expect(command).toContain('dotnet');
-			expect(args.slice(0, 8)).toEqual([
+			expect(args).toEqual([
 				'publish',
 				paths.projectPath,
 				'-c',
@@ -120,6 +120,8 @@ describe('publishAaxcleanHelper', () => {
 				paths.rid,
 				'-o',
 				paths.publishDir,
+				'--artifacts-path',
+				expect.stringContaining('abb-helper-build-'),
 			]);
 			expect(existsSync(paths.publishedExecutablePath)).toBe(false);
 			writeFileSync(paths.publishedExecutablePath, 'fresh helper');

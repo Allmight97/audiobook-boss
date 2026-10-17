@@ -418,8 +418,10 @@ describe('buildTauriApp', () => {
 			nonInteractiveDmg: false,
 		});
 
-		expect(calls.at(-1)?.env?.CI).toBe(process.env.CI);
-		expect(calls.at(-1)?.env).toBe(process.env);
+		expect(calls).toHaveLength(2);
+		expect(calls[0]?.env).toBeUndefined();
+		expect(calls[1]?.env?.CI).toBe(process.env.CI);
+		expect(calls[1]?.env).toBe(process.env);
 	});
 });
 

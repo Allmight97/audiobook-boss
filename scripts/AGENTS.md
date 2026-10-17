@@ -127,9 +127,9 @@ Traps:
   Dependabot uses the same cooldown, to limit exposure to fresh supply-chain
   compromises. Cargo has no release-age gate, so review a manual `cargo update`
   for that risk. A security fix may skip the wait with focused proof.
-  Python checks pin their tool version in the owning script and retain the
-  10-day resolution wait. An owner-approved early release needs an explicit
-  exception with a removal date.
+  Python tools run through `uvx --exclude-newer "10 days"`, the same wait
+  without a version pin; an owner-approved early release goes in
+  `--exclude-newer-package` with a removal date.
   `bun run update:rc` updates the prerelease families listed in `bunfig.toml`.
 - `package.json` `overrides` keeps one `@tauri-apps/api` version across the app
   and its plugins, at the same minor version as the Rust `tauri` crate. Move
