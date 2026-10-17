@@ -40,6 +40,15 @@ ignore = [
   "RUSTSEC-2025-0098",
   "RUSTSEC-2025-0100",
 
+  # zbus 5 chain (zvariant, zbus_names, zvariant_derive) via keepawake,
+  # secret-service, and zbus-secret-service-keyring-store (Linux path).
+  # Acceptance: unmaintained only, successor is zbus 6. Blocked upstream until
+  # keepawake, secret-service and the keyring store move to zbus 6; dropping
+  # the keyring store would lose saved Audible sign-ins on every restart.
+  "RUSTSEC-2026-0370",
+  "RUSTSEC-2026-0371",
+  "RUSTSEC-2026-0372",
+
   # rsa via audible_api (AAX license/decrypt material for protected remote source).
   # Acceptance: "No fixed upgrade is available" per RUSTSEC-2023-0071 (Marvin timing attack).
   # Used only for Audible AAX protected flows (not core local processing). Theoretical
