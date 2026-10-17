@@ -30,6 +30,7 @@ describe('input owner', () => {
 
 		await app.input.importIntent({ type: 'importPaths', paths: ['/books/a.m4b'] });
 
+		await vi.waitFor(() => expect(app.input.view().files).toHaveLength(1));
 		expect(engine.sessionIntents).toContainEqual({ kind: 'import', paths: ['/books/a.m4b'] });
 		const view = app.input.view();
 		expect(view.files.map((file) => file.path)).toEqual(['/books/a.m4b']);
@@ -43,8 +44,10 @@ describe('input owner', () => {
 		await app.input.importIntent({ type: 'importPaths', paths: ['/books/a.m4b'] });
 
 		await app.input.importIntent({ type: 'importPaths', paths: ['/books/a.m4b'] });
-		expect(app.input.view().errorMessage).toBe(
-			'No new files added. All analyzed files were already in the list.',
+		await vi.waitFor(() =>
+			expect(app.input.view().errorMessage).toBe(
+				'No new files added. All analyzed files were already in the list.',
+			),
 		);
 
 		engine.change((state) => {
@@ -61,6 +64,31 @@ describe('input owner', () => {
 			};
 		});
 		expect(app.input.view().errorMessage).toBe('Disk unreadable');
+
+		engine.change((state) => {
+			state.titles.notice = {
+				kind: 'skippedPaths',
+				skipped: [
+					{
+						path: '/books/Locked',
+						reason:
+							'File validation failed: Cannot read the folder: Permission denied (os error 13)',
+					},
+					{
+						path: '/books/missing.mp3',
+						reason:
+							'File validation failed: Cannot read it: No such file or directory (os error 2)',
+					},
+				],
+			};
+		});
+		expect(app.input.view().errorMessage).toBe(
+			[
+				'Skipped what ABB could not read:',
+				'/books/Locked (File validation failed: Cannot read the folder: Permission denied (os error 13))',
+				'/books/missing.mp3 (File validation failed: Cannot read it: No such file or directory (os error 2))',
+			].join('\n'),
+		);
 	});
 
 	it('explains a picker that could not open and sends no import', async () => {
@@ -86,6 +114,17 @@ describe('input owner', () => {
 		expect(await select()).toBe(true);
 		engine.respond = (): SessionOutcome => ({ kind: 'draftRejected', message: 'Bad date' });
 		expect(await select()).toBe(false);
+		engine.respond = (): SessionOutcome => ({
+			kind: 'rejected',
+			error: {
+				code: 'internal_error',
+				category: 'internal',
+				message: 'Session closed',
+				detail: null,
+			},
+		});
+		expect(await select()).toBe(false);
+		expect(app.engine.refusal()).toBe('Session closed');
 	});
 
 	it('addresses selection by the title the user clicked', async () => {
@@ -106,13 +145,62 @@ describe('input owner', () => {
 		const app = await open();
 		const clicked = audioFile('/books/a.m4b');
 		engine.loadTitles([clicked, audioFile('/books/b.m4b')]);
-		await app.input.removeFile(clicked);
-		await app.input.removeFile(clicked);
-		expect(engine.sessionIntents.filter((intent) => intent.kind === 'removeFile')).toEqual([
-			{ kind: 'removeFile', inputId: clicked.inputId },
-			{ kind: 'removeFile', inputId: clicked.inputId },
-		]);
+		app.input.removeFile(clicked);
+		app.input.removeFile(clicked);
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents.filter((intent) => intent.kind === 'removeFile')).toEqual([
+				{ kind: 'removeFile', inputId: clicked.inputId },
+				{ kind: 'removeFile', inputId: clicked.inputId },
+			]),
+		);
 		expect(app.input.view().files.map((file) => file.path)).toEqual(['/books/b.m4b']);
+	});
+
+	it('returns at once and shows the change when the engine replies', async () => {
+		const app = await open();
+		const clicked = audioFile('/books/a.m4b');
+		engine.loadTitles([clicked, audioFile('/books/b.m4b')]);
+		let release: () => void = () => {};
+		engine.respond = (intent) =>
+			intent.kind === 'removeFile'
+				? new Promise<undefined>((resolve) => {
+						release = () => resolve(undefined);
+					})
+				: undefined;
+
+		expect(app.input.removeFile(clicked)).toBeUndefined();
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents.map((intent) => intent.kind)).toContain('removeFile'),
+		);
+		expect(app.input.view().files).toHaveLength(2);
+
+		release();
+		await vi.waitFor(() =>
+			expect(app.input.view().files.map((file) => file.path)).toEqual(['/books/b.m4b']),
+		);
+		expect(app.engine.refusal()).toBeNull();
+	});
+
+	it('shows why the engine refused a change nothing waited for', async () => {
+		const app = await open();
+		engine.loadTitles([audioFile('/books/a.m4b')]);
+		engine.respond = (intent): SessionOutcome | undefined =>
+			intent.kind === 'clearAll'
+				? {
+						kind: 'rejected',
+						error: {
+							code: 'invalid_input',
+							category: 'validation',
+							message: 'The list is locked.',
+							detail: null,
+						},
+					}
+				: undefined;
+
+		app.input.clearAllFiles();
+
+		await vi.waitFor(() => expect(app.engine.refusal()).toBe('The list is locked.'));
+		expect(app.input.view().files).toHaveLength(1);
 	});
 
 	it('keeps drag-over state in the view and out of the engine', async () => {

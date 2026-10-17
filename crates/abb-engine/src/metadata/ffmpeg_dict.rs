@@ -1,11 +1,7 @@
 //! FFmpeg metadata dictionary helpers for AudiobookMetadata.
 
-use super::{
-    compute_album_sort, split_series_list, AlbumSortWriteAction, AudiobookMetadata,
-    MetadataWritePlan,
-};
+use super::{AlbumSortWriteAction, AudiobookMetadata, MetadataWritePlan};
 use crate::errors::Result;
-use crate::metadata::field_schema::TagField;
 use crate::metadata::metadata_sinks::{
     apply_metadata_field_ops_to_ffmpeg_dict, ExistingKeyRemoval,
 };
@@ -33,10 +29,7 @@ pub(crate) fn merge_metadata_with_plan<'a>(
 ) -> Result<ff::Dictionary<'a>> {
     let metadata = &plan.metadata;
     let removal = ExistingKeyRemoval::for_metadata(metadata);
-    let clears_album_sort = matches!(
-        plan.album_sort,
-        AlbumSortWriteAction::Clear | AlbumSortWriteAction::Recompute
-    );
+    let clears_album_sort = plan.album_sort == AlbumSortWriteAction::Clear;
     let mut merged = ff::Dictionary::new();
     for (key, value) in existing.iter() {
         if (clears_album_sort && key == "sort_album") || removal.removes(key) {
@@ -58,35 +51,9 @@ pub(crate) fn merge_metadata_with_plan<'a>(
             }
         }
         AlbumSortWriteAction::Clear => {}
-        AlbumSortWriteAction::Recompute => {
-            if let Some(album_sort) = compute_album_sort_from_dict(&merged) {
-                merged.set("sort_album", &album_sort);
-            }
-        }
     }
 
     Ok(merged)
-}
-
-fn compute_album_sort_from_dict(dict: &ff::Dictionary<'_>) -> Option<String> {
-    let series = first_tag(dict, TagField::Series);
-    let series_part = first_tag(dict, TagField::SeriesPart);
-    let title = dict.get("title").map(str::to_string);
-
-    let (primary_series, _) = split_series_list(series.as_deref());
-    let (primary_part, _) = split_series_list(series_part.as_deref());
-
-    match (primary_series.as_deref(), title.as_deref()) {
-        (Some(series), Some(title)) => compute_album_sort(series, primary_part.as_deref(), title),
-        _ => None,
-    }
-}
-
-fn first_tag(dict: &ff::Dictionary<'_>, field: TagField) -> Option<String> {
-    field
-        .read_keys()
-        .iter()
-        .find_map(|key| dict.get(key).map(str::to_string))
 }
 
 /// Sets global metadata on output format context
@@ -198,24 +165,6 @@ mod tests {
     }
 
     #[test]
-    fn merge_metadata_recomputes_album_sort_only_when_requested() {
-        let plan = MetadataWritePlan {
-            metadata: AudiobookMetadata {
-                series_part: Some("2".to_string()),
-                ..Default::default()
-            },
-            album_sort: AlbumSortWriteAction::Recompute,
-        };
-
-        let merged = merge_metadata_with_plan(base_dict(), &plan).expect("recompute album sort");
-
-        assert_eq!(
-            merged.get("sort_album"),
-            Some("Existing Series 02 - Existing Title")
-        );
-    }
-
-    #[test]
     fn metadata_to_ffmpeg_dict_writes_literal_audiobook_fields() {
         let metadata = AudiobookMetadata {
             title: Some("Test Audiobook".to_string()),
@@ -249,12 +198,9 @@ mod tests {
             Some("A test audiobook for metadata integration")
         );
         assert_eq!(dict.get("series"), Some("Primary; Sub"));
-        assert_eq!(
-            dict.get("----:com.apple.iTunes:SERIES"),
-            Some("Primary; Sub")
-        );
         assert_eq!(dict.get("series-part"), Some("7; 2"));
-        assert_eq!(dict.get("----:com.apple.iTunes:SERIES-PART"), Some("7; 2"));
+        assert_eq!(dict.get("----:com.apple.iTunes:SERIES"), None);
+        assert_eq!(dict.get("----:com.apple.iTunes:SERIES-PART"), None);
         assert_eq!(dict.get("track"), Some("4/32"));
         assert_eq!(dict.get("disc"), Some("1/3"));
         assert_eq!(dict.get("media_type"), Some("2"));

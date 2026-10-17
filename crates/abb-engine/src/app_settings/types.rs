@@ -41,6 +41,31 @@ pub struct AppSettingsPatch {
     pub default_acquisition_lane: Option<AcquisitionLane>,
 }
 
+/// A setting that loading recovers on its own: a saved value this release
+/// refuses resets only that setting.
+#[derive(Debug, Clone, Copy, serde::Serialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SettingsUnit {
+    KeepAwake,
+    JobLimit,
+    AcquisitionLane,
+    EncoderDefaults,
+    OutputDefaults,
+    StartupBehavior,
+    PinnedDefaults,
+}
+
+/// What loading the saved settings could not keep.
+#[derive(Debug, Clone, Default, serde::Serialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsRecovery {
+    /// Settings whose saved value was refused; they took their defaults.
+    pub reset: Vec<SettingsUnit>,
+    /// The name an unreadable settings file was kept under; every setting
+    /// took its default.
+    pub set_aside_as: Option<String>,
+}
+
 /// What launch hydration restores into the panels. The panels always keep
 /// auto-persisting the top-level (last-used) values; this only chooses the
 /// hydration source.
@@ -190,7 +215,7 @@ impl ConcurrencyPreference {
 }
 
 impl EncoderDefaults {
-    fn validate(&mut self) -> Result<()> {
+    pub(super) fn validate(&mut self) -> Result<()> {
         if self.format != AudiobookFormat::Mp3
             && self.format.is_opus() != (self.settings.encoder_type == EncoderType::Opus)
         {
@@ -206,7 +231,7 @@ impl EncoderDefaults {
 }
 
 impl OutputDefaults {
-    fn normalize(&mut self) {
+    pub(super) fn normalize(&mut self) {
         self.output_directory = self
             .output_directory
             .take()

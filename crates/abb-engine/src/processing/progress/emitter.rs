@@ -1,7 +1,7 @@
 //! Progress event emitter
 
 use super::{
-    EventStage, ProgressEvent, PROGRESS_ANALYZING_START, PROGRESS_CLEANUP, PROGRESS_COMPLETE,
+    EventStage, ProgressEvent, PROGRESS_ANALYZING_START, PROGRESS_COMPLETE,
     PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START, PROGRESS_FINALIZING,
     PROGRESS_METADATA_START,
 };
@@ -129,17 +129,6 @@ impl ProgressEmitter {
         self.emit_event(
             ProcessingStage::WritingMetadata,
             PROGRESS_FINALIZING,
-            message,
-            None,
-            None,
-        );
-    }
-
-    /// Emits cleanup event
-    pub fn emit_cleanup(&self, message: &str) {
-        self.emit_event(
-            ProcessingStage::Completed,
-            PROGRESS_CLEANUP,
             message,
             None,
             None,

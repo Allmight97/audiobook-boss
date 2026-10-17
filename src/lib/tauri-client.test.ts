@@ -31,7 +31,7 @@ describe('tauriClient', () => {
 					capabilities: runtimeSettingsCapabilitiesFixture().maxConcurrentJobs,
 				},
 				startupDefaults: null,
-				defaultAcquisitionLane: 'indexer',
+				recovery: null,
 			},
 		});
 
@@ -52,7 +52,7 @@ describe('tauriClient', () => {
 		});
 		expect(reply.outcome).toEqual({ kind: 'applied' });
 		expect(reply.snapshot.settings).toBeUndefined();
-		expect(reply.snapshot.defaultAcquisitionLane).toBe('indexer');
+		expect(reply.snapshot.recovery).toBeUndefined();
 	});
 
 	it('keeps explicit nulls in audio requests and drops them from audio files', async () => {
@@ -209,28 +209,23 @@ describe('tauriClient', () => {
 			});
 		});
 
-		it('limits source and preview opening to user-owned or mounted paths', () => {
-			const openPathPermission = mainWindowCapability.permissions.find(
-				(permission) =>
-					typeof permission === 'object' && permission.identifier === 'opener:allow-open-path',
-			);
-
-			expect(openPathPermission).toEqual({
-				identifier: 'opener:allow-open-path',
-				allow: [{ path: '$HOME/**' }, { path: '$TEMP/**' }, { path: '/Volumes/**' }],
-			});
+		it('lets the window open no file path; the host opens a granted preview itself', () => {
+			expect(
+				mainWindowCapability.permissions.some(
+					(permission) =>
+						(typeof permission === 'object' ? permission.identifier : permission) ===
+						'opener:allow-open-path',
+				),
+			).toBe(false);
 		});
 
-		it('routes paths and URLs to distinct Tauri opener commands', async () => {
-			const { openPath, openUrl } = await import('@tauri-apps/plugin-opener');
-			const mockOpenPath = vi.mocked(openPath);
+		it('routes URLs to the Tauri opener', async () => {
+			const { openUrl } = await import('@tauri-apps/plugin-opener');
 			const mockOpenUrl = vi.mocked(openUrl);
 
 			const { tauriClient } = await import('./tauri/client');
-			await tauriClient.openPath('/tmp/preview.m4b');
 			await tauriClient.openUrl('https://example.com/login');
 
-			expect(mockOpenPath).toHaveBeenLastCalledWith('/tmp/preview.m4b', undefined);
 			expect(mockOpenUrl).toHaveBeenLastCalledWith('https://example.com/login', undefined);
 		});
 	});

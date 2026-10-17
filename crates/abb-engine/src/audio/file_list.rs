@@ -66,11 +66,18 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
             audio_file.tag_title = properties.tag_title;
             audio_file.tag_artist = properties.tag_artist;
             audio_file.chapters = properties.chapters;
-            let (plan, cue) = crate::metadata::inspect_chapter_source(
+            let (plan, cue) = match crate::metadata::inspect_chapter_source(
                 &canonical_path,
                 (properties.duration * 1000.0).round() as i64,
-                &audio_file.chapters,
-            )?;
+                properties.length_estimated,
+                &mut audio_file.chapters,
+            ) {
+                Ok(inspected) => inspected,
+                Err(error) => {
+                    audio_file.error = Some(error.to_string());
+                    return Ok(audio_file);
+                }
+            };
             audio_file.chapter_plan = Some(plan);
             audio_file.cue_source = cue;
             audio_file.selected_decoder = properties
@@ -93,6 +100,7 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
 struct AudioProperties {
     format: String,
     duration: f64,
+    length_estimated: bool,
     bitrate: Option<u32>,
     sample_rate: Option<u32>,
     channels: Option<u32>,
@@ -149,7 +157,7 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
     // First check if we support the file extension
     let format = crate::audio::extensions::audio_format_for_path(path)?.label;
 
-    let (duration, chapters, (tag_title, tag_artist), container_name) = {
+    let (duration, length_estimated, chapters, (tag_title, tag_artist), container_name) = {
         let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
         let audio_stream = ictx
             .streams()
@@ -187,6 +195,7 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
         let display_tags = crate::metadata::display_tags_from_ffmpeg_dict(&ictx.metadata());
         (
             duration,
+            crate::metadata::length_is_estimated(&ictx),
             chapters,
             display_tags,
             ictx.format().name().to_string(),
@@ -216,6 +225,7 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
     Ok(AudioProperties {
         format: format.to_string(),
         duration,
+        length_estimated,
         bitrate: inspection.bitrate,
         sample_rate,
         channels,

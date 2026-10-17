@@ -1180,18 +1180,28 @@ impl Session {
         };
 
         let inputs: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
-        let discovered = blocking(move || audio::discover_audio_import_paths(&inputs)).await;
-        let discovered = match discovered {
-            Ok(discovered) => discovered,
-            Err(error) => {
-                return failed(InputNotice::DiscoveryFailed {
-                    error: AppErrorEnvelope::from(&error),
-                })
-            }
-        };
+        let discovery =
+            match blocking(move || Ok(audio::discover_audio_import_paths(&inputs))).await {
+                Ok(discovery) => discovery,
+                Err(error) => {
+                    return failed(InputNotice::AnalysisFailed {
+                        error: AppErrorEnvelope::from(&error),
+                    })
+                }
+            };
+        let discovered = discovery.paths;
+        let skipped: Vec<_> = discovery
+            .skipped
+            .iter()
+            .map(|(path, error)| audio::SkippedImportPath::new(path, error))
+            .collect();
         if discovered.is_empty() {
-            return failed(InputNotice::NoSupportedFiles {
-                formats_text: audio::supported_audio_import_metadata().formats_text,
+            return failed(if skipped.is_empty() {
+                InputNotice::NoSupportedFiles {
+                    formats_text: audio::supported_audio_import_metadata().formats_text,
+                }
+            } else {
+                InputNotice::SkippedPaths { skipped }
             });
         }
         let analyzed = match blocking(move || audio::get_file_list_info(&discovered)).await {
@@ -1206,7 +1216,7 @@ impl Session {
         if superseded() {
             return SessionOutcome::Superseded;
         }
-        let Some(bound) = self.list_imported(analyzed.files, resets).await else {
+        let Some(bound) = self.list_imported(analyzed.files, skipped, resets).await else {
             return SessionOutcome::Superseded;
         };
         self.complete_reads(bound).await;
@@ -1214,7 +1224,12 @@ impl Session {
     }
 
     /// Analysis can overlap a submission: wait before changing its locked list.
-    async fn list_imported(&self, mut files: Vec<AudioFile>, resets: u64) -> Option<Bound> {
+    async fn list_imported(
+        &self,
+        mut files: Vec<AudioFile>,
+        skipped: Vec<audio::SkippedImportPath>,
+        resets: u64,
+    ) -> Option<Bound> {
         loop {
             let unlocked = self.inner.list_unlocked.notified();
             tokio::pin!(unlocked);
@@ -1230,6 +1245,11 @@ impl Session {
                 state
                     .working_set
                     .append_analyzed(std::mem::take(&mut files), &default_audio);
+                if !skipped.is_empty() {
+                    state.working_set.set_notice(InputNotice::SkippedPaths {
+                        skipped: skipped.clone(),
+                    });
+                }
                 Some(Some(Bound {
                     reads: state.rebind(),
                     binding: state.binding,
@@ -1276,8 +1296,11 @@ impl Session {
             .map(|file| file.path.clone())
             .collect();
         let analyzed = blocking(move || {
-            let discovered = audio::discover_audio_import_paths(&paths)?;
-            audio::get_file_list_info(&discovered)
+            let discovery = audio::discover_audio_import_paths(&paths);
+            if let Some((_, error)) = discovery.skipped.into_iter().next() {
+                return Err(error);
+            }
+            audio::get_file_list_info(&discovery.paths)
         })
         .await;
         let analyzed = match analyzed {

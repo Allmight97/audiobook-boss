@@ -1,5 +1,6 @@
 //! Working remote choices and connection drafts; hosts send intents and read facts.
 
+use super::providers::audible::{AudibleRequestError, SIGN_IN_REJECTED_MESSAGE};
 use super::{
     AcquisitionPlan, AcquisitionSelection, AcquisitionSnapshot, ProviderId,
     RemoteIndexerConnection, RemoteIndexerConnectionTestResult, RemoteIndexerConnectionUpdate,
@@ -172,6 +173,9 @@ pub(super) struct UiState {
     library_published: u64,
     account_request: u64,
     disconnecting: bool,
+    /// Audible refused the saved sign-in; the account shows NeedsAuth until
+    /// a sign-in or disconnect, whatever a later keychain read says.
+    sign_in_rejected: bool,
     api_key: Option<String>,
     edit_revision: u64,
     connection_loading: bool,
@@ -222,6 +226,7 @@ impl Default for UiState {
             library_published: 0,
             account_request: 0,
             disconnecting: false,
+            sign_in_rejected: false,
             api_key: None,
             edit_revision: 0,
             connection_loading: false,
@@ -258,7 +263,7 @@ impl UiState {
         }
         match result {
             Ok(account) => {
-                self.snapshot.account = Some(account.clone());
+                self.snapshot.account = Some(self.shown_account(account.clone()));
                 self.snapshot.account_status = RemoteDraftStatus::Succeeded;
             }
             Err(error) => {
@@ -271,10 +276,51 @@ impl UiState {
         true
     }
 
+    /// Applies a finished sign-in; returns the library read it starts.
+    fn auth_completed(&mut self, result: &Result<super::RemoteSourceAccountState>) -> Option<u64> {
+        self.snapshot.auth = match result {
+            Ok(account) => {
+                self.sign_in_rejected = false;
+                self.snapshot.account = Some(account.clone());
+                self.snapshot.account_status = RemoteDraftStatus::Succeeded;
+                RemoteAuthStatus::Idle
+            }
+            Err(error) => RemoteAuthStatus::Failed {
+                error: error.into(),
+            },
+        };
+        self.changed();
+        result.is_ok().then(|| self.begin_library())
+    }
+
+    fn shown_account(
+        &self,
+        account: super::RemoteSourceAccountState,
+    ) -> super::RemoteSourceAccountState {
+        if !self.sign_in_rejected
+            || account.provider_id != ProviderId::Audible
+            || account.status != super::RemoteAccountStatus::Connected
+        {
+            return account;
+        }
+        super::RemoteSourceAccountState {
+            status: super::RemoteAccountStatus::NeedsAuth,
+            message: Some(SIGN_IN_REJECTED_MESSAGE.to_string()),
+            ..account
+        }
+    }
+
+    fn reject_sign_in(&mut self) {
+        self.sign_in_rejected = true;
+        if let Some(account) = self.snapshot.account.take() {
+            self.snapshot.account = Some(self.shown_account(account));
+        }
+    }
+
     fn library_result(
         &mut self,
         request: u64,
-        result: &Result<super::RemoteLibraryResponse>,
+        result: &std::result::Result<super::RemoteLibraryResponse, AudibleRequestError>,
     ) -> bool {
         if request != self.library_request
             || self.snapshot.lane != ProviderId::Audible
@@ -290,7 +336,14 @@ impl UiState {
                 );
                 self.snapshot.library_status = RemoteDraftStatus::Succeeded;
             }
-            Err(error) => {
+            Err(AudibleRequestError::AuthRejected) => {
+                self.reject_sign_in();
+                self.snapshot.library_status = RemoteDraftStatus::Failed {
+                    error: AudibleRequestError::AuthRejected.into_app_error().into(),
+                };
+                self.changed();
+            }
+            Err(AudibleRequestError::Failed(error)) => {
                 self.snapshot.library_status = RemoteDraftStatus::Failed {
                     error: error.into(),
                 };
@@ -355,6 +408,7 @@ impl UiState {
         self.account_request += 1;
         self.snapshot.library_status = RemoteDraftStatus::Idle;
         if provider == ProviderId::Audible {
+            self.sign_in_rejected = false;
             self.snapshot.auth = RemoteAuthStatus::Idle;
             self.snapshot.acquisition = None;
             self.library_loaded(Vec::new());
@@ -419,6 +473,13 @@ impl UiState {
     }
 
     pub(super) fn acquisition_changed(&mut self, job: super::AcquisitionJob) {
+        if job.provider_id == ProviderId::Audible
+            && job.diagnostics.iter().any(|diagnostic| {
+                diagnostic.kind == super::RemoteAcquisitionFailureKind::AuthRequired
+            })
+        {
+            self.reject_sign_in();
+        }
         self.snapshot.acquisition = Some(Box::new(job.into()));
         self.changed();
     }
@@ -1199,15 +1260,17 @@ impl RemoteSourceRuntime {
                 .await?;
             self.inner
                 .tasks
-                .until_closing(super::AudibleProvider::load_library(auth))
-                .await
+                .until_closing(async { Ok(super::AudibleProvider::load_library(auth).await) })
+                .await?
         }
         .await;
         if !self.ui().library_result(request, &result) {
             return Ok(RemoteUiResult::Superseded);
         }
         self.publish_ui();
-        result.map(|_| RemoteUiResult::Applied)
+        result
+            .map(|_| RemoteUiResult::Applied)
+            .map_err(AudibleRequestError::into_app_error)
     }
 
     async fn refresh_ui_account(&self, lane: ProviderId, request: u64) -> Result<RemoteUiResult> {
@@ -1227,22 +1290,24 @@ impl RemoteSourceRuntime {
             .await
             .map_err(|_| AppError::General("Account read failed.".into()))
             .and_then(|result| result);
-        let library_eligible = {
-            let mut state = self.ui();
-            if !state.account_reply(lane, request, &result) {
-                return Ok(RemoteUiResult::Superseded);
-            }
-            lane == ProviderId::Audible
-                && !state.snapshot.acquiring
-                && state
-                    .snapshot
-                    .acquisition
-                    .as_ref()
-                    .is_none_or(|job| job.settled)
-                && result
-                    .as_ref()
-                    .is_ok_and(|account| account.status == super::RemoteAccountStatus::Connected)
-        };
+        let library_eligible =
+            {
+                let mut state = self.ui();
+                if !state.account_reply(lane, request, &result) {
+                    return Ok(RemoteUiResult::Superseded);
+                }
+                lane == ProviderId::Audible
+                    && !state.snapshot.acquiring
+                    && state
+                        .snapshot
+                        .acquisition
+                        .as_ref()
+                        .is_none_or(|job| job.settled)
+                    && result.is_ok()
+                    && state.snapshot.account.as_ref().is_some_and(|account| {
+                        account.status == super::RemoteAccountStatus::Connected
+                    })
+            };
         self.publish_ui();
         result?;
         if library_eligible {
@@ -1260,21 +1325,7 @@ impl RemoteSourceRuntime {
                 response_url_handoff_path: path.map(std::path::PathBuf::from),
             })
             .await;
-        let refresh = {
-            let mut state = self.ui();
-            state.snapshot.auth = match &result {
-                Ok(account) => {
-                    state.snapshot.account = Some(account.clone());
-                    state.snapshot.account_status = RemoteDraftStatus::Succeeded;
-                    RemoteAuthStatus::Idle
-                }
-                Err(error) => RemoteAuthStatus::Failed {
-                    error: error.into(),
-                },
-            };
-            state.changed();
-            result.is_ok().then(|| state.begin_library())
-        };
+        let refresh = self.ui().auth_completed(&result);
         self.publish_ui();
         result?;
         if let Some(request) = refresh {

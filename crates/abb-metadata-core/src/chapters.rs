@@ -89,15 +89,7 @@ pub fn parse_cue(text: &str, duration_ms: i64) -> Result<CueSheet> {
                 if file_name.is_some() {
                     return Err(invalid(line_number, "multiple FILE sheets are unsupported"));
                 }
-                let name = quoted(value, line_number)?;
-                if name.is_empty() || name.contains(['/', '\\', ':']) || name == "." || name == ".."
-                {
-                    return Err(invalid(
-                        line_number,
-                        "FILE must name a local sibling, not a directory or URL",
-                    ));
-                }
-                file_name = Some(name);
+                file_name = Some(quoted(value, line_number)?);
             }
             "TRACK" => {
                 let fields: Vec<_> = value.split_whitespace().collect();
@@ -202,12 +194,72 @@ pub fn parse_cue(text: &str, duration_ms: i64) -> Result<CueSheet> {
             end_ms: duration_ms,
         });
     }
-    validate_chapters(&chapters, duration_ms)?;
     Ok(CueSheet {
         file_name,
         interpretation,
         chapters,
     })
+}
+
+/// Largest move a repair may make to one chapter end.
+const MAX_EMBEDDED_REPAIR_MS: i64 = 1_000;
+
+/// Repairs the drift real files carry in embedded chapters: sorts by start,
+/// drops zero-length markers, ends each chapter where the next starts and the
+/// last one at the audio end. Refuses a chapter that starts outside the audio
+/// or whose end would move by more than one second. With no known audio end
+/// (FFmpeg only estimated the length), the last chapter keeps its own end.
+pub fn normalize_embedded_chapters(
+    chapters: &[ChapterSpec],
+    audio_end_ms: Option<i64>,
+) -> Result<Vec<ChapterSpec>> {
+    let mut sorted: Vec<(usize, &ChapterSpec)> = chapters.iter().enumerate().collect();
+    sorted.sort_by_key(|(_, chapter)| chapter.start_ms);
+    let kept: Vec<_> = sorted
+        .iter()
+        .enumerate()
+        .map(|(position, (_, chapter))| (position + 1, *chapter))
+        .filter(|(_, chapter)| chapter.end_ms > chapter.start_ms)
+        .collect();
+    if let Some((number, chapter)) = kept.iter().find(|(_, chapter)| {
+        chapter.start_ms < 0 || audio_end_ms.is_some_and(|end| chapter.start_ms >= end)
+    }) {
+        return Err(chapter_error(*number, chapter, "starts outside the audio"));
+    }
+    let mut repaired = Vec::with_capacity(kept.len());
+    for (index, (number, chapter)) in kept.iter().enumerate() {
+        let (end_ms, boundary) = match kept.get(index + 1) {
+            Some((_, next)) => (next.start_ms, "where the next chapter starts"),
+            None => (
+                audio_end_ms.unwrap_or(chapter.end_ms),
+                "the end of the audio",
+            ),
+        };
+        if (end_ms - chapter.end_ms).abs() > MAX_EMBEDDED_REPAIR_MS {
+            let away = (end_ms - chapter.end_ms).abs() as f64 / 1_000.0;
+            return Err(chapter_error(
+                *number,
+                chapter,
+                &format!("ends {away:.1} s from {boundary}"),
+            ));
+        }
+        if end_ms > chapter.start_ms {
+            repaired.push(ChapterSpec {
+                title: chapter.title.clone(),
+                start_ms: chapter.start_ms,
+                end_ms,
+            });
+        }
+    }
+    Ok(repaired)
+}
+
+fn chapter_error(number: usize, chapter: &ChapterSpec, reason: &str) -> MetadataCoreError {
+    let name = chapter
+        .title
+        .as_deref()
+        .map_or_else(String::new, |title| format!(" \u{201c}{title}\u{201d}"));
+    MetadataCoreError::InvalidInput(format!("Chapter {number}{name} {reason}."))
 }
 
 pub fn validate_chapters(chapters: &[ChapterSpec], duration_ms: i64) -> Result<()> {
@@ -217,9 +269,10 @@ pub fn validate_chapters(chapters: &[ChapterSpec], duration_ms: i64) -> Result<(
             || chapter.end_ms > duration_ms
             || index > 0 && chapters[index - 1].end_ms > chapter.start_ms
         {
-            return Err(invalid(
+            return Err(chapter_error(
                 index + 1,
-                "invalid, overlapping, or out-of-range chapter interval",
+                chapter,
+                "has an invalid, overlapping, or out-of-range interval",
             ));
         }
     }
@@ -254,9 +307,94 @@ mod tests {
             }
         );
     }
+    fn chapter(title: &str, start_ms: i64, end_ms: i64) -> ChapterSpec {
+        ChapterSpec {
+            title: Some(title.into()),
+            start_ms,
+            end_ms,
+        }
+    }
+    #[test]
+    fn embedded_chapters_are_repaired_within_one_second() {
+        let repaired = normalize_embedded_chapters(
+            &[
+                chapter("Two", 5_000, 10_030),
+                chapter("Marker", 4_200, 4_200),
+                chapter("One", 0, 4_990),
+            ],
+            Some(10_000),
+        )
+        .expect("small drift is repaired");
+        assert_eq!(
+            repaired,
+            vec![chapter("One", 0, 5_000), chapter("Two", 5_000, 10_000)]
+        );
+    }
+    #[test]
+    fn an_estimated_audio_length_neither_moves_nor_refuses_the_last_chapter() {
+        let kept = normalize_embedded_chapters(
+            &[chapter("One", 0, 4_990), chapter("Two", 5_000, 90_000)],
+            None,
+        )
+        .expect("no audio end to measure against");
+        assert_eq!(
+            kept,
+            vec![chapter("One", 0, 5_000), chapter("Two", 5_000, 90_000)]
+        );
+    }
+    #[test]
+    fn embedded_chapters_beyond_repair_are_refused_by_chapter() {
+        let past_end = normalize_embedded_chapters(
+            &[
+                chapter("One", 0, 5_000),
+                chapter("Epilogue", 10_000, 12_000),
+            ],
+            Some(10_000),
+        )
+        .expect_err("a chapter cannot start at the audio end")
+        .to_string();
+        assert!(
+            past_end.contains("Chapter 2") && past_end.contains("Epilogue"),
+            "{past_end}"
+        );
+        assert!(!past_end.contains("CUE"), "{past_end}");
+        let gap = normalize_embedded_chapters(
+            &[chapter("One", 0, 3_000), chapter("Two", 5_000, 10_000)],
+            Some(10_000),
+        )
+        .expect_err("a two-second gap is not drift")
+        .to_string();
+        assert!(gap.contains("Chapter 1") && gap.contains("One"), "{gap}");
+    }
+    #[test]
+    fn chapter_validation_names_the_chapter() {
+        let error = validate_chapters(&[chapter("Prologue", 0, 2_000)], 1_000)
+            .expect_err("ends after the audio")
+            .to_string();
+        assert!(
+            error.contains("Chapter 1") && error.contains("Prologue") && !error.contains("CUE"),
+            "{error}"
+        );
+    }
+    #[test]
+    fn cue_file_text_is_a_label_and_never_refuses_a_sheet() {
+        for file in ["Dune: Book One.mp3", "C:\\Rips\\Dune.mp3", "../book.mp3"] {
+            let sheet = parse_cue(
+                &format!("FILE \"{file}\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:00:00"),
+                20_000,
+            )
+            .expect(file);
+            assert_eq!(sheet.file_name, file);
+        }
+        parse_cue(
+            "FILE \"C:\\Rips\\Dune.mp3\" WAVE\nTRACK 01 AUDIO\nINDEX 01 00:00:00",
+            20_000,
+        )
+        .expect("WAVE sheet");
+    }
     #[test]
     fn cue_rejects_unsafe_ambiguous_and_invalid_sheets() {
-        for text in ["FILE \"../book.mp3\" MP3", "FILE \"a.mp3\" MP3\nFILE \"b.mp3\" MP3", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:60:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:00:100", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:00:00\nINDEX 01 00:01:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:02:00\nTRACK 02 AUDIO\nINDEX 01 00:01:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:20:00"] {
+        for text in ["FILE \"a.mp3\" MP3\nFILE \"b.mp3\" MP3", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:60:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:00:100", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:00:00\nINDEX 01 00:01:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:02:00\nTRACK 02 AUDIO\nINDEX 01 00:01:00", "FILE \"a.mp3\" MP3\nTRACK 01 AUDIO\nINDEX 01 00:20:00"] {
             assert!(parse_cue(text, 20_000).expect_err(text).to_string().contains("CUE line"));
         }
     }

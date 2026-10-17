@@ -1,8 +1,8 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use abb_engine::app_settings::{SettingsIntent, SettingsReply, SettingsSnapshot};
-use abb_engine::session::{SessionIntent, SessionReply, SessionUpdate};
-use abb_engine::{AppError, AppErrorEnvelope};
+use abb_engine::session::{SessionIntent, SessionOutcome, SessionReply, SessionUpdate};
+use abb_engine::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
 use serde::Serialize;
 
 use crate::commands::{CommandResult, EngineState};
@@ -77,6 +77,48 @@ pub async fn session_dispatch(
     Ok(run.finish().await)
 }
 
+/// Claims a finished preview's output, numbered with the session intents, and
+/// opens it with the user's default app. The path never comes from the webview.
+#[tauri::command]
+#[specta::specta]
+pub async fn open_preview_output(
+    app: tauri::AppHandle,
+    engine: EngineState<'_>,
+    link: Link<'_>,
+    client: u64,
+    sequence: u64,
+    run_id: String,
+) -> CommandResult<SessionReply> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let run = {
+        let _turn = link.session.turn(client, sequence).await.map_err(refused)?;
+        engine.session_begin(SessionIntent::TakePreviewOutput { run_id })
+    };
+    Ok(open_preview_reply(run.finish().await, |path| {
+        app.opener().open_path(path, None::<&str>)
+    }))
+}
+
+fn open_preview_reply<E: std::fmt::Display>(
+    mut reply: SessionReply,
+    open: impl FnOnce(&str) -> std::result::Result<(), E>,
+) -> SessionReply {
+    if let SessionOutcome::PreviewOutput { path: Some(path) } = &reply.outcome {
+        if let Err(error) = open(path) {
+            reply.outcome = SessionOutcome::Rejected {
+                error: AppErrorEnvelope::new(
+                    AppErrorCode::InternalError,
+                    AppErrorCategory::Internal,
+                    error.to_string(),
+                    None,
+                ),
+            };
+        }
+    }
+    reply
+}
+
 /// Applies one intent to the settings and returns the settings in effect.
 /// Settings intents run one at a time in `sequence` order.
 #[tauri::command]
@@ -95,3 +137,7 @@ pub async fn settings_dispatch(
         .map_err(refused)?;
     Ok(engine.settings_dispatch(intent).await)
 }
+
+#[cfg(test)]
+#[path = "session_tests.rs"]
+mod tests;

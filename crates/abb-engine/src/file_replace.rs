@@ -1,32 +1,86 @@
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+/// A file ABB writes beside `destination` before installing it there. Removed
+/// on drop unless committed, so a failed write leaves nothing behind.
+pub(crate) struct SiblingTemp {
+    path: PathBuf,
+    committed: bool,
+}
+
+impl SiblingTemp {
+    /// Names `.abb_<tag>_<uuid><extension>` beside `destination`; the writer
+    /// creates the file.
+    pub(crate) fn beside(destination: &Path, tag: &str, extension: &str) -> io::Result<Self> {
+        let parent = destination.parent().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "destination has no parent directory",
+            )
+        })?;
+        Ok(Self {
+            path: parent.join(format!(".abb_{tag}_{}{extension}", uuid::Uuid::new_v4())),
+            committed: false,
+        })
+    }
+
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Flushes the temp, gives it the destination's permissions, and installs
+    /// it over `destination`.
+    pub(crate) fn commit(self, destination: &Path) -> io::Result<()> {
+        self.commit_with(destination, replace_file)
+    }
+
+    pub(crate) fn commit_with(
+        mut self,
+        destination: &Path,
+        install: impl FnOnce(&Path, &Path) -> io::Result<()>,
+    ) -> io::Result<()> {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&self.path)?
+            .sync_all()?;
+        match std::fs::metadata(destination) {
+            Ok(existing) => std::fs::set_permissions(&self.path, existing.permissions())?,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        install(&self.path, destination)?;
+        self.committed = true;
+        Ok(())
+    }
+}
+
+impl Drop for SiblingTemp {
+    fn drop(&mut self) {
+        if self.committed {
+            return;
+        }
+        match std::fs::remove_file(&self.path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => log::warn!(
+                "sibling_temp cleanup failed temp={} error={error}",
+                crate::diagnostics::artifact_id(&self.path)
+            ),
+        }
+    }
+}
+
 /// Writes `content` to a synced temporary file beside `path`, then moves it
 /// into place, so a crash leaves the old file or the new one, never a torn one.
 pub(crate) fn write_atomically(path: &Path, content: &[u8]) -> io::Result<()> {
-    let parent = path.parent().ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "write destination has no parent directory",
-        )
-    })?;
-    std::fs::create_dir_all(parent)?;
-    let temp_path = parent.join(format!(".abb_write_{}.tmp", uuid::Uuid::new_v4()));
-    let result = (|| {
-        let mut file = std::fs::File::create(&temp_path)?;
-        file.write_all(content)?;
-        file.sync_all()?;
-        drop(file);
-        if path.exists() {
-            replace_file(&temp_path, path)
-        } else {
-            std::fs::rename(&temp_path, path)
-        }
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&temp_path);
+    let temp = SiblingTemp::beside(path, "write", ".tmp")?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
     }
-    result
+    let mut file = std::fs::File::create(temp.path())?;
+    file.write_all(content)?;
+    drop(file);
+    temp.commit(path)
 }
 
 fn backup_path_for(destination: &Path) -> io::Result<PathBuf> {
@@ -36,18 +90,7 @@ fn backup_path_for(destination: &Path) -> io::Result<PathBuf> {
             "replacement destination has no parent directory",
         )
     })?;
-    let file_name = destination.file_name().ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "replacement destination has no file name",
-        )
-    })?;
-
-    Ok(parent.join(format!(
-        ".abb_replace_{}_{}",
-        uuid::Uuid::new_v4(),
-        file_name.to_string_lossy()
-    )))
+    Ok(parent.join(format!(".abb_replace_{}", uuid::Uuid::new_v4())))
 }
 
 fn replace_file_with_ops<R, M>(
@@ -145,6 +188,23 @@ mod tests {
     use super::*;
     use std::cell::Cell;
     use tempfile::TempDir;
+
+    #[cfg(unix)]
+    #[test]
+    fn write_atomically_keeps_the_replaced_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = TempDir::new().expect("temp root");
+        let path = root.path().join("settings.toml");
+        std::fs::write(&path, b"old").expect("write original");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+            .expect("restrict original");
+
+        write_atomically(&path, b"new").expect("write atomically");
+
+        assert_eq!(std::fs::read(&path).expect("read"), b"new");
+        let mode = std::fs::metadata(&path).expect("stat").permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
 
     #[test]
     fn replace_file_overwrites_existing_destination() {

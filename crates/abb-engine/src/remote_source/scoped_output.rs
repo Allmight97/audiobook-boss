@@ -4,16 +4,12 @@ use crate::errors::{AppError, Result};
 
 /// RAII guard for a staged output file and its intermediate (`.partial`/temp)
 /// sibling. Callers must follow the owned lifecycle:
-/// `prepare` → write partial → `rename_and_commit` (or drop cleans uncommitted).
-///
-/// On drop, the partial path is always removed when distinct from the final path.
-/// The final path is removed unless the guard was committed via
-/// [`StagedTempFile::rename_and_commit`] or the test-only [`StagedTempFile::commit`].
+/// `prepare` → write partial → `rename_and_commit`. Drop removes the partial;
+/// only `rename_and_commit` creates the final path.
 #[derive(Debug)]
 pub(crate) struct StagedTempFile {
     final_path: PathBuf,
     partial_path: PathBuf,
-    committed: bool,
     prepared: bool,
 }
 
@@ -52,7 +48,6 @@ impl StagedTempFile {
         Self {
             final_path,
             partial_path,
-            committed: false,
             prepared: false,
         }
     }
@@ -71,9 +66,8 @@ impl StagedTempFile {
         Ok(())
     }
 
-    /// Cancel check → same-directory rename partial→final → commit. Consumes the guard
-    /// lifecycle: after success the final path survives drop.
-    pub(crate) async fn rename_and_commit(mut self, is_cancelled: impl Fn() -> bool) -> Result<()> {
+    /// Cancel check → same-directory rename partial→final. Consumes the guard.
+    pub(crate) async fn rename_and_commit(self, is_cancelled: impl Fn() -> bool) -> Result<()> {
         if is_cancelled() {
             return Err(AppError::cancelled());
         }
@@ -97,13 +91,7 @@ impl StagedTempFile {
                     "Staged output rename failed (same-directory required): {error}"
                 ))
             })?;
-        self.committed = true;
         Ok(())
-    }
-
-    #[cfg(test)]
-    pub(crate) fn commit(mut self) {
-        self.committed = true;
     }
 }
 
@@ -128,9 +116,6 @@ impl Drop for StagedTempFile {
     fn drop(&mut self) {
         if self.partial_path != self.final_path {
             let _ = remove_if_present(&self.partial_path);
-        }
-        if !self.committed {
-            let _ = remove_if_present(&self.final_path);
         }
     }
 }
@@ -186,10 +171,9 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn drop_removes_partial_and_final_when_not_committed() {
+    fn drop_removes_the_partial() {
         let root = TempDir::new().expect("temp root");
         let final_path = root.path().join("book.pdf");
-        std::fs::write(&final_path, b"final").expect("write final");
         let partial_path;
         {
             let staged = StagedTempFile::new(&final_path);
@@ -197,23 +181,6 @@ mod tests {
             std::fs::write(staged.partial_path(), b"partial").expect("write partial");
             assert_eq!(partial_path, root.path().join("book.pdf.partial"));
         }
-        assert!(!final_path.exists());
-        assert!(!partial_path.exists());
-    }
-
-    #[test]
-    fn commit_keeps_final_but_still_removes_partial() {
-        let root = TempDir::new().expect("temp root");
-        let final_path = root.path().join("book.pdf");
-        let partial_path;
-        {
-            let staged = StagedTempFile::new(&final_path);
-            partial_path = staged.partial_path().to_path_buf();
-            std::fs::write(staged.partial_path(), b"partial").expect("write partial");
-            std::fs::write(&final_path, b"final").expect("write final");
-            staged.commit();
-        }
-        assert!(final_path.exists());
         assert!(!partial_path.exists());
     }
 
@@ -223,11 +190,9 @@ mod tests {
         let final_path = root.path().join("out.m4b");
         let temp_path = root.path().join("out.m4b.partial");
         std::fs::write(&temp_path, b"temp").expect("write temp");
-        std::fs::write(&final_path, b"final").expect("write final");
         {
             let _staged = StagedTempFile::with_partial(&final_path, &temp_path);
         }
-        assert!(!final_path.exists());
         assert!(!temp_path.exists());
     }
 

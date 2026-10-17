@@ -103,6 +103,21 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
     })
 }
 
+/// Tells the user another ABB owns the working folder, then quits without an
+/// engine; the running copy keeps its work.
+fn quit_as_second_copy(app: &tauri::App, message: String) {
+    if let Some(window) = app.get_webview_window("main") {
+        if let Err(error) = window.hide() {
+            log::warn!("The second ABB window stayed visible: {error}");
+        }
+    }
+    let handle = app.handle().clone();
+    app.dialog()
+        .message(message)
+        .title("ABB is already running")
+        .show(move |_| handle.exit(0));
+}
+
 /// How quitting is going: engine shutting down, done.
 #[derive(Default)]
 struct Quit {
@@ -344,9 +359,16 @@ pub fn run() {
                 std::env::var("ABB_RUN_ID").unwrap_or_else(|_| "unscoped".into()),
                 abb_engine::ffmpeg_build_identity()
             );
-            app.manage(start_engine(app)?);
             app.manage(Quit::default());
             app.manage(commands::FrontendLink::default());
+            match start_engine(app) {
+                Ok(engine) => app.manage(engine),
+                Err(error @ abb_engine::AppError::AlreadyRunning(_)) => {
+                    quit_as_second_copy(app, error.to_string());
+                    return Ok(());
+                }
+                Err(error) => return Err(error.into()),
+            };
 
             if let Some(main_window) = app.get_webview_window("main") {
                 if let Err(error) = configure_startup_window(&main_window) {

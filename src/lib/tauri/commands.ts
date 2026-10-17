@@ -95,6 +95,11 @@ export const commandSpecs = {
 			generatedCommands.sessionDispatch(args.client, args.sequence, args.intent),
 			normalizeSessionReply,
 		),
+	open_preview_output: (args: { client: number; sequence: number; runId: string }) =>
+		runGeneratedCommand(
+			generatedCommands.openPreviewOutput(args.client, args.sequence, args.runId),
+			normalizeSessionReply,
+		),
 	settings_dispatch: (args: { client: number; sequence: number; intent: SettingsIntent }) =>
 		runGeneratedCommand(
 			generatedCommands.settingsDispatch(

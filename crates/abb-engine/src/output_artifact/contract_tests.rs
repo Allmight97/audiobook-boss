@@ -228,3 +228,26 @@ fn supplemental_output_asset_contract_reports_partial_success_failure() {
         "already-committed supplemental asset should remain with audio output"
     );
 }
+
+#[test]
+fn a_240_byte_final_name_without_a_companion_pdf_plans_and_commits() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let staged = temp_dir.path().join("staged.m4b");
+    std::fs::write(&staged, b"payload").expect("write staged output");
+    let requested = temp_dir.path().join(format!("{}.m4b", "a".repeat(236)));
+
+    let plan = OutputPlanLedger::new()
+        .resolve(&requested, OutputKind::Final, CollisionPolicy::Fail, &[])
+        .expect("a name that fits plans");
+    assert_eq!(plan.action, PlannedOutputAction::Write);
+
+    let mut cleanup_guard = CleanupGuard::new("long-name".to_string());
+    commit_output_artifact(
+        OutputCommitRequest::new(&plan.resolved_path, plan.action),
+        staged,
+        &mut cleanup_guard,
+        || false,
+    )
+    .expect("a name that fits commits");
+    assert!(requested.exists());
+}

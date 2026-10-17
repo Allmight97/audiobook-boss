@@ -55,7 +55,16 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   output review, and terminal reporting.
 - Companion PDFs commit after the audiobook is published. A companion failure
   leaves the title Success with `ProcessResultEntry.supplemental_warning` set,
-  so a published title stays Success.
+  so a published title stays Success. `ProcessResultEntry.warnings` carries
+  Audio's display-only notes on a successful title (`AudioRunOutcome`), such
+  as a source cover that was left off; they change no outcome. Planning
+  refuses a title whose companion PDF name would not fit
+  (`abb_output_artifact_core::check_supplemental_pdf_name`), before encoding;
+  titles without a companion PDF are not limited by it.
+- `run_job.rs` runs the output-path check and the companion commit (which
+  waits on `lock_output_file`) on `spawn_blocking`, so a slow disk or a held
+  lock never stalls an async worker. A stopped check fails the job through
+  registration cleanup; a stopped companion commit is a companion warning.
 
 ## Progress and stages
 

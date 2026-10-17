@@ -10,4 +10,5 @@
 	display: block;
 	margin-bottom: var(--space-3);
 	color: var(--text-error);
+	white-space: pre-line;
 }

@@ -1,6 +1,5 @@
 use super::classification::{
-    cancellation_error_for_failed_entry, classify_terminal_results, is_cancellation_error,
-    RunTerminalClass, RunTerminalClassifier,
+    cancellation_error_for_failed_entry, is_cancellation_error, RunTerminalClassifier,
 };
 use super::entries::{terminal_cancelled_result, terminal_failure_result};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
@@ -17,7 +16,6 @@ pub(in crate::processing) struct TerminalFailureEvent {
 pub(in crate::processing) struct FinalizedBatchResults {
     pub(in crate::processing) results: Vec<ProcessResultEntry>,
     pub(in crate::processing) failure_events: Vec<TerminalFailureEvent>,
-    pub(in crate::processing) terminal_class: RunTerminalClass,
 }
 
 pub(in crate::processing) fn collect_batch_results(
@@ -39,13 +37,9 @@ pub(in crate::processing) fn collect_batch_results(
 
     repair_missing_batch_results(&mut ordered_results, &mut failure_events);
 
-    let results: Vec<ProcessResultEntry> = ordered_results.into_iter().flatten().collect();
-    let terminal_class = classify_terminal_results(&results);
-
     Ok(FinalizedBatchResults {
-        results,
+        results: ordered_results.into_iter().flatten().collect(),
         failure_events,
-        terminal_class,
     })
 }
 

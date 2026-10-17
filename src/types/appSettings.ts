@@ -7,6 +7,7 @@ import type {
 	SettingsIntent as GeneratedSettingsIntent,
 	SettingsOutcome as GeneratedSettingsOutcome,
 	SettingsSnapshot as GeneratedSettingsSnapshot,
+	SettingsUnit as GeneratedSettingsUnit,
 	StartupBehavior as GeneratedStartupBehavior,
 } from '../lib/generated/tauri';
 import type { EncoderSettings } from './audio';
@@ -15,6 +16,7 @@ import type { NullToOptionalDeep } from './ipc';
 export type ConcurrencyPreference = GeneratedConcurrencyPreference;
 export type AcquisitionLane = GeneratedAcquisitionLane;
 export type StartupBehavior = GeneratedStartupBehavior;
+export type SettingsUnit = GeneratedSettingsUnit;
 export type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
 	settings: EncoderSettings;
 };

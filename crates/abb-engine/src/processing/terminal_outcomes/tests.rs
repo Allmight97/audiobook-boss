@@ -1,10 +1,15 @@
 mod classification_tests {
     use super::super::classification::{
-        cancellation_error_for_failed_entry, classify_processing_error, classify_terminal_results,
-        is_cancellation_error, ProcessingJobTerminalOutcome, RunTerminalClass,
+        cancellation_error_for_failed_entry, classify_processing_error, is_cancellation_error,
+        ProcessingJobTerminalOutcome,
     };
     use crate::errors::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
-    use crate::processing::{ProcessResultEntry, ProcessResultStatus};
+    use crate::processing::{ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
+    use abb_processing_core::RunTerminalClass;
+
+    fn classify_terminal_results(results: &[ProcessResultEntry]) -> RunTerminalClass {
+        ProcessCommandResult::new(results.to_vec()).terminal_class
+    }
 
     #[test]
     fn terminal_classification_uses_structured_status_not_result_message() {
@@ -16,6 +21,7 @@ mod classification_tests {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: Some("job-native".to_string()),
         };
         let external_success = ProcessResultEntry {
@@ -26,6 +32,7 @@ mod classification_tests {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: Some("job-external".to_string()),
         };
 
@@ -49,6 +56,7 @@ mod classification_tests {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: Some("job-123".to_string()),
         };
 
@@ -68,6 +76,7 @@ mod classification_tests {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: None,
         };
         let failed = ProcessResultEntry {
@@ -83,6 +92,7 @@ mod classification_tests {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: Some("job-2".to_string()),
         };
         let skipped = ProcessResultEntry {
@@ -93,6 +103,7 @@ mod classification_tests {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: None,
         };
 
@@ -148,6 +159,7 @@ mod classification_tests {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: Some("job-123".to_string()),
         };
 
@@ -172,6 +184,7 @@ mod classification_tests {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: Some("job-123".to_string()),
         };
 
@@ -197,6 +210,7 @@ mod classification_tests {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: Some("job-2".to_string()),
         };
 
@@ -391,6 +405,7 @@ mod batch_tests {
                     output_path: None,
                     preview_actual_seconds: None,
                     supplemental_warning: None,
+                    warnings: Vec::new(),
                     job_id: Some("job-1".to_string()),
                 }),
                 Err(AppError::cancelled()),
@@ -421,6 +436,7 @@ mod batch_tests {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: Some("job-2".to_string()),
         };
 
@@ -435,6 +451,7 @@ mod batch_tests {
                     output_path: None,
                     preview_actual_seconds: None,
                     supplemental_warning: None,
+                    warnings: Vec::new(),
                     job_id: Some("job-1".to_string()),
                 }),
                 Ok(failed),
@@ -469,6 +486,7 @@ mod batch_tests {
                 output_path: None,
                 preview_actual_seconds: None,
                 supplemental_warning: None,
+                warnings: Vec::new(),
                 job_id: Some("job-1".to_string()),
             })],
         )

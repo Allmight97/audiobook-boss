@@ -22,13 +22,14 @@ export type InputOwner = {
 	readonly view: Accessor<InputView>;
 	readonly capability: Accessor<InputCapability>;
 	sourcesFor(file: AudioFile): ReadonlyArray<AudioFile>;
-	groupSelected(): Promise<void>;
-	ungroup(file: AudioFile): Promise<void>;
+	groupSelected(): void;
+	ungroup(file: AudioFile): void;
 	reorderSources(file: AudioFile, from: number, to: number): void;
 	audioChoiceRequired(file: AudioFile): boolean;
 	/** Whether a downloaded title has companion PDFs. */
 	hasCompanions(inputId: string | undefined): boolean;
 	companionSummary(inputIds: ReadonlyArray<string | undefined>): CompanionSummary;
+	/** Resolves once the picker closes and the import is sent, before it lands. */
 	importIntent(intent: ImportIntent): Promise<void>;
 	hydrateSupportText(): Promise<void>;
 	/** Resolves true when the selection changed and its tags have loaded. */
@@ -36,11 +37,11 @@ export type InputOwner = {
 		readonly index: number;
 		readonly modifiers: SelectionModifiers;
 	}): Promise<boolean>;
-	selectAll(): Promise<void>;
-	clearSelection(): Promise<void>;
+	selectAll(): void;
+	clearSelection(): void;
 	setDragOver(isDragOver: boolean): void;
-	removeFile(file: AudioFile): Promise<void>;
-	clearAllFiles(): Promise<void>;
+	removeFile(file: AudioFile): void;
+	clearAllFiles(): void;
 	moveFile(command: { readonly index: number; readonly direction: 'up' | 'down' }): void;
 	reorderFiles(command: { readonly fromIndex: number; readonly toIndex: number }): void;
 	toggleSort(): void;
@@ -81,11 +82,16 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	}
 
 	async function applied(intent: SessionIntent): Promise<boolean> {
-		return (await link.send(intent)).kind === 'applied';
+		try {
+			return (await link.send(intent)).kind === 'applied';
+		} catch (error) {
+			link.refuse(intent, error);
+			return false;
+		}
 	}
 
-	async function importPaths(paths: ReadonlyArray<string>): Promise<void> {
-		await link.send({ kind: 'import', paths: [...paths] });
+	function importPaths(paths: ReadonlyArray<string>): void {
+		link.post({ kind: 'import', paths: [...paths] });
 	}
 
 	async function pick<A>(
@@ -110,7 +116,7 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 						filters: [{ name: 'Audio Files', extensions: [...supported.extensions] }],
 					});
 				}, 'Failed to open file dialog. Please try again.');
-				if (selected?.length) await importPaths(selected);
+				if (selected?.length) importPaths(selected);
 				return;
 			}
 			case 'pickFolder': {
@@ -118,11 +124,11 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 					() => capabilityValue.openDirectory(),
 					'Failed to open folder dialog. Please try again.',
 				);
-				if (selected) await importPaths([selected]);
+				if (selected) importPaths([selected]);
 				return;
 			}
 			case 'importPaths':
-				await importPaths(intent.paths);
+				importPaths(intent.paths);
 		}
 	}
 
@@ -137,11 +143,11 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		companionSummary(inputIds) {
 			return companionSummary(link.titles().companions, inputIds);
 		},
-		async groupSelected() {
-			await link.send({ kind: 'groupSelected' });
+		groupSelected() {
+			link.post({ kind: 'groupSelected' });
 		},
-		async ungroup(file) {
-			await link.send({ kind: 'ungroup', titleId: fileIdentityKey(file) });
+		ungroup(file) {
+			link.post({ kind: 'ungroup', titleId: fileIdentityKey(file) });
 		},
 		reorderSources(file, from, to) {
 			link.post({ kind: 'reorderSources', titleId: fileIdentityKey(file), from, to });
@@ -176,22 +182,22 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 				modifiers: command.modifiers,
 			});
 		},
-		async selectAll() {
-			await link.send({ kind: 'selectAll' });
+		selectAll() {
+			link.post({ kind: 'selectAll' });
 		},
-		async clearSelection() {
-			await link.send({ kind: 'clearSelection' });
+		clearSelection() {
+			link.post({ kind: 'clearSelection' });
 		},
 		setDragOver(next) {
 			if (isDragOver === next) return;
 			isDragOver = next;
 			changed();
 		},
-		async removeFile(file) {
-			await link.send({ kind: 'removeFile', inputId: fileIdentityKey(file) });
+		removeFile(file) {
+			link.post({ kind: 'removeFile', inputId: fileIdentityKey(file) });
 		},
-		async clearAllFiles() {
-			await link.send({ kind: 'clearAll' });
+		clearAllFiles() {
+			link.post({ kind: 'clearAll' });
 		},
 		// Positions are read from the list the user acted on; the engine is
 		// told which title, so an earlier move still in flight cannot redirect it.

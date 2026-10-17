@@ -14,8 +14,9 @@ those decisions to it.
   fingerprint before creating a workspace. A queued replacement fails instead
   of running with an audio plan resolved for the previous file.
 - Preserve dispatch happens before encoder resolution. Its blocking worker
-  copies an eligible source into the tracked workspace, applies planned metadata
-  intent through the metadata owner, and uses shared finalization. Copy
+  copies an eligible source into the tracked workspace, writes its accepted
+  chapter plan and planned metadata intent through the metadata owner, verifies
+  the chapters, and uses shared finalization. Copy
   cancellation stays typed; source bytes are never the metadata writer target.
   Revalidate the source path at the copy boundary after any scheduler wait;
   cached import validity does not authorize reopening a replaced path. Compare

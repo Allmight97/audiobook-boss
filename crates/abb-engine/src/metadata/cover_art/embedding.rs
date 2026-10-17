@@ -161,6 +161,22 @@ fn add_matroska_cover(
     bytes: &[u8],
     format: CoverFormat,
 ) -> Result<(usize, CoverFormat)> {
+    let mut tags = ff::Dictionary::new();
+    let png = format.codec_id() == ff::codec::Id::PNG;
+    tags.set("filename", if png { "cover.png" } else { "cover.jpg" });
+    tags.set("mimetype", if png { "image/png" } else { "image/jpeg" });
+    let index = add_matroska_attachment(octx, bytes, format.codec_id(), tags)?;
+    Ok((index, format))
+}
+
+/// Adds `bytes` as a Matroska attachment, the only form in which that muxer
+/// keeps a picture.
+pub(crate) fn add_matroska_attachment(
+    octx: &mut ff::format::context::Output,
+    bytes: &[u8],
+    codec_id: ff::codec::Id,
+    tags: ff::Dictionary,
+) -> Result<usize> {
     let size = i32::try_from(bytes.len())
         .map_err(|_| AppError::InvalidInput("Cover art is too large.".into()))?;
     let mut parameters = ff::codec::Parameters::new();
@@ -169,7 +185,7 @@ fn add_matroska_cover(
     unsafe {
         let raw = &mut *parameters.as_mut_ptr();
         raw.codec_type = ff::sys::AVMediaType::AVMEDIA_TYPE_ATTACHMENT;
-        raw.codec_id = format.codec_id().into();
+        raw.codec_id = codec_id.into();
         raw.extradata =
             ff::sys::av_mallocz(bytes.len() + ff::sys::AV_INPUT_BUFFER_PADDING_SIZE as usize)
                 .cast();
@@ -183,10 +199,6 @@ fn add_matroska_cover(
     }
     let mut stream = octx.add_stream(None)?;
     stream.set_parameters(parameters);
-    let mut tags = ff::Dictionary::new();
-    let png = format.codec_id() == ff::codec::Id::PNG;
-    tags.set("filename", if png { "cover.png" } else { "cover.jpg" });
-    tags.set("mimetype", if png { "image/png" } else { "image/jpeg" });
     stream.set_metadata(tags);
-    Ok((stream.index(), format))
+    Ok(stream.index())
 }

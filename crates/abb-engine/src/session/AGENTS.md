@@ -77,7 +77,10 @@ one host attachment.
   (`import_order.rs`), whatever order their tasks start. A Reset drops an import
   still running, including its failure notice. While the list is locked, an
   import (and analysis that overlaps a submission) waits and appends after
-  unlock.
+  unlock. A path that discovery skips (`audio/AGENTS.md`, Import Discovery)
+  is listed with its reason and the rest is added; the `SkippedPaths` notice
+  is set in the transition that lists the titles, after `append_analyzed`
+  (which clears the notice).
 - **Cover.** A cover change applies only when exactly one valid title is
   selected. A later cover choice or Clear supersedes a load still running.
 - **Save targets.** Save covers every pending edit on a valid single-source
@@ -164,14 +167,17 @@ one host attachment.
   session itself (`Session::handoff`), and its titles are recorded as staged in
   the same transition that lists them (`staged.rs`). A download is removed a
   whole acquisition at a time once every title from it completed an export
-  without a companion warning or left the list (hidden grouped sources count as
+  without a companion warning (a title's display-only `warnings` do not count)
+  or left the list (hidden grouped sources count as
   listed), and no unfinished export, submission, or Save writing holds its
   files. Files being removed count as busy: Save holds them and a submission
   using them is refused. Every transition that leaves a download removable
   starts the one sweep (`Session::transition`), the only path that removes
   downloads. A failed removal stays recorded and is retried at the first change
   after `staged::RETRY_DELAY`; startup clears the rest. A download nothing was
-  imported from is recorded the same way.
+  imported from is recorded the same way. A download with any file that
+  cannot be read is not listed at all (`HandoffRefusal::ImportFailed`), so a
+  title never lists without one of its parts.
 - **Lookup.** A new lookup action supersedes the one in flight; a late search,
   cover, or selection result changes nothing. Editing the query, author, source,
   apply mode, or cover-replace choice supersedes a search still running. Apply

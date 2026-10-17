@@ -1,5 +1,6 @@
 import {
 	displayedTitleForFile,
+	acceptedChapterCount,
 	formatFileDetails,
 	formatAudioProperties,
 	interpretFileListKeyDown,
@@ -102,10 +103,10 @@ export function FileListView(props: {
 			return;
 		}
 		if (command.type === 'selectAll') {
-			void selectAll();
+			selectAll();
 			return;
 		}
-		void clearSelection();
+		clearSelection();
 	}
 
 	const drag = dragState;
@@ -157,7 +158,7 @@ export function FileListView(props: {
 						id="clear-files-btn"
 						style={{ display: view().showClearButton ? 'block' : 'none' }}
 						disabled={view().orderLocked}
-						onClick={() => void clearAllFiles()}
+						onClick={() => clearAllFiles()}
 					>
 						Clear
 					</Button>
@@ -314,12 +315,14 @@ export function FileListView(props: {
 												{grouped()
 													? invalidSource()
 														? formatFileDetails(invalidSource() ?? file)
-														: formatFileDetails({
-																...file,
-																duration: sources().reduce((n, f) => n + (f.duration ?? 0), 0),
-																size: sources().reduce((n, f) => n + (f.size ?? 0), 0),
-																chapters: sources().flatMap((f) => f.chapters ?? []),
-															})
+														: formatFileDetails(
+																{
+																	...file,
+																	duration: sources().reduce((n, f) => n + (f.duration ?? 0), 0),
+																	size: sources().reduce((n, f) => n + (f.size ?? 0), 0),
+																},
+																sources().reduce((n, f) => n + acceptedChapterCount(f), 0),
+															)
 													: formatFileDetails(file)}
 											</div>
 											<div class="file-audio-row">
@@ -336,7 +339,8 @@ export function FileListView(props: {
 												{(cue) => (
 													<div class="file-cue-details">
 														<span>
-															{file.chapterPlan?.chapters.length ?? 0} chapters from{' '}
+															{acceptedChapterCount(file)} chapter
+															{acceptedChapterCount(file) === 1 ? '' : 's'} from{' '}
 															{cue().status === 'embeddedPreferred'
 																? 'embedded audio'
 																: cue().fileName}
@@ -415,7 +419,7 @@ export function FileListView(props: {
 											disabled={view().orderLocked}
 											onClick={(event) => {
 												event.stopPropagation();
-												void removeFile(file);
+												removeFile(file);
 											}}
 										>
 											×

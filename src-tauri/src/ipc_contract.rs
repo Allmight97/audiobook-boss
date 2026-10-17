@@ -8,6 +8,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         .commands(tauri_specta::collect_commands![
             crate::commands::attach_frontend,
             crate::commands::session_dispatch,
+            crate::commands::open_preview_output,
             crate::commands::settings_dispatch,
             crate::commands::get_supported_audio_import_metadata,
             crate::commands::list_work_operations,

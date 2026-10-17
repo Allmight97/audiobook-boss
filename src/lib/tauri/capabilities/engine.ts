@@ -8,6 +8,8 @@ import { tauriClient } from '../client';
 export interface EngineCapability {
 	attach(): Promise<{ client: number; session: SessionUpdate; settings: SettingsSnapshot }>;
 	sessionDispatch(client: number, sequence: number, intent: SessionIntent): Promise<SessionReply>;
+	/** Claims a finished preview's output and opens it, numbered with the session intents. */
+	openPreviewOutput(client: number, sequence: number, runId: string): Promise<SessionReply>;
 	settingsDispatch(
 		client: number,
 		sequence: number,
@@ -22,6 +24,8 @@ export const liveEngineCapability: EngineCapability = {
 	attach: () => tauriClient.attachFrontend(),
 	sessionDispatch: (client, sequence, intent) =>
 		tauriClient.sessionDispatch(client, sequence, intent),
+	openPreviewOutput: (client, sequence, runId) =>
+		tauriClient.openPreviewOutput(client, sequence, runId),
 	settingsDispatch: (client, sequence, intent) =>
 		tauriClient.settingsDispatch(client, sequence, intent),
 	listenSessionUpdates: (handler) =>

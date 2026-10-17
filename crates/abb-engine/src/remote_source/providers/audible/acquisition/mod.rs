@@ -6,8 +6,8 @@ mod supplemental;
 mod validation;
 
 use super::audio_download::download_audio;
-use super::client_from_auth;
 use super::diagnostics::AudibleAcquisitionError;
+use super::http::AudibleApi;
 use super::license::{
     license_decrypt_context_from_auth, lookup_title_details, provider_protocol_lane_message,
     request_license_lane, strategy_label, AudibleTitleDetails, LicenseLane,
@@ -26,7 +26,6 @@ use abb_audible_core::{title_ref, AudibleLicenseDecryptContext};
 use abb_remote_source_core::{
     acquisition_progress, AcquisitionProgress, AcquisitionStage, AcquisitionStrategy,
 };
-use audible_api::api::Client as AudibleClient;
 use audible_api::auth::Auth;
 
 pub(super) struct AcquiredTitle {
@@ -82,7 +81,7 @@ pub(super) async fn acquire(
 ) -> Result<AcquisitionJob> {
     ensure_not_cancelled(&is_cancelled)?;
     let license_decrypt_context = license_decrypt_context_from_auth(&auth);
-    let client = client_from_auth(auth.clone())?;
+    let api = AudibleApi::new(auth.clone())?;
     let mut job = AcquisitionJob {
         job_id: job_id.to_string(),
         provider_id: ProviderId::Audible,
@@ -110,7 +109,7 @@ pub(super) async fn acquire(
             },
         };
         let outcome = acquire_one(
-            &client,
+            &api,
             &auth,
             materializer,
             request,
@@ -167,7 +166,7 @@ pub(in crate::remote_source::providers::audible) use crate::remote_source::cance
 };
 
 async fn acquire_one(
-    client: &AudibleClient,
+    api: &AudibleApi,
     auth: &Auth,
     materializer: &AaxcleanMaterializer,
     request: TitleAcquisitionRequest<'_>,
@@ -206,13 +205,13 @@ async fn acquire_one(
         None,
         None,
     ));
-    let title_details = lookup_title_details(client, ctx, include_pdf, is_cancelled)
+    let title_details = lookup_title_details(api, ctx, include_pdf, is_cancelled)
         .await
-        .map_err(AudibleAcquisitionError::provider_protocol)?;
+        .map_err(AudibleAcquisitionError::request)?;
     let title_name = title_details.title.as_deref();
-    let lane = request_license_lane(client, ctx, license_decrypt_context, progress, is_cancelled)
+    let lane = request_license_lane(api, ctx, license_decrypt_context, progress, is_cancelled)
         .await
-        .map_err(AudibleAcquisitionError::provider_protocol)?;
+        .map_err(AudibleAcquisitionError::request)?;
     if let Some(unsupported) = unsupported_result_for_unmaterializable_lane(title_id, job_id, &lane)
     {
         return Ok(unsupported);
@@ -472,6 +471,80 @@ mod tests {
     use secrecy::ExposeSecret;
     use serde_json::json;
     use std::path::Path;
+
+    async fn job_after_license_reply(status: u16) -> AcquisitionJob {
+        use crate::remote_source::providers::audible::http::stub::{signing_auth, stub_api};
+        let (api, server) = stub_api(vec![
+            (200, r#"{"item":{"title":"Book"}}"#.to_string()),
+            (status, r#"{"message":"Refused"}"#.to_string()),
+        ])
+        .await;
+        let root = tempfile::TempDir::new().expect("temp root");
+        let mut job = AcquisitionJob {
+            job_id: "job-1".into(),
+            provider_id: ProviderId::Audible,
+            status: RemoteAcquisitionStatus::Acquiring,
+            progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
+            materialized_files: Vec::new(),
+            supplemental_assets: Vec::new(),
+            diagnostics: Vec::new(),
+            handoff: None,
+        };
+
+        let outcome = acquire_one(
+            &api,
+            &signing_auth("us"),
+            &AaxcleanMaterializer::new_for_helper(None),
+            TitleAcquisitionRequest {
+                title_id: "B000000001",
+                include_pdf: false,
+                job_id: "job-1",
+                job_dir: root.path(),
+                license_decrypt_context: None,
+                progress_context: TitleProgressContext {
+                    title_id: "B000000001",
+                    item_index: 1,
+                    total_items: 1,
+                },
+            },
+            &mut |_| {},
+            &|| false,
+        )
+        .await;
+        record_title_outcome(&mut job, "B000000001", outcome).expect("not cancelled");
+        let requests = server.await.expect("stub");
+        assert!(
+            requests[1].starts_with("POST /1.0/content/B000000001/licenserequest "),
+            "{requests:?}"
+        );
+        assert_eq!(job.diagnostics.len(), 1);
+        job
+    }
+
+    #[tokio::test]
+    async fn a_license_401_says_sign_in_is_needed() {
+        let job = job_after_license_reply(401).await;
+
+        assert_eq!(
+            job.diagnostics[0].kind,
+            RemoteAcquisitionFailureKind::AuthRequired
+        );
+    }
+
+    #[tokio::test]
+    async fn a_license_403_fails_only_that_title() {
+        let job = job_after_license_reply(403).await;
+
+        assert_eq!(
+            job.diagnostics[0].kind,
+            RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed
+        );
+        assert!(
+            job.diagnostics[0].message.contains("HTTP 403"),
+            "{:?}",
+            job.diagnostics[0]
+        );
+    }
 
     #[test]
     fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {

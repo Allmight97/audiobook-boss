@@ -323,6 +323,7 @@ export function AppSettingsDialogView(): JSX.Element {
 											value="audible"
 											data-testid="app-settings-default-lane-audible"
 											checked={defaultAcquisitionLane() === 'audible'}
+											disabled={state().laneSaveState === 'saving'}
 											onChange={() => void settings.setDefaultAcquisitionLane('audible')}
 										/>
 										Audible
@@ -334,11 +335,21 @@ export function AppSettingsDialogView(): JSX.Element {
 											value="indexer"
 											data-testid="app-settings-default-lane-indexer"
 											checked={defaultAcquisitionLane() === 'indexer'}
+											disabled={state().laneSaveState === 'saving'}
 											onChange={() => void settings.setDefaultAcquisitionLane('indexer')}
 										/>
 										Indexer
 									</label>
 								</div>
+								<Show when={state().laneSaveState === 'error'}>
+									<p
+										class="app-settings-status app-settings-status-error"
+										data-testid="app-settings-lane-error"
+										role="alert"
+									>
+										{state().laneSaveError}
+									</p>
+								</Show>
 							</section>
 							<section class="app-settings-section">
 								<div class="app-settings-connection-heading">

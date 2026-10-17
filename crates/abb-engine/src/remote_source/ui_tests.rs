@@ -1094,7 +1094,7 @@ async fn starting_auth_clears_previous_read_failures_and_supersedes_pending_libr
         let library_request = ui.begin_library();
         ui.library_result(
             library_request,
-            &Err(AppError::General("old library failure".into())),
+            &Err(AppError::General("old library failure".into()).into()),
         );
     }
     let old = runtime.ui_begin(RemoteUiIntent::RefreshLibrary);
@@ -1128,4 +1128,129 @@ async fn disconnect_naming_another_provider_than_the_lane_is_refused() {
 
     assert!(refused.is_err());
     assert!(!runtime.ui().disconnecting);
+}
+
+fn connected_audible() -> super::super::RemoteSourceAccountState {
+    super::super::RemoteSourceAccountState {
+        provider_id: ProviderId::Audible,
+        status: super::super::RemoteAccountStatus::Connected,
+        account: Some(super::super::AccountRef {
+            provider_id: ProviderId::Audible,
+            account_id: "audible-us".into(),
+            display_name: "Listener".into(),
+        }),
+        message: None,
+    }
+}
+
+fn reread_account(ui: &mut UiState) -> super::super::RemoteSourceAccountState {
+    let request = ui.account_request;
+    assert!(ui.account_reply(ProviderId::Audible, request, &Ok(connected_audible())));
+    ui.snapshot().account.expect("account")
+}
+
+fn refuse_library_sign_in(ui: &mut UiState) {
+    let request = ui.begin_library();
+    assert!(ui.library_result(request, &Err(AudibleRequestError::AuthRejected),));
+}
+
+#[test]
+fn a_refused_sign_in_needs_auth_keeps_the_library_and_survives_an_account_reread() {
+    let mut ui = UiState::default();
+    reread_account(&mut ui);
+    ui.library_loaded(vec![title("kept", true, false)]);
+
+    refuse_library_sign_in(&mut ui);
+
+    let account = ui.snapshot().account.expect("account");
+    assert_eq!(account.status, super::super::RemoteAccountStatus::NeedsAuth);
+    assert_eq!(
+        account.message.as_deref(),
+        Some("Audible did not accept the saved sign-in. Sign in to Audible again.")
+    );
+    assert!(matches!(
+        ui.snapshot().library_status,
+        RemoteDraftStatus::Failed { .. }
+    ));
+    assert_eq!(ui.library.titles, [title("kept", true, false)]);
+    assert_eq!(
+        reread_account(&mut ui).status,
+        super::super::RemoteAccountStatus::NeedsAuth
+    );
+}
+
+#[test]
+fn signing_in_again_or_disconnecting_clears_a_refused_sign_in() {
+    let mut ui = UiState::default();
+    refuse_library_sign_in(&mut ui);
+    ui.auth_completed(&Ok(connected_audible()));
+    assert_eq!(
+        reread_account(&mut ui).status,
+        super::super::RemoteAccountStatus::Connected
+    );
+
+    refuse_library_sign_in(&mut ui);
+    ui.disconnected(ProviderId::Audible);
+    assert_eq!(
+        reread_account(&mut ui).status,
+        super::super::RemoteAccountStatus::Connected
+    );
+}
+
+fn acquisition_failed_with(
+    kind: super::super::RemoteAcquisitionFailureKind,
+) -> super::super::AcquisitionJob {
+    super::super::AcquisitionJob {
+        job_id: "job-1".into(),
+        provider_id: ProviderId::Audible,
+        status: super::super::RemoteAcquisitionStatus::Failed,
+        progress: abb_remote_source_core::acquisition_progress(
+            abb_remote_source_core::AcquisitionStage::Failed,
+            Some(1.0),
+            None,
+            None,
+        ),
+        materialized_files: Vec::new(),
+        supplemental_assets: Vec::new(),
+        diagnostics: vec![super::super::RemoteSourceDiagnostic {
+            kind,
+            title_id: Some("B000000001".into()),
+            message: "Audible license request failed.".into(),
+        }],
+        handoff: None,
+    }
+}
+
+#[test]
+fn a_refused_license_during_acquisition_needs_auth() {
+    let mut ui = UiState::default();
+    reread_account(&mut ui);
+
+    ui.acquisition_changed(acquisition_failed_with(
+        super::super::RemoteAcquisitionFailureKind::AuthRequired,
+    ));
+
+    assert_eq!(
+        ui.snapshot().account.expect("account").status,
+        super::super::RemoteAccountStatus::NeedsAuth
+    );
+    assert_eq!(
+        reread_account(&mut ui).status,
+        super::super::RemoteAccountStatus::NeedsAuth
+    );
+}
+
+#[test]
+fn a_title_level_license_failure_leaves_the_account_connected() {
+    let mut ui = UiState::default();
+    reread_account(&mut ui);
+
+    ui.acquisition_changed(acquisition_failed_with(
+        super::super::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+    ));
+
+    assert_eq!(
+        ui.snapshot().account.expect("account").status,
+        super::super::RemoteAccountStatus::Connected
+    );
 }

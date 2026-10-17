@@ -14,6 +14,11 @@ export const commands = {
 	 */
 	sessionDispatch: (client: number, sequence: number, intent: SessionIntent) => typedError<SessionReply, AppErrorEnvelope>(__TAURI_INVOKE("session_dispatch", { client, sequence, intent })),
 	/**
+	 *  Claims a finished preview's output, numbered with the session intents, and
+	 *  opens it with the user's default app. The path never comes from the webview.
+	 */
+	openPreviewOutput: (client: number, sequence: number, runId: string) => typedError<SessionReply, AppErrorEnvelope>(__TAURI_INVOKE("open_preview_output", { client, sequence, runId })),
+	/**
 	 *  Applies one intent to the settings and returns the settings in effect.
 	 *  Settings intents run one at a time in `sequence` order.
 	 */
@@ -294,6 +299,11 @@ export type ChildJobSnapshot = {
 	 *  child's sources stay retained. See `ProcessResultEntry`.
 	 */
 	supplementalWarning: string | null,
+	/**
+	 *  Display-only notes on a finished title, such as a source cover that was
+	 *  left off. See `ProcessResultEntry`.
+	 */
+	warnings: string[],
 	/**  The latest metadata edit accepted for this title's output. */
 	outputUpdate: OutputUpdate | null,
 };
@@ -505,12 +515,17 @@ export type IndexerWorkSnapshot = {
 	message: string,
 };
 
-/**  Why the last import added nothing. Hosts word these for the user. */
+/**
+ *  What the last import could not do: why it added nothing, or which dropped
+ *  paths it skipped. Hosts word these for the user.
+ */
 export type InputNotice =
 /**  The order is locked while processing; nothing can be added. */
 { kind: "orderLocked" } | { kind: "noSupportedFiles"; formatsText: string } |
 /**  Every analyzed file was already in the list. */
-{ kind: "duplicatesOnly" } | { kind: "discoveryFailed"; error: AppErrorEnvelope } | { kind: "analysisFailed"; error: AppErrorEnvelope };
+{ kind: "duplicatesOnly" } |
+/**  Paths that could not be read; the rest of the import was added. */
+{ kind: "skippedPaths"; skipped: SkippedImportPath[] } | { kind: "analysisFailed"; error: AppErrorEnvelope };
 
 export type LookupApplyMode =
 /**  Apply to the current title and stay on it. */
@@ -850,6 +865,11 @@ export type ProcessResultEntry = {
 	 *  retained so reprocessing can publish the companions.
 	 */
 	supplementalWarning: string | null,
+	/**
+	 *  Display-only notes on a successful title, such as a source cover that
+	 *  was left off. They change no outcome.
+	 */
+	warnings: string[],
 };
 
 export type ProcessResultStatus = "success" | "skipped" | "cancelled" | "failed";
@@ -1168,6 +1188,17 @@ export type SettingsOutcome = { kind: "applied" } |
 /**  Nothing changed. */
 { kind: "rejected"; error: AppErrorEnvelope };
 
+/**  What loading the saved settings could not keep. */
+export type SettingsRecovery = {
+	/**  Settings whose saved value was refused; they took their defaults. */
+	reset: SettingsUnit[],
+	/**
+	 *  The name an unreadable settings file was kept under; every setting
+	 *  took its default.
+	 */
+	setAsideAs: string | null,
+};
+
 export type SettingsReply = {
 	outcome: SettingsOutcome,
 	snapshot: SettingsSnapshot,
@@ -1185,8 +1216,18 @@ export type SettingsSnapshot = {
 	 *  chose that and has pinned some, otherwise the last used.
 	 */
 	startupDefaults: PinnedDefaults,
-	defaultAcquisitionLane: AcquisitionLane,
+	/**
+	 *  What this launch could not keep from the saved settings. Absent after
+	 *  the next accepted change.
+	 */
+	recovery: SettingsRecovery | null,
 };
+
+/**
+ *  A setting that loading recovers on its own: a saved value this release
+ *  refuses resets only that setting.
+ */
+export type SettingsUnit = "keepAwake" | "jobLimit" | "acquisitionLane" | "encoderDefaults" | "outputDefaults" | "startupBehavior" | "pinnedDefaults";
 
 /**  The settings after a change made outside a settings intent. */
 export type SettingsUpdateEvent = SettingsSnapshot;
@@ -1195,6 +1236,12 @@ export type SettingsUpdateEvent = SettingsSnapshot;
 export type SizeEstimate = { kind: "bytes"; bytes: number } |
 /**  A quality setting owns the bitrate, so size follows the audio. */
 { kind: "variesWithAudio" };
+
+/**  A path an import could not read, and why. */
+export type SkippedImportPath = {
+	path: string,
+	reason: string,
+};
 
 export type SortDirection = "none" | "ascending" | "descending";
 

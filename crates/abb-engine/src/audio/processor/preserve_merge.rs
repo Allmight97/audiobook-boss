@@ -207,7 +207,7 @@ pub(super) fn execute(
     file_info: FileListInfo,
     metadata: Option<AudiobookMetadata>,
     cover_policy: CoverArtPassthroughPolicy,
-) -> Result<String> {
+) -> Result<super::AudioRunOutcome> {
     if context.preview.is_some() {
         return Err(AppError::InvalidInput(
             "Preserve audio cannot be used for a preview.".into(),
@@ -281,12 +281,16 @@ pub(super) fn execute(
     let passthrough = cover_policy.apply_to_passthrough(
         crate::metadata::extract_passthrough_metadata(&sources).into_option(),
     );
-    let (metadata, passthrough) = crate::metadata::prepare_output_cover_art(metadata, passthrough)?;
+    let (metadata, passthrough, cover_warning) =
+        crate::metadata::prepare_output_cover_art(metadata, passthrough, cover_policy)?;
     context
         .new_emitter()
         .emit_metadata_start("Writing title metadata and chapters...");
     crate::metadata::finalize_artifact_metadata(&staged, metadata.as_ref(), passthrough.as_ref())?;
-    super::finalize::complete_staged_output(&context, staged, &mut cleanup)
+    Ok(super::AudioRunOutcome {
+        message: super::finalize::complete_staged_output(&context, staged, &mut cleanup)?,
+        warnings: cover_warning.into_iter().collect(),
+    })
 }
 
 fn validate_mp3_start(frame: &[u8]) -> Result<()> {

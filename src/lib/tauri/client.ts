@@ -1,14 +1,6 @@
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
-import {
-	open as tauriOpen,
-	type OpenDialogOptions,
-	type OpenDialogReturn,
-} from '@tauri-apps/plugin-dialog';
-import {
-	openPath as tauriOpenPath,
-	openUrl as tauriOpenUrl,
-	revealItemInDir,
-} from '@tauri-apps/plugin-opener';
+import { open as tauriOpen, type OpenDialogOptions } from '@tauri-apps/plugin-dialog';
+import { openUrl as tauriOpenUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
 
 import { events as generatedEvents } from '../generated/tauri';
 import {
@@ -104,14 +96,6 @@ function listen(
 	);
 }
 
-function openDialog<T extends OpenDialogOptions>(options: T): Promise<OpenDialogReturn<T>>;
-function openDialog(): Promise<string | string[] | null>;
-function openDialog<T extends OpenDialogOptions>(
-	options?: T,
-): Promise<OpenDialogReturn<T> | string | string[] | null> {
-	return tauriOpen(options) as Promise<OpenDialogReturn<T>>;
-}
-
 function openFile(options?: DialogOptions): Promise<string | null> {
 	return tauriOpen({ ...options, multiple: false, directory: false } as const);
 }
@@ -137,6 +121,16 @@ export const tauriClient = {
 		intent: SessionIntent,
 	): Promise<CommandResult<'session_dispatch'>> =>
 		commandSpecs.session_dispatch({ client, sequence, intent }),
+	/**
+	 * Claims a finished preview's output and opens it in the host, numbered
+	 * with the session intents.
+	 */
+	openPreviewOutput: (
+		client: number,
+		sequence: number,
+		runId: string,
+	): Promise<CommandResult<'open_preview_output'>> =>
+		commandSpecs.open_preview_output({ client, sequence, runId }),
 	/** Applies one settings intent; numbered separately from session intents. */
 	settingsDispatch: (
 		client: number,
@@ -156,11 +150,9 @@ export const tauriClient = {
 	logFrontend: (entry: FrontendLogEntry): Promise<void> =>
 		commandSpecs.log_frontend({ entry }).then(() => undefined),
 	listen,
-	open: openDialog,
 	openFile,
 	openFiles,
 	openDirectory,
-	openPath: (path: string, openWith?: string): Promise<void> => tauriOpenPath(path, openWith),
 	/** Shows the file selected in the host OS file manager. */
 	revealPath: (path: string): Promise<void> => revealItemInDir(path),
 	openUrl: (url: string | URL, openWith?: string): Promise<void> => tauriOpenUrl(url, openWith),

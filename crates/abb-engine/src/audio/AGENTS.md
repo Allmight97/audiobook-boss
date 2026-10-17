@@ -50,7 +50,9 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
 ## Path Display Policy
 
 - Filesystem and process identity uses `Path`, `OsStr`, or `OsString`.
-- User-facing diagnostics use sanitized display strings. Started jobs record
+- User-facing diagnostics use sanitized display strings. The import notice is
+  the exception: it lists each skipped path in full, because a bare name
+  cannot tell same-named files in different folders apart. Started jobs record
   ordered source paths at info level, with debug escaping so same-named files
   stay distinguishable.
 - Lossy strings serve display ordering only, never identity or command argv.
@@ -100,11 +102,22 @@ When one appears, name the affected boundary, state the assumption used to
 continue, and add or propose the smallest regression test, invariant, or doc
 guard that prevents recurrence.
 
+## Import Discovery
+
+`discover_audio_import_paths` never fails a whole import: each path it cannot
+read (dropped path, subfolder, entry, or file that fails
+`validate_input_audio_path`) is returned in `skipped` with its error, and the
+walk continues. Unsupported extensions and nested symlinks are left out
+silently. The session decides what a skip means for the user.
+
 ## Chapter Intake
 
-Analysis attaches CUE diagnostics and a source-fingerprinted candidate chapter
-plan to each MP3. `apply_chapter_plans` validates accepted plans against the
-audio identity and duration before dispatch. CUE confirmation or Ignore is
+Analysis gives each valid file a source-fingerprinted chapter plan from its
+repaired embedded chapters (`metadata/AGENTS.md`). An MP3 also gets CUE
+diagnostics and, when its sheet reads, a CUE plan. A file whose chapters
+cannot be repaired is listed invalid with the reason; the rest of the import
+continues. `apply_chapter_plans` validates accepted plans against the audio
+identity and duration before dispatch. CUE confirmation or Ignore is
 explicit; multi-source CUE merging is rejected. Encoders consume accepted
 chapters. Preview omits chapters.
 

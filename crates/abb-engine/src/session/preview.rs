@@ -224,6 +224,7 @@ mod tests {
                     output_path: (!path.is_empty()).then(|| path.to_string()),
                     preview_actual_seconds: None,
                     supplemental_warning: None,
+                    warnings: Vec::new(),
                     job_id: None,
                 })
                 .collect(),

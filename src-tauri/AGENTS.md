@@ -20,6 +20,10 @@ offer, add it to the engine's host interface.
   and holds no state.
 - **Covers.** `cover_protocol.rs` serves the `abb-cover` scheme: it passes each
   request path to `Engine::cover` and maps the answer to an HTTP status.
+- **Second copy.** When `Engine::start` fails with `AlreadyRunning`, setup
+  hides the window, shows the message in a native dialog, and exits on OK
+  without an engine. `Quit` and `FrontendLink` are managed before the engine
+  starts so that exit path and the hidden webview's commands never panic.
 - **Quit.** `lib.rs` holds every quit until `Engine::shutdown` settles. Running
   work, a slow shutdown, and unsaved settings reach the user as choices. The
   process exits early only when the user chooses Quit Now.
@@ -37,6 +41,12 @@ Command modules live in `src/commands/`.
   actions are session intents.
 - A separate command serves a read outside a snapshot, or an owner that takes
   no intents yet. Covers use the `abb-cover` scheme.
+- `open_preview_output` is the one session action with its own command: it
+  takes a session turn, claims the preview through `TakePreviewOutput`, and
+  opens the path with `OpenerExt::open_path`. Why: opening needs a host
+  capability, and the webview must never name a path to open. An open
+  failure returns the reply with a `Rejected` outcome so its update still
+  applies.
 - The engine validates paths, metadata intent, output artifact truth, and
   operation lifecycle. A command passes the request through.
 - A command change updates `ipc_contract.rs` and the generated bindings. Checks:

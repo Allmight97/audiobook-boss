@@ -61,6 +61,7 @@ pub(crate) use thumbnail::render_display_thumbnail;
 pub(crate) use thumbnail::{optimize_cover_art, prepare_cover_art_for_write};
 
 pub use cover_art::{add_cover_art_stream_pre_header, write_cover_art_packet_post_header};
+pub(crate) use ffi::length_is_estimated;
 pub use ffmpeg_dict::set_container_metadata;
 pub(crate) use passthrough::prepare_output_cover_art;
 pub use passthrough::{
@@ -76,29 +77,92 @@ pub fn save_metadata_intent(path: &std::path::Path, patch: &MetadataIntentPatch)
     save_metadata_with_plan(path, &plan)
 }
 
+/// Saves into a sibling copy (a clone of the source for MP4, a remux for
+/// others), checks the copy's audio against the original, then swaps it in.
+/// The original is never opened for writing.
 pub(crate) fn save_metadata_with_plan(
     path: &std::path::Path,
     plan: &MetadataWritePlan,
 ) -> Result<()> {
-    match crate::diagnostics::stage("metadata_classify", path, || container::classify(path))? {
+    let route = crate::diagnostics::stage("metadata_classify", path, || container::classify(path))?;
+    let saved = remux::meta_temp(path)?;
+    match route {
         container::ContainerRoute::Mp4Family => {
-            mp4ameta_bridge::write_metadata_with_plan(path, plan)
+            crate::diagnostics::stage("metadata_copy_source", path, || {
+                std::fs::copy(path, saved.path()).map_err(AppError::Io)
+            })?;
+            mp4ameta_bridge::write_metadata_with_plan(saved.path(), plan)?;
         }
-        route => remux::rewrite_metadata_with_ffmpeg_plan_as(
+        route => remux::remux_into(
             path,
+            saved.path(),
             Some(plan),
             None,
             route.remux_output_format(),
-        ),
+        )?,
     }
+    commit_checked_save(path, saved)
+}
+
+fn commit_checked_save(
+    original: &std::path::Path,
+    saved: crate::file_replace::SiblingTemp,
+) -> Result<()> {
+    check_saved_audio(original, saved.path())?;
+    crate::diagnostics::stage("metadata_replace", original, || {
+        saved.commit(original).map_err(AppError::Io)
+    })
+}
+
+/// Refuses a saved copy whose audio stream count differs from the original's
+/// or whose duration is more than 0.5 s away. A loss under 0.5 s passes.
+/// Durations count only when FFmpeg measured both or estimated both from a
+/// bitrate: a joined MP3 reads as an estimate while its remuxed copy is
+/// measured. Without comparable durations (that case, raw ADTS) only the
+/// stream count is checked.
+fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Result<()> {
+    const TOLERANCE_US: u64 = 500_000;
+    let (original_us, original_estimated, original_streams) = audio_shape(original)?;
+    let (saved_us, saved_estimated, saved_streams) = audio_shape(saved)?;
+    let unknown = ffmpeg_next::ffi::AV_NOPTS_VALUE;
+    let duration_moved = original_us != unknown
+        && original_estimated == saved_estimated
+        && (saved_us == unknown || original_us.abs_diff(saved_us) > TOLERANCE_US);
+    if original_streams == saved_streams && !duration_moved {
+        return Ok(());
+    }
+    let seconds = |us: i64| {
+        if us == unknown {
+            "unknown".to_string()
+        } else {
+            format!("{:.1} s", us as f64 / 1_000_000.0)
+        }
+    };
+    Err(AppError::FileValidation(format!(
+        "The original '{}' was kept unchanged: the saved copy's audio did not match it (length {} vs {}, audio streams {} vs {}).",
+        crate::errors::sanitize_path_for_display(original),
+        seconds(saved_us),
+        seconds(original_us),
+        saved_streams,
+        original_streams
+    )))
+}
+
+fn audio_shape(path: &std::path::Path) -> Result<(i64, bool, usize)> {
+    let input = ffmpeg_next::format::input(path).map_err(AppError::Ffmpeg)?;
+    let audio_streams = input
+        .streams()
+        .filter(|stream| stream.parameters().medium() == ffmpeg_next::media::Type::Audio)
+        .count();
+    Ok((input.duration(), length_is_estimated(&input), audio_streams))
 }
 
 /// Finalizes a freshly produced artifact's metadata in one container-aware
 /// pass, as a preserved merge needs: a remux pass carries chapters and cover
 /// art, then MP4-family tag truth is rewritten through the mp4ameta adapter
 /// chosen by actual container classification. The FFmpeg mov muxer silently
-/// drops dictionary keys outside its known-atom table (series, series-part, the
-/// iTunes freeform mirrors, sort_album), so MP4-family artifacts must not rely
+/// drops dictionary keys outside its known-atom table (series, series-part,
+/// sort_album), so MP4-family artifacts must not rely
 /// on the remux for tag truth. Re-exported at the crate root for the
 /// media-execution lane's artifact-finalize proof.
 pub fn finalize_artifact_metadata(
@@ -156,11 +220,14 @@ pub(crate) fn finish_artifact_tags(
     Ok(rewrote)
 }
 
-/// Changes only the container on an owned staging artifact, retaining its audio,
-/// accepted chapters, and metadata. Callers never pass an original source here.
+/// Puts an owned staging artifact into the target container with the accepted
+/// chapters, keeping its audio, pictures, and tags. A file already in that
+/// container with those chapters (for MP4, those titles and starts) is left
+/// alone. Callers never pass an original source here.
 pub(crate) fn remux_preserved_audio_container(
     path: &std::path::Path,
     extension: &str,
+    chapters: &[ChapterSpec],
 ) -> Result<()> {
     let target = match extension {
         "m4a" | "m4b" => "mp4",
@@ -172,29 +239,62 @@ pub(crate) fn remux_preserved_audio_container(
             ))
         }
     };
-    if container::classify(path)?.remux_output_format() == Some(target) {
-        return Ok(());
-    }
-    let metadata = read_metadata(path)?;
-    let passthrough = extract_passthrough_metadata(&[PassthroughSource {
+    let source = extract_passthrough_metadata(&[PassthroughSource {
         path: path.into(),
         duration: None,
         is_valid: true,
         chapters: None,
-    }])
-    .into_option();
+    }]);
+    let same_container = container::classify(path)?.remux_output_format() == Some(target);
+    if same_container
+        && passthrough::first_chapter_difference(&source.chapters, chapters, target != "mp4")
+            .is_none()
+    {
+        return Ok(());
+    }
+    let mut metadata = read_metadata(path)?;
+    // A same-container remux copies every picture the file holds; a cover
+    // would replace them. A container change carries the first one over.
+    let cover_art = if same_container {
+        metadata.cover_art = None;
+        None
+    } else {
+        source.cover_art
+    };
+    let passthrough = PassthroughMetadata {
+        chapters: chapters.to_vec(),
+        cover_art,
+    };
     let plan = MetadataWritePlan::from_metadata(metadata.clone());
     remux::rewrite_metadata_with_ffmpeg_plan_as(
         path,
         Some(&plan),
-        passthrough.as_ref(),
+        Some(&passthrough),
         Some(target),
     )?;
-    finish_artifact_tags(
-        path,
-        Some(&metadata),
-        passthrough.as_ref().map(|value| value.chapters.as_slice()),
-        || {},
-    )?;
+    finish_artifact_tags(path, Some(&metadata), None, || {})?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_cases::integration_media_execution_tests::write_sine_wav;
+
+    #[test]
+    fn a_saved_copy_shorter_than_the_original_is_refused_and_the_original_kept() {
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        let original = dir.path().join("book.wav");
+        write_sine_wav(&original, 2.0, 440.0);
+        let before = std::fs::read(&original).expect("read original");
+        let saved = remux::meta_temp(&original).expect("temp");
+        write_sine_wav(saved.path(), 1.0, 440.0);
+        let saved_path = saved.path().to_path_buf();
+
+        let error = commit_checked_save(&original, saved).expect_err("shorter copy refused");
+
+        assert!(error.to_string().contains("unchanged"), "{error}");
+        assert_eq!(std::fs::read(&original).expect("reread original"), before);
+        assert!(!saved_path.exists(), "the refused copy is removed");
+    }
 }

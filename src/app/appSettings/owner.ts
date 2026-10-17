@@ -5,6 +5,7 @@ import type {
 	ConcurrencyPreference,
 	SettingsIntent,
 	SettingsOutcome,
+	SettingsUnit,
 	StartupBehavior,
 } from '../../types/appSettings';
 import { toUserMessage } from '../../lib/tauri/appError';
@@ -37,6 +38,8 @@ export type AppSettingsDialogState = {
 	powerSaveError: string;
 	startupSaveState: SettingsSaveState;
 	startupSaveError: string;
+	laneSaveState: SettingsSaveState;
+	laneSaveError: string;
 };
 
 /**
@@ -46,6 +49,8 @@ export type AppSettingsDialogState = {
  */
 export type SettingsOwner = {
 	readonly durability: Accessor<SettingsDurability>;
+	/** What this launch could not keep from the saved settings; empty when nothing. */
+	readonly recoveryNotice: Accessor<string>;
 	retryPersistence(): Promise<void>;
 	readonly concurrency: Accessor<ConcurrencyView>;
 	readonly defaultAcquisitionLane: Accessor<AcquisitionLane>;
@@ -69,7 +74,7 @@ export type SettingsOwnerDeps = {
 
 /** The dialog's own progress: which control is saving and how it ended. */
 type DialogProgress = Omit<AppSettingsDialogState, 'settings'>;
-type ProgressKey = 'save' | 'powerSave' | 'startupSave';
+type ProgressKey = 'save' | 'powerSave' | 'startupSave' | 'laneSave';
 
 function idleDialog(): DialogProgress {
 	return {
@@ -80,12 +85,24 @@ function idleDialog(): DialogProgress {
 		powerSaveError: '',
 		startupSaveState: 'idle',
 		startupSaveError: '',
+		laneSaveState: 'idle',
+		laneSaveError: '',
 	};
 }
 
 function describe(error: unknown): string {
 	return toUserMessage(error, { fallback: 'Settings update failed.' });
 }
+
+const UNIT_LABELS: Record<SettingsUnit, string> = {
+	keepAwake: 'keep computer awake while working',
+	jobLimit: 'number of jobs',
+	acquisitionLane: 'default import source',
+	encoderDefaults: 'audio defaults',
+	outputDefaults: 'output folder and naming',
+	startupBehavior: 'startup settings',
+	pinnedDefaults: 'pinned defaults',
+};
 
 function selectionOf(preference: ConcurrencyPreference): string {
 	return preference.mode === 'fixed' ? String(preference.value) : 'auto';
@@ -129,16 +146,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		return 'error' in outcome ? describe(outcome.error) : null;
 	}
 
-	/** Records defaults a panel accepted. A failed write shows through `durability`. */
-	async function remember(intent: Extract<SettingsIntent, { kind: 'remember' }>): Promise<void> {
-		writesInFlight += 1;
-		changed();
-		const outcome = await send(intent);
-		writesInFlight -= 1;
-		changed();
-		if ('error' in outcome) console.error('Failed to record settings:', outcome.error);
-	}
-
 	/** Runs a dialog action and shows its progress on the control that started it. */
 	async function runDialogAction(key: ProgressKey, intent: SettingsIntent): Promise<boolean> {
 		const started = generation;
@@ -163,6 +170,20 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 				? { state: 'error', message: toUserMessage(error) }
 				: { state: 'saved', message: '' };
 		},
+		recoveryNotice: () => {
+			const recovery = link.settings().recovery;
+			if (!recovery) return '';
+			const parts = [];
+			if (recovery.reset.length > 0)
+				parts.push(
+					`ABB no longer accepts these saved settings, so they are back to their defaults: ${recovery.reset.map((unit) => UNIT_LABELS[unit]).join(', ')}.`,
+				);
+			if (recovery.setAsideAs)
+				parts.push(
+					`ABB couldn't read your settings file, so every setting is back to its default. The file was kept as ${recovery.setAsideAs} in ABB's settings folder.`,
+				);
+			return parts.join(' ');
+		},
 		async retryPersistence() {
 			writesInFlight += 1;
 			changed();
@@ -186,7 +207,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 				fixedOptions: capabilities.fixedOptions,
 			};
 		},
-		defaultAcquisitionLane: () => link.settings().defaultAcquisitionLane,
+		defaultAcquisitionLane: () => link.settings().settings?.defaultAcquisitionLane ?? 'audible',
 		dialog: () => {
 			rev();
 			return { ...dialog, settings: link.settings().settings ?? null };
@@ -200,8 +221,9 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			concurrencyError = error ?? '';
 			changed();
 		},
-		setDefaultAcquisitionLane: (defaultAcquisitionLane) =>
-			remember({ kind: 'remember', defaultAcquisitionLane }),
+		async setDefaultAcquisitionLane(defaultAcquisitionLane) {
+			await runDialogAction('laneSave', { kind: 'remember', defaultAcquisitionLane });
+		},
 		setControlsEnabled(enabled) {
 			controlsEnabled = enabled;
 			changed();

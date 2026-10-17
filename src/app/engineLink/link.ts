@@ -11,6 +11,7 @@ import type {
 	SessionOutput,
 	SessionMetadata,
 	SessionOutcome,
+	SessionReply,
 	SessionSelection,
 	SessionTitles,
 	SessionUpdate,
@@ -32,9 +33,13 @@ export type EngineLink = {
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
 	send(intent: SessionIntent): Promise<SessionOutcome>;
+	/** Claims a finished preview's output and has the host open it. */
+	openPreview(runId: string): Promise<SessionOutcome>;
 	/** Sends an intent whose outcome the caller does not need. A refusal is
 	 * kept as `refusal` until dismissed. */
 	post(intent: SessionIntent): void;
+	/** Keeps a `send` caller's refusal as `refusal`, the way `post` does. */
+	refuse(intent: SessionIntent, error: unknown): void;
 	/** Why the latest posted intent was refused, worded for the user. */
 	readonly refusal: Accessor<string | null>;
 	dismissRefusal(): void;
@@ -245,7 +250,6 @@ function emptySettings(): SettingsSnapshot {
 				fixedOptions: [],
 			},
 		},
-		defaultAcquisitionLane: 'audible',
 	};
 }
 
@@ -396,16 +400,28 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		bumpAttachment((n) => n + 1);
 	}
 
-	function send(intent: SessionIntent): Promise<SessionOutcome> {
-		// The sequence is taken as the request is made, so intents are numbered
-		// in the order they were sent.
+	/** Numbers a session request in the order it was made and applies its reply. */
+	function dispatch(
+		request: (client: number, sequence: number) => Promise<SessionReply>,
+	): Promise<SessionOutcome> {
 		return attached
-			.then((client) => capability.sessionDispatch(client, sessionSequence++, intent))
+			.then((client) => request(client, sessionSequence++))
 			.then((reply) => {
 				applySession(reply.update);
 				if (reply.outcome.kind === 'rejected') throw reply.outcome.error;
 				return reply.outcome;
 			});
+	}
+
+	function send(intent: SessionIntent): Promise<SessionOutcome> {
+		return dispatch((client, sequence) => capability.sessionDispatch(client, sequence, intent));
+	}
+
+	function refuse(intent: SessionIntent, error: unknown): void {
+		if (disposed || isCancellation(error)) return;
+		console.error(`Session intent ${intent.kind} failed:`, error);
+		refusal = toUserMessage(error, { fallback: "That change couldn't be applied." });
+		bumpRefusal((n) => n + 1);
 	}
 
 	return {
@@ -446,14 +462,12 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 			return settings;
 		},
 		send,
+		openPreview: (runId) =>
+			dispatch((client, sequence) => capability.openPreviewOutput(client, sequence, runId)),
 		post(intent) {
-			send(intent).catch((error: unknown) => {
-				if (disposed || isCancellation(error)) return;
-				console.error(`Session intent ${intent.kind} failed:`, error);
-				refusal = toUserMessage(error, { fallback: "That change couldn't be applied." });
-				bumpRefusal((n) => n + 1);
-			});
+			send(intent).catch((error: unknown) => refuse(intent, error));
 		},
+		refuse,
 		refusal: () => {
 			refusalRev();
 			return refusal;

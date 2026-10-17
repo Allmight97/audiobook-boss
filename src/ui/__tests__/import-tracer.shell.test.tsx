@@ -63,4 +63,34 @@ describe('Solid import tracer shell', () => {
 		expect(screen.getByRole('region', { name: 'Selected File Properties' })).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Metadata Manager' })).toBeInTheDocument();
 	});
+
+	it("counts a CUE-backed file's chapters from its CUE plan", async () => {
+		const user = userEvent.setup();
+		const engine = createFakeEngine();
+		const one = { title: 'One', startMs: 0, endMs: 400 };
+		const two = { title: 'Two', startMs: 400, endMs: 60_000 };
+		engine.analyze = (paths) =>
+			paths.map((path) =>
+				audioFile(path.replace(/\.m4b$/, '.mp3'), {
+					duration: 60,
+					chapters: [],
+					chapterPlan: { chapters: [one, two], fromCue: true, sourceFingerprint: '1:1' },
+					cueSource: { fileName: 'chapter.cue', status: 'ready', message: '' },
+				}),
+			);
+		runtime = createAppRuntime({ input: fakeInput(), engine });
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<App />
+			</AppRuntimeProvider>
+		));
+		await screen.findByTestId('left-column');
+
+		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
+		await screen.findByRole('option', { name: 'chapter.mp3' });
+		expect(document.querySelector('.file-details')?.textContent).toMatch(/• 2 chapters$/);
+		expect(document.querySelector('.file-cue-details span')?.textContent).toBe(
+			'2 chapters from chapter.cue',
+		);
+	});
 });

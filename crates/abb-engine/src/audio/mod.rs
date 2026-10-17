@@ -15,7 +15,6 @@ pub(crate) use constants::ALLOWED_IMAGE_EXTENSIONS;
 mod extensions;
 mod file_list;
 mod imports;
-mod metrics;
 mod path_validation;
 mod processor;
 mod settings;
@@ -130,10 +129,10 @@ pub enum SampleRateConfig {
 // Audio Engine Deep Module Public API Strip.
 pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
 pub(crate) use imports::{discover_audio_import_paths, supported_audio_import_metadata};
-pub use imports::{SupportedAudioImportFormat, SupportedAudioImportMetadata};
+pub use imports::{SkippedImportPath, SupportedAudioImportFormat, SupportedAudioImportMetadata};
 pub(crate) use path_validation::{validate_input_audio_path, validate_input_image_path};
 pub(crate) use processor::{
-    execute_audio_engine, probe_builtin_audio_decoder, AudioExecutionRequest,
+    execute_audio_engine, probe_builtin_audio_decoder, AudioExecutionRequest, AudioRunOutcome,
 };
 pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
 pub(crate) use settings::{

@@ -101,6 +101,9 @@ ffmpeg-next = "9.0.0"
 rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "pem"] }
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["aws_lc_rs"] }
 proptest = "1.12.0"
+# Signs stub Audible API requests with a key made at test time; same version
+# audible_api resolves, so no new crate enters Cargo.lock.
+rsa = { version = "=0.9.10", features = ["getrandom"] }
 # Paused time for tests of delayed work.
 tokio = { version = "1.53.3", features = ["full", "test-util"] }
 

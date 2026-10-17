@@ -68,6 +68,7 @@ mod tests {
             output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
+            warnings: Vec::new(),
             job_id: Some("job-1".to_string()),
         }])
     }

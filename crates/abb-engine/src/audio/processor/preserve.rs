@@ -24,16 +24,12 @@ pub(super) fn execute_preserved_audio(
             "Preserve audio cannot merge multiple inputs.".to_string(),
         ));
     }
-    let source_fingerprint = file
-        .chapter_plan
-        .as_ref()
-        .map(|plan| plan.source_fingerprint.as_str())
-        .ok_or_else(|| {
-            AppError::InvalidInput(
-                "Preserve audio requires inspected source identity. Remove and import it again."
-                    .to_string(),
-            )
-        })?;
+    let accepted = file.chapter_plan.as_ref().ok_or_else(|| {
+        AppError::InvalidInput(
+            "Preserve audio requires inspected source identity. Remove and import it again."
+                .to_string(),
+        )
+    })?;
 
     let workspace = super::staging::create_processing_workspace_dir(
         context.session.uuid(),
@@ -53,7 +49,13 @@ pub(super) fn execute_preserved_audio(
     context
         .new_emitter()
         .emit_converting_start("Preserving original audio...");
-    copy_with_cancellation(&file.path, source_fingerprint, &staged, &context, 0.0..1.0)?;
+    copy_with_cancellation(
+        &file.path,
+        &accepted.source_fingerprint,
+        &staged,
+        &context,
+        0.0..1.0,
+    )?;
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
@@ -63,13 +65,18 @@ pub(super) fn execute_preserved_audio(
         .extension()
         .and_then(|ext| ext.to_str())
         .ok_or_else(|| AppError::InvalidInput("Output extension is missing.".into()))?;
-    crate::metadata::remux_preserved_audio_container(&staged, target_extension)?;
+    crate::metadata::remux_preserved_audio_container(
+        &staged,
+        target_extension,
+        &accepted.chapters,
+    )?;
     if let Some(patch) = metadata_intent.as_ref() {
         context
             .new_emitter()
             .emit_metadata_start("Writing metadata...");
         crate::metadata::save_metadata_intent(&staged, patch)?;
     }
+    crate::metadata::verify_chapters(&staged, &accepted.chapters)?;
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
@@ -147,7 +154,7 @@ mod tests {
     };
 
     fn inspect_source_fingerprint(path: &std::path::Path) -> String {
-        crate::metadata::inspect_chapter_source(path, 1_000, &[])
+        crate::metadata::inspect_chapter_source(path, 1_000, false, &mut Vec::new())
             .expect("inspect source identity")
             .0
             .source_fingerprint

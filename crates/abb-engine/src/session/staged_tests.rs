@@ -35,6 +35,7 @@ pub(crate) fn exported(titles: &[(&str, ChildJobStatus, bool)]) -> Vec<ChildJobS
                 "cancellable": false,
                 "cancelRequested": false,
                 "supplementalWarning": warning.then_some("PDF failed"),
+                "warnings": [],
             }))
             .expect("child snapshot")
         })

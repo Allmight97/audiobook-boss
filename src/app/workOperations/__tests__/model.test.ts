@@ -32,6 +32,7 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 		cancellable: false,
 		cancelRequested: false,
 		message: undefined,
+		warnings: [],
 	}));
 
 	return {

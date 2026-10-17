@@ -122,6 +122,7 @@ function mockOperationSnapshot(
 			message: null,
 			outputPath: null,
 			supplementalWarning: null,
+			warnings: [],
 			outputUpdate: null,
 		})),
 		terminalSummary: null,
@@ -280,7 +281,6 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 
 // Mock Tauri's opener plugin
 vi.mock('@tauri-apps/plugin-opener', () => ({
-	openPath: vi.fn().mockResolvedValue(undefined),
 	openUrl: vi.fn().mockResolvedValue(undefined),
 }));
 

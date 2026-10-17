@@ -1,9 +1,8 @@
 //! The settings in effect for this run, and whether they are on disk yet.
 //!
 //! A preference a panel has accepted stays in effect when writing it fails;
-//! the unsaved part is kept, coalesced by field, and written on retry. One
-//! lock serializes every change, so an older write can never report a newer
-//! choice as saved.
+//! the settings in effect are written whole on retry. One lock serializes
+//! every change, so an older write can never report a newer choice as saved.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -11,8 +10,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    get_app_settings, save_app_settings, AcquisitionLane, AppSettings, AppSettingsPatch,
-    ConcurrencyPreference, EncoderDefaults, OutputDefaults, PinnedDefaults, StartupBehavior,
+    storage, AcquisitionLane, AppSettings, AppSettingsPatch, ConcurrencyPreference,
+    EncoderDefaults, OutputDefaults, PinnedDefaults, SettingsRecovery, SettingsUnit,
+    StartupBehavior,
 };
 use crate::errors::{AppError, AppErrorEnvelope};
 use crate::power::PowerManager;
@@ -80,7 +80,9 @@ pub struct SettingsSnapshot {
     /// The defaults a host shows at launch: the pinned ones when the user
     /// chose that and has pinned some, otherwise the last used.
     pub startup_defaults: PinnedDefaults,
-    pub default_acquisition_lane: AcquisitionLane,
+    /// What this launch could not keep from the saved settings. Absent after
+    /// the next accepted change.
+    pub recovery: Option<SettingsRecovery>,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -128,6 +130,10 @@ struct State {
     /// Whether the settings in effect have changed since they last reached disk.
     unsaved: bool,
     save_error: Option<AppErrorEnvelope>,
+    recovery: Option<SettingsRecovery>,
+    /// The settings file could be neither read nor kept aside; nothing is
+    /// saved over it until it is kept or gone.
+    unpreserved: bool,
 }
 
 /// The defaults a launch starts from.
@@ -140,6 +146,12 @@ fn startup_defaults(settings: &AppSettings) -> PinnedDefaults {
             output_defaults: settings.output_defaults.clone(),
         },
     }
+}
+
+fn not_kept(error: &std::io::Error) -> AppError {
+    AppError::General(format!(
+        "ABB couldn't read settings.toml or keep a copy of it, so it won't save over it: {error}"
+    ))
 }
 
 fn rejected(error: &AppError) -> SettingsOutcome {
@@ -155,7 +167,8 @@ impl SettingsRuntime {
         config_dir: PathBuf,
         power: PowerManager,
     ) -> (Self, ManagedJobRegistry, PinnedDefaults) {
-        let mut accepted = get_app_settings(&config_dir);
+        let loaded = storage::load(&config_dir);
+        let mut accepted = loaded.settings;
         let startup = startup_defaults(&accepted);
         // The defaults on screen are the ones in effect: after a launch from
         // pinned defaults, a later pin or save starts from those, not from the
@@ -172,10 +185,36 @@ impl SettingsRuntime {
             jobs.max_concurrent()
         );
         power.set_enabled(accepted.keep_awake_while_working);
-        let state = State {
-            accepted,
-            ..State::default()
+        let mut state = State::default();
+        let mut reset = loaded.reset;
+        if matches!(accepted.startup_behavior, StartupBehavior::PinnedDefaults)
+            && accepted.pinned_defaults.is_some()
+        {
+            reset.retain(|unit| {
+                !matches!(
+                    unit,
+                    SettingsUnit::JobLimit
+                        | SettingsUnit::EncoderDefaults
+                        | SettingsUnit::OutputDefaults
+                )
+            });
+        }
+        let mut recovery = SettingsRecovery {
+            reset,
+            set_aside_as: None,
         };
+        match loaded.set_aside {
+            Some(Ok(kept)) => recovery.set_aside_as = kept,
+            Some(Err(error)) => {
+                state.unpreserved = true;
+                state.unsaved = true;
+                state.save_error = Some(AppErrorEnvelope::from(&not_kept(&error)));
+            }
+            None => {}
+        }
+        state.recovery =
+            (!recovery.reset.is_empty() || recovery.set_aside_as.is_some()).then_some(recovery);
+        state.accepted = accepted;
         let runtime = Self {
             inner: Arc::new(Inner {
                 config_dir,
@@ -203,7 +242,7 @@ impl SettingsRuntime {
                 capabilities: JobRegistry::max_concurrent_jobs_capabilities(),
             },
             startup_defaults: startup_defaults(&state.accepted),
-            default_acquisition_lane: state.accepted.default_acquisition_lane,
+            recovery: state.recovery.clone(),
         }
     }
 
@@ -356,6 +395,7 @@ impl SettingsRuntime {
             Ok(next) => state.accepted = next,
             Err(error) => return rejected(&error),
         }
+        state.recovery = None;
         self.apply_to_runtime(state);
         state.unsaved = true;
         self.write(state).await;
@@ -370,17 +410,27 @@ impl SettingsRuntime {
         }
         let config_dir = self.inner.config_dir.clone();
         let settings = state.accepted.clone();
+        let unpreserved = state.unpreserved;
         #[expect(clippy::disallowed_methods, reason = "joined by write")]
-        let written =
-            tokio::task::spawn_blocking(move || save_app_settings(&config_dir, &settings))
-                .await
-                .unwrap_or_else(|error| {
-                    Err(AppError::General(format!("Settings write failed: {error}")))
-                });
+        let written = tokio::task::spawn_blocking(move || {
+            let kept = if unpreserved {
+                storage::set_aside(&config_dir).map_err(|error| not_kept(&error))?
+            } else {
+                None
+            };
+            storage::save(&config_dir, &settings)?;
+            Ok(kept)
+        })
+        .await
+        .unwrap_or_else(|error| Err(AppError::General(format!("Settings write failed: {error}"))));
         match written {
-            Ok(()) => {
+            Ok(kept) => {
                 state.unsaved = false;
                 state.save_error = None;
+                state.unpreserved = false;
+                if let Some(name) = kept {
+                    state.recovery.get_or_insert_default().set_aside_as = Some(name);
+                }
             }
             Err(error) => {
                 log::warn!("App settings were not saved: {error}");
@@ -462,6 +512,8 @@ impl SettingsRuntime {
             accepted: settings,
             unsaved: true,
             save_error: None,
+            recovery: None,
+            unpreserved: state.unpreserved,
         };
         self.apply_to_runtime(state);
         self.write(state).await;

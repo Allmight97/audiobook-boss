@@ -55,3 +55,13 @@ pub(crate) fn set_stream_disposition_and_clear_codec_tag(
         }
     }
 }
+
+/// FFmpeg guessed this input's length from a bitrate (no length header, or a
+/// joined file the header no longer fits), so it is not the audio's end.
+pub(crate) fn length_is_estimated(input: &ff::format::context::Input) -> bool {
+    // SAFETY: `input` borrows a live, opened format context; this reads one plain field.
+    unsafe {
+        (*input.as_ptr()).duration_estimation_method
+            == ff::ffi::AVDurationEstimationMethod::AVFMT_DURATION_FROM_BITRATE
+    }
+}

@@ -25,8 +25,6 @@ pub const PROGRESS_CONVERTING_MAX: f32 = 79.0;
 pub const PROGRESS_METADATA_START: f32 = 90.0;
 /// Progress percentage for final artifact finalization.
 pub const PROGRESS_FINALIZING: f32 = 95.0;
-/// Progress percentage for cleanup.
-pub const PROGRESS_CLEANUP: f32 = 98.0;
 /// Progress percentage for complete.
 pub const PROGRESS_COMPLETE: f32 = 100.0;
 

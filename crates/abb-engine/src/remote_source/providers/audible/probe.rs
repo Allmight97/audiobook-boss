@@ -57,9 +57,9 @@ async fn audible_pdf_live_probe() {
 async fn audible_library_live_probe() {
     let vault = KeyringSecretVault::for_app_identifier("com.audiobook-boss");
     let auth = auth_from_vault(&vault).expect("Audible account must be connected");
-    let client = client_from_auth(auth).expect("Audible client");
+    let api = AudibleApi::new(auth).expect("Audible client");
 
-    let loaded_titles = load_all_library_titles(&client)
+    let loaded_titles = load_all_library_titles(&api)
         .await
         .expect("paginated Audible library load");
     println!(
@@ -82,8 +82,8 @@ async fn audible_library_live_probe() {
             library_probe_params(None, None, Some(true)),
         ),
     ] {
-        let payload = client
-            .get_library(Some(params))
+        let payload = api
+            .get("/1.0/library", &params, ApiCall::account("library probe"))
             .await
             .unwrap_or_else(|_| panic!("{label} request"));
         let summary = library_probe_summary(&payload);
@@ -106,14 +106,14 @@ async fn audible_library_live_probe() {
 async fn audible_revoked_library_live_probe() {
     let vault = KeyringSecretVault::for_app_identifier("com.audiobook-boss");
     let auth = auth_from_vault(&vault).expect("Audible account must be connected");
-    let client = client_from_auth(auth).expect("Audible client");
+    let api = AudibleApi::new(auth).expect("Audible client");
     let mut params = library_probe_params(None, Some("Revoked"), None);
     params["response_groups"] = json!(
         "product_desc,product_attrs,contributors,media,pdf_url,product_details,customer_rights,order_details,is_visible,is_returnable,is_playable,is_removable,is_downloaded,is_finished,is_archived,origin_asin"
     );
 
-    let payload = client
-        .get_library(Some(params))
+    let payload = api
+        .get("/1.0/library", &params, ApiCall::account("library probe"))
         .await
         .expect("revoked library request");
     let titles = super::library::parse_library_titles(&payload);
@@ -153,7 +153,7 @@ async fn audible_catalog_vs_library_search_live_probe() {
         std::env::var("ABB_AUDIBLE_SEARCH_PROBE").unwrap_or_else(|_| "Super Powereds".into());
     let vault = KeyringSecretVault::for_app_identifier("com.audiobook-boss");
     let auth = auth_from_vault(&vault).expect("Audible account must be connected");
-    let client = client_from_auth(auth).expect("Audible client");
+    let api = AudibleApi::new(auth).expect("Audible client");
 
     for (label, status) in [("library_active", "Active"), ("library_revoked", "Revoked")] {
         let mut params = library_probe_params(None, Some(status), None);
@@ -161,8 +161,8 @@ async fn audible_catalog_vs_library_search_live_probe() {
         params["response_groups"] = json!(
             "product_desc,product_attrs,contributors,media,pdf_url,product_details,customer_rights,order_details,is_visible,is_returnable,is_playable,is_removable,is_downloaded,is_finished,is_archived,origin_asin"
         );
-        let payload = client
-            .get_library(Some(params))
+        let payload = api
+            .get("/1.0/library", &params, ApiCall::account("library probe"))
             .await
             .unwrap_or_else(|_| panic!("{label} request"));
         print_entitlement_rows(label, &payload);
@@ -186,8 +186,12 @@ async fn audible_catalog_vs_library_search_live_probe() {
             }),
         ),
     ] {
-        let payload = client
-            .get_products(Some(params))
+        let payload = api
+            .get(
+                "/1.0/catalog/products",
+                &params,
+                ApiCall::account("catalog probe"),
+            )
             .await
             .unwrap_or_else(|_| panic!("{label} request"));
         print_entitlement_rows(label, &payload);

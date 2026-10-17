@@ -263,7 +263,7 @@ pub(crate) fn next_rename_candidate(
     claimed: &HashSet<PathBuf>,
     source_paths: &[PathBuf],
     cache: &mut OutputCollisionCache,
-) -> Result<PathBuf> {
+) -> Result<Option<PathBuf>> {
     let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
     let stem = requested_path
         .file_stem()
@@ -276,8 +276,14 @@ pub(crate) fn next_rename_candidate(
 
     for idx in 1..=99 {
         let candidate = parent.join(format!("{stem}-{idx}.{ext}"));
+        if !candidate
+            .file_name()
+            .is_some_and(abb_output_artifact_core::name_fits)
+        {
+            return Ok(None);
+        }
         if detect_output_collision(&candidate, claimed, source_paths, cache)?.is_none() {
-            return Ok(candidate);
+            return Ok(Some(candidate));
         }
     }
 
@@ -346,7 +352,7 @@ mod tests {
         let candidate = next_rename_candidate(&requested_path, &claimed, &[], &mut cache)
             .expect("rename candidate");
 
-        assert_eq!(candidate, temp_dir.path().join("book-3.m4b"));
+        assert_eq!(candidate, Some(temp_dir.path().join("book-3.m4b")));
     }
 
     #[cfg(unix)]

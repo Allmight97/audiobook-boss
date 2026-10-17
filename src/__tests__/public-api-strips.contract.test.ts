@@ -56,6 +56,7 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 		'app/inputSession',
 		inputSession,
 		[
+			'acceptedChapterCount',
 			'createInputOwner',
 			'displayedArtistForFile',
 			'displayedTitleForFile',

@@ -23,7 +23,31 @@
   removes only empty ABB-created paths below their existing anchor.
 - `file_lock.rs`: publication and every tag save on a published output hold
   that file's process-wide lock, so a later export replacing the file is never
-  overwritten by an earlier export's tag save.
+  overwritten by an earlier export's tag save. The Supplemental PDF commit
+  holds the lock on its requested name while it picks a free name and
+  publishes.
+- Publishing under a new name (Write, RenameNew, Supplemental PDF) never
+  replaces an entry. Same disk: the staged audio is flushed, then
+  hard-linked. Another disk, and always for the PDF (its source may be a
+  download ABB keeps): the bytes are copied into a flushed sibling temp, then
+  hard-linked. Why: the final name appears only with complete content. When
+  a hard link fails for any reason but a taken name (a collision), the
+  flushed temp claims the name with an empty placeholder (refused if taken)
+  and is renamed over it; a crash between the two leaves at most an empty
+  file. Why any reason: network and FUSE disks report a missing hard-link
+  feature with many different errors, and this path never replaces an entry.
+- Replacement temps are `.abb_replace_install_<key>_<uuid>`, where the key is
+  the first 16 hex digits of the final file name's SHA-256. The stale-temp
+  sweep before a commit removes only regular files with that key, so another
+  title's active temp survives. `file_replace` backups are
+  `.abb_replace_<uuid>`. Temp names never embed the final name, so any final
+  name that passes preflight commits.
+- Preflight (`resolve_output_plan`) refuses a path component or preview name
+  over 255 UTF-16 units (bytes on Linux) before collision probes
+  (`abb_output_artifact_core::check_output_name_lengths`). A rename
+  alternative that would be too long only removes the rename option, so a
+  valid ReplaceExisting still plans. Companion PDF names:
+  `processing/AGENTS.md`.
 
 ## Edit Rules
 

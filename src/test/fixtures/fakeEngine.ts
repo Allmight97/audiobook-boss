@@ -109,12 +109,19 @@ export type FakeEngine = EngineCapability & {
 	/** Every session intent received, in order. */
 	readonly sessionIntents: SessionIntent[];
 	readonly settingsIntents: SettingsIntent[];
+	/** Preview outputs the host opened, in order. */
+	readonly openedPreviews: string[];
 	/** What reading each file's tags yields. */
 	readonly tags: Map<string, FileTags>;
 	/** What importing a set of paths yields. Defaults to one valid file per path. */
 	analyze: (paths: readonly string[]) => AudioFile[];
-	/** Answers an intent in place of the fake's default behavior. */
-	respond?: (intent: SessionIntent) => SessionOutcome | Promise<SessionOutcome> | undefined;
+	/**
+	 * Answers an intent in place of the fake's default behavior. A reply of
+	 * `undefined`, at once or later, falls back to it.
+	 */
+	respond?: (
+		intent: SessionIntent,
+	) => SessionOutcome | Promise<SessionOutcome | undefined> | undefined;
 	/**
 	 * How the engine answers a submit, preview, or collision choice. Defaults
 	 * to an accepted export, a finished preview, and a cancelled review.
@@ -124,6 +131,8 @@ export type FakeEngine = EngineCapability & {
 	settingsWriteError?: Rejection;
 	/** Refuses the next concurrency change, as running jobs would. */
 	concurrencyError?: Rejection;
+	/** What loading the saved settings could not keep; the next accepted change clears it. */
+	recovery?: SettingsSnapshot['recovery'];
 	/** Records settings the way the engine does after a session edit, and announces them. */
 	recordSettings(patch: Partial<AppSettings>): void;
 	/**
@@ -282,7 +291,15 @@ function finishedPreview(): ProcessCommandResult {
 	return {
 		summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
 		terminalClass: 'success',
-		results: [{ inputIndex: 0, status: 'success', message: 'Preview finished', jobId: 'fake-job' }],
+		results: [
+			{
+				inputIndex: 0,
+				status: 'success',
+				message: 'Preview finished',
+				jobId: 'fake-job',
+				warnings: [],
+			},
+		],
 	};
 }
 
@@ -677,7 +694,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				},
 			},
 			startupDefaults: startup,
-			defaultAcquisitionLane: settings.defaultAcquisitionLane,
+			recovery: engine.recovery,
 		});
 	}
 
@@ -731,6 +748,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	Object.assign(engine, {
 		sessionIntents: [],
 		settingsIntents: [],
+		openedPreviews: [],
 		tags: new Map(),
 		analyze: (paths: readonly string[]) => paths.map((path) => audioFile(path)),
 		answerSubmission: defaultSubmissionAnswer,
@@ -748,12 +766,22 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			const outcome = (await engine.respond?.(intent)) ?? apply(intent);
 			return { outcome, update: settle() };
 		},
+		async openPreviewOutput(client: number, sequence: number, runId: string) {
+			const reply = await engine.sessionDispatch(client, sequence, {
+				kind: 'takePreviewOutput',
+				runId,
+			});
+			if (reply.outcome.kind === 'previewOutput' && reply.outcome.path)
+				engine.openedPreviews.push(reply.outcome.path);
+			return reply;
+		},
 		async settingsDispatch(_client: number, sequence: number, intent: SettingsIntent) {
 			if (sequence !== nextSettingsSequence)
 				throw new Error(`settings intent ${sequence} arrived out of order`);
 			nextSettingsSequence += 1;
 			engine.settingsIntents.push(structuredClone(intent));
 			const outcome = applySettings(intent);
+			if (outcome.kind === 'applied' && intent.kind !== 'retry') engine.recovery = undefined;
 			settingsRevision += 1;
 			return { outcome, snapshot: settingsSnapshot() };
 		},

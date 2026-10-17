@@ -6,15 +6,19 @@ use std::path::Path;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CoverArtPassthroughPolicy {
     Preserve,
+    /// The user chose this title's cover, so the output must carry it.
+    Chosen,
     SuppressAfterExplicitClear,
 }
 
 impl CoverArtPassthroughPolicy {
+    /// The tags read from a source already hold its cover, so only the intent
+    /// says whether the cover a title carries was chosen by the user.
     pub(crate) fn from_intent_patch(patch: Option<&MetadataIntentPatch>) -> Self {
-        if patch.is_some_and(MetadataIntentPatch::clears_cover_art) {
-            Self::SuppressAfterExplicitClear
-        } else {
-            Self::Preserve
+        match patch.and_then(|patch| patch.cover_art.as_ref()) {
+            Some(super::PatchOp::Clear) => Self::SuppressAfterExplicitClear,
+            Some(super::PatchOp::Set(_)) => Self::Chosen,
+            None => Self::Preserve,
         }
     }
 
@@ -23,7 +27,7 @@ impl CoverArtPassthroughPolicy {
         passthrough: Option<PassthroughMetadata>,
     ) -> Option<PassthroughMetadata> {
         match self {
-            Self::Preserve => passthrough,
+            Self::Preserve | Self::Chosen => passthrough,
             Self::SuppressAfterExplicitClear => {
                 log::info!("cover_art_plan decision=skip_passthrough reason=explicit_cover_clear");
                 passthrough.and_then(PassthroughMetadata::without_cover_art)

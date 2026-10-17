@@ -85,13 +85,18 @@ async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
     fs::write(&staged_output, b"audio").expect("write staged output");
     fs::write(&final_output, b"existing").expect("write existing output");
 
-    let context = ProcessingContext::new_headless_with_workspace_root(
+    let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
         encoder_settings(),
         SampleRateConfig::Auto,
         OutputConfig::new(&final_output),
         workspace_root,
     );
+    let stages = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let recorded = Arc::clone(&stages);
+    context.progress_listener = Some(Arc::new(move |event| {
+        recorded.lock().expect("stages").push(event.stage);
+    }));
     let mut cleanup_guard = CleanupGuard::new(context.session.id());
     cleanup_guard.add_path(&session_dir);
     cleanup_guard.add_path(&staged_output);
@@ -105,6 +110,13 @@ async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
             .to_string()
             .contains("Review collisions and try again"),
         "unexpected error: {error}"
+    );
+    assert!(
+        !stages
+            .lock()
+            .expect("stages")
+            .contains(&crate::processing::EventStage::Completed),
+        "a title whose publish failed must never report Completed"
     );
     assert_eq!(
         std::fs::read(&final_output).expect("read final"),

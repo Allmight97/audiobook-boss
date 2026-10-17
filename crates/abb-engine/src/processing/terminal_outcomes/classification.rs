@@ -1,6 +1,5 @@
 use crate::errors::{AppError, AppErrorEnvelope};
 use crate::processing::{ProcessResultEntry, ProcessResultStatus};
-pub(in crate::processing) use abb_processing_core::RunTerminalClass;
 
 #[derive(Debug)]
 pub(in crate::processing) enum ProcessingJobTerminalOutcome {
@@ -9,6 +8,7 @@ pub(in crate::processing) enum ProcessingJobTerminalOutcome {
         output_path: Option<String>,
         preview_actual_seconds: Option<f64>,
         supplemental_warning: Option<String>,
+        warnings: Vec<String>,
     },
     Cancelled(AppError),
     Failed(AppErrorEnvelope),
@@ -25,12 +25,6 @@ pub(in crate::processing) fn classify_processing_error(
 }
 
 pub(super) type RunTerminalClassifier = abb_processing_core::RunTerminalClassifier;
-
-pub(super) fn classify_terminal_results(results: &[ProcessResultEntry]) -> RunTerminalClass {
-    let summary =
-        abb_processing_core::summarize_result_statuses(results.iter().map(|result| result.status));
-    abb_processing_core::classify_run_terminal(&summary)
-}
 
 pub(super) fn is_cancellation_error(error: &AppError) -> bool {
     matches!(error, AppError::Cancellation(_))

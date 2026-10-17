@@ -31,7 +31,7 @@ fn start() -> Rig {
 fn start_with(saved: AppSettingsPatch) -> Rig {
     let root = TempDir::new().expect("temp dir");
     let settings = AppSettings::default().merge(saved).expect("valid seed");
-    save_app_settings(&config_dir(&root), &settings).expect("seed settings");
+    storage::save(&config_dir(&root), &settings).expect("seed settings");
     start_in(root)
 }
 
@@ -83,7 +83,7 @@ impl Rig {
     }
 
     fn on_disk(&self) -> AppSettings {
-        get_app_settings(&config_dir(&self.root))
+        storage::load(&config_dir(&self.root)).settings
     }
 }
 
@@ -166,23 +166,133 @@ async fn a_launch_applies_the_saved_concurrency_without_rewriting_it() {
     );
 }
 
-#[tokio::test]
-async fn a_file_damaged_outside_abb_starts_from_defaults_and_the_next_save_replaces_it() {
+fn start_from_file(content: &str) -> Rig {
     let root = TempDir::new().expect("temp dir");
     std::fs::create_dir_all(config_dir(&root)).expect("config dir");
-    std::fs::write(
-        config_dir(&root).join("settings.toml"),
-        include_str!("samples/settings.toml").replace("type = \"faac\"", "type = \"retired\""),
-    )
-    .expect("write damaged settings");
-    let rig = start_in(root);
+    std::fs::write(config_dir(&root).join("settings.toml"), content).expect("write settings");
+    start_in(root)
+}
+
+fn kept_aside(rig: &Rig) -> Vec<PathBuf> {
+    std::fs::read_dir(config_dir(&rig.root))
+        .expect("read config dir")
+        .map(|entry| entry.expect("entry").path())
+        .filter(|path| {
+            path.file_name().is_some_and(|name| {
+                name.to_string_lossy()
+                    .starts_with("settings.toml.unusable-")
+            })
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn a_value_this_release_refuses_resets_only_its_setting_until_the_next_change() {
+    let rig = start_from_file(&retired_encoder_in_last_state());
 
     let snapshot = rig.settings.snapshot().await;
-    assert_eq!(snapshot.settings, AppSettings::default());
-    assert_eq!(rig.jobs.max_concurrent(), JobRegistry::default_max());
+    assert!(snapshot.settings.keep_awake_while_working);
+    assert_eq!(
+        snapshot.settings.default_acquisition_lane,
+        AcquisitionLane::Audible
+    );
+    assert_eq!(
+        snapshot.settings.encoder_defaults,
+        EncoderDefaults::default()
+    );
+    assert_eq!(
+        snapshot.recovery,
+        Some(SettingsRecovery {
+            reset: vec![crate::app_settings::SettingsUnit::EncoderDefaults],
+            set_aside_as: None,
+        })
+    );
+
+    let reply = rig
+        .send(SettingsIntent::SetKeepAwake { enabled: false })
+        .await;
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert_eq!(reply.snapshot.recovery, None);
+    assert!(!rig.on_disk().keep_awake_while_working);
+}
+
+fn retired_encoder_in_last_state() -> String {
+    include_str!("samples/remember-last-state.toml")
+        .replace("type = \"faac\"", "type = \"retired\"")
+}
+
+#[tokio::test]
+async fn closing_leaves_a_reset_value_in_the_file_until_the_users_next_change() {
+    let content = retired_encoder_in_last_state();
+    let rig = start_from_file(&content);
+    assert!(rig.settings.snapshot().await.recovery.is_some());
+
+    assert_eq!(rig.settings.flush().await, None);
+    assert_eq!(
+        std::fs::read_to_string(config_dir(&rig.root).join("settings.toml"))
+            .expect("read settings"),
+        content
+    );
+    let (relaunched, _, _) = SettingsRuntime::start(config_dir(&rig.root), PowerManager::default());
+
+    assert!(relaunched.snapshot().await.recovery.is_some());
+}
+
+#[tokio::test]
+async fn a_pinned_launch_does_not_report_last_used_values_it_did_not_start_from() {
+    let rig = start_from_file(&include_str!("samples/apple-aac-and-opus.toml").replacen(
+        "type = \"aac_at\"",
+        "type = \"retired\"",
+        1,
+    ));
+
+    assert_eq!(
+        storage::load(&config_dir(&rig.root)).reset,
+        vec![crate::app_settings::SettingsUnit::EncoderDefaults],
+        "fixture premise: the last-used encoder is refused"
+    );
+    let snapshot = rig.settings.snapshot().await;
+    assert_eq!(
+        snapshot.settings.encoder_defaults.format,
+        AudiobookFormat::M4aOpus
+    );
+    assert_eq!(snapshot.recovery, None);
+}
+
+#[tokio::test]
+async fn a_file_that_is_not_toml_is_kept_aside_and_saves_never_touch_it() {
+    let rig = start_from_file("[general\nnope");
+    let recovery = rig.settings.snapshot().await.recovery.expect("reported");
+    assert!(recovery.reset.is_empty());
+    let kept_as = recovery.set_aside_as.expect("kept aside");
 
     let reply = rig.send(remember_output("/chosen")).await;
+
+    assert!(reply.snapshot.save_error.is_none());
+    assert_eq!(rig.on_disk().output_defaults, output_in("/chosen"));
+    let kept = kept_aside(&rig);
+    assert_eq!(kept, vec![config_dir(&rig.root).join(kept_as)]);
+    assert_eq!(
+        std::fs::read_to_string(&kept[0]).expect("kept file"),
+        "[general\nnope"
+    );
+}
+
+#[tokio::test]
+async fn a_file_that_cannot_be_kept_aside_is_never_saved_over_and_the_block_is_reported() {
+    let root = TempDir::new().expect("temp dir");
+    let unreadable = config_dir(&root).join("settings.toml");
+    std::fs::create_dir_all(&unreadable).expect("a folder where the file belongs");
+    let rig = start_in(root);
+
+    assert!(rig.settings.snapshot().await.save_error.is_some());
+    let reply = rig.send(remember_output("/chosen")).await;
     assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert!(reply.snapshot.save_error.is_some());
+    assert!(unreadable.is_dir());
+
+    std::fs::remove_dir(&unreadable).expect("the user removes it");
+    let reply = rig.send(SettingsIntent::Retry).await;
     assert!(reply.snapshot.save_error.is_none());
     assert_eq!(rig.on_disk().output_defaults, output_in("/chosen"));
 }
@@ -272,10 +382,7 @@ async fn retry_writes_the_newest_accepted_defaults() {
     // Accepted values are in effect although nothing reached disk.
     let accepted = reply.snapshot.settings;
     assert_eq!(accepted.output_defaults, output_in("/second"));
-    assert_eq!(
-        reply.snapshot.default_acquisition_lane,
-        AcquisitionLane::Indexer
-    );
+    assert_eq!(accepted.default_acquisition_lane, AcquisitionLane::Indexer);
     assert!(reply.snapshot.save_error.is_some());
 
     rig.set_writable(true);

@@ -137,6 +137,9 @@ pub struct ProcessResultEntry {
     /// requested companion files (PDFs) were not. Its acquired sources stay
     /// retained so reprocessing can publish the companions.
     pub supplemental_warning: Option<String>,
+    /// Display-only notes on a successful title, such as a source cover that
+    /// was left off. They change no outcome.
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]

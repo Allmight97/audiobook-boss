@@ -6,7 +6,7 @@ crates/abb-engine/src/audio/processor/frame_pipeline.rs:process_input_packets  #
 crates/abb-engine/src/audio/processor/preserve_merge.rs:visit_packets  # packet loop with seven separate timeline checks; Reduce at next change
 crates/abb-engine/src/audio/output_plan.rs:resolve_title_audio  # many early-return guards before the plan is built; Reduce at next change
 crates/abb-engine/src/remote_source/materializer/mod.rs:materialize  # sequential ? setup of the helper process, then its result handling
-crates/abb-engine/src/metadata/remux.rs:rewrite_metadata_with_ffmpeg_plan_as  # sequential ? setup of one remux, one stage per step
+crates/abb-engine/src/metadata/remux.rs:remux_into  # sequential ? setup of one remux, one stage per step
 crates/abb-engine/src/metadata/embedded_cover.rs:read_id3_cover  # format parser: ID3v2 tag and frame walk with overflow checks
 crates/abb-metadata-core/src/chapters.rs:parse_cue  # format parser: one match arm per CUE command
 crates/abb-engine/src/remote_source/ui.rs:begin  # flat dispatch match: one arm per remote UI intent

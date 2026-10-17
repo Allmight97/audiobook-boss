@@ -140,6 +140,69 @@ pub fn derive_output_artifact_path(
     }
 }
 
+/// The companion PDF ABB writes beside a final audiobook.
+pub fn supplemental_pdf_path(final_audio_path: &Path) -> PathBuf {
+    let parent = final_audio_path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = final_audio_path
+        .file_stem()
+        .map(|value| value.to_string_lossy())
+        .unwrap_or_else(|| "Book".into());
+    parent.join(format!("{stem} - Supplemental PDF.pdf"))
+}
+
+/// A file or folder name holds at most 255 units: UTF-16 units on APFS,
+/// HFS+, exFAT, NTFS and SMB; bytes on Linux disks (ext4, btrfs). A name's
+/// UTF-8 bytes are never fewer than its UTF-16 units.
+const MAX_NAME_UNITS: usize = 255;
+const NAME_UNIT: &str = if cfg!(target_os = "linux") {
+    "bytes"
+} else {
+    "characters"
+};
+
+fn name_length(name: &std::ffi::OsStr) -> usize {
+    if cfg!(target_os = "linux") {
+        name.len()
+    } else {
+        name.to_string_lossy().encode_utf16().count()
+    }
+}
+
+pub fn name_fits(name: &std::ffi::OsStr) -> bool {
+    name_length(name) <= MAX_NAME_UNITS
+}
+
+/// Refuses an artifact path whose folder or file name would be over the name
+/// limit, before any work starts.
+pub fn check_output_name_lengths(artifact_path: &Path) -> Result<()> {
+    for component in artifact_path.components() {
+        if let Component::Normal(name) = component {
+            check_name_fits(name, "The output name")?;
+        }
+    }
+    Ok(())
+}
+
+/// Refuses a final audiobook path whose companion PDF name would be over the
+/// name limit. Only a title with a Supplemental PDF needs it.
+pub fn check_supplemental_pdf_name(final_audio_path: &Path) -> Result<()> {
+    match supplemental_pdf_path(final_audio_path).file_name() {
+        Some(name) => check_name_fits(name, "The Supplemental PDF name"),
+        None => Ok(()),
+    }
+}
+
+fn check_name_fits(name: &std::ffi::OsStr, what: &str) -> Result<()> {
+    if name_fits(name) {
+        return Ok(());
+    }
+    let shown: String = name.to_string_lossy().chars().take(60).collect();
+    Err(OutputArtifactCoreError::InvalidInput(format!(
+        "{what} \"{shown}…\" would be {} {NAME_UNIT}; a name can be at most {MAX_NAME_UNITS}. Shorten the title or the naming template.",
+        name_length(name)
+    )))
+}
+
 pub fn build_output_path_preview(
     base_dir: &Path,
     metadata: Option<&NamingMetadata>,
@@ -588,6 +651,18 @@ mod tests {
             subseries_part: Some("1".to_string()),
             ..Default::default()
         })
+    }
+
+    #[test]
+    fn a_name_is_measured_the_way_the_output_disk_counts_it() {
+        let cjk = "\u{672c}".repeat(100);
+        assert_eq!(
+            name_fits(std::ffi::OsStr::new(&cjk)),
+            !cfg!(target_os = "linux"),
+            "100 CJK characters are 100 UTF-16 units and 300 bytes"
+        );
+        assert!(name_fits(std::ffi::OsStr::new(&"a".repeat(255))));
+        assert!(!name_fits(std::ffi::OsStr::new(&"\u{672c}".repeat(256))));
     }
 
     #[test]

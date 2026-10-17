@@ -1,8 +1,9 @@
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 
 use super::acquisition::{ensure_not_cancelled, with_title_progress, TitleAcquisitionCtx};
-use super::http::{audio_download_client, stream_response_chunks};
+use super::http::audio_download_client;
 use super::{
     provider_private_failure, AUDIBLE_DOWNLOAD_USER_AGENT, MAX_DOWNLOAD_ATTEMPTS,
     MAX_DOWNLOAD_REDIRECTS,
@@ -12,6 +13,10 @@ use crate::remote_source::scoped_output::{rollback_committed_file, StagedTempFil
 use abb_audible_core::{classify_download_response, title_ref, DownloadResponseError};
 use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, AcquisitionStage};
 use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
+use tokio::io::AsyncWriteExt;
+
+/// The wait before the first retry; each later retry waits twice as long.
+const RETRY_BASE: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Copy)]
 pub(super) struct DownloadLogContext<'a> {
@@ -105,15 +110,24 @@ pub(super) async fn download_to_path(
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<u64> {
-    let client = audio_download_client(MAX_DOWNLOAD_REDIRECTS)
-        .map_err(|_| provider_private_failure("download client"))?;
-    download_to_path_with_client(&client, url, path, log_context, progress, is_cancelled).await
+    let client = audio_download_client(MAX_DOWNLOAD_REDIRECTS)?;
+    download_to_path_with_client(
+        &client,
+        url,
+        path,
+        RETRY_BASE,
+        log_context,
+        progress,
+        is_cancelled,
+    )
+    .await
 }
 
 async fn download_to_path_with_client(
     client: &reqwest::Client,
     url: &str,
     path: &Path,
+    retry_base: Duration,
     log_context: DownloadLogContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
@@ -132,6 +146,7 @@ async fn download_to_path_with_client(
         client,
         parsed,
         staged.partial_path(),
+        retry_base,
         log_context,
         progress,
         is_cancelled,
@@ -145,16 +160,20 @@ async fn download_to_partial_path(
     client: &reqwest::Client,
     url: reqwest::Url,
     path: &Path,
+    retry_base: Duration,
     log_context: DownloadLogContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<u64> {
     ensure_not_cancelled(is_cancelled)?;
     let mut state = DownloadProgress::default();
+    let mut tries_without_bytes = 0_u32;
+    let mut reconnecting = false;
 
-    for attempt in 0..MAX_DOWNLOAD_ATTEMPTS {
+    loop {
         ensure_not_cancelled(is_cancelled)?;
-        let outcome = run_download_attempt(
+        let bytes_before = state.bytes_downloaded;
+        let category = match run_download_attempt(
             client,
             &url,
             path,
@@ -163,39 +182,29 @@ async fn download_to_partial_path(
             progress,
             is_cancelled,
         )
-        .await?;
-        match outcome {
+        .await?
+        {
             AttemptOutcome::Complete => return Ok(state.bytes_downloaded),
-            AttemptOutcome::ReadFailed => {
-                if attempt + 1 < MAX_DOWNLOAD_ATTEMPTS {
-                    continue;
-                }
-                log_download_failed(
-                    log_context,
-                    "read",
-                    state.bytes_downloaded,
-                    state.bytes_total,
-                    None,
-                );
-                return Err(download_failure("read"));
-            }
-            AttemptOutcome::Incomplete => {
-                if attempt + 1 < MAX_DOWNLOAD_ATTEMPTS {
-                    continue;
-                }
-                break;
-            }
+            AttemptOutcome::Retry(category) => category,
+        };
+        if state.bytes_downloaded > bytes_before {
+            tries_without_bytes = 0;
         }
+        tries_without_bytes += 1;
+        let first_connect = category == "request" && !reconnecting;
+        reconnecting = true;
+        if first_connect || tries_without_bytes >= MAX_DOWNLOAD_ATTEMPTS {
+            log_download_failed(
+                log_context,
+                category,
+                state.bytes_downloaded,
+                state.bytes_total,
+                None,
+            );
+            return Err(download_failure(category));
+        }
+        tokio::time::sleep(retry_base * 2_u32.pow(tries_without_bytes)).await;
     }
-
-    log_download_failed(
-        log_context,
-        "incomplete",
-        state.bytes_downloaded,
-        state.bytes_total,
-        None,
-    );
-    Err(download_failure("incomplete"))
 }
 
 #[derive(Default)]
@@ -207,14 +216,13 @@ struct DownloadProgress {
 
 enum AttemptOutcome {
     Complete,
-    ReadFailed,
-    Incomplete,
+    /// Worth another try; names what failed.
+    Retry(&'static str),
 }
 
-/// Run a single download attempt: send the (optionally ranged) request, classify
-/// the response, then stream the body into `path`. Returns the attempt outcome;
-/// `Err` is reserved for terminal failures (request/status/IO) that must not be
-/// retried.
+/// Run a single download attempt: send the ranged request, classify the
+/// response, then stream the body into `path`. `Err` is reserved for terminal
+/// failures (status, size change, IO) that must not be retried.
 async fn run_download_attempt(
     client: &reqwest::Client,
     url: &reqwest::Url,
@@ -225,20 +233,9 @@ async fn run_download_attempt(
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<AttemptOutcome> {
     log_download_request_start(log_context, state.bytes_downloaded);
-    // Audio downloads always resume from the bytes already written.
     let request = build_download_request(client, url.clone(), state.bytes_downloaded);
-    let mut response = match request.send().await {
-        Ok(response) => response,
-        Err(_) => {
-            log_download_failed(
-                log_context,
-                "request",
-                state.bytes_downloaded,
-                state.bytes_total,
-                None,
-            );
-            return Err(download_failure("request"));
-        }
+    let Ok(mut response) = request.send().await else {
+        return Ok(AttemptOutcome::Retry("request"));
     };
     ensure_not_cancelled(is_cancelled)?;
 
@@ -267,7 +264,19 @@ async fn run_download_attempt(
             return Err(map_download_response_error(error));
         }
     };
-    state.bytes_total = response_total.or(state.bytes_total);
+    if let (Some(first), Some(now)) = (state.bytes_total, response_total) {
+        if first != now {
+            log_download_failed(
+                log_context,
+                "size_changed",
+                state.bytes_downloaded,
+                state.bytes_total,
+                Some(status),
+            );
+            return Err(download_failure("size check"));
+        }
+    }
+    state.bytes_total = state.bytes_total.or(response_total);
     log_download_request_status(
         log_context,
         status,
@@ -291,7 +300,7 @@ async fn run_download_attempt(
     .await?;
     file.sync_all().await?;
     if read_failed {
-        return Ok(AttemptOutcome::ReadFailed);
+        return Ok(AttemptOutcome::Retry("read"));
     }
     ensure_not_cancelled(is_cancelled)?;
     if state
@@ -301,7 +310,7 @@ async fn run_download_attempt(
     {
         return Ok(AttemptOutcome::Complete);
     }
-    Ok(AttemptOutcome::Incomplete)
+    Ok(AttemptOutcome::Retry("incomplete"))
 }
 
 /// Stream one HTTP response body into the append-mode `file`, updating progress
@@ -315,7 +324,16 @@ async fn stream_download_chunks(
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<bool> {
-    stream_response_chunks(response, file, is_cancelled, |chunk| {
+    loop {
+        let chunk = match response.chunk().await {
+            Ok(Some(chunk)) => chunk,
+            Ok(None) => return Ok(false),
+            Err(_) => return Ok(true),
+        };
+        ensure_not_cancelled(is_cancelled)?;
+        if chunk.is_empty() {
+            continue;
+        }
         state.bytes_downloaded += chunk.len() as u64;
         if !state.first_bytes_logged {
             state.first_bytes_logged = true;
@@ -336,9 +354,8 @@ async fn stream_download_chunks(
             Some(state.bytes_downloaded),
             state.bytes_total,
         ));
-        Ok(())
-    })
-    .await
+        file.write_all(&chunk).await?;
+    }
 }
 
 pub(super) fn build_download_request(

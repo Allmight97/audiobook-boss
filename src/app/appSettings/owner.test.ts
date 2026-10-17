@@ -62,6 +62,52 @@ describe('settings owner', () => {
 		expect(engine.settings().settings?.encoderDefaults.intent).toBe('preserve');
 	});
 
+	it('shows the default import source as saving until the engine replies', async () => {
+		const app = open();
+		await app.initialize();
+		const dispatch = engine.settingsDispatch;
+		let release: () => void = () => {};
+		const replied = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		engine.settingsDispatch = async (...args) => {
+			await replied;
+			return dispatch(...args);
+		};
+
+		const saving = app.settings.setDefaultAcquisitionLane('indexer');
+		expect(app.settings.dialog().laneSaveState).toBe('saving');
+
+		release();
+		await saving;
+		expect(app.settings.dialog().laneSaveState).toBe('saved');
+		expect(app.settings.defaultAcquisitionLane()).toBe('indexer');
+	});
+
+	it('shows a refused default import source beside its choice', async () => {
+		const app = open();
+		await app.initialize();
+		engine.settingsDispatch = async () => ({
+			outcome: {
+				kind: 'rejected',
+				error: {
+					code: 'invalid_input',
+					category: 'validation',
+					message: 'Indexer is not set up.',
+					detail: null,
+				},
+			},
+			snapshot: engine.settings(),
+		});
+
+		await app.settings.setDefaultAcquisitionLane('indexer');
+
+		expect(app.settings.dialog()).toMatchObject({
+			laneSaveState: 'error',
+			laneSaveError: 'Indexer is not set up.',
+		});
+	});
+
 	it('keeps a dialog choice that could not be saved in effect and reports the save once', async () => {
 		const app = open();
 		await app.initialize();

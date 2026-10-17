@@ -25,7 +25,11 @@ second copy of owner state.
   read the link. `workOperations` is the exception: it reads WorkRuntime
   through `tauriClient`.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
-  for intents whose outcome nobody awaits. The host runs both in the order
+  for intents whose outcome and completion nobody awaits; its refusal shows as
+  the link's `refusal` (`RefusedChangeNotice`). A `send` caller with its own
+  status line shows a rejection there (cover loads, processing, Remote
+  Source); the metadata echo, lookup actions and file selection pass it to
+  `link.refuse`, the same notice `post` uses. The host runs both in the order
   called.
 - A part that arrives unchanged keeps object identity for its files and lookup
   results. Solid rows are not rebuilt, and a click does not land on a replaced
@@ -73,10 +77,13 @@ One bullet per owner: the invariant the code does not show. Engine paths name
 the owner of the truth.
 
 - `appSettings` (`crates/abb-engine/src/app_settings/AGENTS.md`): the owner
-  words durability from `saveError`, shows the concurrency view (Auto shows the
-  capability's `autoEffective`, not the current fixed count), and holds dialog
-  state. The session records audio and output defaults and announces them with
-  `settings-update`; views send Settings intents only.
+  words durability from `saveError` and the reset notice from `recovery`,
+  shows the concurrency view (Auto shows the capability's `autoEffective`, not
+  the current fixed count), and holds dialog state. Settings intents go
+  through `sendSettings` (their own numbered order); a dialog control's
+  failure shows beside that control (`runDialogAction`). The session records
+  audio and output defaults and announces them with `settings-update`; views
+  send Settings intents only.
 - `encoding` (session AGENTS): `project.ts` disables an option because the
   engine's facts say so. `editFor` turns a control value into an `AudioEdit`;
   a value no control offers sends nothing. What Auto resolves to comes from the
@@ -84,6 +91,9 @@ the owner of the truth.
   imports and name no source; existing titles change only through Apply App
   Settings. `selectionView` and `refusal` render engine facts and combine no
   titles.
+- `inputSession` (session AGENTS): chapter counts come from
+  `acceptedChapterCount`: the plan the file converts with, else its embedded
+  chapters. Why: a CUE plan replaces the embedded chapters.
 - `metadataLookup` (session AGENTS): query text binds to its queued path and
   metadata `binding`. Advancing or rebinding drops the previous title's echo at
   once. Apply sends the lookup part revision the snapshot holds.
@@ -100,9 +110,11 @@ the owner of the truth.
   render its snapshot and aggregate nothing. `cancelPreview` carries the run
   identity and an optional child identity; whole-preview cancel needs no native
   job id, and disposal does not cancel. After `artworkReady` the artwork shows
-  from the run's `coverSrc` address. A finished preview opens only the path
-  `takePreviewOutput` grants, even when the requesting frontend is disposed
-  before the reply. Submit and Cancel availability follow the engine preview
+  from the run's `coverSrc` address. A finished preview opens through
+  `link.openPreview(runId)`: the host claims the path with `takePreviewOutput`
+  and opens it, so the webview holds no permission to open a file path, and
+  the open happens even when the requesting frontend is disposed before the
+  reply. Submit and Cancel availability follow the engine preview
   state, including for a frontend that attaches to an active run. Preview
   duration is screen-local state in `PreviewAudioControls`. Each owner instance
   owns its status store and publisher.

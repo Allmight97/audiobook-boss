@@ -63,15 +63,6 @@ impl<'a> SupplementalOutputAssetsCommitRequest<'a> {
     }
 }
 
-fn supplemental_output_destination(final_audio_path: &Path) -> PathBuf {
-    let parent = final_audio_path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = final_audio_path
-        .file_stem()
-        .map(|value| value.to_string_lossy())
-        .unwrap_or_else(|| "Book".into());
-    parent.join(format!("{stem} - Supplemental PDF.pdf"))
-}
-
 fn next_available_supplemental_path(candidate: &Path) -> Result<PathBuf> {
     if !path_entry_exists(candidate)? {
         return Ok(candidate.to_path_buf());
@@ -206,9 +197,8 @@ pub(crate) fn commit_supplemental_output_asset(
 ) -> Result<PathBuf> {
     ensure_pdf_source(&request)?;
 
-    let requested = supplemental_output_destination(request.final_audio_path);
-    let destination = next_available_supplemental_path(&requested)?;
-    if let Some(parent) = destination.parent() {
+    let requested = abb_output_artifact_core::supplemental_pdf_path(request.final_audio_path);
+    if let Some(parent) = requested.parent() {
         std::fs::create_dir_all(parent).map_err(|error| {
             AppError::FileValidation(format!(
                 "Cannot create Supplemental PDF output directory '{}': {}",
@@ -217,41 +207,12 @@ pub(crate) fn commit_supplemental_output_asset(
             ))
         })?;
     }
-
-    let mut source = std::fs::File::open(request.source_path).map_err(|error| {
-        AppError::FileValidation(format!(
-            "Cannot open Supplemental PDF source '{}': {}",
-            sanitize_path_for_display(request.source_path),
-            error
-        ))
-    })?;
-    let mut dest = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&destination)
-        .map_err(|error| {
-            AppError::FileValidation(format!(
-                "Cannot create Supplemental PDF output '{}': {}",
-                sanitize_path_for_display(&destination),
-                error
-            ))
-        })?;
-    if let Err(error) = std::io::copy(&mut source, &mut dest) {
-        let _ = std::fs::remove_file(&destination);
-        return Err(AppError::FileValidation(format!(
-            "Cannot copy Supplemental PDF to '{}': {}",
-            sanitize_path_for_display(&destination),
-            error
-        )));
-    }
-    if let Err(error) = dest.sync_all() {
-        let _ = std::fs::remove_file(&destination);
-        return Err(AppError::FileValidation(format!(
-            "Failed to flush Supplemental PDF '{}': {}",
-            sanitize_path_for_display(&destination),
-            error
-        )));
-    }
+    // Held across choosing the name and publishing, so two exports of one
+    // title never pick the same free name.
+    let _file = super::lock_output_file(&requested);
+    let destination = next_available_supplemental_path(&requested)?;
+    super::commit::remove_stale_replacement_temps(&destination);
+    super::commit::publish_copy_without_replacing(request.source_path, &destination)?;
 
     let committed_bytes = std::fs::metadata(&destination)
         .map(|metadata| metadata.len())

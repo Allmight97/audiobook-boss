@@ -1,3 +1,4 @@
+use super::http::AudibleRequestError;
 use crate::errors::AppError;
 use crate::remote_source::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
 
@@ -22,6 +23,16 @@ impl AudibleAcquisitionError {
             RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
             error,
         )
+    }
+
+    pub(super) fn request(error: AudibleRequestError) -> Self {
+        match error {
+            AudibleRequestError::AuthRejected => Self::new(
+                RemoteAcquisitionFailureKind::AuthRequired,
+                AudibleRequestError::AuthRejected.into_app_error(),
+            ),
+            AudibleRequestError::Failed(error) => Self::provider_protocol(error),
+        }
     }
 
     pub(super) fn download(error: AppError) -> Self {

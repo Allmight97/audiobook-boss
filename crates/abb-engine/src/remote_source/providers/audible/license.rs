@@ -4,13 +4,14 @@ use abb_audible_core::{
     AudibleDecryptionMaterial, AudibleLicenseDecryptContext, LicenseFacts,
 };
 use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage, AcquisitionStrategy};
-use audible_api::api::Client as AudibleClient;
 use audible_api::auth::Auth;
 use serde_json::{json, Value};
 
 use super::acquisition::{ensure_not_cancelled, title_progress, TitleAcquisitionCtx};
-use super::{provider_private_failure, AUDIBLE_IOS_DEVICE_TYPE, DOMAIN};
-use crate::errors::{AppError, Result};
+use super::http::{ApiCall, AudibleApi, AudibleRequestError, Scope};
+use super::AUDIBLE_IOS_DEVICE_TYPE;
+
+type RequestResult<T> = std::result::Result<T, AudibleRequestError>;
 
 pub(super) struct LicenseLane {
     pub(super) content_url: String,
@@ -49,21 +50,21 @@ pub(super) fn license_decrypt_context_from_auth(
 }
 
 pub(super) async fn lookup_title_details(
-    client: &AudibleClient,
+    api: &AudibleApi,
     ctx: TitleAcquisitionCtx<'_>,
     include_pdf: bool,
     is_cancelled: &impl Fn() -> bool,
-) -> Result<AudibleTitleDetails> {
+) -> RequestResult<AudibleTitleDetails> {
     ensure_not_cancelled(is_cancelled)?;
-    let metadata = client
-        .get_library_item_by_asin(
-            ctx.title_id,
-            Some(json!({
+    let metadata = api
+        .get(
+            &format!("/1.0/library/{}", ctx.title_id),
+            &json!({
                 "response_groups": "product_desc,product_attrs,contributors,media,pdf_url,product_details"
-            })),
+            }),
+            ApiCall::for_job("title lookup", Scope::Account, ctx.job_id, ctx.title_id),
         )
-        .await
-        .map_err(|_| provider_private_failure("title lookup"))?;
+        .await?;
     ensure_not_cancelled(is_cancelled)?;
     let title =
         find_first_string_for_key(&metadata, "title").filter(|value| !value.trim().is_empty());
@@ -80,12 +81,12 @@ pub(super) async fn lookup_title_details(
 }
 
 pub(super) async fn request_license_lane(
-    client: &AudibleClient,
+    api: &AudibleApi,
     ctx: TitleAcquisitionCtx<'_>,
     license_decrypt_context: Option<&AudibleLicenseDecryptContext>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
-) -> Result<LicenseLane> {
+) -> RequestResult<LicenseLane> {
     let TitleAcquisitionCtx {
         job_id,
         title_id,
@@ -100,8 +101,18 @@ pub(super) async fn request_license_lane(
         None,
         None,
     ));
-    let license_payload = license_request_payload();
-    let license = post_license_request_json(client, title_id, &license_payload, job_id).await?;
+    log::info!(
+        "remote_source audible stage=license_request_start job_id={} title_ref={} body=json",
+        job_id,
+        title_ref(title_id)
+    );
+    let license = api
+        .post(
+            &license_request_path(title_id),
+            &license_request_payload(),
+            ApiCall::for_job("license request", Scope::Title, job_id, title_id),
+        )
+        .await?;
     ensure_not_cancelled(is_cancelled)?;
     let facts = license_facts_from_value(&license);
     let strategy = choose_acquisition_strategy(&facts);
@@ -172,77 +183,8 @@ pub(super) fn license_request_payload() -> Value {
     })
 }
 
-pub(super) struct LicenseRequestSpec<'a> {
-    pub(super) method: &'static str,
-    pub(super) url: String,
-    pub(super) body: &'a Value,
-}
-
-pub(super) fn license_request_spec<'a>(
-    title_id: &str,
-    payload: &'a Value,
-) -> LicenseRequestSpec<'a> {
-    LicenseRequestSpec {
-        method: "POST",
-        url: format!("https://api.audible.{DOMAIN}/1.0/content/{title_id}/licenserequest"),
-        body: payload,
-    }
-}
-
-fn build_license_request(title_id: &str, payload: &Value) -> Result<audible_reqwest::Request> {
-    let spec = license_request_spec(title_id, payload);
-    let request = match spec.method {
-        "POST" => audible_reqwest::Client::new()
-            .post(spec.url)
-            .json(spec.body),
-        _ => return Err(provider_private_failure("license request method")),
-    };
-    request
-        .build()
-        .map_err(|_| provider_private_failure("license request construction"))
-}
-
-async fn post_license_request_json(
-    client: &AudibleClient,
-    title_id: &str,
-    payload: &Value,
-    job_id: &str,
-) -> Result<Value> {
-    log::info!(
-        "remote_source audible stage=license_request_start job_id={} title_ref={} body=json",
-        job_id,
-        title_ref(title_id)
-    );
-    let request = build_license_request(title_id, payload)?;
-    let response = client.send_request(request).await.map_err(|_| {
-        log::warn!(
-            "remote_source audible stage=license_request_failed job_id={} title_ref={} failure=send_request",
-            job_id,
-            title_ref(title_id)
-        );
-        provider_private_failure("license request")
-    })?;
-    let status = response.status();
-    log::info!(
-        "remote_source audible stage=license_request_status job_id={} title_ref={} http_status={}",
-        job_id,
-        title_ref(title_id),
-        status.as_u16()
-    );
-    if !status.is_success() {
-        return Err(AppError::General(format!(
-            "Audible license request returned HTTP {}. Check application logs for sanitized acquisition facts.",
-            status.as_u16()
-        )));
-    }
-    response.json().await.map_err(|_| {
-        log::warn!(
-            "remote_source audible stage=license_response_failed job_id={} title_ref={} failure=json_parse",
-            job_id,
-            title_ref(title_id)
-        );
-        provider_private_failure("license response parse")
-    })
+pub(super) fn license_request_path(title_id: &str) -> String {
+    format!("/1.0/content/{title_id}/licenserequest")
 }
 
 fn log_license_facts(

@@ -49,7 +49,7 @@ export function CoverArtView(): JSX.Element {
 			const pastedUrl = new URL(raw).toString();
 			event.preventDefault();
 			setUrlInput(pastedUrl);
-			void loadFromUrl(pastedUrl);
+			loadFromUrl(pastedUrl);
 		} catch {
 			return;
 		}
@@ -135,7 +135,7 @@ export function CoverArtView(): JSX.Element {
 					onKeyDown={(event) => {
 						if (event.key !== 'Enter') return;
 						event.preventDefault();
-						void loadFromUrl(cover().urlInputValue);
+						loadFromUrl(cover().urlInputValue);
 					}}
 				/>
 				<Button
@@ -143,7 +143,7 @@ export function CoverArtView(): JSX.Element {
 					data-testid="cover-art-url-load-btn"
 					class="cover-art-url-load-btn"
 					disabled={cover().isLoading}
-					onClick={() => void loadFromUrl(cover().urlInputValue)}
+					onClick={() => loadFromUrl(cover().urlInputValue)}
 				>
 					Load
 				</Button>

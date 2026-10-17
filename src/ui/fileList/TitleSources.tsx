@@ -97,7 +97,7 @@ export function TitleSources(props: {
 				class="ungroup-title"
 				disabled={input.view().orderLocked}
 				title={`Title edits stay with ${pathBasename(props.file.path, { fallback: 'path' })}. Other files retain their own drafts.`}
-				onClick={() => void input.ungroup(props.file)}
+				onClick={() => input.ungroup(props.file)}
 			>
 				Separate into individual titles
 			</button>

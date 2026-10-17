@@ -1,0 +1,50 @@
+# A settings file as ABB saves it with Apple AAC in use and Opus pinned.
+# contract_tests.rs checks it loads unchanged.
+
+[general]
+keep_awake_while_working = true
+max_concurrent_jobs = 4
+default_acquisition_lane = "audible"
+
+[audio]
+format = "m4b"
+intent = "encode"
+sample_rate = 48000
+
+[audio.encoder]
+type = "aac_at"
+bitrate_kbps = 128
+bitrate_mode = "cvbr"
+channels = "stereo"
+native_aac_speed = 0
+faac_profile = "auto"
+
+[output]
+folder = "/Books/Apple"
+
+[output.naming]
+preset = "absDefault"
+include_year = false
+
+[startup]
+behavior = "pinnedDefaults"
+
+[startup.pinned]
+max_concurrent_jobs = "auto"
+
+[startup.pinned.audio]
+format = "m4aOpus"
+intent = "encode"
+sample_rate = "auto"
+
+[startup.pinned.audio.encoder]
+type = "opus"
+bitrate_kbps = 32
+bitrate_mode = "vbr_target"
+channels = "mono"
+native_aac_speed = 0
+faac_profile = "auto"
+
+[startup.pinned.output.naming]
+preset = "absDefault"
+include_year = false

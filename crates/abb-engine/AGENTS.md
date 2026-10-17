@@ -8,7 +8,12 @@ the same code.
 
 - A host builds one `Engine` from `EngineConfig` (`engine.rs` documents each
   field). `Engine::start` clears working files a previous run abandoned (it
-  logs and continues on failure), so two engines must not share folders.
+  logs and continues on failure). Before that it takes an OS lock on
+  `<cache_dir>/engine.lock` and holds it for the engine's life; a second start
+  on the same folder fails with `AppError::AlreadyRunning` and touches
+  nothing. Why: the second engine's cleanup would delete the first one's live
+  exports and downloads. A folder that cannot be locked (a filesystem without
+  `flock`) logs and starts unlocked.
 - A host calls `Engine` methods and receives `EngineEvent`s; `engine.rs` lists
   the methods. Remote account, auth, library, and acquisition work uses
   session intents and snapshots; its vocabulary is in
@@ -66,6 +71,9 @@ the same code.
   outcome rather than choosing MP4/FFmpeg strategy modules.
 - Final artifact paths, collision review, replacement, and commit truth cross
   `crate::output_artifact`.
+- Crash-safe file replacement (`SiblingTemp`, `write_atomically`,
+  `replace_file`) belongs to `file_replace.rs` (rustdoc); owners call it
+  instead of renaming over a file themselves.
 - Exports and previews start from the session (`Submit`, `Preview`). An
   export enters WorkRuntime through `submit_processing_operation`; a preview
   runs `process_inspected_with_options` with a stable identity, actual cancel

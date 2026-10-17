@@ -97,6 +97,42 @@ async fn leftover_downloads_that_cannot_be_removed_do_not_stop_abb_from_starting
     assert_eq!(engine.shutdown().await, ShutdownOutcome::Settled);
 }
 
+#[tokio::test]
+async fn a_second_abb_on_the_same_folders_refuses_to_start_and_leaves_live_work_alone() {
+    let root = TempDir::new().expect("engine root");
+    let config = || EngineConfig {
+        cache_dir: root.path().join("cache"),
+        config_dir: root.path().join("config"),
+        app_identifier: "com.audiobook-boss.test".to_string(),
+        events: Arc::new(abb_engine::DiscardEvents),
+        aaxclean_helper: None,
+    };
+    let first = Engine::start(config()).expect("first ABB starts");
+    let workspace = root.path().join("cache/processing/sessions/live-export");
+    let download = root
+        .path()
+        .join("cache/remote-source/sessions/live-download");
+    for live in [&workspace, &download] {
+        fs::create_dir_all(live).expect("live work folder");
+        fs::write(live.join("part.m4b"), b"audio").expect("live work file");
+    }
+
+    let second = Engine::start(config());
+
+    assert!(workspace.join("part.m4b").exists());
+    assert!(download.join("part.m4b").exists());
+    let error = second.err().expect("second ABB refuses to start");
+    assert!(
+        error.to_string().contains("ABB is already running"),
+        "{error}"
+    );
+
+    assert_eq!(first.shutdown().await, ShutdownOutcome::Settled);
+    drop(first);
+    let third = Engine::start(config()).expect("ABB starts after the first one quit");
+    assert_eq!(third.shutdown().await, ShutdownOutcome::Settled);
+}
+
 /// One engine over its own throwaway roots, with one tagged audiobook.
 struct Desk {
     root: TempDir,
@@ -346,6 +382,62 @@ async fn save_with_no_export_running_writes_the_file_in_place() {
     let save = operations.operations.first().expect("the save is listed");
     assert_eq!(save.status, WorkOperationStatus::Completed);
     assert_eq!(save.children.len(), 1);
+}
+
+/// A JPEG larger than ABB will decode for an output cover.
+fn oversized_jpeg() -> Vec<u8> {
+    let mut bytes = Vec::new();
+    image::DynamicImage::new_rgb8(5_000, 5_000)
+        .write_to(
+            &mut std::io::Cursor::new(&mut bytes),
+            image::ImageFormat::Jpeg,
+        )
+        .expect("encode 5000 px JPEG");
+    bytes
+}
+
+#[tokio::test]
+async fn a_source_cover_too_large_to_prepare_is_dropped_with_a_warning() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    abb_engine::save_metadata_intent(
+        &book,
+        &abb_engine::MetadataIntentPatch {
+            cover_art: Some(abb_engine::PatchOp::Set(oversized_jpeg())),
+            ..Default::default()
+        },
+    )
+    .expect("embed the oversized cover in the source");
+    desk.import(&book).await;
+
+    let export = desk.export().await;
+    desk.wait_until("the export ends", |desk| {
+        finished(desk.export_status(&export))
+    })
+    .await;
+
+    let operations = desk.engine.list_work_operations().expect("operations");
+    let title = &operations
+        .operations
+        .iter()
+        .find(|operation| operation.operation_id == export)
+        .expect("export is listed")
+        .children[0];
+    assert_eq!(
+        desk.export_status(&export),
+        WorkOperationStatus::Completed,
+        "{:?}",
+        title.message
+    );
+    assert!(
+        title.warnings.len() == 1 && title.warnings[0].contains("cover"),
+        "{:?}",
+        title.warnings
+    );
+    let output = desk.output_of(&export);
+    assert_eq!(read_metadata(&output).expect("read output").cover_art, None);
 }
 
 #[tokio::test]

@@ -1,0 +1,51 @@
+# A settings file as ABB saves it with the automatic AAC encoder in use and
+# the native AAC encoder pinned but not used at launch. contract_tests.rs
+# checks it loads unchanged.
+
+[general]
+keep_awake_while_working = false
+max_concurrent_jobs = 1
+default_acquisition_lane = "indexer"
+
+[audio]
+format = "m4b"
+intent = "auto"
+sample_rate = "auto"
+
+[audio.encoder]
+type = "auto"
+bitrate_kbps = 64
+bitrate_mode = "cbr"
+channels = "auto"
+native_aac_speed = 1
+faac_profile = "auto"
+
+[output.naming]
+preset = "absDefault"
+include_year = false
+
+[startup]
+behavior = "rememberLastState"
+
+[startup.pinned]
+max_concurrent_jobs = 2
+
+[startup.pinned.audio]
+format = "m4b"
+intent = "encode"
+sample_rate = 22050
+
+[startup.pinned.audio.encoder]
+type = "native_aac"
+bitrate_kbps = 96
+bitrate_mode = "cbr"
+channels = "mono"
+native_aac_speed = 3
+faac_profile = "auto"
+
+[startup.pinned.output]
+folder = "/Books/Native"
+
+[startup.pinned.output.naming]
+preset = "absDefault"
+include_year = true
