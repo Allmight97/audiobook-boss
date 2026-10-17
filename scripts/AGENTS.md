@@ -58,7 +58,8 @@ with a test-name filter.
 
 `bash scripts/setup.sh` installs `.githooks/pre-commit` (repo-local
 `core.hooksPath`). It checks an isolated snapshot of the index: whitespace,
-rustfmt, Biome format, the guidance and known-mistakes lints, and shellcheck.
+rustfmt, Biome format, the guidance and known-mistakes lints, shellcheck,
+and, when a workflow file changes, the workflow policy check.
 Unstaged edits cannot change the verdict, and the hook never changes the index.
 A guidance-only change goes through a PR whose `gate` passes,
 because the CI gate ruleset requires `gate` on `main` (root `AGENTS.md`,

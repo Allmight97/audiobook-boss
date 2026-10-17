@@ -174,8 +174,8 @@ another CI run.
   not a rule.
 - Local proof is the primary proof. On the owner's machine, follow
   `scripts/AGENTS.md` ("What to run for a change"). CI is the last check, and
-  the main proof for a cloud Linux agent. CI scheduling belongs to
-  `.github/workflows/ci.yml`; `gate` is the check `main` requires.
+  the main proof for a cloud Linux agent. Why the CI policy is what it is:
+  `docs/DECISIONS.md`. `gate` is the check `main` requires.
 - Guidance with no implementation (docs, `AGENTS.md`, skills, allowlists)
   goes through a PR whose `gate` passes, as required by the main ruleset.
   The pre-commit hook (`scripts/AGENTS.md`) is the fast check before that PR.

@@ -53,7 +53,7 @@ describe('platform job planning', () => {
 	});
 	it('adds Apple proof only when a native engine path is exercised', () => {
 		expect(planJobs(['engine', 'media']).rust).toEqual([
-			{ os: 'ubuntu-latest', lanes: ['engine', 'media'], native: true, frontend: false },
+			{ os: 'ubuntu-24.04', lanes: ['engine', 'media'], native: true, frontend: false },
 			{ os: 'macos-latest', lanes: ['engine', 'media', 'apple'], native: true, frontend: false },
 		]);
 	});

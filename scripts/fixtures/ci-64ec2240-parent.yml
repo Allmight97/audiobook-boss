@@ -1,0 +1,60 @@
+name: frontend checks
+
+# Frozen installs, Biome format/lint, the generated Tauri runtime-boundary check,
+# typechecking and frontend behavior on main and its PRs.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ci.yml
+      - src/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - tsconfig.json
+      - vite.config.ts
+      - vitest.config.ts
+      - biome.json
+      - scripts/**/*.ts
+      - scripts/locked-bun-version.sh
+      - scripts/setup-linux-agent.sh
+  pull_request:
+    paths:
+      - .github/workflows/ci.yml
+      - src/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - tsconfig.json
+      - vite.config.ts
+      - vitest.config.ts
+      - biome.json
+      - scripts/**/*.ts
+      - scripts/locked-bun-version.sh
+      - scripts/setup-linux-agent.sh
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-clean-install-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend typecheck and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - id: bun
+        run: |
+          version="$(bash scripts/locked-bun-version.sh)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ steps.bun.outputs.version }}
+      - run: bun install --frozen-lockfile
+      - run: bun run fmt:check
+      - run: bun run lint:check
+      - run: bun run bindings:check:runtime-boundary
+      - run: bun run typecheck
+      - run: bun run test

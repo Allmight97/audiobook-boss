@@ -1,7 +1,9 @@
 name: claude review
 
-# One Claude review when a PR opens ready or leaves draft, following REVIEW.md;
-# pushes start none. A review that posts nothing fails. Needs the
+# One Claude review when a PR opens ready, reopens, or leaves draft, following
+# REVIEW.md; pushes and drafts start none (scripts/check-pr-workflow-policy.ts).
+# In a draft, ask for a review with an @claude comment (claude.yml). A review
+# that posts nothing fails. Needs the
 # CLAUDE_CODE_OAUTH_TOKEN repository secret; missing credentials fail explicitly.
 # Toggle this workflow in GitHub Actions; claude.yml handles mentions separately.
 
@@ -12,14 +14,15 @@ on:
 permissions: {}
 
 concurrency:
-  group: claude-review-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   review:
     name: Claude review
-    if: github.event.pull_request.draft == false && github.actor != 'dependabot[bot]'
-    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft != true && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: write

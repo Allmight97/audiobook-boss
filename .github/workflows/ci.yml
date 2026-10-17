@@ -1,14 +1,13 @@
 name: ci
 
-# Ready PR revisions run affected lanes. Merged PRs prove and warm main.
-# Advisories refresh daily. Monday and Thursday prove everything so caches stay
-# used (GitHub evicts a cache after 7 days unused); manual runs prove everything.
-# A closed PR deletes its own caches so they cannot evict main's (10 GB cap).
-# scripts/verification.ts selects jobs and rejects missing proof; verify.sh owns commands.
+# Policy facts live in this file; scripts/check-pr-workflow-policy.ts enforces them.
+# Why this shape: docs/DECISIONS.md.
+# The daily cron refreshes advisories. Monday and Thursday prove every lane so
+# caches stay used. A merged PR proves main, then deletes that PR's caches.
+# scripts/verification.ts selects jobs; verify.sh owns commands.
 on:
   pull_request:
-    types: [opened, ready_for_review, synchronize, reopened, closed]
-  merge_group:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]
   schedule:
     - cron: "0 6 * * *"
     - cron: "30 6 * * 1,4"
@@ -17,7 +16,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: ci-${{ github.event.action == 'closed' && github.ref || github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -26,7 +25,7 @@ env:
 jobs:
   changes:
     if: github.event.pull_request.draft != true && (github.event.action != 'closed' || github.event.pull_request.merged == true)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -44,6 +43,11 @@ jobs:
         with:
           fetch-depth: 2
           persist-credentials: false
+      # Depth 2 includes the test-merge parents. A stacked base is not one of them.
+      - if: github.event_name == 'pull_request' && github.event.action != 'closed'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE"
       - run: bash scripts/setup.sh frontend
       - id: plan
         env:
@@ -62,10 +66,10 @@ jobs:
   frontend:
     name: Frontend typecheck and tests
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: github.event.pull_request.draft != true && needs.changes.outputs.frontend == 'true'
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -87,10 +91,10 @@ jobs:
   core:
     name: Core crate tests and clippy
     needs: changes
-    if: needs.changes.outputs.core == 'true'
+    if: github.event.pull_request.draft != true && needs.changes.outputs.core == 'true'
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -114,7 +118,7 @@ jobs:
   rust:
     name: Rust (${{ matrix.os }})
     needs: changes
-    if: needs.changes.outputs.rust_needed == 'true'
+    if: github.event.pull_request.draft != true && needs.changes.outputs.rust_needed == 'true'
     permissions:
       contents: read
     strategy:
@@ -177,10 +181,10 @@ jobs:
   tooling:
     name: Workflows and shell
     needs: changes
-    if: needs.changes.outputs.tooling == 'true'
+    if: github.event.pull_request.draft != true && needs.changes.outputs.tooling == 'true'
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -199,8 +203,8 @@ jobs:
   supply-chain:
     name: Advisories and licenses
     needs: changes
-    if: needs.changes.outputs.supply_chain == 'true'
-    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft != true && needs.changes.outputs.supply_chain == 'true'
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -225,7 +229,7 @@ jobs:
     name: gate
     needs: [changes, frontend, core, rust, tooling, supply-chain]
     if: always() && github.event.pull_request.draft != true && (github.event.action != 'closed' || github.event.pull_request.merged == true)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -242,7 +246,7 @@ jobs:
     name: Delete closed PR caches
     needs: gate
     if: always() && github.event.action == 'closed'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       actions: write

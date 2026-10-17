@@ -73,5 +73,8 @@ describe('check-guidance', () => {
 		expect(messages('CI runs on `opened`, `ready_for_review`, and `auto_merge_enabled`.')).toEqual([
 			expect.stringMatching(/fact owned by `.github\/workflows\/ci.yml`/),
 		]);
+		expect(messages('Draft conversion uses `converted_to_draft`.')).toEqual([
+			expect.stringMatching(/fact owned by `.github\/workflows\/ci.yml`/),
+		]);
 	});
 });
