@@ -59,6 +59,10 @@ if has '(^|/)(AGENTS|CLAUDE|REVIEW|README)\.md$|^\.agents/|^docs/'; then
 	require bun
 	bun scripts/check-guidance.ts
 fi
+if has '^\.github/workflows/'; then
+	require bun
+	bun scripts/check-pr-workflow-policy.ts
+fi
 if has '\.(sh|rs)$|^\.githooks/'; then
 	require bun
 	bun scripts/check-known-mistakes.ts

@@ -28,7 +28,11 @@ const COMMAND_COPY = /\bcargo (test|clippy|fmt|run|build|check|audit|deny)\b|--f
 const BUN_RUN = /^bun run ([\w:.-]+)/;
 const SCRIPT_NAME = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)+$/;
 const SINGLE_OWNER_FACTS: { pattern: RegExp; owner: string }[] = [
-	{ pattern: /\bready_for_review\b|\bauto_merge_enabled\b/, owner: '.github/workflows/ci.yml' },
+	{
+		pattern:
+			/\bready_for_review\b|\bauto_merge_enabled\b|\bconverted_to_draft\b|\bmerge_group\b|\bcancel-in-progress\b/,
+		owner: '.github/workflows/ci.yml',
+	},
 ];
 
 export function isGuidanceFile(repoRelativePath: string): boolean {

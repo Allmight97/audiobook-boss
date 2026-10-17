@@ -138,9 +138,10 @@ Index of common commands; `package.json` holds the shortcuts.
   `bun run bindings:check:runtime-boundary`. Verification leaves the checked
   files untouched.
 - Dependency hygiene: `bun run audit`.
-- CI (`.github/workflows/ci.yml`): its header says when it runs. Each job runs
-  `scripts/setup.sh` and the `scripts/verify.sh` lanes that the changed paths
-  select (`scripts/lane-paths.yml`). GitHub also runs Pages for `site/**`.
+- CI (`.github/workflows/ci.yml`): `scripts/check-pr-workflow-policy.ts`
+  enforces its rules (`docs/DECISIONS.md`). Each job runs `scripts/setup.sh`
+  and the `scripts/verify.sh` lanes that the changed paths select
+  (`scripts/lane-paths.yml`). GitHub also runs Pages for `site/**`.
 - Bun is the package manager, script runner, and test runner.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`.
 - Build timing: Cargo's `--timings` report shows where compile time goes.
@@ -183,18 +184,9 @@ before testing `@claude` on a real request. From the CLI:
 gh workflow run claude.yml --repo Allmight97/audiobook-boss --ref main
 ```
 
-Automatic review is separate. Select **claude review → … → Enable workflow**
-or **Disable workflow**, or use:
-
-```sh
-gh workflow enable claude-review.yml --repo Allmight97/audiobook-boss
-gh workflow disable claude-review.yml --repo Allmight97/audiobook-boss
-```
-
-Toggling automatic review leaves mention handling available. Enabling review
-does not retroactively review existing ready PRs; its next trigger is a PR
-opening, reopening, or being marked ready. The workflow files must be on the
-default branch before comment triggers and the manual authentication check
+Review of a pull request is a cloud review posted on the PR
+(`docs/DECISIONS.md`), not a second workflow. The workflow files must be on
+the default branch before comment triggers and the manual authentication check
 are available.
 
 ## Project Operation

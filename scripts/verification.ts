@@ -75,7 +75,7 @@ export function planJobs(lanes: string[]): Jobs {
 	const rust: RustJob[] = [];
 	if (nativeLanes.length > 0) {
 		rust.push({
-			os: 'ubuntu-latest',
+			os: 'ubuntu-24.04',
 			lanes: nativeLanes,
 			native: true,
 			frontend: lanes.includes('host'),

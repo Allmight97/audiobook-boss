@@ -1,8 +1,8 @@
 # REVIEW.md
 
-How to review an ABB pull request. Root `AGENTS.md` (Review Guidelines) and the
-`claude review` workflow both point here. The rules live in the `AGENTS.md`
-chain; this file says how to review against them.
+How to review an ABB pull request. Root `AGENTS.md` (Review Guidelines) points
+here. The rules live in the `AGENTS.md` chain; this file says how to review
+against them.
 
 ## Scope
 
