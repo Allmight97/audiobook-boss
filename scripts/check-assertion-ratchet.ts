@@ -250,7 +250,7 @@ function main(): number {
 	const { base, head } = selectedRange(root, process.argv.slice(2));
 	if (!base) {
 		console.error(
-			'No merge base with origin/main or main. The ratchet did not diff. Fix: fetch the base (`git fetch origin main` and `git fetch --unshallow`, or `git fetch --deepen=<n>`) or pass --base <rev>.',
+			'No merge base with origin/main or main. The ratchet did not diff. Fix: fetch the base (`git fetch --unshallow` and `git fetch origin main:refs/remotes/origin/main`, or `git fetch --deepen=<n>` once that ref exists) or pass --base <rev>.',
 		);
 		return 1;
 	}
