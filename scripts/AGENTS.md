@@ -11,6 +11,8 @@ current inputs have no passing receipt, or name lanes to run them afresh.
 `scripts/verification.ts` owns path selection, platform job planning, and proof
 validity; `scripts/lane-paths.yml` owns the patterns and explicit exemptions.
 It rejects unmapped tracked or changed paths before CI schedules any job.
+`bun scripts/verification.ts plan --explain <path>` prints the lane and pattern
+that select a path, or `unmapped`.
 `verify.sh` owns the lane list and commands. Rust builds sharing `target/`
 run serially because Cargo locks their compiler output.
 

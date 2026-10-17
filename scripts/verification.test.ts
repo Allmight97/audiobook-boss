@@ -19,6 +19,8 @@ import {
 	gateFailures,
 	fingerprintFiles,
 	laneMap,
+	explainPath,
+	formatExplanation,
 } from './verification';
 
 const lanes = ['frontend', 'core', 'engine', 'tooling'];
@@ -30,6 +32,31 @@ const map = {
 	tooling: ['docs/**'],
 	'no-lane': ['LICENSE'],
 };
+
+describe('plan --explain', () => {
+	const yaml = readFileSync(path.resolve(import.meta.dirname, 'lane-paths.yml'), 'utf8');
+	const laneNames = execFileSync('bash', ['scripts/verify.sh', '--list'], {
+		cwd: path.resolve(import.meta.dirname, '..'),
+		encoding: 'utf8',
+	})
+		.trim()
+		.split('\n');
+
+	it('names the lane and pattern for a frontend path, an engine path, and a no-lane file', () => {
+		expect(
+			formatExplanation('src/app/entry.tsx', explainPath(yaml, laneNames, 'src/app/entry.tsx')),
+		).toBe('src/app/entry.tsx\n  frontend  src/**');
+		expect(
+			explainPath(yaml, laneNames, 'crates/abb-engine/src/lib.rs').map((choice) => choice.lane),
+		).toEqual(['core', 'engine', 'media', 'host', 'decrypt']);
+		expect(explainPath(yaml, laneNames, 'docs/DECISIONS.md')).toEqual([
+			{ lane: 'tooling', pattern: 'docs/**' },
+		]);
+		expect(formatExplanation('CHANGELOG.md', explainPath(yaml, laneNames, 'CHANGELOG.md'))).toBe(
+			'CHANGELOG.md\n  no-lane  CHANGELOG.md  release history; the release skill writes it',
+		);
+	});
+});
 
 describe('requiredLanes', () => {
 	it('rejects an unmapped file instead of reporting that no proof is needed', () => {
