@@ -1,6 +1,6 @@
 /**
  * Owns path-to-proof planning and local proof receipts. verify.sh owns commands.
- * Usage: bun scripts/verification.ts plan [base] | check | needed <base> | resolve
+ * Usage: bun scripts/verification.ts plan [base] | needed <base> | resolve
  *        bun scripts/verification.ts prepare <run-dir> <lane>
  *        bun scripts/verification.ts record <run-dir> <lane> <exit-code|skip> <seconds>
  *        bun scripts/verification.ts gate (VERIFY_NEEDS is GitHub's needs JSON)
@@ -66,8 +66,10 @@ export function requiredLanes(map: LaneMap, lanes: string[], files: string[]): s
 	});
 }
 
+const NATIVE_LANES = ['engine', 'media', 'host', 'decrypt'];
+
 export function planJobs(lanes: string[]): Jobs {
-	const nativeLanes = lanes.filter((lane) => ['engine', 'media', 'host', 'decrypt'].includes(lane));
+	const nativeLanes = lanes.filter((lane) => NATIVE_LANES.includes(lane));
 	const macLanes = [...(lanes.includes('core') ? ['core'] : []), ...nativeLanes];
 	if (nativeLanes.length > 0 || lanes.includes('apple')) macLanes.push('apple');
 	const rust: RustJob[] = [];
@@ -201,11 +203,11 @@ function version(command: string, args: string[]): string {
 function toolIdentity(root: string, lane: string): Record<string, string> {
 	const tools: Record<string, string> = { bun: version('bun', ['--version']) };
 	if (['frontend', 'tooling', 'host'].includes(lane)) tools.node = version('node', ['--version']);
-	if (['core', 'engine', 'media', 'host', 'apple', 'decrypt', 'supply-chain'].includes(lane)) {
+	if (['core', 'apple', 'supply-chain', ...NATIVE_LANES].includes(lane)) {
 		tools.rustc = version('rustc', ['-vV']);
 		tools.cargo = version('cargo', ['--version']);
 	}
-	if (['engine', 'media', 'host', 'apple', 'decrypt'].includes(lane)) {
+	if (['apple', ...NATIVE_LANES].includes(lane)) {
 		tools.cc = version(process.env.CC ?? 'cc', ['--version']);
 		tools.opus = version('pkg-config', ['--modversion', 'opus']);
 		tools.ffmpeg = version(process.env.ABB_FFMPEG ?? 'ffmpeg', ['-version']);
@@ -294,7 +296,7 @@ function readReceipt(file: string): unknown {
 		return JSON.parse(readFileSync(file, 'utf8'));
 	} catch {
 		return undefined;
-	} // An interrupted or corrupt receipt proves nothing.
+	}
 }
 
 function receiptPath(root: string, lane: string): string {
@@ -307,10 +309,7 @@ function receiptPath(root: string, lane: string): string {
 
 function remaining(root: string, map: LaneMap, lanes: string[], files: string[]): string[] {
 	const selected = requiredLanes(map, lanes, files);
-	if (
-		process.platform === 'darwin' &&
-		selected.some((lane) => ['engine', 'media', 'host', 'decrypt'].includes(lane))
-	)
+	if (process.platform === 'darwin' && selected.some((lane) => NATIVE_LANES.includes(lane)))
 		selected.push('apple');
 	return selected.filter(
 		(lane) =>
@@ -424,9 +423,6 @@ function main(): void {
 	const { map, lanes } = config(root);
 	const [command, first, second, third, fourth] = process.argv.slice(2);
 	switch (command) {
-		case 'check':
-			requiredLanes(map, lanes, repositoryFiles(root));
-			return;
 		case 'plan':
 			emitPlan(root, map, lanes, first);
 			return;

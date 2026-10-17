@@ -14,7 +14,7 @@ trap 'rm -rf "${snapshot}"' EXIT
 git diff --cached --name-only --diff-filter=ACMR -z >"${snapshot}/paths"
 staged=()
 while IFS= read -r -d '' file; do
- staged+=("${file}")
+	staged+=("${file}")
 done <"${snapshot}/paths"
 [[ ${#staged[@]} -gt 0 ]] || exit 0
 git diff --cached --check
@@ -26,7 +26,7 @@ index_file="$(git rev-parse --git-path index)"
 mkdir "${snapshot}/tree"
 git checkout-index --all --prefix="${snapshot}/tree/"
 if [[ -d "${repo_root}/node_modules" ]]; then
- ln -s "${repo_root}/node_modules" "${snapshot}/tree/node_modules"
+	ln -s "${repo_root}/node_modules" "${snapshot}/tree/node_modules"
 fi
 printf 'gitdir: %s\n' "${git_dir}" >"${snapshot}/tree/.git"
 export GIT_DIR="${git_dir}" GIT_INDEX_FILE="${index_file}" GIT_WORK_TREE="${snapshot}/tree"

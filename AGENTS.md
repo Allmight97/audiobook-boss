@@ -152,7 +152,7 @@ another CI run.
   truly unavoidable. Never split work just to make it smaller.
 - Use dependency-ordered vertical slices: the first change delivers a complete
   part of the outcome; every later change depends on it or becomes easier or
-  better because of it. This is J Star's "coherent vertical integration."
+  better because of it.
 - When one PR is not enough, use a GitHub stack. Only the bottom layer is
   marked ready. Each layer above stays a draft until the one below merges,
   then retarget it onto `main` and mark it ready. Why: proof against a base

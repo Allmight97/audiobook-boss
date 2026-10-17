@@ -38,12 +38,12 @@ is_darwin() {
 default_lanes=(frontend core engine media host apple decrypt tooling)
 all_lanes=("${default_lanes[@]}" supply-chain)
 if [[ "${1:-}" == --list ]]; then
- printf '%s\n' "${all_lanes[@]}"
- exit 0
+	printf '%s\n' "${all_lanes[@]}"
+	exit 0
 fi
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
- usage
- exit 0
+	usage
+	exit 0
 fi
 eval "$(scripts/setup.sh --print-env)"
 
@@ -190,20 +190,20 @@ lane_supply_chain() {
 		printf 'MISSING cargo-audit and/or cargo-deny (CI installs them in the supply-chain job)\n' >&2
 		return 1
 	fi
- local status=0
- bun audit || status=1
- cargo audit -D warnings || status=1
- cargo deny check licenses sources || status=1
- return "${status}"
+	local status=0
+	bun audit || status=1
+	cargo audit -D warnings || status=1
+	cargo deny check licenses sources || status=1
+	return "${status}"
 }
 
 requested=()
 if [[ "${1:-}" == --changed ]]; then
- [[ $# -eq 2 ]] || { usage >&2; exit 2; }
- needed="$(bun scripts/verification.ts needed "$2")"
- while IFS= read -r lane; do
-  [[ -z "${lane}" ]] || requested+=("${lane}")
- done <<<"${needed}"
+	[[ $# -eq 2 ]] || { usage >&2; exit 2; }
+	needed="$(bun scripts/verification.ts needed "$2")"
+	while IFS= read -r lane; do
+		[[ -z "${lane}" ]] || requested+=("${lane}")
+	done <<<"${needed}"
 elif [[ $# -eq 0 ]]; then
 	requested=("${default_lanes[@]}")
 else
@@ -230,42 +230,42 @@ mkdir -p "${repo_root}/.logs/verification"
 run_dir="$(mktemp -d "${repo_root}/.logs/verification/run-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")"
 
 run_lane() {
- local name="$1" status started elapsed
- local pipeline_status=()
- printf '\n======== %s ========\n' "${name}"
- if ! bun scripts/verification.ts prepare "${run_dir}" "${name}"; then
-  results+=("FAIL ${name} (input capture)")
-  failed=1
-  return
- fi
- started="$(date +%s)"
- if [[ "${name}" == apple ]] && ! is_darwin; then
-  printf 'SKIP apple: macOS only\n' | tee "${run_dir}/${name}.log"
-  bun scripts/verification.ts record "${run_dir}" "${name}" skip 0
-  results+=("SKIP ${name}")
-  return
- fi
- set +e
- (
-  set -euo pipefail
-  "lane_${name//-/_}"
- ) 2>&1 | tee "${run_dir}/${name}.log"
- pipeline_status=("${PIPESTATUS[@]}")
- set -e
- status="${pipeline_status[0]}"
- [[ "${pipeline_status[1]}" -eq 0 ]] || status=1
- elapsed="$(( $(date +%s) - started ))"
- if ! bun scripts/verification.ts record "${run_dir}" "${name}" "${status}" "${elapsed}"; then
-  status=1
- fi
- if [[ "${status}" -eq 0 ]]; then
-  printf 'PASS %s\n' "${name}"
-  results+=("PASS ${name}")
- else
-  printf 'FAIL %s\n' "${name}"
-  results+=("FAIL ${name}")
-  failed=1
- fi
+	local name="$1" status started elapsed
+	local pipeline_status=()
+	printf '\n======== %s ========\n' "${name}"
+	if ! bun scripts/verification.ts prepare "${run_dir}" "${name}"; then
+		results+=("FAIL ${name} (input capture)")
+		failed=1
+		return
+	fi
+	started="$(date +%s)"
+	if [[ "${name}" == apple ]] && ! is_darwin; then
+		printf 'SKIP apple: macOS only\n' | tee "${run_dir}/${name}.log"
+		bun scripts/verification.ts record "${run_dir}" "${name}" skip 0
+		results+=("SKIP ${name}")
+		return
+	fi
+	set +e
+	(
+		set -euo pipefail
+		"lane_${name//-/_}"
+	) 2>&1 | tee "${run_dir}/${name}.log"
+	pipeline_status=("${PIPESTATUS[@]}")
+	set -e
+	status="${pipeline_status[0]}"
+	[[ "${pipeline_status[1]}" -eq 0 ]] || status=1
+	elapsed="$(( $(date +%s) - started ))"
+	if ! bun scripts/verification.ts record "${run_dir}" "${name}" "${status}" "${elapsed}"; then
+		status=1
+	fi
+	if [[ "${status}" -eq 0 ]]; then
+		printf 'PASS %s\n' "${name}"
+		results+=("PASS ${name}")
+	else
+		printf 'FAIL %s\n' "${name}"
+		results+=("FAIL ${name}")
+		failed=1
+	fi
 }
 
 for lane in "${requested[@]}"; do

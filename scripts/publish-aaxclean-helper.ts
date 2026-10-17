@@ -184,7 +184,7 @@ function helperSidecarIsFresh(sidecarPath: string, identity: string): boolean {
 		return stamp.inputs === identity && stamp.binary === digestFile(sidecarPath);
 	} catch {
 		return false;
-	} // Missing or interrupted build provenance requires a fresh publish.
+	}
 }
 
 function helperSourceIdentity(repoRoot: string, rid: string, sdk: string): string {
