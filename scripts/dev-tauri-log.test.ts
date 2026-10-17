@@ -65,5 +65,5 @@ if [[ "$1" == --version ]]; then printf '1.4.3\\n'; fi
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}
-	});
+	}, 20_000);
 }
