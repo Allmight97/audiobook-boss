@@ -9,6 +9,23 @@ function messages(file: string, text: string): string[] {
 	return checkWorkflow(file, text).map((finding) => `${finding.line}: ${finding.message}`);
 }
 
+function changesWorkflow(fetchStep: string, fetchDepth = '2'): string {
+	const changes = `
+  changes:
+    if: \${{ github.event.pull_request.draft != true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          fetch-depth: ${fetchDepth}
+${fetchStep}      - env:
+          BASE: \${{ github.event.pull_request.base.sha }}
+        run: bun scripts/verification.ts plan "$BASE"
+`;
+	return guarded.replace('jobs:\n', `jobs:\n${changes}`);
+}
+
 const guarded = `
 on:
   pull_request:
@@ -115,6 +132,24 @@ describe('check-pr-workflow-policy', () => {
 		);
 		const found = messages('ci.yml', text);
 		expect(found.join('\n')).toMatch(/job frontend uses ubuntu-latest/);
+	});
+
+	it('rejects a shallow diff of the pull request base', () => {
+		const found = messages('ci.yml', changesWorkflow(''));
+		expect(found.join('\n')).toMatch(/diffs the pull request base/);
+	});
+
+	it('accepts a fetch of the base sha or full history', () => {
+		const fetchStep = `
+      - env:
+          BASE: \${{ github.event.pull_request.base.sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE"
+`;
+		for (const text of [changesWorkflow(fetchStep), changesWorkflow('', '0')]) {
+			expect(messages('ci.yml', text).join('\n')).not.toMatch(
+				/did not parse|diffs the pull request base/,
+			);
+		}
 	});
 
 	it('accepts the workflows in this checkout', () => {

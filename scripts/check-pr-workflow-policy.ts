@@ -2,7 +2,8 @@
  * Fails when a workflow drifts from the CI policy. Pull-request workflows must
  * keep the trigger types, a stable per-PR concurrency key, and a draft guard on
  * every check job. Every job needs a timeout. Linux runners stay on Ubuntu
- * 24.04. Each error names the fix.
+ * 24.04. A job that diffs the pull request base fetches that commit or
+ * checks out full history. Each error names the fix.
  *
  * Usage: bun scripts/check-pr-workflow-policy.ts [workflow.yml ...]
  * With no paths, checks every workflow under .github/workflows.
@@ -17,12 +18,20 @@ export interface Finding {
 	message: string;
 }
 
+interface Step {
+	uses?: string;
+	run?: string;
+	with?: Record<string, unknown>;
+	env?: Record<string, unknown>;
+}
+
 interface Job {
 	if?: string;
 	uses?: string;
 	'runs-on'?: unknown;
 	'timeout-minutes'?: unknown;
 	strategy?: { matrix?: unknown };
+	steps?: Step[];
 }
 
 const REQUIRED_TYPES = [
@@ -34,6 +43,7 @@ const REQUIRED_TYPES = [
 ];
 const PR_TRIGGERS = ['pull_request', 'pull_request_target'];
 const DRAFT_GUARD = /github\.event\.pull_request\.draft\s*!=\s*true/;
+const BASE_SHA = /github\.event\.pull_request\.base\.sha/;
 const CLOSED_USE = /github\.event\.action\s*[!=]=\s*'closed'|pull_request\.merged\b/;
 const UNSTABLE_KEY = /github\.(?:sha|run_id|run_attempt)\b|head\.sha/;
 
@@ -205,6 +215,7 @@ function jobFindings(
 		findings.push(
 			...runnerFindings(file, line, name, job),
 			...timeoutFinding(file, line, name, job),
+			...baseCheckoutFindings(file, text, name, job),
 		);
 		if (checksPr && !closedOnly(job) && !draftGuarded(job.if ?? '')) {
 			findings.push({
@@ -321,6 +332,65 @@ function draftGuardMessage(name: string, iff: string): string {
 function closedOnly(job: Job): boolean {
 	const iff = job.if ?? '';
 	return /github\.event\.action\s*==\s*'closed'/.test(iff) && !draftGuarded(iff);
+}
+
+function baseCheckoutFindings(file: string, text: string, name: string, job: Job): Finding[] {
+	const steps = stepsOf(job);
+	if (!diffsPullRequestBase(steps) || fetchesBaseOrFullHistory(steps)) return [];
+	return [
+		{
+			file,
+			line: lineAfter(text, `  ${name}:`, 'pull_request.base.sha'),
+			message: `job ${name} diffs the pull request base from a shallow checkout that does not contain that commit. Fix: \`git fetch --no-tags --depth=1 origin\` the base sha, or set checkout fetch-depth to 0.`,
+		},
+	];
+}
+
+function stepsOf(job: Job): Step[] {
+	if (!Array.isArray(job.steps)) return [];
+	return job.steps.filter((step) => step !== null && typeof step === 'object');
+}
+
+function diffsPullRequestBase(steps: Step[]): boolean {
+	const blob = steps.map((step) => `${step.run ?? ''}\n${envText(step)}`).join('\n');
+	if (!BASE_SHA.test(blob)) return false;
+	return steps.some((step) => runDiffsBase(step.run ?? '', envText(step), blob));
+}
+
+function runDiffsBase(run: string, stepEnv: string, jobBlob: string): boolean {
+	if (!/\bverification\.ts\s+plan\b|\bgit\s+diff\b/.test(run)) return false;
+	if (BASE_SHA.test(run) || BASE_SHA.test(stepEnv)) return true;
+	return /\$\{?\s*BASE\b/.test(run) && /BASE=.*pull_request\.base\.sha/.test(jobBlob);
+}
+
+function fetchesBaseOrFullHistory(steps: Step[]): boolean {
+	const envBlob = steps.map((step) => envText(step)).join('\n');
+	return steps.some((step) => fullHistory(step) || fetchesBaseSha(step.run ?? '', envBlob));
+}
+
+function fullHistory(step: Step): boolean {
+	if (!step.uses?.startsWith('actions/checkout')) return false;
+	const depth = checkoutDepth(step);
+	return depth === 0 || depth === '0';
+}
+
+function checkoutDepth(step: Step): unknown {
+	const inputs = step.with;
+	if (!inputs || typeof inputs !== 'object' || Array.isArray(inputs)) return undefined;
+	return inputs['fetch-depth'];
+}
+
+function fetchesBaseSha(run: string, envBlob: string): boolean {
+	if (!/\bgit\s+fetch\b/.test(run)) return false;
+	if (BASE_SHA.test(run) || /--unshallow\b/.test(run)) return true;
+	return /\$\{?\s*BASE\b/.test(run) && /BASE=.*pull_request\.base\.sha/.test(envBlob);
+}
+
+function envText(step: Step): string {
+	if (!step.env || typeof step.env !== 'object' || Array.isArray(step.env)) return '';
+	return Object.entries(step.env)
+		.map(([key, value]) => `${key}=${String(value)}`)
+		.join('\n');
 }
 
 function jobLine(text: string, name: string): number {

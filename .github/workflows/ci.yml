@@ -43,6 +43,11 @@ jobs:
         with:
           fetch-depth: 2
           persist-credentials: false
+      # Depth 2 includes the test-merge parents. A stacked base is not one of them.
+      - if: github.event_name == 'pull_request' && github.event.action != 'closed'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE"
       - run: bash scripts/setup.sh frontend
       - id: plan
         env:
