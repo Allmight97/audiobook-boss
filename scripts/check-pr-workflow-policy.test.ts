@@ -152,6 +152,28 @@ describe('check-pr-workflow-policy', () => {
 		}
 	});
 
+	it('runs an agent review only when a pull request opens ready, reopens, or leaves draft', () => {
+		const review = (types: string) => `
+on:
+  pull_request:
+    types: [${types}]
+concurrency:
+  group: \${{ github.workflow }}-\${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  review:
+    if: \${{ github.event.pull_request.draft != true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: anthropics/claude-code-action@cab360f6565aa35a51d6ce9e43f1f4287c0a32ea
+`;
+		expect(messages('review.yml', review('opened, ready_for_review, reopened'))).toEqual([]);
+		expect(
+			messages('review.yml', review('opened, ready_for_review, reopened, synchronize')).join('\n'),
+		).toMatch(/agent review runs only when a PR opens ready, reopens, or leaves draft/);
+	});
+
 	it('accepts the workflows in this checkout', () => {
 		const files = readdirSync(path.join(repoRoot, '.github/workflows')).filter((name) =>
 			name.endsWith('.yml'),

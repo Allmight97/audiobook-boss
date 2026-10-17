@@ -184,10 +184,17 @@ before testing `@claude` on a real request. From the CLI:
 gh workflow run claude.yml --repo Allmight97/audiobook-boss --ref main
 ```
 
-Review of a pull request is a cloud review posted on the PR
-(`docs/DECISIONS.md`), not a second workflow. The workflow files must be on
-the default branch before comment triggers and the manual authentication check
-are available.
+Automatic review (`claude-review.yml`) runs once when a PR opens ready,
+reopens, or leaves draft, never per push (`docs/DECISIONS.md`). In a draft,
+ask with an @claude comment. Turn automatic review off or on with:
+
+```sh
+gh workflow disable claude-review.yml --repo Allmight97/audiobook-boss
+gh workflow enable claude-review.yml --repo Allmight97/audiobook-boss
+```
+
+The workflow files must be on the default branch before comment triggers, the
+manual authentication check, and automatic review run.
 
 ## Project Operation
 

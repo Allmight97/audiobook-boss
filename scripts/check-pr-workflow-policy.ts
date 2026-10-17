@@ -41,6 +41,8 @@ const REQUIRED_TYPES = [
 	'ready_for_review',
 	'converted_to_draft',
 ];
+const REVIEW_TYPES = ['opened', 'reopened', 'ready_for_review'];
+const AGENT_REVIEW_ACTION = /^anthropics\/claude-code-action@/;
 const PR_TRIGGERS = ['pull_request', 'pull_request_target'];
 const DRAFT_GUARD = /github\.event\.pull_request\.draft\s*!=\s*true/;
 const BASE_SHA = /github\.event\.pull_request\.base\.sha/;
@@ -60,7 +62,7 @@ export function checkWorkflow(file: string, text: string): Finding[] {
 	const triggers = triggerRecord(workflow);
 	const jobs = jobRecord(workflow.jobs);
 	return [
-		...triggerFindings(file, text, triggers),
+		...triggerFindings(file, text, triggers, runsAgentReview(jobs)),
 		...concurrencyFindings(file, text, triggers, workflow.concurrency),
 		...jobFindings(file, text, triggers, jobs),
 	];
@@ -89,10 +91,17 @@ function jobRecord(jobs: unknown): Record<string, Job> {
 	return jobs as Record<string, Job>;
 }
 
+function runsAgentReview(jobs: Record<string, Job>): boolean {
+	return Object.values(jobs).some((job) =>
+		stepsOf(job).some((step) => AGENT_REVIEW_ACTION.test(String(step.uses ?? ''))),
+	);
+}
+
 function triggerFindings(
 	file: string,
 	text: string,
 	triggers: Record<string, unknown> | null,
+	review: boolean,
 ): Finding[] {
 	if (!triggers) return [];
 	const findings: Finding[] = [];
@@ -107,15 +116,46 @@ function triggerFindings(
 		);
 	}
 	for (const name of PR_TRIGGERS) {
-		if (name in triggers) findings.push(...prTriggerFindings(file, text, name, triggers[name]));
+		if (name in triggers) {
+			findings.push(
+				...(review
+					? reviewTriggerFindings(file, text, name, triggers[name])
+					: prTriggerFindings(file, text, name, triggers[name])),
+			);
+		}
 	}
 	return findings;
 }
 
+function eventConfig(raw: unknown): Record<string, unknown> {
+	return raw && typeof raw === 'object' && !Array.isArray(raw)
+		? (raw as Record<string, unknown>)
+		: {};
+}
+
+function eventTypes(raw: unknown): string[] {
+	const config = eventConfig(raw);
+	return Array.isArray(config.types) ? config.types.map(String) : [];
+}
+
+function reviewTriggerFindings(file: string, text: string, name: string, raw: unknown): Finding[] {
+	const types = eventTypes(raw);
+	const exact =
+		types.length === REVIEW_TYPES.length && REVIEW_TYPES.every((type) => types.includes(type));
+	if (exact) return [];
+	return [
+		at(
+			file,
+			text,
+			`${name}:`,
+			`an agent review runs only when a PR opens ready, reopens, or leaves draft, never per push. Fix: set ${name} types to [${REVIEW_TYPES.join(', ')}].`,
+		),
+	];
+}
+
 function prTriggerFindings(file: string, text: string, name: string, raw: unknown): Finding[] {
-	const config =
-		raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-	const types = Array.isArray(config.types) ? config.types.map(String) : [];
+	const config = eventConfig(raw);
+	const types = eventTypes(raw);
 	const findings: Finding[] = [];
 	const missing = REQUIRED_TYPES.filter((type) => !types.includes(type));
 	if (missing.length > 0) {

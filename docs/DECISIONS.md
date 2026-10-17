@@ -12,8 +12,16 @@ thin enough that a draft does not spend a runner. The workflow
 those rules. This repository is user-owned, so a merge queue does not run
 and the workflow does not listen for one. Linux runners are pinned in that
 workflow because the `ubuntu-latest` label moves to Ubuntu 26 on 2026-10-19.
-Review of a ready pull request is a cloud review posted on the PR, not a
-workflow in this repository.
+An agent review runs once when a pull request opens ready, reopens, or leaves
+draft (`.github/workflows/claude-review.yml`), never per push; the policy
+check rejects any agent-review workflow with other triggers. In a draft, a
+review runs only when someone asks for one with an @claude comment
+(`claude.yml`). A review that posts nothing fails its job.
+
+A closed pull request deletes its own caches, because GitHub caps a
+repository's caches at 10 GB and PR caches would otherwise evict main's. The
+Monday and Thursday full runs keep main's caches used, because GitHub evicts
+a cache after 7 days unused.
 
 A skipped `gate` counts as a successful required check. Draft status is what
 keeps a draft pull request unmergeable. This choice does not change the
