@@ -76,6 +76,10 @@ supply-chain:
   - .github/workflows/ci.yml
 tooling:
   - .github/workflows/**
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
   - scripts/fixtures/**
   - scripts/lane-paths.yml
   - scripts/*.sh

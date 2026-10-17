@@ -1,6 +1,6 @@
 /**
  * Owns path-to-proof planning and local proof receipts. verify.sh owns commands.
- * Usage: bun scripts/verification.ts plan [base] | needed <base> | resolve
+ * Usage: bun scripts/verification.ts plan [base] | plan --explain <path> | needed <base> | resolve
  *        bun scripts/verification.ts prepare <run-dir> <lane>
  *        bun scripts/verification.ts record <run-dir> <lane> <exit-code|skip> <seconds>
  *        bun scripts/verification.ts gate (VERIFY_NEEDS is GitHub's needs JSON)
@@ -127,6 +127,46 @@ export function gateFailures(jobs: Jobs, results: Record<string, { result?: stri
 					`${job}: expected ${needed ? 'success' : 'success or skipped'}, received ${result ?? 'missing'}`,
 				];
 	});
+}
+
+export interface PathChoice {
+	lane: string;
+	pattern: string;
+	reason?: string;
+}
+
+export function explainPath(yaml: string, lanes: string[], file: string): PathChoice[] {
+	const map = laneMap(yaml, lanes);
+	const chosen = lanes.flatMap((lane) =>
+		(map[lane] ?? [])
+			.filter((pattern) => picomatch(pattern, { dot: true })(file))
+			.map((pattern) => ({ lane, pattern })),
+	);
+	if (chosen.length > 0) return chosen;
+	const reasons = noLaneReasons(yaml);
+	return (map['no-lane'] ?? [])
+		.filter((pattern) => picomatch(pattern, { dot: true })(file))
+		.map((pattern) => ({ lane: 'no-lane', pattern, reason: reasons.get(pattern) }));
+}
+
+export function formatExplanation(file: string, choices: PathChoice[]): string {
+	if (choices.length === 0) return `${file}\n  unmapped`;
+	const lines = choices.map((choice) => {
+		const reason = choice.reason ? `  ${choice.reason}` : '';
+		return `  ${choice.lane}  ${choice.pattern}${reason}`;
+	});
+	return [file, ...lines].join('\n');
+}
+
+function noLaneReasons(yaml: string): Map<string, string> {
+	const reasons = new Map<string, string>();
+	const exemptions = parseDocument(yaml).get('no-lane');
+	if (!isSeq(exemptions)) return reasons;
+	for (const item of exemptions.items) {
+		if (isScalar(item) && item.comment?.trim())
+			reasons.set(String(item.value), item.comment.trim());
+	}
+	return reasons;
 }
 
 export function laneMap(yaml: string, lanes: string[]): LaneMap {
@@ -418,13 +458,29 @@ function resolveForHarness(root: string, map: LaneMap, lanes: string[]): void {
 	if (needed.length > 0) console.log(`bash scripts/verify.sh ${needed.join(' ')}`);
 }
 
+function planCommand(
+	root: string,
+	map: LaneMap,
+	lanes: string[],
+	first: string | undefined,
+	second: string | undefined,
+): void {
+	if (first !== '--explain') {
+		emitPlan(root, map, lanes, first);
+		return;
+	}
+	if (!second) throw new Error('plan --explain requires a path');
+	const yaml = readFileSync(path.join(root, 'scripts/lane-paths.yml'), 'utf8');
+	console.log(formatExplanation(second, explainPath(yaml, lanes, second)));
+}
+
 function main(): void {
 	const root = path.resolve(import.meta.dirname, '..');
 	const { map, lanes } = config(root);
 	const [command, first, second, third, fourth] = process.argv.slice(2);
 	switch (command) {
 		case 'plan':
-			emitPlan(root, map, lanes, first);
+			planCommand(root, map, lanes, first, second);
 			return;
 		case 'needed':
 			if (!first) throw new Error('needed requires a base revision');
