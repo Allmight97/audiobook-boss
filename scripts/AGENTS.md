@@ -6,25 +6,66 @@ helpers, and diagnostics. Cargo commands run from the repository root.
 ## What to run for a change
 
 Same on macOS and Linux. Run `bash scripts/setup.sh` once after clone. Run
-`bash scripts/verify.sh --changed origin/main` for the affected lanes, or name
-lanes to run them afresh. Ask why a path was chosen with
-`bun scripts/verification.ts plan --explain <path>`.
-`scripts/lane-paths.yml` owns the patterns. `verify.sh` owns the commands.
-The host lane runs the Vitest tests under `src/lib/`. Decrypt's negative case
-lives in `crates/abb-engine/src/test_cases/integration_decrypt.rs`: a wrong
-AAXC key is not that case.
-Rust builds sharing `target/` run serially because Cargo locks their compiler output.
+`bash scripts/verify.sh --changed origin/main` for the affected lanes whose
+current inputs have no passing receipt, or name lanes to run them afresh.
+`scripts/verification.ts` owns path selection, platform job planning, and proof
+validity; `scripts/lane-paths.yml` owns the patterns and explicit exemptions.
+It rejects unmapped tracked or changed paths before CI schedules any job.
+`bun scripts/verification.ts plan --explain <path>` prints the lane and pattern
+that select a path, or `unmapped`.
+`verify.sh` owns the lane list and commands. Rust builds sharing `target/`
+run serially because Cargo locks their compiler output.
 
-A passing receipt is reusable only for the same inputs, platform, and
-environment. Unsupported Apple checks say SKIP, never PASS. PATH is not part
-of a receipt's environment, so a pass recorded in one harness counts in
-another. The done-gate reads `.claude/done-gate.json`.
+Each run keeps logs, input fingerprints, tool identities, and per-lane results
+under `.logs/verification/`. A passing receipt is reusable only for the same
+inputs, platform, and environment. An edit during a lane invalidates its
+result. Unsupported Apple checks say SKIP, never PASS. A supply-chain pass
+counts like any lane's; the daily CI advisory run catches advisories published
+after it.
+The Claude Code done-gate invokes the same resolver through
+`.claude/done-gate.json` after loading `setup.sh --print-env`, as `verify.sh`
+does; it consumes these receipts rather than shell text. PATH is not part of a
+receipt's environment, so a pass recorded in one harness's shell counts in
+another; the recorded tool versions still invalidate it.
+Other harnesses use the same verifier and evidence files.
+
+- Frontend (`frontend`).
+- A core crate (`core`).
+- Engine rules, session, settings, metadata intent: `core` for complexity,
+  then `engine`. The doctests guard which engine internals hosts can reach.
+  Bundled FAAC tests run in the engine lane.
+- Audio, metadata writing, output artifacts, processing: `engine` and `media`.
+  Fixtures are synthesized at test time. `media` also runs the verify-abb
+  feature scripts through `scripts/abb-dev.sh`.
+- Apple AAC (`apple`, macOS only).
+- Audible decrypt helper (`decrypt`). Fixtures are synthesized at test time.
+  A wrong AAXC key is not the negative case.
+- Host or IPC types (`host`). Then the Vitest contract tests under `src/lib/`
+  that name the changed surface. Boundary rules: `src-tauri/AGENTS.md` and
+  `src/lib/tauri/AGENTS.md`.
+- Workflows, shell scripts, and guidance (`tooling`): actionlint, zizmor
+  (`scripts/check-workflows.sh`), shellcheck, and `scripts/check-guidance.ts`,
+  which fails when guidance copies a command, names a missing package script,
+  or points at a missing path. `scripts/check-known-mistakes.ts` fails on
+  GNU-only shell, errors silenced inside a command substitution, and Rust
+  that fakes an I/O failure with permission bits; each error names the fix
+  and its allow marker.
+- JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
+  on dependency or policy changes and daily advisory refreshes. Accepted
+  advisories live in
+  `.cargo/audit.toml`; license and source rules in `deny.toml`.
+
+For a narrower loop, run one command from the lane's function in `verify.sh`
+with a test-name filter.
 
 `bash scripts/setup.sh` installs `.githooks/pre-commit` (repo-local
-`core.hooksPath`). It checks an isolated snapshot of the index. A guidance-only
-change goes through a PR whose `gate` passes, because the CI gate ruleset
-requires `gate` on `main` (root `AGENTS.md`, Pull Requests And CI). This hook
-is the fast check on the commit.
+`core.hooksPath`). It checks an isolated snapshot of the index: whitespace,
+rustfmt, Biome format, the guidance and known-mistakes lints, shellcheck,
+and, when a workflow file changes, the workflow policy check.
+Unstaged edits cannot change the verdict, and the hook never changes the index.
+A guidance-only change goes through a PR whose `gate` passes,
+because the CI gate ruleset requires `gate` on `main` (root `AGENTS.md`,
+Pull Requests And CI). This hook is the fast check on the commit.
 
 Traps:
 

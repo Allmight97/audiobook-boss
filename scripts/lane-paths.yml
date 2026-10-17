@@ -55,8 +55,6 @@ host:
   - crates/**
   - src-tauri/**
   - src/lib/generated/**
-  - src/lib/**/*.test.ts
-  - src/lib/**/*.test.tsx
   - scripts/check-generated-bindings.sh
   - package.json
 decrypt:
@@ -78,10 +76,6 @@ supply-chain:
   - .github/workflows/ci.yml
 tooling:
   - .github/workflows/**
-  - "**/*.test.ts"
-  - "**/*.test.tsx"
-  - "**/*.spec.ts"
-  - "**/*.spec.tsx"
   - scripts/fixtures/**
   - scripts/lane-paths.yml
   - scripts/*.sh

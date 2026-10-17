@@ -1,3 +1,0 @@
-const file = 'scripts/dev-tauri-log.sh';
-readFileSync(file);
-await Bun.file('scripts/verify.sh').text();

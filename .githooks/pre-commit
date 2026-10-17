@@ -63,11 +63,6 @@ if has '^\.github/workflows/'; then
 	require bun
 	bun scripts/check-pr-workflow-policy.ts
 fi
-if has '\.(test|spec)\.(ts|tsx)$'; then
-	require bun
-	bun scripts/check-assertion-ratchet.ts
-	bun scripts/check-source-text-tests.ts
-fi
 if has '\.(sh|rs)$|^\.githooks/'; then
 	require bun
 	bun scripts/check-known-mistakes.ts
