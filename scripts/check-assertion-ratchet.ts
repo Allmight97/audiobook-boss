@@ -1,11 +1,14 @@
 /**
  * Fails when a test file loses assertions against a base revision. A test
  * deleted in the same change as the code it imports is exempt: removing the
- * behavior removes the proof. Each error names the fix.
+ * behavior removes the proof. Skipping, todo, commenting out an assertion, or
+ * renaming a test off its suffix counts as a drop. Rust `assert!` and a weaker
+ * matcher are known limits: docs/DECISIONS.md. Each error names the fix.
  *
  * Usage: bun scripts/check-assertion-ratchet.ts [--base <rev>] [--head <rev>]
  * The default base is the merge-base with origin/main (or main). The default
- * head is the working tree.
+ * head is the working tree. A shallow checkout with no base ref skips outside
+ * CI and fails in CI, where the tooling job fetches history.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -24,9 +27,14 @@ interface DiffRow {
 
 const TEST_FILE = /\.(?:test|spec)\.(?:ts|tsx)$/;
 const ASSERTION = /\bexpect\s*\(|\bassert\s*\(/;
+const SKIPPED = /\b(?:it|test|describe)\.(?:skip|todo)\b/;
 
 export function assertionCount(text: string): number {
-	return text.split('\n').filter((line) => ASSERTION.test(line)).length;
+	return executableLines(text).filter((line) => ASSERTION.test(line)).length;
+}
+
+export function skippedTestCount(text: string): number {
+	return executableLines(text).filter((line) => SKIPPED.test(line)).length;
 }
 
 export function ratchetFindings(
@@ -45,6 +53,13 @@ export function ratchetFindings(
 	return findings;
 }
 
+function executableLines(text: string): string[] {
+	return text
+		.replace(/\/\*[\s\S]*?\*\//g, '')
+		.split('\n')
+		.map((line) => line.replace(/(^|[^:])\/\/.*$/, '$1'));
+}
+
 function rowFinding(
 	root: string,
 	base: string,
@@ -54,6 +69,8 @@ function rowFinding(
 	show: (rev: string, file: string) => string | null,
 ): Finding | null {
 	if (row.status.startsWith('R') || row.status.startsWith('C')) {
+		const renamedOff = renamedOffTest(row, show(base, row.from));
+		if (renamedOff) return renamedOff;
 		return dropFinding(row.to, show(base, row.from), readHead(root, head, row.to, show));
 	}
 	if (!TEST_FILE.test(row.to) && !TEST_FILE.test(row.from)) return null;
@@ -71,15 +88,35 @@ function rowFinding(
 	return dropFinding(row.to, show(base, row.from), readHead(root, head, row.to, show));
 }
 
+function renamedOffTest(row: DiffRow, before: string | null): Finding | null {
+	if (!TEST_FILE.test(row.from) || TEST_FILE.test(row.to) || !before) return null;
+	const lost = assertionCount(before);
+	if (lost === 0) return null;
+	return {
+		file: row.from,
+		message: `renamed to ${row.to}, which is not a test, dropping ${lost} assertions. Fix: keep the test suffix, or delete the code it protects in the same change.`,
+	};
+}
+
 function dropFinding(file: string, before: string | null, after: string | null): Finding | null {
 	if (!before || !after || !TEST_FILE.test(file)) return null;
 	const from = assertionCount(before);
 	const to = assertionCount(after);
-	if (to >= from) return null;
-	return {
-		file,
-		message: `assertions dropped from ${from} to ${to}. Fix: restore the assertion, or delete the code it protects in the same change.`,
-	};
+	if (to < from) {
+		return {
+			file,
+			message: `assertions dropped from ${from} to ${to}. Fix: restore the assertion, or delete the code it protects in the same change.`,
+		};
+	}
+	const skippedFrom = skippedTestCount(before);
+	const skippedTo = skippedTestCount(after);
+	if (skippedTo > skippedFrom) {
+		return {
+			file,
+			message: `skipped or todo tests increased from ${skippedFrom} to ${skippedTo}. Fix: keep the test running, or delete the code it protects in the same change.`,
+		};
+	}
+	return null;
 }
 
 function codeDeletedWith(text: string, testPath: string, deleted: Set<string>): boolean {
@@ -128,7 +165,7 @@ function gitShow(root: string, rev: string, file: string): string | null {
 	}
 }
 
-function defaultBase(root: string): string {
+function defaultBase(root: string): string | undefined {
 	for (const name of ['origin/main', 'main']) {
 		try {
 			return git(root, ['merge-base', 'HEAD', name]).trim();
@@ -136,23 +173,32 @@ function defaultBase(root: string): string {
 			// Try the next candidate.
 		}
 	}
-	throw new Error('No merge base with origin/main or main. Fix: pass --base <rev>.');
+	return undefined;
 }
 
-function selectedRange(root: string, args: string[]): { base: string; head: string | undefined } {
+function selectedRange(root: string, args: string[]): { base: string | undefined; head?: string } {
 	let base: string | undefined;
 	let head: string | undefined;
+	let baseGiven = false;
 	for (let index = 0; index < args.length; index++) {
-		if (args[index] === '--base') base = args[++index];
-		else if (args[index] === '--head') head = args[++index];
+		if (args[index] === '--base') {
+			baseGiven = true;
+			base = args[++index];
+		} else if (args[index] === '--head') head = args[++index];
 		else throw new Error(`Unknown argument: ${args[index]}`);
 	}
-	return { base: base ?? defaultBase(root), head };
+	return { base: baseGiven ? base : defaultBase(root), head };
 }
 
 function main(): number {
 	const root = path.resolve(import.meta.dirname, '..');
 	const { base, head } = selectedRange(root, process.argv.slice(2));
+	if (!base) {
+		console.error(
+			'No merge base with origin/main or main. Fix: pass --base <rev>, or fetch the base ref.',
+		);
+		return process.env.GITHUB_ACTIONS === 'true' ? 1 : 0;
+	}
 	const diffArgs = ['diff', '--name-status', '-M', base];
 	if (head) diffArgs.push(head);
 	const findings = ratchetFindings(

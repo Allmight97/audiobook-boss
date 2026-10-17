@@ -55,6 +55,8 @@ host:
   - crates/**
   - src-tauri/**
   - src/lib/generated/**
+  - src/lib/**/*.test.ts
+  - src/lib/**/*.test.tsx
   - scripts/check-generated-bindings.sh
   - package.json
 decrypt:

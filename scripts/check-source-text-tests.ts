@@ -18,19 +18,21 @@ export interface Finding {
 }
 
 const TEST_FILE = /\.(?:test|spec)\.(?:ts|tsx)$/;
-const READ_CALL = /readFile(?:Sync)?\s*\(/;
+const READ_CALL = /(?:readFile(?:Sync)?|Bun\.file)\s*\(/;
 const SOURCE_EXT = /['"`][^'"`]+\.(?:sh|bash|ts|tsx|js|jsx|mjs|cjs|rs|py)['"`]/;
 const DECL = /(?:const|let)\s+(\w+)\s*=\s*([^\n]+)/g;
+const LITERAL = /(?:const|let)\s+(\w+)\s*=\s*(['"`])([^'"`]*)\2/g;
 
 export function sourceTextFindings(file: string, text: string): Finding[] {
 	if (!TEST_FILE.test(file)) return [];
 	const temps = tempIdents(text);
+	const literals = literalBindings(text);
 	const pinsScripts = /\.scripts\b/.test(text) && /toContain\s*\(/.test(text);
 	const lines = text.split('\n');
 	const findings: Finding[] = [];
 	for (let index = 0; index < lines.length; index++) {
 		if (!READ_CALL.test(lines[index]) || allowed(lines, index)) continue;
-		const argument = statementAt(lines, index);
+		const argument = resolveLiterals(statementAt(lines, index), literals);
 		if (isTemp(argument, temps) || /['"`]bun\.lock['"`]/.test(argument)) continue;
 		if (SOURCE_EXT.test(argument)) {
 			findings.push(finding(file, index, 'implementation source'));
@@ -52,6 +54,20 @@ function finding(file: string, index: number, what: string): Finding {
 function allowed(lines: string[], index: number): boolean {
 	const previous = index > 0 ? lines[index - 1] : '';
 	return /allow-source-text:/.test(lines[index]) || /allow-source-text:/.test(previous);
+}
+
+function literalBindings(text: string): Map<string, string> {
+	const bindings = new Map<string, string>();
+	for (const match of text.matchAll(LITERAL)) bindings.set(match[1], match[3]);
+	return bindings;
+}
+
+function resolveLiterals(argument: string, bindings: Map<string, string>): string {
+	let resolved = argument;
+	for (const [name, value] of bindings) {
+		resolved = resolved.replace(new RegExp(`\\b${name}\\b`, 'g'), JSON.stringify(value));
+	}
+	return resolved;
 }
 
 function tempIdents(text: string): Set<string> {

@@ -52,6 +52,11 @@ describe('plan --explain', () => {
 		expect(explainPath(yaml, laneNames, 'docs/DECISIONS.md')).toEqual([
 			{ lane: 'tooling', pattern: 'docs/**' },
 		]);
+		expect(
+			explainPath(yaml, laneNames, 'src/lib/tauri-public-api.contract.test.ts').some(
+				(choice) => choice.lane === 'host',
+			),
+		).toBe(true);
 		expect(formatExplanation('CHANGELOG.md', explainPath(yaml, laneNames, 'CHANGELOG.md'))).toBe(
 			'CHANGELOG.md\n  no-lane  CHANGELOG.md  release history; the release skill writes it',
 		);

@@ -10,6 +10,9 @@ Same on macOS and Linux. Run `bash scripts/setup.sh` once after clone. Run
 lanes to run them afresh. Ask why a path was chosen with
 `bun scripts/verification.ts plan --explain <path>`.
 `scripts/lane-paths.yml` owns the patterns. `verify.sh` owns the commands.
+The host lane runs the Vitest tests under `src/lib/`. Decrypt's negative case
+lives in `crates/abb-engine/src/test_cases/integration_decrypt.rs`: a wrong
+AAXC key is not that case.
 Rust builds sharing `target/` run serially because Cargo locks their compiler output.
 
 A passing receipt is reusable only for the same inputs, platform, and

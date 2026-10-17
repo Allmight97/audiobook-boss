@@ -1,46 +1,119 @@
-import path from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { assertionCount, ratchetFindings } from './check-assertion-ratchet';
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { assertionCount, ratchetFindings, skippedTestCount } from './check-assertion-ratchet';
 
-const repoRoot = path.resolve(import.meta.dirname, '..');
+const roots: string[] = [];
 
-function show(rev: string, file: string): string | null {
-	try {
-		return execFileSync('git', ['show', `${rev}:${file}`], { cwd: repoRoot, encoding: 'utf8' });
-	} catch {
-		return null;
-	}
+afterEach(() => {
+	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+function git(root: string, args: string[]): string {
+	return execFileSync('git', args, { cwd: root, encoding: 'utf8' });
 }
 
-function rows(base: string, head: string) {
-	return execFileSync('git', ['diff', '--name-status', '-M', base, head], {
-		cwd: repoRoot,
-		encoding: 'utf8',
-	})
+function repo(): string {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'assertion-ratchet-'));
+	roots.push(root);
+	git(root, ['init', '-b', 'main']);
+	git(root, ['config', 'user.email', 'ratchet@example.com']);
+	git(root, ['config', 'user.name', 'Ratchet']);
+	return root;
+}
+
+function commit(root: string, files: Record<string, string | null>): string {
+	for (const [name, text] of Object.entries(files)) {
+		const absolute = path.join(root, name);
+		if (text === null) {
+			git(root, ['rm', '-f', name]);
+			continue;
+		}
+		mkdirSync(path.dirname(absolute), { recursive: true });
+		writeFileSync(absolute, text);
+		git(root, ['add', name]);
+	}
+	git(root, ['commit', '-m', 'change']);
+	return git(root, ['rev-parse', 'HEAD']).trim();
+}
+
+function findings(root: string, base: string, head: string) {
+	const show = (rev: string, file: string): string | null => {
+		try {
+			return git(root, ['show', `${rev}:${file}`]);
+		} catch {
+			return null;
+		}
+	};
+	const rows = git(root, ['diff', '--name-status', '-M', base, head])
 		.split('\n')
 		.filter(Boolean)
 		.map((line) => {
 			const [status, from, to] = line.split('\t');
 			return { status, from, to: to ?? from };
 		});
+	return ratchetFindings(root, base, head, rows, show);
 }
 
 describe('check-assertion-ratchet', () => {
-	it('counts assertion lines', () => {
+	it('counts assertion lines and ignores comments', () => {
 		expect(assertionCount('expect(1).toBe(1);\nassert(true);\nconst x = 1;')).toBe(2);
+		expect(assertionCount('// expect(real).toBe(1);\n/* assert(false); */')).toBe(0);
+		expect(skippedTestCount("it.skip('a', () => {});\n// it.todo('b')")).toBe(1);
 	});
 
-	// main..833ce9c9 dropped one build-app assertion; c6092b9a later restored it.
-	// unmet-lanes.test.ts was removed with scripts/unmet-lanes.ts.
-	it('flags main..833ce9c9 and exempts a test deleted with its code', () => {
-		const findings = ratchetFindings(repoRoot, 'main', '833ce9c9', rows('main', '833ce9c9'), show);
-		expect(findings).toEqual([
+	it('flags a dropped assertion and exempts a test deleted with its code', () => {
+		const root = repo();
+		const base = commit(root, {
+			'scripts/build-app.test.ts': 'expect(1).toBe(1);\nexpect(2).toBe(2);\n',
+			'scripts/gone.test.ts': "import { gone } from './gone';\nexpect(gone).toBe(1);\n",
+			'scripts/gone.ts': 'export const gone = 1;\n',
+		});
+		const head = commit(root, {
+			'scripts/build-app.test.ts': 'expect(1).toBe(1);\n',
+			'scripts/gone.test.ts': null,
+			'scripts/gone.ts': null,
+		});
+		expect(findings(root, base, head)).toEqual([
 			{
 				file: 'scripts/build-app.test.ts',
-				message: expect.stringMatching(/assertions dropped from 51 to 50/),
+				message: expect.stringMatching(/assertions dropped from 2 to 1/),
 			},
 		]);
-		expect(findings.map((finding) => finding.file)).not.toContain('scripts/unmet-lanes.test.ts');
+	});
+
+	it('flags a commented-out assertion, a skip, a todo, and a rename off the test suffix', () => {
+		const root = repo();
+		const base = commit(root, {
+			'src/live.test.ts': "it('keeps', () => expect(1).toBe(1));\n",
+			'src/soon.test.ts': 'expect(1).toBe(1);\n',
+			'src/later.test.ts': 'expect(1).toBe(1);\n',
+			'src/renamed.test.ts': 'expect(1).toBe(1);\n',
+		});
+		const head = commit(root, {
+			'src/live.test.ts': "it.skip('keeps', () => expect(1).toBe(1));\n",
+			'src/soon.test.ts': '// expect(1).toBe(1);\n',
+			'src/later.test.ts': "test.todo('later');\nexpect(1).toBe(1);\n",
+			'src/renamed.unit.ts': 'expect(1).toBe(1);\n',
+			'src/renamed.test.ts': null,
+		});
+		const found = findings(root, base, head);
+		expect(found.map((finding) => finding.file).sort()).toEqual([
+			'src/later.test.ts',
+			'src/live.test.ts',
+			'src/renamed.test.ts',
+			'src/soon.test.ts',
+		]);
+		expect(found.find((finding) => finding.file === 'src/live.test.ts')?.message).toMatch(
+			/skipped or todo tests increased from 0 to 1/,
+		);
+		expect(found.find((finding) => finding.file === 'src/soon.test.ts')?.message).toMatch(
+			/assertions dropped from 1 to 0/,
+		);
+		expect(found.find((finding) => finding.file === 'src/renamed.test.ts')?.message).toMatch(
+			/renamed to src\/renamed\.unit\.ts/,
+		);
 	});
 });

@@ -142,14 +142,19 @@ lane_media() {
 
 lane_host() {
 	require_rust
+	require_frontend
 	cargo fmt --all -- --check
 	cargo test --locked -p audiobook-boss --features bundled-ffmpeg
 	bash scripts/check-generated-bindings.sh
 	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg --all-targets -- -D warnings
+	# IPC contract tests under src/lib/. The host lane owns them.
+	bun run test -- src/lib
 }
 
 lane_decrypt() {
 	require_rust
+	# A wrong AAXC key is not the negative case. integration_decrypt.rs
+	# rejects that output at materialization; the helper can still exit 0.
 	cargo fmt --all -- --check
 	dotnet test tools/abb-aaxclean-helper/tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj \
 		--configuration Release --nologo
