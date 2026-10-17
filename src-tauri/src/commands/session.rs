@@ -95,9 +95,17 @@ pub async fn open_preview_output(
         let _turn = link.session.turn(client, sequence).await.map_err(refused)?;
         engine.session_begin(SessionIntent::TakePreviewOutput { run_id })
     };
-    let mut reply = run.finish().await;
+    Ok(open_preview_reply(run.finish().await, |path| {
+        app.opener().open_path(path, None::<&str>)
+    }))
+}
+
+fn open_preview_reply<E: std::fmt::Display>(
+    mut reply: SessionReply,
+    open: impl FnOnce(&str) -> std::result::Result<(), E>,
+) -> SessionReply {
     if let SessionOutcome::PreviewOutput { path: Some(path) } = &reply.outcome {
-        if let Err(error) = app.opener().open_path(path, None::<&str>) {
+        if let Err(error) = open(path) {
             reply.outcome = SessionOutcome::Rejected {
                 error: AppErrorEnvelope::new(
                     AppErrorCode::InternalError,
@@ -108,7 +116,7 @@ pub async fn open_preview_output(
             };
         }
     }
-    Ok(reply)
+    reply
 }
 
 /// Applies one intent to the settings and returns the settings in effect.
@@ -129,3 +137,7 @@ pub async fn settings_dispatch(
         .map_err(refused)?;
     Ok(engine.settings_dispatch(intent).await)
 }
+
+#[cfg(test)]
+#[path = "session_tests.rs"]
+mod tests;
