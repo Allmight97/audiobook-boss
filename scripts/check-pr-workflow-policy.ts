@@ -22,6 +22,7 @@ interface Job {
 	uses?: string;
 	'runs-on'?: unknown;
 	'timeout-minutes'?: unknown;
+	strategy?: { matrix?: unknown };
 }
 
 const REQUIRED_TYPES = [
@@ -32,6 +33,7 @@ const REQUIRED_TYPES = [
 	'converted_to_draft',
 ];
 const DRAFT_GUARD = /github\.event\.pull_request\.draft\s*!=\s*true/;
+const DRAFT_BYPASS = /\|\|\s*\(?\s*true\b|\btrue\s*\|\|/;
 const UNSTABLE_KEY = /github\.(?:sha|run_id|run_attempt)\b|head\.sha/;
 
 export function checkWorkflow(file: string, text: string): Finding[] {
@@ -55,8 +57,18 @@ export function checkWorkflow(file: string, text: string): Finding[] {
 
 function triggerRecord(workflow: Record<string, unknown>): Record<string, unknown> | null {
 	const on = workflow.on ?? workflow.true;
-	if (!on || typeof on !== 'object' || Array.isArray(on)) return null;
+	if (typeof on === 'string' || Array.isArray(on)) return shorthandTriggers(on);
+	if (!on || typeof on !== 'object') return null;
 	return on as Record<string, unknown>;
+}
+
+function shorthandTriggers(on: string | unknown[]): Record<string, unknown> | null {
+	const names = (Array.isArray(on) ? on : [on]).filter((name) => typeof name === 'string');
+	const record: Record<string, unknown> = {};
+	for (const name of names) {
+		if (name === 'pull_request' || name === 'merge_group') record[name] = null;
+	}
+	return Object.keys(record).length > 0 ? record : null;
 }
 
 function jobRecord(jobs: unknown): Record<string, Job> {
@@ -174,11 +186,11 @@ function jobFindings(
 			...runnerFindings(file, line, name, job),
 			...timeoutFinding(file, line, name, job),
 		);
-		if (checksPullRequests && !closedOnly(job) && !DRAFT_GUARD.test(job.if ?? '')) {
+		if (checksPullRequests && !closedOnly(job) && !draftGuarded(job.if ?? '')) {
 			findings.push({
 				file,
 				line,
-				message: `job ${name} runs on a draft pull request. Fix: add \`github.event.pull_request.draft != true\` to its if, including reusable-workflow callers and aggregate jobs. A step guard still allocates a runner.`,
+				message: draftGuardMessage(name, job.if ?? ''),
 			});
 		}
 	}
@@ -186,7 +198,7 @@ function jobFindings(
 }
 
 function runnerFindings(file: string, line: number, name: string, job: Job): Finding[] {
-	const labels = runnerLabels(job['runs-on']);
+	const labels = runnerLabels(job);
 	if (!labels.includes('ubuntu-latest')) return [];
 	return [
 		{
@@ -197,7 +209,11 @@ function runnerFindings(file: string, line: number, name: string, job: Job): Fin
 	];
 }
 
-function runnerLabels(runsOn: unknown): string[] {
+function runnerLabels(job: Job): string[] {
+	return [...directRunnerLabels(job['runs-on']), ...matrixRunnerLabels(job)];
+}
+
+function directRunnerLabels(runsOn: unknown): string[] {
 	if (typeof runsOn === 'string') return [runsOn];
 	if (Array.isArray(runsOn)) return runsOn.map(String);
 	if (
@@ -208,6 +224,30 @@ function runnerLabels(runsOn: unknown): string[] {
 		return ((runsOn as { labels: unknown[] }).labels ?? []).map(String);
 	}
 	return [];
+}
+
+function matrixRunnerLabels(job: Job): string[] {
+	const runsOn = job['runs-on'];
+	if (typeof runsOn !== 'string') return [];
+	const key = runsOn.match(/matrix\.([A-Za-z_][\w]*)/)?.[1];
+	const matrix = job.strategy?.matrix;
+	if (!key || !matrix || typeof matrix !== 'object' || Array.isArray(matrix)) return [];
+	const record = matrix as Record<string, unknown>;
+	const labels = stringValues(record[key]);
+	const include = record.include;
+	if (!Array.isArray(include)) return labels;
+	for (const row of include) {
+		if (row && typeof row === 'object' && key in row) {
+			const value = (row as Record<string, unknown>)[key];
+			if (typeof value === 'string') labels.push(value);
+		}
+	}
+	return labels;
+}
+
+function stringValues(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	return value.filter((item): item is string => typeof item === 'string');
 }
 
 function timeoutFinding(file: string, line: number, name: string, job: Job): Finding[] {
@@ -222,9 +262,20 @@ function timeoutFinding(file: string, line: number, name: string, job: Job): Fin
 	];
 }
 
+function draftGuarded(iff: string): boolean {
+	return DRAFT_GUARD.test(iff) && !DRAFT_BYPASS.test(iff);
+}
+
+function draftGuardMessage(name: string, iff: string): string {
+	if (DRAFT_GUARD.test(iff) && DRAFT_BYPASS.test(iff)) {
+		return `job ${name} bypasses its draft guard with || true. Fix: keep \`github.event.pull_request.draft != true\` as a real condition, not an or with true.`;
+	}
+	return `job ${name} runs on a draft pull request. Fix: add \`github.event.pull_request.draft != true\` to its if, including reusable-workflow callers and aggregate jobs. A step guard still allocates a runner.`;
+}
+
 function closedOnly(job: Job): boolean {
 	const iff = job.if ?? '';
-	return /github\.event\.action\s*==\s*'closed'/.test(iff) && !DRAFT_GUARD.test(iff);
+	return /github\.event\.action\s*==\s*'closed'/.test(iff) && !draftGuarded(iff);
 }
 
 function jobLine(text: string, name: string): number {
