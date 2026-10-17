@@ -47,18 +47,21 @@ pub(in crate::remote_source::providers::audible) fn signing_auth(country_code: &
 pub(in crate::remote_source::providers::audible) async fn stub_api(
     replies: Vec<(u16, String)>,
 ) -> (AudibleApi, JoinHandle<Vec<String>>) {
+    stub_http(replies.into_iter().map(|(status, body)| format!(
+        "HTTP/1.1 {status} Stub\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    )).collect()).await
+}
+
+async fn stub_http(replies: Vec<String>) -> (AudibleApi, JoinHandle<Vec<String>>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind stub");
     let address = listener.local_addr().expect("stub address");
-    #[expect(clippy::disallowed_methods, reason = "joined by each stub_api caller")]
+    #[expect(clippy::disallowed_methods, reason = "joined by each stub_http caller")]
     let server = tokio::spawn(async move {
         let mut request_lines = Vec::new();
-        for (status, body) in replies {
+        for reply in replies {
             let (mut stream, _) = listener.accept().await.expect("request arrives");
             request_lines.push(read_request_line(&mut stream).await);
-            let reply = format!(
-                "HTTP/1.1 {status} Stub\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
             stream
                 .write_all(reply.as_bytes())
                 .await
@@ -133,6 +136,26 @@ async fn a_refused_sign_in_with_a_json_body_is_not_an_empty_library() {
         matches!(result, Err(AudibleRequestError::AuthRejected)),
         "{result:?}"
     );
+}
+
+#[tokio::test]
+async fn a_truncated_auth_reply_rejects_sign_in_just_like_a_complete_reply() {
+    for status in [401, 403] {
+        for length in [2, 100] {
+            let (api, server) = stub_http(vec![format!(
+                "HTTP/1.1 {status} Stub\r\nContent-Length: {length}\r\nConnection: close\r\n\r\n{{}}"
+            )])
+            .await;
+
+            let result = super::super::load_all_library_titles(&api).await;
+            server.await.expect("stub");
+
+            assert!(
+                matches!(result, Err(AudibleRequestError::AuthRejected)),
+                "status={status} content_length={length}: {result:?}"
+            );
+        }
+    }
 }
 
 #[tokio::test]

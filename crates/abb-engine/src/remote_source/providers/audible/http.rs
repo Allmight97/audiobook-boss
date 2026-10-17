@@ -136,6 +136,9 @@ impl AudibleApi {
             "remote_source audible stage=api_reply {} http_status={status}",
             call.log_fields()
         );
+        if !response.status().is_success() {
+            return json_reply(call, status, &[]);
+        }
         let body = response
             .bytes()
             .await
