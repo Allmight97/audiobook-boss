@@ -52,6 +52,12 @@ Command modules live in `src/commands/`.
 - A command change updates `ipc_contract.rs` and the generated bindings. Checks:
   `scripts/AGENTS.md`.
 
+## Binding export
+
+`ipc_contract::export_typescript_bindings` writes to its supplied path. The
+export binary defaults to the tracked output; the verifier supplies temporary
+output so checking a candidate never changes it.
+
 ## Tests
 
 Host tests cover what the host owns: intent ordering, window sizing, the quit

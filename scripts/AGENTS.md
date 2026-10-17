@@ -5,16 +5,27 @@ helpers, and diagnostics. Cargo commands run from the repository root.
 
 ## What to run for a change
 
-Same on macOS and Linux. Run `bash scripts/setup.sh` once after clone (or
-`frontend` / `rust` for one half). Then `bash scripts/verify.sh <lane>` for
-the owner you touched, one expensive build at a time.
-`scripts/lane-paths.yml` maps changed paths to lanes for `.github/workflows/ci.yml`
-(a new tracked file needs a lane or a `no-lane` reason); the workflow header says when
-CI runs, and `gate` is the check `main` requires. Lane commands live only in `verify.sh`.
-The Claude Code `done-gate` mod blocks "done" until the lanes a session's
-changes need have passed on the current files: `.claude/done-gate.json` names
-`scripts/unmet-lanes.ts`, which answers from `lane-paths.yml`. A piped run
-(`verify.sh … | tail`) is not proof, because its exit code is the pipe's.
+Same on macOS and Linux. Run `bash scripts/setup.sh` once after clone. Run
+`bash scripts/verify.sh --changed origin/main` for the affected lanes whose
+current inputs have no passing receipt, or name lanes to run them afresh.
+`scripts/verification.ts` owns path selection, platform job planning, and proof
+validity; `scripts/lane-paths.yml` owns the patterns and explicit exemptions.
+It rejects unmapped tracked or changed paths before CI schedules any job.
+`verify.sh` owns the lane list and commands. Rust builds sharing `target/`
+run serially because Cargo locks their compiler output.
+
+Each run keeps logs, input fingerprints, tool identities, and per-lane results
+under `.logs/verification/`. A passing receipt is reusable only for the same
+inputs, platform, and environment. An edit during a lane invalidates its
+result. Unsupported Apple checks say SKIP, never PASS. A supply-chain pass
+counts like any lane's; the daily CI advisory run catches advisories published
+after it.
+The Claude Code done-gate invokes the same resolver through
+`.claude/done-gate.json` after loading `setup.sh --print-env`, as `verify.sh`
+does; it consumes these receipts rather than shell text. PATH is not part of a
+receipt's environment, so a pass recorded in one harness's shell counts in
+another; the recorded tool versions still invalidate it.
+Other harnesses use the same verifier and evidence files.
 
 - Frontend (`frontend`).
 - A core crate (`core`).
@@ -24,7 +35,7 @@ changes need have passed on the current files: `.claude/done-gate.json` names
 - Audio, metadata writing, output artifacts, processing: `engine` and `media`.
   Fixtures are synthesized at test time. `media` also runs the verify-abb
   feature scripts through `scripts/abb-dev.sh`.
-- Apple AAC (`apple`, macOS only). Linux prints `skipped: macOS only`.
+- Apple AAC (`apple`, macOS only).
 - Audible decrypt helper (`decrypt`). Fixtures are synthesized at test time.
   A wrong AAXC key is not the negative case.
 - Host or IPC types (`host`). Then the Vitest contract tests under `src/lib/`
@@ -37,17 +48,19 @@ changes need have passed on the current files: `.claude/done-gate.json` names
   GNU-only shell, errors silenced inside a command substitution, and Rust
   that fakes an I/O failure with permission bits; each error names the fix
   and its allow marker.
-- Advisories and licenses (`supply-chain`): runs only when named, and in CI
-  only on scheduled and manual runs. Accepted advisories live in
+- JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
+  on dependency or policy changes and daily advisory refreshes. Accepted
+  advisories live in
   `.cargo/audit.toml`; license and source rules in `deny.toml`.
 
 For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.
 
 `bash scripts/setup.sh` installs `.githooks/pre-commit` (repo-local
-`core.hooksPath`). It runs the fast checks on staged files: whitespace,
-rustfmt, Biome format, the guidance and known-mistakes lints, and
-shellcheck. A guidance-only change goes through a PR whose `gate` passes,
+`core.hooksPath`). It checks an isolated snapshot of the index: whitespace,
+rustfmt, Biome format, the guidance and known-mistakes lints, and shellcheck.
+Unstaged edits cannot change the verdict, and the hook never changes the index.
+A guidance-only change goes through a PR whose `gate` passes,
 because the CI gate ruleset requires `gate` on `main` (root `AGENTS.md`,
 Pull Requests And CI). This hook is the fast check on the commit.
 
@@ -56,9 +69,8 @@ Traps:
 - Select Rust packages with `-p`. Workspace discovery pulls unrelated binaries
   into the target set. Binding export has its own command:
   `bun run bindings:generate` (`bundled-ffmpeg`).
-- `bun run bindings:check:local` checks uncommitted changes against `HEAD`
-  and can skip a clean committed branch. Use `bun run bindings:check` for
-  committed contract changes.
+- `bun run bindings:check` generates into temporary output and leaves the
+  candidate untouched. `bun run bindings:generate` intentionally updates it.
 - Each git worktree holds its own `target/`. Remove finished worktrees.
 - `bun run build` may still print the known DEP0205 and Vite plugin-timing
   warnings.
@@ -81,7 +93,7 @@ Traps:
 - Release artifacts: use `.agents/skills/release`. `bundled-ffmpeg` always
   enables `ffmpeg-sys-next/build-portable`. Public DMG builds publish the
   AAXClean helper from current source; local app builds may reuse a fresh
-  helper sidecar.
+  helper sidecar whose source, SDK, target, and executable digests still match.
 
 ## Script rules
 

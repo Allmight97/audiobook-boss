@@ -69,7 +69,8 @@ repo's git hook path); PATH comes
 from `eval "$(scripts/setup.sh --print-env)"` (`scripts/AGENTS.md`,
 Environment).
 
-`verify.sh` takes lane names: `frontend`, `core`, `engine`, `media`, `host`,
+`verify.sh --changed origin/main` selects affected lanes without current proof.
+Explicit lane names run afresh: `frontend`, `core`, `engine`, `media`, `host`,
 `apple`, `decrypt`, `tooling`, and `supply-chain` (named only). No argument
 runs every other lane this OS supports. The
 commands for each lane live only in `verify.sh`. Owner-to-lane map:
@@ -149,12 +150,13 @@ another CI run.
 
 - Use as few PRs as the work can coherently use. More than one only when
   truly unavoidable. Never split work just to make it smaller.
-- Each PR is ambitious and layered. The bottom layer is the initial work;
-  every change after it depends on it or is made easier by it.
+- Use dependency-ordered vertical slices: the first change delivers a complete
+  part of the outcome; every later change depends on it or becomes easier or
+  better because of it.
 - When one PR is not enough, use a GitHub stack. Only the bottom layer is
   marked ready. Each layer above stays a draft until the one below merges,
-  then it is retargeted onto `main` and marked ready: that is its one
-  counting CI run. Why: a run whose base will still move is discarded.
+  then retarget it onto `main` and mark it ready. Why: proof against a base
+  that will still move cannot establish the final integration.
 - Merge commits only. Merge a stack with `gh stack merge --merge` or the
   async merge API (`merge_method: merge`). `gh pr merge` cannot merge a
   stack, and stack auto-merge is not ready to rely on. Link the stack with
@@ -172,13 +174,11 @@ another CI run.
   not a rule.
 - Local proof is the primary proof. On the owner's machine, follow
   `scripts/AGENTS.md` ("What to run for a change"). CI is the last check, and
-  the main proof for a cloud Linux agent. When a run starts is the header of
-  `.github/workflows/ci.yml`; a push alone starts nothing. `gate` is the
-  check `main` requires.
+  the main proof for a cloud Linux agent. CI scheduling belongs to
+  `.github/workflows/ci.yml`; `gate` is the check `main` requires.
 - Guidance with no implementation (docs, `AGENTS.md`, skills, allowlists)
-  goes through a PR whose `gate` passes. Why: the CI gate ruleset requires
-  `gate` on `main`, and a push does not produce one. The pre-commit hook
-  (`scripts/AGENTS.md`) is the fast check before that PR.
+  goes through a PR whose `gate` passes, as required by the main ruleset.
+  The pre-commit hook (`scripts/AGENTS.md`) is the fast check before that PR.
 
 ## Review Guidelines
 

@@ -2,11 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
-import {
-	aaxcleanHelperBaseName,
-	publishAaxcleanHelper,
-	verifyAaxcleanHelperSidecar,
-} from './publish-aaxclean-helper';
+import { aaxcleanHelperBaseName, publishAaxcleanHelper } from './publish-aaxclean-helper';
 
 interface PackageJson {
 	name: string;
@@ -176,7 +172,6 @@ export function buildTauriApp(
 		commandRunner: options.commandRunner,
 		force: requestedBundles.has('dmg'),
 	});
-	verifyAaxcleanHelperSidecar(repoRoot);
 
 	const tauriArgs = addAaxcleanHelperConfigArg(
 		ensureFeatureArg(buildArgs, '--features', 'bundled-ffmpeg'),

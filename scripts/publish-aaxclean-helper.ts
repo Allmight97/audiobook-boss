@@ -1,19 +1,22 @@
 import { spawnSync } from 'node:child_process';
+import { createHash, randomUUID } from 'node:crypto';
 import {
 	chmodSync,
 	copyFileSync,
 	existsSync,
 	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	writeFileSync,
 	readdirSync,
-	statSync,
 	unlinkSync,
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 export const aaxcleanHelperBaseName = 'abb-aaxclean-helper';
-
-const minSidecarBytes = 1_000_000;
 
 export function aaxcleanHelperPublishTarget(
 	platform: NodeJS.Platform = process.platform,
@@ -87,7 +90,17 @@ export function publishAaxcleanHelper(
 	options: PublishAaxcleanHelperOptions = {},
 ): string {
 	const paths = resolveAaxcleanHelperPaths(repoRoot);
-	if (!options.force && helperSidecarIsFresh(repoRoot, paths.sidecarPath)) {
+	const runner = options.commandRunner ?? spawnSync;
+	const dotnet = resolveDotnetCommand();
+	const sdk = runner(dotnet, ['--version'], {
+		cwd: path.dirname(paths.projectPath),
+		encoding: 'utf8',
+	});
+	const sdkVersion = sdk.stdout?.toString().trim();
+	if (sdk.status !== 0 || !sdkVersion)
+		throw new Error('Could not resolve the helper .NET SDK; run bash scripts/setup.sh rust');
+	const identity = helperSourceIdentity(repoRoot, paths.rid, sdkVersion);
+	if (!options.force && helperSidecarIsFresh(paths.sidecarPath, identity)) {
 		console.log(`[aaxclean-helper] Using existing ${paths.sidecarPath}`);
 		return paths.sidecarPath;
 	}
@@ -96,69 +109,92 @@ export function publishAaxcleanHelper(
 		unlinkSync(paths.publishedExecutablePath);
 	}
 
-	const dotnet = resolveDotnetCommand();
-	const result = (options.commandRunner ?? spawnSync)(
-		dotnet,
-		['publish', paths.projectPath, '-c', 'Release', '-r', paths.rid, '-o', paths.publishDir],
-		{
-			cwd: repoRoot,
-			stdio: 'inherit',
-		},
-	);
+	const buildDirectory = mkdtempSync(path.join(os.tmpdir(), 'abb-helper-build-'));
+	try {
+		const result = runner(
+			dotnet,
+			[
+				'publish',
+				paths.projectPath,
+				'-c',
+				'Release',
+				'-r',
+				paths.rid,
+				'-o',
+				paths.publishDir,
+				'--artifacts-path',
+				buildDirectory,
+			],
+			{
+				cwd: path.dirname(paths.projectPath),
+				stdio: 'inherit',
+			},
+		);
 
-	if (result.error) {
-		throw result.error;
-	}
-	if (result.status !== 0) {
-		const detail =
-			typeof result.status === 'number'
-				? `status ${result.status}`
-				: result.signal
-					? `signal ${result.signal}`
-					: 'no successful exit status';
-		throw new Error(`AAXClean helper publish failed (${detail})`);
-	}
-	if (!existsSync(paths.publishedExecutablePath)) {
-		throw new Error(`Expected published AAXClean helper at ${paths.publishedExecutablePath}`);
-	}
-
-	mkdirSync(paths.sidecarDir, { recursive: true });
-	copyFileSync(paths.publishedExecutablePath, paths.sidecarPath);
-	chmodSync(paths.sidecarPath, 0o755);
-	console.log(`[aaxclean-helper] Published ${paths.sidecarPath}`);
-	return paths.sidecarPath;
-}
-
-export function verifyAaxcleanHelperSidecar(repoRoot: string): void {
-	const { sidecarPath } = resolveAaxcleanHelperPaths(repoRoot);
-	if (!existsSync(sidecarPath)) {
-		throw new Error(`Expected AAXClean helper sidecar at ${sidecarPath}`);
-	}
-}
-
-function helperSidecarIsFresh(repoRoot: string, sidecarPath: string): boolean {
-	if (!existsSync(sidecarPath)) {
-		return false;
-	}
-	// A leftover `exit 0` stub is executable and newer than sources; size
-	// is what distinguishes it from a real self-contained helper.
-	if (statSync(sidecarPath).size < minSidecarBytes) {
-		return false;
-	}
-	const sidecarMtime = statSync(sidecarPath).mtimeMs;
-	return latestHelperSourceMtime(repoRoot) <= sidecarMtime;
-}
-
-function latestHelperSourceMtime(repoRoot: string): number {
-	const helperRoot = path.join(repoRoot, 'tools/abb-aaxclean-helper');
-	let latest = 0;
-	for (const filePath of walk(helperRoot)) {
-		if (!helperSourceAffectsPublish(filePath)) {
-			continue;
+		if (result.error) {
+			throw result.error;
 		}
-		latest = Math.max(latest, statSync(filePath).mtimeMs);
+		if (result.status !== 0) {
+			const detail =
+				typeof result.status === 'number'
+					? `status ${result.status}`
+					: result.signal
+						? `signal ${result.signal}`
+						: 'no successful exit status';
+			throw new Error(`AAXClean helper publish failed (${detail})`);
+		}
+		if (!existsSync(paths.publishedExecutablePath)) {
+			throw new Error(`Expected published AAXClean helper at ${paths.publishedExecutablePath}`);
+		}
+
+		if (identity !== helperSourceIdentity(repoRoot, paths.rid, sdkVersion)) {
+			throw new Error('Helper source changed during publication; retry the build');
+		}
+		mkdirSync(paths.sidecarDir, { recursive: true });
+		const next = `${paths.sidecarPath}.${randomUUID()}.tmp`;
+		try {
+			copyFileSync(paths.publishedExecutablePath, next);
+			chmodSync(next, 0o755);
+			renameSync(next, paths.sidecarPath);
+		} finally {
+			rmSync(next, { force: true });
+		}
+		writeFileSync(
+			`${paths.sidecarPath}.inputs.json`,
+			JSON.stringify({ inputs: identity, binary: digestFile(paths.sidecarPath) }),
+		);
+		console.log(`[aaxclean-helper] Published ${paths.sidecarPath}`);
+		return paths.sidecarPath;
+	} finally {
+		rmSync(buildDirectory, { recursive: true, force: true });
 	}
-	return latest;
+}
+
+function digestFile(file: string): string {
+	return createHash('sha256').update(readFileSync(file)).digest('hex');
+}
+
+function helperSidecarIsFresh(sidecarPath: string, identity: string): boolean {
+	if (!existsSync(sidecarPath) || !existsSync(`${sidecarPath}.inputs.json`)) return false;
+	try {
+		const stamp = JSON.parse(readFileSync(`${sidecarPath}.inputs.json`, 'utf8')) as {
+			inputs: string;
+			binary: string;
+		};
+		return stamp.inputs === identity && stamp.binary === digestFile(sidecarPath);
+	} catch {
+		return false;
+	}
+}
+
+function helperSourceIdentity(repoRoot: string, rid: string, sdk: string): string {
+	const helperRoot = path.join(repoRoot, 'tools/abb-aaxclean-helper');
+	const hash = createHash('sha256').update(JSON.stringify({ rid, sdk }));
+	hash.update(readFileSync(new URL(import.meta.url)));
+	for (const file of [...walk(helperRoot)].filter(helperSourceAffectsPublish).sort()) {
+		hash.update(path.relative(helperRoot, file)).update('\0').update(readFileSync(file));
+	}
+	return hash.digest('hex');
 }
 
 function helperSourceAffectsPublish(filePath: string): boolean {
