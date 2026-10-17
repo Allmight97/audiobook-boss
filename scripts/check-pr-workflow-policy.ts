@@ -32,8 +32,9 @@ const REQUIRED_TYPES = [
 	'ready_for_review',
 	'converted_to_draft',
 ];
+const PR_TRIGGERS = ['pull_request', 'pull_request_target'];
 const DRAFT_GUARD = /github\.event\.pull_request\.draft\s*!=\s*true/;
-const DRAFT_BYPASS = /\|\|\s*\(?\s*true\b|\btrue\s*\|\|/;
+const CLOSED_USE = /github\.event\.action\s*[!=]=\s*'closed'|pull_request\.merged\b/;
 const UNSTABLE_KEY = /github\.(?:sha|run_id|run_attempt)\b|head\.sha/;
 
 export function checkWorkflow(file: string, text: string): Finding[] {
@@ -66,7 +67,9 @@ function shorthandTriggers(on: string | unknown[]): Record<string, unknown> | nu
 	const names = (Array.isArray(on) ? on : [on]).filter((name) => typeof name === 'string');
 	const record: Record<string, unknown> = {};
 	for (const name of names) {
-		if (name === 'pull_request' || name === 'merge_group') record[name] = null;
+		if (name === 'pull_request' || name === 'pull_request_target' || name === 'merge_group') {
+			record[name] = null;
+		}
 	}
 	return Object.keys(record).length > 0 ? record : null;
 }
@@ -93,33 +96,50 @@ function triggerFindings(
 			),
 		);
 	}
-	if (!('pull_request' in triggers)) return findings;
-	const pullRequest = triggers.pull_request;
+	for (const name of PR_TRIGGERS) {
+		if (name in triggers) findings.push(...prTriggerFindings(file, text, name, triggers[name]));
+	}
+	return findings;
+}
+
+function prTriggerFindings(file: string, text: string, name: string, raw: unknown): Finding[] {
 	const config =
-		pullRequest && typeof pullRequest === 'object' && !Array.isArray(pullRequest)
-			? (pullRequest as Record<string, unknown>)
-			: {};
+		raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
 	const types = Array.isArray(config.types) ? config.types.map(String) : [];
+	const findings: Finding[] = [];
 	const missing = REQUIRED_TYPES.filter((type) => !types.includes(type));
 	if (missing.length > 0) {
 		findings.push(
 			at(
 				file,
 				text,
-				'pull_request:',
-				`pull_request types are missing ${missing.join(', ')}. Fix: add them and keep the types already listed, including closed.`,
+				`${name}:`,
+				`${name} types are missing ${missing.join(', ')}. Fix: add them and keep the types already listed.`,
+			),
+		);
+	}
+	if (CLOSED_USE.test(text) && !types.includes('closed')) {
+		findings.push(
+			at(
+				file,
+				text,
+				`${name}:`,
+				`${name} types are missing closed, and this workflow reads that event. Fix: add closed to the type list.`,
 			),
 		);
 	}
 	if (config.paths || config['paths-ignore']) {
 		findings.push({
 			file,
-			line: lineAfter(text, 'pull_request:', 'paths'),
-			message:
-				'a pull_request path filter blocks the replacement run that cancels in-flight jobs. Fix: remove the filter and select lanes inside the workflow.',
+			line: lineAfter(text, `${name}:`, 'paths'),
+			message: `a ${name} path filter blocks the replacement run that cancels in-flight jobs. Fix: remove the filter and select lanes inside the workflow.`,
 		});
 	}
 	return findings;
+}
+
+function checksPullRequests(triggers: Record<string, unknown> | null): boolean {
+	return Boolean(triggers && PR_TRIGGERS.some((name) => name in triggers));
 }
 
 function concurrencyFindings(
@@ -128,7 +148,7 @@ function concurrencyFindings(
 	triggers: Record<string, unknown> | null,
 	concurrency: unknown,
 ): Finding[] {
-	if (!triggers || !('pull_request' in triggers)) return [];
+	if (!checksPullRequests(triggers)) return [];
 	const group = concurrencyGroup(concurrency);
 	const problems: string[] = [];
 	if (!group.includes('github.workflow')) {
@@ -178,7 +198,7 @@ function jobFindings(
 	triggers: Record<string, unknown> | null,
 	jobs: Record<string, Job>,
 ): Finding[] {
-	const checksPullRequests = Boolean(triggers && 'pull_request' in triggers);
+	const checksPr = checksPullRequests(triggers);
 	const findings: Finding[] = [];
 	for (const [name, job] of Object.entries(jobs)) {
 		const line = jobLine(text, name);
@@ -186,7 +206,7 @@ function jobFindings(
 			...runnerFindings(file, line, name, job),
 			...timeoutFinding(file, line, name, job),
 		);
-		if (checksPullRequests && !closedOnly(job) && !draftGuarded(job.if ?? '')) {
+		if (checksPr && !closedOnly(job) && !draftGuarded(job.if ?? '')) {
 			findings.push({
 				file,
 				line,
@@ -263,12 +283,37 @@ function timeoutFinding(file: string, line: number, name: string, job: Job): Fin
 }
 
 function draftGuarded(iff: string): boolean {
-	return DRAFT_GUARD.test(iff) && !DRAFT_BYPASS.test(iff);
+	return DRAFT_GUARD.test(iff) && !hasTopLevelOr(expressionBody(iff));
+}
+
+function expressionBody(iff: string): string {
+	return iff.replace(/^\s*\$\{\{\s*/, '').replace(/\s*\}\}\s*$/, '');
+}
+
+function hasTopLevelOr(expression: string): boolean {
+	let depth = 0;
+	let quote = '';
+	for (let index = 0; index < expression.length; index++) {
+		const char = expression[index];
+		if (quote) {
+			if (char === '\\') index += 1;
+			else if (char === quote) quote = '';
+			continue;
+		}
+		if (char === "'" || char === '"') {
+			quote = char;
+			continue;
+		}
+		if (char === '(') depth += 1;
+		else if (char === ')') depth = Math.max(0, depth - 1);
+		else if (depth === 0 && expression.startsWith('||', index)) return true;
+	}
+	return false;
 }
 
 function draftGuardMessage(name: string, iff: string): string {
-	if (DRAFT_GUARD.test(iff) && DRAFT_BYPASS.test(iff)) {
-		return `job ${name} bypasses its draft guard with || true. Fix: keep \`github.event.pull_request.draft != true\` as a real condition, not an or with true.`;
+	if (DRAFT_GUARD.test(iff) && hasTopLevelOr(expressionBody(iff))) {
+		return `job ${name} bypasses its draft guard with a top-level ||. Fix: combine \`github.event.pull_request.draft != true\` with &&, and keep any || inside parentheses.`;
 	}
 	return `job ${name} runs on a draft pull request. Fix: add \`github.event.pull_request.draft != true\` to its if, including reusable-workflow callers and aggregate jobs. A step guard still allocates a runner.`;
 }

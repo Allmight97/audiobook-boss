@@ -64,6 +64,50 @@ describe('check-pr-workflow-policy', () => {
 		expect(found.join('\n')).toMatch(/bypasses its draft guard/);
 	});
 
+	it('rejects a truthy expression in front of the draft guard', () => {
+		for (const prefix of ['(true) || ', 'always() || ', '1 == 1 || ']) {
+			const found = messages(
+				'ci.yml',
+				guarded.replace(
+					'github.event.pull_request.draft != true',
+					`${prefix}github.event.pull_request.draft != true`,
+				),
+			);
+			expect(found.join('\n')).toMatch(/bypasses its draft guard/);
+		}
+	});
+
+	it('accepts a draft guard anded with a parenthesized or, in either order', () => {
+		const clause = "(github.event.pull_request.merged == true || github.event.action != 'closed')";
+		const guard = 'github.event.pull_request.draft != true';
+		for (const iff of [`${guard} && ${clause}`, `${clause} && ${guard}`]) {
+			const found = messages('ci.yml', guarded.replace(guard, iff));
+			expect(found.join('\n')).not.toMatch(/bypasses its draft guard|runs on a draft/);
+		}
+	});
+
+	it('rejects a scalar pull_request_target trigger', () => {
+		const found = messages(
+			'ci.yml',
+			'on: pull_request_target\njobs:\n  frontend:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n',
+		);
+		expect(found.join('\n')).toMatch(/pull_request_target types are missing/);
+		expect(found.join('\n')).toMatch(/job frontend runs on a draft pull request/);
+	});
+
+	it('requires closed when the workflow reads that event', () => {
+		const dropped = guarded.replace(', closed', '');
+		expect(messages('ci.yml', dropped)).toEqual([]);
+		const found = messages(
+			'ci.yml',
+			dropped.replace(
+				'github.event.pull_request.draft != true',
+				"github.event.pull_request.draft != true && github.event.action == 'closed'",
+			),
+		);
+		expect(found.join('\n')).toMatch(/types are missing closed/);
+	});
+
 	it('rejects ubuntu-latest inside a matrix the job runs on', () => {
 		const text = guarded.replace(
 			'runs-on: ubuntu-24.04',
