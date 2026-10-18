@@ -33,11 +33,8 @@ in this interval.
 
 FFmpeg is configured with `--disable-autodetect`; its enabled external codec
 library is static libopus, with AudioToolbox supplied by the Apple SDK on macOS.
-Opus 1.6.1 remains the latest stable upstream release and the locally verified
-archive version. No FFmpeg wrapper release supersedes sys 9.0.1 / next 9.0.0.
-The FFmpeg Rust dependency closure is refreshed in `Cargo.lock`: bitflags
-2.13.2, cfg-if 1.0.5, hermit-abi 0.5.3, libc 0.2.191, syn 3.0.9, and
-unicode-ident 1.0.27. Other resolved dependencies in that closure are unchanged.
+The October 18 verification used Opus 1.6.1 and wrappers sys 9.0.1 / next
+9.0.0. Resolved Rust dependency versions live in `Cargo.lock`.
 
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,
