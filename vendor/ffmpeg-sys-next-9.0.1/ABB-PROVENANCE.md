@@ -10,22 +10,31 @@ the generated bindings do not declare libc runtime symbols, and it parses
 Native AAC's NMR coder. The Rust build consumes this file and verifies the
 fetched commit. ABB retains the CoreAudio framework link.
 
-The October 14, 2026 selection is
-`2ec8998c3daf6aa31a4afec963bff9b5ecbfdee7`, upstream master HEAD that day.
-It keeps the October 7 pin's NMR encoder (`17ec99894249`, including
-`98afaae587` and `aac_rc` default `cbr`); no commit since touches the AAC
-encoder or swresample. It takes the mov demuxer edit-list fixes
-(`e11ab82858`, `1ed0bf80ad`, `9bca133c03`, `9181f3a924`, `10b6349503`,
-`58416458a0`), fragment index bounds (`5e8f97c467`, `5647739ddd`,
-`0260f625ba`), `dec3` extradata export (`08d62c60e8`), HEIF item and gain-map
-bounds and export (`793f6013e7`, `860267bd62`, `466ea98db4`, `e3f5f17548`,
-`03405b27ff`, `686b79d469`, `00249664de`; refactors `06af0fdbf7`,
-`3a4bbdc2d8`, `034a53bd6e`, `626b8aa343`, `fc5fab9a87`), movenc
-stream-group cleanup (`6fdfafa31a`, `8b1d0643c9`), and the AAC/USAC decoder
-fixes (`561130d30b`, `dbe7ccee05`, `d314aa0c8f`, `88117dbe4c`, `7442df24f5`,
-`694934cc05`). The wrapper maps `AV_CODEC_ID_RW2` and
-`AV_PKT_DATA_GAIN_MAP_PARAMS`. Feature selection and external dependencies are
-unchanged.
+The October 18, 2026 selection is
+`7045cc9b8020ebaae156f4947baa752625056f90`, verified as master HEAD at both
+`git.ffmpeg.org` and its GitHub mirror. Compared with ABB's October 14 pin
+`2ec8998c3daf6aa31a4afec963bff9b5ecbfdee7`, it includes:
+
+- [Short-window spread-energy indexing fix](https://github.com/FFmpeg/FFmpeg/commit/89d34d66a638b52d56023d547e785291f67efb2f)
+  in AAC psychoacoustic hole avoidance. Upstream reports bit-identical output
+  on its tested music and transient samples; this is not a listening-quality claim.
+- [Intensity-stereo loop optimization](https://github.com/FFmpeg/FFmpeg/commit/b60ab6c9a4583cd4bbdc010b412d598945919da8),
+  with no intended output change.
+- MOV sample-rate validation (`3be6c2d943`) and float-cast overflow prevention
+  (`c705686a33`), ADTS packet keyframe marking (`a58779b2e7`), and Vorbis seek
+  timestamp correction (`b863390a8d`).
+
+NMR rate control, speed levels, public enum mappings, and swresample are unchanged
+from the previous pin. ABB explicitly selects NMR, CBR, target bitrate, and speed;
+it inherits automatic M/S and cutoff plus enabled intensity stereo, PNS, and TNS.
+The existing ABR and quality-based VBR options change the bitrate contract and
+are not enabled by this update. No additional NMR tuning option was introduced
+in this interval.
+
+FFmpeg is configured with `--disable-autodetect`; its enabled external codec
+library is static libopus, with AudioToolbox supplied by the Apple SDK on macOS.
+The October 18 verification used Opus 1.6.1 and wrappers sys 9.0.1 / next
+9.0.0. Resolved Rust dependency versions live in `Cargo.lock`.
 
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,
