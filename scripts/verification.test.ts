@@ -21,6 +21,7 @@ import {
 	laneMap,
 	explainPath,
 	formatExplanation,
+	toolingRatchetIdentity,
 } from './verification';
 
 const lanes = ['frontend', 'core', 'engine', 'tooling'];
@@ -55,6 +56,30 @@ describe('plan --explain', () => {
 		expect(formatExplanation('CHANGELOG.md', explainPath(yaml, laneNames, 'CHANGELOG.md'))).toBe(
 			'CHANGELOG.md\n  no-lane  CHANGELOG.md  release history; the release skill writes it',
 		);
+	});
+});
+
+describe('tooling ratchet identity', () => {
+	const root = path.resolve(import.meta.dirname, '..');
+
+	it('changes when the ratchet base changes, and names an unresolved base', () => {
+		const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+		const previous = process.env.ABB_FILE_SIZE_BASE;
+		try {
+			delete process.env.ABB_FILE_SIZE_BASE;
+			expect(toolingRatchetIdentity(root)).toEqual({ head, mergeBase: head });
+			process.env.ABB_FILE_SIZE_BASE = 'origin/main';
+			const againstMain = toolingRatchetIdentity(root);
+			expect(againstMain.head).toBe(head);
+			expect(againstMain.mergeBase).not.toBe(head);
+			process.env.ABB_FILE_SIZE_BASE = '0123456789abcdef0123456789abcdef01234567';
+			expect(toolingRatchetIdentity(root).mergeBase).toBe(
+				'unresolved:0123456789abcdef0123456789abcdef01234567',
+			);
+		} finally {
+			if (previous === undefined) delete process.env.ABB_FILE_SIZE_BASE;
+			else process.env.ABB_FILE_SIZE_BASE = previous;
+		}
 	});
 });
 

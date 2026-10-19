@@ -82,6 +82,9 @@ tooling:
   - src/**
   - src-tauri/**
   - scripts/**/*.ts
+  - tools/**
+  - vite.config.ts
+  - vitest.config.ts
   - .github/workflows/**
   - .gitattributes
   - scripts/*.mjs

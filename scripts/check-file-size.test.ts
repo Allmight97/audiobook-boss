@@ -235,10 +235,34 @@ describe('file-size ratchet selection', () => {
 			.trim()
 			.split('\n');
 		const map = laneMap(yaml, lanes);
-		for (const file of ['crates/abb-engine/src/session/runtime.rs', 'src/lib/tauri/client.ts']) {
+		const listed = spawnSync('bun', [script, '--all', '--max-tokens', '1'], {
+			cwd: repoRoot,
+			encoding: 'utf8',
+		});
+		const fromChecker = listed.stdout
+			.split('\n')
+			.filter(
+				(line) =>
+					line.includes('  ') &&
+					!line.startsWith('Source files') &&
+					!line.startsWith('Over the budget'),
+			)
+			.map((line) => line.slice(line.lastIndexOf('  ') + 2));
+		const files = [
+			'crates/abb-engine/src/session/runtime.rs',
+			'src/lib/tauri/client.ts',
+			...fromChecker,
+		];
+		expect(fromChecker).toEqual(
+			expect.arrayContaining([
+				'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/Program.cs',
+				'vite.config.ts',
+			]),
+		);
+		for (const file of files) {
 			const selected = requiredLanes(map, lanes, [file]);
 			expect(selected, file).toContain('tooling');
 			expect(planJobs(selected).tooling, file).toBe(true);
 		}
-	});
+	}, 20_000);
 });
