@@ -2451,6 +2451,3 @@ mod cover_request;
 #[cfg(test)]
 #[path = "runtime_tests.rs"]
 mod tests;
-
-// File-size ratchet probe. This file is already over the budget, so this
-// growth fails the check. Drop this commit after the failing CI run.
