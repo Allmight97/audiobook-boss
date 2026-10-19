@@ -37,7 +37,7 @@
 	},
 	"dependencies": {
 		"@solidjs/web": "2.0.0-rc.13",
-		"@tauri-apps/api": "^2.12.1",
+		"@tauri-apps/api": "^2.12.2",
 		"@tauri-apps/plugin-dialog": "^2.8.1",
 		"@tauri-apps/plugin-opener": "^2.7.0",
 		"solid-js": "2.0.0-rc.13"
@@ -51,11 +51,11 @@
 		"@testing-library/user-event": "^14.6.7",
 		"bun": "^1.4.3",
 		"jsdom": "^30.1.1",
-		"knip": "^6.39.0",
+		"knip": "^6.41.0",
 		"linguist-languages": "9.5.0",
 		"picomatch": "^4.0.7",
 		"typescript": "npm:typescript@7.0.2",
-		"vite": "^8.3.2",
+		"vite": "^8.3.4",
 		"vitest": "^5.0.3",
 		"yaml": "^2.9.1"
 	},
