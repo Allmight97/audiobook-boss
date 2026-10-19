@@ -211,6 +211,9 @@ lane_supply_chain() {
 requested=()
 if [[ "${1:-}" == --changed ]]; then
 	[[ $# -eq 2 ]] || { usage >&2; exit 2; }
+	# The argument is the ratchet base. A named lane still uses
+	# ABB_FILE_SIZE_BASE from the environment, which CI sets to the pull-request base.
+	export ABB_FILE_SIZE_BASE="$2"
 	needed="$(bun scripts/verification.ts needed "$2")"
 	while IFS= read -r lane; do
 		[[ -z "${lane}" ]] || requested+=("${lane}")

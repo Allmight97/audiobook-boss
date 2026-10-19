@@ -45,10 +45,10 @@ describe('plan --explain', () => {
 	it('names the lane and pattern for a frontend path, an engine path, and a no-lane file', () => {
 		expect(
 			formatExplanation('src/app/entry.tsx', explainPath(yaml, laneNames, 'src/app/entry.tsx')),
-		).toBe('src/app/entry.tsx\n  frontend  src/**');
+		).toBe('src/app/entry.tsx\n  frontend  src/**\n  tooling  src/**');
 		expect(
 			explainPath(yaml, laneNames, 'crates/abb-engine/src/lib.rs').map((choice) => choice.lane),
-		).toEqual(['core', 'engine', 'media', 'host', 'decrypt']);
+		).toEqual(['core', 'engine', 'media', 'host', 'decrypt', 'tooling']);
 		expect(explainPath(yaml, laneNames, 'docs/DECISIONS.md')).toEqual([
 			{ lane: 'tooling', pattern: 'docs/**' },
 		]);
