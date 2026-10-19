@@ -24,7 +24,10 @@ counts like any lane's; the daily CI advisory run catches advisories published
 after it.
 The Claude Code done-gate invokes the same resolver through
 `.claude/done-gate.json` after loading `setup.sh --print-env`, as `verify.sh`
-does; it consumes these receipts rather than shell text. PATH is not part of a
+does; it consumes these receipts rather than shell text. The resolver defaults
+`ABB_FILE_SIZE_BASE` to `origin/main`, the base `verify.sh --changed` passes
+through, and a tooling rerun carries that base so its receipt matches.
+PATH is not part of a
 receipt's environment, so a pass recorded in one harness's shell counts in
 another; the recorded tool versions still invalidate it.
 Other harnesses use the same verifier and evidence files.
@@ -50,7 +53,7 @@ Other harnesses use the same verifier and evidence files.
   GNU-only shell, errors silenced inside a command substitution, and Rust
   that fakes an I/O failure with permission bits; each error names the fix
   and its allow marker. `scripts/check-file-size.mjs` ratchets source file
-  size; the `ratchet-files` skill owns how to split a file that fails it.
+  size. `bun scripts/check-file-size.mjs --help` prints how a file that fails it is split.
 - JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
   on dependency or policy changes and daily advisory refreshes. Accepted
   advisories live in

@@ -289,6 +289,31 @@ export function fingerprintFiles(root: string, files: string[], context: unknown
 	return hash.digest('hex');
 }
 
+/** The tooling lane's verdict is HEAD against the merge-base of ABB_FILE_SIZE_BASE. */
+export function toolingRatchetIdentity(root: string): { head: string; mergeBase: string } {
+	const head = git(root, ['rev-parse', 'HEAD']).trim();
+	const requested = process.env.ABB_FILE_SIZE_BASE?.trim() || 'HEAD';
+	const quiet = (args: string[]) =>
+		execFileSync('git', args, {
+			cwd: root,
+			encoding: 'utf8',
+			stdio: ['ignore', 'pipe', 'pipe'],
+		});
+	try {
+		const sha = quiet([
+			'rev-parse',
+			'--verify',
+			'--end-of-options',
+			`${requested}^{commit}`,
+		]).trim();
+		return { head, mergeBase: quiet(['merge-base', '--', sha, 'HEAD']).trim() };
+	} catch {
+		// The lane fails closed when this base is missing. A distinct identity
+		// stops a pass recorded against another base from being reused.
+		return { head, mergeBase: `unresolved:${requested}` };
+	}
+}
+
 function inputs(root: string, lane: string, map: LaneMap): Inputs {
 	const matches = picomatch(map[lane] ?? [], { dot: true });
 	const common = [
@@ -322,6 +347,7 @@ function inputs(root: string, lane: string, map: LaneMap): Inputs {
 			arch: process.arch,
 			tools,
 			environment,
+			...(lane === 'tooling' ? { ratchet: toolingRatchetIdentity(root) } : {}),
 		}),
 		revision: git(root, ['rev-parse', 'HEAD']).trim(),
 		platform: process.platform,
@@ -450,12 +476,19 @@ function summarize(run: string): void {
 		);
 }
 
+/** The done-gate prints this. The base is the one `verify.sh --changed` exported. */
+export function verificationRerun(lanes: string[]): string {
+	const base = process.env.ABB_FILE_SIZE_BASE?.trim();
+	const prefix = base && /^[A-Za-z0-9_./^~-]+$/.test(base) ? `ABB_FILE_SIZE_BASE=${base} ` : '';
+	return `${prefix}bash scripts/verify.sh ${lanes.join(' ')}`;
+}
+
 function resolveForHarness(root: string, map: LaneMap, lanes: string[]): void {
 	const input = JSON.parse(readFileSync(0, 'utf8')) as { changed?: unknown };
 	if (!Array.isArray(input.changed) || !input.changed.every((file) => typeof file === 'string'))
 		throw new Error('resolve requires changed paths');
 	const needed = remaining(root, map, lanes, input.changed);
-	if (needed.length > 0) console.log(`bash scripts/verify.sh ${needed.join(' ')}`);
+	if (needed.length > 0) console.log(verificationRerun(needed));
 }
 
 function planCommand(

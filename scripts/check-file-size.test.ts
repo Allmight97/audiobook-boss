@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { laneMap, planJobs, requiredLanes } from './verification';
 
 const script = path.resolve(import.meta.dirname, 'check-file-size.mjs');
 const repoRoot = path.resolve(import.meta.dirname, '..');
@@ -224,22 +225,44 @@ describe('check-file-size staged', () => {
 	});
 });
 
-describe('file-size ratchet wiring', () => {
-	it('points the tooling lane at --against and not at --all', () => {
-		const verify = readFileSync(path.join(repoRoot, 'scripts/verify.sh'), 'utf8');
-		expect(verify).toContain('bun scripts/check-file-size.mjs --against');
-		expect(verify).not.toContain('check-file-size.mjs --all');
-		expect(verify).toContain('ABB_FILE_SIZE_BASE');
-		const workflow = readFileSync(path.join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
-		expect(workflow).toContain('ABB_FILE_SIZE_BASE');
-		expect(workflow).toContain('git fetch --no-tags origin "$BASE"');
-		expect(workflow).toContain('fetch-depth: 0');
-		const hook = readFileSync(path.join(repoRoot, '.githooks/pre-commit'), 'utf8');
-		expect(hook).toContain(`bun scripts/check-file-size.mjs "\${staged[@]}"`);
-	});
-
-	it('ratchets this repository against HEAD', () => {
-		const result = run(repoRoot, ['--against', 'HEAD']);
-		expect(result.status, result.stderr).toBe(0);
-	});
+describe('file-size ratchet selection', () => {
+	it('runs the tooling job for a changed Rust source file and a changed TypeScript source file', () => {
+		const yaml = readFileSync(path.join(repoRoot, 'scripts/lane-paths.yml'), 'utf8');
+		const lanes = execFileSync('bash', ['scripts/verify.sh', '--list'], {
+			cwd: repoRoot,
+			encoding: 'utf8',
+		})
+			.trim()
+			.split('\n');
+		const map = laneMap(yaml, lanes);
+		const listed = spawnSync('bun', [script, '--all', '--max-tokens', '1'], {
+			cwd: repoRoot,
+			encoding: 'utf8',
+		});
+		const fromChecker = listed.stdout
+			.split('\n')
+			.filter(
+				(line) =>
+					line.includes('  ') &&
+					!line.startsWith('Source files') &&
+					!line.startsWith('Over the budget'),
+			)
+			.map((line) => line.slice(line.lastIndexOf('  ') + 2));
+		const files = [
+			'crates/abb-engine/src/session/runtime.rs',
+			'src/lib/tauri/client.ts',
+			...fromChecker,
+		];
+		expect(fromChecker).toEqual(
+			expect.arrayContaining([
+				'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/Program.cs',
+				'vite.config.ts',
+			]),
+		);
+		for (const file of files) {
+			const selected = requiredLanes(map, lanes, [file]);
+			expect(selected, file).toContain('tooling');
+			expect(planJobs(selected).tooling, file).toBe(true);
+		}
+	}, 20_000);
 });
