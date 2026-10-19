@@ -1,0 +1,4 @@
+# The file-size ratchet skips paths Git marks generated or vendored.
+# scripts/check-file-size.mjs reads these attributes from the index.
+vendor/** linguist-vendored
+src/lib/generated/** linguist-generated

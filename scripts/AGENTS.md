@@ -49,7 +49,8 @@ Other harnesses use the same verifier and evidence files.
   or points at a missing path. `scripts/check-known-mistakes.ts` fails on
   GNU-only shell, errors silenced inside a command substitution, and Rust
   that fakes an I/O failure with permission bits; each error names the fix
-  and its allow marker.
+  and its allow marker. `scripts/check-file-size.mjs` ratchets source file
+  size; the `ratchet-files` skill owns how to split a file that fails it.
 - JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
   on dependency or policy changes and daily advisory refreshes. Accepted
   advisories live in
@@ -61,7 +62,8 @@ with a test-name filter.
 `bash scripts/setup.sh` installs `.githooks/pre-commit` (repo-local
 `core.hooksPath`). It checks an isolated snapshot of the index: whitespace,
 rustfmt, Biome format, the guidance and known-mistakes lints, shellcheck,
-and, when a workflow file changes, the workflow policy check.
+the file-size ratchet, and, when a workflow file changes, the workflow
+policy check.
 Unstaged edits cannot change the verdict, and the hook never changes the index.
 A guidance-only change goes through a PR whose `gate` passes,
 because the CI gate ruleset requires `gate` on `main` (root `AGENTS.md`,
@@ -125,7 +127,8 @@ Traps:
   installs run frozen or locked. Manifest ranges stay compatible. Exact pins
   are for prerelease families (Solid and its companions; Specta),
   cross-version type boundaries, synchronized families, and vendored or
-  provenance-sensitive dependencies.
+  provenance-sensitive dependencies. `linguist-languages` is pinned exactly:
+  `scripts/check-file-size.mjs` classifies source from that database.
 - Fresh Bun resolutions wait 10 days (`bunfig.toml` `minimumReleaseAge`), and
   Dependabot uses the same cooldown, to limit exposure to fresh supply-chain
   compromises. Cargo has no release-age gate, so review a manual `cargo update`
