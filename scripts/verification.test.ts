@@ -22,6 +22,7 @@ import {
 	explainPath,
 	formatExplanation,
 	toolingRatchetIdentity,
+	verificationRerun,
 } from './verification';
 
 const lanes = ['frontend', 'core', 'engine', 'tooling'];
@@ -60,21 +61,59 @@ describe('plan --explain', () => {
 });
 
 describe('tooling ratchet identity', () => {
-	const root = path.resolve(import.meta.dirname, '..');
-
-	it('changes when the ratchet base changes, and names an unresolved base', () => {
-		const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+	it('passes when HEAD is origin/main and follows a base that is not HEAD', () => {
+		const root = mkdtempSync(path.join(os.tmpdir(), 'abb-ratchet-base-'));
 		const previous = process.env.ABB_FILE_SIZE_BASE;
 		try {
-			delete process.env.ABB_FILE_SIZE_BASE;
-			expect(toolingRatchetIdentity(root)).toEqual({ head, mergeBase: head });
+			execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
+			execFileSync('git', ['config', 'user.email', 'ratchet@example.com'], { cwd: root });
+			execFileSync('git', ['config', 'user.name', 'Ratchet Test'], { cwd: root });
+			execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: root });
+			execFileSync('git', ['config', 'core.fsmonitor', 'false'], { cwd: root });
+			mkdirSync(path.join(root, 'no-hooks'));
+			execFileSync('git', ['config', 'core.hooksPath', 'no-hooks'], { cwd: root });
+			writeFileSync(path.join(root, 'note.txt'), 'one');
+			execFileSync('git', ['add', 'note.txt'], { cwd: root });
+			execFileSync('git', ['commit', '-qm', 'one'], { cwd: root });
+			const first = execFileSync('git', ['rev-parse', 'HEAD'], {
+				cwd: root,
+				encoding: 'utf8',
+			}).trim();
+			execFileSync('git', ['update-ref', 'refs/remotes/origin/main', first], { cwd: root });
 			process.env.ABB_FILE_SIZE_BASE = 'origin/main';
-			const againstMain = toolingRatchetIdentity(root);
-			expect(againstMain.head).toBe(head);
-			expect(againstMain.mergeBase).not.toBe(head);
+			expect(toolingRatchetIdentity(root)).toEqual({ head: first, mergeBase: first });
+			delete process.env.ABB_FILE_SIZE_BASE;
+			expect(toolingRatchetIdentity(root)).toEqual({ head: first, mergeBase: first });
+			writeFileSync(path.join(root, 'note.txt'), 'two');
+			execFileSync('git', ['add', 'note.txt'], { cwd: root });
+			execFileSync('git', ['commit', '-qm', 'two'], { cwd: root });
+			const second = execFileSync('git', ['rev-parse', 'HEAD'], {
+				cwd: root,
+				encoding: 'utf8',
+			}).trim();
+			process.env.ABB_FILE_SIZE_BASE = 'origin/main';
+			expect(toolingRatchetIdentity(root)).toEqual({ head: second, mergeBase: first });
+			delete process.env.ABB_FILE_SIZE_BASE;
+			expect(toolingRatchetIdentity(root)).toEqual({ head: second, mergeBase: second });
 			process.env.ABB_FILE_SIZE_BASE = '0123456789abcdef0123456789abcdef01234567';
 			expect(toolingRatchetIdentity(root).mergeBase).toBe(
 				'unresolved:0123456789abcdef0123456789abcdef01234567',
+			);
+		} finally {
+			if (previous === undefined) delete process.env.ABB_FILE_SIZE_BASE;
+			else process.env.ABB_FILE_SIZE_BASE = previous;
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('prints that base on the done-gate rerun', () => {
+		const previous = process.env.ABB_FILE_SIZE_BASE;
+		try {
+			delete process.env.ABB_FILE_SIZE_BASE;
+			expect(verificationRerun(['tooling'])).toBe('bash scripts/verify.sh tooling');
+			process.env.ABB_FILE_SIZE_BASE = 'origin/main';
+			expect(verificationRerun(['frontend', 'tooling'])).toBe(
+				'ABB_FILE_SIZE_BASE=origin/main bash scripts/verify.sh frontend tooling',
 			);
 		} finally {
 			if (previous === undefined) delete process.env.ABB_FILE_SIZE_BASE;
@@ -263,7 +302,9 @@ if [[ "$*" == 'run lint:check' ]]; then exit "${'$'}{VERIFY_TEST_EXIT:-0}"; fi
 			expect(resolve(`${env.PATH}:/another-harness/bin`).stdout).toBe('');
 			expect(JSON.parse(readFileSync(receiptFile, 'utf8')).status).toBe('pass');
 			writeFileSync(path.join(root, 'src/input.ts'), 'after');
-			expect(resolve().stdout.trim()).toBe('bash scripts/verify.sh frontend');
+			expect(resolve().stdout.trim()).toBe(
+				'ABB_FILE_SIZE_BASE=origin/main bash scripts/verify.sh frontend',
+			);
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}
