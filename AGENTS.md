@@ -86,6 +86,9 @@ Golden-path verification without a window: `.agents/skills/verify-abb/SKILL.md`.
 - Name the owned invariant and its owner before refactoring; move truth to the
   owning layer before extracting helpers. A rule several callers must each
   remember belongs in that owner.
+- Source files stay small enough for an agent to read whole:
+  `scripts/check-file-size.mjs` ratchets that budget in the tooling lane, and
+  the `ratchet-files` skill owns how to split a file that fails it.
 - When merging code paths, name what each old path relied on (reads it
   skipped, state it left alone, ordering); keep each reliance or say which one
   the change drops.

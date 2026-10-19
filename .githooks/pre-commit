@@ -77,3 +77,7 @@ if [[ ${#shell_files[@]} -gt 0 ]]; then
 	require shellcheck
 	shellcheck -S warning "${shell_files[@]}"
 fi
+# Staged source against HEAD. CI passes --against the pull-request base,
+# because a PR checkout makes the index and HEAD the same commit.
+require bun
+bun scripts/check-file-size.mjs "${staged[@]}"

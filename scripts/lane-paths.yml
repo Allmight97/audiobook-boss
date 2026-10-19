@@ -76,6 +76,8 @@ supply-chain:
   - .github/workflows/ci.yml
 tooling:
   - .github/workflows/**
+  - .gitattributes
+  - scripts/*.mjs
   - scripts/fixtures/**
   - scripts/lane-paths.yml
   - scripts/*.sh
