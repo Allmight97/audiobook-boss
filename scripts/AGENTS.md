@@ -110,7 +110,9 @@ Traps:
   exists and an owner needs one.
 - Lint fails on warnings, so a Biome rule is an error or off. Biome rejects
   comments in `biome.json`, so each `noRestrictedImports` message names its
-  owning `AGENTS.md`.
+  owning `AGENTS.md`. Biome 2.6 formats Markdown and would rewrite `vendor/`.
+  Both are off in `biome.json`: prose is not source, and `vendor/` is upstream
+  provenance.
 - `bun.lock` is the only Bun pin. `scripts/locked-bun-version.sh` prints it
   for CI and agent setup. Dependabot updates the `bun` devDependency under the
   10-day cooldown. Setup installs that version or exits. Update `bun.lock` in
@@ -139,7 +141,8 @@ Traps:
   `bun run update:rc` updates the prerelease families listed in `bunfig.toml`.
 - `package.json` `overrides` keeps one `@tauri-apps/api` version across the app
   and its plugins, at the same minor version as the Rust `tauri` crate. Move
-  them together.
+  them together. The same block pins `@solidjs/signals` to the Solid release
+  `solid-js` depends on, so it is not a direct dependency.
 - Update direct dependencies that have a concrete trigger in the touched
   owner; leave unrelated lockfile churn out.
 

@@ -16,6 +16,7 @@ mod output;
 mod plans;
 mod preview;
 pub use preview::PreviewSnapshot;
+mod remote_update;
 mod runtime;
 mod staged;
 mod state;
@@ -37,11 +38,11 @@ pub use metadata_form::{
 };
 pub use output::{OutputPreview, OutputSnapshot};
 pub use plans::{SizeEstimate, TitlePlan};
+pub use remote_update::RemoteProgressUpdate;
 pub(crate) use runtime::{Session, SessionDeps};
 pub use runtime::{SessionIntent, SessionOutcome, SessionReply, SessionRun};
 pub use state::{
-    CoverNotice, CoverSnapshot, MetadataSnapshot, MetadataStatus, RemoteProgressUpdate,
-    SessionUpdate, TagPreview,
+    CoverNotice, CoverSnapshot, MetadataSnapshot, MetadataStatus, SessionUpdate, TagPreview,
 };
 pub use submission::{CollisionReview, SubmissionStatus, SubmitRefusal};
 pub use working_set::{

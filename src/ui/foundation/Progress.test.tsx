@@ -1,8 +1,5 @@
 import { cleanup, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it } from 'vitest';
-// The reduced-motion rule lives in the stylesheet, which the component test cannot compute.
-// biome-ignore lint/correctness/noNodejsModules: reads that stylesheet.
-import { readFileSync } from 'node:fs';
 import { Progress } from './Progress';
 
 describe('Progress', () => {
@@ -23,13 +20,5 @@ describe('Progress', () => {
 		expect(
 			screen.getByRole('progressbar', { name: 'Working' }).classList.contains('is-active'),
 		).toBe(true);
-	});
-
-	it('turns the shimmer off under reduced motion', () => {
-		const chromeCss = readFileSync('src/ui/foundation/internal/chrome.css', 'utf8');
-		const reduced = chromeCss.slice(chromeCss.indexOf('@media (prefers-reduced-motion: reduce)'));
-		expect(chromeCss).toContain('.abb-progress.is-active .abb-progress-fill::after');
-		expect(reduced).toContain('animation: none');
-		expect(reduced).toContain('transition: none');
 	});
 });

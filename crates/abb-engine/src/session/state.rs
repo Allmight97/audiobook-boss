@@ -11,10 +11,6 @@ use std::time::Instant;
 
 use serde::Serialize;
 
-#[path = "remote_update.rs"]
-mod remote_update;
-pub use remote_update::RemoteProgressUpdate;
-
 use super::audio::{AudioDefaults, AudioRefusal, AudioSnapshot, TitleAudio};
 use super::audio_choice::AudioEdit;
 use super::exports::{ExportLink, Exports, OutputEdit, OutputEdits, RestartStale};
@@ -22,6 +18,7 @@ use super::lookup::{LookupSnapshot, LookupState, QueuedTitle};
 use super::metadata_form::{MetadataField, MetadataForm, MetadataFormSnapshot};
 use super::output::{OutputPlan, OutputPreview, OutputSnapshot};
 use super::plans::{estimate_size, PlanFailure, PlanInput, PlanTicket, Plans};
+use super::remote_update::RemoteProgressUpdate;
 use super::staged::StagedSources;
 use super::submission::{
     build_draft, title_label, Draft, DraftInputs, SubmissionStatus, SubmitRefusal, SubmittedTitle,

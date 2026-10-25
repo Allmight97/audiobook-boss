@@ -133,10 +133,6 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 	});
 
 	let shown: RemoteSourceView | undefined;
-	// The memo is what rows subscribe to, so a tick that keeps the same screen
-	// does not rerun them. A read outside a render (tests, intent setup) sees
-	// the latest screen at once; Solid 2 would otherwise hand back the memo's
-	// last committed value.
 	const viewMemo = createMemo(() => {
 		viewRev();
 		return currentView();
@@ -144,9 +140,15 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 	const progressMemo = createMemo(() =>
 		currentProgress(deps.link.remote(), deps.link.remoteProgress()),
 	);
-	const view = () => (getOwner() ? viewMemo() : currentView());
+	// Solid 2 returns the memo's last committed value outside a render; this read does not replace `shown`.
+	const view = () => (getOwner() ? viewMemo() : screenNow());
 	const progress = () =>
 		getOwner() ? progressMemo() : currentProgress(deps.link.remote(), deps.link.remoteProgress());
+
+	function screenNow(): RemoteSourceView {
+		const next = state.snapshot();
+		return shown && sameScreen(shown, next) ? shown : next;
+	}
 
 	function currentProgress(
 		remote: ReturnType<EngineLink['remote']>,
@@ -270,29 +272,31 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 
 /** A download tick changes the fill, not the library the rows are drawn from. */
 function sameScreen(previous: RemoteSourceView, next: RemoteSourceView): boolean {
-	return (
-		previous.isOpen === next.isOpen &&
-		previous.isBusy === next.isBusy &&
-		previous.providerId === next.providerId &&
-		sameJson(previous.providers, next.providers) &&
-		sameJson(previous.accountState, next.accountState) &&
-		sameItems(previous.titles, next.titles) &&
-		sameSet(previous.selectedTitleIds, next.selectedTitleIds) &&
-		samePdf(previous.includePdfByTitleId, next.includePdfByTitleId) &&
-		previous.titleFilter === next.titleFilter &&
-		previous.showSupplementalPdfOnly === next.showSupplementalPdfOnly &&
-		previous.hideUnavailableTitles === next.hideUnavailableTitles &&
-		previous.handoffPath === next.handoffPath &&
-		previous.indexerAuthorQuery === next.indexerAuthorQuery &&
-		previous.indexerTitleQuery === next.indexerTitleQuery &&
-		sameItems(previous.releases, next.releases) &&
-		previous.releaseFilter === next.releaseFilter &&
-		previous.releaseSort === next.releaseSort &&
-		sameSet(previous.selectedReleaseKeys, next.selectedReleaseKeys) &&
-		sameJson(previous.releaseGrabs, next.releaseGrabs) &&
-		previous.statusMessage === next.statusMessage &&
-		sameJson(jobShell(previous.activeJob), jobShell(next.activeJob))
-	);
+	const same: Record<keyof RemoteSourceView, boolean> = {
+		isOpen: previous.isOpen === next.isOpen,
+		isBusy: previous.isBusy === next.isBusy,
+		providerId: previous.providerId === next.providerId,
+		providers: sameJson(previous.providers, next.providers),
+		accountState: sameJson(previous.accountState, next.accountState),
+		titles: sameItems(previous.titles, next.titles),
+		selectedTitleIds: sameSet(previous.selectedTitleIds, next.selectedTitleIds),
+		includePdfByTitleId: samePdf(previous.includePdfByTitleId, next.includePdfByTitleId),
+		titleFilter: previous.titleFilter === next.titleFilter,
+		showSupplementalPdfOnly: previous.showSupplementalPdfOnly === next.showSupplementalPdfOnly,
+		hideUnavailableTitles: previous.hideUnavailableTitles === next.hideUnavailableTitles,
+		handoffPath: previous.handoffPath === next.handoffPath,
+		indexerAuthorQuery: previous.indexerAuthorQuery === next.indexerAuthorQuery,
+		indexerTitleQuery: previous.indexerTitleQuery === next.indexerTitleQuery,
+		releases: sameItems(previous.releases, next.releases),
+		releaseFilter: previous.releaseFilter === next.releaseFilter,
+		releaseSort: previous.releaseSort === next.releaseSort,
+		selectedReleaseKeys: sameSet(previous.selectedReleaseKeys, next.selectedReleaseKeys),
+		releaseGrabs: sameJson(previous.releaseGrabs, next.releaseGrabs),
+		statusMessage: previous.statusMessage === next.statusMessage,
+		// Percentage and byte counts stay on the previous job. The live fill is progress().
+		activeJob: sameJson(jobShell(previous.activeJob), jobShell(next.activeJob)),
+	};
+	return Object.values(same).every(Boolean);
 }
 
 function jobShell(job: AcquisitionJob | null): unknown {

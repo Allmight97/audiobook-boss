@@ -12,7 +12,6 @@ use crate::host::EngineEvent;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-#[path = "acquisition_snapshot.rs"]
 mod acquisition_snapshot;
 
 #[derive(Clone, Deserialize, specta::Type)]
@@ -1441,5 +1440,5 @@ impl RemoteUiRun {
 }
 
 #[cfg(test)]
-#[path = "ui_tests.rs"]
+#[path = "../ui_tests.rs"]
 mod tests;

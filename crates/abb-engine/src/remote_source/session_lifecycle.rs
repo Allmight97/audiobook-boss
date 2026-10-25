@@ -19,6 +19,38 @@ use super::{RemoteProviderId, RemoteSourceRuntime};
 /// How often a download's progress reaches hosts; a stage change always does.
 const PROGRESS_EVENT_INTERVAL: Duration = Duration::from_millis(100);
 
+/// `Instant::elapsed` follows the real clock, so due checks compare two
+/// readings from this one.
+struct ProgressClock {
+    start: Instant,
+    offset: Mutex<Duration>,
+}
+
+impl ProgressClock {
+    fn new() -> Self {
+        Self {
+            start: Instant::now(),
+            offset: Mutex::new(Duration::ZERO),
+        }
+    }
+
+    fn now(&self) -> Instant {
+        self.start
+            + self
+                .offset
+                .lock()
+                .map(|offset| *offset)
+                .unwrap_or(Duration::ZERO)
+    }
+
+    #[cfg(test)]
+    fn advance(&self, by: Duration) {
+        if let Ok(mut offset) = self.offset.lock() {
+            *offset += by;
+        }
+    }
+}
+
 pub(super) struct RemoteAcquisitionLifecycle {
     pub(super) staging: RemoteSourceStaging,
     materializer: AaxcleanMaterializer,
@@ -28,6 +60,7 @@ pub(super) struct RemoteAcquisitionLifecycle {
     ui: std::sync::Arc<Mutex<super::ui::UiState>>,
     /// When each job's progress last reached hosts.
     progress_sent: Mutex<HashMap<String, Instant>>,
+    clock: ProgressClock,
 }
 
 impl RemoteAcquisitionLifecycle {
@@ -45,13 +78,19 @@ impl RemoteAcquisitionLifecycle {
             host,
             ui,
             progress_sent: Mutex::new(HashMap::new()),
+            clock: ProgressClock::new(),
         }
+    }
+
+    #[cfg(test)]
+    pub(super) fn advance_clock(&self, by: Duration) {
+        self.clock.advance(by);
     }
 
     /// Tells hosts what `job` looks like now.
     fn publish(&self, job: &RemoteAcquisitionJob) {
         if let Ok(mut sent) = self.progress_sent.lock() {
-            sent.insert(job.job_id.clone(), Instant::now());
+            sent.insert(job.job_id.clone(), self.clock.now());
         }
         let snapshot = {
             let mut ui = self
@@ -78,7 +117,7 @@ impl RemoteAcquisitionLifecycle {
     /// A same-stage tick. Hosts already have the job; the remote revision stays put.
     fn publish_progress(&self, job_id: &str, progress: CoreAcquisitionProgress) {
         if let Ok(mut sent) = self.progress_sent.lock() {
-            sent.insert(job_id.to_string(), Instant::now());
+            sent.insert(job_id.to_string(), self.clock.now());
         }
         {
             let mut ui = self
@@ -360,9 +399,10 @@ impl RemoteAcquisitionLifecycle {
     }
 
     fn progress_due(&self, job_id: &str) -> bool {
+        let now = self.clock.now();
         self.progress_sent.lock().map_or(true, |sent| {
             sent.get(job_id)
-                .is_none_or(|at| at.elapsed() >= PROGRESS_EVENT_INTERVAL)
+                .is_none_or(|at| now.saturating_duration_since(*at) >= PROGRESS_EVENT_INTERVAL)
         })
     }
 
@@ -650,7 +690,10 @@ mod tests {
             "a tick inside the interval stays on the job"
         );
 
-        std::thread::sleep(Duration::from_millis(150));
+        runtime
+            .inner
+            .lifecycle
+            .advance_clock(Duration::from_millis(150));
         let revision = runtime.ui_snapshot().revision;
         runtime.inner.lifecycle.update_job_progress(
             job_id,
@@ -688,5 +731,23 @@ mod tests {
         assert!(stage_change.remote.is_some());
         assert!(stage_change.remote_progress.is_none());
         assert!(stage_change.remote_library.is_none());
+        drop(events);
+
+        let mut ended = acquiring(job_id, AcquisitionStage::Download, 1.0);
+        ended.status = types::RemoteAcquisitionStatus::Failed;
+        runtime.inner.lifecycle.replace_job_if_active(ended);
+        let events = recorded.0.lock().expect("events");
+        let ending = events.last().expect("job end");
+        assert!(
+            ending.remote.is_some(),
+            "a job that ends without a stage change still sends the snapshot"
+        );
+        assert!(ending.remote_progress.is_none());
+        let stage = ending
+            .remote
+            .as_ref()
+            .and_then(|remote| remote.acquisition.as_ref())
+            .map(|job| job.job.progress.stage);
+        assert_eq!(stage, Some(AcquisitionStage::Download));
     }
 }

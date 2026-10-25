@@ -32,6 +32,7 @@ export type AcquisitionState = {
 	selectedReleaseKeys: Set<string>;
 	releaseGrabs: Record<string, ReleaseGrabState>;
 	statusMessage: string;
+	/** The job at the last screen change. Its percentage stays there; the live fill is `progress()`. */
 	activeJob: AcquisitionJob | null;
 };
 

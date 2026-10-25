@@ -10,7 +10,7 @@ pub struct RemoteProgressUpdate {
     pub progress: crate::remote_source::AcquisitionProgress,
 }
 
-impl super::SessionUpdate {
+impl super::state::SessionUpdate {
     pub(crate) fn remote(snapshot: crate::remote_source::RemoteUiSnapshot) -> Self {
         Self {
             revision: 0,

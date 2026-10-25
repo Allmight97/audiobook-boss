@@ -52,7 +52,7 @@ One bullet per view. A view without a bullet has no trap beyond its owner.
   provider-controlled URL never goes into a DOM attribute.
 - `remoteSource`: one dialog switches the Audible and Indexer lanes. Acquisition
   progress shows in the Audible lane only, and a download tick does not rebuild
-  title rows. Off-screen title rows skip layout. Plain click replaces the selection;
+  title rows. Plain click replaces the selection;
   Cmd or Ctrl-click toggles one release. Grab All counts selections hidden by
   the filter and shows the hidden count. Select, Grab, and details accessible
   names include the indexer, because mirrored releases share titles.

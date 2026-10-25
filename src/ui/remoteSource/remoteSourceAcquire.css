@@ -116,9 +116,6 @@
 	align-items: center;
 	gap: 0.75rem;
 	border-bottom: 1px solid var(--border-primary);
-	/* Off-screen titles skip layout. `auto` remembers a row's height after it has been shown; 4.5rem covers the cover thumb until then. */
-	content-visibility: auto;
-	contain-intrinsic-size: auto 4.5rem;
 }
 
 .remote-title-row:last-child {

@@ -36,7 +36,6 @@
 		"update:rc": "bun add --exact solid-js@next @solidjs/web@next && bun add --dev --exact @solidjs/vite-plugin@latest @solidjs/testing-library@next"
 	},
 	"dependencies": {
-		"@solidjs/signals": "2.0.0-rc.18",
 		"@solidjs/web": "2.0.0-rc.18",
 		"@tauri-apps/api": "^2.12.4",
 		"@tauri-apps/plugin-dialog": "^2.8.3",
@@ -61,6 +60,7 @@
 		"yaml": "^2.9.1"
 	},
 	"overrides": {
+		"@solidjs/signals": "2.0.0-rc.18",
 		"@tauri-apps/api": "2.12.4",
 		"source-map-js": "1.2.2",
 		"nanoid": "3.3.18",
