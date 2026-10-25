@@ -21,7 +21,18 @@ language. The exact export names are the hand-written `STRIPS` list in
 - `SplitButton.disabled` disables both triggers and hides an open menu, so an
   engine refusal state leaves no second submission path.
 - Theme follows `prefers-color-scheme`.
+- Motion: an element is complete when still. Movement that only decorates
+  (transitions, the progress shimmer) is declared inside
+  `@media (prefers-reduced-motion: no-preference)`. An endless animation also
+  runs only while its owner says work is active (`Progress` `active`). Animate
+  `transform` and `opacity`, never layout size. Why: an endless animation
+  repaints every frame even when idle; under software rendering (WebKitGTK
+  without compositing, WSL) the idle shimmer cost 150% of a CPU core.
+  `scripts/motion-policy.test.ts` enforces the endless-animation and
+  layout-size parts for every stylesheet under `src/`.
+- `Progress` takes a required `label` (its accessible name) and `active` for
+  work running now; queued, finished, and idle bars stay still.
 
 ## Proof
 
-`bun run test -- src/ui/foundation`
+`bun run test -- src/ui/foundation scripts/motion-policy.test.ts`

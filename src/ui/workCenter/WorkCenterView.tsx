@@ -172,7 +172,12 @@ export function WorkCenterView(): JSX.Element {
 										</div>
 									</div>
 									<div class="work-progress-row">
-										<Progress value={operation.progress.percentage} class="work-progress-track" />
+										<Progress
+											value={operation.progress.percentage}
+											label={`${operation.title} progress`}
+											active={operation.status === 'running' || operation.status === 'cancelling'}
+											class="work-progress-track"
+										/>
 										<span class="work-progress-value">
 											{operation.progress.percentage.toFixed(0)}%
 											<Show

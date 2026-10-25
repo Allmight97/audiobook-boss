@@ -24,6 +24,7 @@ export function renderStatus(
 	view.setStepText(`Current Step: ${status.message}`);
 	view.setStepColor('var(--text-primary)');
 	view.setIsProcessing(isProcessing);
+	view.setProgressActive(false);
 }
 
 export function renderConcurrencyStatus(
@@ -61,6 +62,7 @@ export function renderPreview(
 		}),
 		active,
 	);
+	view.setProgressActive(operation.status === 'running' || operation.status === 'cancelling');
 	if (operation.status === 'mixed') view.setStatusText('Mixed result');
 	if (operation.status === 'cancelling') view.setStatusText('Cancelling');
 	view.setCancelAllPending(operation.cancelRequested && active);

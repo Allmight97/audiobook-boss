@@ -349,7 +349,11 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						<Show when={job().progress}>
 							{(progress) => (
 								<div class="remote-progress" role="status" aria-live="polite">
-									<Progress value={progressPercent(job())} label="Acquisition progress" />
+									<Progress
+										value={progressPercent(job())}
+										label="Acquisition progress"
+										active={!job().terminal}
+									/>
 									<div class="remote-progress-copy">
 										<span>{progressTitleLabel(progress(), view().titles)}</span>
 										<span>{Math.round(progressPercent(job()))}%</span>

@@ -115,6 +115,35 @@ describe('engine preview adapter', () => {
 		);
 	});
 
+	it('moves the status bar only while the preview runs', async () => {
+		const engine = createFakeEngine();
+		const queued = preview();
+		queued.operation.status = 'accepted';
+		engine.change((state) => {
+			state.output.previewRun = queued;
+		});
+		const app = createAppRuntime({ engine });
+		runtimes.push(app);
+		await app.initialize();
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<StatusPanelView />
+			</AppRuntimeProvider>
+		));
+		const bar = () => screen.getByRole('progressbar', { name: 'Preview progress' });
+		expect(bar()).not.toHaveAttribute('data-active');
+		engine.change((state) => {
+			state.output.previewRun = preview();
+		});
+		await vi.waitFor(() => expect(bar()).toHaveAttribute('data-active'));
+		const done = preview();
+		done.operation.status = 'completed';
+		engine.change((state) => {
+			state.output.previewRun = done;
+		});
+		await vi.waitFor(() => expect(bar()).not.toHaveAttribute('data-active'));
+	});
+
 	it('claims a finished preview once and never claims a cancelled run', async () => {
 		const engine = createFakeEngine();
 		engine.respond = (intent) =>

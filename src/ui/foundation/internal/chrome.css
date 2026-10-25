@@ -6,11 +6,46 @@
 	background: var(--progress-bg);
 }
 
+/* A full-width fill slides in from the left, so its rounded end stays round. */
 .abb-progress-fill {
+	position: relative;
 	height: 100%;
+	overflow: hidden;
 	border-radius: inherit;
-	background: var(--progress-fg);
-	transition: width var(--dur-base) var(--ease-out);
+	background: linear-gradient(
+		90deg,
+		var(--progress-fg),
+		color-mix(in srgb, var(--progress-fg) 70%, white 30%)
+	);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.abb-progress-fill {
+		transition: transform var(--dur-base) var(--ease-out);
+	}
+
+	.abb-progress[data-active] .abb-progress-fill::after {
+		content: "";
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			90deg,
+			transparent 0%,
+			rgb(255 255 255 / 0.25) 35%,
+			transparent 70%
+		);
+		animation: abb-progress-shimmer 1.6s linear infinite;
+	}
+}
+
+@keyframes abb-progress-shimmer {
+	from {
+		transform: translateX(-100%);
+	}
+
+	to {
+		transform: translateX(100%);
+	}
 }
 
 .abb-cover {
