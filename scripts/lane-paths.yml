@@ -100,4 +100,3 @@ no-lane:
   - .github/FUNDING.yml # GitHub sponsor button
   - .github/dependabot.yml # read by Dependabot; no lane can run it
   - site/** # built and deployed by .github/workflows/pages.yml
-  - perf/** # TEMPORARY measurement harness for the idle-redraw PR; removed before merge
