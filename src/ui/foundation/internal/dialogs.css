@@ -87,6 +87,8 @@
 	align-items: flex-end;
 }
 
+/* Contained, a long list is not re-laid out or repainted when motion elsewhere
+   on the page (a progress shimmer) renders a frame. */
 .app-modal-results {
 	display: flex;
 	flex-direction: column;
@@ -94,6 +96,7 @@
 	overflow: auto;
 	max-height: 50vh;
 	padding-right: 0.5rem;
+	contain: content;
 }
 
 .app-modal-result {

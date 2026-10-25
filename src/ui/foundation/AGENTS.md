@@ -30,6 +30,10 @@ language. The exact export names are the hand-written `STRIPS` list in
   without compositing, WSL) the idle shimmer cost 150% of a CPU core.
   `scripts/motion-policy.test.ts` enforces the endless-animation and
   layout-size parts for every stylesheet under `src/`.
+- A scrolling result list (`.app-modal-results`) sets `contain: content`.
+  Why: without it, a running shimmer elsewhere in the dialog made WebKit redo
+  every row each frame (5,000 titles: 51 ms frames while scrolling, 17 ms with
+  containment). `content-visibility: auto` measured slower for these rows.
 - `Progress` takes a required `label` (its accessible name) and `active` for
   work running now; queued, finished, and idle bars stay still.
 
