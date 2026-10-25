@@ -2,5 +2,6 @@
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"entry": ["scripts/*.ts", "scripts/*.mjs", "src/app/*/index.ts", "src/ui/*/index.ts"],
 	"ignore": ["src/lib/generated/**"],
+	"ignoreDependencies": ["@solidjs/signals"],
 	"rules": { "types": "off" }
 }

@@ -5,22 +5,83 @@
 minimumReleaseAge = 864000
 
 # Keep unrelated transitive resolutions gated during explicit prerelease updates.
+# One-time upgrade exemptions. Each line expires Nov 3, 2026, J-approved Oct 25, 2026.
 minimumReleaseAgeExcludes = [
-  # Owner-approved Bun 1.4.3 (published 2026-10-10). Remove after 2026-10-20.
+  # bun 1.4.4 published 2026-10-22. The Oct 20 exemption covered 1.4.3 only.
   "bun",
+  # solid-js 2.0.0-rc.18 published 2026-10-23.
   "solid-js",
+  # @solidjs/web 2.0.0-rc.18 published 2026-10-23.
   "@solidjs/web",
+  # @solidjs/signals 2.0.0-rc.18 published 2026-10-23.
   "@solidjs/signals",
+  # seroval 1.7.x published 2026-10-23/24.
   "seroval",
+  # seroval-plugins 1.7.x published 2026-10-23/24.
   "seroval-plugins",
+  # @solidjs/babel-plugin 2.0.0-rc.18 published 2026-10-23.
   "@solidjs/babel-plugin",
+  # @solidjs/compiler 2.0.0-rc.18 published 2026-10-23.
   "@solidjs/compiler",
+  # @solidjs/compiler-darwin-arm64 published with the compiler on 2026-10-23.
   "@solidjs/compiler-darwin-arm64",
+  # @solidjs/compiler-darwin-x64 published with the compiler on 2026-10-23.
   "@solidjs/compiler-darwin-x64",
+  # @solidjs/compiler-linux-arm64-gnu published with the compiler on 2026-10-23.
   "@solidjs/compiler-linux-arm64-gnu",
+  # @solidjs/compiler-linux-x64-gnu published with the compiler on 2026-10-23.
   "@solidjs/compiler-linux-x64-gnu",
+  # @solidjs/compiler-wasm32-wasi published with the compiler on 2026-10-23.
   "@solidjs/compiler-wasm32-wasi",
+  # @solidjs/compiler-win32-x64-msvc published with the compiler on 2026-10-23.
   "@solidjs/compiler-win32-x64-msvc",
+  # @solidjs/vite-plugin 3.0.0-next.51 published 2026-10-21.
   "@solidjs/vite-plugin",
+  # @solidjs/testing-library 1.0.0-rc.2 published 2026-10-21.
   "@solidjs/testing-library",
+  # vite 8.3.5 published 2026-10-21.
+  "vite",
+  # @biomejs/biome 2.6.3 published 2026-10-24.
+  "@biomejs/biome",
+  # knip 6.43.0 published 2026-10-24.
+  "knip",
+  # @tauri-apps/cli 2.12.4 published 2026-10-21.
+  "@tauri-apps/cli",
+  # unbash 6.0.1 published 2026-10-20.
+  "unbash",
+  # oxc-parser 0.155.0 published 2026-10-19.
+  "oxc-parser",
+  # @oxc-project/types 0.155.0 published 2026-10-19.
+  "@oxc-project/types",
+  # @oxc-parser bindings 0.155.0 published 2026-10-19.
+  "@oxc-parser/binding-android-arm-eabi",
+  "@oxc-parser/binding-android-arm64",
+  "@oxc-parser/binding-darwin-arm64",
+  "@oxc-parser/binding-darwin-x64",
+  "@oxc-parser/binding-freebsd-x64",
+  "@oxc-parser/binding-linux-arm-gnueabihf",
+  "@oxc-parser/binding-linux-arm-musleabihf",
+  "@oxc-parser/binding-linux-arm64-gnu",
+  "@oxc-parser/binding-linux-arm64-musl",
+  "@oxc-parser/binding-linux-ppc64-gnu",
+  "@oxc-parser/binding-linux-riscv64-gnu",
+  "@oxc-parser/binding-linux-riscv64-musl",
+  "@oxc-parser/binding-linux-s390x-gnu",
+  "@oxc-parser/binding-linux-x64-gnu",
+  "@oxc-parser/binding-linux-x64-musl",
+  "@oxc-parser/binding-openharmony-arm64",
+  "@oxc-parser/binding-win32-arm64-msvc",
+  "@oxc-parser/binding-win32-ia32-msvc",
+  "@oxc-parser/binding-win32-x64-msvc",
+  # @biomejs/cli platform packages 2.6.3 published 2026-10-24.
+  "@biomejs/cli-android-arm64",
+  "@biomejs/cli-android-x64",
+  "@biomejs/cli-darwin-arm64",
+  "@biomejs/cli-darwin-x64",
+  "@biomejs/cli-linux-arm64",
+  "@biomejs/cli-linux-arm64-musl",
+  "@biomejs/cli-linux-x64",
+  "@biomejs/cli-linux-x64-musl",
+  "@biomejs/cli-win32-arm64",
+  "@biomejs/cli-win32-x64",
 ]

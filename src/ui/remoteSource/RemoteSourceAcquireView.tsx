@@ -125,8 +125,8 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							value={view().providerId}
 							onChange={(event) => handleLaneChange(event.currentTarget.value as AcquisitionLane)}
 						>
-							<For each={view().providers}>
-								{(provider) => <option value={provider.providerId}>{provider.label}</option>}
+							<For each={view().providers} keyed={(provider) => provider.providerId}>
+								{(provider) => <option value={provider().providerId}>{provider().label}</option>}
 							</For>
 						</select>
 					</div>
