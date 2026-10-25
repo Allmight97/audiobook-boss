@@ -17,6 +17,10 @@ other relatively. The exact export names are the hand-written `STRIPS` list in
   `outputAndTags.css` holds the Output and tags panel layout.
 - Left column: the input workflow flexes and the inspector
   (`leftColumn/FileInspectorView`) stays pinned.
+- A `<For>` over rows rebuilt from a snapshot keys them by identity
+  (`keyed={(option) => option.value}`), so unchanged rows keep their DOM.
+  Why: each snapshot builds new objects, and a recreated `<option>` resets its
+  `<select>` to the first option.
 
 ## View Traps
 

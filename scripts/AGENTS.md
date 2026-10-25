@@ -108,6 +108,8 @@ Traps:
   `typescript` (Biome enforces it). The runtime-boundary scanner stays a text
   scan. Replace it with a parser only when TypeScript 7's programmatic API
   exists and an owner needs one.
+- Biome formats code and JSON only; its Markdown and YAML formatters are off
+  because they would rewrite `vendor/` sources and hand-wrapped guidance.
 - Lint fails on warnings, so a Biome rule is an error or off. Biome rejects
   comments in `biome.json`, so each `noRestrictedImports` message names its
   owning `AGENTS.md`.
@@ -137,6 +139,10 @@ Traps:
   without a version pin; an owner-approved early release goes in
   `--exclude-newer-package` with a removal date.
   `bun run update:rc` updates the prerelease families listed in `bunfig.toml`.
+  An early-release exemption in `bunfig.toml` names each new transitive and
+  platform package too (`@oven/bun-*`, `@biomejs/cli-*`), with its removal
+  date. Why: Bun leaves an age-blocked optional package out of `bun.lock`
+  without an error, so other platforms install without that binary.
 - `package.json` `overrides` keeps one `@tauri-apps/api` version across the app
   and its plugins, at the same minor version as the Rust `tauri` crate. Move
   them together.
