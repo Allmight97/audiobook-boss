@@ -2,7 +2,7 @@
  * Temporary before/after measurement for remote-library redraws.
  * Removed once the regression test covers the same tick.
  */
-import { createEffect, createRoot, flush } from 'solid-js';
+import { flush } from 'solid-js';
 import { cleanup, fireEvent, render } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../app/runtime';
@@ -69,18 +69,15 @@ function job(percentage: number): AcquisitionJob {
 
 let joins = 0;
 let runtime: AppRuntime | undefined;
-let stopWatch: (() => void) | undefined;
 
 afterEach(() => {
 	cleanup();
-	stopWatch?.();
-	stopWatch = undefined;
 	runtime?.dispose();
 	runtime = undefined;
 	document.body.innerHTML = '';
 });
 
-async function mount(count: number): Promise<{ viewNotifications: () => number }> {
+async function mount(count: number): Promise<void> {
 	joins = 0;
 	fakeEngine().change((state) => {
 		state.remote.lane = 'audible';
@@ -96,16 +93,6 @@ async function mount(count: number): Promise<{ viewNotifications: () => number }
 		state.remoteLibrary.diagnostics = [];
 	});
 	runtime = createAppRuntime();
-	let viewNotifications = 0;
-	createRoot((dispose) => {
-		stopWatch = dispose;
-		createEffect(
-			() => runtime?.remoteSource.view(),
-			() => {
-				viewNotifications += 1;
-			},
-		);
-	});
 	render(() => (
 		<AppRuntimeProvider runtime={runtime!}>
 			<RemoteSourceAcquireView />
@@ -118,7 +105,6 @@ async function mount(count: number): Promise<{ viewNotifications: () => number }
 	flush();
 	countAuthorJoins(runtime.remoteSource.view().titles);
 	joins = 0;
-	return { viewNotifications: () => viewNotifications };
 }
 
 describe('remote redraw measurement', () => {
@@ -126,11 +112,10 @@ describe('remote redraw measurement', () => {
 		const samples: Record<string, unknown>[] = [];
 		for (const count of [1000, 5000]) {
 			cleanup();
-			stopWatch?.();
 			runtime?.dispose();
-			const watch = await mount(count);
+			await mount(count);
 			const joinsBefore = joins;
-			const viewsBefore = watch.viewNotifications();
+			const shown = runtime!.remoteSource.view();
 			const current = fakeEngine().remote();
 			const tickStart = performance.now();
 			fakeEngine().notify({
@@ -150,6 +135,8 @@ describe('remote redraw measurement', () => {
 				},
 			});
 			flush();
+			const tickJoins = joins - joinsBefore;
+			const viewIdentityHeld = runtime!.remoteSource.view() === shown;
 			const tickMs = performance.now() - tickStart;
 			const input = document.getElementById('remote-source-filter') as HTMLInputElement;
 			const filterStart = performance.now();
@@ -159,8 +146,8 @@ describe('remote redraw measurement', () => {
 			const visible = document.querySelectorAll('.remote-title-row').length;
 			samples.push({
 				titles: count,
-				rowJoinsOnTick: joins - joinsBefore,
-				viewNotificationsOnTick: watch.viewNotifications() - viewsBefore,
+				rowJoinsOnTick: tickJoins,
+				viewIdentityHeld,
 				tickMs: Number(tickMs.toFixed(2)),
 				filterMs: Number(filterMs.toFixed(2)),
 				rowsAfterFilter: visible,

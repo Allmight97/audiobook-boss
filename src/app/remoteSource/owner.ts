@@ -1,8 +1,8 @@
-import { createSignal, onCleanup, type Accessor } from 'solid-js';
+import { createMemo, createSignal, getOwner, onCleanup, type Accessor } from 'solid-js';
 import type { AcquisitionLane } from '../../types/appSettings';
 import { tauriClient } from '../../lib/tauri/client';
 import type { RemoteUiIntent } from '../../types/session';
-import type { RemoteRelease } from '../../types/remoteSource';
+import type { AcquisitionJob, AcquisitionProgress, RemoteRelease } from '../../types/remoteSource';
 import {
 	createIndexerConnectionSettings,
 	type IndexerConnectionSettingsView,
@@ -61,8 +61,17 @@ function actionIntent(action: RemoteSourceAction, view: RemoteSourceState): Remo
 	}
 }
 
+/** The download bar. Title rows do not read it, so a tick does not rebuild them. */
+export type RemoteDownloadProgress = {
+	readonly percentage: number;
+	readonly progress: AcquisitionProgress;
+	readonly terminal: boolean;
+	readonly active: boolean;
+};
+
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
+	readonly progress: Accessor<RemoteDownloadProgress | null>;
 	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
 	open(options?: { readonly lane?: AcquisitionLane }): Promise<void>;
 	selectLane(lane: AcquisitionLane): Promise<void>;
@@ -123,11 +132,43 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		generation += 1;
 	});
 
+	let shown: RemoteSourceView | undefined;
+	// The memo is what rows subscribe to, so a tick that keeps the same screen
+	// does not rerun them. A read outside a render (tests, intent setup) sees
+	// the latest screen at once; Solid 2 would otherwise hand back the memo's
+	// last committed value.
+	const viewMemo = createMemo(() => {
+		viewRev();
+		return currentView();
+	});
+	const progressMemo = createMemo(() => currentProgress(deps.link.remote()));
+	const view = () => (getOwner() ? viewMemo() : currentView());
+	const progress = () => (getOwner() ? progressMemo() : currentProgress(deps.link.remote()));
+
+	function currentProgress(
+		remote: ReturnType<EngineLink['remote']>,
+	): RemoteDownloadProgress | null {
+		const job = remote.acquisition;
+		const tick = job?.progress;
+		if (!job || !tick) return null;
+		return {
+			percentage: Math.max(0, Math.min(100, tick.percentage)),
+			progress: tick,
+			terminal: job.terminal,
+			active: remote.acquiring || !job.settled,
+		};
+	}
+
+	function currentView(): RemoteSourceView {
+		const next = state.snapshot();
+		if (shown && sameScreen(shown, next)) return shown;
+		shown = next;
+		return next;
+	}
+
 	return {
-		view: () => {
-			viewRev();
-			return state.snapshot();
-		},
+		view,
+		progress,
 		indexerConnection: indexerConnection.view,
 		async open(options) {
 			if (disposed) return;
@@ -221,4 +262,70 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			state.reset();
 		},
 	};
+}
+
+/** A download tick changes the fill, not the library the rows are drawn from. */
+function sameScreen(previous: RemoteSourceView, next: RemoteSourceView): boolean {
+	return (
+		previous.isOpen === next.isOpen &&
+		previous.isBusy === next.isBusy &&
+		previous.providerId === next.providerId &&
+		sameJson(previous.providers, next.providers) &&
+		sameJson(previous.accountState, next.accountState) &&
+		sameItems(previous.titles, next.titles) &&
+		sameSet(previous.selectedTitleIds, next.selectedTitleIds) &&
+		samePdf(previous.includePdfByTitleId, next.includePdfByTitleId) &&
+		previous.titleFilter === next.titleFilter &&
+		previous.showSupplementalPdfOnly === next.showSupplementalPdfOnly &&
+		previous.hideUnavailableTitles === next.hideUnavailableTitles &&
+		previous.handoffPath === next.handoffPath &&
+		previous.indexerAuthorQuery === next.indexerAuthorQuery &&
+		previous.indexerTitleQuery === next.indexerTitleQuery &&
+		sameItems(previous.releases, next.releases) &&
+		previous.releaseFilter === next.releaseFilter &&
+		previous.releaseSort === next.releaseSort &&
+		sameSet(previous.selectedReleaseKeys, next.selectedReleaseKeys) &&
+		sameJson(previous.releaseGrabs, next.releaseGrabs) &&
+		previous.statusMessage === next.statusMessage &&
+		sameJson(jobShell(previous.activeJob), jobShell(next.activeJob))
+	);
+}
+
+function jobShell(job: AcquisitionJob | null): unknown {
+	if (!job) return null;
+	const {
+		percentage: _percentage,
+		bytesDownloaded: _downloaded,
+		bytesTotal: _total,
+		...progress
+	} = job.progress;
+	return { ...job, progress };
+}
+
+function sameItems<T>(previous: readonly T[], next: readonly T[]): boolean {
+	if (previous === next) return true;
+	if (previous.length !== next.length) return false;
+	for (let index = 0; index < previous.length; index += 1) {
+		if (previous[index] !== next[index]) return false;
+	}
+	return true;
+}
+
+function sameSet(previous: ReadonlySet<string>, next: ReadonlySet<string>): boolean {
+	if (previous === next) return true;
+	if (previous.size !== next.size) return false;
+	for (const value of previous) if (!next.has(value)) return false;
+	return true;
+}
+
+function samePdf(previous: Record<string, boolean>, next: Record<string, boolean>): boolean {
+	if (previous === next) return true;
+	const keys = Object.keys(previous);
+	if (keys.length !== Object.keys(next).length) return false;
+	for (const key of keys) if (previous[key] !== next[key]) return false;
+	return true;
+}
+
+function sameJson(previous: unknown, next: unknown): boolean {
+	return previous === next || JSON.stringify(previous) === JSON.stringify(next);
 }

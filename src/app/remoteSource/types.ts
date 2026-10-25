@@ -89,12 +89,5 @@ export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourc
 			state.isBusy ||
 			(state.providerId === 'indexer' && isGrabbing) ||
 			(state.providerId === 'audible' && isAcquiring),
-		selectedTitleIds: new Set(state.selectedTitleIds),
-		selectedReleaseKeys: new Set(state.selectedReleaseKeys),
-		releaseGrabs: { ...state.releaseGrabs },
-		includePdfByTitleId: { ...state.includePdfByTitleId },
-		titles: [...state.titles],
-		providers: [...state.providers],
-		releases: [...state.releases],
 	};
 }

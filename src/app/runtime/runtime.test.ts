@@ -149,8 +149,9 @@ describe('app runtime', () => {
 				progress: { ...runningJob().progress, percentage: 75 },
 			};
 		});
-		expect(other.remoteSource.view().activeJob?.progress.percentage).toBe(75);
+		expect(other.remoteSource.progress()?.percentage).toBe(75);
 		expect(runtime.remoteSource.view().activeJob).toEqual(before);
+		expect(runtime.remoteSource.progress()?.percentage).toBe(before?.progress.percentage);
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
 	});
 });

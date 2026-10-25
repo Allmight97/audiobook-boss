@@ -131,7 +131,8 @@ the owner of the truth.
   idle status line, including after the library loads, so an ephemeral sign-in
   stays visible. Filtering and sorting keep the engine's
   selection. Release rows key on `(indexerId, guid)`, including Grab and Retry.
-  Sent means the provider accepted, not that the download finished.
+  Sent means the provider accepted, not that the download finished. A download
+  tick refreshes `progress` and leaves the title rows' view object in place.
 - `workOperations` (`crates/abb-engine/src/work_runtime/AGENTS.md`): WorkRuntime
   snapshots are the only progress source for accepted background operations.
   Terminal status comes from `abb_processing_core::classify_run_terminal`.

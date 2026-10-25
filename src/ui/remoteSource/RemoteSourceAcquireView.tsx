@@ -9,7 +9,6 @@ import {
 	bytesLabel,
 	formatReleaseSizeBytes,
 	isTitleAcquirable,
-	progressPercent,
 	progressTitleLabel,
 	releaseKey,
 	releaseProtocolLabel,
@@ -22,6 +21,54 @@ import { useAppRuntime } from '../../app/runtime';
 import { Button, CoverImage, CoverThumb, Dialog, Progress } from '../foundation';
 import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import './remoteSourceAcquire.css';
+
+function RemoteTitleRow(props: {
+	readonly title: RemoteTitle;
+	readonly selected: boolean;
+	readonly includePdf: boolean;
+	readonly onToggle: () => void;
+	readonly onTogglePdf: () => void;
+}): JSX.Element {
+	const title = () => props.title;
+	return (
+		// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 uses the lowercase tabindex attribute.
+		<div
+			class={`remote-title-row${props.selected ? ' selected' : ''}${!isTitleAcquirable(title()) ? ' unavailable' : ''}`}
+			role="option"
+			tabindex={-1}
+			aria-selected={props.selected ? 'true' : 'false'}
+			aria-disabled={!isTitleAcquirable(title()) ? 'true' : undefined}
+		>
+			<RemoteTitleCover title={title()} />
+			<button
+				type="button"
+				class="remote-title-button"
+				disabled={!isTitleAcquirable(title())}
+				onClick={() => props.onToggle()}
+			>
+				<span class="remote-title-name">{title().title}</span>
+				<span class="remote-title-meta">{title().authors.join(', ')}</span>
+				<Show when={!isTitleAcquirable(title())}>
+					<span class="remote-title-availability">{title().availability.label}</span>
+					<Show when={title().availability.detail}>
+						{(detail) => <span class="remote-title-availability-detail">{detail()}</span>}
+					</Show>
+				</Show>
+			</button>
+			<Show when={title().supplementalPdfAvailable}>
+				<label class="remote-pdf-toggle">
+					<input
+						type="checkbox"
+						disabled={!isTitleAcquirable(title())}
+						checked={props.includePdf}
+						onChange={() => props.onTogglePdf()}
+					/>
+					PDF
+				</label>
+			</Show>
+		</div>
+	);
+}
 
 function RemoteTitleCover(props: { readonly title: RemoteTitle }): JSX.Element {
 	return (
@@ -46,6 +93,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 	const remoteSource = runtime.remoteSource;
 	const settings = runtime.settings;
 	const view = remoteSource.view;
+	const download = remoteSource.progress;
 	const runAction = remoteSource.runAction;
 	const close = remoteSource.close;
 	const editSearch = remoteSource.editSearch;
@@ -344,34 +392,30 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					</div>
 				</Show>
 
-				<Show when={isAudibleLane() && view().activeJob}>
-					{(job) => (
-						<Show when={job().progress}>
-							{(progress) => (
-								<div class="remote-progress" role="status" aria-live="polite">
-									<Progress
-										value={progressPercent(job())}
-										active={!job().settled}
-										label="Acquisition progress"
-									/>
-									<div class="remote-progress-copy">
-										<span>{progressTitleLabel(progress(), view().titles)}</span>
-										<span>{Math.round(progressPercent(job()))}%</span>
-									</div>
-									<Show when={bytesLabel(progress())}>
-										{(label) => <p class="remote-progress-bytes">{label()}</p>}
-									</Show>
-									<Show when={!job().terminal}>
-										<Button
-											class="remote-progress-cancel"
-											onClick={() => void runAction({ type: 'cancelActiveAcquisition' })}
-										>
-											Cancel Acquisition
-										</Button>
-									</Show>
-								</div>
-							)}
-						</Show>
+				<Show when={isAudibleLane() && download()}>
+					{(download) => (
+						<div class="remote-progress" role="status" aria-live="polite">
+							<Progress
+								value={download().percentage}
+								active={download().active}
+								label="Acquisition progress"
+							/>
+							<div class="remote-progress-copy">
+								<span>{progressTitleLabel(download().progress, view().titles)}</span>
+								<span>{Math.round(download().percentage)}%</span>
+							</div>
+							<Show when={bytesLabel(download().progress)}>
+								{(label) => <p class="remote-progress-bytes">{label()}</p>}
+							</Show>
+							<Show when={!download().terminal}>
+								<Button
+									class="remote-progress-cancel"
+									onClick={() => void runAction({ type: 'cancelActiveAcquisition' })}
+								>
+									Cancel Acquisition
+								</Button>
+							</Show>
+						</div>
 					)}
 				</Show>
 
@@ -384,44 +428,13 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					>
 						<For each={visibleTitles()}>
 							{(title) => (
-								// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 uses the lowercase tabindex attribute.
-								<div
-									class={`remote-title-row${view().selectedTitleIds.has(title.titleId) ? ' selected' : ''}${!isTitleAcquirable(title) ? ' unavailable' : ''}`}
-									role="option"
-									tabindex={-1}
-									aria-selected={view().selectedTitleIds.has(title.titleId) ? 'true' : 'false'}
-									aria-disabled={!isTitleAcquirable(title) ? 'true' : undefined}
-								>
-									<RemoteTitleCover title={title} />
-									<button
-										type="button"
-										class="remote-title-button"
-										disabled={!isTitleAcquirable(title)}
-										onClick={() => remoteSource.toggleTitle(title.titleId)}
-									>
-										<span class="remote-title-name">{title.title}</span>
-										<span class="remote-title-meta">{title.authors.join(', ')}</span>
-										<Show when={!isTitleAcquirable(title)}>
-											<span class="remote-title-availability">{title.availability.label}</span>
-											<Show when={title.availability.detail}>
-												{(detail) => (
-													<span class="remote-title-availability-detail">{detail()}</span>
-												)}
-											</Show>
-										</Show>
-									</button>
-									<Show when={title.supplementalPdfAvailable}>
-										<label class="remote-pdf-toggle">
-											<input
-												type="checkbox"
-												disabled={!isTitleAcquirable(title)}
-												checked={view().includePdfByTitleId[title.titleId] ?? true}
-												onChange={() => remoteSource.toggleSupplementalPdf(title.titleId)}
-											/>
-											PDF
-										</label>
-									</Show>
-								</div>
+								<RemoteTitleRow
+									title={title}
+									selected={view().selectedTitleIds.has(title.titleId)}
+									includePdf={view().includePdfByTitleId[title.titleId] ?? true}
+									onToggle={() => remoteSource.toggleTitle(title.titleId)}
+									onTogglePdf={() => remoteSource.toggleSupplementalPdf(title.titleId)}
+								/>
 							)}
 						</For>
 					</div>
