@@ -154,10 +154,7 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 	): RemoteDownloadProgress | null {
 		const job = remote.acquisition;
 		if (!job) return null;
-		const reading =
-			tick && tick.jobId === job.jobId && tick.progress.stage === job.progress.stage
-				? tick.progress
-				: job.progress;
+		const reading = tick && tick.jobId === job.jobId ? tick.progress : job.progress;
 		return {
 			percentage: Math.max(0, Math.min(100, reading.percentage)),
 			progress: reading,
