@@ -1,6 +1,6 @@
 import { flush } from 'solid-js';
 import { cleanup, render } from '@solidjs/testing-library';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 import { fakeEngine } from '../../test/fixtures/fakeEngine';
 import type { AcquisitionJob, RemoteTitle } from '../../types/remoteSource';

@@ -100,6 +100,7 @@ describe('remote snapshot normalization', () => {
 				],
 				diagnostics: [{ kind: 'validationFailed', titleId: null, message: 'Partial library' }],
 			},
+			remoteProgress: null,
 		});
 		expect(update.remote?.account).toBeNull();
 		expect(update.remote?.acquisition).toBeNull();
