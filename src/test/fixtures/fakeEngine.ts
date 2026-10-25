@@ -159,7 +159,11 @@ export type FakeEngine = EngineCapability & {
 	lookup(): SessionLookup;
 	audio(): SessionAudio;
 	output(): SessionOutput;
+	remote(): import('../../types/session').RemoteUiSnapshot;
+	remoteLibrary(): import('../../types/session').RemoteLibrarySnapshot;
 	settings(): SettingsSnapshot;
+	/** Delivers one update to listeners without the fake's full settle. */
+	notify(update: SessionUpdate): void;
 	/** Changes session state the way the engine does on its own, and tells listeners. */
 	change(
 		mutate: (state: {
@@ -848,6 +852,8 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		lookup: () => state.lookup,
 		audio: () => state.audio,
 		output: () => state.output,
+		remote: () => state.remote,
+		remoteLibrary: () => state.remoteLibrary,
 		seedTitleAudio(titleId, request, resolved = {}) {
 			const view = structuredClone(state.audio.titles[titleId] ?? titleFromDefaults());
 			view.request = structuredClone(request);
@@ -865,6 +871,9 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		change(mutate: Parameters<FakeEngine['change']>[0]) {
 			mutate(state);
 			publish();
+		},
+		notify(update) {
+			for (const listener of listeners) listener(update);
 		},
 	} satisfies Partial<FakeEngine>);
 
