@@ -116,7 +116,17 @@ export function denormalizeNullish<T>(value: T): T {
  * is the request for MP3 pass-through.
  */
 export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionUpdate {
-	const { titles, selection, metadata, lookup, audio, output, remote, remoteLibrary } = update;
+	const {
+		titles,
+		selection,
+		metadata,
+		lookup,
+		audio,
+		output,
+		remote,
+		remoteLibrary,
+		remoteProgress,
+	} = update;
 	return {
 		revision: update.revision,
 		titles: titles
@@ -147,6 +157,9 @@ export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionU
 					titles: normalizeNullish(remoteLibrary.titles),
 					diagnostics: normalizeNullish(remoteLibrary.diagnostics),
 				}
+			: undefined,
+		remoteProgress: remoteProgress
+			? { jobId: remoteProgress.jobId, progress: normalizeNullish(remoteProgress.progress) }
 			: undefined,
 		metadata: metadata ?? undefined,
 		lookup: lookup ? { ...lookup, results: normalizeNullish(lookup.results) } : undefined,

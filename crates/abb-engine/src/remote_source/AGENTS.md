@@ -96,9 +96,10 @@ also drops the job's record. Cancel does nothing to a job that already
 finished, so it cannot remove files the session holds. Materialized handoff
 files stay usable after provider logout. An Audible disconnect refuses
 unfinished acquisition/handoff; an Indexer disconnect neither waits for nor
-cleans up Audible jobs. Job changes update `SessionUpdate.remote`; download
-progress is published at most every 100 ms, a stage change at once. Snapshot
-`terminal` and `settled` facts belong here.
+cleans up Audible jobs. A stage change and a job ending update
+`SessionUpdate.remote`. A download tick updates `SessionUpdate.remote_progress`
+(that job's progress only) at most every 100 ms. Snapshot `terminal` and
+`settled` facts belong on the full snapshot.
 
 ## Working Remote State
 
@@ -110,7 +111,8 @@ progress is published at most every 100 ms, a stage change at once. Snapshot
   acquisition/handoff, its library; repeated entry coalesces pending reads.
   Account and library requests carry generations: replaced lanes and accepted
   disconnects discard both stale success and failure as Superseded. Reattachment
-  includes retained library rows; progress events carry only the remote part.
+  includes retained library rows. A download tick carries only that job's
+  progress; a stage change carries the remote part and omits the library.
   Both parts are captured together under the UI guard; library revisions advance
   only when rows or diagnostics change.
 - Auth start reserves Starting before execution, returns authorization only in

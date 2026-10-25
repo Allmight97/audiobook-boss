@@ -21,6 +21,7 @@ import type {
 import type { AudioFile, PlannedOutput, ProcessCommandResult } from './audio';
 import type {
 	AcquisitionJob,
+	AcquisitionProgress,
 	RemoteRelease,
 	RemoteTitle,
 	RemoteSourceAccountState,
@@ -106,6 +107,12 @@ export type SessionLookup = Omit<GeneratedLookupSnapshot, 'results'> & {
 	results: OnlineMetadataResult[];
 };
 
+/** One job's download progress. The rest of the remote snapshot is unchanged. */
+export type RemoteProgressUpdate = {
+	jobId: string;
+	progress: AcquisitionProgress;
+};
+
 /** The parts that changed. An absent part did not change. */
 export type SessionUpdate = {
 	revision: number;
@@ -117,6 +124,7 @@ export type SessionUpdate = {
 	output?: SessionOutput;
 	remote?: RemoteUiSnapshot;
 	remoteLibrary?: RemoteLibrarySnapshot;
+	remoteProgress?: RemoteProgressUpdate;
 };
 
 export type SessionReply = {

@@ -11,6 +11,10 @@ use std::time::Instant;
 
 use serde::Serialize;
 
+#[path = "remote_update.rs"]
+mod remote_update;
+pub use remote_update::RemoteProgressUpdate;
+
 use super::audio::{AudioDefaults, AudioRefusal, AudioSnapshot, TitleAudio};
 use super::audio_choice::AudioEdit;
 use super::exports::{ExportLink, Exports, OutputEdit, OutputEdits, RestartStale};
@@ -148,22 +152,8 @@ pub struct SessionUpdate {
     pub output: Option<OutputSnapshot>,
     pub remote: Option<crate::remote_source::RemoteUiSnapshot>,
     pub remote_library: Option<crate::remote_source::RemoteLibrarySnapshot>,
-}
-
-impl SessionUpdate {
-    pub(crate) fn remote(snapshot: crate::remote_source::RemoteUiSnapshot) -> Self {
-        Self {
-            revision: 0,
-            titles: None,
-            selection: None,
-            metadata: None,
-            lookup: None,
-            audio: None,
-            output: None,
-            remote: Some(snapshot),
-            remote_library: None,
-        }
-    }
+    /// One job's download progress. Present on a tick; a stage change uses `remote`.
+    pub remote_progress: Option<RemoteProgressUpdate>,
 }
 
 /// Why the metadata draft gate refused a change of selection.
@@ -1000,6 +990,7 @@ impl SessionState {
             lookup: newer(self.parts.lookup.revision).then(|| self.parts.lookup.clone()),
             audio: newer(self.parts.audio.revision).then(|| self.parts.audio.clone()),
             output: newer(self.parts.output.revision).then(|| self.parts.output.clone()),
+            remote_progress: None,
         }
     }
 

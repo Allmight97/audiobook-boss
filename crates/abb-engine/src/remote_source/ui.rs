@@ -12,6 +12,9 @@ use crate::host::EngineEvent;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+#[path = "acquisition_snapshot.rs"]
+mod acquisition_snapshot;
+
 #[derive(Clone, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum RemoteUiIntent {
@@ -469,18 +472,6 @@ impl UiState {
             self.library.diagnostics = diagnostics;
             self.library.revision += 1;
         }
-        self.changed();
-    }
-
-    pub(super) fn acquisition_changed(&mut self, job: super::AcquisitionJob) {
-        if job.provider_id == ProviderId::Audible
-            && job.diagnostics.iter().any(|diagnostic| {
-                diagnostic.kind == super::RemoteAcquisitionFailureKind::AuthRequired
-            })
-        {
-            self.reject_sign_in();
-        }
-        self.snapshot.acquisition = Some(Box::new(job.into()));
         self.changed();
     }
 

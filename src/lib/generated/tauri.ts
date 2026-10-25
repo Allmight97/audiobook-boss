@@ -936,6 +936,12 @@ export type RemoteLibrarySnapshot = {
 	diagnostics: RemoteSourceDiagnostic[],
 };
 
+/**  A download tick for one job. The rest of the remote snapshot is unchanged. */
+export type RemoteProgressUpdate = {
+	jobId: string,
+	progress: AcquisitionProgress,
+};
+
 export type RemoteRelease = {
 	providerId: ProviderId,
 	guid: string,
@@ -1160,6 +1166,8 @@ export type SessionUpdate = {
 	output: OutputSnapshot | null,
 	remote: RemoteUiSnapshot | null,
 	remoteLibrary: RemoteLibrarySnapshot | null,
+	/**  One job's download progress. Present on a tick; a stage change uses `remote`. */
+	remoteProgress: RemoteProgressUpdate | null,
 };
 
 /**

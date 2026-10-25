@@ -75,6 +75,27 @@ impl RemoteAcquisitionLifecycle {
             )));
     }
 
+    /// A same-stage tick. Hosts already have the job; the remote revision stays put.
+    fn publish_progress(&self, job_id: &str, progress: CoreAcquisitionProgress) {
+        if let Ok(mut sent) = self.progress_sent.lock() {
+            sent.insert(job_id.to_string(), Instant::now());
+        }
+        {
+            let mut ui = self
+                .ui
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            // A tick for a job that has since ended must not move the snapshot.
+            if !self.jobs.lock().is_ok_and(|jobs| jobs.contains_key(job_id)) {
+                return;
+            }
+            ui.note_progress(job_id, progress.clone());
+        }
+        self.host.emit(EngineEvent::Session(
+            crate::session::SessionUpdate::remote_progress(job_id, progress),
+        ));
+    }
+
     fn publish_current(&self, job_id: &str) {
         let job = self
             .jobs
@@ -308,7 +329,11 @@ impl RemoteAcquisitionLifecycle {
     }
 
     pub(super) fn update_job_progress(&self, job_id: &str, progress: CoreAcquisitionProgress) {
-        let changed = {
+        enum Notice {
+            Snapshot(RemoteAcquisitionJob),
+            Tick(CoreAcquisitionProgress),
+        }
+        let notice = {
             let Ok(mut jobs) = self.jobs.lock() else {
                 return;
             };
@@ -319,11 +344,18 @@ impl RemoteAcquisitionLifecycle {
                 return;
             }
             let new_stage = job.progress.stage != progress.stage;
-            job.progress = progress;
-            (new_stage || self.progress_due(job_id)).then(|| job.clone())
+            job.progress = progress.clone();
+            if new_stage {
+                Notice::Snapshot(job.clone())
+            } else if self.progress_due(job_id) {
+                Notice::Tick(progress)
+            } else {
+                return;
+            }
         };
-        if let Some(job) = changed {
-            self.publish(&job);
+        match notice {
+            Notice::Snapshot(job) => self.publish(&job),
+            Notice::Tick(progress) => self.publish_progress(job_id, progress),
         }
     }
 
@@ -560,5 +592,101 @@ fn mark_cancelled(job: &mut RemoteAcquisitionJob) {
             title_id: None,
             message: "Remote source acquisition was cancelled.".to_string(),
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use abb_remote_source_core::AcquisitionStage;
+    use tempfile::TempDir;
+
+    use super::super::tests::test_runtime_with;
+    use super::types;
+    use super::{acquisition_progress, RemoteAcquisitionJob, RemoteProviderId};
+
+    fn acquiring(job_id: &str, stage: AcquisitionStage, fraction: f32) -> RemoteAcquisitionJob {
+        RemoteAcquisitionJob {
+            job_id: job_id.to_string(),
+            provider_id: RemoteProviderId::Audible,
+            status: types::RemoteAcquisitionStatus::Acquiring,
+            progress: acquisition_progress(stage, Some(fraction), Some(1), Some(10)),
+            materialized_files: Vec::new(),
+            supplemental_assets: Vec::new(),
+            diagnostics: Vec::new(),
+            handoff: None,
+        }
+    }
+
+    #[test]
+    fn a_download_tick_sends_only_that_jobs_progress() {
+        #[derive(Default)]
+        struct Recorded(Mutex<Vec<crate::session::SessionUpdate>>);
+        impl crate::EventSink for Recorded {
+            fn emit(&self, event: crate::EngineEvent) {
+                if let crate::EngineEvent::Session(update) = event {
+                    self.0.lock().expect("events").push(update);
+                }
+            }
+        }
+        let root = TempDir::new().expect("temp root");
+        let recorded = Arc::new(Recorded::default());
+        let runtime = test_runtime_with(&root, None, Some(recorded.clone()));
+        let job_id = "remote-job-1";
+        runtime.inner.lifecycle.replace_job_if_active(acquiring(
+            job_id,
+            AcquisitionStage::Download,
+            0.1,
+        ));
+        runtime.inner.lifecycle.update_job_progress(
+            job_id,
+            acquisition_progress(AcquisitionStage::Download, Some(0.2), Some(2), Some(10)),
+        );
+        assert_eq!(
+            recorded.0.lock().expect("events").len(),
+            1,
+            "a tick inside the interval stays on the job"
+        );
+
+        std::thread::sleep(Duration::from_millis(150));
+        let revision = runtime.ui_snapshot().revision;
+        runtime.inner.lifecycle.update_job_progress(
+            job_id,
+            acquisition_progress(AcquisitionStage::Download, Some(0.4), Some(4), Some(10)),
+        );
+        runtime.inner.lifecycle.update_job_progress(
+            "missing-job",
+            acquisition_progress(AcquisitionStage::Download, Some(0.9), None, None),
+        );
+        let events = recorded.0.lock().expect("events");
+        assert_eq!(events.len(), 2);
+        let snapshot_bytes = serde_json::to_vec(&events[0]).expect("snapshot json").len();
+        let tick = &events[1];
+        let tick_bytes = serde_json::to_vec(tick).expect("tick json").len();
+        assert!(tick.remote.is_none());
+        assert!(tick.remote_library.is_none());
+        let progress = tick.remote_progress.as_ref().expect("tick carries the job");
+        assert_eq!(progress.job_id, job_id);
+        assert_eq!(progress.progress.stage, AcquisitionStage::Download);
+        assert!(
+            tick_bytes < snapshot_bytes,
+            "tick {tick_bytes} bytes, snapshot {snapshot_bytes} bytes"
+        );
+        drop(events);
+        let after = runtime.ui_snapshot();
+        assert_eq!(after.revision, revision);
+        assert!(after.acquisition.expect("job remains").progress.percentage > 15.0);
+
+        runtime.inner.lifecycle.update_job_progress(
+            job_id,
+            acquisition_progress(AcquisitionStage::Decryption, Some(0.2), None, None),
+        );
+        let events = recorded.0.lock().expect("events");
+        let stage_change = events.last().expect("stage change");
+        assert!(stage_change.remote.is_some());
+        assert!(stage_change.remote_progress.is_none());
+        assert!(stage_change.remote_library.is_none());
     }
 }

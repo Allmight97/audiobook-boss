@@ -5,6 +5,7 @@ import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../ty
 import type { AudioFile } from '../../types/audio';
 import type {
 	RemoteLibrarySnapshot,
+	RemoteProgressUpdate,
 	SessionIntent,
 	SessionAudio,
 	SessionLookup,
@@ -30,6 +31,8 @@ export type EngineLink = {
 	readonly output: Accessor<SessionOutput>;
 	readonly remote: Accessor<import('../../types/session').RemoteUiSnapshot>;
 	readonly remoteLibrary: Accessor<RemoteLibrarySnapshot>;
+	/** The latest download tick. A newer remote snapshot replaces it. */
+	readonly remoteProgress: Accessor<RemoteProgressUpdate | null>;
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
 	send(intent: SessionIntent): Promise<SessionOutcome>;
@@ -298,6 +301,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	let audio = emptyAudio();
 	let output = emptyOutput();
 	let remote = emptyRemote();
+	let remoteProgress: RemoteProgressUpdate | null = null;
 	let remoteLibrary: RemoteLibrarySnapshot = { revision: UNATTACHED, titles: [], diagnostics: [] };
 	let settings = emptySettings();
 	const part = () => createSignal(0, { ownedWrite: true });
@@ -308,6 +312,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	const [audioRev, bumpAudio] = part();
 	const [outputRev, bumpOutput] = part();
 	const [remoteRev, bumpRemote] = part();
+	const [progressRev, bumpProgress] = part();
 	const [libraryRev, bumpLibrary] = part();
 	const [settingsRev, bumpSettings] = part();
 	const [refusalRev, bumpRefusal] = part();
@@ -337,6 +342,17 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		if (update.remote && update.remote.revision > remote.revision) {
 			remote = update.remote;
 			bumpRemote((n) => n + 1);
+			const job = remote.acquisition;
+			remoteProgress = job ? { jobId: job.jobId, progress: job.progress } : null;
+			bumpProgress((n) => n + 1);
+		}
+		if (update.remoteProgress) {
+			const tick = update.remoteProgress;
+			const job = remote.acquisition;
+			if (job && job.jobId === tick.jobId && job.progress.stage === tick.progress.stage) {
+				remoteProgress = tick;
+				bumpProgress((n) => n + 1);
+			}
 		}
 		if (update.remoteLibrary && update.remoteLibrary.revision > remoteLibrary.revision) {
 			remoteLibrary = update.remoteLibrary;
@@ -448,6 +464,10 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		remoteLibrary: () => {
 			libraryRev();
 			return remoteLibrary;
+		},
+		remoteProgress: () => {
+			progressRev();
+			return remoteProgress;
 		},
 		output: () => {
 			outputRev();

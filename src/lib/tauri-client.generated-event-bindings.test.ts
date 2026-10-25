@@ -116,6 +116,7 @@ describe('remote snapshot normalization', () => {
 			output: null,
 			remote,
 			remoteLibrary: null,
+			remoteProgress: null,
 		});
 		expect(progressOnly.remoteLibrary).toBeUndefined();
 	});

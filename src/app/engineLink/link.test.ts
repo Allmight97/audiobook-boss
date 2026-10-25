@@ -94,6 +94,70 @@ describe('engine link', () => {
 		expect(link.remote().acquiring).toBe(true);
 	});
 
+	it('keeps the remote snapshot when a download tick arrives', async () => {
+		const engine = createFakeEngine();
+		let publish!: (update: SessionUpdate) => void;
+		engine.listenSessionUpdates = async (handler) => {
+			publish = handler;
+			return () => undefined;
+		};
+		const link = linkTo(engine);
+		await link.ready();
+		const progress = {
+			stage: 'download' as const,
+			percentage: 10,
+			message: 'Downloading audiobook.',
+			terminal: false,
+		};
+		publish({
+			revision: 4,
+			remote: {
+				...link.remote(),
+				revision: 4,
+				acquiring: true,
+				acquisition: {
+					settled: false,
+					terminal: false,
+					jobId: 'remote-job-1',
+					providerId: 'audible',
+					status: 'acquiring',
+					progress,
+					materializedFiles: [],
+					supplementalAssets: [],
+					diagnostics: [],
+				},
+			},
+		});
+		const remote = link.remote();
+
+		publish({
+			revision: 4,
+			remoteProgress: {
+				jobId: 'remote-job-1',
+				progress: { ...progress, percentage: 22 },
+			},
+		});
+		expect(link.remote()).toBe(remote);
+		expect(link.remoteProgress()?.progress.percentage).toBe(22);
+
+		publish({
+			revision: 4,
+			remoteProgress: {
+				jobId: 'other-job',
+				progress: { ...progress, percentage: 80 },
+			},
+		});
+		publish({
+			revision: 4,
+			remoteProgress: {
+				jobId: 'remote-job-1',
+				progress: { ...progress, stage: 'decryption', percentage: 70 },
+			},
+		});
+		expect(link.remote()).toBe(remote);
+		expect(link.remoteProgress()?.progress.percentage).toBe(22);
+	});
+
 	it('keeps the object of every file whose content did not change', async () => {
 		const engine = createFakeEngine();
 		engine.loadTitles([audioFile('/books/a.m4b'), audioFile('/books/b.m4b')]);

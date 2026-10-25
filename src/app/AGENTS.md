@@ -21,9 +21,10 @@ second copy of owner state.
 
 - `engineLink` is the one connection to the engine. It keeps the newest copy of
   each snapshot part (titles, selection, metadata, lookup, audio, output,
-  remote, remote library, settings) by revision, and sends intents. Adapters
-  read the link. `workOperations` is the exception: it reads WorkRuntime
-  through `tauriClient`.
+  remote, remote library, settings) by revision, and sends intents. A download
+  tick is `remoteProgress`: the link keeps it when the job and stage match, and
+  a newer remote snapshot replaces it. Adapters read the link.
+  `workOperations` is the exception: it reads WorkRuntime through `tauriClient`.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
   for intents whose outcome and completion nobody awaits; its refusal shows as
   the link's `refusal` (`RefusedChangeNotice`). A `send` caller with its own

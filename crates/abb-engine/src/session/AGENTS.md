@@ -149,8 +149,10 @@ one host attachment.
   `TakePreviewOutput`, across hosts.
 - **Remote.** `SessionIntent::Remote` routes remote choices and accepted work to
   `remote_source`. Its snapshot part survives frontend replacement; hosts do not
-  rebuild plans, batch policy, or connection drafts. Progress-only updates omit
-  `remote_library`. Authorization URLs exist only in RemoteAuthStarted's
+  rebuild plans, batch policy, or connection drafts. A download tick is
+  `remote_progress` for that job and omits the remote snapshot and the library.
+  A stage change carries the remote part and omits `remote_library`.
+  Authorization URLs exist only in RemoteAuthStarted's
   initiating reply.
 - **Submission.** `Submit` and `Preview` accept the edits on screen, then build
   the export from the session (`submission.rs`); `SubmitRefusal` lists the

@@ -40,7 +40,8 @@ pub use plans::{SizeEstimate, TitlePlan};
 pub(crate) use runtime::{Session, SessionDeps};
 pub use runtime::{SessionIntent, SessionOutcome, SessionReply, SessionRun};
 pub use state::{
-    CoverNotice, CoverSnapshot, MetadataSnapshot, MetadataStatus, SessionUpdate, TagPreview,
+    CoverNotice, CoverSnapshot, MetadataSnapshot, MetadataStatus, RemoteProgressUpdate,
+    SessionUpdate, TagPreview,
 };
 pub use submission::{CollisionReview, SubmissionStatus, SubmitRefusal};
 pub use working_set::{

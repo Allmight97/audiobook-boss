@@ -118,22 +118,19 @@ describe('remote redraw measurement', () => {
 			const shown = runtime!.remoteSource.view();
 			const current = fakeEngine().remote();
 			const tickStart = performance.now();
-			fakeEngine().notify({
-				revision: current.revision + 1,
-				remote: {
-					...current,
-					revision: current.revision + 1,
-					acquisition: current.acquisition
-						? {
-								...current.acquisition,
-								progress: {
-									...current.acquisition.progress,
-									percentage: current.acquisition.progress.percentage + 1,
-								},
-							}
-						: null,
-				},
-			});
+			const acquisition = current.acquisition;
+			if (acquisition) {
+				fakeEngine().notify({
+					revision: current.revision,
+					remoteProgress: {
+						jobId: acquisition.jobId,
+						progress: {
+							...acquisition.progress,
+							percentage: acquisition.progress.percentage + 1,
+						},
+					},
+				});
+			}
 			flush();
 			const tickJoins = joins - joinsBefore;
 			const viewIdentityHeld = runtime!.remoteSource.view() === shown;

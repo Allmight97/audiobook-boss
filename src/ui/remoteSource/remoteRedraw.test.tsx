@@ -95,16 +95,11 @@ describe('remote title rows during a download', () => {
 		}
 
 		const shown = runtime.remoteSource.view();
-		const current = fakeEngine().remote();
 		fakeEngine().notify({
-			revision: current.revision + 1,
-			remote: {
-				...current,
-				revision: current.revision + 1,
-				acquisition: {
-					...job(11),
-					progress: { ...job(11).progress, percentage: 11 },
-				},
+			revision: fakeEngine().remote().revision,
+			remoteProgress: {
+				jobId: 'remote-job-1',
+				progress: { ...job(11).progress, percentage: 11 },
 			},
 		});
 		flush();

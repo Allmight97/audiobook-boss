@@ -141,19 +141,26 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		viewRev();
 		return currentView();
 	});
-	const progressMemo = createMemo(() => currentProgress(deps.link.remote()));
+	const progressMemo = createMemo(() =>
+		currentProgress(deps.link.remote(), deps.link.remoteProgress()),
+	);
 	const view = () => (getOwner() ? viewMemo() : currentView());
-	const progress = () => (getOwner() ? progressMemo() : currentProgress(deps.link.remote()));
+	const progress = () =>
+		getOwner() ? progressMemo() : currentProgress(deps.link.remote(), deps.link.remoteProgress());
 
 	function currentProgress(
 		remote: ReturnType<EngineLink['remote']>,
+		tick: ReturnType<EngineLink['remoteProgress']>,
 	): RemoteDownloadProgress | null {
 		const job = remote.acquisition;
-		const tick = job?.progress;
-		if (!job || !tick) return null;
+		if (!job) return null;
+		const reading =
+			tick && tick.jobId === job.jobId && tick.progress.stage === job.progress.stage
+				? tick.progress
+				: job.progress;
 		return {
-			percentage: Math.max(0, Math.min(100, tick.percentage)),
-			progress: tick,
+			percentage: Math.max(0, Math.min(100, reading.percentage)),
+			progress: reading,
 			terminal: job.terminal,
 			active: remote.acquiring || !job.settled,
 		};
