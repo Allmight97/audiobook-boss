@@ -26,9 +26,10 @@ language. The exact export names are the hand-written `STRIPS` list in
   `@media (prefers-reduced-motion: no-preference)`. An endless animation also
   runs only while its owner says work is active (`Progress` `active`). Animate
   `transform` and `opacity`, never layout size. Why: an endless animation
-  repaints every frame even when idle; under software rendering (WebKitGTK
-  without compositing, WSL) the idle shimmer cost 150% of a CPU core.
-  `scripts/motion-policy.test.ts` enforces the endless-animation and
+  repaints every frame even when idle; in WebKitGTK under Xvfb with software
+  rendering (arm64 Linux VM), the idle shimmer cost about 150% of a CPU core
+  with compositing on and 5% with it off. `scripts/motion-policy.test.ts`
+  enforces the endless-animation (motion preference and `[data-active]`) and
   layout-size parts for every stylesheet under `src/`.
 - A scrolling result list (`.app-modal-results`) sets `contain: content`.
   Why: without it, a running shimmer elsewhere in the dialog made WebKit redo

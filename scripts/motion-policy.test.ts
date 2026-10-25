@@ -44,7 +44,7 @@ describe('motion policy', () => {
 		expect(Object.keys(stylesheets).length).toBeGreaterThan(5);
 	});
 
-	it('runs an endless animation only when motion is allowed', () => {
+	it('runs an endless animation only when motion is allowed and its owner marks work active', () => {
 		const endless = all.filter(
 			(d) => /^animation(-iteration-count)?\s*:/.test(d.text) && /\binfinite\b/.test(d.text),
 		);
@@ -53,6 +53,10 @@ describe('motion policy', () => {
 			(d) => !d.scopes.some((scope) => /prefers-reduced-motion:\s*no-preference/.test(scope)),
 		);
 		expect(unguarded.map(describeDeclaration)).toEqual([]);
+		const ungated = endless.filter(
+			(d) => !d.scopes.some((scope) => scope.includes('[data-active]')),
+		);
+		expect(ungated.map(describeDeclaration)).toEqual([]);
 	});
 
 	it('never transitions layout size', () => {
