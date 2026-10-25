@@ -562,3 +562,7 @@ fn mark_cancelled(job: &mut RemoteAcquisitionJob) {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "download_volume_tests.rs"]
+mod download_volume_tests;
