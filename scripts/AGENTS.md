@@ -22,11 +22,10 @@ inputs, platform, and environment. An edit during a lane invalidates its
 result. Unsupported Apple checks say SKIP, never PASS. A supply-chain pass
 counts like any lane's; the daily CI advisory run catches advisories published
 after it.
-The Claude Code done-gate invokes the same resolver through
-`.claude/done-gate.json` after loading `setup.sh --print-env`, as `verify.sh`
-does; it consumes these receipts rather than shell text. PATH is not part of a
-receipt's environment, so a pass recorded in one harness's shell counts in
-another; the recorded tool versions still invalidate it.
+`bun scripts/verification.ts resolve` reads changed paths on stdin and prints
+the lanes still unproven, from these receipts. PATH is not part of a receipt's
+environment, so a pass recorded in one harness's shell counts in another; the
+recorded tool versions still invalidate it.
 Other harnesses use the same verifier and evidence files.
 
 - Frontend (`frontend`).

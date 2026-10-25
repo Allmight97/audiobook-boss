@@ -158,7 +158,7 @@ it('fingerprints directory aliases such as .claude/skills without reading a dire
 });
 
 describe('verification execution and harness handoff', () => {
-	it('retains failure evidence, lets the done-gate from any harness accept the proof, and invalidates an edited input', () => {
+	it('retains failure evidence, lets the resolver from any harness accept the proof, and invalidates an edited input', () => {
 		const root = mkdtempSync(path.join(os.tmpdir(), 'abb-verify-run-'));
 		const sourceRoot = path.resolve(import.meta.dirname, '..');
 		try {
@@ -173,11 +173,6 @@ describe('verification execution and harness handoff', () => {
 if [[ "$1" == --print-env ]]; then printf 'export ABB_FFMPEG=/setup/ffmpeg\\nexport PATH="/setup/bin:%s"\\n' "$PATH"; fi
 `,
 				{ mode: 0o755 },
-			);
-			mkdirSync(path.join(root, '.claude'));
-			copyFileSync(
-				path.join(sourceRoot, '.claude/done-gate.json'),
-				path.join(root, '.claude/done-gate.json'),
 			);
 			writeFileSync(path.join(root, 'scripts/lane-paths.yml'), 'frontend:\n - "**"\n');
 			writeFileSync(path.join(root, 'src/input.ts'), 'before');
@@ -224,9 +219,11 @@ if [[ "$*" == 'run lint:check' ]]; then exit "${'$'}{VERIFY_TEST_EXIT:-0}"; fi
 			expect(failure.status).toBe('fail');
 			expect(readFileSync(path.join(root, failure.log), 'utf8')).toContain('run lint:check');
 			expect(run('0').status).toBe(0);
-			const [command, ...args] = JSON.parse(
-				readFileSync(path.join(root, '.claude/done-gate.json'), 'utf8'),
-			).resolve as string[];
+			const [command, ...args] = [
+				'bash',
+				'-c',
+				'eval "$(scripts/setup.sh --print-env)" && exec bun scripts/verification.ts resolve',
+			];
 			const resolve = (harnessPath = env.PATH) =>
 				spawnSync(command, args, {
 					cwd: root,
