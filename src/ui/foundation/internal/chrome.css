@@ -6,7 +6,6 @@
 	background: var(--progress-bg);
 }
 
-/* A full-width fill slides in from the left, so its rounded end stays round. */
 .abb-progress-fill {
 	position: relative;
 	height: 100%;

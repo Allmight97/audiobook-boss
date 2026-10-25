@@ -87,7 +87,6 @@ export function RemoteSourceAcquireView(): JSX.Element {
 				</div>
 			</Dialog.Header>
 
-			{/* Closed, the dialog keeps no rows: a download or library refresh then touches no DOM. */}
 			<Show when={view().isOpen}>
 				<Dialog.Body>
 					<div class="remote-source-toolbar">

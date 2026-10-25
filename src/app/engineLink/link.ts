@@ -320,10 +320,6 @@ function shareUnchangedRemote(
 	const previousReleases = previous.indexer.releases;
 	return {
 		...next,
-		providers:
-			JSON.stringify(previous.providers) === JSON.stringify(next.providers)
-				? previous.providers
-				: next.providers,
 		selectedTitleIds: sameText(previous.selectedTitleIds, next.selectedTitleIds)
 			? previous.selectedTitleIds
 			: next.selectedTitleIds,

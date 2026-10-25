@@ -151,7 +151,6 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		generation += 1;
 	});
 
-	/** Built once per change of its inputs; a read right after an edit sees the edit. */
 	const view = () => {
 		viewRev();
 		return state.snapshot();

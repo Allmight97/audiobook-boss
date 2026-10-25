@@ -75,7 +75,6 @@ function indexerStatus(remote: RemoteUiSnapshot): string {
 	return withConnectedAccountNote(status, remote);
 }
 
-/** One Set per selection list: the link keeps an unchanged list, so readers keep the same Set. */
 function setOf(): (ids: readonly string[]) => Set<string> {
 	let source: readonly string[] | undefined;
 	let set = new Set<string>();
@@ -98,7 +97,6 @@ export function createRemoteSourceStateStore(
 	let errors: Partial<Record<ProviderId, string>> = {};
 	const selectedTitleIds = setOf();
 	const selectedReleaseKeys = setOf();
-	/** Advances with every local edit, so the snapshot cache knows its inputs changed. */
 	let localVersion = 0;
 	let cached:
 		| {
