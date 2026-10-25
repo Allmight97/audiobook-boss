@@ -136,7 +136,7 @@ pub struct TagPreview {
 /// Everything that changed since a revision. A part is present only when it
 /// changed; each part carries the revision of its own last change, so a host
 /// keeps whichever copy of a part is newest.
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUpdate {
     pub revision: u64,
@@ -148,20 +148,14 @@ pub struct SessionUpdate {
     pub output: Option<OutputSnapshot>,
     pub remote: Option<crate::remote_source::RemoteUiSnapshot>,
     pub remote_library: Option<crate::remote_source::RemoteLibrarySnapshot>,
+    pub remote_acquisition: Option<crate::remote_source::RemoteAcquisitionSnapshot>,
 }
 
 impl SessionUpdate {
     pub(crate) fn remote(snapshot: crate::remote_source::RemoteUiSnapshot) -> Self {
         Self {
-            revision: 0,
-            titles: None,
-            selection: None,
-            metadata: None,
-            lookup: None,
-            audio: None,
-            output: None,
             remote: Some(snapshot),
-            remote_library: None,
+            ..Self::default()
         }
     }
 }
@@ -993,6 +987,7 @@ impl SessionState {
         SessionUpdate {
             remote: None,
             remote_library: None,
+            remote_acquisition: None,
             revision: self.parts.revision,
             titles: newer(self.parts.titles.revision).then(|| self.parts.titles.clone()),
             selection: newer(self.parts.selection.revision).then(|| self.parts.selection.clone()),

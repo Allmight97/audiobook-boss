@@ -96,8 +96,12 @@ also drops the job's record. Cancel does nothing to a job that already
 finished, so it cannot remove files the session holds. Materialized handoff
 files stay usable after provider logout. An Audible disconnect refuses
 unfinished acquisition/handoff; an Indexer disconnect neither waits for nor
-cleans up Audible jobs. Job changes update `SessionUpdate.remote`; download
-progress is published at most every 100 ms, a stage change at once. Snapshot
+cleans up Audible jobs. Job changes update `SessionUpdate.remote_acquisition`,
+its own revisioned part (admission `acquiring` and the current job); download
+progress is published at most every 100 ms, a stage change at once. Why: a tick
+then carries one job, not the library-sized remote part, and a tick crossing a
+selection change cannot drop it. Publication reads the registered job under the
+UI guard, so a stale progress clone never follows a terminal change. Snapshot
 `terminal` and `settled` facts belong here.
 
 ## Working Remote State
@@ -110,9 +114,10 @@ progress is published at most every 100 ms, a stage change at once. Snapshot
   acquisition/handoff, its library; repeated entry coalesces pending reads.
   Account and library requests carry generations: replaced lanes and accepted
   disconnects discard both stale success and failure as Superseded. Reattachment
-  includes retained library rows; progress events carry only the remote part.
-  Both parts are captured together under the UI guard; library revisions advance
-  only when rows or diagnostics change.
+  includes retained library rows; progress events carry only the acquisition
+  part. The remote, library, and acquisition parts are captured together under
+  the UI guard (`ui_parts.rs`); library revisions advance only when rows or
+  diagnostics change.
 - Auth start reserves Starting before execution, returns authorization only in
   its initiating reply, and retains AwaitingHandoff without the URL. Completion
   reserves credentials until registration and persistence settle. StartAuth,

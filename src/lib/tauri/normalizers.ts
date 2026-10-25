@@ -117,6 +117,7 @@ export function denormalizeNullish<T>(value: T): T {
  */
 export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionUpdate {
 	const { titles, selection, metadata, lookup, audio, output, remote, remoteLibrary } = update;
+	const { remoteAcquisition } = update;
 	return {
 		revision: update.revision,
 		titles: titles
@@ -131,7 +132,6 @@ export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionU
 			? {
 					...remote,
 					account: remote.account ? normalizeNullish(remote.account) : null,
-					acquisition: remote.acquisition ? normalizeNullish(remote.acquisition) : null,
 					indexer: {
 						...remote.indexer,
 						releases: remote.indexer.releases.map((release) => ({
@@ -139,6 +139,12 @@ export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionU
 							categories: release.categories,
 						})),
 					},
+				}
+			: undefined,
+		remoteAcquisition: remoteAcquisition
+			? {
+					...remoteAcquisition,
+					job: remoteAcquisition.job ? normalizeNullish(remoteAcquisition.job) : null,
 				}
 			: undefined,
 		remoteLibrary: remoteLibrary

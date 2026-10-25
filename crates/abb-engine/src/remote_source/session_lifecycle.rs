@@ -48,42 +48,30 @@ impl RemoteAcquisitionLifecycle {
         }
     }
 
-    /// Tells hosts what `job` looks like now.
-    fn publish(&self, job: &RemoteAcquisitionJob) {
+    /// Tells hosts what the job looks like now. It reads the registered job
+    /// under the UI guard, so a progress clone taken before a terminal change
+    /// can never be published after it.
+    fn publish(&self, job_id: &str) {
         if let Ok(mut sent) = self.progress_sent.lock() {
-            sent.insert(job.job_id.clone(), Instant::now());
+            sent.insert(job_id.to_string(), Instant::now());
         }
-        let snapshot = {
+        let update = {
             let mut ui = self
                 .ui
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             // A late terminal notification must not restore a disconnected job.
-            if !self
+            let Some(job) = self
                 .jobs
                 .lock()
-                .is_ok_and(|jobs| jobs.contains_key(&job.job_id))
-            {
+                .ok()
+                .and_then(|jobs| jobs.get(job_id).cloned())
+            else {
                 return;
-            }
-            ui.acquisition_changed(job.clone());
-            ui.snapshot()
+            };
+            ui.acquisition_changed(job)
         };
-        self.host
-            .emit(EngineEvent::Session(crate::session::SessionUpdate::remote(
-                snapshot,
-            )));
-    }
-
-    fn publish_current(&self, job_id: &str) {
-        let job = self
-            .jobs
-            .lock()
-            .ok()
-            .and_then(|jobs| jobs.get(job_id).cloned());
-        if let Some(job) = job {
-            self.publish(&job);
-        }
+        self.host.emit(EngineEvent::Session(update));
     }
 
     pub(super) fn cleanup_abandoned_sessions(&self) -> Result<()> {
@@ -143,7 +131,7 @@ impl RemoteAcquisitionLifecycle {
         }
         let tasks = runtime.inner.tasks.clone();
         let job = tasks.admit(|| self.register_acquisition(runtime, plan))??;
-        self.publish(&job);
+        self.publish(&job.job_id);
         Ok(job)
     }
 
@@ -303,7 +291,7 @@ impl RemoteAcquisitionLifecycle {
             Some(job.clone())
         });
         if let Some(job) = updated {
-            self.publish(&job);
+            self.publish(&job.job_id);
         }
     }
 
@@ -323,7 +311,7 @@ impl RemoteAcquisitionLifecycle {
             (new_stage || self.progress_due(job_id)).then(|| job.clone())
         };
         if let Some(job) = changed {
-            self.publish(&job);
+            self.publish(&job.job_id);
         }
     }
 
@@ -343,7 +331,7 @@ impl RemoteAcquisitionLifecycle {
             }
             jobs.insert(job.job_id.clone(), job.clone());
         }
-        self.publish(&job);
+        self.publish(&job.job_id);
     }
 
     pub(super) fn mark_job_failed(
@@ -367,7 +355,7 @@ impl RemoteAcquisitionLifecycle {
                 message,
             });
         }
-        self.publish_current(job_id);
+        self.publish(job_id);
     }
 
     pub(super) fn mark_job_cancelled(&self, job_id: &str, provider_id: RemoteProviderId) {
@@ -377,7 +365,7 @@ impl RemoteAcquisitionLifecycle {
                 .or_insert_with(|| placeholder_job(job_id, provider_id));
             mark_cancelled(job);
         }
-        self.publish_current(job_id);
+        self.publish(job_id);
     }
 
     fn job_is_cancelled(&self, job_id: &str) -> bool {
@@ -492,7 +480,7 @@ impl RemoteAcquisitionLifecycle {
         drop(jobs);
         self.abort_acquisition_task(job_id);
         self.cleanup_cancelled_job_session(job_id);
-        self.publish(&cancelled_job);
+        self.publish(job_id);
         Ok(cancelled_job)
     }
 
@@ -503,6 +491,9 @@ impl RemoteAcquisitionLifecycle {
         self.staging.purge_session(job_id)?;
         if let Ok(mut jobs) = self.jobs.lock() {
             jobs.remove(job_id);
+        }
+        if let Ok(mut sent) = self.progress_sent.lock() {
+            sent.remove(job_id);
         }
         Ok(())
     }

@@ -912,6 +912,18 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
  */
 "supplementalPdfUnavailable" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
 
+/**
+ *  The Audible download as hosts show it. It has its own revision, so a
+ *  progress tick carries this part alone and can never replace a newer
+ *  selection or account fact.
+ */
+export type RemoteAcquisitionSnapshot = {
+	revision: number,
+	/**  An accepted request whose job is not registered yet. */
+	acquiring: boolean,
+	job: AcquisitionSnapshot | null,
+};
+
 export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
 
 export type RemoteAuthStartResponse = {
@@ -1013,8 +1025,6 @@ export type RemoteUiSnapshot = {
 	includePdfByTitleId: { [key in string]: boolean },
 	indexer: IndexerWorkSnapshot,
 	connection: IndexerDraftSnapshot,
-	acquisition: AcquisitionSnapshot | null,
-	acquiring: boolean,
 };
 
 export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer" | "metadataWrite" | "outputCommit" | "analysis";
@@ -1160,6 +1170,7 @@ export type SessionUpdate = {
 	output: OutputSnapshot | null,
 	remote: RemoteUiSnapshot | null,
 	remoteLibrary: RemoteLibrarySnapshot | null,
+	remoteAcquisition: RemoteAcquisitionSnapshot | null,
 };
 
 /**

@@ -294,6 +294,24 @@ pub struct AcquisitionSnapshot {
     pub terminal: bool,
     pub settled: bool,
 }
+/// The Audible download as hosts show it. It has its own revision, so a
+/// progress tick carries this part alone and can never replace a newer
+/// selection or account fact.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteAcquisitionSnapshot {
+    #[specta(type = specta_typescript::Number)]
+    pub revision: u64,
+    /// An accepted request whose job is not registered yet.
+    pub acquiring: bool,
+    pub job: Option<Box<AcquisitionSnapshot>>,
+}
+impl RemoteAcquisitionSnapshot {
+    /// Admission or an unsettled job keeps the Audible account and library busy.
+    pub(crate) fn busy(&self) -> bool {
+        self.acquiring || self.job.as_ref().is_some_and(|job| !job.settled)
+    }
+}
 impl AcquisitionJob {
     pub(crate) fn terminal(&self) -> bool {
         self.progress.terminal

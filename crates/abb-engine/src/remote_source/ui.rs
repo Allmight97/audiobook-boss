@@ -2,7 +2,7 @@
 
 use super::providers::audible::{AudibleRequestError, SIGN_IN_REJECTED_MESSAGE};
 use super::{
-    AcquisitionPlan, AcquisitionSelection, AcquisitionSnapshot, ProviderId,
+    AcquisitionPlan, AcquisitionSelection, ProviderId, RemoteAcquisitionSnapshot,
     RemoteIndexerConnection, RemoteIndexerConnectionTestResult, RemoteIndexerConnectionUpdate,
     RemoteRelease, RemoteReleaseGrabRequest, RemoteReleaseSearchRequest,
     RemoteReleaseSearchResponse, RemoteSourceRuntime, RemoteTitle,
@@ -162,14 +162,14 @@ pub struct RemoteUiSnapshot {
     pub include_pdf_by_title_id: BTreeMap<String, bool>,
     pub indexer: IndexerWorkSnapshot,
     pub connection: IndexerDraftSnapshot,
-    pub acquisition: Option<Box<AcquisitionSnapshot>>,
-    pub acquiring: bool,
 }
 
 pub(super) struct UiState {
     snapshot: RemoteUiSnapshot,
     library: RemoteLibrarySnapshot,
     library_published: u64,
+    acquisition: RemoteAcquisitionSnapshot,
+    acquisition_published: u64,
     account_request: u64,
     disconnecting: bool,
     /// Audible refused the saved sign-in; the account shows NeedsAuth until
@@ -206,8 +206,6 @@ impl Default for UiState {
                 library_status: RemoteDraftStatus::Idle,
                 selected_title_ids: Vec::new(),
                 include_pdf_by_title_id: BTreeMap::new(),
-                acquisition: None,
-                acquiring: false,
                 indexer: IndexerWorkSnapshot::default(),
                 connection: IndexerDraftSnapshot {
                     base_url: String::new(),
@@ -223,6 +221,8 @@ impl Default for UiState {
             },
             library: RemoteLibrarySnapshot::default(),
             library_published: 0,
+            acquisition: RemoteAcquisitionSnapshot::default(),
+            acquisition_published: 0,
             account_request: 0,
             disconnecting: false,
             sign_in_rejected: false,
@@ -309,7 +309,7 @@ impl UiState {
         }
     }
 
-    fn reject_sign_in(&mut self) {
+    pub(super) fn reject_sign_in(&mut self) {
         self.sign_in_rejected = true;
         if let Some(account) = self.snapshot.account.take() {
             self.snapshot.account = Some(self.shown_account(account));
@@ -370,14 +370,7 @@ impl UiState {
                 "Wait for the current account change to finish.".into(),
             ));
         }
-        if provider == ProviderId::Audible
-            && (self.snapshot.acquiring
-                || self
-                    .snapshot
-                    .acquisition
-                    .as_ref()
-                    .is_some_and(|job| !job.settled))
-        {
+        if provider == ProviderId::Audible && self.acquisition.busy() {
             return Err(AppError::InvalidInput(
                 "Wait for the Audible acquisition and handoff before disconnecting.".into(),
             ));
@@ -409,7 +402,7 @@ impl UiState {
         if provider == ProviderId::Audible {
             self.sign_in_rejected = false;
             self.snapshot.auth = RemoteAuthStatus::Idle;
-            self.snapshot.acquisition = None;
+            self.set_acquisition(|acquisition| acquisition.job = None);
             self.library_loaded(Vec::new());
         }
         if provider == ProviderId::Indexer {
@@ -429,7 +422,7 @@ impl UiState {
     pub(super) fn snapshot(&self) -> RemoteUiSnapshot {
         self.snapshot.clone()
     }
-    fn changed(&mut self) {
+    pub(super) fn changed(&mut self) {
         self.snapshot.revision += 1;
     }
 
@@ -471,16 +464,9 @@ impl UiState {
         self.changed();
     }
 
-    pub(super) fn acquisition_changed(&mut self, job: super::AcquisitionJob) {
-        if job.provider_id == ProviderId::Audible
-            && job.diagnostics.iter().any(|diagnostic| {
-                diagnostic.kind == super::RemoteAcquisitionFailureKind::AuthRequired
-            })
-        {
-            self.reject_sign_in();
-        }
-        self.snapshot.acquisition = Some(Box::new(job.into()));
-        self.changed();
+    pub(super) fn set_acquisition(&mut self, change: impl FnOnce(&mut RemoteAcquisitionSnapshot)) {
+        change(&mut self.acquisition);
+        self.acquisition.revision += 1;
     }
 
     fn begin(&mut self, intent: RemoteUiIntent) -> Result<UiAction> {
@@ -630,12 +616,7 @@ impl UiState {
 
     fn refresh_library(&mut self) -> Result<UiAction> {
         if self.snapshot.lane != ProviderId::Audible
-            || self.snapshot.acquiring
-            || self
-                .snapshot
-                .acquisition
-                .as_ref()
-                .is_some_and(|job| !job.settled)
+            || self.acquisition.busy()
             || self.disconnecting
             || matches!(
                 self.snapshot.auth,
@@ -713,12 +694,7 @@ impl UiState {
                 self.snapshot.auth,
                 RemoteAuthStatus::Starting | RemoteAuthStatus::Completing
             )
-            || self.snapshot.acquiring
-            || self
-                .snapshot
-                .acquisition
-                .as_ref()
-                .is_some_and(|job| !job.settled)
+            || self.acquisition.busy()
             || self.snapshot.lane != ProviderId::Audible
             || self.snapshot.selected_title_ids.is_empty()
         {
@@ -726,7 +702,7 @@ impl UiState {
                 "Select Audible titles before acquiring.".into(),
             ));
         }
-        self.snapshot.acquiring = true;
+        self.set_acquisition(|acquisition| acquisition.acquiring = true);
         Ok(UiAction::Acquire(AcquisitionPlan {
             provider_id: ProviderId::Audible,
             selections: self
@@ -1262,12 +1238,7 @@ impl RemoteSourceRuntime {
                     return Ok(RemoteUiResult::Superseded);
                 }
                 lane == ProviderId::Audible
-                    && !state.snapshot.acquiring
-                    && state
-                        .snapshot
-                        .acquisition
-                        .as_ref()
-                        .is_none_or(|job| job.settled)
+                    && !state.acquisition.busy()
                     && result.is_ok()
                     && state.snapshot.account.as_ref().is_some_and(|account| {
                         account.status == super::RemoteAccountStatus::Connected
@@ -1404,8 +1375,9 @@ impl RemoteUiRun {
                 .map(|_| RemoteUiResult::Applied),
             UiAction::Acquire(plan) => {
                 let result = runtime.start_acquisition(plan).await;
-                runtime.ui().snapshot.acquiring = false;
-                runtime.ui().changed();
+                runtime
+                    .ui()
+                    .set_acquisition(|acquisition| acquisition.acquiring = false);
                 result.map(|_| RemoteUiResult::Applied)
             }
         };

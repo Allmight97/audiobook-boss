@@ -87,11 +87,14 @@ describe('engine link', () => {
 		await link.ready();
 		const library = { ...link.remoteLibrary(), revision: 10, diagnostics: [] };
 		publish({ revision: 10, remoteLibrary: library });
-		publish({ revision: 11, remote: { ...link.remote(), revision: 11, acquiring: true } });
+		publish({
+			revision: 11,
+			remoteAcquisition: { revision: 11, acquiring: true, job: null },
+		});
 		expect(link.remoteLibrary()).toBe(library);
 		publish({ revision: 12, remoteLibrary: { ...library, revision: 9, diagnostics: [] } });
 		expect(link.remoteLibrary()).toBe(library);
-		expect(link.remote().acquiring).toBe(true);
+		expect(link.remoteAcquisition().acquiring).toBe(true);
 	});
 
 	it('keeps the object of every file whose content did not change', async () => {
@@ -111,6 +114,24 @@ describe('engine link', () => {
 		expect(link.titles().files[0]).not.toBe(first);
 		expect(link.titles().files[0]?.tagTitle).toBe('Renamed');
 		expect(link.titles().files[1]).toBe(second);
+	});
+
+	it('keeps a selection when a newer download tick arrives before its remote part', async () => {
+		const engine = createFakeEngine();
+		let publish!: (update: SessionUpdate) => void;
+		engine.listenSessionUpdates = async (handler) => {
+			publish = handler;
+			return () => undefined;
+		};
+		const link = linkTo(engine);
+		await link.ready();
+		const remote = link.remote();
+		publish({ revision: 31, remoteAcquisition: { revision: 31, acquiring: false, job: null } });
+		publish({ revision: 30, remote: { ...remote, revision: 30, selectedTitleIds: ['picked'] } });
+		expect(link.remote().selectedTitleIds).toEqual(['picked']);
+		expect(link.remoteAcquisition().revision).toBe(31);
+		publish({ revision: 32, remoteAcquisition: { revision: 29, acquiring: true, job: null } });
+		expect(link.remoteAcquisition().acquiring).toBe(false);
 	});
 
 	it('keeps unchanged remote choices and releases when another remote fact changes', async () => {

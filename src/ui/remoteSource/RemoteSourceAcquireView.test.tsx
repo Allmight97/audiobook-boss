@@ -131,7 +131,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		));
 		await openConnected(runtime, 'audible');
 		fakeEngine().change((state) => {
-			state.remote.acquisition = acquisitionJob(40);
+			state.remoteAcquisition.job = acquisitionJob(40);
 			state.remote.selectedTitleIds = [remoteTitle().titleId];
 		});
 		flush();
@@ -153,7 +153,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			}),
 		);
 		fakeEngine().change((state) => {
-			state.remote.acquisition = acquisitionJob(100, true);
+			state.remoteAcquisition.job = acquisitionJob(100, true);
 		});
 		flush();
 		const user = userEvent.setup();
@@ -428,12 +428,13 @@ describe('RemoteSourceAcquireView during a download', () => {
 			engine,
 			capability,
 			progress(percentage: number) {
-				const remote = last?.remote && structuredClone(last.remote);
-				if (!remote || !deliver) throw new Error('no remote part delivered yet');
-				const revision = remote.revision + 1_000;
+				const download = last?.remoteAcquisition;
+				if (!download || !deliver) throw new Error('no acquisition part delivered yet');
+				const revision = download.revision + 1_000;
+				last = { revision, remoteAcquisition: { ...download, revision } };
 				deliver({
 					revision,
-					remote: { ...remote, revision, acquisition: acquisitionJob(percentage) },
+					remoteAcquisition: { revision, acquiring: false, job: acquisitionJob(percentage) },
 				});
 				flush();
 			},
@@ -456,7 +457,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 			state.remote.includePdfByTitleId = Object.fromEntries(
 				titles.map((title) => [title.titleId, title.supplementalPdfAvailable]),
 			);
-			state.remote.acquisition = acquisitionJob(10);
+			state.remoteAcquisition.job = acquisitionJob(10);
 			state.remoteLibrary.titles = titles;
 		});
 	}

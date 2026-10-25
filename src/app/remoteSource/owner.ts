@@ -139,6 +139,7 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		() => bumpView((revision) => revision + 1),
 		() => deps.link.remote(),
 		() => deps.link.remoteLibrary(),
+		() => deps.link.remoteAcquisition(),
 	);
 	const indexerConnection = createIndexerConnectionSettings(deps.link);
 
@@ -184,7 +185,7 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 	const isReleaseSelected = (release: ReleaseIdentity) =>
 		selectedReleaseKeys().has(releaseKey(release));
 	const selectedReleases = createMemo(() => releases().filter(isReleaseSelected));
-	const acquisition = createMemo(() => view().activeJob);
+	const acquisition = createMemo(() => deps.link.remoteAcquisition().job);
 
 	return {
 		view,

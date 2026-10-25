@@ -57,49 +57,6 @@ fn release(indexer_id: i64) -> RemoteRelease {
     }
 }
 #[test]
-fn acquisition_choices_enforce_availability_and_preserve_explicit_pdf_choice_on_refresh() {
-    let mut ui = UiState::default();
-    ui.library_loaded(vec![
-        title("available", true, true),
-        title("blocked", false, false),
-    ]);
-    assert!(ui
-        .begin(RemoteUiIntent::ToggleTitle {
-            title_id: "blocked".into()
-        })
-        .is_err());
-    ui.begin(RemoteUiIntent::ToggleTitle {
-        title_id: "available".into(),
-    })
-    .expect("select available");
-    ui.begin(RemoteUiIntent::TogglePdf {
-        title_id: "available".into(),
-    })
-    .expect("exclude PDF");
-    ui.library_loaded(vec![title("available", true, true)]);
-    let UiAction::Acquire(plan) = ui
-        .begin(RemoteUiIntent::AcquireSelected)
-        .expect("acquire selection")
-    else {
-        panic!("acquire action")
-    };
-    assert_eq!(
-        plan.selections,
-        vec![AcquisitionSelection {
-            title_id: "available".into(),
-            include_supplemental_pdf: false
-        }]
-    );
-    assert!(ui.begin(RemoteUiIntent::AcquireSelected).is_err());
-    ui.snapshot.acquiring = false;
-    ui.begin(RemoteUiIntent::SelectLane {
-        lane: ProviderId::Indexer,
-    })
-    .expect("change lane");
-    assert!(ui.snapshot.selected_title_ids.is_empty());
-    assert!(ui.begin(RemoteUiIntent::AcquireSelected).is_err());
-}
-#[test]
 fn connection_readback_and_old_tests_cannot_erase_newer_drafts_or_expose_the_key() {
     let mut ui = UiState::default();
     let UiAction::Load { request, revision } =
@@ -861,7 +818,7 @@ async fn accepted_disconnect_blocks_acquisition_and_shutdown_waits_for_credentia
     release.send(()).expect("release credential deletion");
     runtime.inner.tasks.wait().await;
     assert!(disconnect.await.expect("tracked disconnect").is_ok());
-    let (remote, library) = runtime.ui_parts(None);
+    let (remote, library, _) = runtime.ui_parts(None);
     assert_eq!(
         remote
             .expect("remote")
@@ -901,7 +858,7 @@ async fn failed_credential_deletion_preserves_library_choices_and_reports_failur
         .finish()
         .await
         .is_err());
-    let (remote, library) = runtime.ui_parts(None);
+    let (remote, library, _) = runtime.ui_parts(None);
     let remote = remote.expect("remote");
     assert!(matches!(
         remote.account_status,

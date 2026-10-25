@@ -100,20 +100,22 @@ export function seedDownload(engine: FakeEngine, count: number, selected = 50): 
 		state.remote.includePdfByTitleId = Object.fromEntries(
 			titles.map((title) => [title.titleId, title.supplementalPdfAvailable]),
 		);
-		state.remote.acquisition = job(0);
-		state.remote.acquiring = true;
+		state.remoteAcquisition.job = job(0);
+		state.remoteAcquisition.acquiring = true;
 		state.remoteLibrary.titles = titles;
 		remote = structuredClone(state.remote);
 	});
 	return { titles, remote: remote as RemoteUiSnapshot, revision: 1_000_000 };
 }
 
-/** One throttled download tick: only the remote part, fresh transport objects, normalized. */
+/** One throttled download tick as the engine now sends it: only the acquisition part. */
 export function progressTick(seeded: Seeded, percentage: number): SessionUpdate {
 	seeded.revision += 1;
-	seeded.remote = { ...seeded.remote, revision: seeded.revision, acquisition: job(percentage) };
 	const wire = JSON.parse(
-		JSON.stringify({ revision: seeded.revision, remote: seeded.remote }),
+		JSON.stringify({
+			revision: seeded.revision,
+			remoteAcquisition: { revision: seeded.revision, acquiring: false, job: job(percentage) },
+		}),
 	) as GeneratedSessionUpdate;
 	return normalizeSessionUpdate(wire);
 }

@@ -1,5 +1,9 @@
 import { handoffMessage, statusFromAcquisitionJob, uniqueDiagnosticMessage } from './display';
-import type { RemoteLibrarySnapshot, RemoteUiSnapshot } from '../../types/session';
+import type {
+	RemoteAcquisitionSnapshot,
+	RemoteLibrarySnapshot,
+	RemoteUiSnapshot,
+} from '../../types/session';
 import type { ProviderId } from '../../types/remoteSource';
 import { logAppError, toUserMessage } from '../../lib/tauri/appError';
 import {
@@ -40,8 +44,11 @@ function withConnectedAccountNote(status: string, remote: RemoteUiSnapshot): str
 	return status ? `${status} ${note}` : note;
 }
 
-function audibleStatus(remote: RemoteUiSnapshot, library: RemoteLibrarySnapshot): string {
-	const job = remote.acquisition;
+function audibleStatus(
+	remote: RemoteUiSnapshot,
+	library: RemoteLibrarySnapshot,
+	job: RemoteAcquisitionSnapshot['job'],
+): string {
 	// A download outranks an earlier library-load failure; the rows it came from are still shown.
 	if (job && remote.auth.kind !== 'failed' && remote.accountStatus.kind !== 'failed')
 		return (job.settled ? handoffMessage(job) : null) || statusFromAcquisitionJob(job);
@@ -85,6 +92,7 @@ export function createRemoteSourceStateStore(
 	onChange: () => void,
 	choices: () => RemoteUiSnapshot,
 	library: () => RemoteLibrarySnapshot,
+	acquisition: () => RemoteAcquisitionSnapshot,
 ): RemoteSourceStateStore {
 	let state = createInitialRemoteSourceState();
 	let errors: Partial<Record<ProviderId, string>> = {};
@@ -96,6 +104,7 @@ export function createRemoteSourceStateStore(
 		| {
 				readonly remote: RemoteUiSnapshot;
 				readonly library: RemoteLibrarySnapshot;
+				readonly acquisition: RemoteAcquisitionSnapshot;
 				readonly localVersion: number;
 				readonly view: RemoteSourceView;
 		  }
@@ -107,7 +116,7 @@ export function createRemoteSourceStateStore(
 
 	const current = (): RemoteSourceState => {
 		const remote = choices();
-		const job = remote.acquisition;
+		const { acquiring, job } = acquisition();
 		return {
 			...state,
 			providerId: remote.lane,
@@ -129,12 +138,12 @@ export function createRemoteSourceStateStore(
 				(remote.lane === 'indexer' &&
 					(remote.indexer.searching || remote.connection.save.kind === 'running')),
 			activeJob: job,
-			isAcquiring: remote.acquiring || (job !== null && !job.settled),
+			isAcquiring: acquiring || (job !== null && !job.settled),
 			statusByProvider: {
 				audible:
 					errors.audible ||
 					(remote.lane === 'audible'
-						? audibleStatus(remote, library())
+						? audibleStatus(remote, library(), job)
 						: job
 							? (job.settled ? handoffMessage(job) : null) || statusFromAcquisitionJob(job)
 							: ''),
@@ -147,14 +156,17 @@ export function createRemoteSourceStateStore(
 		snapshot: () => {
 			const remote = choices();
 			const titles = library();
+			const download = acquisition();
 			if (
 				cached?.remote !== remote ||
 				cached.library !== titles ||
+				cached.acquisition !== download ||
 				cached.localVersion !== localVersion
 			) {
 				cached = {
 					remote,
 					library: titles,
+					acquisition: download,
 					localVersion,
 					view: snapshotRemoteSourceState(current()),
 				};

@@ -18,6 +18,7 @@ fn reply(outcome: SessionOutcome) -> SessionReply {
             output: None,
             remote: None,
             remote_library: None,
+            remote_acquisition: None,
         },
     }
 }

@@ -415,7 +415,7 @@ pub struct SessionRun {
     session: Session,
     /// The session revision before the intent began.
     since: u64,
-    remote_since: (u64, u64),
+    remote_since: (u64, u64, u64),
     reply: tokio::sync::oneshot::Receiver<SessionOutcome>,
 }
 
@@ -496,8 +496,11 @@ impl SessionRun {
                 ))),
             });
         let mut update = session.lock().update_since(Some(self.since));
-        (update.remote, update.remote_library) =
-            session.inner.deps.remote.ui_parts(Some(self.remote_since));
+        session
+            .inner
+            .deps
+            .remote
+            .add_ui_parts(&mut update, Some(self.remote_since));
         SessionReply { outcome, update }
     }
 }
@@ -842,7 +845,7 @@ impl Session {
 
     pub(crate) fn snapshot(&self) -> SessionUpdate {
         let mut snapshot = self.lock().update_since(None);
-        (snapshot.remote, snapshot.remote_library) = self.inner.deps.remote.ui_parts(None);
+        self.inner.deps.remote.add_ui_parts(&mut snapshot, None);
         snapshot
     }
 

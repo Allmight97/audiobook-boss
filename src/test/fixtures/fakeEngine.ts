@@ -171,6 +171,7 @@ export type FakeEngine = EngineCapability & {
 			output: SessionOutput;
 			remote: import('../../types/session').RemoteUiSnapshot;
 			remoteLibrary: import('../../types/session').RemoteLibrarySnapshot;
+			remoteAcquisition: import('../../types/session').RemoteAcquisitionSnapshot;
 		}) => void,
 	): void;
 };
@@ -186,8 +187,6 @@ export function fakeRemote(): import('../../types/session').RemoteUiSnapshot {
 		libraryStatus: { kind: 'idle' },
 		selectedTitleIds: [],
 		includePdfByTitleId: {},
-		acquisition: null,
-		acquiring: false,
 		indexer: {
 			releases: [],
 			selectedReleaseKeys: [],
@@ -398,6 +397,11 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		audio: fakeAudio(),
 		remote: fakeRemote(),
 		remoteLibrary: { revision: 0, titles: [], diagnostics: [] },
+		remoteAcquisition: {
+			revision: 0,
+			acquiring: false,
+			job: null,
+		} as import('../../types/session').RemoteAcquisitionSnapshot,
 		output: fakeOutput(),
 	};
 
@@ -479,6 +483,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		state.output = { ...state.output, revision };
 		state.remote = { ...state.remote, revision };
 		state.remoteLibrary = { ...state.remoteLibrary, revision };
+		state.remoteAcquisition = { ...state.remoteAcquisition, revision };
 		return structuredClone({ revision, ...state });
 	}
 

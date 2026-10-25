@@ -4,6 +4,7 @@ import { liveEngineCapability, type EngineCapability } from '../../lib/tauri/cap
 import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../types/appSettings';
 import type { AudioFile } from '../../types/audio';
 import type {
+	RemoteAcquisitionSnapshot,
 	RemoteLibrarySnapshot,
 	RemoteUiSnapshot,
 	SessionIntent,
@@ -31,6 +32,7 @@ export type EngineLink = {
 	readonly output: Accessor<SessionOutput>;
 	readonly remote: Accessor<RemoteUiSnapshot>;
 	readonly remoteLibrary: Accessor<RemoteLibrarySnapshot>;
+	readonly remoteAcquisition: Accessor<RemoteAcquisitionSnapshot>;
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
 	send(intent: SessionIntent): Promise<SessionOutcome>;
@@ -213,8 +215,6 @@ function emptyRemote(): RemoteUiSnapshot {
 		libraryStatus: { kind: 'idle' },
 		selectedTitleIds: [],
 		includePdfByTitleId: {},
-		acquisition: null,
-		acquiring: false,
 		indexer: {
 			releases: [],
 			selectedReleaseKeys: [],
@@ -363,6 +363,11 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	let output = emptyOutput();
 	let remote = emptyRemote();
 	let remoteLibrary: RemoteLibrarySnapshot = { revision: UNATTACHED, titles: [], diagnostics: [] };
+	let remoteAcquisition: RemoteAcquisitionSnapshot = {
+		revision: UNATTACHED,
+		acquiring: false,
+		job: null,
+	};
 	let settings = emptySettings();
 	const part = () => createSignal(0, { ownedWrite: true });
 	const [titlesRev, bumpTitles] = part();
@@ -373,6 +378,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	const [outputRev, bumpOutput] = part();
 	const [remoteRev, bumpRemote] = part();
 	const [libraryRev, bumpLibrary] = part();
+	const [acquisitionRev, bumpAcquisition] = part();
 	const [settingsRev, bumpSettings] = part();
 	const [refusalRev, bumpRefusal] = part();
 	const [attachmentRev, bumpAttachment] = part();
@@ -401,6 +407,13 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		if (update.remote && update.remote.revision > remote.revision) {
 			remote = shareUnchangedRemote(remote, update.remote);
 			bumpRemote((n) => n + 1);
+		}
+		if (
+			update.remoteAcquisition &&
+			update.remoteAcquisition.revision > remoteAcquisition.revision
+		) {
+			remoteAcquisition = update.remoteAcquisition;
+			bumpAcquisition((n) => n + 1);
 		}
 		if (update.remoteLibrary && update.remoteLibrary.revision > remoteLibrary.revision) {
 			remoteLibrary = update.remoteLibrary;
@@ -512,6 +525,10 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		remoteLibrary: () => {
 			libraryRev();
 			return remoteLibrary;
+		},
+		remoteAcquisition: () => {
+			acquisitionRev();
+			return remoteAcquisition;
 		},
 		output: () => {
 			outputRev();

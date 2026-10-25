@@ -36,7 +36,7 @@ async function open(
 it('renders acquisition progress from the attached session and Close leaves it running', async () => {
 	const engine = createFakeEngine();
 	engine.change((state) => {
-		state.remote.acquisition = job;
+		state.remoteAcquisition.job = job;
 	});
 	const { owner, runtime } = await open(engine);
 	expect(owner.view().activeJob?.progress.percentage).toBe(40);
@@ -58,7 +58,7 @@ it('renders acquisition progress from the attached session and Close leaves it r
 it('words the engine handoff and keeps Indexer status independent of an Audible result', async () => {
 	const { owner, engine } = await open();
 	engine.change((state) => {
-		state.remote.acquisition = {
+		state.remoteAcquisition.job = {
 			...job,
 			settled: true,
 			terminal: true,
@@ -122,7 +122,7 @@ it('routes opening and lane selection only through the lane intent', async () =>
 it('shows a new engine refusal instead of hiding it under an older acquisition result', async () => {
 	const { owner, engine } = await open();
 	engine.change((state) => {
-		state.remote.acquisition = {
+		state.remoteAcquisition.job = {
 			...job,
 			settled: true,
 			terminal: true,
@@ -163,7 +163,7 @@ it('restores cached library rows and selections during accepted acquisition with
 	engine.change((state) => {
 		state.remote.account = { providerId: 'audible', status: 'connected' };
 		state.remote.selectedTitleIds = [title.titleId];
-		state.remote.acquisition = job;
+		state.remoteAcquisition.job = job;
 		state.remoteLibrary.titles = [title];
 	});
 	const first = await open(engine);

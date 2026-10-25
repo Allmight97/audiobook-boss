@@ -64,7 +64,6 @@ describe('remote snapshot normalization', () => {
 		const remote = {
 			...seed,
 			account: null,
-			acquisition: null,
 			indexer: { ...seed.indexer, releases: [] },
 		};
 		const update = normalizeSessionUpdate({
@@ -76,6 +75,7 @@ describe('remote snapshot normalization', () => {
 			audio: null,
 			output: null,
 			remote,
+			remoteAcquisition: { revision: 2, acquiring: false, job: null },
 			remoteLibrary: {
 				revision: 2,
 				titles: [
@@ -102,7 +102,7 @@ describe('remote snapshot normalization', () => {
 			},
 		});
 		expect(update.remote?.account).toBeNull();
-		expect(update.remote?.acquisition).toBeNull();
+		expect(update.remoteAcquisition?.job).toBeNull();
 		expect(update.remoteLibrary?.titles[0]).not.toHaveProperty('coverUrl');
 		expect(update.remoteLibrary?.titles[0].availability).not.toHaveProperty('detail');
 		expect(update.remoteLibrary?.diagnostics[0]).not.toHaveProperty('titleId');
@@ -114,9 +114,37 @@ describe('remote snapshot normalization', () => {
 			lookup: null,
 			audio: null,
 			output: null,
-			remote,
+			remote: null,
 			remoteLibrary: null,
+			remoteAcquisition: {
+				revision: 3,
+				acquiring: false,
+				job: {
+					jobId: 'job',
+					providerId: 'audible',
+					status: 'acquiring',
+					progress: {
+						stage: 'download',
+						percentage: 40,
+						message: 'Downloading audiobook.',
+						terminal: false,
+						bytesDownloaded: null,
+						bytesTotal: null,
+						currentTitleId: null,
+						currentItemIndex: null,
+						totalItems: null,
+					},
+					materializedFiles: [],
+					supplementalAssets: [],
+					diagnostics: [],
+					handoff: null,
+					terminal: false,
+					settled: false,
+				},
+			},
 		});
+		expect(progressOnly.remote).toBeUndefined();
 		expect(progressOnly.remoteLibrary).toBeUndefined();
+		expect(progressOnly.remoteAcquisition?.job?.progress).not.toHaveProperty('bytesTotal');
 	});
 });
