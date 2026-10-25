@@ -98,8 +98,10 @@ files stay usable after provider logout. An Audible disconnect refuses
 unfinished acquisition/handoff; an Indexer disconnect neither waits for nor
 cleans up Audible jobs. A stage change and a job ending update
 `SessionUpdate.remote`. A download tick updates `SessionUpdate.remote_progress`
-(that job's progress only) at most every 100 ms. Snapshot `terminal` and
-`settled` facts belong on the full snapshot.
+(that job's progress only) at most every 100 ms, and only when that tick
+landed on the snapshot. A refused tick, after cancel or failure moved the
+stage, is not sent. Snapshot `terminal` and `settled` facts belong on the
+full snapshot.
 
 ## Working Remote State
 

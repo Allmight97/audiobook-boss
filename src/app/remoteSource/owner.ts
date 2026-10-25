@@ -72,6 +72,10 @@ export type RemoteDownloadProgress = {
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
 	readonly progress: Accessor<RemoteDownloadProgress | null>;
+	/** Selection the title rows read. A filter keystroke keeps this set. */
+	readonly selectedTitleIds: Accessor<ReadonlySet<string>>;
+	/** PDF choices the title rows read. A filter keystroke keeps this record. */
+	readonly includePdfByTitleId: Accessor<Record<string, boolean>>;
 	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
 	open(options?: { readonly lane?: AcquisitionLane }): Promise<void>;
 	selectLane(lane: AcquisitionLane): Promise<void>;
@@ -144,6 +148,9 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 	const view = () => (getOwner() ? viewMemo() : screenNow());
 	const progress = () =>
 		getOwner() ? progressMemo() : currentProgress(deps.link.remote(), deps.link.remoteProgress());
+	// Same comparisons as the view. A new view object with the same choices does not notify rows.
+	const selectedTitleIds = createMemo(() => view().selectedTitleIds, { equals: sameSet });
+	const includePdfByTitleId = createMemo(() => view().includePdfByTitleId, { equals: samePdf });
 
 	function screenNow(): RemoteSourceView {
 		const next = state.snapshot();
@@ -175,6 +182,8 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 	return {
 		view,
 		progress,
+		selectedTitleIds,
+		includePdfByTitleId,
 		indexerConnection: indexerConnection.view,
 		async open(options) {
 			if (disposed) return;

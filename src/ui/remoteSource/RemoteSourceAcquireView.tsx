@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show } from 'solid-js';
+import { createSignal, For, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
@@ -107,21 +107,8 @@ export function RemoteSourceAcquireView(): JSX.Element {
 			showSupplementalPdfOnly: view().showSupplementalPdfOnly,
 			hideUnavailableTitles: view().hideUnavailableTitles,
 		});
-	// A keystroke changes the view. These stay put, so a row does not re-read it.
-	const selectedTitleIds = createMemo(() => view().selectedTitleIds, {
-		equals: (previous, next) =>
-			previous === next ||
-			(previous.size === next.size && [...previous].every((id) => next.has(id))),
-	});
-	const includePdfByTitleId = createMemo(() => view().includePdfByTitleId, {
-		equals: (previous, next) => {
-			if (previous === next) return true;
-			const keys = Object.keys(previous);
-			return (
-				keys.length === Object.keys(next).length && keys.every((key) => previous[key] === next[key])
-			);
-		},
-	});
+	const selectedTitleIds = remoteSource.selectedTitleIds;
+	const includePdfByTitleId = remoteSource.includePdfByTitleId;
 
 	const visibleReleases = () =>
 		visibleRemoteReleases(view().releases, {

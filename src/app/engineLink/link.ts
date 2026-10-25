@@ -349,6 +349,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		if (update.remoteProgress) {
 			const tick = update.remoteProgress;
 			const job = remote.acquisition;
+			// Second line if a tick the engine refused is still in flight.
 			if (job && job.jobId === tick.jobId && job.progress.stage === tick.progress.stage) {
 				remoteProgress = tick;
 				bumpProgress((n) => n + 1);

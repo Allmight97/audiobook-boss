@@ -134,6 +134,8 @@ the owner of the truth.
   selection. Release rows key on `(indexerId, guid)`, including Grab and Retry.
   Sent means the provider accepted, not that the download finished. A download
   tick refreshes `progress` and leaves the title rows' view object in place.
+  Row selection and PDF choices are owner memos using the view's set and PDF
+  comparisons, so a filter keystroke does not rebuild each row.
 - `workOperations` (`crates/abb-engine/src/work_runtime/AGENTS.md`): WorkRuntime
   snapshots are the only progress source for accepted background operations.
   Terminal status comes from `abb_processing_core::classify_run_terminal`.

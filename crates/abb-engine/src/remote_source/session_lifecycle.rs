@@ -19,13 +19,14 @@ use super::{RemoteProviderId, RemoteSourceRuntime};
 /// How often a download's progress reaches hosts; a stage change always does.
 const PROGRESS_EVENT_INTERVAL: Duration = Duration::from_millis(100);
 
-/// `Instant::elapsed` follows the real clock, so due checks compare two
-/// readings from this one.
+/// Test clock. Production reads `Instant::now` and takes no lock.
+#[cfg(test)]
 struct ProgressClock {
     start: Instant,
     offset: Mutex<Duration>,
 }
 
+#[cfg(test)]
 impl ProgressClock {
     fn new() -> Self {
         Self {
@@ -43,7 +44,6 @@ impl ProgressClock {
                 .unwrap_or(Duration::ZERO)
     }
 
-    #[cfg(test)]
     fn advance(&self, by: Duration) {
         if let Ok(mut offset) = self.offset.lock() {
             *offset += by;
@@ -60,6 +60,7 @@ pub(super) struct RemoteAcquisitionLifecycle {
     ui: std::sync::Arc<Mutex<super::ui::UiState>>,
     /// When each job's progress last reached hosts.
     progress_sent: Mutex<HashMap<String, Instant>>,
+    #[cfg(test)]
     clock: ProgressClock,
 }
 
@@ -78,7 +79,19 @@ impl RemoteAcquisitionLifecycle {
             host,
             ui,
             progress_sent: Mutex::new(HashMap::new()),
+            #[cfg(test)]
             clock: ProgressClock::new(),
+        }
+    }
+
+    fn now(&self) -> Instant {
+        #[cfg(test)]
+        {
+            self.clock.now()
+        }
+        #[cfg(not(test))]
+        {
+            Instant::now()
         }
     }
 
@@ -90,7 +103,7 @@ impl RemoteAcquisitionLifecycle {
     /// Tells hosts what `job` looks like now.
     fn publish(&self, job: &RemoteAcquisitionJob) {
         if let Ok(mut sent) = self.progress_sent.lock() {
-            sent.insert(job.job_id.clone(), self.clock.now());
+            sent.insert(job.job_id.clone(), self.now());
         }
         let snapshot = {
             let mut ui = self
@@ -115,11 +128,9 @@ impl RemoteAcquisitionLifecycle {
     }
 
     /// A same-stage tick. Hosts already have the job; the remote revision stays put.
+    /// A tick the snapshot refuses (the job moved on) is not sent.
     fn publish_progress(&self, job_id: &str, progress: CoreAcquisitionProgress) {
-        if let Ok(mut sent) = self.progress_sent.lock() {
-            sent.insert(job_id.to_string(), self.clock.now());
-        }
-        {
+        let applied = {
             let mut ui = self
                 .ui
                 .lock()
@@ -128,7 +139,13 @@ impl RemoteAcquisitionLifecycle {
             if !self.jobs.lock().is_ok_and(|jobs| jobs.contains_key(job_id)) {
                 return;
             }
-            ui.note_progress(job_id, progress.clone());
+            ui.note_progress(job_id, progress.clone())
+        };
+        if !applied {
+            return;
+        }
+        if let Ok(mut sent) = self.progress_sent.lock() {
+            sent.insert(job_id.to_string(), self.now());
         }
         self.host.emit(EngineEvent::Session(
             crate::session::SessionUpdate::remote_progress(job_id, progress),
@@ -399,7 +416,7 @@ impl RemoteAcquisitionLifecycle {
     }
 
     fn progress_due(&self, job_id: &str) -> bool {
-        let now = self.clock.now();
+        let now = self.now();
         self.progress_sent.lock().map_or(true, |sent| {
             sent.get(job_id)
                 .is_none_or(|at| now.saturating_duration_since(*at) >= PROGRESS_EVENT_INTERVAL)
@@ -749,5 +766,86 @@ mod tests {
             .and_then(|remote| remote.acquisition.as_ref())
             .map(|job| job.job.progress.stage);
         assert_eq!(stage, Some(AcquisitionStage::Download));
+    }
+
+    #[test]
+    fn a_refused_download_tick_does_not_follow_the_terminal_snapshot() {
+        #[derive(Default)]
+        struct Recorded(Mutex<Vec<crate::session::SessionUpdate>>);
+        impl crate::EventSink for Recorded {
+            fn emit(&self, event: crate::EngineEvent) {
+                if let crate::EngineEvent::Session(update) = event {
+                    self.0.lock().expect("events").push(update);
+                }
+            }
+        }
+        let root = TempDir::new().expect("temp root");
+        let recorded = Arc::new(Recorded::default());
+        let runtime = test_runtime_with(&root, None, Some(recorded.clone()));
+
+        let job_id = "remote-job-cancel";
+        runtime.inner.lifecycle.replace_job_if_active(acquiring(
+            job_id,
+            AcquisitionStage::Download,
+            0.4,
+        ));
+        runtime
+            .inner
+            .lifecycle
+            .mark_job_cancelled(job_id, RemoteProviderId::Audible);
+        let after_cancel = recorded.0.lock().expect("events").len();
+        runtime.inner.lifecycle.publish_progress(
+            job_id,
+            acquisition_progress(AcquisitionStage::Download, Some(0.5), Some(5), Some(10)),
+        );
+        {
+            let events = recorded.0.lock().expect("events");
+            assert_eq!(
+                events.len(),
+                after_cancel,
+                "a download tick refused after cancel is not sent"
+            );
+            let terminal = events.last().expect("cancel snapshot");
+            assert!(terminal.remote.is_some());
+            assert!(terminal.remote_progress.is_none());
+            let stage = terminal
+                .remote
+                .as_ref()
+                .and_then(|remote| remote.acquisition.as_ref())
+                .map(|job| job.job.progress.stage);
+            assert_eq!(stage, Some(AcquisitionStage::Cancelled));
+        }
+
+        let failed_id = "remote-job-fail";
+        runtime.inner.lifecycle.replace_job_if_active(acquiring(
+            failed_id,
+            AcquisitionStage::Download,
+            0.4,
+        ));
+        runtime.inner.lifecycle.mark_job_failed(
+            failed_id,
+            RemoteProviderId::Audible,
+            "download stopped".to_string(),
+        );
+        let after_fail = recorded.0.lock().expect("events").len();
+        runtime.inner.lifecycle.publish_progress(
+            failed_id,
+            acquisition_progress(AcquisitionStage::Download, Some(0.6), Some(6), Some(10)),
+        );
+        let events = recorded.0.lock().expect("events");
+        assert_eq!(
+            events.len(),
+            after_fail,
+            "a download tick refused after failure is not sent"
+        );
+        let terminal = events.last().expect("failure snapshot");
+        assert!(terminal.remote.is_some());
+        assert!(terminal.remote_progress.is_none());
+        let stage = terminal
+            .remote
+            .as_ref()
+            .and_then(|remote| remote.acquisition.as_ref())
+            .map(|job| job.job.progress.stage);
+        assert_eq!(stage, Some(AcquisitionStage::Failed));
     }
 }
