@@ -52,9 +52,6 @@ impl RemoteAcquisitionLifecycle {
     /// under the UI guard, so a progress clone taken before a terminal change
     /// can never be published after it.
     fn publish(&self, job_id: &str) {
-        if let Ok(mut sent) = self.progress_sent.lock() {
-            sent.insert(job_id.to_string(), Instant::now());
-        }
         let update = {
             let mut ui = self
                 .ui
@@ -69,6 +66,9 @@ impl RemoteAcquisitionLifecycle {
             else {
                 return;
             };
+            if let Ok(mut sent) = self.progress_sent.lock() {
+                sent.insert(job_id.to_string(), Instant::now());
+            }
             ui.acquisition_changed(job)
         };
         self.host.emit(EngineEvent::Session(update));

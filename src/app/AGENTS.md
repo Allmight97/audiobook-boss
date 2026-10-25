@@ -136,8 +136,8 @@ the owner of the truth.
   changes with every remote update, a download tick included, so rows and the
   progress block read the narrow accessors (`visibleTitles`, `isTitleSelected`,
   `includesPdf`, `visibleReleases`, `acquisition`); a tick then re-runs no row.
-  The filtered and sorted lists are owner memos. The dialog body renders only
-  while open.
+  The filtered and sorted lists are owner memos. The dialog content unmounts
+  after its close fade (`Dialog` `unmountWhenClosed`).
 - `workOperations` (`crates/abb-engine/src/work_runtime/AGENTS.md`): WorkRuntime
   snapshots are the only progress source for accepted background operations.
   Terminal status comes from `abb_processing_core::classify_run_terminal`.

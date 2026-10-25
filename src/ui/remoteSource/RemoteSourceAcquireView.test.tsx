@@ -527,16 +527,22 @@ describe('RemoteSourceAcquireView during a download', () => {
 		runtime.remoteSource.editSearch({ titleFilter: 'Book 1' });
 		runtime.remoteSource.close();
 		flush();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		flush();
 		expect(document.querySelectorAll('.remote-title-row')).toHaveLength(0);
 
 		host.progress(80);
 		host.engine.change((state) => {
-			state.remote.selectedTitleIds = ['B000000002'];
+			state.remote.selectedTitleIds = ['B000000010'];
 		});
 		await runtime.remoteSource.open({ lane: 'audible' });
 		flush();
 		expect(screen.getByLabelText('Filter')).toHaveValue('Book 1');
-		expect(document.querySelectorAll('.remote-title-row').length).toBeGreaterThan(0);
+		expect(screen.getByRole('option', { name: /Book 10/ })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
+		expect(document.querySelectorAll('.remote-title-row[aria-selected="true"]')).toHaveLength(1);
 		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toBeInTheDocument();
 	});
 });

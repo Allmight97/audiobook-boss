@@ -68,6 +68,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 			onClose={() => close()}
 			labelledBy="remote-source-title"
 			testId="remote-source-modal"
+			unmountWhenClosed
 		>
 			<Dialog.Header>
 				<h3 id="remote-source-title">Acquire Audiobooks</h3>
@@ -87,349 +88,344 @@ export function RemoteSourceAcquireView(): JSX.Element {
 				</div>
 			</Dialog.Header>
 
-			<Show when={view().isOpen}>
-				<Dialog.Body>
-					<div class="remote-source-toolbar">
-						<div class="remote-source-toolbar-field remote-source-provider">
-							<label for="remote-source-provider">Source</label>
-							<select
-								id="remote-source-provider"
-								data-testid="remote-source-provider"
-								disabled={view().isBusy}
-								value={view().providerId}
-								onChange={(event) => handleLaneChange(event.currentTarget.value as AcquisitionLane)}
-							>
-								<For each={view().providers} keyed={(provider) => provider.providerId}>
-									{(provider) => <option value={provider().providerId}>{provider().label}</option>}
-								</For>
-							</select>
-						</div>
+			<Dialog.Body>
+				<div class="remote-source-toolbar">
+					<div class="remote-source-toolbar-field remote-source-provider">
+						<label for="remote-source-provider">Source</label>
+						<select
+							id="remote-source-provider"
+							data-testid="remote-source-provider"
+							disabled={view().isBusy}
+							value={view().providerId}
+							onChange={(event) => handleLaneChange(event.currentTarget.value as AcquisitionLane)}
+						>
+							<For each={view().providers} keyed={(provider) => provider.providerId}>
+								{(provider) => <option value={provider().providerId}>{provider().label}</option>}
+							</For>
+						</select>
+					</div>
 
-						<Show when={isAudibleLane()}>
-							<Show
-								when={view().accountState?.status === 'connected'}
-								fallback={
-									<>
-										<div class="remote-source-toolbar-field remote-source-toolbar-button">
-											<Button
-												tone="primary"
-												disabled={view().isBusy}
-												onClick={() => void runAction({ type: 'startAuth' })}
-											>
-												Connect Audible
-											</Button>
-										</div>
-										<div class="remote-source-toolbar-field remote-source-handoff">
-											<label for="remote-source-handoff">Auth Handoff</label>
-											<input
-												id="remote-source-handoff"
-												type="text"
-												placeholder="Final Amazon URL or handoff file path"
-												value={view().handoffPath}
-												onInput={(event) => editSearch({ handoffPath: event.currentTarget.value })}
-											/>
-										</div>
-										<div class="remote-source-toolbar-field remote-source-toolbar-button">
-											<Button
-												disabled={view().isBusy}
-												onClick={() => void runAction({ type: 'completeAuth' })}
-											>
-												Complete Auth
-											</Button>
-										</div>
-									</>
-								}
-							>
-								<div class="remote-source-toolbar-field remote-source-toolbar-button">
-									<Button
-										disabled={view().isBusy}
-										onClick={() => void runAction({ type: 'loadLibrary' })}
-									>
-										Refresh Library
-									</Button>
-								</div>
-								<div class="remote-source-toolbar-field remote-source-toolbar-button">
-									<Button
-										tone="primary"
-										disabled={view().isBusy || view().selectedTitleIds.size === 0}
-										onClick={() => void runAction({ type: 'acquireSelected' })}
-									>
-										Acquire Selected
-									</Button>
-								</div>
-								<div class="remote-source-toolbar-field remote-source-filter">
-									<label for="remote-source-filter">Filter</label>
-									<input
-										id="remote-source-filter"
-										type="search"
-										placeholder="Filter loaded titles"
-										value={view().titleFilter}
-										onInput={(event) => editSearch({ titleFilter: event.currentTarget.value })}
-									/>
-								</div>
-								<div class="remote-source-toolbar-field remote-source-toolbar-toggle remote-source-pdf-filter">
-									<label class="checkbox-label tight">
+					<Show when={isAudibleLane()}>
+						<Show
+							when={view().accountState?.status === 'connected'}
+							fallback={
+								<>
+									<div class="remote-source-toolbar-field remote-source-toolbar-button">
+										<Button
+											tone="primary"
+											disabled={view().isBusy}
+											onClick={() => void runAction({ type: 'startAuth' })}
+										>
+											Connect Audible
+										</Button>
+									</div>
+									<div class="remote-source-toolbar-field remote-source-handoff">
+										<label for="remote-source-handoff">Auth Handoff</label>
 										<input
-											type="checkbox"
-											checked={view().showSupplementalPdfOnly}
-											onChange={(event) =>
-												editSearch({ showSupplementalPdfOnly: event.currentTarget.checked })
-											}
+											id="remote-source-handoff"
+											type="text"
+											placeholder="Final Amazon URL or handoff file path"
+											value={view().handoffPath}
+											onInput={(event) => editSearch({ handoffPath: event.currentTarget.value })}
 										/>
-										<span class="option-label">Supplemental PDF only</span>
-									</label>
-								</div>
-								<div class="remote-source-toolbar-field remote-source-toolbar-toggle remote-source-availability-filter">
-									<label class="checkbox-label tight">
-										<input
-											type="checkbox"
-											checked={view().hideUnavailableTitles}
-											onChange={(event) =>
-												editSearch({ hideUnavailableTitles: event.currentTarget.checked })
-											}
-										/>
-										<span class="option-label">Hide unavailable</span>
-									</label>
-								</div>
-							</Show>
-						</Show>
-
-						<Show when={isIndexerLane() && view().accountState?.status === 'connected'}>
-							<div class="remote-source-toolbar-field remote-source-indexer-author">
-								<label for="remote-source-indexer-author">Author</label>
-								<input
-									id="remote-source-indexer-author"
-									data-testid="remote-source-indexer-author"
-									type="text"
-									placeholder="Author"
-									value={view().indexerAuthorQuery}
-									onInput={(event) => editSearch({ indexerAuthorQuery: event.currentTarget.value })}
-									onKeyDown={submitIndexerSearchOnEnter}
-								/>
-							</div>
-							<div class="remote-source-toolbar-field remote-source-indexer-title">
-								<label for="remote-source-indexer-title">Title</label>
-								<input
-									id="remote-source-indexer-title"
-									data-testid="remote-source-indexer-title"
-									type="text"
-									placeholder="Title"
-									value={view().indexerTitleQuery}
-									onInput={(event) => editSearch({ indexerTitleQuery: event.currentTarget.value })}
-									onKeyDown={submitIndexerSearchOnEnter}
-								/>
+									</div>
+									<div class="remote-source-toolbar-field remote-source-toolbar-button">
+										<Button
+											disabled={view().isBusy}
+											onClick={() => void runAction({ type: 'completeAuth' })}
+										>
+											Complete Auth
+										</Button>
+									</div>
+								</>
+							}
+						>
+							<div class="remote-source-toolbar-field remote-source-toolbar-button">
+								<Button
+									disabled={view().isBusy}
+									onClick={() => void runAction({ type: 'loadLibrary' })}
+								>
+									Refresh Library
+								</Button>
 							</div>
 							<div class="remote-source-toolbar-field remote-source-toolbar-button">
 								<Button
 									tone="primary"
-									disabled={view().isBusy}
-									onClick={() => void runAction({ type: 'searchReleases' })}
+									disabled={view().isBusy || view().selectedTitleIds.size === 0}
+									onClick={() => void runAction({ type: 'acquireSelected' })}
 								>
-									Search
+									Acquire Selected
 								</Button>
 							</div>
 							<div class="remote-source-toolbar-field remote-source-filter">
-								<label for="remote-source-release-filter">Filter</label>
+								<label for="remote-source-filter">Filter</label>
 								<input
-									id="remote-source-release-filter"
-									data-testid="remote-source-release-filter"
+									id="remote-source-filter"
 									type="search"
-									placeholder="Filter loaded releases"
-									value={view().releaseFilter}
-									onInput={(event) => editSearch({ releaseFilter: event.currentTarget.value })}
+									placeholder="Filter loaded titles"
+									value={view().titleFilter}
+									onInput={(event) => editSearch({ titleFilter: event.currentTarget.value })}
 								/>
 							</div>
-							<div class="remote-source-toolbar-field remote-source-sort">
-								<label for="remote-source-release-sort">Sort by</label>
-								<select
-									id="remote-source-release-sort"
-									value={view().releaseSort}
-									onChange={(event) =>
-										editSearch({
-											releaseSort: event.currentTarget.value === 'size' ? 'size' : 'seeders',
-										})
-									}
-								>
-									<option value="seeders">Most seeders</option>
-									<option value="size">Largest first</option>
-								</select>
+							<div class="remote-source-toolbar-field remote-source-toolbar-toggle remote-source-pdf-filter">
+								<label class="checkbox-label tight">
+									<input
+										type="checkbox"
+										checked={view().showSupplementalPdfOnly}
+										onChange={(event) =>
+											editSearch({ showSupplementalPdfOnly: event.currentTarget.checked })
+										}
+									/>
+									<span class="option-label">Supplemental PDF only</span>
+								</label>
 							</div>
-							<div class="remote-source-toolbar-field remote-source-toolbar-button">
-								<Button
-									disabled={view().isBusy || !remoteSource.canGrabSelection()}
-									onClick={() => void runAction({ type: 'grabSelectedReleases' })}
-								>
-									{view().selectedReleaseKeys.size > 1 ? 'Grab All' : 'Grab'}
-								</Button>
+							<div class="remote-source-toolbar-field remote-source-toolbar-toggle remote-source-availability-filter">
+								<label class="checkbox-label tight">
+									<input
+										type="checkbox"
+										checked={view().hideUnavailableTitles}
+										onChange={(event) =>
+											editSearch({ hideUnavailableTitles: event.currentTarget.checked })
+										}
+									/>
+									<span class="option-label">Hide unavailable</span>
+								</label>
 							</div>
 						</Show>
-					</div>
-
-					<Show when={isIndexerLane() && view().releases.length > 0}>
-						<p class="remote-release-selection" id="remote-release-selection" aria-live="polite">
-							{view().selectedReleaseKeys.size} selected
-							<Show when={remoteSource.hiddenReleaseSelectionCount() > 0}>
-								{' '}
-								({remoteSource.hiddenReleaseSelectionCount()} hidden by filter)
-							</Show>
-							<span>
-								{' '}
-								· ⌘-click on Mac or Ctrl-click on Windows/Linux to select multiple releases.
-							</span>
-						</p>
-					</Show>
-
-					<Show when={view().statusMessage}>
-						<Dialog.Status class="remote-source-status" live="polite">
-							{view().statusMessage}
-						</Dialog.Status>
-					</Show>
-
-					<Show when={isIndexerLane() && view().accountState?.status !== 'connected'}>
-						<div
-							class="remote-indexer-settings-needed"
-							data-testid="remote-indexer-settings-needed"
-						>
-							<p>
-								{view().accountState?.message ?? 'Configure Indexer in Settings before searching.'}
-							</p>
-							<Button
-								tone="primary"
-								onClick={() => {
-									close();
-									void settings.openDialog();
-								}}
-							>
-								Open Settings
-							</Button>
-						</div>
-					</Show>
-
-					<Show when={isAudibleLane() && view().accountState?.status === 'connected'}>
-						<div class="remote-selection-summary" aria-live="polite">
-							<span>{remoteSource.selectedTitleSummary()}</span>
-							<Show when={view().selectedTitleIds.size > 0}>
-								<button
-									class="remote-clear-selection"
-									type="button"
-									disabled={view().isBusy}
-									onClick={() => remoteSource.clearTitleSelection()}
-								>
-									Clear selection
-								</button>
-							</Show>
-						</div>
-					</Show>
-
-					<Show when={isAudibleLane() && remoteSource.acquisition()}>
-						{(job) => (
-							<Show when={job().progress}>
-								{(progress) => (
-									<div class="remote-progress" role="status" aria-live="polite">
-										<Progress
-											value={progressPercent(job())}
-											label="Acquisition progress"
-											active={!job().terminal}
-										/>
-										<div class="remote-progress-copy">
-											<span>{progressTitleLabel(progress(), remoteSource.acquisitionTitle())}</span>
-											<span>{Math.round(progressPercent(job()))}%</span>
-										</div>
-										<Show when={bytesLabel(progress())}>
-											{(label) => <p class="remote-progress-bytes">{label()}</p>}
-										</Show>
-										<Show when={!job().terminal}>
-											<Button
-												class="remote-progress-cancel"
-												onClick={() => void runAction({ type: 'cancelActiveAcquisition' })}
-											>
-												Cancel Acquisition
-											</Button>
-										</Show>
-									</div>
-								)}
-							</Show>
-						)}
-					</Show>
-
-					<Show when={isAudibleLane() && view().accountState?.status === 'connected'}>
-						<div
-							class="app-modal-results remote-title-list"
-							role="listbox"
-							aria-label="Audible titles"
-							aria-multiselectable="true"
-						>
-							<For each={remoteSource.visibleTitles()} keyed={(title) => title.titleId}>
-								{(title) => (
-									// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 uses the lowercase tabindex attribute.
-									<div
-										class={`remote-title-row${remoteSource.isTitleSelected(title().titleId) ? ' selected' : ''}${!isTitleAcquirable(title()) ? ' unavailable' : ''}`}
-										role="option"
-										tabindex={-1}
-										aria-selected={remoteSource.isTitleSelected(title().titleId) ? 'true' : 'false'}
-										aria-disabled={!isTitleAcquirable(title()) ? 'true' : undefined}
-									>
-										<RemoteTitleCover title={title()} />
-										<button
-											type="button"
-											class="remote-title-button"
-											disabled={!isTitleAcquirable(title())}
-											onClick={() => remoteSource.toggleTitle(title().titleId)}
-										>
-											<span class="remote-title-name">{title().title}</span>
-											<span class="remote-title-meta">{title().authors.join(', ')}</span>
-											<Show when={!isTitleAcquirable(title())}>
-												<span class="remote-title-availability">{title().availability.label}</span>
-												<Show when={title().availability.detail}>
-													{(detail) => (
-														<span class="remote-title-availability-detail">{detail()}</span>
-													)}
-												</Show>
-											</Show>
-										</button>
-										<Show when={title().supplementalPdfAvailable}>
-											<label class="remote-pdf-toggle">
-												<input
-													type="checkbox"
-													disabled={!isTitleAcquirable(title())}
-													checked={remoteSource.includesPdf(title().titleId)}
-													onChange={() => remoteSource.toggleSupplementalPdf(title().titleId)}
-												/>
-												PDF
-											</label>
-										</Show>
-									</div>
-								)}
-							</For>
-						</div>
 					</Show>
 
 					<Show when={isIndexerLane() && view().accountState?.status === 'connected'}>
-						<ul
-							class="app-modal-results remote-release-list"
-							aria-label="Indexer releases"
-							data-testid="remote-release-list"
-						>
-							<For each={remoteSource.visibleReleases()} keyed={releaseKey}>
-								{(release) => (
-									<ReleaseRow
-										release={release()}
-										selected={remoteSource.isReleaseSelected(release())}
-										grabState={remoteSource.releaseGrab(release())}
-										busy={view().isBusy}
-										onGrab={() => void runAction({ type: 'grabRelease', release: release() })}
-										onSelect={(event) =>
-											remoteSource.selectRelease(release(), {
-												multi: event.metaKey || event.ctrlKey,
-											})
-										}
-									/>
-								)}
-							</For>
-						</ul>
+						<div class="remote-source-toolbar-field remote-source-indexer-author">
+							<label for="remote-source-indexer-author">Author</label>
+							<input
+								id="remote-source-indexer-author"
+								data-testid="remote-source-indexer-author"
+								type="text"
+								placeholder="Author"
+								value={view().indexerAuthorQuery}
+								onInput={(event) => editSearch({ indexerAuthorQuery: event.currentTarget.value })}
+								onKeyDown={submitIndexerSearchOnEnter}
+							/>
+						</div>
+						<div class="remote-source-toolbar-field remote-source-indexer-title">
+							<label for="remote-source-indexer-title">Title</label>
+							<input
+								id="remote-source-indexer-title"
+								data-testid="remote-source-indexer-title"
+								type="text"
+								placeholder="Title"
+								value={view().indexerTitleQuery}
+								onInput={(event) => editSearch({ indexerTitleQuery: event.currentTarget.value })}
+								onKeyDown={submitIndexerSearchOnEnter}
+							/>
+						</div>
+						<div class="remote-source-toolbar-field remote-source-toolbar-button">
+							<Button
+								tone="primary"
+								disabled={view().isBusy}
+								onClick={() => void runAction({ type: 'searchReleases' })}
+							>
+								Search
+							</Button>
+						</div>
+						<div class="remote-source-toolbar-field remote-source-filter">
+							<label for="remote-source-release-filter">Filter</label>
+							<input
+								id="remote-source-release-filter"
+								data-testid="remote-source-release-filter"
+								type="search"
+								placeholder="Filter loaded releases"
+								value={view().releaseFilter}
+								onInput={(event) => editSearch({ releaseFilter: event.currentTarget.value })}
+							/>
+						</div>
+						<div class="remote-source-toolbar-field remote-source-sort">
+							<label for="remote-source-release-sort">Sort by</label>
+							<select
+								id="remote-source-release-sort"
+								value={view().releaseSort}
+								onChange={(event) =>
+									editSearch({
+										releaseSort: event.currentTarget.value === 'size' ? 'size' : 'seeders',
+									})
+								}
+							>
+								<option value="seeders">Most seeders</option>
+								<option value="size">Largest first</option>
+							</select>
+						</div>
+						<div class="remote-source-toolbar-field remote-source-toolbar-button">
+							<Button
+								disabled={view().isBusy || !remoteSource.canGrabSelection()}
+								onClick={() => void runAction({ type: 'grabSelectedReleases' })}
+							>
+								{view().selectedReleaseKeys.size > 1 ? 'Grab All' : 'Grab'}
+							</Button>
+						</div>
 					</Show>
-				</Dialog.Body>
-			</Show>
+				</div>
+
+				<Show when={isIndexerLane() && view().releases.length > 0}>
+					<p class="remote-release-selection" id="remote-release-selection" aria-live="polite">
+						{view().selectedReleaseKeys.size} selected
+						<Show when={remoteSource.hiddenReleaseSelectionCount() > 0}>
+							{' '}
+							({remoteSource.hiddenReleaseSelectionCount()} hidden by filter)
+						</Show>
+						<span>
+							{' '}
+							· ⌘-click on Mac or Ctrl-click on Windows/Linux to select multiple releases.
+						</span>
+					</p>
+				</Show>
+
+				<Show when={view().statusMessage}>
+					<Dialog.Status class="remote-source-status" live="polite">
+						{view().statusMessage}
+					</Dialog.Status>
+				</Show>
+
+				<Show when={isIndexerLane() && view().accountState?.status !== 'connected'}>
+					<div class="remote-indexer-settings-needed" data-testid="remote-indexer-settings-needed">
+						<p>
+							{view().accountState?.message ?? 'Configure Indexer in Settings before searching.'}
+						</p>
+						<Button
+							tone="primary"
+							onClick={() => {
+								close();
+								void settings.openDialog();
+							}}
+						>
+							Open Settings
+						</Button>
+					</div>
+				</Show>
+
+				<Show when={isAudibleLane() && view().accountState?.status === 'connected'}>
+					<div class="remote-selection-summary" aria-live="polite">
+						<span>{remoteSource.selectedTitleSummary()}</span>
+						<Show when={view().selectedTitleIds.size > 0}>
+							<button
+								class="remote-clear-selection"
+								type="button"
+								disabled={view().isBusy}
+								onClick={() => remoteSource.clearTitleSelection()}
+							>
+								Clear selection
+							</button>
+						</Show>
+					</div>
+				</Show>
+
+				<Show when={isAudibleLane() && remoteSource.acquisition()}>
+					{(job) => (
+						<Show when={job().progress}>
+							{(progress) => (
+								<div class="remote-progress" role="status" aria-live="polite">
+									<Progress
+										value={progressPercent(job())}
+										label="Acquisition progress"
+										active={!job().terminal}
+									/>
+									<div class="remote-progress-copy">
+										<span>{progressTitleLabel(progress(), remoteSource.acquisitionTitle())}</span>
+										<span>{Math.round(progressPercent(job()))}%</span>
+									</div>
+									<Show when={bytesLabel(progress())}>
+										{(label) => <p class="remote-progress-bytes">{label()}</p>}
+									</Show>
+									<Show when={!job().terminal}>
+										<Button
+											class="remote-progress-cancel"
+											onClick={() => void runAction({ type: 'cancelActiveAcquisition' })}
+										>
+											Cancel Acquisition
+										</Button>
+									</Show>
+								</div>
+							)}
+						</Show>
+					)}
+				</Show>
+
+				<Show when={isAudibleLane() && view().accountState?.status === 'connected'}>
+					<div
+						class="app-modal-results remote-title-list"
+						role="listbox"
+						aria-label="Audible titles"
+						aria-multiselectable="true"
+					>
+						<For each={remoteSource.visibleTitles()} keyed={(title) => title.titleId}>
+							{(title) => (
+								// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 uses the lowercase tabindex attribute.
+								<div
+									class={`remote-title-row${remoteSource.isTitleSelected(title().titleId) ? ' selected' : ''}${!isTitleAcquirable(title()) ? ' unavailable' : ''}`}
+									role="option"
+									tabindex={-1}
+									aria-selected={remoteSource.isTitleSelected(title().titleId) ? 'true' : 'false'}
+									aria-disabled={!isTitleAcquirable(title()) ? 'true' : undefined}
+								>
+									<RemoteTitleCover title={title()} />
+									<button
+										type="button"
+										class="remote-title-button"
+										disabled={!isTitleAcquirable(title())}
+										onClick={() => remoteSource.toggleTitle(title().titleId)}
+									>
+										<span class="remote-title-name">{title().title}</span>
+										<span class="remote-title-meta">{title().authors.join(', ')}</span>
+										<Show when={!isTitleAcquirable(title())}>
+											<span class="remote-title-availability">{title().availability.label}</span>
+											<Show when={title().availability.detail}>
+												{(detail) => (
+													<span class="remote-title-availability-detail">{detail()}</span>
+												)}
+											</Show>
+										</Show>
+									</button>
+									<Show when={title().supplementalPdfAvailable}>
+										<label class="remote-pdf-toggle">
+											<input
+												type="checkbox"
+												disabled={!isTitleAcquirable(title())}
+												checked={remoteSource.includesPdf(title().titleId)}
+												onChange={() => remoteSource.toggleSupplementalPdf(title().titleId)}
+											/>
+											PDF
+										</label>
+									</Show>
+								</div>
+							)}
+						</For>
+					</div>
+				</Show>
+
+				<Show when={isIndexerLane() && view().accountState?.status === 'connected'}>
+					<ul
+						class="app-modal-results remote-release-list"
+						aria-label="Indexer releases"
+						data-testid="remote-release-list"
+					>
+						<For each={remoteSource.visibleReleases()} keyed={releaseKey}>
+							{(release) => (
+								<ReleaseRow
+									release={release()}
+									selected={remoteSource.isReleaseSelected(release())}
+									grabState={remoteSource.releaseGrab(release())}
+									busy={view().isBusy}
+									onGrab={() => void runAction({ type: 'grabRelease', release: release() })}
+									onSelect={(event) =>
+										remoteSource.selectRelease(release(), {
+											multi: event.metaKey || event.ctrlKey,
+										})
+									}
+								/>
+							)}
+						</For>
+					</ul>
+				</Show>
+			</Dialog.Body>
 		</Dialog>
 	);
 }

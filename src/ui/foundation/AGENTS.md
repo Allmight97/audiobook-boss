@@ -35,6 +35,9 @@ language. The exact export names are the hand-written `STRIPS` list in
   Why: without it, a running shimmer elsewhere in the dialog made WebKit redo
   every row each frame (5,000 titles: 51 ms frames while scrolling, 17 ms with
   containment). `content-visibility: auto` measured slower for these rows.
+- `Dialog` `unmountWhenClosed` keeps content mounted through the close fade
+  (the backdrop's declared transition duration, 0 under no transition) and
+  unmounts it after, so a closed dialog's rows and progress do no work.
 - `Progress` takes a required `label` (its accessible name) and `active` for
   work running now; queued, finished, and idle bars stay still.
 

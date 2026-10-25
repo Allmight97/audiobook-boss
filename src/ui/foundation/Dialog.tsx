@@ -1,4 +1,4 @@
-import { createEffect, onCleanup } from 'solid-js';
+import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { ModalController } from './internal/modal';
@@ -10,6 +10,8 @@ export type DialogProps = {
 	readonly id?: string;
 	readonly testId?: string;
 	readonly restoreFocus?: boolean;
+	/** Mount the content only while open or fading out, so a closed dialog does no work. */
+	readonly unmountWhenClosed?: boolean;
 	readonly children: JSX.Element;
 };
 
@@ -55,7 +57,20 @@ function Status(props: {
 
 function DialogRoot(props: DialogProps): JSX.Element {
 	let dialogEl: HTMLDivElement | undefined;
+	let backdropEl: HTMLDivElement | undefined;
 	const modal = new ModalController();
+	const [faded, setFaded] = createSignal(true, { ownedWrite: true });
+	const present = createMemo<boolean>((was) => props.open || (was === true && !faded()));
+	let fadeTimer: ReturnType<typeof setTimeout> | undefined;
+	/** The longest declared transition on the backdrop, the time its close fade takes. */
+	const fadeMs = () =>
+		Math.max(
+			0,
+			...(backdropEl ? getComputedStyle(backdropEl).transitionDuration : '')
+				.split(',')
+				.map((part) => Number.parseFloat(part) * (part.trim().endsWith('ms') ? 1 : 1000))
+				.filter(Number.isFinite),
+		);
 
 	createEffect(
 		() => ({
@@ -69,9 +84,15 @@ function DialogRoot(props: DialogProps): JSX.Element {
 				{ container: dialogEl ?? null },
 				{ onEscape: value.onClose, restoreInvoker: value.restoreFocus },
 			);
+			clearTimeout(fadeTimer);
+			if (value.open) setFaded(false);
+			else fadeTimer = setTimeout(() => setFaded(true), fadeMs());
 		},
 	);
-	onCleanup(() => modal.destroy());
+	onCleanup(() => {
+		clearTimeout(fadeTimer);
+		modal.destroy();
+	});
 
 	return (
 		<div
@@ -79,6 +100,9 @@ function DialogRoot(props: DialogProps): JSX.Element {
 			class={['abb-dialog-backdrop', { open: props.open }]}
 			data-testid={props.testId}
 			aria-hidden={props.open ? undefined : 'true'}
+			ref={(element) => {
+				backdropEl = element;
+			}}
 			onClick={(event) => {
 				if (event.target === event.currentTarget) {
 					props.onClose();
@@ -94,7 +118,7 @@ function DialogRoot(props: DialogProps): JSX.Element {
 					dialogEl = element;
 				}}
 			>
-				{props.children}
+				{props.unmountWhenClosed ? <Show when={present()}>{props.children}</Show> : props.children}
 			</div>
 		</div>
 	);
