@@ -912,11 +912,7 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
  */
 "supplementalPdfUnavailable" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
 
-/**
- *  The Audible download as hosts show it. It has its own revision, so a
- *  progress tick carries this part alone and can never replace a newer
- *  selection or account fact.
- */
+/**  The Audible download as hosts show it, with its own revision. */
 export type RemoteAcquisitionSnapshot = {
 	revision: number,
 	/**  An accepted request whose job is not registered yet. */

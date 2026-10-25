@@ -11,8 +11,9 @@ when an imported download goes).
   `RemoteUiSnapshot` (with their connection, Indexer-work, and per-release
   status vocabulary) cross the session boundary. Connection mutation,
   selection, Search/Grab, auth start/completion/disconnect, and library refresh
-  cross only `SessionIntent::Remote`. `RemoteLibrarySnapshot` is a separate
-  revisioned session part; the runtime itself is crate-private.
+  cross only `SessionIntent::Remote`. `RemoteLibrarySnapshot` and
+  `RemoteAcquisitionSnapshot` are separate revisioned session parts; the
+  runtime itself is crate-private.
 - Processing, audio, metadata, output artifact, and frontend code consume
   provider-neutral facts only. No provider secrets, license blobs, raw provider
   responses, or protected intermediates cross the strip or the generated
@@ -96,12 +97,12 @@ also drops the job's record. Cancel does nothing to a job that already
 finished, so it cannot remove files the session holds. Materialized handoff
 files stay usable after provider logout. An Audible disconnect refuses
 unfinished acquisition/handoff; an Indexer disconnect neither waits for nor
-cleans up Audible jobs. Job changes update `SessionUpdate.remote_acquisition`,
-its own revisioned part (admission `acquiring` and the current job); download
-progress is published at most every 100 ms, a stage change at once. Why: a tick
-then carries one job, not the library-sized remote part, and a tick crossing a
-selection change cannot drop it. Snapshot `terminal` and `settled` facts belong
-here.
+cleans up Audible jobs. Job changes update `SessionUpdate.remote_acquisition`
+(admission `acquiring` and the current job), a part with its own revision;
+download progress is published at most every 100 ms, a stage change at once,
+and carries no other part. Why: a tick stays one job's size at any library
+size and cannot drop a crossing selection change. Snapshot `terminal` and
+`settled` facts belong here.
 
 ## Working Remote State
 
@@ -113,10 +114,9 @@ here.
   acquisition/handoff, its library; repeated entry coalesces pending reads.
   Account and library requests carry generations: replaced lanes and accepted
   disconnects discard both stale success and failure as Superseded. Reattachment
-  includes retained library rows; progress events carry only the acquisition
-  part. The remote, library, and acquisition parts are captured together under
-  the UI guard (`ui_parts.rs`); library revisions advance only when rows or
-  diagnostics change.
+  includes retained library rows. The remote, library, and acquisition parts
+  are captured together under the UI guard (`ui_parts.rs`); library revisions
+  advance only when rows or diagnostics change.
 - Auth start reserves Starting before execution, returns authorization only in
   its initiating reply, and retains AwaitingHandoff without the URL. Completion
   reserves credentials until registration and persistence settle. StartAuth,

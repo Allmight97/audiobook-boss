@@ -135,10 +135,9 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			state.remote.selectedTitleIds = [remoteTitle().titleId];
 		});
 		flush();
-		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toHaveAttribute(
-			'aria-valuenow',
-			'40',
-		);
+		const bar = () => screen.getByRole('progressbar', { name: 'Acquisition progress' });
+		expect(bar()).toHaveAttribute('aria-valuenow', '40');
+		expect(bar()).toHaveAttribute('data-active');
 		expect(screen.getByRole('option', { name: new RegExp(remoteTitle().title) })).toHaveAttribute(
 			'aria-selected',
 			'true',
@@ -168,10 +167,8 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			state.remote.lane = 'audible';
 		});
 		flush();
-		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toHaveAttribute(
-			'aria-valuenow',
-			'100',
-		);
+		expect(bar()).toHaveAttribute('aria-valuenow', '100');
+		expect(bar()).not.toHaveAttribute('data-active');
 	});
 
 	it('exposes Audible controls and filters connected library titles', async () => {
@@ -459,9 +456,13 @@ describe('RemoteSourceAcquireView during a download', () => {
 		await runtime.initialize();
 		await runtime.remoteSource.open({ lane: 'audible' });
 		const owner = runtime.remoteSource;
-		const reads = { row: 0, list: 0 };
-		const { isTitleSelected, includesPdf, visibleTitles } = owner;
+		const reads = { row: 0, list: 0, view: 0 };
+		const { isTitleSelected, includesPdf, visibleTitles, view } = owner;
 		Object.assign(owner, {
+			view: () => {
+				reads.view += 1;
+				return view();
+			},
 			isTitleSelected: (titleId: string) => {
 				reads.row += 1;
 				return isTitleSelected(titleId);
@@ -487,6 +488,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 		expect(reads.row).toBeGreaterThan(1000);
 		reads.row = 0;
 		reads.list = 0;
+		reads.view = 0;
 
 		host.progress(55);
 
@@ -494,7 +496,11 @@ describe('RemoteSourceAcquireView during a download', () => {
 			'aria-valuenow',
 			'55',
 		);
-		expect(reads).toEqual({ row: 0, list: 0 });
+		expect({ row: reads.row, list: reads.list }).toEqual({ row: 0, list: 0 });
+		// Only the dialog's own bindings read view(); a row reading it would add 1,000.
+		expect(reads.view).toBeLessThan(100);
+		const progress = screen.getByRole('progressbar', { name: 'Acquisition progress' });
+		expect(progress.closest('[aria-live]')).toBeNull();
 		const after = [...document.querySelectorAll('.remote-title-row')];
 		expect(after.every((row, index) => row === rows[index])).toBe(true);
 		expect(after[1]).toHaveAttribute('aria-selected', 'true');
@@ -534,5 +540,52 @@ describe('RemoteSourceAcquireView during a download', () => {
 		);
 		expect(document.querySelectorAll('.remote-title-row[aria-selected="true"]')).toHaveLength(1);
 		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toBeInTheDocument();
+	});
+
+	it('re-runs no release row when a download tick arrives in the Indexer lane', async () => {
+		const host = engineWithUpdates();
+		host.engine.change((state) => {
+			state.remote.lane = 'indexer';
+			state.remote.providers = providerCapabilities();
+			state.remote.account = { providerId: 'indexer', status: 'connected' };
+			state.remote.indexer.releases = Array.from({ length: 40 }, (_, index) => ({
+				providerId: 'indexer' as const,
+				guid: `guid-${index}`,
+				indexerId: 1,
+				title: `Release ${index}`,
+				indexer: 'Indexer',
+				sizeBytes: 1000,
+				protocol: 'torrent' as const,
+				seeders: index,
+				categories: [],
+			}));
+			state.remoteAcquisition.job = acquisitionJob(10);
+		});
+		runtime = createAppRuntime({ engine: host.capability });
+		await runtime.initialize();
+		await runtime.remoteSource.open({ lane: 'indexer' });
+		const owner = runtime.remoteSource;
+		let views = 0;
+		const { view } = owner;
+		Object.assign(owner, {
+			view: () => {
+				views += 1;
+				return view();
+			},
+		});
+		const app = runtime;
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		flush();
+		expect(screen.getAllByRole('button', { name: /^Grab Release/ })).toHaveLength(40);
+		views = 0;
+
+		host.progress(60);
+
+		// Only the dialog's own bindings read view(); a release row reading it would add 40.
+		expect(views).toBeLessThan(40);
 	});
 });

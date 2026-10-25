@@ -49,7 +49,15 @@ describe('Dialog', () => {
 			flush();
 			vi.advanceTimersByTime(100);
 			flush();
-			expect(screen.getByText('Rows')).toBeInTheDocument();
+			const rows = screen.getByText('Rows');
+			setOpen(true);
+			flush();
+			expect(screen.getByText('Rows')).toBe(rows);
+			setOpen(false);
+			flush();
+			vi.advanceTimersByTime(100);
+			flush();
+			expect(screen.getByText('Rows')).toBe(rows);
 			vi.advanceTimersByTime(100);
 			flush();
 			expect(screen.queryByText('Rows')).not.toBeInTheDocument();

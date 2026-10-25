@@ -294,9 +294,7 @@ pub struct AcquisitionSnapshot {
     pub terminal: bool,
     pub settled: bool,
 }
-/// The Audible download as hosts show it. It has its own revision, so a
-/// progress tick carries this part alone and can never replace a newer
-/// selection or account fact.
+/// The Audible download as hosts show it, with its own revision.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteAcquisitionSnapshot {

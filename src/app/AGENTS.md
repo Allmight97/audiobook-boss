@@ -32,9 +32,9 @@ second copy of owner state.
   `link.refuse`, the same notice `post` uses. The host runs both in the order
   called.
 - A part that arrives unchanged keeps object identity for its files and lookup
-  results, and the remote part for its selection lists, PDF choices, releases,
-  and grab records. Solid rows are not rebuilt, and a click does not land on a
-  replaced element.
+  results. A changed remote part keeps the objects of its unchanged selection
+  lists, PDF choices, releases, and grab records. Solid rows are not rebuilt,
+  and a click does not land on a replaced element.
 - Adapters show typed text (form fields, lookup queries, the naming template)
   at once and drop it when the engine's reply for that keystroke arrives. Form
   typing shows only on the form it was typed into (the metadata part's
@@ -48,7 +48,9 @@ second copy of owner state.
   `src/__tests__/public-api-strips.contract.test.ts`. Cross-owner
   coordination uses the other owner's strip, injected when App Runtime composes
   the owners.
-- Expose a small `view()` or accessor surface plus semantic intents.
+- Expose a small `view()` or accessor surface plus semantic intents. A fact
+  that changes often gets its own narrow accessor, so a row re-runs only when
+  its own fact changes.
 - Cross-owner integration tests use public owner intents. Owner-internal tests
   may import private modules to prove behavior at its cheapest stable boundary.
   Test-only needs stay out of the strip.
@@ -133,11 +135,9 @@ the owner of the truth.
   stays visible. Filtering and sorting keep the engine's
   selection. Release rows key on `(indexerId, guid)`, including Grab and Retry.
   Sent means the provider accepted, not that the download finished. `view()`
-  changes with every remote update, a download tick included, so rows and the
-  progress block read the narrow accessors (`visibleTitles`, `isTitleSelected`,
-  `includesPdf`, `visibleReleases`, `acquisition`); a tick then re-runs no row.
-  The filtered and sorted lists are owner memos. The dialog content unmounts
-  after its close fade (`Dialog` `unmountWhenClosed`).
+  changes with every remote update, a download tick included; the other
+  `RemoteSourceOwner` accessors change only with their own fact. Filtered and
+  sorted lists are owner memos.
 - `workOperations` (`crates/abb-engine/src/work_runtime/AGENTS.md`): WorkRuntime
   snapshots are the only progress source for accepted background operations.
   Terminal status comes from `abb_processing_core::classify_run_terminal`.

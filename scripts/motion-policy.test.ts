@@ -2,7 +2,7 @@ import { globSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-// Enforces the motion rule in src/ui/foundation/AGENTS.md across every app stylesheet.
+// Enforces the motion rule in src/ui/AGENTS.md (Styles) across every app stylesheet.
 const root = fileURLToPath(new URL('..', import.meta.url));
 const stylesheets = Object.fromEntries(
 	globSync('src/**/*.css', { cwd: root }).map((file) => [
@@ -59,7 +59,7 @@ describe('motion policy', () => {
 		expect(ungated.map(describeDeclaration)).toEqual([]);
 	});
 
-	it('never transitions layout size', () => {
+	it('never transitions width or height', () => {
 		const layout = all.filter(
 			(d) => /^transition(-property)?\s*:/.test(d.text) && /\b(width|height)\b/.test(d.text),
 		);

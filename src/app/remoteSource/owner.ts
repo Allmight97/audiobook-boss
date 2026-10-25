@@ -73,11 +73,6 @@ function actionIntent(
 
 type ReleaseIdentity = Pick<RemoteRelease, 'guid' | 'indexerId'>;
 
-/**
- * `view` changes with every remote update, a download tick included. A row
- * or the progress block reads the narrow accessors instead, which change
- * only when their own fact does.
- */
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
 	readonly isBusy: Accessor<boolean>;

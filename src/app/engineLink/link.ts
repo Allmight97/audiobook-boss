@@ -298,11 +298,6 @@ function sameRecord<T>(left: Record<string, T>, right: Record<string, T>): boole
 	);
 }
 
-/**
- * The same for the remote part: a progress tick or a selection change keeps
- * every unchanged selection, PDF choice, and release, so rows reading them
- * do not re-run and release rows keep their DOM.
- */
 function shareUnchangedRemote(
 	previous: RemoteUiSnapshot,
 	next: RemoteUiSnapshot,

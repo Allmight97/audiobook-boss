@@ -21,26 +21,12 @@ language. The exact export names are the hand-written `STRIPS` list in
 - `SplitButton.disabled` disables both triggers and hides an open menu, so an
   engine refusal state leaves no second submission path.
 - Theme follows `prefers-color-scheme`.
-- Motion: an element is complete when still. Movement that only decorates
-  (transitions, the progress shimmer) is declared inside
-  `@media (prefers-reduced-motion: no-preference)`. An endless animation also
-  runs only while its owner says work is active (`Progress` `active`). Animate
-  `transform` and `opacity`, never layout size. Why: an endless animation
-  repaints every frame even when idle; in WebKitGTK under Xvfb with software
-  rendering (arm64 Linux VM), the idle shimmer cost about 150% of a CPU core
-  with compositing on and 5% with it off. `scripts/motion-policy.test.ts`
-  enforces the endless-animation (motion preference and `[data-active]`) and
-  layout-size parts for every stylesheet under `src/`.
-- A scrolling result list (`.app-modal-results`) sets `contain: content`.
-  Why: without it, a running shimmer elsewhere in the dialog made WebKit redo
-  every row each frame (5,000 titles: 51 ms frames while scrolling, 17 ms with
-  containment). `content-visibility: auto` measured slower for these rows.
-- `Dialog` `unmountWhenClosed` keeps content mounted through the close fade
-  (the backdrop's declared transition duration, 0 under no transition) and
-  unmounts it after, so a closed dialog's rows and progress do no work.
-- `Progress` takes a required `label` (its accessible name) and `active` for
-  work running now; queued, finished, and idle bars stay still.
+- `Dialog` `unmountWhenClosed` mounts content only while open or fading out;
+  the fade lasts the backdrop's declared transition (`dialogs.css`), so a
+  closed dialog's rows and progress do no work.
+- `Progress` `active` marks work running now (running or cancelling); queued,
+  finished, and idle bars stay still.
 
 ## Proof
 
-`bun run test -- src/ui/foundation scripts/motion-policy.test.ts`
+`bun run test -- src/ui/foundation`

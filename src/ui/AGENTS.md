@@ -17,10 +17,19 @@ other relatively. The exact export names are the hand-written `STRIPS` list in
   `outputAndTags.css` holds the Output and tags panel layout.
 - Left column: the input workflow flexes and the inspector
   (`leftColumn/FileInspectorView`) stays pinned.
-- A `<For>` over rows rebuilt from a snapshot keys them by identity
-  (`keyed={(option) => option.value}`), so unchanged rows keep their DOM.
-  Why: each snapshot builds new objects, and a recreated `<option>` resets its
-  `<select>` to the first option.
+- A `<For>` over rows a snapshot rebuilds passes `keyed` a stable key
+  (`option.value`, `title.titleId`, `releaseKey`), so unchanged rows keep their
+  DOM. Why: a recreated `<option>` resets its `<select>` to the first option.
+
+## Styles
+
+- Motion: an element is complete when still. An endless animation runs only
+  inside `@media (prefers-reduced-motion: no-preference)` and under its owner's
+  `[data-active]` (`Progress` `active`), and no transition names `width` or
+  `height`; `scripts/motion-policy.test.ts` enforces both for every stylesheet
+  under `src/`. Why: an endless animation repaints every frame, idle or not.
+- A long scrolling list sets `contain: content` (`.app-modal-results`). Why:
+  without it, motion elsewhere in the dialog made WebKit redo every row.
 
 ## View Traps
 
@@ -58,7 +67,11 @@ One bullet per view. A view without a bullet has no trap beyond its owner.
   progress shows in the Audible lane only. Plain click replaces the selection;
   Cmd or Ctrl-click toggles one release. Grab All counts selections hidden by
   the filter and shows the hidden count. Select, Grab, and details accessible
-  names include the indexer, because mirrored releases share titles.
+  names include the indexer, because mirrored releases share titles. Rows and
+  the progress block read the owner's narrow accessors, never `view()`, so a
+  download tick re-runs no row. The progress block is not a live region; the
+  dialog status line announces stage changes. The dialog passes
+  `unmountWhenClosed`, so closed, it holds no rows.
 - `tagPreview`: with several titles selected, the TSOA row omits each title's
   source value. It can show blank where outputs keep their own.
 - `workCenter`: a title row offers Cancel only in a multi-title operation whose
