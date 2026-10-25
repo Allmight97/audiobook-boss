@@ -32,8 +32,9 @@ second copy of owner state.
   `link.refuse`, the same notice `post` uses. The host runs both in the order
   called.
 - A part that arrives unchanged keeps object identity for its files and lookup
-  results. Solid rows are not rebuilt, and a click does not land on a replaced
-  element.
+  results, and the remote part for its selection lists, PDF choices, releases,
+  and grab records. Solid rows are not rebuilt, and a click does not land on a
+  replaced element.
 - Adapters show typed text (form fields, lookup queries, the naming template)
   at once and drop it when the engine's reply for that keystroke arrives. Form
   typing shows only on the form it was typed into (the metadata part's
@@ -131,7 +132,12 @@ the owner of the truth.
   idle status line, including after the library loads, so an ephemeral sign-in
   stays visible. Filtering and sorting keep the engine's
   selection. Release rows key on `(indexerId, guid)`, including Grab and Retry.
-  Sent means the provider accepted, not that the download finished.
+  Sent means the provider accepted, not that the download finished. `view()`
+  changes with every remote update, a download tick included, so rows and the
+  progress block read the narrow accessors (`visibleTitles`, `isTitleSelected`,
+  `includesPdf`, `visibleReleases`, `acquisition`); a tick then re-runs no row.
+  The filtered and sorted lists are owner memos. The dialog body renders only
+  while open.
 - `workOperations` (`crates/abb-engine/src/work_runtime/AGENTS.md`): WorkRuntime
   snapshots are the only progress source for accepted background operations.
   Terminal status comes from `abb_processing_core::classify_run_terminal`.

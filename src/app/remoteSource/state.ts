@@ -68,6 +68,19 @@ function indexerStatus(remote: RemoteUiSnapshot): string {
 	return withConnectedAccountNote(status, remote);
 }
 
+/** One Set per selection list: the link keeps an unchanged list, so readers keep the same Set. */
+function setOf(): (ids: readonly string[]) => Set<string> {
+	let source: readonly string[] | undefined;
+	let set = new Set<string>();
+	return (ids) => {
+		if (ids !== source) {
+			source = ids;
+			set = new Set(ids);
+		}
+		return set;
+	};
+}
+
 export function createRemoteSourceStateStore(
 	onChange: () => void,
 	choices: () => RemoteUiSnapshot,
@@ -75,6 +88,22 @@ export function createRemoteSourceStateStore(
 ): RemoteSourceStateStore {
 	let state = createInitialRemoteSourceState();
 	let errors: Partial<Record<ProviderId, string>> = {};
+	const selectedTitleIds = setOf();
+	const selectedReleaseKeys = setOf();
+	/** Advances with every local edit, so the snapshot cache knows its inputs changed. */
+	let localVersion = 0;
+	let cached:
+		| {
+				readonly remote: RemoteUiSnapshot;
+				readonly library: RemoteLibrarySnapshot;
+				readonly localVersion: number;
+				readonly view: RemoteSourceView;
+		  }
+		| undefined;
+	const changed = () => {
+		localVersion += 1;
+		onChange();
+	};
 
 	const current = (): RemoteSourceState => {
 		const remote = choices();
@@ -85,10 +114,10 @@ export function createRemoteSourceStateStore(
 			providers: remote.providers,
 			accountState: remote.account,
 			titles: library().titles,
-			selectedTitleIds: new Set(remote.selectedTitleIds),
+			selectedTitleIds: selectedTitleIds(remote.selectedTitleIds),
 			includePdfByTitleId: remote.includePdfByTitleId,
 			releases: remote.indexer.releases,
-			selectedReleaseKeys: new Set(remote.indexer.selectedReleaseKeys),
+			selectedReleaseKeys: selectedReleaseKeys(remote.indexer.selectedReleaseKeys),
 			releaseGrabs: remote.indexer.releaseGrabs,
 			isGrabbing: remote.indexer.grabbing,
 			isBusy:
@@ -115,24 +144,40 @@ export function createRemoteSourceStateStore(
 	};
 	return {
 		current,
-		snapshot: () => snapshotRemoteSourceState(current()),
+		snapshot: () => {
+			const remote = choices();
+			const titles = library();
+			if (
+				cached?.remote !== remote ||
+				cached.library !== titles ||
+				cached.localVersion !== localVersion
+			) {
+				cached = {
+					remote,
+					library: titles,
+					localVersion,
+					view: snapshotRemoteSourceState(current()),
+				};
+			}
+			return cached.view;
+		},
 		patch(patch) {
 			state = { ...state, ...patch };
-			onChange();
+			changed();
 		},
 		setAcquisitionError(cause, fallback, providerId) {
 			logAppError(fallback, cause);
 			errors[providerId] = toUserMessage(cause, { fallback, suppressUnknown: true });
-			onChange();
+			changed();
 		},
 		clearError(providerId) {
 			delete errors[providerId];
-			onChange();
+			changed();
 		},
 		reset() {
 			errors = {};
 			state = createInitialRemoteSourceState();
-			onChange();
+			changed();
 		},
 	};
 }

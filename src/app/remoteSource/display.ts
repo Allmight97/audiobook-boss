@@ -80,8 +80,10 @@ export function bytesLabel(progress: AcquisitionProgress): string | null {
 	return `${downloadedMb.toFixed(1)} / ${totalMb.toFixed(1)} MB`;
 }
 
-export function progressTitleLabel(progress: AcquisitionProgress, titles: RemoteTitle[]): string {
-	const title = titles.find((candidate) => candidate.titleId === progress.currentTitleId);
+export function progressTitleLabel(
+	progress: AcquisitionProgress,
+	title: RemoteTitle | undefined,
+): string {
 	const ordinal =
 		progress.currentItemIndex != null && progress.totalItems != null
 			? `${progress.currentItemIndex}/${progress.totalItems}`

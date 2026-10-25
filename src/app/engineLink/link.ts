@@ -5,6 +5,7 @@ import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../ty
 import type { AudioFile } from '../../types/audio';
 import type {
 	RemoteLibrarySnapshot,
+	RemoteUiSnapshot,
 	SessionIntent,
 	SessionAudio,
 	SessionLookup,
@@ -28,7 +29,7 @@ export type EngineLink = {
 	readonly lookup: Accessor<SessionLookup>;
 	readonly audio: Accessor<SessionAudio>;
 	readonly output: Accessor<SessionOutput>;
-	readonly remote: Accessor<import('../../types/session').RemoteUiSnapshot>;
+	readonly remote: Accessor<RemoteUiSnapshot>;
 	readonly remoteLibrary: Accessor<RemoteLibrarySnapshot>;
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
@@ -201,7 +202,7 @@ function emptyAudio(): SessionAudio {
 	};
 }
 
-function emptyRemote(): import('../../types/session').RemoteUiSnapshot {
+function emptyRemote(): RemoteUiSnapshot {
 	return {
 		revision: UNATTACHED,
 		lane: 'audible',
@@ -286,6 +287,69 @@ function shareUnchangedResults(previous: SessionLookup, next: SessionLookup): Se
 	};
 }
 
+const sameText = (left: readonly string[], right: readonly string[]): boolean =>
+	left.length === right.length && left.every((value, index) => value === right[index]);
+
+function sameRecord<T>(left: Record<string, T>, right: Record<string, T>): boolean {
+	const keys = Object.keys(right);
+	return (
+		keys.length === Object.keys(left).length &&
+		keys.every((key) => key in left && JSON.stringify(left[key]) === JSON.stringify(right[key]))
+	);
+}
+
+/**
+ * The same for the remote part: a progress tick or a selection change keeps
+ * every unchanged selection, PDF choice, and release, so rows reading them
+ * do not re-run and release rows keep their DOM.
+ */
+function shareUnchangedRemote(
+	previous: RemoteUiSnapshot,
+	next: RemoteUiSnapshot,
+): RemoteUiSnapshot {
+	const known = new Map(
+		previous.indexer.releases.map((release) => [
+			`${release.indexerId}\u0000${release.guid}`,
+			{ release, content: JSON.stringify(release) },
+		]),
+	);
+	const releases = next.indexer.releases.map((release) => {
+		const existing = known.get(`${release.indexerId}\u0000${release.guid}`);
+		return existing && existing.content === JSON.stringify(release) ? existing.release : release;
+	});
+	const previousReleases = previous.indexer.releases;
+	return {
+		...next,
+		providers:
+			JSON.stringify(previous.providers) === JSON.stringify(next.providers)
+				? previous.providers
+				: next.providers,
+		selectedTitleIds: sameText(previous.selectedTitleIds, next.selectedTitleIds)
+			? previous.selectedTitleIds
+			: next.selectedTitleIds,
+		includePdfByTitleId: sameRecord(previous.includePdfByTitleId, next.includePdfByTitleId)
+			? previous.includePdfByTitleId
+			: next.includePdfByTitleId,
+		indexer: {
+			...next.indexer,
+			releases:
+				releases.length === previousReleases.length &&
+				releases.every((release, index) => release === previousReleases[index])
+					? previousReleases
+					: releases,
+			selectedReleaseKeys: sameText(
+				previous.indexer.selectedReleaseKeys,
+				next.indexer.selectedReleaseKeys,
+			)
+				? previous.indexer.selectedReleaseKeys
+				: next.indexer.selectedReleaseKeys,
+			releaseGrabs: sameRecord(previous.indexer.releaseGrabs, next.indexer.releaseGrabs)
+				? previous.indexer.releaseGrabs
+				: next.indexer.releaseGrabs,
+		},
+	};
+}
+
 export function createEngineLink(capability: EngineCapability = liveEngineCapability): EngineLink {
 	let titles = emptyTitles();
 	let selection: SessionSelection = {
@@ -335,7 +399,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 			bumpMetadata((n) => n + 1);
 		}
 		if (update.remote && update.remote.revision > remote.revision) {
-			remote = update.remote;
+			remote = shareUnchangedRemote(remote, update.remote);
 			bumpRemote((n) => n + 1);
 		}
 		if (update.remoteLibrary && update.remoteLibrary.revision > remoteLibrary.revision) {

@@ -113,6 +113,44 @@ describe('engine link', () => {
 		expect(link.titles().files[1]).toBe(second);
 	});
 
+	it('keeps unchanged remote choices and releases when another remote fact changes', async () => {
+		const release = (guid: string, seeders: number) => ({
+			providerId: 'indexer' as const,
+			guid,
+			indexerId: 1,
+			title: guid,
+			indexer: 'Indexer',
+			sizeBytes: 1,
+			protocol: 'torrent' as const,
+			seeders,
+			categories: [],
+		});
+		const engine = createFakeEngine();
+		engine.change((state) => {
+			state.remote.selectedTitleIds = ['a'];
+			state.remote.includePdfByTitleId = { a: true, b: false };
+			state.remote.indexer.releases = [release('one', 1), release('two', 2)];
+			state.remote.indexer.releaseGrabs = { x: { status: 'sent', message: '' } };
+		});
+		const link = linkTo(engine);
+		await link.ready();
+		const before = link.remote();
+
+		engine.change((state) => {
+			state.remote.indexer.message = 'Searching';
+			state.remote.indexer.releases = [release('one', 1), release('two', 9)];
+		});
+
+		const after = link.remote();
+		expect(after.indexer.message).toBe('Searching');
+		expect(after.selectedTitleIds).toBe(before.selectedTitleIds);
+		expect(after.includePdfByTitleId).toBe(before.includePdfByTitleId);
+		expect(after.indexer.releaseGrabs).toBe(before.indexer.releaseGrabs);
+		expect(after.indexer.releases[0]).toBe(before.indexer.releases[0]);
+		expect(after.indexer.releases[1]).not.toBe(before.indexer.releases[1]);
+		expect(after.indexer.releases[1]?.seeders).toBe(9);
+	});
+
 	it('does not replace a live frontend when a disposed link finishes registering listeners', async () => {
 		const engine = createFakeEngine();
 		let registered!: (stop: () => void) => void;

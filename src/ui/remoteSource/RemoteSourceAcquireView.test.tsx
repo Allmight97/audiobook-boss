@@ -1,10 +1,11 @@
 import { flush } from 'solid-js';
-import { fakeEngine } from '../../test/fixtures/fakeEngine';
+import { createFakeEngine, fakeEngine } from '../../test/fixtures/fakeEngine';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
+import type { SessionUpdate } from '../../types/session';
 import type {
 	AcquisitionJob,
 	RemoteSourceProviderCapabilities,
@@ -369,6 +370,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			'aria-pressed',
 			'true',
 		);
+		const releaseButton = screen.getByRole('button', { name: /^Select Release from 8/ });
 		await fireEvent.click(
 			screen.getByRole('button', { name: 'Grab Release from 8 from Indexer 8' }),
 		);
@@ -385,8 +387,155 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		});
 		flush();
 		expect(screen.getByText('Downloader unavailable')).toBeInTheDocument();
+		// A changed grab state updates the row in place.
+		expect(screen.getByRole('button', { name: /^Select Release from 8/ })).toBe(releaseButton);
 		expect(
 			screen.getByRole('button', { name: 'Retry Release from 8 from Indexer 8' }),
 		).toBeEnabled();
+	});
+});
+
+describe('RemoteSourceAcquireView during a download', () => {
+	let runtime: AppRuntime | undefined;
+	afterEach(() => {
+		cleanup();
+		runtime?.dispose();
+		runtime = undefined;
+		document.body.innerHTML = '';
+	});
+
+	/** Delivers one engine update the way the host does: only the parts that changed. */
+	function engineWithUpdates() {
+		const engine = createFakeEngine();
+		let deliver: ((update: SessionUpdate) => void) | undefined;
+		let last: SessionUpdate | undefined;
+		const capability = {
+			...engine,
+			attach: async () => {
+				const attached = await engine.attach();
+				last = attached.session;
+				return attached;
+			},
+			listenSessionUpdates: (handler: (update: SessionUpdate) => void) => {
+				deliver = handler;
+				return engine.listenSessionUpdates((update) => {
+					last = update;
+					handler(update);
+				});
+			},
+		};
+		return {
+			engine,
+			capability,
+			progress(percentage: number) {
+				const remote = last?.remote && structuredClone(last.remote);
+				if (!remote || !deliver) throw new Error('no remote part delivered yet');
+				const revision = remote.revision + 1_000;
+				deliver({
+					revision,
+					remote: { ...remote, revision, acquisition: acquisitionJob(percentage) },
+				});
+				flush();
+			},
+		};
+	}
+
+	function seedLibrary(engine: ReturnType<typeof createFakeEngine>, count: number) {
+		const titles = Array.from({ length: count }, (_, index) => ({
+			...remoteTitle(),
+			titleId: `B${String(index).padStart(9, '0')}`,
+			title: `Book ${index}`,
+			supplementalPdfAvailable: index % 5 === 0,
+		}));
+		engine.change((state) => {
+			state.remote.lane = 'audible';
+			state.remote.providers = providerCapabilities();
+			state.remote.account = { providerId: 'audible', status: 'connected' };
+			state.remote.libraryStatus = { kind: 'succeeded' };
+			state.remote.selectedTitleIds = [titles[1].titleId];
+			state.remote.includePdfByTitleId = Object.fromEntries(
+				titles.map((title) => [title.titleId, title.supplementalPdfAvailable]),
+			);
+			state.remote.acquisition = acquisitionJob(10);
+			state.remoteLibrary.titles = titles;
+		});
+	}
+
+	it('advances progress at 1,000 titles without re-running or rebuilding any row', async () => {
+		const host = engineWithUpdates();
+		seedLibrary(host.engine, 1000);
+		runtime = createAppRuntime({ engine: host.capability });
+		await runtime.initialize();
+		await runtime.remoteSource.open({ lane: 'audible' });
+		const owner = runtime.remoteSource;
+		const reads = { row: 0, list: 0 };
+		const { isTitleSelected, includesPdf, visibleTitles } = owner;
+		Object.assign(owner, {
+			isTitleSelected: (titleId: string) => {
+				reads.row += 1;
+				return isTitleSelected(titleId);
+			},
+			includesPdf: (titleId: string) => {
+				reads.row += 1;
+				return includesPdf(titleId);
+			},
+			visibleTitles: () => {
+				reads.list += 1;
+				return visibleTitles();
+			},
+		});
+		const app = runtime;
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		flush();
+		const rows = [...document.querySelectorAll('.remote-title-row')];
+		expect(rows).toHaveLength(1000);
+		expect(reads.row).toBeGreaterThan(1000);
+		reads.row = 0;
+		reads.list = 0;
+
+		host.progress(55);
+
+		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toHaveAttribute(
+			'aria-valuenow',
+			'55',
+		);
+		expect(reads).toEqual({ row: 0, list: 0 });
+		const after = [...document.querySelectorAll('.remote-title-row')];
+		expect(after.every((row, index) => row === rows[index])).toBe(true);
+		expect(after[1]).toHaveAttribute('aria-selected', 'true');
+	});
+
+	it('keeps no title rows while closed and shows current choices on reopen', async () => {
+		const host = engineWithUpdates();
+		seedLibrary(host.engine, 20);
+		runtime = createAppRuntime({ engine: host.capability });
+		await runtime.initialize();
+		await runtime.remoteSource.open({ lane: 'audible' });
+		const app = runtime;
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		flush();
+		expect(document.querySelectorAll('.remote-title-row')).toHaveLength(20);
+		runtime.remoteSource.editSearch({ titleFilter: 'Book 1' });
+		runtime.remoteSource.close();
+		flush();
+		expect(document.querySelectorAll('.remote-title-row')).toHaveLength(0);
+
+		host.progress(80);
+		host.engine.change((state) => {
+			state.remote.selectedTitleIds = ['B000000002'];
+		});
+		await runtime.remoteSource.open({ lane: 'audible' });
+		flush();
+		expect(screen.getByLabelText('Filter')).toHaveValue('Book 1');
+		expect(document.querySelectorAll('.remote-title-row').length).toBeGreaterThan(0);
+		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toBeInTheDocument();
 	});
 });

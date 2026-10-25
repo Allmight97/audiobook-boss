@@ -1,15 +1,21 @@
-import { createSignal, onCleanup, type Accessor } from 'solid-js';
+import { createMemo, createSignal, onCleanup, type Accessor } from 'solid-js';
 import type { AcquisitionLane } from '../../types/appSettings';
 import { tauriClient } from '../../lib/tauri/client';
 import type { RemoteUiIntent } from '../../types/session';
-import type { RemoteRelease } from '../../types/remoteSource';
+import type { AcquisitionJob, RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import {
 	createIndexerConnectionSettings,
 	type IndexerConnectionSettingsView,
 } from './indexerConnection';
 import type { EngineLink } from '../engineLink';
 import { createRemoteSourceStateStore } from './state';
-import type { RemoteSourceState, RemoteSourceView } from './types';
+import {
+	releaseKey,
+	selectedRemoteTitleSummaryText,
+	visibleRemoteReleases,
+	visibleRemoteTitles,
+} from './selection';
+import type { ReleaseGrabState, RemoteSourceState, RemoteSourceView } from './types';
 
 /** Semantic actions sent to the engine; browser opening belongs to this frontend. */
 export type RemoteSourceAction =
@@ -61,8 +67,29 @@ function actionIntent(action: RemoteSourceAction, view: RemoteSourceState): Remo
 	}
 }
 
+type ReleaseIdentity = Pick<RemoteRelease, 'guid' | 'indexerId'>;
+
+/**
+ * `view` changes with every remote update, a download tick included. A row
+ * or the progress block reads the narrow accessors instead, which change
+ * only when their own fact does.
+ */
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
+	/** Library titles left by the filter, PDF, and availability choices. */
+	readonly visibleTitles: Accessor<readonly RemoteTitle[]>;
+	readonly selectedTitleSummary: Accessor<string>;
+	isTitleSelected(titleId: string): boolean;
+	includesPdf(titleId: string): boolean;
+	readonly visibleReleases: Accessor<readonly RemoteRelease[]>;
+	isReleaseSelected(release: ReleaseIdentity): boolean;
+	releaseGrab(release: ReleaseIdentity): ReleaseGrabState | undefined;
+	/** Some selected release is not sent yet. */
+	readonly canGrabSelection: Accessor<boolean>;
+	readonly hiddenReleaseSelectionCount: Accessor<number>;
+	readonly acquisition: Accessor<AcquisitionJob | null>;
+	/** The library title the download is on now. */
+	readonly acquisitionTitle: Accessor<RemoteTitle | undefined>;
 	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
 	open(options?: { readonly lane?: AcquisitionLane }): Promise<void>;
 	selectLane(lane: AcquisitionLane): Promise<void>;
@@ -123,11 +150,64 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		generation += 1;
 	});
 
-	return {
-		view: () => {
-			viewRev();
-			return state.snapshot();
+	/** Built once per change of its inputs; a read right after an edit sees the edit. */
+	const view = () => {
+		viewRev();
+		return state.snapshot();
+	};
+	const titles = createMemo(() => view().titles);
+	const selectedTitleIds = createMemo(() => view().selectedTitleIds);
+	const includePdfByTitleId = createMemo(() => view().includePdfByTitleId);
+	const titleFilters = createMemo(
+		() => ({
+			titleFilter: view().titleFilter,
+			showSupplementalPdfOnly: view().showSupplementalPdfOnly,
+			hideUnavailableTitles: view().hideUnavailableTitles,
+		}),
+		{
+			equals: (a, b) =>
+				a.titleFilter === b.titleFilter &&
+				a.showSupplementalPdfOnly === b.showSupplementalPdfOnly &&
+				a.hideUnavailableTitles === b.hideUnavailableTitles,
 		},
+	);
+	const visibleTitles = createMemo(() => visibleRemoteTitles(titles(), titleFilters()));
+	const titleById = createMemo(() => new Map(titles().map((title) => [title.titleId, title])));
+	const releases = createMemo(() => view().releases);
+	const selectedReleaseKeys = createMemo(() => view().selectedReleaseKeys);
+	const releaseGrabs = createMemo(() => view().releaseGrabs);
+	const releaseFilters = createMemo(
+		() => ({ releaseFilter: view().releaseFilter, releaseSort: view().releaseSort }),
+		{ equals: (a, b) => a.releaseFilter === b.releaseFilter && a.releaseSort === b.releaseSort },
+	);
+	const visibleReleases = createMemo(() => visibleRemoteReleases(releases(), releaseFilters()));
+	const isReleaseSelected = (release: ReleaseIdentity) =>
+		selectedReleaseKeys().has(releaseKey(release));
+	const selectedReleases = createMemo(() => releases().filter(isReleaseSelected));
+	const acquisition = createMemo(() => view().activeJob);
+
+	return {
+		view,
+		visibleTitles,
+		selectedTitleSummary: createMemo(() =>
+			selectedRemoteTitleSummaryText(selectedTitleIds(), visibleTitles()),
+		),
+		isTitleSelected: (titleId) => selectedTitleIds().has(titleId),
+		includesPdf: (titleId) => includePdfByTitleId()[titleId] ?? true,
+		visibleReleases,
+		isReleaseSelected,
+		releaseGrab: (release) => releaseGrabs()[releaseKey(release)],
+		canGrabSelection: createMemo(() =>
+			selectedReleases().some((release) => releaseGrabs()[releaseKey(release)]?.status !== 'sent'),
+		),
+		hiddenReleaseSelectionCount: createMemo(
+			() => selectedReleases().length - visibleReleases().filter(isReleaseSelected).length,
+		),
+		acquisition,
+		acquisitionTitle: createMemo(() => {
+			const titleId = acquisition()?.progress.currentTitleId;
+			return titleId ? titleById().get(titleId) : undefined;
+		}),
 		indexerConnection: indexerConnection.view,
 		async open(options) {
 			if (disposed) return;
