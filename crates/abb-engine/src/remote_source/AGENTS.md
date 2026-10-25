@@ -100,9 +100,8 @@ cleans up Audible jobs. Job changes update `SessionUpdate.remote_acquisition`,
 its own revisioned part (admission `acquiring` and the current job); download
 progress is published at most every 100 ms, a stage change at once. Why: a tick
 then carries one job, not the library-sized remote part, and a tick crossing a
-selection change cannot drop it. Publication reads the registered job under the
-UI guard, so a stale progress clone never follows a terminal change. Snapshot
-`terminal` and `settled` facts belong here.
+selection change cannot drop it. Snapshot `terminal` and `settled` facts belong
+here.
 
 ## Working Remote State
 

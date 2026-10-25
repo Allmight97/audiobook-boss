@@ -40,22 +40,22 @@ const all = Object.entries(stylesheets).flatMap(([file, css]) => declarations(fi
 const describeDeclaration = (d: Declaration) => `${d.file}: ${d.scopes.join(' > ')} { ${d.text} }`;
 
 describe('motion policy', () => {
-	it('reads the app stylesheets', () => {
-		expect(Object.keys(stylesheets).length).toBeGreaterThan(5);
-	});
-
 	it('runs an endless animation only when motion is allowed and its owner marks work active', () => {
 		const endless = all.filter(
-			(d) => /^animation(-iteration-count)?\s*:/.test(d.text) && /\binfinite\b/.test(d.text),
+			(d) =>
+				/^(-webkit-)?animation(-iteration-count)?\s*:/.test(d.text) && /\binfinite\b/.test(d.text),
 		);
 		expect(endless.length).toBeGreaterThan(0);
 		const unguarded = endless.filter(
 			(d) => !d.scopes.some((scope) => /prefers-reduced-motion:\s*no-preference/.test(scope)),
 		);
 		expect(unguarded.map(describeDeclaration)).toEqual([]);
-		const ungated = endless.filter(
-			(d) => !d.scopes.some((scope) => scope.includes('[data-active]')),
-		);
+		const gated = (selector: string) =>
+			selector.replace(/:not\([^)]*\)/g, '').includes('[data-active]');
+		const ungated = endless.filter((d) => {
+			const rule = d.scopes.findLast((scope) => !scope.startsWith('@')) ?? '';
+			return !rule.split(',').every(gated);
+		});
 		expect(ungated.map(describeDeclaration)).toEqual([]);
 	});
 

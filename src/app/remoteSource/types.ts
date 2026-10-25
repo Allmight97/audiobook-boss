@@ -1,10 +1,8 @@
 import type {
-	AcquisitionJob,
 	ProviderId,
 	RemoteRelease,
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
-	RemoteTitle,
 } from '../../types/remoteSource';
 
 export type ReleaseGrabState = {
@@ -17,7 +15,6 @@ export type AcquisitionState = {
 	providerId: ProviderId;
 	providers: readonly RemoteSourceProviderCapabilities[];
 	accountState: RemoteSourceAccountState | null;
-	titles: readonly RemoteTitle[];
 	selectedTitleIds: ReadonlySet<string>;
 	includePdfByTitleId: Readonly<Record<string, boolean>>;
 	titleFilter: string;
@@ -32,7 +29,6 @@ export type AcquisitionState = {
 	selectedReleaseKeys: ReadonlySet<string>;
 	releaseGrabs: Readonly<Record<string, ReleaseGrabState>>;
 	statusMessage: string;
-	activeJob: AcquisitionJob | null;
 };
 
 export type RemoteSourceState = Omit<AcquisitionState, 'statusMessage'> & {
@@ -54,7 +50,6 @@ type EngineFields =
 	| 'providerId'
 	| 'providers'
 	| 'accountState'
-	| 'titles'
 	| 'statusByProvider'
 	| 'selectedTitleIds'
 	| 'includePdfByTitleId'
@@ -62,8 +57,7 @@ type EngineFields =
 	| 'selectedReleaseKeys'
 	| 'releaseGrabs'
 	| 'isGrabbing'
-	| 'isAcquiring'
-	| 'activeJob';
+	| 'isAcquiring';
 export type RemoteSourceLocalState = Omit<RemoteSourceState, EngineFields>;
 export type RemoteSourcePatch = Partial<RemoteSourceLocalState>;
 export function createInitialRemoteSourceState(): RemoteSourceLocalState {

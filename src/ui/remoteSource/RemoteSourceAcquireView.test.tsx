@@ -408,30 +408,20 @@ describe('RemoteSourceAcquireView during a download', () => {
 	function engineWithUpdates() {
 		const engine = createFakeEngine();
 		let deliver: ((update: SessionUpdate) => void) | undefined;
-		let last: SessionUpdate | undefined;
+		let revision = 1_000_000;
 		const capability = {
 			...engine,
-			attach: async () => {
-				const attached = await engine.attach();
-				last = attached.session;
-				return attached;
-			},
 			listenSessionUpdates: (handler: (update: SessionUpdate) => void) => {
 				deliver = handler;
-				return engine.listenSessionUpdates((update) => {
-					last = update;
-					handler(update);
-				});
+				return engine.listenSessionUpdates(handler);
 			},
 		};
 		return {
 			engine,
 			capability,
 			progress(percentage: number) {
-				const download = last?.remoteAcquisition;
-				if (!download || !deliver) throw new Error('no acquisition part delivered yet');
-				const revision = download.revision + 1_000;
-				last = { revision, remoteAcquisition: { ...download, revision } };
+				if (!deliver) throw new Error('not attached yet');
+				revision += 1;
 				deliver({
 					revision,
 					remoteAcquisition: { revision, acquiring: false, job: acquisitionJob(percentage) },

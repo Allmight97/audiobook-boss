@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup, Show } from 'solid-js';
+import { createEffect, createSignal, onCleanup, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { ModalController } from './internal/modal';
@@ -60,7 +60,6 @@ function DialogRoot(props: DialogProps): JSX.Element {
 	let backdropEl: HTMLDivElement | undefined;
 	const modal = new ModalController();
 	const [faded, setFaded] = createSignal(true, { ownedWrite: true });
-	const present = createMemo<boolean>((was) => props.open || (was === true && !faded()));
 	let fadeTimer: ReturnType<typeof setTimeout> | undefined;
 	/** The longest declared transition on the backdrop, the time its close fade takes. */
 	const fadeMs = () =>
@@ -68,7 +67,7 @@ function DialogRoot(props: DialogProps): JSX.Element {
 			0,
 			...(backdropEl ? getComputedStyle(backdropEl).transitionDuration : '')
 				.split(',')
-				.map((part) => Number.parseFloat(part) * (part.trim().endsWith('ms') ? 1 : 1000))
+				.map((part) => Number.parseFloat(part) * 1000)
 				.filter(Number.isFinite),
 		);
 
@@ -118,7 +117,11 @@ function DialogRoot(props: DialogProps): JSX.Element {
 					dialogEl = element;
 				}}
 			>
-				{props.unmountWhenClosed ? <Show when={present()}>{props.children}</Show> : props.children}
+				{props.unmountWhenClosed ? (
+					<Show when={props.open || !faded()}>{props.children}</Show>
+				) : (
+					props.children
+				)}
 			</div>
 		</div>
 	);

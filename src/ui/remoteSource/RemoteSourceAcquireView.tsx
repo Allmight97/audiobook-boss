@@ -322,7 +322,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					{(job) => (
 						<Show when={job().progress}>
 							{(progress) => (
-								<div class="remote-progress" role="status" aria-live="polite">
+								<div class="remote-progress">
 									<Progress
 										value={progressPercent(job())}
 										label="Acquisition progress"
@@ -413,7 +413,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 									release={release()}
 									selected={remoteSource.isReleaseSelected(release())}
 									grabState={remoteSource.releaseGrab(release())}
-									busy={view().isBusy}
+									busy={remoteSource.isBusy()}
 									onGrab={() => void runAction({ type: 'grabRelease', release: release() })}
 									onSelect={(event) =>
 										remoteSource.selectRelease(release(), {

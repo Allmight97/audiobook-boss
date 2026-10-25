@@ -85,7 +85,6 @@ export function StatusPanelView(): JSX.Element {
 						value={view().progressPercentage}
 						label="Preview progress"
 						active={view().progressActive}
-						class="status-progress"
 					/>
 					<div id="step-text" class="muted-text status-step" style={{ color: view().stepColor }}>
 						{view().stepText}

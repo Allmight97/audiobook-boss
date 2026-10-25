@@ -11,11 +11,7 @@
 	height: 100%;
 	overflow: hidden;
 	border-radius: inherit;
-	background: linear-gradient(
-		90deg,
-		var(--progress-fg),
-		color-mix(in srgb, var(--progress-fg) 70%, white 30%)
-	);
+	background: var(--progress-fg);
 }
 
 @media (prefers-reduced-motion: no-preference) {

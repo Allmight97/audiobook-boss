@@ -309,7 +309,7 @@ impl UiState {
         }
     }
 
-    pub(super) fn reject_sign_in(&mut self) {
+    fn reject_sign_in(&mut self) {
         self.sign_in_rejected = true;
         if let Some(account) = self.snapshot.account.take() {
             self.snapshot.account = Some(self.shown_account(account));
@@ -422,7 +422,7 @@ impl UiState {
     pub(super) fn snapshot(&self) -> RemoteUiSnapshot {
         self.snapshot.clone()
     }
-    pub(super) fn changed(&mut self) {
+    fn changed(&mut self) {
         self.snapshot.revision += 1;
     }
 

@@ -985,9 +985,6 @@ impl SessionState {
     pub(crate) fn update_since(&self, revision: Option<u64>) -> SessionUpdate {
         let newer = |part: u64| revision.is_none_or(|revision| part > revision);
         SessionUpdate {
-            remote: None,
-            remote_library: None,
-            remote_acquisition: None,
             revision: self.parts.revision,
             titles: newer(self.parts.titles.revision).then(|| self.parts.titles.clone()),
             selection: newer(self.parts.selection.revision).then(|| self.parts.selection.clone()),
@@ -995,6 +992,7 @@ impl SessionState {
             lookup: newer(self.parts.lookup.revision).then(|| self.parts.lookup.clone()),
             audio: newer(self.parts.audio.revision).then(|| self.parts.audio.clone()),
             output: newer(self.parts.output.revision).then(|| self.parts.output.clone()),
+            ..SessionUpdate::default()
         }
     }
 

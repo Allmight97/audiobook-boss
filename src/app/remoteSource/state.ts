@@ -120,7 +120,6 @@ export function createRemoteSourceStateStore(
 			providerId: remote.lane,
 			providers: remote.providers,
 			accountState: remote.account,
-			titles: library().titles,
 			selectedTitleIds: selectedTitleIds(remote.selectedTitleIds),
 			includePdfByTitleId: remote.includePdfByTitleId,
 			releases: remote.indexer.releases,
@@ -135,7 +134,6 @@ export function createRemoteSourceStateStore(
 						remote.auth.kind === 'starting')) ||
 				(remote.lane === 'indexer' &&
 					(remote.indexer.searching || remote.connection.save.kind === 'running')),
-			activeJob: job,
 			isAcquiring: acquiring || (job !== null && !job.settled),
 			statusByProvider: {
 				audible:

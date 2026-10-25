@@ -288,10 +288,10 @@ impl RemoteAcquisitionLifecycle {
                 }
             }
             job.handoff = Some(result);
-            Some(job.clone())
+            Some(())
         });
-        if let Some(job) = updated {
-            self.publish(&job.job_id);
+        if updated.is_some() {
+            self.publish(&job_id);
         }
     }
 
@@ -308,10 +308,10 @@ impl RemoteAcquisitionLifecycle {
             }
             let new_stage = job.progress.stage != progress.stage;
             job.progress = progress;
-            (new_stage || self.progress_due(job_id)).then(|| job.clone())
+            new_stage || self.progress_due(job_id)
         };
-        if let Some(job) = changed {
-            self.publish(&job.job_id);
+        if changed {
+            self.publish(job_id);
         }
     }
 

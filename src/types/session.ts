@@ -75,7 +75,6 @@ export type RemoteUiSnapshot = Omit<GeneratedRemoteUiSnapshot, 'indexer' | 'acco
 	indexer: Omit<GeneratedRemoteUiSnapshot['indexer'], 'releases'> & { releases: RemoteRelease[] };
 };
 
-/** The Audible download, revisioned apart so a progress tick carries only this part. */
 export type RemoteAcquisitionSnapshot = Omit<GeneratedRemoteAcquisitionSnapshot, 'job'> & {
 	job: AcquisitionJob | null;
 };

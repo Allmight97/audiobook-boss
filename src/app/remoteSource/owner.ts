@@ -42,7 +42,11 @@ function accountIntent(
 	}
 }
 
-function actionIntent(action: RemoteSourceAction, view: RemoteSourceState): RemoteUiIntent | null {
+function actionIntent(
+	action: RemoteSourceAction,
+	view: RemoteSourceState,
+	job: AcquisitionJob | null,
+): RemoteUiIntent | null {
 	switch (action.type) {
 		case 'searchReleases':
 			return {
@@ -61,7 +65,7 @@ function actionIntent(action: RemoteSourceAction, view: RemoteSourceState): Remo
 		case 'acquireSelected':
 			return { kind: 'acquireSelected' };
 		case 'cancelActiveAcquisition':
-			return view.activeJob ? { kind: 'cancelAcquisition', jobId: view.activeJob.jobId } : null;
+			return job ? { kind: 'cancelAcquisition', jobId: job.jobId } : null;
 		default:
 			return accountIntent(action.type, view.handoffPath);
 	}
@@ -76,6 +80,7 @@ type ReleaseIdentity = Pick<RemoteRelease, 'guid' | 'indexerId'>;
  */
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
+	readonly isBusy: Accessor<boolean>;
 	/** Library titles left by the filter, PDF, and availability choices. */
 	readonly visibleTitles: Accessor<readonly RemoteTitle[]>;
 	readonly selectedTitleSummary: Accessor<string>;
@@ -155,45 +160,45 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		viewRev();
 		return state.snapshot();
 	};
-	const titles = createMemo(() => view().titles);
+	const titles = () => deps.link.remoteLibrary().titles;
 	const selectedTitleIds = createMemo(() => view().selectedTitleIds);
 	const includePdfByTitleId = createMemo(() => view().includePdfByTitleId);
-	const titleFilters = createMemo(
-		() => ({
-			titleFilter: view().titleFilter,
-			showSupplementalPdfOnly: view().showSupplementalPdfOnly,
-			hideUnavailableTitles: view().hideUnavailableTitles,
+	const titleFilter = createMemo(() => view().titleFilter);
+	const showSupplementalPdfOnly = createMemo(() => view().showSupplementalPdfOnly);
+	const hideUnavailableTitles = createMemo(() => view().hideUnavailableTitles);
+	const visibleTitles = createMemo(() =>
+		visibleRemoteTitles(titles(), {
+			titleFilter: titleFilter(),
+			showSupplementalPdfOnly: showSupplementalPdfOnly(),
+			hideUnavailableTitles: hideUnavailableTitles(),
 		}),
-		{
-			equals: (a, b) =>
-				a.titleFilter === b.titleFilter &&
-				a.showSupplementalPdfOnly === b.showSupplementalPdfOnly &&
-				a.hideUnavailableTitles === b.hideUnavailableTitles,
-		},
 	);
-	const visibleTitles = createMemo(() => visibleRemoteTitles(titles(), titleFilters()));
 	const titleById = createMemo(() => new Map(titles().map((title) => [title.titleId, title])));
 	const releases = createMemo(() => view().releases);
 	const selectedReleaseKeys = createMemo(() => view().selectedReleaseKeys);
 	const releaseGrabs = createMemo(() => view().releaseGrabs);
-	const releaseFilters = createMemo(
-		() => ({ releaseFilter: view().releaseFilter, releaseSort: view().releaseSort }),
-		{ equals: (a, b) => a.releaseFilter === b.releaseFilter && a.releaseSort === b.releaseSort },
+	const releaseFilter = createMemo(() => view().releaseFilter);
+	const releaseSort = createMemo(() => view().releaseSort);
+	const visibleReleases = createMemo(() =>
+		visibleRemoteReleases(releases(), {
+			releaseFilter: releaseFilter(),
+			releaseSort: releaseSort(),
+		}),
 	);
-	const visibleReleases = createMemo(() => visibleRemoteReleases(releases(), releaseFilters()));
 	const isReleaseSelected = (release: ReleaseIdentity) =>
 		selectedReleaseKeys().has(releaseKey(release));
 	const selectedReleases = createMemo(() => releases().filter(isReleaseSelected));
-	const acquisition = createMemo(() => deps.link.remoteAcquisition().job);
+	const acquisition = () => deps.link.remoteAcquisition().job;
 
 	return {
 		view,
+		isBusy: createMemo(() => view().isBusy),
 		visibleTitles,
 		selectedTitleSummary: createMemo(() =>
 			selectedRemoteTitleSummaryText(selectedTitleIds(), visibleTitles()),
 		),
 		isTitleSelected: (titleId) => selectedTitleIds().has(titleId),
-		includesPdf: (titleId) => includePdfByTitleId()[titleId] ?? true,
+		includesPdf: (titleId) => includePdfByTitleId()[titleId] === true,
 		visibleReleases,
 		isReleaseSelected,
 		releaseGrab: (release) => releaseGrabs()[releaseKey(release)],
@@ -265,7 +270,7 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			if (disposed) return;
 			state.clearError(providerId);
 			try {
-				const intent = actionIntent(action, state.current());
+				const intent = actionIntent(action, state.current(), deps.link.remoteAcquisition().job);
 				if (!intent) return;
 				const outcome = await deps.link.send({ kind: 'remote', intent });
 				if (

@@ -15,10 +15,7 @@ fn reply(outcome: SessionOutcome) -> SessionReply {
             metadata: None,
             lookup: None,
             audio: None,
-            output: None,
-            remote: None,
-            remote_library: None,
-            remote_acquisition: None,
+            ..SessionUpdate::default()
         },
     }
 }

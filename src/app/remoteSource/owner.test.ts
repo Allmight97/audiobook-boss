@@ -39,7 +39,7 @@ it('renders acquisition progress from the attached session and Close leaves it r
 		state.remoteAcquisition.job = job;
 	});
 	const { owner, runtime } = await open(engine);
-	expect(owner.view().activeJob?.progress.percentage).toBe(40);
+	expect(owner.acquisition()?.progress.percentage).toBe(40);
 	expect(owner.view().isBusy).toBe(true);
 	owner.close();
 	expect(engine.sessionIntents).not.toContainEqual({
@@ -48,7 +48,7 @@ it('renders acquisition progress from the attached session and Close leaves it r
 	});
 	runtime.dispose();
 	const replacement = await open(engine);
-	expect(replacement.owner.view().activeJob?.jobId).toBe(job.jobId);
+	expect(replacement.owner.acquisition()?.jobId).toBe(job.jobId);
 	await replacement.owner.runAction({ type: 'cancelActiveAcquisition' });
 	expect(engine.sessionIntents).toContainEqual({
 		kind: 'remote',
@@ -170,7 +170,7 @@ it('restores cached library rows and selections during accepted acquisition with
 	first.owner.close();
 	first.runtime.dispose();
 	const replacement = await open(engine);
-	expect(replacement.owner.view().titles).toEqual([title]);
+	expect(replacement.owner.visibleTitles()).toEqual([title]);
 	expect([...replacement.owner.view().selectedTitleIds]).toEqual([title.titleId]);
 	expect(engine.sessionIntents).toEqual([
 		{ kind: 'remote', intent: { kind: 'selectLane', lane: 'audible' } },
