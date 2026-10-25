@@ -7,10 +7,36 @@
 }
 
 .abb-progress-fill {
+	position: relative;
+	width: 100%;
 	height: 100%;
 	border-radius: inherit;
 	background: var(--progress-fg);
-	transition: width var(--dur-base) var(--ease-out);
+	transform: translateX(-100%);
+	transition: transform var(--dur-base) var(--ease-out);
+}
+
+.abb-progress.is-active .abb-progress-fill::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		90deg,
+		transparent 0%,
+		rgba(255, 255, 255, 0.25) 35%,
+		transparent 70%
+	);
+	animation: progress-shimmer 1.6s linear infinite;
+}
+
+@keyframes progress-shimmer {
+	from {
+		transform: translateX(-100%);
+	}
+
+	to {
+		transform: translateX(100%);
+	}
 }
 
 .abb-cover {
@@ -46,7 +72,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.abb-cover-image {
+	.abb-cover-image,
+	.abb-progress-fill {
 		transition: none;
+	}
+
+	.abb-progress.is-active .abb-progress-fill::after {
+		animation: none;
 	}
 }

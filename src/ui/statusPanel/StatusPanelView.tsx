@@ -83,6 +83,7 @@ export function StatusPanelView(): JSX.Element {
 					</div>
 					<Progress
 						value={view().progressPercentage}
+						active={view().isProcessing}
 						fillId="progress-bar"
 						class="status-progress"
 					/>
