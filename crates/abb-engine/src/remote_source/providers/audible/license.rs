@@ -177,7 +177,7 @@ pub(super) async fn request_license_lane(
 
 pub(super) fn license_denied_message(denial: &LicenseDenial) -> String {
     if denial.is_throttled() {
-        return "Audible is temporarily limiting downloads for this account. Try again in a day or two.".to_string();
+        return "Audible is temporarily limiting downloads for this account. Disconnect and sign in to Audible again; if it still fails, try again in a day or two.".to_string();
     }
     let reasons = denial
         .reasons

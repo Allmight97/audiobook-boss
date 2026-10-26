@@ -27,6 +27,12 @@ when an imported download goes).
   cannot read, replace, or delete production provider credentials. The
   production identifier keeps its shipped service name; isolated profiles need
   their own sign-in and keys.
+- ABB registers its Audible device itself (`providers/audible/registration.rs`)
+  as the current Audible for iPhone app: a 40-character alphanumeric serial and
+  the app, iOS, and software versions in that file. Why: since October 2026
+  Audible denies licenses to the 2021 profile that `audible_api` hard-codes
+  (mkb79/Audible#909). A saved sign-in keeps the profile it registered with,
+  so a profile change takes effect only after the user signs in again.
 - On Linux the vault uses the Secret Service when one answers on the session
   bus, and kernel keyutils otherwise. Keyutils lasts until restart; the account
   message says sign-in will not be remembered. The warning follows the store's
@@ -156,8 +162,8 @@ a later keychain read cannot turn it back to Connected. Only a completed
 sign-in or a disconnect clears it. ABB never deletes the stored sign-in on a
 refusal. A license reply with `content_license.status_code` Denied fails that
 title as `LicenseDenied`, and the message gives Audible's reason codes. A
-`CustomerThrottled` reason means a temporary limit, so the message says to
-retry later. It is never reported as a missing URL. Acquisition success
+`CustomerThrottled` reason means a temporary limit or an outdated device
+registration, so the message says to sign in again, then retry later. It is never reported as a missing URL. Acquisition success
 means real materialized files: manual-import fallback and placeholder sources
 do not exist. Dash/Widevine acquisition stays unsupported until ABB has its own
 CDM, MPD/PSSH, and content-key design. An Audible AAX or AAXC file is
