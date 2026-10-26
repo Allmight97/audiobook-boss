@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 
 use super::acquisition::{ensure_not_cancelled, title_progress, TitleAcquisitionCtx};
 use super::http::{ApiCall, AudibleApi, AudibleRequestError, Scope};
+use super::license_reply_log::license_reply_log_fields;
 use super::AUDIBLE_IOS_DEVICE_TYPE;
 
 type RequestResult<T> = std::result::Result<T, AudibleRequestError>;
@@ -101,19 +102,34 @@ pub(super) async fn request_license_lane(
         None,
         None,
     ));
+    let payload = license_request_payload();
     log::info!(
-        "remote_source audible stage=license_request_start job_id={} title_ref={} body=json",
+        "remote_source audible stage=license_request_start job_id={} title_ref={} body=json domain={} drm_types={}",
         job_id,
-        title_ref(title_id)
+        title_ref(title_id),
+        api.marketplace_domain(),
+        payload["supported_media_features"]["drm_types"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>()
+            .join(",")
     );
     let license = api
         .post(
             &license_request_path(title_id),
-            &license_request_payload(),
+            &payload,
             ApiCall::for_job("license request", Scope::Title, job_id, title_id),
         )
         .await?;
     ensure_not_cancelled(is_cancelled)?;
+    log::info!(
+        "remote_source audible stage=license_reply job_id={} title_ref={} {}",
+        job_id,
+        title_ref(title_id),
+        license_reply_log_fields(&license)
+    );
     let facts = license_facts_from_value(&license);
     let strategy = choose_acquisition_strategy(&facts);
     log_license_facts(job_id, title_id, &facts, strategy);

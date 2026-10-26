@@ -12,6 +12,7 @@ mod diagnostics;
 mod http;
 mod library;
 mod license;
+mod license_reply_log;
 mod materialization;
 mod supplemental_pdf;
 
