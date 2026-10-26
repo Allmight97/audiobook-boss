@@ -130,7 +130,7 @@ describe('engine preview adapter', () => {
 				<StatusPanelView />
 			</AppRuntimeProvider>
 		));
-		const bar = () => screen.getByRole('progressbar', { name: 'Preview progress' });
+		const bar = () => screen.getByRole('progressbar', { name: 'Progress' });
 		expect(bar()).not.toHaveAttribute('data-active');
 		engine.change((state) => {
 			state.output.previewRun = preview();
