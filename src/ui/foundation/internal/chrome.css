@@ -14,15 +14,33 @@
 	background: var(--progress-fg);
 }
 
+/* Still, a running bar is striped so it differs from a queued one. */
+@media (prefers-reduced-motion: reduce) {
+	.abb-progress[data-active] .abb-progress-fill {
+		background-image: repeating-linear-gradient(
+			135deg,
+			var(--progress-stripe) 0 0.25rem,
+			transparent 0.25rem 0.5rem
+		);
+	}
+}
+
 @media (prefers-reduced-motion: no-preference) {
 	.abb-progress-fill {
 		transition: transform var(--dur-base) var(--ease-out);
 	}
 
+	.abb-cover-image {
+		transition: opacity 160ms ease-out;
+	}
+
+	/* The sweep spans only the filled part, so a short bar shows it too. */
 	.abb-progress[data-active] .abb-progress-fill::after {
 		content: "";
 		position: absolute;
-		inset: 0;
+		inset-block: 0;
+		inset-inline-end: 0;
+		width: calc(var(--abb-progress-value) * 1%);
 		background: linear-gradient(
 			90deg,
 			transparent 0%,
@@ -68,15 +86,8 @@
 /* A cover fades in once loaded; its container is the placeholder until then. */
 .abb-cover-image {
 	opacity: 0;
-	transition: opacity 160ms ease-out;
 }
 
 .abb-cover-image[data-state="ready"] {
 	opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.abb-cover-image {
-		transition: none;
-	}
 }

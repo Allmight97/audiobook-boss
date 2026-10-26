@@ -79,7 +79,6 @@
 	font-weight: 500;
 	cursor: pointer;
 	white-space: nowrap;
-	transition: all 0.2s ease-in-out;
 }
 
 .job-cancel-button:hover {
@@ -155,7 +154,6 @@
 	font-size: 0.8rem;
 	font-weight: 700;
 	white-space: nowrap;
-	transition: all 0.2s ease-in-out;
 }
 
 .queue-toggle-button:hover,
@@ -233,5 +231,19 @@
 
 	.queue-job-status {
 		white-space: normal;
+	}
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.job-cancel-button {
+		transition:
+			background-color 0.2s ease-in-out,
+			opacity 0.2s ease-in-out;
+	}
+
+	.queue-toggle-button {
+		transition:
+			border-color 0.2s ease-in-out,
+			color 0.2s ease-in-out;
 	}
 }

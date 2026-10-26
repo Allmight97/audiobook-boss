@@ -20,7 +20,13 @@ export function Progress(props: ProgressProps): JSX.Element {
 			aria-label={props.label}
 			data-active={props.active ? '' : undefined}
 		>
-			<div class="abb-progress-fill" style={{ transform: `translateX(${clamped() - 100}%)` }} />
+			<div
+				class="abb-progress-fill"
+				style={{
+					transform: `translateX(${clamped() - 100}%)`,
+					'--abb-progress-value': `${clamped()}`,
+				}}
+			/>
 		</div>
 	);
 }

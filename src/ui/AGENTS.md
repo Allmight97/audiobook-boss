@@ -23,11 +23,13 @@ other relatively. The exact export names are the hand-written `STRIPS` list in
 
 ## Styles
 
-- Motion: an element is complete when still. An endless animation runs only
-  inside `@media (prefers-reduced-motion: no-preference)` and under its owner's
-  `[data-active]` (`Progress` `active`), and no transition names `width` or
-  `height`; `scripts/motion-policy.test.ts` enforces both for every stylesheet
-  under `src/`. Why: an endless animation repaints every frame, idle or not.
+- Motion: an element is complete when still. Every transition and endless
+  animation sits inside `@media (prefers-reduced-motion: no-preference)`. An
+  endless animation also runs only under its owner's `[data-active]`
+  (`Progress` `active`). A transition names its properties: never `all`,
+  `width`, or `height`. `scripts/motion-policy.test.ts` enforces this for every
+  stylesheet under `src/`. Why: an endless animation repaints every frame, idle
+  or not; `all` and layout properties make each state change animate layout.
 - A long scrolling list sets `contain: content` (`.app-modal-results`). Why:
   without it, motion elsewhere in the dialog made WebKit redo every row.
 

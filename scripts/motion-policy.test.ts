@@ -37,6 +37,9 @@ function declarations(file: string, css: string): Declaration[] {
 }
 
 const all = Object.entries(stylesheets).flatMap(([file, css]) => declarations(file, css));
+const isTransition = (d: Declaration) => /^transition(-property)?\s*:/.test(d.text);
+const allowsMotion = (d: Declaration) =>
+	d.scopes.some((scope) => /prefers-reduced-motion:\s*no-preference/.test(scope));
 const describeDeclaration = (d: Declaration) => `${d.file}: ${d.scopes.join(' > ')} { ${d.text} }`;
 
 describe('motion policy', () => {
@@ -46,9 +49,7 @@ describe('motion policy', () => {
 				/^(-webkit-)?animation(-iteration-count)?\s*:/.test(d.text) && /\binfinite\b/.test(d.text),
 		);
 		expect(endless.length).toBeGreaterThan(0);
-		const unguarded = endless.filter(
-			(d) => !d.scopes.some((scope) => /prefers-reduced-motion:\s*no-preference/.test(scope)),
-		);
+		const unguarded = endless.filter((d) => !allowsMotion(d));
 		expect(unguarded.map(describeDeclaration)).toEqual([]);
 		const gated = (selector: string) =>
 			selector.replace(/:not\([^)]*\)/g, '').includes('[data-active]');
@@ -59,10 +60,16 @@ describe('motion policy', () => {
 		expect(ungated.map(describeDeclaration)).toEqual([]);
 	});
 
-	it('never transitions width or height', () => {
-		const layout = all.filter(
-			(d) => /^transition(-property)?\s*:/.test(d.text) && /\b(width|height)\b/.test(d.text),
-		);
-		expect(layout.map(describeDeclaration)).toEqual([]);
+	it('declares every transition only when motion is allowed', () => {
+		const transitions = all.filter(isTransition);
+		expect(transitions.length).toBeGreaterThan(0);
+		expect(transitions.filter((d) => !allowsMotion(d)).map(describeDeclaration)).toEqual([]);
+	});
+
+	it('never transitions all, width, or height', () => {
+		const transitions = all.filter(isTransition);
+		expect(transitions.length).toBeGreaterThan(0);
+		const broad = transitions.filter((d) => /\b(all|width|height)\b/.test(d.text));
+		expect(broad.map(describeDeclaration)).toEqual([]);
 	});
 });
