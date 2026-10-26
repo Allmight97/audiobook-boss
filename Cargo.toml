@@ -38,6 +38,11 @@ disallowed_methods = "warn"
 ffmpeg-next = { path = "vendor/ffmpeg-next-9.0.0" }
 ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next-9.0.1" }
 
+# Keep source-line backtraces while reducing development and test build storage.
+# The test profile inherits these development settings.
+[profile.dev]
+debug = 1
+
 # Image codecs run optimized in dev and test builds, so cover loading there
 # shows release speed; unoptimized decoding is many times slower.
 [profile.dev.package.image]
