@@ -201,6 +201,10 @@ fn download_update_bytes(count: usize) -> Vec<(bool, bool, bool, usize)> {
     job.diagnostics.clear();
     let job_id = job.job_id.clone();
     (runtime.inner.lifecycle.jobs.lock().expect("jobs")).insert(job_id.clone(), job);
+    // An admitted acquisition is already busy, so its ticks never flip `busy`.
+    runtime
+        .ui()
+        .set_acquisition(|acquisition| acquisition.acquiring = true);
     updates.0.lock().expect("updates").clear();
     // The first tick and each stage change publish at once, so no tick waits on the throttle.
     for stage in [AcquisitionStage::License, AcquisitionStage::Download] {
@@ -242,4 +246,39 @@ fn disconnecting_audible_clears_the_job_with_a_newer_acquisition_revision() {
     ui.disconnected(ProviderId::Audible);
     assert!(ui.acquisition.job.is_none());
     assert!(ui.acquisition.revision > before);
+}
+
+#[test]
+fn a_settling_job_frees_the_audible_lane_in_the_same_update() {
+    let mut ui = UiState::default();
+    ui.set_acquisition(|acquisition| acquisition.acquiring = true);
+    assert!(ui.snapshot().busy);
+    let mut running = acquisition_failed_with(
+        crate::remote_source::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+    );
+    running.status = crate::remote_source::RemoteAcquisitionStatus::Acquiring;
+    running.progress = abb_remote_source_core::acquisition_progress(
+        abb_remote_source_core::AcquisitionStage::Download,
+        Some(0.5),
+        Some(500),
+        Some(1_000),
+    );
+    running.diagnostics.clear();
+    let tick = ui.acquisition_changed(running);
+    ui.set_acquisition(|acquisition| acquisition.acquiring = false);
+    assert!(tick.remote.is_none());
+    assert!(ui.snapshot().busy);
+    let settled = ui.acquisition_changed(acquisition_failed_with(
+        crate::remote_source::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+    ));
+    assert!(!settled.remote.expect("busy flipped").busy);
+}
+
+#[test]
+fn indexer_work_makes_only_the_indexer_lane_busy() {
+    let mut ui = UiState::default();
+    ui.snapshot.indexer.searching = true;
+    assert!(!ui.snapshot().busy);
+    ui.snapshot.lane = ProviderId::Indexer;
+    assert!(ui.snapshot().busy);
 }

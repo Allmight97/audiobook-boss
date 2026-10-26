@@ -1021,6 +1021,8 @@ export type RemoteUiSnapshot = {
 	includePdfByTitleId: { [key in string]: boolean },
 	indexer: IndexerWorkSnapshot,
 	connection: IndexerDraftSnapshot,
+	/**  The shown lane refuses new work now; hosts disable its actions. */
+	busy: boolean,
 };
 
 export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer" | "metadataWrite" | "outputCommit" | "analysis";

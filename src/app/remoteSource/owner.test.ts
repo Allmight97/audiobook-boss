@@ -37,6 +37,7 @@ it('renders acquisition progress from the attached session and Close leaves it r
 	const engine = createFakeEngine();
 	engine.change((state) => {
 		state.remoteAcquisition.job = job;
+		state.remote.busy = true;
 	});
 	const { owner, runtime } = await open(engine);
 	expect(owner.acquisition()?.progress.percentage).toBe(40);
@@ -74,6 +75,7 @@ it('words the engine handoff and keeps Indexer status independent of an Audible 
 	engine.change((state) => {
 		state.remote.indexer.message = 'Sending one release';
 		state.remote.indexer.grabbing = true;
+		state.remote.busy = true;
 	});
 	expect(owner.view().statusMessage).toBe('Sending one release');
 	expect(owner.view().isBusy).toBe(true);
@@ -261,7 +263,6 @@ it('keeps Audible auth and library failures out of the Indexer lane', async () =
 		state.remote.indexer.message = 'Indexer ready';
 	});
 	expect(owner.view().statusMessage).toBe('Indexer ready');
-	expect(owner.view().isBusy).toBe(false);
 });
 
 it('clears a previous frontend account-read failure when reopening retries the lane intent', async () => {

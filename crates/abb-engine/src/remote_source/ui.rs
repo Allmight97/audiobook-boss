@@ -162,14 +162,14 @@ pub struct RemoteUiSnapshot {
     pub include_pdf_by_title_id: BTreeMap<String, bool>,
     pub indexer: IndexerWorkSnapshot,
     pub connection: IndexerDraftSnapshot,
+    /// The shown lane refuses new work now; hosts disable its actions.
+    pub busy: bool,
 }
 
 pub(super) struct UiState {
-    snapshot: RemoteUiSnapshot,
-    library: RemoteLibrarySnapshot,
-    library_published: u64,
-    acquisition: RemoteAcquisitionSnapshot,
-    acquisition_published: u64,
+    snapshot: parts::Part<RemoteUiSnapshot>,
+    library: parts::Part<RemoteLibrarySnapshot>,
+    acquisition: parts::Part<RemoteAcquisitionSnapshot>,
     account_request: u64,
     disconnecting: bool,
     /// Audible refused the saved sign-in; the account shows NeedsAuth until
@@ -193,7 +193,7 @@ pub(super) struct UiState {
 impl Default for UiState {
     fn default() -> Self {
         Self {
-            snapshot: RemoteUiSnapshot {
+            snapshot: parts::Part::new(RemoteUiSnapshot {
                 revision: 0,
                 lane: ProviderId::Audible,
                 providers: vec![
@@ -218,11 +218,10 @@ impl Default for UiState {
                     test: RemoteDraftStatus::Idle,
                     test_result: None,
                 },
-            },
-            library: RemoteLibrarySnapshot::default(),
-            library_published: 0,
-            acquisition: RemoteAcquisitionSnapshot::default(),
-            acquisition_published: 0,
+                busy: false,
+            }),
+            library: parts::Part::default(),
+            acquisition: parts::Part::default(),
             account_request: 0,
             disconnecting: false,
             sign_in_rejected: false,
@@ -419,13 +418,6 @@ impl UiState {
         }
     }
 
-    pub(super) fn snapshot(&self) -> RemoteUiSnapshot {
-        self.snapshot.clone()
-    }
-    fn changed(&mut self) {
-        self.snapshot.revision += 1;
-    }
-
     pub(super) fn library_loaded(&mut self, titles: Vec<RemoteTitle>) {
         self.library_loaded_with_diagnostics(titles, Vec::new());
     }
@@ -459,14 +451,9 @@ impl UiState {
         if self.library.titles != titles || self.library.diagnostics != diagnostics {
             self.library.titles = titles;
             self.library.diagnostics = diagnostics;
-            self.library.revision += 1;
+            self.library.bump();
         }
         self.changed();
-    }
-
-    pub(super) fn set_acquisition(&mut self, change: impl FnOnce(&mut RemoteAcquisitionSnapshot)) {
-        change(&mut self.acquisition);
-        self.acquisition.revision += 1;
     }
 
     fn begin(&mut self, intent: RemoteUiIntent) -> Result<UiAction> {

@@ -33,15 +33,10 @@ export type AcquisitionState = {
 
 export type RemoteSourceState = Omit<AcquisitionState, 'statusMessage'> & {
 	isOpen: boolean;
-	isGrabbing: boolean;
-	isAcquiring: boolean;
 	statusByProvider: Record<ProviderId, string>;
 };
 
-export type RemoteSourceView = Omit<
-	RemoteSourceState,
-	'isGrabbing' | 'isAcquiring' | 'statusByProvider'
-> & {
+export type RemoteSourceView = Omit<RemoteSourceState, 'statusByProvider'> & {
 	statusMessage: string;
 };
 
@@ -55,9 +50,7 @@ type EngineFields =
 	| 'includePdfByTitleId'
 	| 'releases'
 	| 'selectedReleaseKeys'
-	| 'releaseGrabs'
-	| 'isGrabbing'
-	| 'isAcquiring';
+	| 'releaseGrabs';
 export type RemoteSourceLocalState = Omit<RemoteSourceState, EngineFields>;
 export type RemoteSourcePatch = Partial<RemoteSourceLocalState>;
 export function createInitialRemoteSourceState(): RemoteSourceLocalState {
@@ -75,13 +68,6 @@ export function createInitialRemoteSourceState(): RemoteSourceLocalState {
 }
 
 export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourceView {
-	const { isGrabbing, isAcquiring, statusByProvider, ...view } = state;
-	return {
-		...view,
-		statusMessage: statusByProvider[state.providerId],
-		isBusy:
-			state.isBusy ||
-			(state.providerId === 'indexer' && isGrabbing) ||
-			(state.providerId === 'audible' && isAcquiring),
-	};
+	const { statusByProvider, ...view } = state;
+	return { ...view, statusMessage: statusByProvider[state.providerId] };
 }

@@ -151,15 +151,6 @@ pub struct SessionUpdate {
     pub remote_acquisition: Option<crate::remote_source::RemoteAcquisitionSnapshot>,
 }
 
-impl SessionUpdate {
-    pub(crate) fn remote(snapshot: crate::remote_source::RemoteUiSnapshot) -> Self {
-        Self {
-            remote: Some(snapshot),
-            ..Self::default()
-        }
-    }
-}
-
 /// Why the metadata draft gate refused a change of selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum GateBlock {

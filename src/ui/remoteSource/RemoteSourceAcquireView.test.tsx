@@ -133,6 +133,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		fakeEngine().change((state) => {
 			state.remoteAcquisition.job = acquisitionJob(40);
 			state.remote.selectedTitleIds = [remoteTitle().titleId];
+			state.remote.busy = true;
 		});
 		flush();
 		const bar = () => screen.getByRole('progressbar', { name: 'Acquisition progress' });
@@ -153,6 +154,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		);
 		fakeEngine().change((state) => {
 			state.remoteAcquisition.job = acquisitionJob(100, true);
+			state.remote.busy = false;
 		});
 		flush();
 		const user = userEvent.setup();
@@ -239,6 +241,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			state.remote.providers = providerCapabilities();
 			state.remote.account = { providerId: 'audible', status: 'needsAuth' };
 			state.remote.auth = { kind: 'starting' };
+			state.remote.busy = true;
 		});
 		await runtime.remoteSource.open();
 		expect(screen.getByRole('button', { name: 'Connect Audible' })).toBeDisabled();
@@ -256,6 +259,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 					detail: null,
 				},
 			};
+			state.remote.busy = false;
 		});
 		flush();
 		expect(screen.getByRole('button', { name: 'Connect Audible' })).toBeEnabled();

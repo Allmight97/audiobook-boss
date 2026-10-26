@@ -294,6 +294,13 @@ pub struct AcquisitionSnapshot {
     pub terminal: bool,
     pub settled: bool,
 }
+/// The remote parts' revisions at one moment; only `remote_source` reads them.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RemoteRevisions {
+    pub(super) remote: u64,
+    pub(super) library: u64,
+    pub(super) acquisition: u64,
+}
 /// The Audible download as hosts show it, with its own revision.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

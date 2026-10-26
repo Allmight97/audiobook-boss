@@ -128,7 +128,8 @@ the owner of the truth.
   leaves accepted work running. Disposal invalidates pending
   authorization-browser replies. An authorization URL occurs only in the
   initiating intent outcome; snapshots never reopen a browser. Render
-  `settled` and `handoff` facts and infer no terminal precedence. Status stays
+  `settled` and `handoff` facts and infer no terminal precedence. `isBusy` is
+  the engine's `remote.busy`; no busy rule lives here. Status stays
   with its originating provider, and a new request refusal shows even when an
   older job has a retained message. A connected account message stays on the
   idle status line, including after the library loads, so an ephemeral sign-in

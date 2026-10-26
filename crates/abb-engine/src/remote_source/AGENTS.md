@@ -116,7 +116,12 @@ size and cannot drop a crossing selection change. Snapshot `terminal` and
   disconnects discard both stale success and failure as Superseded. Reattachment
   includes retained library rows. The remote, library, and acquisition parts
   are captured together under the UI guard (`ui_parts.rs`); library revisions
-  advance only when rows or diagnostics change.
+  advance only when rows or diagnostics change. Each part owns its revision
+  and its published mark (`Part`); the session holds only the opaque
+  `RemoteRevisions` it got from `ui_revisions`.
+- `RemoteUiSnapshot.busy` says the shown lane refuses new work now; hosts
+  disable that lane's actions from it. An acquisition `busy` change also
+  moves the remote part, so the update that settles a job frees the lane.
 - Auth start reserves Starting before execution, returns authorization only in
   its initiating reply, and retains AwaitingHandoff without the URL. Completion
   reserves credentials until registration and persistence settle. StartAuth,

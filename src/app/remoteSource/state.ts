@@ -114,7 +114,7 @@ export function createRemoteSourceStateStore(
 
 	const current = (): RemoteSourceState => {
 		const remote = choices();
-		const { acquiring, job } = acquisition();
+		const { job } = acquisition();
 		return {
 			...state,
 			providerId: remote.lane,
@@ -125,16 +125,7 @@ export function createRemoteSourceStateStore(
 			releases: remote.indexer.releases,
 			selectedReleaseKeys: selectedReleaseKeys(remote.indexer.selectedReleaseKeys),
 			releaseGrabs: remote.indexer.releaseGrabs,
-			isGrabbing: remote.indexer.grabbing,
-			isBusy:
-				remote.accountStatus.kind === 'running' ||
-				(remote.lane === 'audible' &&
-					(remote.libraryStatus.kind === 'running' ||
-						remote.auth.kind === 'completing' ||
-						remote.auth.kind === 'starting')) ||
-				(remote.lane === 'indexer' &&
-					(remote.indexer.searching || remote.connection.save.kind === 'running')),
-			isAcquiring: acquiring || (job !== null && !job.settled),
+			isBusy: remote.busy,
 			statusByProvider: {
 				audible:
 					errors.audible ||

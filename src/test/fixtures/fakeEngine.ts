@@ -185,6 +185,7 @@ export function fakeRemote(): import('../../types/session').RemoteUiSnapshot {
 		accountStatus: { kind: 'idle' },
 		auth: { kind: 'idle' },
 		libraryStatus: { kind: 'idle' },
+		busy: false,
 		selectedTitleIds: [],
 		includePdfByTitleId: {},
 		indexer: {
