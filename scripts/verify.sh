@@ -179,6 +179,7 @@ lane_tooling() {
 	bash scripts/check-workflows.sh
 	bun scripts/check-guidance.ts
 	bun scripts/check-known-mistakes.ts
+	bun scripts/check-pins.ts
 	bun scripts/check-pr-workflow-policy.ts
 	local scripts
 	# Globs are expanded against committed files; fail if a directory is empty.
