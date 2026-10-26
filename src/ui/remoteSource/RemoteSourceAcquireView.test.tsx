@@ -546,6 +546,31 @@ describe('RemoteSourceAcquireView during a download', () => {
 		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toBeInTheDocument();
 	});
 
+	it('reopens each list where it was scrolled when closed', async () => {
+		const host = engineWithUpdates();
+		seedLibrary(host.engine, 20);
+		runtime = createAppRuntime({ engine: host.capability });
+		await runtime.initialize();
+		await runtime.remoteSource.open({ lane: 'audible' });
+		const app = runtime;
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		flush();
+		const list = () => screen.getByRole('listbox', { name: 'Audible titles' });
+		list().scrollTop = 400;
+		await fireEvent.scroll(list());
+		runtime.remoteSource.close();
+		flush();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		flush();
+		await runtime.remoteSource.open({ lane: 'audible' });
+		flush();
+		await vi.waitFor(() => expect(list().scrollTop).toBe(400));
+	});
+
 	it('re-runs no release row when a download tick arrives in the Indexer lane', async () => {
 		const host = engineWithUpdates();
 		host.engine.change((state) => {

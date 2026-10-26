@@ -38,6 +38,18 @@ function RemoteTitleCover(props: { readonly title: RemoteTitle }): JSX.Element {
 	);
 }
 
+/** Closing unmounts the rows, so a list returns to where it was scrolled once they render. */
+function keepScroll(saved: { top: number }) {
+	return (list: HTMLElement) => {
+		list.addEventListener('scroll', () => {
+			saved.top = list.scrollTop;
+		});
+		requestAnimationFrame(() => {
+			list.scrollTop = saved.top;
+		});
+	};
+}
+
 export function RemoteSourceAcquireView(): JSX.Element {
 	const runtime = useAppRuntime();
 	const remoteSource = runtime.remoteSource;
@@ -47,6 +59,8 @@ export function RemoteSourceAcquireView(): JSX.Element {
 	const close = remoteSource.close;
 	const editSearch = remoteSource.editSearch;
 
+	const titleScroll = keepScroll({ top: 0 });
+	const releaseScroll = keepScroll({ top: 0 });
 	const isAudibleLane = () => view().providerId === 'audible';
 	const isIndexerLane = () => view().providerId === 'indexer';
 
@@ -351,6 +365,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 
 				<Show when={isAudibleLane() && view().accountState?.status === 'connected'}>
 					<div
+						ref={titleScroll}
 						class="app-modal-results remote-title-list"
 						role="listbox"
 						aria-label="Audible titles"
@@ -403,6 +418,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 
 				<Show when={isIndexerLane() && view().accountState?.status === 'connected'}>
 					<ul
+						ref={releaseScroll}
 						class="app-modal-results remote-release-list"
 						aria-label="Indexer releases"
 						data-testid="remote-release-list"

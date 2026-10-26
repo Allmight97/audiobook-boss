@@ -73,7 +73,8 @@ One bullet per view. A view without a bullet has no trap beyond its owner.
   the progress block read the owner's narrow accessors, never `view()`, so a
   download tick re-runs no row. The progress block is not a live region; the
   dialog status line announces stage changes. The dialog passes
-  `unmountWhenClosed`, so closed, it holds no rows.
+  `unmountWhenClosed`, so closed, it holds no rows; each list keeps its
+  scroll position and returns to it once its rows render on reopen.
 - `tagPreview`: with several titles selected, the TSOA row omits each title's
   source value. It can show blank where outputs keep their own.
 - `workCenter`: a title row offers Cancel only in a multi-title operation whose
