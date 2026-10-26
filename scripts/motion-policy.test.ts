@@ -37,10 +37,26 @@ function declarations(file: string, css: string): Declaration[] {
 }
 
 const all = Object.entries(stylesheets).flatMap(([file, css]) => declarations(file, css));
-const isTransition = (d: Declaration) => /^transition(-property)?\s*:/.test(d.text);
+const isTransition = (d: Declaration) => /^transition(-[a-z-]+)?\s*:/.test(d.text);
+const namesProperties = (d: Declaration) => /^transition(-property)?\s*:/.test(d.text);
+const ruleOf = (d: Declaration) => `${d.file}|${d.scopes.join('|')}`;
 const allowsMotion = (d: Declaration) =>
 	d.scopes.some((scope) => /prefers-reduced-motion:\s*no-preference/.test(scope));
 const describeDeclaration = (d: Declaration) => `${d.file}: ${d.scopes.join(' > ')} { ${d.text} }`;
+
+/**
+ * Transitions that run under reduced motion or animate `all`, `width`, or
+ * `height`. A longhand in a rule that names no properties animates `all`.
+ */
+function transitionProblems(list: readonly Declaration[]): string[] {
+	const transitions = list.filter(isTransition);
+	const named = new Set(transitions.filter(namesProperties).map(ruleOf));
+	const unguarded = transitions.filter((d) => !allowsMotion(d));
+	const broad = transitions.filter(
+		(d) => (namesProperties(d) && /\b(all|width|height)\b/.test(d.text)) || !named.has(ruleOf(d)),
+	);
+	return [...new Set([...unguarded, ...broad])].map(describeDeclaration);
+}
 
 describe('motion policy', () => {
 	it('runs an endless animation only when motion is allowed and its owner marks work active', () => {
@@ -60,16 +76,23 @@ describe('motion policy', () => {
 		expect(ungated.map(describeDeclaration)).toEqual([]);
 	});
 
-	it('declares every transition only when motion is allowed', () => {
-		const transitions = all.filter(isTransition);
-		expect(transitions.length).toBeGreaterThan(0);
-		expect(transitions.filter((d) => !allowsMotion(d)).map(describeDeclaration)).toEqual([]);
+	it('declares every transition only when motion is allowed, naming its properties', () => {
+		expect(all.filter(isTransition).length).toBeGreaterThan(0);
+		expect(transitionProblems(all)).toEqual([]);
 	});
 
-	it('never transitions all, width, or height', () => {
-		const transitions = all.filter(isTransition);
-		expect(transitions.length).toBeGreaterThan(0);
-		const broad = transitions.filter((d) => /\b(all|width|height)\b/.test(d.text));
-		expect(broad.map(describeDeclaration)).toEqual([]);
+	it('catches a transition longhand that defaults to all outside the guard', () => {
+		const probe = declarations('probe.css', '.probe { transition-duration: 0.2s; }');
+		expect(transitionProblems(probe)).not.toEqual([]);
+		const guarded = declarations(
+			'probe.css',
+			'@media (prefers-reduced-motion: no-preference) { .probe { transition-duration: 0.2s; } }',
+		);
+		expect(transitionProblems(guarded)).not.toEqual([]);
+		const named = declarations(
+			'probe.css',
+			'@media (prefers-reduced-motion: no-preference) { .probe { transition-property: opacity; transition-duration: 0.2s; } }',
+		);
+		expect(transitionProblems(named)).toEqual([]);
 	});
 });
