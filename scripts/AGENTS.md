@@ -139,8 +139,10 @@ Traps:
   `--exclude-newer-package` with a removal date.
   `bun run update:rc` updates the prerelease families listed in `bunfig.toml`.
   An early-release exemption in `bunfig.toml` names each new transitive and
-  platform package too (`@oven/bun-*`, `@biomejs/cli-*`), with its removal
-  date. Why: Bun silently drops an age-blocked optional package from `bun.lock`.
+  platform package too (`@oven/bun-*`, `@biomejs/cli-*`), between
+  `# early-install until YYYY-MM-DD` and `# early-install end`.
+  `scripts/early-install.test.ts` fails once that date passes. Why: Bun
+  silently drops an age-blocked optional package from `bun.lock`.
 - `package.json` `overrides` keeps one `@tauri-apps/api` version across the app
   and its plugins, at the same minor version as the Rust `tauri` crate. Move
   them together.

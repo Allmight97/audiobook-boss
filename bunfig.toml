@@ -7,8 +7,8 @@ minimumReleaseAge = 864000
 # Keep unrelated transitive resolutions gated during explicit prerelease updates.
 minimumReleaseAgeExcludes = [
   # One-time early install for the Oct 25, 2026 dependency refresh, J-approved
-  # Oct 25, 2026. Every entry down to the Solid family expires Nov 3, 2026:
-  # remove them then.
+  # Oct 25, 2026. scripts/early-install.test.ts fails once the date passes.
+  # early-install until 2026-11-03
   # Bun 1.4.4 and its platform binaries.
   "bun",
   "@oven/bun-darwin-aarch64",
@@ -74,6 +74,8 @@ minimumReleaseAgeExcludes = [
   "@tauri-apps/cli-win32-arm64-msvc",
   "@tauri-apps/cli-win32-ia32-msvc",
   "@tauri-apps/cli-win32-x64-msvc",
+  # early-install end
+  # Prerelease families that `bun run update:rc` keeps current.
   "solid-js",
   "@solidjs/web",
   "@solidjs/signals",
