@@ -100,8 +100,9 @@ unfinished acquisition/handoff; an Indexer disconnect neither waits for nor
 cleans up Audible jobs. Job changes update `SessionUpdate.remote_acquisition`
 (admission `acquiring` and the current job), a part with its own revision;
 download progress is published at most every 100 ms, a stage change at once,
-and carries no other part. Why: a tick stays one job's size at any library
-size and cannot drop a crossing selection change. Snapshot `terminal` and
+and a progress tick carries no other part. The change that settles the job
+or rejects the sign-in also carries the remote part. Why: a tick stays one
+job's size at any library size and cannot drop a crossing selection change. Snapshot `terminal` and
 `settled` facts belong here.
 
 ## Working Remote State
