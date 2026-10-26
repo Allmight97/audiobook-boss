@@ -154,7 +154,10 @@ acquisition (`AuthRequired` diagnostic) sets the UI
 state's sign-in-rejected fact: the account shows NeedsAuth with the reason, and
 a later keychain read cannot turn it back to Connected. Only a completed
 sign-in or a disconnect clears it. ABB never deletes the stored sign-in on a
-refusal. Acquisition success
+refusal. A license reply with `content_license.status_code` Denied fails that
+title as `LicenseDenied`, and the message gives Audible's reason codes. A
+`CustomerThrottled` reason means a temporary limit, so the message says to
+retry later. It is never reported as a missing URL. Acquisition success
 means real materialized files: manual-import fallback and placeholder sources
 do not exist. Dash/Widevine acquisition stays unsupported until ABB has its own
 CDM, MPD/PSSH, and content-key design. An Audible AAX or AAXC file is

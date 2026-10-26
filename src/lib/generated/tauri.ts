@@ -899,7 +899,12 @@ export type ReleaseGrabStatus = "queued" | "sending" | "sent" | "error";
 
 export type RemoteAccountStatus = "connected" | "needsAuth" | "error";
 
-export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProtocolFailed" | "protectedUnsupported" | "downloadFailed" | "materializationFailed" |
+export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProtocolFailed" |
+/**
+ *  Audible answered the license request and refused it; the message says
+ *  why (for example, a temporary download limit on the account).
+ */
+"licenseDenied" | "protectedUnsupported" | "downloadFailed" | "materializationFailed" |
 /**
  *  Decryption succeeded and the title is import-ready, but the encrypted
  *  staging source could not be purged. Non-blocking: the startup session

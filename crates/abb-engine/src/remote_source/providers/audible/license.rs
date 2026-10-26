@@ -1,7 +1,7 @@
 use abb_audible_core::{
     audible_decryption_material_from_license, choose_acquisition_strategy,
     find_first_string_for_key, find_first_string_for_keys, license_facts_from_value, title_ref,
-    AudibleDecryptionMaterial, AudibleLicenseDecryptContext, LicenseFacts,
+    AudibleDecryptionMaterial, AudibleLicenseDecryptContext, LicenseDenial, LicenseFacts,
 };
 use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage, AcquisitionStrategy};
 use audible_api::auth::Auth;
@@ -19,6 +19,7 @@ pub(super) struct LicenseLane {
     pub(super) strategy: AcquisitionStrategy,
     pub(super) decryption_material: Option<AudibleDecryptionMaterial>,
     pub(super) supplemental_pdf_url: Option<String>,
+    pub(super) denial: Option<LicenseDenial>,
 }
 
 pub(super) struct AudibleTitleDetails {
@@ -144,6 +145,7 @@ pub(super) async fn request_license_lane(
             strategy: AcquisitionStrategy::ProviderProtocolFailed,
             decryption_material: None,
             supplemental_pdf_url: facts.supplemental_pdf_url,
+            denial: facts.denial,
         });
     };
 
@@ -169,7 +171,26 @@ pub(super) async fn request_license_lane(
             material
         },
         supplemental_pdf_url: facts.supplemental_pdf_url,
+        denial: None,
     })
+}
+
+pub(super) fn license_denied_message(denial: &LicenseDenial) -> String {
+    if denial.is_throttled() {
+        return "Audible is temporarily limiting downloads for this account. Try again in a day or two.".to_string();
+    }
+    let reasons = denial
+        .reasons
+        .iter()
+        .map(|reason| format!("{} ({})", reason.rejection_reason, reason.validation_type))
+        .collect::<Vec<_>>();
+    if reasons.is_empty() {
+        return "Audible refused the license for this title without giving a reason.".to_string();
+    }
+    format!(
+        "Audible refused the license for this title: {}.",
+        reasons.join(", ")
+    )
 }
 
 pub(super) fn provider_protocol_lane_message(strategy: AcquisitionStrategy) -> String {
