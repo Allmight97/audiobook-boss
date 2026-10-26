@@ -144,6 +144,8 @@ the owner of the truth.
   Terminal status comes from `abb_processing_core::classify_run_terminal`.
   `model.ts` applies two rules: keep the newest snapshot per operation, and show
   operations in the engine's order. `reset` invalidates pending responses.
+  `isWorkRunning` decides which work shows motion (running or cancelling), for
+  the Work Center and the preview bar alike.
   Only whole-operation cancels track pending state; title cancels are
   idempotent in the backend.
 

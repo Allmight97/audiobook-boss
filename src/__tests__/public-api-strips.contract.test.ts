@@ -89,7 +89,7 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 		],
 	],
 	['app/runtime', runtime, ['AppRuntimeProvider', 'createAppRuntime', 'useAppRuntime']],
-	['app/workOperations', workOperations, ['createWorkOperationsOwner']],
+	['app/workOperations', workOperations, ['createWorkOperationsOwner', 'isWorkRunning']],
 	['ui/appSettings', appSettingsUi, ['AppSettingsDialogView', 'SettingsPersistenceNotice']],
 	['ui/collisionDialog', collisionDialog, ['CollisionDialogView']],
 	['ui/coverArt', coverArt, ['CoverArtView']],
