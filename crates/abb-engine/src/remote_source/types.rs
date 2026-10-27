@@ -222,6 +222,9 @@ pub enum RemoteAcquisitionStatus {
 pub enum RemoteAcquisitionFailureKind {
     AuthRequired,
     ProviderPrivateProtocolFailed,
+    /// Audible answered the license request and refused it; the message says
+    /// why (for example, a temporary download limit on the account).
+    LicenseDenied,
     ProtectedUnsupported,
     DownloadFailed,
     MaterializationFailed,

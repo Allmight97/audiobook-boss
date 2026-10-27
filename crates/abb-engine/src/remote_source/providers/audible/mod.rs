@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use audible_api::auth::oauth::{build_oauth_url, extract_auth_code};
-use audible_api::auth::register::register;
 use audible_api::auth::{localization, Auth};
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{json, Value};
@@ -12,7 +11,9 @@ mod diagnostics;
 mod http;
 mod library;
 mod license;
+mod license_reply_log;
 mod materialization;
+mod registration;
 mod supplemental_pdf;
 
 #[cfg(test)]
@@ -66,10 +67,16 @@ impl AudibleProvider {
     }
 
     pub(in crate::remote_source) fn start_auth() -> Result<(String, PendingAudibleAuth)> {
-        let (url, code_verifier, device_serial) =
-            build_oauth_url(COUNTRY_CODE, DOMAIN, MARKETPLACE_ID, None, false).map_err(
-                |error| AppError::General(format!("Failed to start Audible auth flow: {error}")),
-            )?;
+        let (url, code_verifier, device_serial) = build_oauth_url(
+            COUNTRY_CODE,
+            DOMAIN,
+            MARKETPLACE_ID,
+            Some(registration::new_device_serial()),
+            false,
+        )
+        .map_err(|error| {
+            AppError::General(format!("Failed to start Audible auth flow: {error}"))
+        })?;
         Ok((
             url,
             PendingAudibleAuth {
@@ -84,15 +91,13 @@ impl AudibleProvider {
         response_url: &str,
     ) -> Result<Auth> {
         let authorization_code = extract_audible_auth_code(response_url)?;
-        let registration = register(
+        let registration = registration::register_device(
             &authorization_code,
             &pending.code_verifier,
             DOMAIN,
             &pending.device_serial,
-            false,
         )
-        .await
-        .map_err(|_| provider_private_failure("device registration"))?;
+        .await?;
         let locale = localization::find_by_country_code(COUNTRY_CODE)
             .ok_or_else(|| AppError::General("Audible locale is unavailable".to_string()))?;
         let auth = Auth {
@@ -513,6 +518,19 @@ mod tests {
         assert!(!message.contains("fake-secret"));
         assert!(!message.contains("fake-license"));
         assert!(!message.contains(response_url));
+    }
+
+    #[test]
+    fn sign_in_starts_a_device_with_a_current_iphone_serial() {
+        let (url, pending) = AudibleProvider::start_auth().expect("auth url");
+
+        assert_eq!(pending.device_serial.len(), 40);
+        assert!(pending
+            .device_serial
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric()));
+        let client_id = audible_api::auth::oauth::build_client_id(&pending.device_serial);
+        assert!(url.contains(&format!("device%3A{client_id}")), "{url}");
     }
 
     #[test]
