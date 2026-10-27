@@ -70,41 +70,6 @@
 	gap: 0.5rem;
 }
 
-.status-progress .abb-progress-fill {
-	position: relative;
-	height: 100%;
-	border-radius: 9999px;
-	background: linear-gradient(
-		90deg,
-		var(--progress-fg),
-		color-mix(in srgb, var(--progress-fg) 70%, white 30%)
-	);
-	transition: width 0.3s ease-in-out;
-}
-
-.status-progress .abb-progress-fill::after {
-	content: "";
-	position: absolute;
-	inset: 0;
-	background: linear-gradient(
-		90deg,
-		transparent 0%,
-		rgba(255, 255, 255, 0.25) 35%,
-		transparent 70%
-	);
-	animation: progress-shimmer 1.6s linear infinite;
-}
-
-@keyframes progress-shimmer {
-	from {
-		transform: translateX(-100%);
-	}
-
-	to {
-		transform: translateX(100%);
-	}
-}
-
 .job-cancel-button {
 	padding: 0.35rem 0.75rem;
 	border: none;
@@ -114,7 +79,6 @@
 	font-weight: 500;
 	cursor: pointer;
 	white-space: nowrap;
-	transition: all 0.2s ease-in-out;
 }
 
 .job-cancel-button:hover {
@@ -190,7 +154,6 @@
 	font-size: 0.8rem;
 	font-weight: 700;
 	white-space: nowrap;
-	transition: all 0.2s ease-in-out;
 }
 
 .queue-toggle-button:hover,
@@ -268,5 +231,19 @@
 
 	.queue-job-status {
 		white-space: normal;
+	}
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.job-cancel-button {
+		transition:
+			background-color 0.2s ease-in-out,
+			opacity 0.2s ease-in-out;
+	}
+
+	.queue-toggle-button {
+		transition:
+			border-color 0.2s ease-in-out,
+			color 0.2s ease-in-out;
 	}
 }

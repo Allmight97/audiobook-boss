@@ -76,6 +76,14 @@ supply-chain:
   - .github/workflows/ci.yml
 tooling:
   - .github/workflows/**
+  - .node-version # pin tags (scripts/check-pins.ts)
+  - bunfig.toml
+  - rust-toolchain.toml
+  - package.json
+  - Cargo.toml
+  - crates/*/Cargo.toml
+  - src-tauri/Cargo.toml
+  - scripts/check-pins*.ts
   - .gitattributes
   - scripts/*.mjs
   - scripts/fixtures/**

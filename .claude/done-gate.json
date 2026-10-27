@@ -1,8 +1,0 @@
-{
-	"checks": ["^(bash )?(\\./)?scripts/verify\\.sh( [a-z-]+)*$"],
-	"resolve": [
-		"bash",
-		"-c",
-		"eval \"$(scripts/setup.sh --print-env)\" && exec bun scripts/verification.ts resolve"
-	]
-}

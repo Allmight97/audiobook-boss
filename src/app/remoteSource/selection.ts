@@ -11,9 +11,9 @@ export type RemoteTitleFilterOptions = {
 export type RemoteReleaseFilterOptions = Pick<RemoteSourceView, 'releaseFilter' | 'releaseSort'>;
 
 export function visibleRemoteTitles(
-	titles: RemoteTitle[],
+	titles: readonly RemoteTitle[],
 	options: RemoteTitleFilterOptions,
-): RemoteTitle[] {
+): readonly RemoteTitle[] {
 	const normalizedFilter = options.titleFilter.trim().toLowerCase();
 	let facetTitles = options.showSupplementalPdfOnly
 		? titles.filter((title) => title.supplementalPdfAvailable)
@@ -34,7 +34,7 @@ export function visibleRemoteTitles(
 }
 
 export function visibleRemoteReleases(
-	releases: RemoteRelease[],
+	releases: readonly RemoteRelease[],
 	options: RemoteReleaseFilterOptions,
 ): RemoteRelease[] {
 	const normalizedFilter = options.releaseFilter.trim().toLowerCase();
@@ -72,7 +72,7 @@ function compareReleasesBySeedersDesc(left: RemoteRelease, right: RemoteRelease)
 
 export function selectedRemoteTitleSummaryText(
 	selectedTitleIds: ReadonlySet<string>,
-	visibleTitles: RemoteTitle[],
+	visibleTitles: readonly RemoteTitle[],
 ): string {
 	const count = selectedTitleIds.size;
 	if (count === 0) return '0 selected';

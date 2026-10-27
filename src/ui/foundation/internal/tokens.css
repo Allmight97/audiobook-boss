@@ -31,7 +31,8 @@
 	--accent-secondary-hover: #4b5563;
 
 	--progress-bg: #e5e7eb;
-	--progress-fg: #3b82f6;
+	--progress-fg: #2563eb;
+	--progress-stripe: rgb(0 0 0 / 0.2);
 	--progress-h: 0.375rem;
 
 	--space-1: 0.25rem;
@@ -79,6 +80,7 @@
 		--accent-secondary-hover: #9ca3af;
 
 		--progress-bg: #374151;
-		--progress-fg: #3b82f6;
+		--progress-fg: #60a5fa;
+		--progress-stripe: rgb(255 255 255 / 0.2);
 	}
 }

@@ -46,8 +46,8 @@ bogon = "0.3"
 url = "2.5.8"
 # Decodes cover request paths; the version url already resolves.
 percent-encoding = "2.3.2"
-# Exact pins: a prerelease family whose generated TS contract can change between
-# RCs. Bump together with the host crate, deliberately, and regenerate bindings.
+# Bump together with the host crate, deliberately, and regenerate bindings.
+# pin: prerelease family whose generated TS contract changes between RCs; unpin when specta 2.0.0 is stable
 specta = "=2.0.0-rc.25"
 specta-typescript = "=0.0.12"
 keyring-core = "1.0.1"
@@ -103,6 +103,7 @@ tokio-rustls = { version = "0.26.6", default-features = false, features = ["aws_
 proptest = "1.12.0"
 # Signs stub Audible API requests with a key made at test time; same version
 # audible_api resolves, so no new crate enters Cargo.lock.
+# pin: dev-only; matches the rsa that audible_api resolves; unpin when audible_api moves off rsa 0.9
 rsa = { version = "=0.9.10", features = ["getrandom"] }
 # Paused time for tests of delayed work.
 tokio = { version = "1.53.3", features = ["full", "test-util"] }

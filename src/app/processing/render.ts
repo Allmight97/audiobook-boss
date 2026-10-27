@@ -4,6 +4,7 @@ import type { StatusViewStore } from './view';
 import type { SessionOutput } from '../../types/session';
 import type { WorkProgressStage } from '../../types/workRuntime';
 import { buildStatus } from './state';
+import { isWorkRunning } from '../workOperations';
 
 export type ConcurrencyRead = {
 	readonly selection: string;
@@ -24,6 +25,7 @@ export function renderStatus(
 	view.setStepText(`Current Step: ${status.message}`);
 	view.setStepColor('var(--text-primary)');
 	view.setIsProcessing(isProcessing);
+	view.setProgressActive(false);
 }
 
 export function renderConcurrencyStatus(
@@ -61,6 +63,7 @@ export function renderPreview(
 		}),
 		active,
 	);
+	view.setProgressActive(isWorkRunning(operation.status));
 	if (operation.status === 'mixed') view.setStatusText('Mixed result');
 	if (operation.status === 'cancelling') view.setStatusText('Cancelling');
 	view.setCancelAllPending(operation.cancelRequested && active);

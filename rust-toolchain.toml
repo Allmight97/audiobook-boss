@@ -1,3 +1,4 @@
 [toolchain]
+# pin: one Rust minor for every agent and CI; unpin when the owner moves to Rust 1.100
 channel = "1.99"
 components = ["rustfmt", "clippy"]

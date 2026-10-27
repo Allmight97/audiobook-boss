@@ -6,8 +6,77 @@ minimumReleaseAge = 864000
 
 # Keep unrelated transitive resolutions gated during explicit prerelease updates.
 minimumReleaseAgeExcludes = [
-  # Owner-approved Bun 1.4.3 (published 2026-10-10). Remove after 2026-10-20.
+  # One-time early install for the Oct 25, 2026 dependency refresh, J-approved
+  # Oct 25, 2026. scripts/early-install.test.ts fails once the date passes.
+  # early-install until 2026-11-03
+  # pin: one-time early install for the Oct 25 refresh; unpin when 2026-11-03
+  # Bun 1.4.4 and its platform binaries.
   "bun",
+  "@oven/bun-darwin-aarch64",
+  "@oven/bun-darwin-x64",
+  "@oven/bun-freebsd-aarch64",
+  "@oven/bun-freebsd-x64",
+  "@oven/bun-linux-aarch64",
+  "@oven/bun-linux-aarch64-android",
+  "@oven/bun-linux-aarch64-musl",
+  "@oven/bun-linux-x64",
+  "@oven/bun-linux-x64-android",
+  "@oven/bun-linux-x64-musl",
+  "@oven/bun-windows-aarch64",
+  "@oven/bun-windows-x64",
+  # Vite 8.3.5.
+  "vite",
+  # Biome 2.6.3 and its platform binaries.
+  "@biomejs/biome",
+  "@biomejs/cli-android-arm64",
+  "@biomejs/cli-android-x64",
+  "@biomejs/cli-darwin-arm64",
+  "@biomejs/cli-darwin-x64",
+  "@biomejs/cli-linux-arm64",
+  "@biomejs/cli-linux-arm64-musl",
+  "@biomejs/cli-linux-x64",
+  "@biomejs/cli-linux-x64-musl",
+  "@biomejs/cli-win32-arm64",
+  "@biomejs/cli-win32-x64",
+  # knip 6.43.0 and the parser releases it requires.
+  "knip",
+  "unbash",
+  "oxc-parser",
+  "@oxc-project/types",
+  "@oxc-parser/binding-android-arm-eabi",
+  "@oxc-parser/binding-android-arm64",
+  "@oxc-parser/binding-darwin-arm64",
+  "@oxc-parser/binding-darwin-x64",
+  "@oxc-parser/binding-freebsd-x64",
+  "@oxc-parser/binding-linux-arm-gnueabihf",
+  "@oxc-parser/binding-linux-arm-musleabihf",
+  "@oxc-parser/binding-linux-arm64-gnu",
+  "@oxc-parser/binding-linux-arm64-musl",
+  "@oxc-parser/binding-linux-ppc64-gnu",
+  "@oxc-parser/binding-linux-riscv64-gnu",
+  "@oxc-parser/binding-linux-riscv64-musl",
+  "@oxc-parser/binding-linux-s390x-gnu",
+  "@oxc-parser/binding-linux-x64-gnu",
+  "@oxc-parser/binding-linux-x64-musl",
+  "@oxc-parser/binding-openharmony-arm64",
+  "@oxc-parser/binding-win32-arm64-msvc",
+  "@oxc-parser/binding-win32-ia32-msvc",
+  "@oxc-parser/binding-win32-x64-msvc",
+  # Tauri CLI 2.12.4 and its platform binaries.
+  "@tauri-apps/cli",
+  "@tauri-apps/cli-darwin-arm64",
+  "@tauri-apps/cli-darwin-x64",
+  "@tauri-apps/cli-linux-arm-gnueabihf",
+  "@tauri-apps/cli-linux-arm64-gnu",
+  "@tauri-apps/cli-linux-arm64-musl",
+  "@tauri-apps/cli-linux-riscv64-gnu",
+  "@tauri-apps/cli-linux-x64-gnu",
+  "@tauri-apps/cli-linux-x64-musl",
+  "@tauri-apps/cli-win32-arm64-msvc",
+  "@tauri-apps/cli-win32-ia32-msvc",
+  "@tauri-apps/cli-win32-x64-msvc",
+  # early-install end
+  # pin: update:rc takes fresh Solid prerelease builds; unpin when Solid 2.0 is stable
   "solid-js",
   "@solidjs/web",
   "@solidjs/signals",

@@ -14,9 +14,6 @@ import {
 	releaseKey,
 	releaseProtocolLabel,
 	type RemoteSourceView,
-	selectedRemoteTitleSummaryText,
-	visibleRemoteReleases,
-	visibleRemoteTitles,
 } from '../../app/remoteSource';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, CoverImage, CoverThumb, Dialog, Progress } from '../foundation';
@@ -41,6 +38,18 @@ function RemoteTitleCover(props: { readonly title: RemoteTitle }): JSX.Element {
 	);
 }
 
+/** Closing unmounts the rows, so a list returns to where it was scrolled once they render. */
+function keepScroll(saved: { top: number }) {
+	return (list: HTMLElement) => {
+		list.addEventListener('scroll', () => {
+			saved.top = list.scrollTop;
+		});
+		requestAnimationFrame(() => {
+			list.scrollTop = saved.top;
+		});
+	};
+}
+
 export function RemoteSourceAcquireView(): JSX.Element {
 	const runtime = useAppRuntime();
 	const remoteSource = runtime.remoteSource;
@@ -50,32 +59,10 @@ export function RemoteSourceAcquireView(): JSX.Element {
 	const close = remoteSource.close;
 	const editSearch = remoteSource.editSearch;
 
+	const titleScroll = keepScroll({ top: 0 });
+	const releaseScroll = keepScroll({ top: 0 });
 	const isAudibleLane = () => view().providerId === 'audible';
 	const isIndexerLane = () => view().providerId === 'indexer';
-
-	const visibleTitles = () =>
-		visibleRemoteTitles(view().titles, {
-			titleFilter: view().titleFilter,
-			showSupplementalPdfOnly: view().showSupplementalPdfOnly,
-			hideUnavailableTitles: view().hideUnavailableTitles,
-		});
-
-	const visibleReleases = () =>
-		visibleRemoteReleases(view().releases, {
-			releaseFilter: view().releaseFilter,
-			releaseSort: view().releaseSort,
-		});
-
-	const selectedReleases = () =>
-		view().releases.filter((release) => view().selectedReleaseKeys.has(releaseKey(release)));
-	const canGrabSelection = () =>
-		selectedReleases().some(
-			(release) => view().releaseGrabs[releaseKey(release)]?.status !== 'sent',
-		);
-	const hiddenSelectionCount = () =>
-		selectedReleases().length -
-		visibleReleases().filter((release) => view().selectedReleaseKeys.has(releaseKey(release)))
-			.length;
 
 	function handleLaneChange(lane: AcquisitionLane): void {
 		void remoteSource.selectLane(lane);
@@ -95,6 +82,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 			onClose={() => close()}
 			labelledBy="remote-source-title"
 			testId="remote-source-modal"
+			unmountWhenClosed
 		>
 			<Dialog.Header>
 				<h3 id="remote-source-title">Acquire Audiobooks</h3>
@@ -125,8 +113,8 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							value={view().providerId}
 							onChange={(event) => handleLaneChange(event.currentTarget.value as AcquisitionLane)}
 						>
-							<For each={view().providers}>
-								{(provider) => <option value={provider.providerId}>{provider.label}</option>}
+							<For each={view().providers} keyed={(provider) => provider.providerId}>
+								{(provider) => <option value={provider().providerId}>{provider().label}</option>}
 							</For>
 						</select>
 					</div>
@@ -282,7 +270,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						</div>
 						<div class="remote-source-toolbar-field remote-source-toolbar-button">
 							<Button
-								disabled={view().isBusy || !canGrabSelection()}
+								disabled={view().isBusy || !remoteSource.canGrabSelection()}
 								onClick={() => void runAction({ type: 'grabSelectedReleases' })}
 							>
 								{view().selectedReleaseKeys.size > 1 ? 'Grab All' : 'Grab'}
@@ -294,9 +282,9 @@ export function RemoteSourceAcquireView(): JSX.Element {
 				<Show when={isIndexerLane() && view().releases.length > 0}>
 					<p class="remote-release-selection" id="remote-release-selection" aria-live="polite">
 						{view().selectedReleaseKeys.size} selected
-						<Show when={hiddenSelectionCount() > 0}>
+						<Show when={remoteSource.hiddenReleaseSelectionCount() > 0}>
 							{' '}
-							({hiddenSelectionCount()} hidden by filter)
+							({remoteSource.hiddenReleaseSelectionCount()} hidden by filter)
 						</Show>
 						<span>
 							{' '}
@@ -330,7 +318,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 
 				<Show when={isAudibleLane() && view().accountState?.status === 'connected'}>
 					<div class="remote-selection-summary" aria-live="polite">
-						<span>{selectedRemoteTitleSummaryText(view().selectedTitleIds, visibleTitles())}</span>
+						<span>{remoteSource.selectedTitleSummary()}</span>
 						<Show when={view().selectedTitleIds.size > 0}>
 							<button
 								class="remote-clear-selection"
@@ -344,14 +332,18 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					</div>
 				</Show>
 
-				<Show when={isAudibleLane() && view().activeJob}>
+				<Show when={isAudibleLane() && remoteSource.acquisition()}>
 					{(job) => (
 						<Show when={job().progress}>
 							{(progress) => (
-								<div class="remote-progress" role="status" aria-live="polite">
-									<Progress value={progressPercent(job())} label="Acquisition progress" />
+								<div class="remote-progress">
+									<Progress
+										value={progressPercent(job())}
+										label="Acquisition progress"
+										active={!job().terminal}
+									/>
 									<div class="remote-progress-copy">
-										<span>{progressTitleLabel(progress(), view().titles)}</span>
+										<span>{progressTitleLabel(progress(), remoteSource.acquisitionTitle())}</span>
 										<span>{Math.round(progressPercent(job()))}%</span>
 									</div>
 									<Show when={bytesLabel(progress())}>
@@ -373,46 +365,47 @@ export function RemoteSourceAcquireView(): JSX.Element {
 
 				<Show when={isAudibleLane() && view().accountState?.status === 'connected'}>
 					<div
+						ref={titleScroll}
 						class="app-modal-results remote-title-list"
 						role="listbox"
 						aria-label="Audible titles"
 						aria-multiselectable="true"
 					>
-						<For each={visibleTitles()}>
+						<For each={remoteSource.visibleTitles()} keyed={(title) => title.titleId}>
 							{(title) => (
 								// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 uses the lowercase tabindex attribute.
 								<div
-									class={`remote-title-row${view().selectedTitleIds.has(title.titleId) ? ' selected' : ''}${!isTitleAcquirable(title) ? ' unavailable' : ''}`}
+									class={`remote-title-row${remoteSource.isTitleSelected(title().titleId) ? ' selected' : ''}${!isTitleAcquirable(title()) ? ' unavailable' : ''}`}
 									role="option"
 									tabindex={-1}
-									aria-selected={view().selectedTitleIds.has(title.titleId) ? 'true' : 'false'}
-									aria-disabled={!isTitleAcquirable(title) ? 'true' : undefined}
+									aria-selected={remoteSource.isTitleSelected(title().titleId) ? 'true' : 'false'}
+									aria-disabled={!isTitleAcquirable(title()) ? 'true' : undefined}
 								>
-									<RemoteTitleCover title={title} />
+									<RemoteTitleCover title={title()} />
 									<button
 										type="button"
 										class="remote-title-button"
-										disabled={!isTitleAcquirable(title)}
-										onClick={() => remoteSource.toggleTitle(title.titleId)}
+										disabled={!isTitleAcquirable(title())}
+										onClick={() => remoteSource.toggleTitle(title().titleId)}
 									>
-										<span class="remote-title-name">{title.title}</span>
-										<span class="remote-title-meta">{title.authors.join(', ')}</span>
-										<Show when={!isTitleAcquirable(title)}>
-											<span class="remote-title-availability">{title.availability.label}</span>
-											<Show when={title.availability.detail}>
+										<span class="remote-title-name">{title().title}</span>
+										<span class="remote-title-meta">{title().authors.join(', ')}</span>
+										<Show when={!isTitleAcquirable(title())}>
+											<span class="remote-title-availability">{title().availability.label}</span>
+											<Show when={title().availability.detail}>
 												{(detail) => (
 													<span class="remote-title-availability-detail">{detail()}</span>
 												)}
 											</Show>
 										</Show>
 									</button>
-									<Show when={title.supplementalPdfAvailable}>
+									<Show when={title().supplementalPdfAvailable}>
 										<label class="remote-pdf-toggle">
 											<input
 												type="checkbox"
-												disabled={!isTitleAcquirable(title)}
-												checked={view().includePdfByTitleId[title.titleId] ?? true}
-												onChange={() => remoteSource.toggleSupplementalPdf(title.titleId)}
+												disabled={!isTitleAcquirable(title())}
+												checked={remoteSource.includesPdf(title().titleId)}
+												onChange={() => remoteSource.toggleSupplementalPdf(title().titleId)}
 											/>
 											PDF
 										</label>
@@ -425,20 +418,23 @@ export function RemoteSourceAcquireView(): JSX.Element {
 
 				<Show when={isIndexerLane() && view().accountState?.status === 'connected'}>
 					<ul
+						ref={releaseScroll}
 						class="app-modal-results remote-release-list"
 						aria-label="Indexer releases"
 						data-testid="remote-release-list"
 					>
-						<For each={visibleReleases()}>
+						<For each={remoteSource.visibleReleases()} keyed={releaseKey}>
 							{(release) => (
 								<ReleaseRow
-									release={release}
-									selected={view().selectedReleaseKeys.has(releaseKey(release))}
-									grabState={view().releaseGrabs[releaseKey(release)]}
-									busy={view().isBusy}
-									onGrab={() => void runAction({ type: 'grabRelease', release })}
+									release={release()}
+									selected={remoteSource.isReleaseSelected(release())}
+									grabState={remoteSource.releaseGrab(release())}
+									busy={remoteSource.isBusy()}
+									onGrab={() => void runAction({ type: 'grabRelease', release: release() })}
 									onSelect={(event) =>
-										remoteSource.selectRelease(release, { multi: event.metaKey || event.ctrlKey })
+										remoteSource.selectRelease(release(), {
+											multi: event.metaKey || event.ctrlKey,
+										})
 									}
 								/>
 							)}

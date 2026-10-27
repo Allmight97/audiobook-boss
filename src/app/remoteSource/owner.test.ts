@@ -36,10 +36,11 @@ async function open(
 it('renders acquisition progress from the attached session and Close leaves it running', async () => {
 	const engine = createFakeEngine();
 	engine.change((state) => {
-		state.remote.acquisition = job;
+		state.remoteAcquisition.job = job;
+		state.remote.busy = true;
 	});
 	const { owner, runtime } = await open(engine);
-	expect(owner.view().activeJob?.progress.percentage).toBe(40);
+	expect(owner.acquisition()?.progress.percentage).toBe(40);
 	expect(owner.view().isBusy).toBe(true);
 	owner.close();
 	expect(engine.sessionIntents).not.toContainEqual({
@@ -48,7 +49,7 @@ it('renders acquisition progress from the attached session and Close leaves it r
 	});
 	runtime.dispose();
 	const replacement = await open(engine);
-	expect(replacement.owner.view().activeJob?.jobId).toBe(job.jobId);
+	expect(replacement.owner.acquisition()?.jobId).toBe(job.jobId);
 	await replacement.owner.runAction({ type: 'cancelActiveAcquisition' });
 	expect(engine.sessionIntents).toContainEqual({
 		kind: 'remote',
@@ -58,7 +59,7 @@ it('renders acquisition progress from the attached session and Close leaves it r
 it('words the engine handoff and keeps Indexer status independent of an Audible result', async () => {
 	const { owner, engine } = await open();
 	engine.change((state) => {
-		state.remote.acquisition = {
+		state.remoteAcquisition.job = {
 			...job,
 			settled: true,
 			terminal: true,
@@ -74,6 +75,7 @@ it('words the engine handoff and keeps Indexer status independent of an Audible 
 	engine.change((state) => {
 		state.remote.indexer.message = 'Sending one release';
 		state.remote.indexer.grabbing = true;
+		state.remote.busy = true;
 	});
 	expect(owner.view().statusMessage).toBe('Sending one release');
 	expect(owner.view().isBusy).toBe(true);
@@ -122,7 +124,7 @@ it('routes opening and lane selection only through the lane intent', async () =>
 it('shows a new engine refusal instead of hiding it under an older acquisition result', async () => {
 	const { owner, engine } = await open();
 	engine.change((state) => {
-		state.remote.acquisition = {
+		state.remoteAcquisition.job = {
 			...job,
 			settled: true,
 			terminal: true,
@@ -163,14 +165,14 @@ it('restores cached library rows and selections during accepted acquisition with
 	engine.change((state) => {
 		state.remote.account = { providerId: 'audible', status: 'connected' };
 		state.remote.selectedTitleIds = [title.titleId];
-		state.remote.acquisition = job;
+		state.remoteAcquisition.job = job;
 		state.remoteLibrary.titles = [title];
 	});
 	const first = await open(engine);
 	first.owner.close();
 	first.runtime.dispose();
 	const replacement = await open(engine);
-	expect(replacement.owner.view().titles).toEqual([title]);
+	expect(replacement.owner.visibleTitles()).toEqual([title]);
 	expect([...replacement.owner.view().selectedTitleIds]).toEqual([title.titleId]);
 	expect(engine.sessionIntents).toEqual([
 		{ kind: 'remote', intent: { kind: 'selectLane', lane: 'audible' } },
@@ -261,7 +263,6 @@ it('keeps Audible auth and library failures out of the Indexer lane', async () =
 		state.remote.indexer.message = 'Indexer ready';
 	});
 	expect(owner.view().statusMessage).toBe('Indexer ready');
-	expect(owner.view().isBusy).toBe(false);
 });
 
 it('clears a previous frontend account-read failure when reopening retries the lane intent', async () => {

@@ -1,15 +1,21 @@
-import { createSignal, onCleanup, type Accessor } from 'solid-js';
+import { createMemo, createSignal, onCleanup, type Accessor } from 'solid-js';
 import type { AcquisitionLane } from '../../types/appSettings';
 import { tauriClient } from '../../lib/tauri/client';
 import type { RemoteUiIntent } from '../../types/session';
-import type { RemoteRelease } from '../../types/remoteSource';
+import type { AcquisitionJob, RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import {
 	createIndexerConnectionSettings,
 	type IndexerConnectionSettingsView,
 } from './indexerConnection';
 import type { EngineLink } from '../engineLink';
 import { createRemoteSourceStateStore } from './state';
-import type { RemoteSourceState, RemoteSourceView } from './types';
+import {
+	releaseKey,
+	selectedRemoteTitleSummaryText,
+	visibleRemoteReleases,
+	visibleRemoteTitles,
+} from './selection';
+import type { ReleaseGrabState, RemoteSourceState, RemoteSourceView } from './types';
 
 /** Semantic actions sent to the engine; browser opening belongs to this frontend. */
 export type RemoteSourceAction =
@@ -36,7 +42,11 @@ function accountIntent(
 	}
 }
 
-function actionIntent(action: RemoteSourceAction, view: RemoteSourceState): RemoteUiIntent | null {
+function actionIntent(
+	action: RemoteSourceAction,
+	view: RemoteSourceState,
+	job: AcquisitionJob | null,
+): RemoteUiIntent | null {
 	switch (action.type) {
 		case 'searchReleases':
 			return {
@@ -55,14 +65,31 @@ function actionIntent(action: RemoteSourceAction, view: RemoteSourceState): Remo
 		case 'acquireSelected':
 			return { kind: 'acquireSelected' };
 		case 'cancelActiveAcquisition':
-			return view.activeJob ? { kind: 'cancelAcquisition', jobId: view.activeJob.jobId } : null;
+			return job ? { kind: 'cancelAcquisition', jobId: job.jobId } : null;
 		default:
 			return accountIntent(action.type, view.handoffPath);
 	}
 }
 
+type ReleaseIdentity = Pick<RemoteRelease, 'guid' | 'indexerId'>;
+
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
+	readonly isBusy: Accessor<boolean>;
+	/** Library titles left by the filter, PDF, and availability choices. */
+	readonly visibleTitles: Accessor<readonly RemoteTitle[]>;
+	readonly selectedTitleSummary: Accessor<string>;
+	isTitleSelected(titleId: string): boolean;
+	includesPdf(titleId: string): boolean;
+	readonly visibleReleases: Accessor<readonly RemoteRelease[]>;
+	isReleaseSelected(release: ReleaseIdentity): boolean;
+	releaseGrab(release: ReleaseIdentity): ReleaseGrabState | undefined;
+	/** Some selected release is not sent yet. */
+	readonly canGrabSelection: Accessor<boolean>;
+	readonly hiddenReleaseSelectionCount: Accessor<number>;
+	readonly acquisition: Accessor<AcquisitionJob | null>;
+	/** The library title the download is on now. */
+	readonly acquisitionTitle: Accessor<RemoteTitle | undefined>;
 	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
 	open(options?: { readonly lane?: AcquisitionLane }): Promise<void>;
 	selectLane(lane: AcquisitionLane): Promise<void>;
@@ -112,6 +139,7 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		() => bumpView((revision) => revision + 1),
 		() => deps.link.remote(),
 		() => deps.link.remoteLibrary(),
+		() => deps.link.remoteAcquisition(),
 	);
 	const indexerConnection = createIndexerConnectionSettings(deps.link);
 
@@ -123,11 +151,63 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		generation += 1;
 	});
 
+	const view = () => {
+		viewRev();
+		return state.snapshot();
+	};
+	const titles = () => deps.link.remoteLibrary().titles;
+	const selectedTitleIds = createMemo(() => view().selectedTitleIds);
+	const includePdfByTitleId = createMemo(() => view().includePdfByTitleId);
+	const titleFilter = createMemo(() => view().titleFilter);
+	const showSupplementalPdfOnly = createMemo(() => view().showSupplementalPdfOnly);
+	const hideUnavailableTitles = createMemo(() => view().hideUnavailableTitles);
+	const visibleTitles = createMemo(() =>
+		visibleRemoteTitles(titles(), {
+			titleFilter: titleFilter(),
+			showSupplementalPdfOnly: showSupplementalPdfOnly(),
+			hideUnavailableTitles: hideUnavailableTitles(),
+		}),
+	);
+	const titleById = createMemo(() => new Map(titles().map((title) => [title.titleId, title])));
+	const releases = createMemo(() => view().releases);
+	const selectedReleaseKeys = createMemo(() => view().selectedReleaseKeys);
+	const releaseGrabs = createMemo(() => view().releaseGrabs);
+	const releaseFilter = createMemo(() => view().releaseFilter);
+	const releaseSort = createMemo(() => view().releaseSort);
+	const visibleReleases = createMemo(() =>
+		visibleRemoteReleases(releases(), {
+			releaseFilter: releaseFilter(),
+			releaseSort: releaseSort(),
+		}),
+	);
+	const isReleaseSelected = (release: ReleaseIdentity) =>
+		selectedReleaseKeys().has(releaseKey(release));
+	const selectedReleases = createMemo(() => releases().filter(isReleaseSelected));
+	const acquisition = () => deps.link.remoteAcquisition().job;
+
 	return {
-		view: () => {
-			viewRev();
-			return state.snapshot();
-		},
+		view,
+		isBusy: createMemo(() => view().isBusy),
+		visibleTitles,
+		selectedTitleSummary: createMemo(() =>
+			selectedRemoteTitleSummaryText(selectedTitleIds(), visibleTitles()),
+		),
+		isTitleSelected: (titleId) => selectedTitleIds().has(titleId),
+		includesPdf: (titleId) => includePdfByTitleId()[titleId] === true,
+		visibleReleases,
+		isReleaseSelected,
+		releaseGrab: (release) => releaseGrabs()[releaseKey(release)],
+		canGrabSelection: createMemo(() =>
+			selectedReleases().some((release) => releaseGrabs()[releaseKey(release)]?.status !== 'sent'),
+		),
+		hiddenReleaseSelectionCount: createMemo(
+			() => selectedReleases().length - visibleReleases().filter(isReleaseSelected).length,
+		),
+		acquisition,
+		acquisitionTitle: createMemo(() => {
+			const titleId = acquisition()?.progress.currentTitleId;
+			return titleId ? titleById().get(titleId) : undefined;
+		}),
 		indexerConnection: indexerConnection.view,
 		async open(options) {
 			if (disposed) return;
@@ -185,7 +265,7 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			if (disposed) return;
 			state.clearError(providerId);
 			try {
-				const intent = actionIntent(action, state.current());
+				const intent = actionIntent(action, state.current(), deps.link.remoteAcquisition().job);
 				if (!intent) return;
 				const outcome = await deps.link.send({ kind: 'remote', intent });
 				if (

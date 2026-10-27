@@ -57,49 +57,6 @@ fn release(indexer_id: i64) -> RemoteRelease {
     }
 }
 #[test]
-fn acquisition_choices_enforce_availability_and_preserve_explicit_pdf_choice_on_refresh() {
-    let mut ui = UiState::default();
-    ui.library_loaded(vec![
-        title("available", true, true),
-        title("blocked", false, false),
-    ]);
-    assert!(ui
-        .begin(RemoteUiIntent::ToggleTitle {
-            title_id: "blocked".into()
-        })
-        .is_err());
-    ui.begin(RemoteUiIntent::ToggleTitle {
-        title_id: "available".into(),
-    })
-    .expect("select available");
-    ui.begin(RemoteUiIntent::TogglePdf {
-        title_id: "available".into(),
-    })
-    .expect("exclude PDF");
-    ui.library_loaded(vec![title("available", true, true)]);
-    let UiAction::Acquire(plan) = ui
-        .begin(RemoteUiIntent::AcquireSelected)
-        .expect("acquire selection")
-    else {
-        panic!("acquire action")
-    };
-    assert_eq!(
-        plan.selections,
-        vec![AcquisitionSelection {
-            title_id: "available".into(),
-            include_supplemental_pdf: false
-        }]
-    );
-    assert!(ui.begin(RemoteUiIntent::AcquireSelected).is_err());
-    ui.snapshot.acquiring = false;
-    ui.begin(RemoteUiIntent::SelectLane {
-        lane: ProviderId::Indexer,
-    })
-    .expect("change lane");
-    assert!(ui.snapshot.selected_title_ids.is_empty());
-    assert!(ui.begin(RemoteUiIntent::AcquireSelected).is_err());
-}
-#[test]
 fn connection_readback_and_old_tests_cannot_erase_newer_drafts_or_expose_the_key() {
     let mut ui = UiState::default();
     let UiAction::Load { request, revision } =
@@ -643,72 +600,6 @@ fn release_keys_keep_the_format_the_frontend_builds() {
     assert_eq!(release_key(8, "same-guid"), r#"[8,"same-guid"]"#);
 }
 
-#[test]
-fn attaching_during_an_accepted_acquisition_retains_library_without_resending_it_on_progress() {
-    #[derive(Default)]
-    struct Updates(std::sync::Mutex<Vec<crate::session::SessionUpdate>>);
-    impl crate::EventSink for Updates {
-        fn emit(&self, event: crate::EngineEvent) {
-            if let crate::EngineEvent::Session(update) = event {
-                self.0.lock().expect("events").push(update);
-            }
-        }
-    }
-    let root = tempfile::TempDir::new().expect("temp dir");
-    let updates = std::sync::Arc::new(Updates::default());
-    let runtime = super::super::tests::test_runtime_with(&root, None, Some(updates.clone()));
-    let request = runtime.ui().begin_library();
-    assert!(runtime
-        .ui()
-        .library_result(request, &Ok(library(vec![title("retained", true, true)]))));
-    runtime
-        .ui()
-        .begin(RemoteUiIntent::ToggleTitle {
-            title_id: "retained".into(),
-        })
-        .expect("select title");
-    runtime
-        .ui()
-        .begin(RemoteUiIntent::AcquireSelected)
-        .expect("accept acquisition");
-    let (remote, library) = runtime.ui_parts(None);
-    assert!(remote.expect("attached remote").acquiring);
-    assert_eq!(
-        library.expect("attached library").titles[0].title_id,
-        "retained"
-    );
-    runtime.publish_ui();
-    assert_eq!(
-        updates.0.lock().expect("events")[0]
-            .remote_library
-            .as_ref()
-            .expect("changed library event")
-            .titles[0]
-            .title_id,
-        "retained"
-    );
-    updates.0.lock().expect("events").clear();
-    let since = runtime.ui_revisions();
-    // The lifecycle's progress reducer advances only the remote part.
-    runtime.inner.lifecycle.mark_job_failed(
-        "progress-job",
-        ProviderId::Audible,
-        "fixture failure".into(),
-    );
-    let (remote, library) = runtime.ui_parts(Some(since));
-    assert!(remote.is_some());
-    assert!(library.is_none());
-    let events = updates.0.lock().expect("progress events");
-    assert_eq!(events.len(), 1);
-    assert!(events[0]
-        .remote
-        .as_ref()
-        .expect("progress remote")
-        .acquisition
-        .is_some());
-    assert!(events[0].remote_library.is_none());
-}
-
 struct VaultGate {
     entered: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
@@ -927,7 +818,7 @@ async fn accepted_disconnect_blocks_acquisition_and_shutdown_waits_for_credentia
     release.send(()).expect("release credential deletion");
     runtime.inner.tasks.wait().await;
     assert!(disconnect.await.expect("tracked disconnect").is_ok());
-    let (remote, library) = runtime.ui_parts(None);
+    let (remote, library, _) = runtime.ui_parts(None);
     assert_eq!(
         remote
             .expect("remote")
@@ -967,7 +858,7 @@ async fn failed_credential_deletion_preserves_library_choices_and_reports_failur
         .finish()
         .await
         .is_err());
-    let (remote, library) = runtime.ui_parts(None);
+    let (remote, library, _) = runtime.ui_parts(None);
     let remote = remote.expect("remote");
     assert!(matches!(
         remote.account_status,
@@ -1197,60 +1088,5 @@ fn signing_in_again_or_disconnecting_clears_a_refused_sign_in() {
     );
 }
 
-fn acquisition_failed_with(
-    kind: super::super::RemoteAcquisitionFailureKind,
-) -> super::super::AcquisitionJob {
-    super::super::AcquisitionJob {
-        job_id: "job-1".into(),
-        provider_id: ProviderId::Audible,
-        status: super::super::RemoteAcquisitionStatus::Failed,
-        progress: abb_remote_source_core::acquisition_progress(
-            abb_remote_source_core::AcquisitionStage::Failed,
-            Some(1.0),
-            None,
-            None,
-        ),
-        materialized_files: Vec::new(),
-        supplemental_assets: Vec::new(),
-        diagnostics: vec![super::super::RemoteSourceDiagnostic {
-            kind,
-            title_id: Some("B000000001".into()),
-            message: "Audible license request failed.".into(),
-        }],
-        handoff: None,
-    }
-}
-
-#[test]
-fn a_refused_license_during_acquisition_needs_auth() {
-    let mut ui = UiState::default();
-    reread_account(&mut ui);
-
-    ui.acquisition_changed(acquisition_failed_with(
-        super::super::RemoteAcquisitionFailureKind::AuthRequired,
-    ));
-
-    assert_eq!(
-        ui.snapshot().account.expect("account").status,
-        super::super::RemoteAccountStatus::NeedsAuth
-    );
-    assert_eq!(
-        reread_account(&mut ui).status,
-        super::super::RemoteAccountStatus::NeedsAuth
-    );
-}
-
-#[test]
-fn a_title_level_license_failure_leaves_the_account_connected() {
-    let mut ui = UiState::default();
-    reread_account(&mut ui);
-
-    ui.acquisition_changed(acquisition_failed_with(
-        super::super::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
-    ));
-
-    assert_eq!(
-        ui.snapshot().account.expect("account").status,
-        super::super::RemoteAccountStatus::Connected
-    );
-}
+#[path = "ui_acquisition_tests.rs"]
+mod acquisition;

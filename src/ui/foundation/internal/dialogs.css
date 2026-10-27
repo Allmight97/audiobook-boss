@@ -10,9 +10,6 @@
 	opacity: 0;
 	visibility: hidden;
 	pointer-events: none;
-	transition:
-		opacity 0.18s ease,
-		visibility 0.18s ease;
 }
 
 .abb-dialog-backdrop.open {
@@ -94,6 +91,7 @@
 	overflow: auto;
 	max-height: 50vh;
 	padding-right: 0.5rem;
+	contain: content;
 }
 
 .app-modal-result {
@@ -113,4 +111,12 @@
 	border-radius: var(--radius-md);
 	color: var(--text-muted);
 	text-align: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.abb-dialog-backdrop {
+		transition:
+			opacity 0.18s ease,
+			visibility 0.18s ease;
+	}
 }
