@@ -11,6 +11,8 @@ export type StatusView = {
 	readonly stepColor: string;
 	readonly concurrencyText: string;
 	readonly isProcessing: boolean;
+	/** A preview is running or cancelling now; a queued one shows still progress. */
+	readonly progressActive: boolean;
 	readonly cancelAllPending: boolean;
 };
 
@@ -24,6 +26,7 @@ export const DEFAULT_STATUS_VIEW: StatusView = {
 	stepColor: 'var(--text-primary)',
 	concurrencyText: '',
 	isProcessing: false,
+	progressActive: false,
 	cancelAllPending: false,
 };
 
@@ -43,6 +46,7 @@ export type StatusViewStore = {
 	setStepColor(value: string): void;
 	setConcurrencyText(value: string): void;
 	setIsProcessing(isProcessing: boolean): void;
+	setProgressActive(active: boolean): void;
 	setCancelAllPending(isPending: boolean): void;
 	showError(message: string): void;
 	showInfo(message: string): void;
@@ -168,6 +172,9 @@ export function createStatusViewStore(): StatusViewStore {
 		},
 		setIsProcessing(isProcessing) {
 			patch({ isProcessing });
+		},
+		setProgressActive(progressActive) {
+			patch({ progressActive });
 		},
 		setCancelAllPending(isPending) {
 			patch({ cancelAllPending: isPending });

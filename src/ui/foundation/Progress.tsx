@@ -2,8 +2,9 @@ import type { JSX } from '@solidjs/web';
 
 export type ProgressProps = {
 	readonly value: number;
-	readonly label?: string;
-	readonly fillId?: string;
+	readonly label: string;
+	/** Work is running now; only active progress shows motion. */
+	readonly active?: boolean;
 	readonly class?: string;
 };
 
@@ -17,8 +18,15 @@ export function Progress(props: ProgressProps): JSX.Element {
 			aria-valuemax={100}
 			aria-valuenow={Math.round(clamped())}
 			aria-label={props.label}
+			data-active={props.active ? '' : undefined}
 		>
-			<div id={props.fillId} class="abb-progress-fill" style={{ width: `${clamped()}%` }} />
+			<div
+				class="abb-progress-fill"
+				style={{
+					transform: `translateX(${clamped() - 100}%)`,
+					'--abb-progress-value': `${clamped()}`,
+				}}
+			/>
 		</div>
 	);
 }

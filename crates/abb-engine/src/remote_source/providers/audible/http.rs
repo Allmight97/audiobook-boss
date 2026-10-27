@@ -11,6 +11,7 @@ use abb_audible_core::title_ref;
 
 const READ_TIMEOUT: Duration = Duration::from_secs(60);
 const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+const AUDIBLE_API_HOST_PREFIX: &str = "https://api.audible.";
 
 pub(in crate::remote_source) const SIGN_IN_REJECTED_MESSAGE: &str =
     "Audible did not accept the saved sign-in. Sign in to Audible again.";
@@ -73,7 +74,7 @@ pub(super) struct AudibleApi {
 impl AudibleApi {
     pub(super) fn new(auth: Auth) -> Result<Self> {
         // The client signs the URL path left after removing this exact prefix.
-        let base_url = format!("https://api.audible.{}", auth.locale.domain);
+        let base_url = format!("{AUDIBLE_API_HOST_PREFIX}{}", auth.locale.domain);
         let client = AudibleClient::new(auth).map_err(|error| {
             AppError::General(format!("Failed to create Audible client: {error}"))
         })?;
@@ -86,6 +87,12 @@ impl AudibleApi {
             base_url,
             builder: audible_reqwest::Client::new(),
         }
+    }
+
+    pub(super) fn marketplace_domain(&self) -> &str {
+        self.base_url
+            .strip_prefix(AUDIBLE_API_HOST_PREFIX)
+            .unwrap_or("non-audible-host")
     }
 
     pub(super) async fn get(

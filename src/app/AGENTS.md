@@ -21,9 +21,9 @@ second copy of owner state.
 
 - `engineLink` is the one connection to the engine. It keeps the newest copy of
   each snapshot part (titles, selection, metadata, lookup, audio, output,
-  remote, remote library, settings) by revision, and sends intents. Adapters
-  read the link. `workOperations` is the exception: it reads WorkRuntime
-  through `tauriClient`.
+  remote, remote library, remote acquisition, settings) by revision, and sends
+  intents. Adapters read the link. `workOperations` is the exception: it reads
+  WorkRuntime through `tauriClient`.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
   for intents whose outcome and completion nobody awaits; its refusal shows as
   the link's `refusal` (`RefusedChangeNotice`). A `send` caller with its own
@@ -32,8 +32,9 @@ second copy of owner state.
   `link.refuse`, the same notice `post` uses. The host runs both in the order
   called.
 - A part that arrives unchanged keeps object identity for its files and lookup
-  results. Solid rows are not rebuilt, and a click does not land on a replaced
-  element.
+  results. A changed remote part keeps the objects of its unchanged selection
+  lists, PDF choices, releases, and grab records. Solid rows are not rebuilt,
+  and a click does not land on a replaced element.
 - Adapters show typed text (form fields, lookup queries, the naming template)
   at once and drop it when the engine's reply for that keystroke arrives. Form
   typing shows only on the form it was typed into (the metadata part's
@@ -47,7 +48,9 @@ second copy of owner state.
   `src/__tests__/public-api-strips.contract.test.ts`. Cross-owner
   coordination uses the other owner's strip, injected when App Runtime composes
   the owners.
-- Expose a small `view()` or accessor surface plus semantic intents.
+- Expose a small `view()` or accessor surface plus semantic intents. A fact
+  that changes often gets its own narrow accessor, so a row re-runs only when
+  its own fact changes.
 - Cross-owner integration tests use public owner intents. Owner-internal tests
   may import private modules to prove behavior at its cheapest stable boundary.
   Test-only needs stay out of the strip.
@@ -125,18 +128,24 @@ the owner of the truth.
   leaves accepted work running. Disposal invalidates pending
   authorization-browser replies. An authorization URL occurs only in the
   initiating intent outcome; snapshots never reopen a browser. Render
-  `settled` and `handoff` facts and infer no terminal precedence. Status stays
+  `settled` and `handoff` facts and infer no terminal precedence. `isBusy` is
+  the engine's `remote.busy`; no busy rule lives here. Status stays
   with its originating provider, and a new request refusal shows even when an
   older job has a retained message. A connected account message stays on the
   idle status line, including after the library loads, so an ephemeral sign-in
   stays visible. Filtering and sorting keep the engine's
   selection. Release rows key on `(indexerId, guid)`, including Grab and Retry.
-  Sent means the provider accepted, not that the download finished.
+  Sent means the provider accepted, not that the download finished. `view()`
+  changes with every remote update, a download tick included; the other
+  `RemoteSourceOwner` accessors change only with their own fact. Filtered and
+  sorted lists are owner memos.
 - `workOperations` (`crates/abb-engine/src/work_runtime/AGENTS.md`): WorkRuntime
   snapshots are the only progress source for accepted background operations.
   Terminal status comes from `abb_processing_core::classify_run_terminal`.
   `model.ts` applies two rules: keep the newest snapshot per operation, and show
   operations in the engine's order. `reset` invalidates pending responses.
+  `isWorkRunning` decides which work shows motion (running or cancelling), for
+  the Work Center and the preview bar alike.
   Only whole-operation cancels track pending state; title cancels are
   idempotent in the backend.
 

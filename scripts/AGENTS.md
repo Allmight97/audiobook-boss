@@ -22,11 +22,10 @@ inputs, platform, and environment. An edit during a lane invalidates its
 result. Unsupported Apple checks say SKIP, never PASS. A supply-chain pass
 counts like any lane's; the daily CI advisory run catches advisories published
 after it.
-The Claude Code done-gate invokes the same resolver through
-`.claude/done-gate.json` after loading `setup.sh --print-env`, as `verify.sh`
-does; it consumes these receipts rather than shell text. PATH is not part of a
-receipt's environment, so a pass recorded in one harness's shell counts in
-another; the recorded tool versions still invalidate it.
+`bun scripts/verification.ts resolve` reads changed paths on stdin and prints
+the lanes still unproven, from these receipts. PATH is not part of a receipt's
+environment, so a pass recorded in one harness's shell counts in another; the
+recorded tool versions still invalidate it.
 Other harnesses use the same verifier and evidence files.
 
 - Frontend (`frontend`).
@@ -109,6 +108,8 @@ Traps:
   `typescript` (Biome enforces it). The runtime-boundary scanner stays a text
   scan. Replace it with a parser only when TypeScript 7's programmatic API
   exists and an owner needs one.
+- Biome formats code and JSON only; its Markdown and YAML formatters are off
+  because they would rewrite `vendor/` sources and hand-wrapped guidance.
 - Lint fails on warnings, so a Biome rule is an error or off. Biome rejects
   comments in `biome.json`, so each `noRestrictedImports` message names its
   owning `AGENTS.md`.
@@ -138,6 +139,11 @@ Traps:
   without a version pin; an owner-approved early release goes in
   `--exclude-newer-package` with a removal date.
   `bun run update:rc` updates the prerelease families listed in `bunfig.toml`.
+  An early-release exemption in `bunfig.toml` names each new transitive and
+  platform package too (`@oven/bun-*`, `@biomejs/cli-*`), between
+  `# early-install until YYYY-MM-DD` and `# early-install end`.
+  `scripts/early-install.test.ts` fails once that date passes. Why: Bun
+  silently drops an age-blocked optional package from `bun.lock`.
 - `package.json` `overrides` keeps one `@tauri-apps/api` version across the app
   and its plugins, at the same minor version as the Rust `tauri` crate. Move
   them together.

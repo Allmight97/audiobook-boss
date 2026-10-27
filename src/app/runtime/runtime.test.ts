@@ -134,23 +134,23 @@ describe('app runtime', () => {
 	it('reattaches remote progress without publishing into a disposed runtime', async () => {
 		const engine = createFakeEngine();
 		engine.change((state) => {
-			state.remote.acquisition = runningJob();
+			state.remoteAcquisition.job = runningJob();
 		});
 		const runtime = createAppRuntime({ engine });
 		await runtime.initialize();
-		const before = runtime.remoteSource.view().activeJob;
+		const before = runtime.remoteSource.acquisition();
 		runtime.dispose();
 		const other = createAppRuntime({ engine });
 		dispose = () => other.dispose();
 		await other.initialize();
 		engine.change((state) => {
-			state.remote.acquisition = {
+			state.remoteAcquisition.job = {
 				...runningJob(),
 				progress: { ...runningJob().progress, percentage: 75 },
 			};
 		});
-		expect(other.remoteSource.view().activeJob?.progress.percentage).toBe(75);
-		expect(runtime.remoteSource.view().activeJob).toEqual(before);
+		expect(other.remoteSource.acquisition()?.progress.percentage).toBe(75);
+		expect(runtime.remoteSource.acquisition()).toEqual(before);
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
 	});
 });

@@ -222,6 +222,9 @@ pub enum RemoteAcquisitionStatus {
 pub enum RemoteAcquisitionFailureKind {
     AuthRequired,
     ProviderPrivateProtocolFailed,
+    /// Audible answered the license request and refused it; the message says
+    /// why (for example, a temporary download limit on the account).
+    LicenseDenied,
     ProtectedUnsupported,
     DownloadFailed,
     MaterializationFailed,
@@ -293,6 +296,29 @@ pub struct AcquisitionSnapshot {
     pub job: AcquisitionJob,
     pub terminal: bool,
     pub settled: bool,
+}
+/// The remote parts' revisions at one moment; only `remote_source` reads them.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RemoteRevisions {
+    pub(super) remote: u64,
+    pub(super) library: u64,
+    pub(super) acquisition: u64,
+}
+/// The Audible download as hosts show it, with its own revision.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteAcquisitionSnapshot {
+    #[specta(type = specta_typescript::Number)]
+    pub revision: u64,
+    /// An accepted request whose job is not registered yet.
+    pub acquiring: bool,
+    pub job: Option<Box<AcquisitionSnapshot>>,
+}
+impl RemoteAcquisitionSnapshot {
+    /// Admission or an unsettled job keeps the Audible account and library busy.
+    pub(crate) fn busy(&self) -> bool {
+        self.acquiring || self.job.as_ref().is_some_and(|job| !job.settled)
+    }
 }
 impl AcquisitionJob {
     pub(crate) fn terminal(&self) -> bool {

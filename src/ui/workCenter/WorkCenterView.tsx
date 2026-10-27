@@ -3,6 +3,7 @@ import type { JSX } from '@solidjs/web';
 
 import { formatEtaRemaining } from '../../lib/format/eta';
 import { useAppRuntime } from '../../app/runtime';
+import { isWorkRunning } from '../../app/workOperations';
 import { Progress } from '../foundation';
 import type { ChildJobSnapshot, OperationSnapshot } from '../../types/workRuntime';
 import './workCenterView.css';
@@ -172,7 +173,12 @@ export function WorkCenterView(): JSX.Element {
 										</div>
 									</div>
 									<div class="work-progress-row">
-										<Progress value={operation.progress.percentage} class="work-progress-track" />
+										<Progress
+											value={operation.progress.percentage}
+											label={`${operation.title} progress`}
+											active={isWorkRunning(operation.status)}
+											class="work-progress-track"
+										/>
 										<span class="work-progress-value">
 											{operation.progress.percentage.toFixed(0)}%
 											<Show

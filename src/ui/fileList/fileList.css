@@ -83,7 +83,6 @@
 	border: 2px dashed var(--border-secondary);
 	background-color: var(--bg-drag-area);
 	cursor: pointer;
-	transition: all 0.2s ease;
 }
 
 .drop-zone-header[data-has-files="false"]:hover,
@@ -108,7 +107,6 @@
 	border-bottom: 1px solid var(--border-primary);
 	background-color: var(--bg-input);
 	cursor: pointer;
-	transition: all 0.2s ease;
 }
 
 .drop-zone-header[data-has-files="true"]:hover {
@@ -130,7 +128,6 @@
 	padding: 0.75rem;
 	border-bottom: 1px solid var(--border-primary);
 	cursor: pointer;
-	transition: background-color 0.2s ease;
 	user-select: none;
 }
 
@@ -544,4 +541,21 @@
 	color: var(--text-muted);
 	font-size: var(--text-xs);
 	white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.drop-zone-header[data-has-files="false"] {
+		transition:
+			background-color 0.2s ease,
+			border-color 0.2s ease,
+			transform 0.2s ease;
+	}
+
+	.drop-zone-header[data-has-files="true"] {
+		transition: background-color 0.2s ease;
+	}
+
+	.file-list-item {
+		transition: background-color 0.2s ease;
+	}
 }

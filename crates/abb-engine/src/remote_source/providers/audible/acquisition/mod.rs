@@ -9,8 +9,9 @@ use super::audio_download::download_audio;
 use super::diagnostics::AudibleAcquisitionError;
 use super::http::AudibleApi;
 use super::license::{
-    license_decrypt_context_from_auth, lookup_title_details, provider_protocol_lane_message,
-    request_license_lane, strategy_label, AudibleTitleDetails, LicenseLane,
+    license_decrypt_context_from_auth, license_denied_message, lookup_title_details,
+    provider_protocol_lane_message, request_license_lane, strategy_label, AudibleTitleDetails,
+    LicenseLane,
 };
 use super::materialization::materialize_protected_download;
 use crate::errors::Result;
@@ -320,6 +321,23 @@ pub(super) fn unsupported_result_for_unmaterializable_lane(
     job_id: &str,
     lane: &LicenseLane,
 ) -> Option<AcquiredTitle> {
+    if let Some(denial) = &lane.denial {
+        log::warn!(
+            "remote_source audible stage=license_classification job_id={} title_ref={} lane=license-denied throttled={} action=failed",
+            job_id,
+            title_ref(title_id),
+            denial.is_throttled()
+        );
+        return Some(AcquiredTitle {
+            file: None,
+            assets: Vec::new(),
+            diagnostics: vec![RemoteSourceDiagnostic {
+                kind: RemoteAcquisitionFailureKind::LicenseDenied,
+                title_id: Some(title_id.to_string()),
+                message: license_denied_message(denial),
+            }],
+        });
+    }
     let strategy = lane.strategy;
     match strategy {
         AcquisitionStrategy::DownloadImportReady
@@ -459,6 +477,7 @@ fn license_lane_for_secret(
         strategy,
         decryption_material: Some(decryption_material),
         supplemental_pdf_url: None,
+        denial: None,
     }
 }
 
@@ -473,10 +492,14 @@ mod tests {
     use std::path::Path;
 
     async fn job_after_license_reply(status: u16) -> AcquisitionJob {
+        job_after_license_body(status, r#"{"message":"Refused"}"#).await
+    }
+
+    async fn job_after_license_body(status: u16, body: &str) -> AcquisitionJob {
         use crate::remote_source::providers::audible::http::stub::{signing_auth, stub_api};
         let (api, server) = stub_api(vec![
             (200, r#"{"item":{"title":"Book"}}"#.to_string()),
-            (status, r#"{"message":"Refused"}"#.to_string()),
+            (status, body.to_string()),
         ])
         .await;
         let root = tempfile::TempDir::new().expect("temp root");
@@ -541,6 +564,48 @@ mod tests {
         );
         assert!(
             job.diagnostics[0].message.contains("HTTP 403"),
+            "{:?}",
+            job.diagnostics[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_throttled_license_says_audible_is_limiting_downloads() {
+        let job = job_after_license_body(
+            200,
+            r#"{"content_license":{"status_code":"Denied","drm_type":"Adrm","license_denial_reasons":[{"rejectionReason":"RequesterEligibility","validationType":"Membership"},{"rejectionReason":"CustomerThrottled","validationType":"Ownership"}]}}"#,
+        )
+        .await;
+
+        assert_eq!(
+            job.diagnostics[0].kind,
+            RemoteAcquisitionFailureKind::LicenseDenied
+        );
+        assert!(
+            job.diagnostics[0]
+                .message
+                .contains("temporarily limiting downloads"),
+            "{:?}",
+            job.diagnostics[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_denied_license_names_its_reasons() {
+        let job = job_after_license_body(
+            200,
+            r#"{"content_license":{"status_code":"Denied","license_denial_reasons":[{"rejectionReason":"RequesterEligibility","validationType":"Membership"}]}}"#,
+        )
+        .await;
+
+        assert_eq!(
+            job.diagnostics[0].kind,
+            RemoteAcquisitionFailureKind::LicenseDenied
+        );
+        assert!(
+            job.diagnostics[0]
+                .message
+                .contains("RequesterEligibility (Membership)"),
             "{:?}",
             job.diagnostics[0]
         );
@@ -709,6 +774,7 @@ mod tests {
             strategy: AcquisitionStrategy::DownloadThenDecryptDash,
             decryption_material: None,
             supplemental_pdf_url: None,
+            denial: None,
         };
 
         let acquired = unsupported_result_for_unmaterializable_lane("B000000001", "job-1", &lane)
@@ -787,6 +853,7 @@ mod tests {
             strategy: AcquisitionStrategy::DownloadThenDecryptAax,
             decryption_material: Some(material),
             supplemental_pdf_url: None,
+            denial: None,
         };
 
         let (helper_lane, secret) =

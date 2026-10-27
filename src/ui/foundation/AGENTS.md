@@ -21,6 +21,13 @@ language. The exact export names are the hand-written `STRIPS` list in
 - `SplitButton.disabled` disables both triggers and hides an open menu, so an
   engine refusal state leaves no second submission path.
 - Theme follows `prefers-color-scheme`.
+- `Dialog` `unmountWhenClosed` mounts content only while open or fading out;
+  the fade lasts the backdrop's declared transition (`dialogs.css`), so a
+  closed dialog's rows and progress do no work.
+- `Progress` `active` marks work running now (running or cancelling); queued,
+  finished, and idle bars stay still. An active bar shimmers across its filled
+  part only, or, under reduced motion, shows still stripes. Fill, stripes, and
+  track keep at least 3:1 contrast in both themes (`tokens.css`).
 
 ## Proof
 

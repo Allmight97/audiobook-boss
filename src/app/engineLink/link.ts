@@ -4,7 +4,9 @@ import { liveEngineCapability, type EngineCapability } from '../../lib/tauri/cap
 import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../types/appSettings';
 import type { AudioFile } from '../../types/audio';
 import type {
+	RemoteAcquisitionSnapshot,
 	RemoteLibrarySnapshot,
+	RemoteUiSnapshot,
 	SessionIntent,
 	SessionAudio,
 	SessionLookup,
@@ -28,8 +30,9 @@ export type EngineLink = {
 	readonly lookup: Accessor<SessionLookup>;
 	readonly audio: Accessor<SessionAudio>;
 	readonly output: Accessor<SessionOutput>;
-	readonly remote: Accessor<import('../../types/session').RemoteUiSnapshot>;
+	readonly remote: Accessor<RemoteUiSnapshot>;
 	readonly remoteLibrary: Accessor<RemoteLibrarySnapshot>;
+	readonly remoteAcquisition: Accessor<RemoteAcquisitionSnapshot>;
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
 	send(intent: SessionIntent): Promise<SessionOutcome>;
@@ -201,7 +204,7 @@ function emptyAudio(): SessionAudio {
 	};
 }
 
-function emptyRemote(): import('../../types/session').RemoteUiSnapshot {
+function emptyRemote(): RemoteUiSnapshot {
 	return {
 		revision: UNATTACHED,
 		lane: 'audible',
@@ -210,10 +213,9 @@ function emptyRemote(): import('../../types/session').RemoteUiSnapshot {
 		accountStatus: { kind: 'idle' },
 		auth: { kind: 'idle' },
 		libraryStatus: { kind: 'idle' },
+		busy: false,
 		selectedTitleIds: [],
 		includePdfByTitleId: {},
-		acquisition: null,
-		acquiring: false,
 		indexer: {
 			releases: [],
 			selectedReleaseKeys: [],
@@ -286,29 +288,106 @@ function shareUnchangedResults(previous: SessionLookup, next: SessionLookup): Se
 	};
 }
 
+const sameText = (left: readonly string[], right: readonly string[]): boolean =>
+	left.length === right.length && left.every((value, index) => value === right[index]);
+
+function sameRecord<T>(left: Record<string, T>, right: Record<string, T>): boolean {
+	const keys = Object.keys(right);
+	return (
+		keys.length === Object.keys(left).length &&
+		keys.every((key) => key in left && JSON.stringify(left[key]) === JSON.stringify(right[key]))
+	);
+}
+
+function shareUnchangedRemote(
+	previous: RemoteUiSnapshot,
+	next: RemoteUiSnapshot,
+): RemoteUiSnapshot {
+	const known = new Map(
+		previous.indexer.releases.map((release) => [
+			`${release.indexerId}\u0000${release.guid}`,
+			{ release, content: JSON.stringify(release) },
+		]),
+	);
+	const releases = next.indexer.releases.map((release) => {
+		const existing = known.get(`${release.indexerId}\u0000${release.guid}`);
+		return existing && existing.content === JSON.stringify(release) ? existing.release : release;
+	});
+	const previousReleases = previous.indexer.releases;
+	return {
+		...next,
+		selectedTitleIds: sameText(previous.selectedTitleIds, next.selectedTitleIds)
+			? previous.selectedTitleIds
+			: next.selectedTitleIds,
+		includePdfByTitleId: sameRecord(previous.includePdfByTitleId, next.includePdfByTitleId)
+			? previous.includePdfByTitleId
+			: next.includePdfByTitleId,
+		indexer: {
+			...next.indexer,
+			releases:
+				releases.length === previousReleases.length &&
+				releases.every((release, index) => release === previousReleases[index])
+					? previousReleases
+					: releases,
+			selectedReleaseKeys: sameText(
+				previous.indexer.selectedReleaseKeys,
+				next.indexer.selectedReleaseKeys,
+			)
+				? previous.indexer.selectedReleaseKeys
+				: next.indexer.selectedReleaseKeys,
+			releaseGrabs: sameRecord(previous.indexer.releaseGrabs, next.indexer.releaseGrabs)
+				? previous.indexer.releaseGrabs
+				: next.indexer.releaseGrabs,
+		},
+	};
+}
+
+type Part<T> = { readonly read: () => T; apply(next: T | null | undefined): void };
+
+/** Keeps the newest copy of one session part; replies and events may cross. */
+function sessionPart<T extends { readonly revision: number }>(
+	initial: T,
+	share: (current: T, next: T) => T = (_current, next) => next,
+): Part<T> {
+	let value = initial;
+	const [revision, bump] = createSignal(0, { ownedWrite: true });
+	return {
+		read: () => {
+			revision();
+			return value;
+		},
+		apply(next) {
+			if (!next || next.revision <= value.revision) return;
+			value = share(value, next);
+			bump((n) => n + 1);
+		},
+	};
+}
+
 export function createEngineLink(capability: EngineCapability = liveEngineCapability): EngineLink {
-	let titles = emptyTitles();
-	let selection: SessionSelection = {
+	const titles = sessionPart(emptyTitles(), shareUnchangedFiles);
+	const selection = sessionPart<SessionSelection>({
 		revision: UNATTACHED,
 		selectedIndices: [],
 		selectedAnchor: null,
-	};
-	let metadata = emptyMetadata();
-	let lookup = emptyLookup();
-	let audio = emptyAudio();
-	let output = emptyOutput();
-	let remote = emptyRemote();
-	let remoteLibrary: RemoteLibrarySnapshot = { revision: UNATTACHED, titles: [], diagnostics: [] };
+	});
+	const metadata = sessionPart(emptyMetadata());
+	const lookup = sessionPart(emptyLookup(), shareUnchangedResults);
+	const audio = sessionPart(emptyAudio());
+	const output = sessionPart(emptyOutput());
+	const remote = sessionPart(emptyRemote(), shareUnchangedRemote);
+	const remoteLibrary = sessionPart<RemoteLibrarySnapshot>({
+		revision: UNATTACHED,
+		titles: [],
+		diagnostics: [],
+	});
+	const remoteAcquisition = sessionPart<RemoteAcquisitionSnapshot>({
+		revision: UNATTACHED,
+		acquiring: false,
+		job: null,
+	});
 	let settings = emptySettings();
 	const part = () => createSignal(0, { ownedWrite: true });
-	const [titlesRev, bumpTitles] = part();
-	const [selectionRev, bumpSelection] = part();
-	const [metadataRev, bumpMetadata] = part();
-	const [lookupRev, bumpLookup] = part();
-	const [audioRev, bumpAudio] = part();
-	const [outputRev, bumpOutput] = part();
-	const [remoteRev, bumpRemote] = part();
-	const [libraryRev, bumpLibrary] = part();
 	const [settingsRev, bumpSettings] = part();
 	const [refusalRev, bumpRefusal] = part();
 	const [attachmentRev, bumpAttachment] = part();
@@ -319,41 +398,17 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	let settingsSequence = 0;
 	let unlisten: (() => void) | undefined;
 
-	/** Keeps whichever copy of each part is newest; replies and events may cross. */
 	function applySession(update: SessionUpdate): void {
 		if (disposed) return;
-		if (update.titles && update.titles.revision > titles.revision) {
-			titles = shareUnchangedFiles(titles, update.titles);
-			bumpTitles((n) => n + 1);
-		}
-		if (update.selection && update.selection.revision > selection.revision) {
-			selection = update.selection;
-			bumpSelection((n) => n + 1);
-		}
-		if (update.metadata && update.metadata.revision > metadata.revision) {
-			metadata = update.metadata;
-			bumpMetadata((n) => n + 1);
-		}
-		if (update.remote && update.remote.revision > remote.revision) {
-			remote = update.remote;
-			bumpRemote((n) => n + 1);
-		}
-		if (update.remoteLibrary && update.remoteLibrary.revision > remoteLibrary.revision) {
-			remoteLibrary = update.remoteLibrary;
-			bumpLibrary((n) => n + 1);
-		}
-		if (update.output && update.output.revision > output.revision) {
-			output = update.output;
-			bumpOutput((n) => n + 1);
-		}
-		if (update.audio && update.audio.revision > audio.revision) {
-			audio = update.audio;
-			bumpAudio((n) => n + 1);
-		}
-		if (update.lookup && update.lookup.revision > lookup.revision) {
-			lookup = shareUnchangedResults(lookup, update.lookup);
-			bumpLookup((n) => n + 1);
-		}
+		titles.apply(update.titles);
+		selection.apply(update.selection);
+		metadata.apply(update.metadata);
+		remote.apply(update.remote);
+		remoteAcquisition.apply(update.remoteAcquisition);
+		remoteLibrary.apply(update.remoteLibrary);
+		output.apply(update.output);
+		audio.apply(update.audio);
+		lookup.apply(update.lookup);
 	}
 
 	function applySettings(snapshot: SettingsSnapshot): void {
@@ -425,38 +480,15 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	}
 
 	return {
-		titles: () => {
-			titlesRev();
-			return titles;
-		},
-		selection: () => {
-			selectionRev();
-			return selection;
-		},
-		metadata: () => {
-			metadataRev();
-			return metadata;
-		},
-		audio: () => {
-			audioRev();
-			return audio;
-		},
-		remote: () => {
-			remoteRev();
-			return remote;
-		},
-		remoteLibrary: () => {
-			libraryRev();
-			return remoteLibrary;
-		},
-		output: () => {
-			outputRev();
-			return output;
-		},
-		lookup: () => {
-			lookupRev();
-			return lookup;
-		},
+		titles: titles.read,
+		selection: selection.read,
+		metadata: metadata.read,
+		audio: audio.read,
+		remote: remote.read,
+		remoteLibrary: remoteLibrary.read,
+		remoteAcquisition: remoteAcquisition.read,
+		output: output.read,
+		lookup: lookup.read,
 		settings: () => {
 			settingsRev();
 			return settings;

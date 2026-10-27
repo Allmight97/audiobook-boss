@@ -153,10 +153,10 @@ function EncoderPanel(props: {
 												Mixed
 											</option>
 										</Show>
-										<For each={view().flavorOptions}>
+										<For each={view().flavorOptions} keyed={(option) => option.value}>
 											{(option) => (
-												<option value={option.value} disabled={option.disabled}>
-													{option.label}
+												<option value={option().value} disabled={option().disabled}>
+													{option().label}
 												</option>
 											)}
 										</For>
@@ -182,8 +182,8 @@ function EncoderPanel(props: {
 													Mixed
 												</option>
 											</Show>
-											<For each={view().nativeSpeedOptions}>
-												{(option) => <option value={option.value}>{option.label}</option>}
+											<For each={view().nativeSpeedOptions} keyed={(option) => option.value}>
+												{(option) => <option value={option().value}>{option().label}</option>}
 											</For>
 										</select>
 										<p id={id('native-speed-hint')} class="field-hint">
@@ -221,8 +221,8 @@ function EncoderPanel(props: {
 														Mixed
 													</option>
 												</Show>
-												<For each={view().faacProfileOptions}>
-													{(option) => <option value={option.value}>{option.label}</option>}
+												<For each={view().faacProfileOptions} keyed={(option) => option.value}>
+													{(option) => <option value={option().value}>{option().label}</option>}
 												</For>
 											</select>
 										</div>
@@ -239,8 +239,8 @@ function EncoderPanel(props: {
 													Mixed
 												</option>
 											</Show>
-											<For each={view().rateControlOptions}>
-												{(option) => <option value={option.value}>{option.label}</option>}
+											<For each={view().rateControlOptions} keyed={(option) => option.value}>
+												{(option) => <option value={option().value}>{option().label}</option>}
 											</For>
 										</select>
 									</div>
@@ -266,8 +266,8 @@ function EncoderPanel(props: {
 														Mixed
 													</option>
 												</Show>
-												<For each={view().qualityOptions}>
-													{(option) => <option value={option.value}>{option.label}</option>}
+												<For each={view().qualityOptions} keyed={(option) => option.value}>
+													{(option) => <option value={option().value}>{option().label}</option>}
 												</For>
 											</select>
 											<input
@@ -300,10 +300,10 @@ function EncoderPanel(props: {
 													Mixed
 												</option>
 											</Show>
-											<For each={view().sampleRateOptions}>
+											<For each={view().sampleRateOptions} keyed={(option) => option.value}>
 												{(option) => (
-													<option value={option.value} disabled={option.disabled}>
-														{option.label}
+													<option value={option().value} disabled={option().disabled}>
+														{option().label}
 													</option>
 												)}
 											</For>
@@ -335,8 +335,8 @@ function EncoderPanel(props: {
 													Mixed
 												</option>
 											</Show>
-											<For each={view().channelOptions}>
-												{(option) => <option value={option.value}>{option.label}</option>}
+											<For each={view().channelOptions} keyed={(option) => option.value}>
+												{(option) => <option value={option().value}>{option().label}</option>}
 											</For>
 										</select>
 										<Show when={view().channelsHint}>

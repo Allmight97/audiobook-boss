@@ -47,7 +47,9 @@ use crate::processing::run::{
 use crate::processing::title_output::UpdateReply;
 use crate::processing::SupplementalProcessingAsset;
 use crate::processing::{OutputUpdate, OutputUpdateStatus};
-use crate::remote_source::{AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal};
+use crate::remote_source::{
+    AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal, RemoteRevisions, RemoteUiResult,
+};
 use crate::work_runtime::WorkRuntime;
 use crate::work_runtime::{OperationSnapshot, SubmitProcessingOperationRequest};
 use crate::ManagedJobRegistry;
@@ -415,7 +417,7 @@ pub struct SessionRun {
     session: Session,
     /// The session revision before the intent began.
     since: u64,
-    remote_since: (u64, u64),
+    remote_since: RemoteRevisions,
     reply: tokio::sync::oneshot::Receiver<SessionOutcome>,
 }
 
@@ -496,8 +498,11 @@ impl SessionRun {
                 ))),
             });
         let mut update = session.lock().update_since(Some(self.since));
-        (update.remote, update.remote_library) =
-            session.inner.deps.remote.ui_parts(Some(self.remote_since));
+        session
+            .inner
+            .deps
+            .remote
+            .add_ui_parts(&mut update, Some(self.remote_since));
         SessionReply { outcome, update }
     }
 }
@@ -507,10 +512,10 @@ impl Session {
         let session = self;
         let outcome = match rest {
             Rest::Remote(run) => match run.finish().await {
-                Ok(crate::remote_source::RemoteUiResult::Applied) => SessionOutcome::Applied,
-                Ok(crate::remote_source::RemoteUiResult::Saved) => SessionOutcome::RemoteSaved,
-                Ok(crate::remote_source::RemoteUiResult::Superseded) => SessionOutcome::Superseded,
-                Ok(crate::remote_source::RemoteUiResult::AuthStarted(authorization)) => {
+                Ok(RemoteUiResult::Applied) => SessionOutcome::Applied,
+                Ok(RemoteUiResult::Saved) => SessionOutcome::RemoteSaved,
+                Ok(RemoteUiResult::Superseded) => SessionOutcome::Superseded,
+                Ok(RemoteUiResult::AuthStarted(authorization)) => {
                     SessionOutcome::RemoteAuthStarted { authorization }
                 }
                 Err(error) => SessionOutcome::Rejected {
@@ -842,7 +847,7 @@ impl Session {
 
     pub(crate) fn snapshot(&self) -> SessionUpdate {
         let mut snapshot = self.lock().update_since(None);
-        (snapshot.remote, snapshot.remote_library) = self.inner.deps.remote.ui_parts(None);
+        self.inner.deps.remote.add_ui_parts(&mut snapshot, None);
         snapshot
     }
 

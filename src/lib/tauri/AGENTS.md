@@ -19,10 +19,10 @@
   `openPreviewOutput` also takes a numbered session turn
   (`src-tauri/AGENTS.md`). The
   `session-update` and `settings-update` events carry engine changes between
-  replies. Remote account and auth state, choices, acquisition, and preview
-  progress travel in the session snapshot. Library contents have their own
-  revisioned part. Auth-start replies supply the one-time URL the host opens in
-  a browser.
+  replies. Remote account and auth state, choices, and preview progress travel
+  in the session snapshot. Library contents and the Audible download
+  (`remoteAcquisition`) have their own revisioned parts. Auth-start replies
+  supply the one-time URL the host opens in a browser.
 - A `tauriClient` method that calls a plugin API needs its permission in
   `src-tauri/capabilities/default.json`; jsdom mocks cannot catch a missing one.
 

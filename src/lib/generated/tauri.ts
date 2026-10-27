@@ -899,7 +899,12 @@ export type ReleaseGrabStatus = "queued" | "sending" | "sent" | "error";
 
 export type RemoteAccountStatus = "connected" | "needsAuth" | "error";
 
-export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProtocolFailed" | "protectedUnsupported" | "downloadFailed" | "materializationFailed" |
+export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProtocolFailed" |
+/**
+ *  Audible answered the license request and refused it; the message says
+ *  why (for example, a temporary download limit on the account).
+ */
+"licenseDenied" | "protectedUnsupported" | "downloadFailed" | "materializationFailed" |
 /**
  *  Decryption succeeded and the title is import-ready, but the encrypted
  *  staging source could not be purged. Non-blocking: the startup session
@@ -911,6 +916,14 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
  *  none. Non-blocking: the audiobook is imported without it.
  */
 "supplementalPdfUnavailable" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
+
+/**  The Audible download as hosts show it, with its own revision. */
+export type RemoteAcquisitionSnapshot = {
+	revision: number,
+	/**  An accepted request whose job is not registered yet. */
+	acquiring: boolean,
+	job: AcquisitionSnapshot | null,
+};
 
 export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
 
@@ -1013,8 +1026,8 @@ export type RemoteUiSnapshot = {
 	includePdfByTitleId: { [key in string]: boolean },
 	indexer: IndexerWorkSnapshot,
 	connection: IndexerDraftSnapshot,
-	acquisition: AcquisitionSnapshot | null,
-	acquiring: boolean,
+	/**  The shown lane refuses new work now; hosts disable its actions. */
+	busy: boolean,
 };
 
 export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer" | "metadataWrite" | "outputCommit" | "analysis";
@@ -1160,6 +1173,7 @@ export type SessionUpdate = {
 	output: OutputSnapshot | null,
 	remote: RemoteUiSnapshot | null,
 	remoteLibrary: RemoteLibrarySnapshot | null,
+	remoteAcquisition: RemoteAcquisitionSnapshot | null,
 };
 
 /**
