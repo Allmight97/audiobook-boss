@@ -48,8 +48,7 @@ Other harnesses use the same verifier and evidence files.
   or points at a missing path. `scripts/check-known-mistakes.ts` fails on
   GNU-only shell, errors silenced inside a command substitution, and Rust
   that fakes an I/O failure with permission bits; each error names the fix
-  and its allow marker. `scripts/check-pins.ts` fails on an untagged pin
-  (Dependencies). `scripts/check-file-size.mjs` ratchets source file
+  and its allow marker. `scripts/check-file-size.mjs` ratchets source file
   size; the `ratchet-files` skill owns how to split a file that fails it.
 - JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
   on dependency or policy changes and daily advisory refreshes. Accepted
@@ -153,10 +152,8 @@ Traps:
   one tag: `pin: <why>; unpin when <trigger or YYYY-MM-DD>`. A file that allows
   comments holds the tag beside the pin (one tag covers the pins under it, up
   to the next blank line). `package.json`, `.node-version`, and shell pins get
-  a row in the table below. `scripts/check-pins.ts` runs in the tooling lane
-  and fails on a missing tag, a past date, or a row with no pin. Review each
-  pin at its trigger; a newer release at least 10 days old is a reason to
-  update, not to keep the pin.
+  a row in the table below. Review each pin at its trigger; a newer release at
+  least 10 days old is a reason to update, not to keep the pin.
 
 | File | Pin | Tag |
 | --- | --- | --- |
@@ -167,10 +164,10 @@ Traps:
 | `package.json` | `linguist-languages` | pin: `scripts/check-file-size.mjs` classifies source from this database; unpin when the owner accepts a newer classification |
 | `package.json` | `typescript` | pin: exact TypeScript 7 build adopted in the TS 7 move; unpin when the owner moves to a `^7` range |
 | `package.json` | `@tauri-apps/api (override)` | pin: one version across the app and its plugins, same minor as the Rust `tauri` crate; unpin when the plugins agree on one `@tauri-apps/api` range |
-| `package.json` | `source-map-js (override)` | pin: security floor for a transitive dependency; unpin when PostCSS requires this version or newer |
-| `package.json` | `nanoid (override)` | pin: security floor for a transitive dependency; unpin when PostCSS requires this version or newer |
+| `package.json` | `source-map-js (override)` | pin: security floor for css-tree's transitive dependency; unpin when css-tree requires `^1.2.2` or newer |
+| `package.json` | `nanoid (override)` | pin: security floor for PostCSS's transitive dependency; unpin when PostCSS requires `^3.3.20` or newer |
 | `package.json` | `undici (override)` | pin: security floor for jsdom's transitive dependency; unpin when jsdom requires this version or newer |
-| `.node-version` | `node` | pin: one Node build for every agent and CI; unpin when the owner moves to a newer Node |
+| `.node-version` | `node` | pin: CI and a fresh setup install this exact build; setup keeps any Node of this major or newer; unpin when the owner moves to a newer Node |
 | `scripts/check-workflows.sh` | `zizmor` | pin: workflow findings stay the same between runs; unpin when the owner bumps zizmor |
 
 ## Environment
