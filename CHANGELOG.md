@@ -4,6 +4,53 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-10-26
+
+### Added
+
+- On Linux, a saved Audible sign-in and Indexer key survive a restart when the
+  desktop has a keyring (GNOME, KDE, gnome-keyring). Without one, the account
+  view says sign-in will not be remembered after a restart.
+
+### Changed
+
+- ABB uses far less CPU while idle. Progress bars shimmer only while work is
+  running, and under Reduce Motion a running bar shows still stripes instead.
+  Progress bars have stronger contrast in light and dark mode.
+- A download no longer rebuilds every row of a large Audible library, and the
+  Audible and Indexer lists keep their scroll position when reopened.
+- Bundled FFmpeg is refreshed to October 18 upstream, with the Native AAC NMR
+  encoder, short-window and intensity-stereo fixes, and newer MOV and AAC
+  decoder fixes.
+- Dependencies are updated, closing advisories in the certificate checks
+  every HTTPS connection uses, Audible included.
+
+### Fixed
+
+- Audible downloads work again. Audible had been denying licenses to ABB's old
+  device profile; ABB now registers as a current Audible for iPhone. Sign in to
+  Audible again once so the new profile takes effect. A denied license now
+  says why instead of reporting a missing download URL.
+- A tag Save never damages the original file. ABB writes a copy, checks it
+  against the original, and only then replaces it; a read error can no longer
+  turn a long MP3 into a short one.
+- Publishing a finished title never replaces another file, and a name the disk
+  cannot hold is refused before encoding.
+- A settings value a new release no longer accepts resets only its own group,
+  with a notice, and an unreadable settings file is kept aside instead of
+  being overwritten.
+- An Audible error shows "Needs sign-in" or fails the one title, instead of
+  looking like an empty or shorter library.
+- Large or undecodable source covers, chapters that are slightly off, and CUE
+  `FILE` names no longer fail a whole conversion.
+- A title shows Completed only after its file exists, refused changes say so,
+  and an import lists the files it could not read.
+- A second copy of ABB on the same folders refuses to start instead of
+  deleting the first one's work.
+- A click selects the title it was aimed at even after the list moves, and a
+  stale lookup or preflight result no longer lands.
+- ABB reads the iTunSMPB gapless timing of HE-AAC files correctly.
+
 ## [1.15.0] - 2026-10-04
 
 ### Changed
