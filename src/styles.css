@@ -20,9 +20,6 @@
 	border-radius: 0.5rem;
 	background-color: var(--bg-panel);
 	box-shadow: var(--shadow-md);
-	transition:
-		background-color 0.2s ease-in-out,
-		border-color 0.2s ease-in-out;
 }
 
 .input-panel {
@@ -47,4 +44,12 @@
 	flex: 0 0 auto;
 	min-height: 0;
 	padding: 0.5rem 0.625rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.panel {
+		transition:
+			background-color 0.2s ease-in-out,
+			border-color 0.2s ease-in-out;
+	}
 }

@@ -17,7 +17,7 @@ frontend:
   - knip.json
   - .node-version
   - scripts/**/*.ts
-  - scripts/*.mjs
+  - scripts/*.mjs # Biome and knip check the file-size checker
   - scripts/locked-bun-version.sh
   - scripts/setup.sh
   - scripts/verify.sh

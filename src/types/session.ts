@@ -26,6 +26,7 @@ import type {
 	RemoteSourceAccountState,
 } from './remoteSource';
 import type {
+	RemoteAcquisitionSnapshot as GeneratedRemoteAcquisitionSnapshot,
 	RemoteLibrarySnapshot as GeneratedRemoteLibrarySnapshot,
 	RemoteUiSnapshot as GeneratedRemoteUiSnapshot,
 } from '../lib/generated/tauri';
@@ -69,13 +70,13 @@ export type {
 
 export type SessionIntent = GeneratedSessionIntent;
 export type SessionOutcome = GeneratedSessionOutcome;
-export type RemoteUiSnapshot = Omit<
-	GeneratedRemoteUiSnapshot,
-	'acquisition' | 'indexer' | 'account'
-> & {
-	acquisition: AcquisitionJob | null;
+export type RemoteUiSnapshot = Omit<GeneratedRemoteUiSnapshot, 'indexer' | 'account'> & {
 	account: RemoteSourceAccountState | null;
 	indexer: Omit<GeneratedRemoteUiSnapshot['indexer'], 'releases'> & { releases: RemoteRelease[] };
+};
+
+export type RemoteAcquisitionSnapshot = Omit<GeneratedRemoteAcquisitionSnapshot, 'job'> & {
+	job: AcquisitionJob | null;
 };
 
 export type RemoteLibrarySnapshot = Omit<
@@ -117,6 +118,7 @@ export type SessionUpdate = {
 	output?: SessionOutput;
 	remote?: RemoteUiSnapshot;
 	remoteLibrary?: RemoteLibrarySnapshot;
+	remoteAcquisition?: RemoteAcquisitionSnapshot;
 };
 
 export type SessionReply = {

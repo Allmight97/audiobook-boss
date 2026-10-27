@@ -325,6 +325,7 @@ mod tests {
             strategy: abb_remote_source_core::AcquisitionStrategy::DownloadThenDecryptAax,
             decryption_material: None,
             supplemental_pdf_url: Some("https://cdn.example.test/book.pdf".to_string()),
+            denial: None,
         };
 
         assert!(hint_present_for_acquisition(true, &details, &lane));
@@ -342,6 +343,7 @@ mod tests {
             strategy: abb_remote_source_core::AcquisitionStrategy::DownloadThenDecryptAax,
             decryption_material: None,
             supplemental_pdf_url: Some("https://license.example.test/book.pdf".to_string()),
+            denial: None,
         };
 
         assert!(hint_present_for_acquisition(true, &details, &lane));

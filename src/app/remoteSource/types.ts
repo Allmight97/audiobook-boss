@@ -1,10 +1,8 @@
 import type {
-	AcquisitionJob,
 	ProviderId,
 	RemoteRelease,
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
-	RemoteTitle,
 } from '../../types/remoteSource';
 
 export type ReleaseGrabState = {
@@ -15,37 +13,30 @@ export type ReleaseGrabState = {
 export type AcquisitionState = {
 	isBusy: boolean;
 	providerId: ProviderId;
-	providers: RemoteSourceProviderCapabilities[];
+	providers: readonly RemoteSourceProviderCapabilities[];
 	accountState: RemoteSourceAccountState | null;
-	titles: RemoteTitle[];
-	selectedTitleIds: Set<string>;
-	includePdfByTitleId: Record<string, boolean>;
+	selectedTitleIds: ReadonlySet<string>;
+	includePdfByTitleId: Readonly<Record<string, boolean>>;
 	titleFilter: string;
 	showSupplementalPdfOnly: boolean;
 	hideUnavailableTitles: boolean;
 	handoffPath: string;
 	indexerAuthorQuery: string;
 	indexerTitleQuery: string;
-	releases: RemoteRelease[];
+	releases: readonly RemoteRelease[];
 	releaseFilter: string;
 	releaseSort: 'seeders' | 'size';
-	selectedReleaseKeys: Set<string>;
-	releaseGrabs: Record<string, ReleaseGrabState>;
+	selectedReleaseKeys: ReadonlySet<string>;
+	releaseGrabs: Readonly<Record<string, ReleaseGrabState>>;
 	statusMessage: string;
-	activeJob: AcquisitionJob | null;
 };
 
 export type RemoteSourceState = Omit<AcquisitionState, 'statusMessage'> & {
 	isOpen: boolean;
-	isGrabbing: boolean;
-	isAcquiring: boolean;
 	statusByProvider: Record<ProviderId, string>;
 };
 
-export type RemoteSourceView = Omit<
-	RemoteSourceState,
-	'isGrabbing' | 'isAcquiring' | 'statusByProvider'
-> & {
+export type RemoteSourceView = Omit<RemoteSourceState, 'statusByProvider'> & {
 	statusMessage: string;
 };
 
@@ -54,16 +45,12 @@ type EngineFields =
 	| 'providerId'
 	| 'providers'
 	| 'accountState'
-	| 'titles'
 	| 'statusByProvider'
 	| 'selectedTitleIds'
 	| 'includePdfByTitleId'
 	| 'releases'
 	| 'selectedReleaseKeys'
-	| 'releaseGrabs'
-	| 'isGrabbing'
-	| 'isAcquiring'
-	| 'activeJob';
+	| 'releaseGrabs';
 export type RemoteSourceLocalState = Omit<RemoteSourceState, EngineFields>;
 export type RemoteSourcePatch = Partial<RemoteSourceLocalState>;
 export function createInitialRemoteSourceState(): RemoteSourceLocalState {
@@ -81,20 +68,6 @@ export function createInitialRemoteSourceState(): RemoteSourceLocalState {
 }
 
 export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourceView {
-	const { isGrabbing, isAcquiring, statusByProvider, ...view } = state;
-	return {
-		...view,
-		statusMessage: statusByProvider[state.providerId],
-		isBusy:
-			state.isBusy ||
-			(state.providerId === 'indexer' && isGrabbing) ||
-			(state.providerId === 'audible' && isAcquiring),
-		selectedTitleIds: new Set(state.selectedTitleIds),
-		selectedReleaseKeys: new Set(state.selectedReleaseKeys),
-		releaseGrabs: { ...state.releaseGrabs },
-		includePdfByTitleId: { ...state.includePdfByTitleId },
-		titles: [...state.titles],
-		providers: [...state.providers],
-		releases: [...state.releases],
-	};
+	const { statusByProvider, ...view } = state;
+	return { ...view, statusMessage: statusByProvider[state.providerId] };
 }

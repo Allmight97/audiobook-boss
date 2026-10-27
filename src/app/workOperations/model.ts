@@ -17,6 +17,11 @@ export interface WorkCenterModel {
 	byId: ReadonlyMap<OperationId, OperationSnapshot>;
 }
 
+/** Work runs now, a cancel included until it lands; only running work shows motion. */
+export function isWorkRunning(status: OperationSnapshot['status']): boolean {
+	return status === 'running' || status === 'cancelling';
+}
+
 export function emptyWorkCenterModel(): WorkCenterModel {
 	return { revision: 0, order: [], byId: new Map() };
 }

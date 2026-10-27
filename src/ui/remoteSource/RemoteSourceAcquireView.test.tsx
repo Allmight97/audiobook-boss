@@ -1,10 +1,11 @@
 import { flush } from 'solid-js';
-import { fakeEngine } from '../../test/fixtures/fakeEngine';
+import { createFakeEngine, fakeEngine } from '../../test/fixtures/fakeEngine';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
+import type { SessionUpdate } from '../../types/session';
 import type {
 	AcquisitionJob,
 	RemoteSourceProviderCapabilities,
@@ -130,14 +131,14 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		));
 		await openConnected(runtime, 'audible');
 		fakeEngine().change((state) => {
-			state.remote.acquisition = acquisitionJob(40);
+			state.remoteAcquisition.job = acquisitionJob(40);
 			state.remote.selectedTitleIds = [remoteTitle().titleId];
+			state.remote.busy = true;
 		});
 		flush();
-		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toHaveAttribute(
-			'aria-valuenow',
-			'40',
-		);
+		const bar = () => screen.getByRole('progressbar', { name: 'Acquisition progress' });
+		expect(bar()).toHaveAttribute('aria-valuenow', '40');
+		expect(bar()).toHaveAttribute('data-active');
 		expect(screen.getByRole('option', { name: new RegExp(remoteTitle().title) })).toHaveAttribute(
 			'aria-selected',
 			'true',
@@ -152,7 +153,8 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			}),
 		);
 		fakeEngine().change((state) => {
-			state.remote.acquisition = acquisitionJob(100, true);
+			state.remoteAcquisition.job = acquisitionJob(100, true);
+			state.remote.busy = false;
 		});
 		flush();
 		const user = userEvent.setup();
@@ -167,10 +169,8 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			state.remote.lane = 'audible';
 		});
 		flush();
-		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toHaveAttribute(
-			'aria-valuenow',
-			'100',
-		);
+		expect(bar()).toHaveAttribute('aria-valuenow', '100');
+		expect(bar()).not.toHaveAttribute('data-active');
 	});
 
 	it('exposes Audible controls and filters connected library titles', async () => {
@@ -241,6 +241,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			state.remote.providers = providerCapabilities();
 			state.remote.account = { providerId: 'audible', status: 'needsAuth' };
 			state.remote.auth = { kind: 'starting' };
+			state.remote.busy = true;
 		});
 		await runtime.remoteSource.open();
 		expect(screen.getByRole('button', { name: 'Connect Audible' })).toBeDisabled();
@@ -258,6 +259,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 					detail: null,
 				},
 			};
+			state.remote.busy = false;
 		});
 		flush();
 		expect(screen.getByRole('button', { name: 'Connect Audible' })).toBeEnabled();
@@ -369,6 +371,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			'aria-pressed',
 			'true',
 		);
+		const releaseButton = screen.getByRole('button', { name: /^Select Release from 8/ });
 		await fireEvent.click(
 			screen.getByRole('button', { name: 'Grab Release from 8 from Indexer 8' }),
 		);
@@ -385,8 +388,233 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		});
 		flush();
 		expect(screen.getByText('Downloader unavailable')).toBeInTheDocument();
+		// A changed grab state updates the row in place.
+		expect(screen.getByRole('button', { name: /^Select Release from 8/ })).toBe(releaseButton);
 		expect(
 			screen.getByRole('button', { name: 'Retry Release from 8 from Indexer 8' }),
 		).toBeEnabled();
+	});
+});
+
+describe('RemoteSourceAcquireView during a download', () => {
+	let runtime: AppRuntime | undefined;
+	afterEach(() => {
+		cleanup();
+		runtime?.dispose();
+		runtime = undefined;
+		document.body.innerHTML = '';
+	});
+
+	/** Delivers one engine update the way the host does: only the parts that changed. */
+	function engineWithUpdates() {
+		const engine = createFakeEngine();
+		let deliver: ((update: SessionUpdate) => void) | undefined;
+		let revision = 1_000_000;
+		const capability = {
+			...engine,
+			listenSessionUpdates: (handler: (update: SessionUpdate) => void) => {
+				deliver = handler;
+				return engine.listenSessionUpdates(handler);
+			},
+		};
+		return {
+			engine,
+			capability,
+			progress(percentage: number) {
+				if (!deliver) throw new Error('not attached yet');
+				revision += 1;
+				deliver({
+					revision,
+					remoteAcquisition: { revision, acquiring: false, job: acquisitionJob(percentage) },
+				});
+				flush();
+			},
+		};
+	}
+
+	function seedLibrary(engine: ReturnType<typeof createFakeEngine>, count: number) {
+		const titles = Array.from({ length: count }, (_, index) => ({
+			...remoteTitle(),
+			titleId: `B${String(index).padStart(9, '0')}`,
+			title: `Book ${index}`,
+			supplementalPdfAvailable: index % 5 === 0,
+		}));
+		engine.change((state) => {
+			state.remote.lane = 'audible';
+			state.remote.providers = providerCapabilities();
+			state.remote.account = { providerId: 'audible', status: 'connected' };
+			state.remote.libraryStatus = { kind: 'succeeded' };
+			state.remote.selectedTitleIds = [titles[1].titleId];
+			state.remote.includePdfByTitleId = Object.fromEntries(
+				titles.map((title) => [title.titleId, title.supplementalPdfAvailable]),
+			);
+			state.remoteAcquisition.job = acquisitionJob(10);
+			state.remoteLibrary.titles = titles;
+		});
+	}
+
+	it('advances progress at 1,000 titles without re-running or rebuilding any row', async () => {
+		const host = engineWithUpdates();
+		seedLibrary(host.engine, 1000);
+		runtime = createAppRuntime({ engine: host.capability });
+		await runtime.initialize();
+		await runtime.remoteSource.open({ lane: 'audible' });
+		const owner = runtime.remoteSource;
+		const reads = { row: 0, list: 0, view: 0 };
+		const { isTitleSelected, includesPdf, visibleTitles, view } = owner;
+		Object.assign(owner, {
+			view: () => {
+				reads.view += 1;
+				return view();
+			},
+			isTitleSelected: (titleId: string) => {
+				reads.row += 1;
+				return isTitleSelected(titleId);
+			},
+			includesPdf: (titleId: string) => {
+				reads.row += 1;
+				return includesPdf(titleId);
+			},
+			visibleTitles: () => {
+				reads.list += 1;
+				return visibleTitles();
+			},
+		});
+		const app = runtime;
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		flush();
+		const rows = [...document.querySelectorAll('.remote-title-row')];
+		expect(rows).toHaveLength(1000);
+		expect(reads.row).toBeGreaterThan(1000);
+		reads.row = 0;
+		reads.list = 0;
+		reads.view = 0;
+
+		host.progress(55);
+
+		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toHaveAttribute(
+			'aria-valuenow',
+			'55',
+		);
+		expect({ row: reads.row, list: reads.list }).toEqual({ row: 0, list: 0 });
+		// Only the dialog's own bindings read view(); a row reading it would add 1,000.
+		expect(reads.view).toBeLessThan(100);
+		const progress = screen.getByRole('progressbar', { name: 'Acquisition progress' });
+		expect(progress.closest('[aria-live]')).toBeNull();
+		const after = [...document.querySelectorAll('.remote-title-row')];
+		expect(after.every((row, index) => row === rows[index])).toBe(true);
+		expect(after[1]).toHaveAttribute('aria-selected', 'true');
+	});
+
+	it('keeps no title rows while closed and shows current choices on reopen', async () => {
+		const host = engineWithUpdates();
+		seedLibrary(host.engine, 20);
+		runtime = createAppRuntime({ engine: host.capability });
+		await runtime.initialize();
+		await runtime.remoteSource.open({ lane: 'audible' });
+		const app = runtime;
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		flush();
+		expect(document.querySelectorAll('.remote-title-row')).toHaveLength(20);
+		runtime.remoteSource.editSearch({ titleFilter: 'Book 1' });
+		runtime.remoteSource.close();
+		flush();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		flush();
+		expect(document.querySelectorAll('.remote-title-row')).toHaveLength(0);
+
+		host.progress(80);
+		host.engine.change((state) => {
+			state.remote.selectedTitleIds = ['B000000010'];
+		});
+		await runtime.remoteSource.open({ lane: 'audible' });
+		flush();
+		expect(screen.getByLabelText('Filter')).toHaveValue('Book 1');
+		expect(screen.getByRole('option', { name: /Book 10/ })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
+		expect(document.querySelectorAll('.remote-title-row[aria-selected="true"]')).toHaveLength(1);
+		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toBeInTheDocument();
+	});
+
+	it('reopens each list where it was scrolled when closed', async () => {
+		const host = engineWithUpdates();
+		seedLibrary(host.engine, 20);
+		runtime = createAppRuntime({ engine: host.capability });
+		await runtime.initialize();
+		await runtime.remoteSource.open({ lane: 'audible' });
+		const app = runtime;
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		flush();
+		const list = () => screen.getByRole('listbox', { name: 'Audible titles' });
+		list().scrollTop = 400;
+		await fireEvent.scroll(list());
+		runtime.remoteSource.close();
+		flush();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		flush();
+		await runtime.remoteSource.open({ lane: 'audible' });
+		flush();
+		await vi.waitFor(() => expect(list().scrollTop).toBe(400));
+	});
+
+	it('re-runs no release row when a download tick arrives in the Indexer lane', async () => {
+		const host = engineWithUpdates();
+		host.engine.change((state) => {
+			state.remote.lane = 'indexer';
+			state.remote.providers = providerCapabilities();
+			state.remote.account = { providerId: 'indexer', status: 'connected' };
+			state.remote.indexer.releases = Array.from({ length: 40 }, (_, index) => ({
+				providerId: 'indexer' as const,
+				guid: `guid-${index}`,
+				indexerId: 1,
+				title: `Release ${index}`,
+				indexer: 'Indexer',
+				sizeBytes: 1000,
+				protocol: 'torrent' as const,
+				seeders: index,
+				categories: [],
+			}));
+			state.remoteAcquisition.job = acquisitionJob(10);
+		});
+		runtime = createAppRuntime({ engine: host.capability });
+		await runtime.initialize();
+		await runtime.remoteSource.open({ lane: 'indexer' });
+		const owner = runtime.remoteSource;
+		let views = 0;
+		const { view } = owner;
+		Object.assign(owner, {
+			view: () => {
+				views += 1;
+				return view();
+			},
+		});
+		const app = runtime;
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		flush();
+		expect(screen.getAllByRole('button', { name: /^Grab Release/ })).toHaveLength(40);
+		views = 0;
+
+		host.progress(60);
+
+		// Only the dialog's own bindings read view(); a release row reading it would add 40.
+		expect(views).toBeLessThan(40);
 	});
 });

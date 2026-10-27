@@ -33,19 +33,20 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 doctest = false
 
 [build-dependencies]
-tauri-build = { version = "2.7.2", features = [] }
+tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
 abb-engine = { path = "../crates/abb-engine" }
-tauri = { version = "2.12.3", features = [] }
-tauri-plugin-opener = "2.7.1"
-tauri-plugin-dialog = "2.8.2"
+tauri = { version = "2.12.5", features = [] }
+tauri-plugin-opener = "2.7.2"
+tauri-plugin-dialog = "2.8.3"
 serde = { version = "1.0.228", features = ["derive"] }
 log = "0.4.29"
 env_logger = "0.11.10"
 tokio = { version = "1.53.3", features = ["sync", "time"] }
 # Exact pins: a prerelease family whose generated TS contract can change between
 # RCs. Bump together with the engine crate, deliberately, and regenerate bindings.
+# pin: prerelease family whose generated TS contract changes between RCs; unpin when specta 2.0.0 is stable
 specta = "=2.0.0-rc.25"
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }

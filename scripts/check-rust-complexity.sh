@@ -4,13 +4,12 @@
 # without compiling. The length limit is raised because lizard can misread where
 # a function ends (a 13-complexity function was reported 1000+ lines long).
 # uvx takes the newest lizard at least 10 days old (scripts/AGENTS.md,
-# Dependencies). The owner let lizard 1.24.1 through early because it counts
-# Rust match arms; delete --exclude-newer-package after 2026-10-16.
+# Dependencies).
 # Usage: bash scripts/check-rust-complexity.sh [--prefetch | --version]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-lizard=(uvx --exclude-newer "10 days" --exclude-newer-package "lizard=2026-10-06" lizard)
+lizard=(uvx --exclude-newer "10 days" lizard)
 if [[ "${1:-}" == --version ]]; then
 	"${lizard[@]}" --version
 	exit 0

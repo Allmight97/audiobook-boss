@@ -1,5 +1,9 @@
 import { handoffMessage, statusFromAcquisitionJob, uniqueDiagnosticMessage } from './display';
-import type { RemoteLibrarySnapshot, RemoteUiSnapshot } from '../../types/session';
+import type {
+	RemoteAcquisitionSnapshot,
+	RemoteLibrarySnapshot,
+	RemoteUiSnapshot,
+} from '../../types/session';
 import type { ProviderId } from '../../types/remoteSource';
 import { logAppError, toUserMessage } from '../../lib/tauri/appError';
 import {
@@ -40,8 +44,11 @@ function withConnectedAccountNote(status: string, remote: RemoteUiSnapshot): str
 	return status ? `${status} ${note}` : note;
 }
 
-function audibleStatus(remote: RemoteUiSnapshot, library: RemoteLibrarySnapshot): string {
-	const job = remote.acquisition;
+function audibleStatus(
+	remote: RemoteUiSnapshot,
+	library: RemoteLibrarySnapshot,
+	job: RemoteAcquisitionSnapshot['job'],
+): string {
 	// A download outranks an earlier library-load failure; the rows it came from are still shown.
 	if (job && remote.auth.kind !== 'failed' && remote.accountStatus.kind !== 'failed')
 		return (job.settled ? handoffMessage(job) : null) || statusFromAcquisitionJob(job);
@@ -68,44 +75,62 @@ function indexerStatus(remote: RemoteUiSnapshot): string {
 	return withConnectedAccountNote(status, remote);
 }
 
+function setOf(): (ids: readonly string[]) => Set<string> {
+	let source: readonly string[] | undefined;
+	let set = new Set<string>();
+	return (ids) => {
+		if (ids !== source) {
+			source = ids;
+			set = new Set(ids);
+		}
+		return set;
+	};
+}
+
 export function createRemoteSourceStateStore(
 	onChange: () => void,
 	choices: () => RemoteUiSnapshot,
 	library: () => RemoteLibrarySnapshot,
+	acquisition: () => RemoteAcquisitionSnapshot,
 ): RemoteSourceStateStore {
 	let state = createInitialRemoteSourceState();
 	let errors: Partial<Record<ProviderId, string>> = {};
+	const selectedTitleIds = setOf();
+	const selectedReleaseKeys = setOf();
+	let localVersion = 0;
+	let cached:
+		| {
+				readonly remote: RemoteUiSnapshot;
+				readonly library: RemoteLibrarySnapshot;
+				readonly acquisition: RemoteAcquisitionSnapshot;
+				readonly localVersion: number;
+				readonly view: RemoteSourceView;
+		  }
+		| undefined;
+	const changed = () => {
+		localVersion += 1;
+		onChange();
+	};
 
 	const current = (): RemoteSourceState => {
 		const remote = choices();
-		const job = remote.acquisition;
+		const { job } = acquisition();
 		return {
 			...state,
 			providerId: remote.lane,
 			providers: remote.providers,
 			accountState: remote.account,
-			titles: library().titles,
-			selectedTitleIds: new Set(remote.selectedTitleIds),
+			selectedTitleIds: selectedTitleIds(remote.selectedTitleIds),
 			includePdfByTitleId: remote.includePdfByTitleId,
 			releases: remote.indexer.releases,
-			selectedReleaseKeys: new Set(remote.indexer.selectedReleaseKeys),
+			selectedReleaseKeys: selectedReleaseKeys(remote.indexer.selectedReleaseKeys),
 			releaseGrabs: remote.indexer.releaseGrabs,
-			isGrabbing: remote.indexer.grabbing,
-			isBusy:
-				remote.accountStatus.kind === 'running' ||
-				(remote.lane === 'audible' &&
-					(remote.libraryStatus.kind === 'running' ||
-						remote.auth.kind === 'completing' ||
-						remote.auth.kind === 'starting')) ||
-				(remote.lane === 'indexer' &&
-					(remote.indexer.searching || remote.connection.save.kind === 'running')),
-			activeJob: job,
-			isAcquiring: remote.acquiring || (job !== null && !job.settled),
+			isBusy: remote.busy,
 			statusByProvider: {
 				audible:
 					errors.audible ||
 					(remote.lane === 'audible'
-						? audibleStatus(remote, library())
+						? audibleStatus(remote, library(), job)
 						: job
 							? (job.settled ? handoffMessage(job) : null) || statusFromAcquisitionJob(job)
 							: ''),
@@ -115,24 +140,43 @@ export function createRemoteSourceStateStore(
 	};
 	return {
 		current,
-		snapshot: () => snapshotRemoteSourceState(current()),
+		snapshot: () => {
+			const remote = choices();
+			const titles = library();
+			const download = acquisition();
+			if (
+				cached?.remote !== remote ||
+				cached.library !== titles ||
+				cached.acquisition !== download ||
+				cached.localVersion !== localVersion
+			) {
+				cached = {
+					remote,
+					library: titles,
+					acquisition: download,
+					localVersion,
+					view: snapshotRemoteSourceState(current()),
+				};
+			}
+			return cached.view;
+		},
 		patch(patch) {
 			state = { ...state, ...patch };
-			onChange();
+			changed();
 		},
 		setAcquisitionError(cause, fallback, providerId) {
 			logAppError(fallback, cause);
 			errors[providerId] = toUserMessage(cause, { fallback, suppressUnknown: true });
-			onChange();
+			changed();
 		},
 		clearError(providerId) {
 			delete errors[providerId];
-			onChange();
+			changed();
 		},
 		reset() {
 			errors = {};
 			state = createInitialRemoteSourceState();
-			onChange();
+			changed();
 		},
 	};
 }

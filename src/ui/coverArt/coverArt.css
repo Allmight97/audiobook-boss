@@ -24,7 +24,6 @@
 	background-color: var(--bg-drag-area);
 	margin-bottom: var(--space-1);
 	cursor: pointer;
-	transition: all 0.2s ease-in-out;
 }
 
 .cover-art-area:hover,
@@ -66,7 +65,6 @@
 	text-transform: uppercase;
 	opacity: 0;
 	pointer-events: none;
-	transition: opacity 0.2s ease-in-out;
 }
 
 .cover-art-area.loading .cover-art-loading {
@@ -128,9 +126,6 @@
 	font-size: 0.75rem;
 	opacity: 0;
 	transform: translateY(-2px);
-	transition:
-		opacity 0.2s ease,
-		transform 0.2s ease;
 }
 
 .cover-art-url-message.visible {
@@ -144,4 +139,20 @@
 
 .cover-art-url-message.is-success {
 	color: var(--accent-primary);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.cover-art-area {
+		transition: border-color 0.2s ease-in-out;
+	}
+
+	.cover-art-loading {
+		transition: opacity 0.2s ease-in-out;
+	}
+
+	.cover-art-url-message {
+		transition:
+			opacity 0.2s ease,
+			transform 0.2s ease;
+	}
 }

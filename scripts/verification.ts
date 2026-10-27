@@ -476,19 +476,12 @@ function summarize(run: string): void {
 		);
 }
 
-/** The done-gate prints this. The base is the one `verify.sh --changed` exported. */
-export function verificationRerun(lanes: string[]): string {
-	const base = process.env.ABB_FILE_SIZE_BASE?.trim();
-	const prefix = base && /^[A-Za-z0-9_./^~-]+$/.test(base) ? `ABB_FILE_SIZE_BASE=${base} ` : '';
-	return `${prefix}bash scripts/verify.sh ${lanes.join(' ')}`;
-}
-
 function resolveForHarness(root: string, map: LaneMap, lanes: string[]): void {
 	const input = JSON.parse(readFileSync(0, 'utf8')) as { changed?: unknown };
 	if (!Array.isArray(input.changed) || !input.changed.every((file) => typeof file === 'string'))
 		throw new Error('resolve requires changed paths');
 	const needed = remaining(root, map, lanes, input.changed);
-	if (needed.length > 0) console.log(verificationRerun(needed));
+	if (needed.length > 0) console.log(`bash scripts/verify.sh ${needed.join(' ')}`);
 }
 
 function planCommand(

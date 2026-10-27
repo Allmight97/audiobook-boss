@@ -1,7 +1,7 @@
 use abb_audible_core::{
     audible_decryption_material_from_license, choose_acquisition_strategy,
     find_first_string_for_key, find_first_string_for_keys, license_facts_from_value, title_ref,
-    AudibleDecryptionMaterial, AudibleLicenseDecryptContext, LicenseFacts,
+    AudibleDecryptionMaterial, AudibleLicenseDecryptContext, LicenseDenial, LicenseFacts,
 };
 use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage, AcquisitionStrategy};
 use audible_api::auth::Auth;
@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 
 use super::acquisition::{ensure_not_cancelled, title_progress, TitleAcquisitionCtx};
 use super::http::{ApiCall, AudibleApi, AudibleRequestError, Scope};
+use super::license_reply_log::license_reply_log_fields;
 use super::AUDIBLE_IOS_DEVICE_TYPE;
 
 type RequestResult<T> = std::result::Result<T, AudibleRequestError>;
@@ -18,6 +19,7 @@ pub(super) struct LicenseLane {
     pub(super) strategy: AcquisitionStrategy,
     pub(super) decryption_material: Option<AudibleDecryptionMaterial>,
     pub(super) supplemental_pdf_url: Option<String>,
+    pub(super) denial: Option<LicenseDenial>,
 }
 
 pub(super) struct AudibleTitleDetails {
@@ -101,19 +103,34 @@ pub(super) async fn request_license_lane(
         None,
         None,
     ));
+    let payload = license_request_payload();
     log::info!(
-        "remote_source audible stage=license_request_start job_id={} title_ref={} body=json",
+        "remote_source audible stage=license_request_start job_id={} title_ref={} body=json domain={} drm_types={}",
         job_id,
-        title_ref(title_id)
+        title_ref(title_id),
+        api.marketplace_domain(),
+        payload["supported_media_features"]["drm_types"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>()
+            .join(",")
     );
     let license = api
         .post(
             &license_request_path(title_id),
-            &license_request_payload(),
+            &payload,
             ApiCall::for_job("license request", Scope::Title, job_id, title_id),
         )
         .await?;
     ensure_not_cancelled(is_cancelled)?;
+    log::info!(
+        "remote_source audible stage=license_reply job_id={} title_ref={} {}",
+        job_id,
+        title_ref(title_id),
+        license_reply_log_fields(&license)
+    );
     let facts = license_facts_from_value(&license);
     let strategy = choose_acquisition_strategy(&facts);
     log_license_facts(job_id, title_id, &facts, strategy);
@@ -128,6 +145,7 @@ pub(super) async fn request_license_lane(
             strategy: AcquisitionStrategy::ProviderProtocolFailed,
             decryption_material: None,
             supplemental_pdf_url: facts.supplemental_pdf_url,
+            denial: facts.denial,
         });
     };
 
@@ -153,7 +171,26 @@ pub(super) async fn request_license_lane(
             material
         },
         supplemental_pdf_url: facts.supplemental_pdf_url,
+        denial: None,
     })
+}
+
+pub(super) fn license_denied_message(denial: &LicenseDenial) -> String {
+    if denial.is_throttled() {
+        return "Audible is temporarily limiting downloads for this account. Disconnect and sign in to Audible again; if it still fails, try again in a day or two.".to_string();
+    }
+    let reasons = denial
+        .reasons
+        .iter()
+        .map(|reason| format!("{} ({})", reason.rejection_reason, reason.validation_type))
+        .collect::<Vec<_>>();
+    if reasons.is_empty() {
+        return "Audible refused the license for this title without giving a reason.".to_string();
+    }
+    format!(
+        "Audible refused the license for this title: {}.",
+        reasons.join(", ")
+    )
 }
 
 pub(super) fn provider_protocol_lane_message(strategy: AcquisitionStrategy) -> String {

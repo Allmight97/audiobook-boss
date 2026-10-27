@@ -22,14 +22,10 @@ inputs, platform, and environment. An edit during a lane invalidates its
 result. Unsupported Apple checks say SKIP, never PASS. A supply-chain pass
 counts like any lane's; the daily CI advisory run catches advisories published
 after it.
-The Claude Code done-gate invokes the same resolver through
-`.claude/done-gate.json` after loading `setup.sh --print-env`, as `verify.sh`
-does; it consumes these receipts rather than shell text. The resolver defaults
-`ABB_FILE_SIZE_BASE` to `origin/main`, the base `verify.sh --changed` passes
-through, and a tooling rerun carries that base so its receipt matches.
-PATH is not part of a
-receipt's environment, so a pass recorded in one harness's shell counts in
-another; the recorded tool versions still invalidate it.
+`bun scripts/verification.ts resolve` reads changed paths on stdin and prints
+the lanes still unproven, from these receipts. PATH is not part of a receipt's
+environment, so a pass recorded in one harness's shell counts in another; the
+recorded tool versions still invalidate it.
 Other harnesses use the same verifier and evidence files.
 
 - Frontend (`frontend`).
@@ -111,6 +107,8 @@ Traps:
   `typescript` (Biome enforces it). The runtime-boundary scanner stays a text
   scan. Replace it with a parser only when TypeScript 7's programmatic API
   exists and an owner needs one.
+- Biome formats code and JSON only; its Markdown and YAML formatters are off
+  because they would rewrite `vendor/` sources and hand-wrapped guidance.
 - Lint fails on warnings, so a Biome rule is an error or off. Biome rejects
   comments in `biome.json`, so each `noRestrictedImports` message names its
   owning `AGENTS.md`.
@@ -140,11 +138,37 @@ Traps:
   without a version pin; an owner-approved early release goes in
   `--exclude-newer-package` with a removal date.
   `bun run update:rc` updates the prerelease families listed in `bunfig.toml`.
+  An early-release exemption in `bunfig.toml` names each new transitive and
+  platform package too (`@oven/bun-*`, `@biomejs/cli-*`), between
+  `# early-install until YYYY-MM-DD` and `# early-install end`.
+  `scripts/early-install.test.ts` fails once that date passes. Why: Bun
+  silently drops an age-blocked optional package from `bun.lock`.
 - `package.json` `overrides` keeps one `@tauri-apps/api` version across the app
   and its plugins, at the same minor version as the Rust `tauri` crate. Move
   them together.
 - Update direct dependencies that have a concrete trigger in the touched
   owner; leave unrelated lockfile churn out.
+- Every exact pin, `package.json` override, and `bunfig.toml` exclusion carries
+  one tag: `pin: <why>; unpin when <trigger or YYYY-MM-DD>`. A file that allows
+  comments holds the tag beside the pin (one tag covers the pins under it, up
+  to the next blank line). `package.json`, `.node-version`, and shell pins get
+  a row in the table below. Review each pin at its trigger; a newer release at
+  least 10 days old is a reason to update, not to keep the pin.
+
+| File | Pin | Tag |
+| --- | --- | --- |
+| `package.json` | `solid-js` | pin: Solid 2 is a prerelease family, so each build is chosen; unpin when Solid 2.0 is stable |
+| `package.json` | `@solidjs/web` | pin: same Solid build as `solid-js`; unpin when Solid 2.0 is stable |
+| `package.json` | `@solidjs/vite-plugin` | pin: prerelease that must match the Solid build; unpin when its 3.0 is stable |
+| `package.json` | `@solidjs/testing-library` | pin: prerelease that must match the Solid build; unpin when its 1.0 is stable |
+| `package.json` | `linguist-languages` | pin: `scripts/check-file-size.mjs` classifies source from this database; unpin when the owner accepts a newer classification |
+| `package.json` | `typescript` | pin: exact TypeScript 7 build adopted in the TS 7 move; unpin when the owner moves to a `^7` range |
+| `package.json` | `@tauri-apps/api (override)` | pin: one version across the app and its plugins, same minor as the Rust `tauri` crate; unpin when the plugins agree on one `@tauri-apps/api` range |
+| `package.json` | `source-map-js (override)` | pin: security floor for css-tree's transitive dependency; unpin when css-tree requires `^1.2.2` or newer |
+| `package.json` | `nanoid (override)` | pin: security floor for PostCSS's transitive dependency; unpin when PostCSS requires `^3.3.20` or newer |
+| `package.json` | `undici (override)` | pin: security floor for jsdom's transitive dependency; unpin when jsdom requires this version or newer |
+| `.node-version` | `node` | pin: CI and a fresh setup install this exact build; setup keeps any Node of this major or newer; unpin when the owner moves to a newer Node |
+| `scripts/check-workflows.sh` | `zizmor` | pin: workflow findings stay the same between runs; unpin when the owner bumps zizmor |
 
 ## Environment
 

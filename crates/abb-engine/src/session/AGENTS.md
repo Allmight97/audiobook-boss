@@ -148,9 +148,9 @@ one host attachment.
   snapshots. Only a successful single output can be claimed once through
   `TakePreviewOutput`, across hosts.
 - **Remote.** `SessionIntent::Remote` routes remote choices and accepted work to
-  `remote_source`. Its snapshot part survives frontend replacement; hosts do not
-  rebuild plans, batch policy, or connection drafts. Progress-only updates omit
-  `remote_library`. Authorization URLs exist only in RemoteAuthStarted's
+  `remote_source`, which owns the remote, library, and acquisition parts. They
+  survive frontend replacement; hosts do not rebuild plans, batch policy, or
+  connection drafts. Authorization URLs exist only in RemoteAuthStarted's
   initiating reply.
 - **Submission.** `Submit` and `Preview` accept the edits on screen, then build
   the export from the session (`submission.rs`); `SubmitRefusal` lists the

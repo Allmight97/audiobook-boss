@@ -20,9 +20,6 @@ body {
 	font-family: var(--font-sans);
 	background-color: var(--bg-main);
 	color: var(--text-primary);
-	transition:
-		background-color 0.2s ease-in-out,
-		color 0.2s ease-in-out;
 }
 
 #app {
@@ -52,7 +49,6 @@ button {
 	font-weight: 500;
 	cursor: pointer;
 	white-space: nowrap;
-	transition: all 0.2s ease-in-out;
 }
 
 label,
@@ -76,7 +72,6 @@ textarea {
 	background-color: var(--bg-input);
 	color: var(--text-primary);
 	font-size: 0.8125rem;
-	transition: all 0.2s ease-in-out;
 }
 
 input[readonly] {
@@ -215,7 +210,6 @@ textarea:hover:not(:focus) {
 	font-weight: 700;
 	line-height: 1;
 	cursor: help;
-	transition: all 0.2s ease;
 }
 
 .info-icon:hover {
@@ -264,4 +258,38 @@ textarea:hover:not(:focus) {
 	border-left: 1px solid var(--border-primary);
 	background: var(--bg-panel);
 	transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	body {
+		transition:
+			background-color 0.2s ease-in-out,
+			color 0.2s ease-in-out;
+	}
+
+	button {
+		transition:
+			background-color 0.2s ease-in-out,
+			border-color 0.2s ease-in-out,
+			color 0.2s ease-in-out,
+			opacity 0.2s ease-in-out,
+			transform 0.2s ease-in-out;
+	}
+
+	input[type="text"],
+	input[type="password"],
+	select,
+	textarea {
+		transition:
+			background-color 0.2s ease-in-out,
+			border-color 0.2s ease-in-out,
+			box-shadow 0.2s ease-in-out;
+	}
+
+	.info-icon {
+		transition:
+			background-color 0.2s ease,
+			border-color 0.2s ease,
+			color 0.2s ease;
+	}
 }

@@ -19,6 +19,58 @@ pub struct LicenseFacts {
     pub decryption_material_present: bool,
     pub drm_kind: Option<String>,
     pub supplemental_pdf_url: Option<String>,
+    pub denial: Option<LicenseDenial>,
+}
+
+/// Audible answered the license request but refused it (`status_code: Denied`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LicenseDenial {
+    pub reasons: Vec<LicenseDenialReason>,
+}
+
+/// One refused eligibility check, as Audible's reason codes only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LicenseDenialReason {
+    pub rejection_reason: String,
+    pub validation_type: String,
+}
+
+impl LicenseDenial {
+    /// Audible is rate-limiting the account; the same request works later.
+    pub fn is_throttled(&self) -> bool {
+        self.reasons
+            .iter()
+            .any(|reason| reason.rejection_reason == "CustomerThrottled")
+    }
+}
+
+fn license_denial(value: &Value) -> Option<LicenseDenial> {
+    let license = value.get("content_license")?;
+    let denied = license
+        .get("status_code")
+        .and_then(Value::as_str)
+        .is_some_and(|status| status.eq_ignore_ascii_case("Denied"));
+    if !denied {
+        return None;
+    }
+    let text = |reason: &Value, key: &str| {
+        reason
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    let reasons = license
+        .get("license_denial_reasons")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|reason| LicenseDenialReason {
+            rejection_reason: text(reason, "rejectionReason"),
+            validation_type: text(reason, "validationType"),
+        })
+        .collect();
+    Some(LicenseDenial { reasons })
 }
 
 pub fn license_facts_from_value(value: &Value) -> LicenseFacts {
@@ -72,6 +124,7 @@ pub fn license_facts_from_value(value: &Value) -> LicenseFacts {
         decryption_material_present,
         drm_kind,
         supplemental_pdf_url,
+        denial: license_denial(value),
     }
 }
 
@@ -176,6 +229,57 @@ mod tests {
     }
 
     #[test]
+    fn denied_license_reports_its_reason_codes_and_throttling() {
+        let response = json!({
+            "content_license": {
+                "status_code": "Denied",
+                "drm_type": "Adrm",
+                "message": "free text",
+                "content_metadata": {"content_reference": {"content_format": "AAX_44_128"}},
+                "license_denial_reasons": [
+                    {"rejectionReason": "RequesterEligibility", "validationType": "Membership", "message": "m"},
+                    {"rejectionReason": "CustomerThrottled", "validationType": "Ownership", "message": "m"}
+                ]
+            },
+            "response_groups": ["content_reference"]
+        });
+
+        let facts = license_facts_from_value(&response);
+
+        let denial = facts.denial.clone().expect("denied license");
+        assert_eq!(
+            denial.reasons,
+            vec![
+                LicenseDenialReason {
+                    rejection_reason: "RequesterEligibility".into(),
+                    validation_type: "Membership".into(),
+                },
+                LicenseDenialReason {
+                    rejection_reason: "CustomerThrottled".into(),
+                    validation_type: "Ownership".into(),
+                },
+            ]
+        );
+        assert!(denial.is_throttled());
+        assert_eq!(
+            choose_acquisition_strategy(&facts),
+            AcquisitionStrategy::ProviderProtocolFailed
+        );
+    }
+
+    #[test]
+    fn granted_license_has_no_denial() {
+        let facts = license_facts_from_value(&json!({
+            "content_license": {
+                "status_code": "Granted",
+                "content_metadata": {"content_url": {"offline_url": "https://cdn.example.test/book.aax"}},
+                "license_response": "fake"
+            }
+        }));
+        assert_eq!(facts.denial, None);
+    }
+
+    #[test]
     fn license_facts_choose_acquisition_strategy() {
         let import_ready = LicenseFacts {
             content_url: Some("https://cdn.example.test/book.m4b".to_string()),
@@ -185,6 +289,7 @@ mod tests {
             decryption_material_present: false,
             drm_kind: None,
             supplemental_pdf_url: None,
+            denial: None,
         };
         assert_eq!(
             choose_acquisition_strategy(&import_ready),
@@ -199,6 +304,7 @@ mod tests {
             decryption_material_present: true,
             drm_kind: Some("Mpeg".to_string()),
             supplemental_pdf_url: None,
+            denial: None,
         };
         assert_eq!(
             choose_acquisition_strategy(&encrypted_aax),
@@ -213,6 +319,7 @@ mod tests {
             decryption_material_present: false,
             drm_kind: Some("Widevine".to_string()),
             supplemental_pdf_url: None,
+            denial: None,
         };
         assert_eq!(
             choose_acquisition_strategy(&protected_without_decrypt_material),
@@ -227,6 +334,7 @@ mod tests {
             decryption_material_present: false,
             drm_kind: None,
             supplemental_pdf_url: None,
+            denial: None,
         };
         assert_eq!(
             choose_acquisition_strategy(&missing_url),

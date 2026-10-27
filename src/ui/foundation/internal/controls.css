@@ -10,7 +10,6 @@
 	font-weight: 600;
 	letter-spacing: 0.01em;
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .abb-button:active {
@@ -119,4 +118,16 @@
 .abb-split-option:hover {
 	background: var(--bg-input);
 	color: var(--text-primary);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.abb-button {
+		transition:
+			background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+			border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+			color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+			box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+			opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+			transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	}
 }
