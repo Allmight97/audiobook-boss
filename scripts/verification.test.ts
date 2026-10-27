@@ -21,6 +21,7 @@ import {
 	laneMap,
 	explainPath,
 	formatExplanation,
+	toolingRatchetIdentity,
 } from './verification';
 
 const lanes = ['frontend', 'core', 'engine', 'tooling'];
@@ -45,16 +46,63 @@ describe('plan --explain', () => {
 	it('names the lane and pattern for a frontend path, an engine path, and a no-lane file', () => {
 		expect(
 			formatExplanation('src/app/entry.tsx', explainPath(yaml, laneNames, 'src/app/entry.tsx')),
-		).toBe('src/app/entry.tsx\n  frontend  src/**');
+		).toBe('src/app/entry.tsx\n  frontend  src/**\n  tooling  src/**');
 		expect(
 			explainPath(yaml, laneNames, 'crates/abb-engine/src/lib.rs').map((choice) => choice.lane),
-		).toEqual(['core', 'engine', 'media', 'host', 'decrypt']);
+		).toEqual(['core', 'engine', 'media', 'host', 'decrypt', 'tooling']);
 		expect(explainPath(yaml, laneNames, 'docs/DECISIONS.md')).toEqual([
 			{ lane: 'tooling', pattern: 'docs/**' },
 		]);
 		expect(formatExplanation('CHANGELOG.md', explainPath(yaml, laneNames, 'CHANGELOG.md'))).toBe(
 			'CHANGELOG.md\n  no-lane  CHANGELOG.md  release history; the release skill writes it',
 		);
+	});
+});
+
+describe('tooling ratchet identity', () => {
+	it('passes when HEAD is origin/main and follows a base that is not HEAD', () => {
+		const root = mkdtempSync(path.join(os.tmpdir(), 'abb-ratchet-base-'));
+		const previous = process.env.ABB_FILE_SIZE_BASE;
+		try {
+			execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
+			execFileSync('git', ['config', 'user.email', 'ratchet@example.com'], { cwd: root });
+			execFileSync('git', ['config', 'user.name', 'Ratchet Test'], { cwd: root });
+			execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: root });
+			execFileSync('git', ['config', 'core.fsmonitor', 'false'], { cwd: root });
+			mkdirSync(path.join(root, 'no-hooks'));
+			execFileSync('git', ['config', 'core.hooksPath', 'no-hooks'], { cwd: root });
+			writeFileSync(path.join(root, 'note.txt'), 'one');
+			execFileSync('git', ['add', 'note.txt'], { cwd: root });
+			execFileSync('git', ['commit', '-qm', 'one'], { cwd: root });
+			const first = execFileSync('git', ['rev-parse', 'HEAD'], {
+				cwd: root,
+				encoding: 'utf8',
+			}).trim();
+			execFileSync('git', ['update-ref', 'refs/remotes/origin/main', first], { cwd: root });
+			process.env.ABB_FILE_SIZE_BASE = 'origin/main';
+			expect(toolingRatchetIdentity(root)).toEqual({ head: first, mergeBase: first });
+			delete process.env.ABB_FILE_SIZE_BASE;
+			expect(toolingRatchetIdentity(root)).toEqual({ head: first, mergeBase: first });
+			writeFileSync(path.join(root, 'note.txt'), 'two');
+			execFileSync('git', ['add', 'note.txt'], { cwd: root });
+			execFileSync('git', ['commit', '-qm', 'two'], { cwd: root });
+			const second = execFileSync('git', ['rev-parse', 'HEAD'], {
+				cwd: root,
+				encoding: 'utf8',
+			}).trim();
+			process.env.ABB_FILE_SIZE_BASE = 'origin/main';
+			expect(toolingRatchetIdentity(root)).toEqual({ head: second, mergeBase: first });
+			delete process.env.ABB_FILE_SIZE_BASE;
+			expect(toolingRatchetIdentity(root)).toEqual({ head: second, mergeBase: second });
+			process.env.ABB_FILE_SIZE_BASE = '0123456789abcdef0123456789abcdef01234567';
+			expect(toolingRatchetIdentity(root).mergeBase).toBe(
+				'unresolved:0123456789abcdef0123456789abcdef01234567',
+			);
+		} finally {
+			if (previous === undefined) delete process.env.ABB_FILE_SIZE_BASE;
+			else process.env.ABB_FILE_SIZE_BASE = previous;
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 });
 

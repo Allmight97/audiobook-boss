@@ -49,7 +49,7 @@ Other harnesses use the same verifier and evidence files.
   GNU-only shell, errors silenced inside a command substitution, and Rust
   that fakes an I/O failure with permission bits; each error names the fix
   and its allow marker. `scripts/check-file-size.mjs` ratchets source file
-  size; the `ratchet-files` skill owns how to split a file that fails it.
+  size. `bun scripts/check-file-size.mjs --help` prints how a file that fails it is split.
 - JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
   on dependency or policy changes and daily advisory refreshes. Accepted
   advisories live in

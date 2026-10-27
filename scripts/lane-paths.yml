@@ -17,6 +17,7 @@ frontend:
   - knip.json
   - .node-version
   - scripts/**/*.ts
+  - scripts/*.mjs # Biome and knip check the file-size checker
   - scripts/locked-bun-version.sh
   - scripts/setup.sh
   - scripts/verify.sh
@@ -75,6 +76,15 @@ supply-chain:
   - scripts/verify.sh
   - .github/workflows/ci.yml
 tooling:
+  # Authored source selects this lane so the file-size ratchet runs. The
+  # tooling job is the one that has the pull-request base and its history.
+  - crates/**
+  - src/**
+  - src-tauri/**
+  - scripts/**/*.ts
+  - tools/**
+  - vite.config.ts
+  - vitest.config.ts
   - .github/workflows/**
   - .gitattributes
   - scripts/*.mjs
