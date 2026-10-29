@@ -16,8 +16,7 @@ pub const PROGRESS_METADATA_START: f32 = 90.0;
 pub const PROGRESS_FINALIZING: f32 = 95.0;
 pub const PROGRESS_COMPLETE: f32 = 100.0;
 
-/// Progress percentage calculation range (maps file progress to UI progress).
-pub const PROGRESS_RANGE_MULTIPLIER: f64 = 70.0;
+const PROGRESS_CONVERTING_SPAN: f64 = (PROGRESS_CONVERTING_MAX - PROGRESS_CONVERTING_START) as f64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -73,7 +72,7 @@ pub fn converting_percentage_from_seconds(current_seconds: f64, total_duration: 
         return PROGRESS_CONVERTING_START;
     }
     let ratio = (current_seconds / total_duration).clamp(0.0, 1.0);
-    let pct = PROGRESS_CONVERTING_START as f64 + ratio * PROGRESS_RANGE_MULTIPLIER;
+    let pct = PROGRESS_CONVERTING_START as f64 + ratio * PROGRESS_CONVERTING_SPAN;
     pct as f32
 }
 
@@ -81,13 +80,31 @@ pub use emitter::{EmitContext, ProgressEmitter};
 
 #[cfg(test)]
 mod tests {
-    use super::converting_percentage_from_seconds;
+    use super::{
+        converting_percentage_from_seconds, PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START,
+    };
 
     #[test]
     fn converting_percentage_maps_seconds_into_converting_range() {
         assert!(converting_percentage_from_seconds(0.0, 100.0) >= 10.0);
         assert!(converting_percentage_from_seconds(50.0, 100.0) > 10.0);
-        assert!(converting_percentage_from_seconds(100.0, 100.0) <= 80.0);
+        assert!(converting_percentage_from_seconds(100.0, 100.0) <= PROGRESS_CONVERTING_MAX);
+    }
+
+    #[test]
+    fn converting_percentage_never_exceeds_converting_max() {
+        assert_eq!(
+            converting_percentage_from_seconds(100.0, 100.0),
+            PROGRESS_CONVERTING_MAX
+        );
+        assert_eq!(
+            converting_percentage_from_seconds(500.0, 100.0),
+            PROGRESS_CONVERTING_MAX
+        );
+        assert_eq!(
+            converting_percentage_from_seconds(0.0, 100.0),
+            PROGRESS_CONVERTING_START
+        );
     }
 
     #[test]

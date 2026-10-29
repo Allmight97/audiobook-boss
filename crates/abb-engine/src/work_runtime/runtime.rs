@@ -467,8 +467,6 @@ impl WorkRuntime {
 
     pub(crate) fn sources_in_use(&self) -> HashSet<PathBuf> {
         let sources = self.title_sources();
-        // Reporting nothing in use would let Save write a file an export is
-        // reading, so a poisoned lock still answers from the data it holds.
         let state = self
             .inner
             .state
@@ -730,6 +728,40 @@ fn lock_cancel_flags(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sources_in_use_still_reports_queued_sources_after_the_state_lock_is_poisoned() {
+        let runtime = WorkRuntime::default();
+        let source = PathBuf::from("/library/book.m4b");
+        let operation_id = OperationId("operation-1".to_string());
+        let snapshot = new_processing_snapshot(
+            operation_id.clone(),
+            1,
+            "Book".to_string(),
+            &[source.display().to_string()],
+            None,
+            0,
+        );
+        lock_state(&runtime.inner.state)
+            .expect("state lock")
+            .insert_operation(snapshot);
+        runtime
+            .title_sources()
+            .insert(operation_id.0.clone(), vec![vec![source.clone()]]);
+
+        let poisoned = std::thread::scope(|scope| {
+            scope
+                .spawn(|| {
+                    let _guard = runtime.inner.state.lock().expect("state lock");
+                    panic!("poison the state lock");
+                })
+                .join()
+        });
+        assert!(poisoned.is_err());
+        assert!(runtime.inner.state.is_poisoned());
+
+        assert_eq!(runtime.sources_in_use(), HashSet::from([source]));
+    }
 
     #[test]
     fn cancelling_one_title_sets_only_its_flag_and_whole_cancel_sets_all() {

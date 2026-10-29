@@ -1,3 +1,4 @@
+use crate::audio::buffer::allocated_audio_frame;
 use crate::audio::processor::preview_state::PreviewState;
 use crate::errors::Result;
 use ffmpeg_next as ff;
@@ -39,7 +40,7 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
         let percentage = crate::processing::converting_percentage_from_seconds(
             current_seconds,
             ctx.total_duration,
-        ) as f64;
+        );
         let eta_seconds = ctx.eta.update(
             std::time::Instant::now(),
             current_seconds,
@@ -51,7 +52,7 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
             ctx.current_file_name.as_str()
         };
         ctx.emitter.emit_converting_progress(
-            percentage.min(crate::processing::PROGRESS_CONVERTING_MAX as f64) as f32,
+            percentage,
             "Converting and merging audio files...",
             Some(format!(
                 "{} ({}/{})",
@@ -153,17 +154,12 @@ fn allocate_resampler_output_frame(
     samples: usize,
 ) -> ff::frame::Audio {
     let out_def = *resampler.output();
-    let mut out = ff::frame::Audio::empty();
-    out.set_format(out_def.format);
-    out.set_channel_layout(out_def.channel_layout);
-    out.set_rate(out_def.rate);
-    out.set_samples(samples);
-    // SAFETY: Format, layout, rate, and sample count are copied from the resampler output above, and `alloc`
-    // is called once on an empty frame.
-    unsafe {
-        out.alloc(out_def.format, samples, out_def.channel_layout);
-    }
-    out
+    allocated_audio_frame(
+        out_def.format,
+        out_def.channel_layout,
+        out_def.rate,
+        samples,
+    )
 }
 
 fn resampler_output_frame_samples(
@@ -514,16 +510,7 @@ mod tests {
                 .expect("build 44.1k->22.05k resampler");
 
         let input_samples = 4096usize;
-        let mut input = ff::frame::Audio::empty();
-        input.set_format(fmt);
-        input.set_channel_layout(layout);
-        input.set_rate(44_100);
-        input.set_samples(input_samples);
-        // SAFETY: Format, layout, rate, and sample count are set above, and `alloc` is called once on an empty
-        // frame.
-        unsafe {
-            input.alloc(fmt, input_samples, layout);
-        }
+        let mut input = allocated_audio_frame(fmt, layout, 44_100, input_samples);
         for v in input.plane_mut::<f32>(0) {
             *v = 0.25;
         }
@@ -558,16 +545,7 @@ mod tests {
                 .expect("build 22.05k->44.1k resampler");
 
         let input_samples = 4096usize;
-        let mut input = ff::frame::Audio::empty();
-        input.set_format(fmt);
-        input.set_channel_layout(layout);
-        input.set_rate(22_050);
-        input.set_samples(input_samples);
-        // SAFETY: Format, layout, rate, and sample count are set above, and `alloc` is called once on an empty
-        // frame.
-        unsafe {
-            input.alloc(fmt, input_samples, layout);
-        }
+        let mut input = allocated_audio_frame(fmt, layout, 22_050, input_samples);
         for v in input.plane_mut::<f32>(0) {
             *v = 0.25;
         }

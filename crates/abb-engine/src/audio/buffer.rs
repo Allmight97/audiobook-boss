@@ -7,6 +7,25 @@ enum SampleStorage {
     Packed(Vec<u8>),
 }
 
+pub(super) fn allocated_audio_frame(
+    format: ff::format::Sample,
+    channel_layout: ff::channel_layout::ChannelLayout,
+    sample_rate: u32,
+    samples: usize,
+) -> ff::frame::Audio {
+    let mut frame = ff::frame::Audio::empty();
+    frame.set_format(format);
+    frame.set_channel_layout(channel_layout);
+    frame.set_rate(sample_rate);
+    frame.set_samples(samples);
+    // SAFETY: Format, layout, rate, and sample count are set above, and `alloc` is called once on an empty
+    // frame, so the buffer has no earlier allocation to leak or alias.
+    unsafe {
+        frame.alloc(format, samples, channel_layout);
+    }
+    frame
+}
+
 pub struct SampleAccumulator {
     channels: usize,
     frame_size: usize,
@@ -208,16 +227,12 @@ impl SampleAccumulator {
         }
         let take = available.min(config.frame_size);
 
-        let mut frame = ff::frame::Audio::empty();
-        frame.set_format(config.format);
-        frame.set_channel_layout(config.channel_layout);
-        frame.set_rate(config.sample_rate);
-        frame.set_samples(take);
-        // SAFETY: Format, channel layout, rate, and sample count are set on the frame just above, and
-        // `alloc` is called once on an empty frame, so the buffer has no earlier allocation to leak or alias.
-        unsafe {
-            frame.alloc(config.format, take, config.channel_layout);
-        }
+        let mut frame = allocated_audio_frame(
+            config.format,
+            config.channel_layout,
+            config.sample_rate,
+            take,
+        );
 
         for (ch, buffer) in buffers.iter().enumerate() {
             if ch >= frame.planes() {
@@ -262,16 +277,12 @@ impl SampleAccumulator {
         let take_total = take * bytes_per_frame;
         let start = *consumed_samples * bytes_per_frame;
 
-        let mut frame = ff::frame::Audio::empty();
-        frame.set_format(config.format);
-        frame.set_channel_layout(config.channel_layout);
-        frame.set_rate(config.sample_rate);
-        frame.set_samples(take);
-        // SAFETY: Format, channel layout, rate, and sample count are set on the frame just above, and
-        // `alloc` is called once on an empty frame, so the buffer has no earlier allocation to leak or alias.
-        unsafe {
-            frame.alloc(config.format, take, config.channel_layout);
-        }
+        let mut frame = allocated_audio_frame(
+            config.format,
+            config.channel_layout,
+            config.sample_rate,
+            take,
+        );
 
         // Packed samples share plane zero; byte copies preserve alignment and precision.
         let dst = &mut frame.data_mut(0)[..take_total];
