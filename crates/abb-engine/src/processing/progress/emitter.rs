@@ -1,7 +1,6 @@
 use super::{
     EventStage, ProgressEvent, PROGRESS_ANALYZING_START, PROGRESS_COMPLETE,
-    PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START, PROGRESS_FINALIZING,
-    PROGRESS_METADATA_START,
+    PROGRESS_CONVERTING_START, PROGRESS_FINALIZING, PROGRESS_METADATA_START,
 };
 use crate::processing::OperationKind;
 use crate::processing::ProcessingStage;
@@ -90,10 +89,9 @@ impl ProgressEmitter {
         current_file: Option<String>,
         eta_seconds: Option<f64>,
     ) {
-        let clamped_percentage = percentage.min(PROGRESS_CONVERTING_MAX);
         self.emit_event(
             ProcessingStage::Converting,
-            clamped_percentage,
+            percentage,
             message,
             current_file,
             eta_seconds,

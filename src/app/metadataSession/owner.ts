@@ -24,7 +24,6 @@ import {
 import {
 	fieldForActionId,
 	fieldForInputId,
-	METADATA_FIELD_DEFINITIONS,
 	toFormState,
 	type MetadataFieldAction,
 	type MetadataFormState,
@@ -187,15 +186,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	const view: Accessor<MetadataView> = () => {
 		rev();
 		const metadata = link.metadata();
-		const form = toFormState(
-			metadata.form,
-			new Map(
-				METADATA_FIELD_DEFINITIONS.flatMap(({ field }) => {
-					const value = typed.valueOf(field);
-					return value === undefined ? [] : [[field, value] as const];
-				}),
-			),
-		);
+		const form = toFormState(metadata.form, (field) => typed.valueOf(field));
 		return {
 			form,
 			cover: {

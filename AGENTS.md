@@ -18,7 +18,7 @@
 - Code states its rules as names, types, tests, asserts, or checks; agents
   copy a comment that excuses a workaround. A comment stays only for a
   license, behavior forced by an outside dependency, platform, or protocol, a
-  lint suppression's reason, a public API contract the signature cannot show,
+  lint's required text or a suppression's reason, a public API contract the signature cannot show,
   or an issue or RFC link. `scripts/check-known-mistakes.ts` rejects banners,
   `EXCEPTION:` stamps, and `DO NOT REMOVE`.
 - Upstream source enters the repo only as ABB-owned build provenance under

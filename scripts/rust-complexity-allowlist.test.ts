@@ -10,6 +10,7 @@ const allowlist = readFileSync(
 );
 
 const NAMED_SHAPES = ['flat dispatch match:', 'format parser:', 'sequential ? setup'];
+const DISPOSITIONS = ['Proof-first', 'Reduce', 'Preserve', 'Observe'];
 const PENDING_REDUCE = '; Reduce at next change';
 
 interface Entry {
@@ -30,7 +31,11 @@ function entries(text: string): Entry[] {
 }
 
 function hasNamedReason({ reason }: Entry): boolean {
-	return NAMED_SHAPES.some((shape) => reason.startsWith(shape)) || reason.endsWith(PENDING_REDUCE);
+	return (
+		NAMED_SHAPES.some((shape) => reason.startsWith(shape)) ||
+		DISPOSITIONS.some((disposition) => reason.startsWith(`${disposition}:`)) ||
+		reason.endsWith(PENDING_REDUCE)
+	);
 }
 
 describe('scripts/rust-complexity-allowlist.txt', () => {
@@ -43,8 +48,9 @@ describe('scripts/rust-complexity-allowlist.txt', () => {
 		expect(missing).toEqual([]);
 	});
 
-	it('gives every entry a named shape or a pending Reduce', () => {
+	it('gives every entry a named shape or a disposition', () => {
 		expect(entries(allowlist).filter((entry) => !hasNamedReason(entry))).toEqual([]);
 		expect(hasNamedReason({ file: 'x.rs', fn: 'f', reason: 'it is long' })).toBe(false);
+		expect(hasNamedReason({ file: 'x.rs', fn: 'f', reason: 'Observe: recheck at 25' })).toBe(true);
 	});
 });

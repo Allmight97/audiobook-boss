@@ -13,8 +13,8 @@ unknown-git = "deny"
 [bans]
 multiple-versions = "allow"
 deny = [
-  { crate = "url", deny-multiple-versions = true },
-  { crate = "percent-encoding", deny-multiple-versions = true },
-  { crate = "ffmpeg-next", deny-multiple-versions = true },
-  { crate = "rsa", deny-multiple-versions = true },
+  { crate = "url", deny-multiple-versions = true, reason = "cover-fetch SSRF policy types must be the url reqwest resolves" },
+  { crate = "percent-encoding", deny-multiple-versions = true, reason = "cover path decoding uses the version url resolves" },
+  { crate = "ffmpeg-next", deny-multiple-versions = true, reason = "media-lane fixture synthesis reuses the main FFmpeg binding" },
+  { crate = "rsa", deny-multiple-versions = true, reason = "the stub Audible signer uses the rsa audible_api resolves" },
 ]

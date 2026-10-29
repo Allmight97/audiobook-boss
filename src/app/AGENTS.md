@@ -37,8 +37,8 @@ second copy of owner state.
   and a click does not land on a replaced element.
 - Adapters show typed text (form fields, lookup queries, the naming template)
   through `createTypingEcho`: at once, until the engine's reply for that
-  keystroke arrives, and only in the scope it was typed into (the metadata
-  part's `binding`). The echo is display only and never decides what is saved.
+  keystroke arrives, and only in the scope the owner names (the form's
+  `binding`, the lookup queue item). The echo is display only and never decides what is saved.
   The Remote Source URL echo does not use it: it drops only once the engine's
   URL matches the trimmed text.
 

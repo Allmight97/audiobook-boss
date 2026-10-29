@@ -65,12 +65,10 @@ describe('check-known-mistakes', () => {
 	});
 
 	it('rejects comments that stand in for structure or enforcement', () => {
-		expect(found('crates/abb-engine/src/session/state.rs', '//' + ' ---- Titles ----')).toEqual([
+		expect(found('crates/abb-engine/src/session/state.rs', '// ---- Titles ----')).toEqual([
 			expect.stringMatching(/^1: `---- Titles ----` is a comment that stands in/),
 		]);
-		expect(
-			found('src-tauri/src/lib.rs', '//' + ' EXCEPTION: tiny helper inline test.'),
-		).toHaveLength(1);
+		expect(found('src-tauri/src/lib.rs', '// EXCEPTION: tiny helper inline test.')).toHaveLength(1);
 		expect(found('src-tauri/Cargo.toml', '# DO NOT REMOVE!!')).toHaveLength(1);
 		expect(found('src/app/x.ts', '/* ==== Layout ==== */')).toHaveLength(1);
 		expect(found('src/app/x.ts', "const rule = '---';\n// Titles")).toEqual([]);

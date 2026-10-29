@@ -21,7 +21,7 @@ export default defineConfig(async () => ({
 	plugins: [solid({ include: ['/**/*.tsx'] }), removeCrossoriginPlugin()],
 
 	clearScreen: false,
-	// 2. tauri expects a fixed port, fail if that port is not available
+	// tauri expects a fixed port, fail if that port is not available
 	server: {
 		port: 1420,
 		strictPort: true,

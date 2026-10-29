@@ -183,12 +183,12 @@ function subseriesPartWarningText(warning: SubseriesPartWarning | null): Metadat
 
 export function toFormState(
 	snapshot: MetadataFormSnapshot,
-	typed: ReadonlyMap<MetadataField, string>,
+	typedValue: (field: MetadataField) => string | undefined,
 ): MetadataFormState {
 	const fields = {} as Record<MetadataFieldId, MetadataFieldState>;
 	for (const definition of METADATA_FIELD_DEFINITIONS) {
 		const reported = snapshot.fields.find((field) => field.field === definition.field);
-		const pending = typed.get(definition.field);
+		const pending = typedValue(definition.field);
 		fields[definition.inputId] = {
 			value: pending ?? reported?.value ?? '',
 			action: reported?.action ?? 'keep',
