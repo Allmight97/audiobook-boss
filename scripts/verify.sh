@@ -188,7 +188,7 @@ lane_supply_chain() {
 	local status=0
 	bun audit || status=1
 	cargo audit -D warnings || status=1
-	cargo deny check licenses sources || status=1
+	cargo deny check bans licenses sources || status=1
 	return "${status}"
 }
 

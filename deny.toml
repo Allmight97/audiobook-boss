@@ -9,3 +9,12 @@ exceptions = [{ allow = ["LGPL-2.1-or-later"], crate = "faac-sys" }]
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+
+[bans]
+multiple-versions = "allow"
+deny = [
+  { crate = "url", deny-multiple-versions = true },
+  { crate = "percent-encoding", deny-multiple-versions = true },
+  { crate = "ffmpeg-next", deny-multiple-versions = true },
+  { crate = "rsa", deny-multiple-versions = true },
+]
