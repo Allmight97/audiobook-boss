@@ -12,7 +12,7 @@ import {
 	liveMetadataCapability,
 	type MetadataCapability,
 } from '../../lib/tauri/capabilities/metadata';
-import type { EngineLink } from '../engineLink';
+import { createTypingEcho, type EngineLink } from '../engineLink';
 import {
 	COVER_ART_IMAGE_EXTENSION_HINTS,
 	COVER_MESSAGE_MS,
@@ -24,6 +24,7 @@ import {
 import {
 	fieldForActionId,
 	fieldForInputId,
+	METADATA_FIELD_DEFINITIONS,
 	toFormState,
 	type MetadataFieldAction,
 	type MetadataFormState,
@@ -133,7 +134,6 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	const capabilityValue = deps.capability ?? liveMetadataCapability;
 	const capability: Accessor<MetadataCapability> = () => capabilityValue;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	const typed = new Map<MetadataField, { readonly value: string; readonly binding: number }>();
 	let isHovered = false;
 	let isDragOver = false;
 	let urlInputValue = '';
@@ -144,6 +144,10 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	function changed(): void {
 		bump((n) => n + 1);
 	}
+	const typed = createTypingEcho<MetadataField>({
+		scopeOf: () => [link.metadata().binding],
+		changed,
+	});
 
 	function hideMessageLater(hide: () => void): void {
 		if (messageTimer !== undefined) clearTimeout(messageTimer);
@@ -186,9 +190,10 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		const form = toFormState(
 			metadata.form,
 			new Map(
-				[...typed]
-					.filter(([, entry]) => entry.binding === metadata.binding)
-					.map(([field, entry]) => [field, entry.value]),
+				METADATA_FIELD_DEFINITIONS.flatMap(({ field }) => {
+					const value = typed.valueOf(field);
+					return value === undefined ? [] : [[field, value] as const];
+				}),
 			),
 		);
 		return {
@@ -229,24 +234,15 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		setFieldValue(command) {
 			const field = fieldForInputId(command.inputId);
 			if (!field) return;
-			const entry = { value: command.value, binding: link.metadata().binding };
-			typed.set(field, entry);
-			changed();
 			const intent: SessionIntent = { kind: 'setField', field, value: command.value };
-			link
-				.send(intent)
-				.catch((error: unknown) => link.refuse(intent, error))
-				.finally(() => {
-					if (typed.get(field) !== entry) return;
-					typed.delete(field);
-					changed();
-				});
+			typed.show(field, command.value, () =>
+				link.send(intent).catch((error: unknown) => link.refuse(intent, error)),
+			);
 		},
 		setFieldAction(command) {
 			const field = fieldForActionId(command.actionId);
 			if (!field) return;
-			typed.delete(field);
-			changed();
+			typed.drop(field);
 			link.post({ kind: 'setFieldAction', field, action: command.action });
 		},
 		setCoverHovered(hovered) {

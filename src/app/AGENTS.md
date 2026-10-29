@@ -36,9 +36,11 @@ second copy of owner state.
   lists, PDF choices, releases, and grab records. Solid rows are not rebuilt,
   and a click does not land on a replaced element.
 - Adapters show typed text (form fields, lookup queries, the naming template)
-  at once and drop it when the engine's reply for that keystroke arrives. Form
-  typing shows only on the form it was typed into (the metadata part's
-  `binding`). The echo is display only and never decides what is saved.
+  through `createTypingEcho`: at once, until the engine's reply for that
+  keystroke arrives, and only in the scope it was typed into (the metadata
+  part's `binding`). The echo is display only and never decides what is saved.
+  The Remote Source URL echo does not use it: it drops only once the engine's
+  URL matches the trimmed text.
 
 ## Owner Interface
 

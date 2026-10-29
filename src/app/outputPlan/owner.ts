@@ -3,7 +3,7 @@ import type { AudioFile, CollisionPolicy } from '../../types/audio';
 import { formatFileSize } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import type { OutputPreview } from '../../types/session';
-import type { EngineLink } from '../engineLink';
+import { createTypingEcho, type EngineLink } from '../engineLink';
 import { collisionView, type CollisionView } from './collision';
 import {
 	EMPTY_PREVIEW_TEXT,
@@ -46,7 +46,10 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	const { link } = deps;
 	let disposed = false;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	let typedTemplate: { readonly value: string } | undefined;
+	const typed = createTypingEcho<'template'>({
+		scopeOf: () => [],
+		changed: () => bump((n) => n + 1),
+	});
 
 	const view: Accessor<OutputView> = () => {
 		rev();
@@ -55,7 +58,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		return {
 			outputDirectory: output.directory ?? '',
 			namingPreset: output.preset,
-			namingTemplate: typedTemplate?.value ?? output.template,
+			namingTemplate: typed.valueOf('template') ?? output.template,
 			absIncludeYear: output.includeYear,
 			previewText: text,
 			previewTitle: output.preview.kind === 'noDirectory' ? EMPTY_PREVIEW_TITLE : text,
@@ -94,17 +97,11 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			link.post({ kind: 'setIncludeYear', includeYear });
 		},
 		editNamingTemplate(template) {
-			const entry = { value: template };
-			typedTemplate = entry;
-			bump((n) => n + 1);
-			link
-				.send({ kind: 'setNamingTemplate', template })
-				.catch((error: unknown) => console.error('Failed to record the naming template:', error))
-				.finally(() => {
-					if (typedTemplate !== entry) return;
-					typedTemplate = undefined;
-					bump((n) => n + 1);
-				});
+			typed.show('template', template, () =>
+				link
+					.send({ kind: 'setNamingTemplate', template })
+					.catch((error: unknown) => console.error('Failed to record the naming template:', error)),
+			);
 		},
 		chooseCollisionPolicy(reviewId, policy) {
 			if (!disposed) link.post({ kind: 'chooseCollisionPolicy', reviewId, policy });
@@ -114,8 +111,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		},
 		reset() {
 			disposed = true;
-			typedTemplate = undefined;
-			bump((n) => n + 1);
+			typed.clear();
 		},
 	};
 }
