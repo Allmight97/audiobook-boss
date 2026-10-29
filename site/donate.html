@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Support AudioBook Boss™</title>
-  <meta name="description" content="Support AudioBook Boss™ development — GitHub Sponsors, Ko-fi, or Bitcoin.">
+  <meta name="description" content="Support AudioBook Boss™ development — GitHub Sponsors or Ko-fi.">
 
   <meta property="og:title" content="Support AudioBook Boss™">
   <meta property="og:description" content="Help fund open source audiobook processing">
@@ -147,33 +147,6 @@
       color: var(--bg-deep);
     }
 
-    /* BTC-specific */
-    .btc-address {
-      font-family: "Outfit", monospace;
-      font-size: 0.72rem;
-      color: var(--text-secondary);
-      background: var(--bg-surface);
-      padding: 0.6rem 0.8rem;
-      border-radius: 6px;
-      border: 1px solid var(--border-subtle);
-      word-break: break-all;
-      margin: 0.8rem 0;
-      cursor: pointer;
-      transition: border-color 0.3s;
-      position: relative;
-    }
-
-    .btc-address:hover {
-      border-color: var(--border-hover);
-    }
-
-    .btc-address .copy-hint {
-      display: block;
-      font-size: 0.68rem;
-      color: var(--text-muted);
-      margin-top: 0.3rem;
-    }
-
     .back-link {
       text-align: center;
       margin-top: 2rem;
@@ -240,20 +213,6 @@
           <a href="https://ko-fi.com/jstar97" class="donate-btn" target="_blank" rel="noopener">
             Support on Ko-fi
           </a>
-        </div>
-
-        <div class="donate-card reveal reveal-delay-3">
-          <div class="card-icon">
-            <svg viewBox="0 0 24 24"><path d="M14.24 10.56c-.31 1.24-2.24.73-2.88.58l.55-2.18c.64.16 2.67.47 2.33 1.6zm-2.58 3.12c-.64.16-3.08.77-3.39-.47-.32-1.28 2.11-1.73 2.84-1.85l-.55 2.18.1.14zm7.54-5.09c-.36-2.57-2.77-3.33-5.29-3.57l.73-2.88-1.73-.44-.71 2.8c-.45-.11-.92-.22-1.38-.32l.72-2.82-1.73-.44-.73 2.88c-.37-.08-.74-.17-1.1-.25l-2.38-.6-.47 1.84s1.29.3 1.26.31c.7.18.83.64.81 1.01l-.82 3.25c.05.01.11.03.18.06l-.18-.05-1.15 4.56c-.09.21-.3.54-.79.41.02.02-1.26-.31-1.26-.31l-.86 1.97 2.25.56c.42.1.83.21 1.23.31l-.74 2.93 1.73.43.73-2.89c.47.13.93.25 1.38.36l-.72 2.87 1.73.43.74-2.92c3.05.58 5.35.35 6.31-2.41.78-2.22-.04-3.5-1.64-4.34 1.17-.27 2.04-1.04 2.28-2.63z"/></svg>
-          </div>
-          <h3>Bitcoin</h3>
-          <p class="card-desc">Send BTC directly. No middleman, no fees.</p>
-          <p class="card-fee">0% fees</p>
-          <!-- TODO: Replace with your BTC address -->
-          <div class="btc-address" onclick="navigator.clipboard.writeText(this.dataset.address).then(() => { this.querySelector('.copy-hint').textContent = 'Copied!'; setTimeout(() => { this.querySelector('.copy-hint').textContent = 'Click to copy'; }, 2000); })" data-address="YOUR_BTC_ADDRESS_HERE">
-            YOUR_BTC_ADDRESS_HERE
-            <span class="copy-hint">Click to copy</span>
-          </div>
         </div>
       </div>
 
