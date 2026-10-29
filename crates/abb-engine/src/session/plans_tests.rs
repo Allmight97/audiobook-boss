@@ -1,5 +1,3 @@
-//! Title plan, chapter plan, and size estimate rules.
-
 use std::path::PathBuf;
 
 use super::*;
@@ -59,7 +57,6 @@ fn a_merged_title_cannot_carry_cue_chapters() {
     let second = source("two", 60.0, 1.0);
 
     assert!(chapter_plans_for(&[first.clone(), second]).is_err());
-    // Alone, the same source carries its plan.
     assert_eq!(chapter_plans_for(&[first]).expect("plans").len(), 1);
 }
 
@@ -84,7 +81,6 @@ fn a_plan_is_resolved_again_only_when_its_request_or_sources_change() {
     plans.finish(&tickets[0], Err("no".to_string().into()));
     assert!(plans.refresh([input(encode, &alpha)]).is_empty());
 
-    // A changed request makes the earlier ticket stale.
     let preserve = &request(AudioIntent::Preserve, None);
     let stale = tickets[0].clone();
     let fresh = plans.refresh([input(preserve, &alpha)]);
@@ -98,7 +94,6 @@ fn a_plan_is_resolved_again_only_when_its_request_or_sources_change() {
             field: None,
         }
     );
-    // A removed title has no plan.
     assert!(plans.refresh([]).is_empty());
     assert!(plans.all().is_empty());
 }
@@ -176,7 +171,6 @@ fn a_failure_one_audio_setting_causes_names_that_setting() {
         Some(AudioPlanField::SampleRate)
     );
 
-    // A failure no single setting causes names none.
     let mut cue = unknown_rate.clone();
     cue.cue_source = Some(CueSource {
         file_name: "alpha.cue".to_string(),

@@ -1,10 +1,3 @@
-/**
- * Fails on code shapes behind repeated past failures in this repo. Each rule
- * names the fix and an allow marker, on the line or the line above, for a
- * line where the shape is intended; the marker gives the reason.
- *
- * Usage: bun scripts/check-known-mistakes.ts
- */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -25,7 +18,6 @@ interface Rule {
 
 const OWNED_SHELL = (file: string) =>
 	(file.endsWith('.sh') && !file.startsWith('vendor/')) || file.startsWith('.githooks/');
-// All owned Rust, because test modules also live inline in source files.
 const OWNED_RUST = (file: string) => file.endsWith('.rs') && !file.startsWith('vendor/');
 
 const GNU_ONLY = [

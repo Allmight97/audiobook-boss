@@ -30,8 +30,6 @@ impl RemoteSourceStaging {
         Ok(path)
     }
 
-    /// Startup policy: nothing staged by an earlier run is reused, so the whole
-    /// sessions root goes.
     pub(super) fn cleanup_abandoned_sessions(&self) -> Result<()> {
         self.with_sessions_root(|root| root.remove_root())
     }

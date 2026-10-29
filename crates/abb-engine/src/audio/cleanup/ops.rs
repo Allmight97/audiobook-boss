@@ -47,7 +47,6 @@ impl CleanupGuard {
         }
     }
 
-    /// Clean up a single path (file or directory)
     pub(crate) fn cleanup_single_path(&self, path: &Path) -> Result<()> {
         let metadata = match std::fs::symlink_metadata(path) {
             Ok(metadata) => metadata,

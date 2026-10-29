@@ -1,6 +1,3 @@
-# A settings file as ABB saves it when the user never pinned defaults and
-# never chose an output folder. contract_tests.rs checks it loads unchanged.
-
 [general]
 keep_awake_while_working = true
 max_concurrent_jobs = "auto"

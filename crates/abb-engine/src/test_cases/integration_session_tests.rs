@@ -1,10 +1,3 @@
-//! The working session driven the way a host drives it: intents in, snapshots
-//! out, real files on disk, no UI.
-//!
-//! These prove what the session's unit tests cannot: that import fills the
-//! form from real tags, that Save reaches the file, and that Save respects an
-//! export that is still reading its source.
-
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -133,7 +126,6 @@ async fn a_second_abb_on_the_same_folders_refuses_to_start_and_leaves_live_work_
     assert_eq!(third.shutdown().await, ShutdownOutcome::Settled);
 }
 
-/// One engine over its own throwaway roots, with one tagged audiobook.
 struct Desk {
     root: TempDir,
     engine: Engine,
@@ -153,7 +145,6 @@ impl Desk {
         Self { root, engine }
     }
 
-    /// Builds an M4B tagged "Alpha" by "Source Author" at `destination`.
     async fn audiobook(&self, destination: &Path, seconds: f64) -> PathBuf {
         let lane = MediaLane::with_fixtures(&[seconds]);
         let built = lane
@@ -213,8 +204,6 @@ impl Desk {
             .value
     }
 
-    /// Submits the session as a native AAC export and returns once the
-    /// engine has accepted it.
     async fn export(&self) -> abb_engine::work_runtime::OperationId {
         let output = self.root.path().join("exports");
         fs::create_dir_all(&output).expect("create export folder");
@@ -262,7 +251,6 @@ impl Desk {
             .status
     }
 
-    /// The published audiobook of an export's first title.
     fn output_of(&self, operation: &abb_engine::work_runtime::OperationId) -> PathBuf {
         let operations = self.engine.list_work_operations().expect("operations");
         let export = operations
@@ -278,7 +266,6 @@ impl Desk {
         )
     }
 
-    /// The audio plan of the first title.
     fn plan(&self) -> TitlePlan {
         let audio = self.engine.session_snapshot().audio.expect("audio part");
         audio.titles.values().next().expect("a title").plan.clone()
@@ -333,7 +320,6 @@ async fn importing_one_audiobook_selects_it_and_shows_its_tags() {
     assert_eq!(desk.shown(MetadataField::Title), "Alpha");
     assert_eq!(desk.shown(MetadataField::Author), "Source Author");
 
-    // Importing the same file again adds nothing.
     desk.import(&book).await;
     assert_eq!(
         desk.engine
@@ -377,14 +363,12 @@ async fn save_with_no_export_running_writes_the_file_in_place() {
         "untouched tags stay"
     );
 
-    // The save ran as one accepted operation with one outcome per file.
     let operations = desk.engine.list_work_operations().expect("operations");
     let save = operations.operations.first().expect("the save is listed");
     assert_eq!(save.status, WorkOperationStatus::Completed);
     assert_eq!(save.children.len(), 1);
 }
 
-/// A JPEG larger than ABB will decode for an output cover.
 fn oversized_jpeg() -> Vec<u8> {
     let mut bytes = Vec::new();
     image::DynamicImage::new_rgb8(5_000, 5_000)
@@ -515,7 +499,6 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
     assert!(!desk.metadata().has_pending_edits);
     assert_eq!(desk.engine.running_work().waiting_writes, 0);
-    // The export's output took the edit too.
     assert_eq!(
         genre_on_disk(&desk.output_of(&export)).as_deref(),
         Some("Mystery")
@@ -525,7 +508,6 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
 #[tokio::test]
 async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
     let desk = Desk::new();
-    // Where the engine stages downloads.
     let staged = desk
         .root
         .path()
@@ -560,7 +542,6 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     assert_eq!(fs::read(&book).expect("read download"), before);
-    // The output took the edit; it stays pending for a later export.
     assert_eq!(
         genre_on_disk(&desk.output_of(&export)).as_deref(),
         Some("Mystery")
@@ -860,7 +841,6 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
         WorkOperationStatus::Completed
     );
 
-    // The same export again collides with the first output.
     desk.send(SessionIntent::Submit).await;
     assert!(
         matches!(submission(&desk), Some(SubmissionStatus::ReviewRequired)),
@@ -930,7 +910,6 @@ async fn shutdown_answers_a_pending_collision_review_so_a_waiting_save_lands() {
         finished(desk.export_status(&first))
     })
     .await;
-    // The same export again waits for a collision choice, holding its source.
     desk.send(SessionIntent::Submit).await;
     assert!(
         matches!(submission(&desk), Some(SubmissionStatus::ReviewRequired)),
@@ -963,7 +942,6 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
         ],
     })
     .await;
-    // Different titles, so the two exports do not collide with each other.
     let beta_id = desk.engine.session_snapshot().titles.expect("titles").files[1]
         .input_id
         .clone();
@@ -990,7 +968,6 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
         .map(|path| fs::read(path).expect("read existing audiobook"))
         .collect();
 
-    // Only one output exists when the user reviews.
     let moved = desk.root.path().join("set-aside.m4b");
     fs::rename(&exported[1], &moved).expect("set one output aside");
     desk.send(SessionIntent::Submit).await;
@@ -1002,7 +979,6 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
     } = collision_review(&desk);
     assert_eq!(seen.len(), 1);
 
-    // The other appears before the user chooses.
     fs::rename(&moved, &exported[1]).expect("put it back");
     desk.send(SessionIntent::ChooseCollisionPolicy {
         review_id,
@@ -1043,7 +1019,6 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
     }
 }
 
-/// Every file under `dir`, sorted.
 fn walk(dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     for entry in fs::read_dir(dir).expect("read folder").flatten() {
@@ -1105,7 +1080,6 @@ async fn a_choice_made_while_reset_is_waiting_stays_on_screen_and_on_disk() {
     assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 }
 
-/// Every supported final container must accept a later Save on its published output.
 #[tokio::test]
 async fn save_updates_finished_outputs_in_every_supported_container() {
     for format in [

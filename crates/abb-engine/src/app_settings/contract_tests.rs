@@ -193,9 +193,6 @@ fn native_aac_settings() -> AppSettings {
     }
 }
 
-// A saved file must keep meaning what it meant. Changing how a setting is
-// saved fails here; keep the samples loading, or the change says what each
-// saved choice becomes.
 #[test]
 fn every_sample_settings_file_loads_every_choice_it_holds() {
     let samples = [

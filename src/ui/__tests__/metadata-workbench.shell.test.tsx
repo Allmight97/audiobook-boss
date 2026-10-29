@@ -27,7 +27,6 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 	};
 }
 
-/** An engine whose files carry a title and a PNG cover. */
 function engineWithTaggedBooks(): FakeEngine {
 	const engine = createFakeEngine();
 	engine.analyze = (paths) =>
@@ -39,7 +38,6 @@ function engineWithTaggedBooks(): FakeEngine {
 	return engine;
 }
 
-/** Renders the app and waits for the engine's first snapshot. */
 async function renderApp(runtime: AppRuntime) {
 	const rendered = render(() => (
 		<AppRuntimeProvider runtime={runtime}>
@@ -50,7 +48,6 @@ async function renderApp(runtime: AppRuntime) {
 	return rendered;
 }
 
-/** The last `count` intents the engine received. */
 function lastIntents(engine: FakeEngine, count: number) {
 	return engine.sessionIntents.slice(-count);
 }

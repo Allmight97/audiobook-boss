@@ -36,7 +36,6 @@ pub struct ProcessPayload {
     pub audio_requests: Vec<audio::TitleAudioRequest>,
     /// Output naming configuration (defaults to ABS-compatible)
     pub output_naming: Option<OutputNamingConfig>,
-    /// Explicit collision policy selected by the user after preflight review.
     pub collision_policy: Option<CollisionPolicy>,
     /// Signature returned by preflight so execution can reject stale destination assumptions.
     pub preflight_signature: Option<String>,

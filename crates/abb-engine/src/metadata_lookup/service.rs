@@ -94,7 +94,6 @@ pub(crate) async fn search_online_metadata(
                     asin,
                     e
                 );
-                // Provider ASIN detail unavailable; continue through normal search and emit diagnostic.
                 diagnostics.push(asin_text_search_diagnostic());
             }
         }
@@ -266,7 +265,6 @@ async fn fetch_audnexus_with_audible(
                     Ok(result) => (result, false),
                     Err(err) => {
                         log::warn!("Audnexus lookup failed for {}: {}", item.asin, err);
-                        // Audnexus detail enrichment unavailable; return Audible-derived result with provenance marker.
                         (map_audible_item(item), true)
                     }
                 }
@@ -305,7 +303,6 @@ fn asin_text_search_diagnostic() -> MetadataLookupDiagnostic {
 }
 
 fn source_failed_diagnostic(source: MetadataSource) -> MetadataLookupDiagnostic {
-    // Provider failed; emit diagnostic and continue with available results from other sources.
     MetadataLookupDiagnostic {
         kind: MetadataLookupDiagnosticKind::SourceFailedPartialResults,
         source: Some(source),
@@ -344,7 +341,6 @@ fn merge_search_results(
     let mut audnexus_content_keys: std::collections::HashSet<String> =
         std::collections::HashSet::new();
 
-    // Add Audnexus results first (higher priority)
     for result in audnexus_results {
         let source_key = source_dedupe_key(&result);
         if seen_source_keys.insert(source_key) {
@@ -355,7 +351,6 @@ fn merge_search_results(
         }
     }
 
-    // Add OpenLibrary results (fill gaps)
     for result in openlibrary_results {
         let source_key = source_dedupe_key(&result);
         if !seen_source_keys.insert(source_key) {
@@ -371,7 +366,6 @@ fn merge_search_results(
         merged.push(result);
     }
 
-    // Respect the limit
     merged.truncate(limit as usize);
     merged
 }

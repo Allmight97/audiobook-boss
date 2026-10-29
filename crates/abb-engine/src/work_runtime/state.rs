@@ -55,21 +55,12 @@ fn push_operation_log(
     }
 }
 
-/// Cap on retained terminal operations (running/accepted operations are never
-/// pruned). Keeps unbounded history from growing forever while every
-/// currently-active operation stays visible.
 const TERMINAL_OPERATIONS_CAP: usize = 20;
 
 #[derive(Default)]
 pub(crate) struct WorkRuntimeState {
     operations: BTreeMap<String, OperationSnapshot>,
-    /// Advances each time a change is published, so hosts can tell which
-    /// order is newest.
     revision: u64,
-    /// Operation ids in the order they terminalized (runtime-internal, never
-    /// serialized). Pruning follows this order — not submission `sequence` —
-    /// so a long-running operation that finishes late is the NEWEST terminal
-    /// entry and survives, instead of being evicted the moment it completes.
     terminal_order: Vec<String>,
 }
 
@@ -93,8 +84,6 @@ impl WorkRuntimeState {
         }
     }
 
-    /// Records that `changed` is being published and returns it with the
-    /// order as of now.
     pub(crate) fn publish(&mut self, changed: OperationSnapshot) -> WorkOperationsUpdate {
         self.revision += 1;
         WorkOperationsUpdate {
@@ -108,7 +97,6 @@ impl WorkRuntimeState {
         }
     }
 
-    /// Active first, then accepted, then finished; newest first within each.
     fn ordered(&self) -> Vec<&OperationSnapshot> {
         let mut operations = self.operations.values().collect::<Vec<_>>();
         operations.sort_by_key(|operation| {
@@ -232,9 +220,6 @@ impl WorkRuntimeState {
             finite_percentage(event.percentage)
         };
         snapshot.progress.message = event.message.clone();
-        // A multi-child batch event carries one child's ETA, which does not
-        // describe the aggregated operation percentage rendered beside it —
-        // suppress rather than present a wrong number.
         snapshot.progress.eta_seconds = if child_scoped_batch_event {
             None
         } else {
@@ -501,8 +486,6 @@ impl WorkRuntimeState {
         Ok(snapshot)
     }
 
-    /// Records the update state of the title at `input_index`. Returns the
-    /// snapshot when the operation is still listed.
     pub(crate) fn set_output_update(
         &mut self,
         operation_id: &OperationId,
@@ -518,7 +501,6 @@ impl WorkRuntimeState {
         Some(snapshot.clone())
     }
 
-    /// The child id of the title at `input_index`.
     pub(crate) fn child_job_id(
         &self,
         operation_id: &OperationId,
@@ -541,19 +523,12 @@ impl WorkRuntimeState {
         Ok(snapshot)
     }
 
-    /// Record an operation as terminalized, once, in completion order.
     fn record_terminal_operation(&mut self, operation_id: &str) {
         if !self.terminal_order.iter().any(|id| id == operation_id) {
             self.terminal_order.push(operation_id.to_string());
         }
     }
 
-    /// Bound retained terminal-operation history: once more than
-    /// `TERMINAL_OPERATIONS_CAP` operations are terminal, drop the oldest by
-    /// TERMINALIZATION order (`terminal_order`), never by submission
-    /// sequence — a just-finished long-running operation must survive the
-    /// prune that its own completion triggers. Running/accepted operations
-    /// are never inspected and never pruned.
     fn prune_terminal_operations(&mut self) {
         while self.terminal_order.len() > TERMINAL_OPERATIONS_CAP {
             let oldest = self.terminal_order.remove(0);
@@ -562,8 +537,6 @@ impl WorkRuntimeState {
     }
 }
 
-/// Processing titles run as separate jobs, so each can be cancelled alone.
-/// An inline metadata save runs its files in one loop under one flag.
 fn titles_cancel_individually(kind: OperationKind) -> bool {
     kind == OperationKind::ProcessingBatch
 }
@@ -576,9 +549,6 @@ fn finite_percentage(percentage: f32) -> f32 {
     }
 }
 
-/// Shared operation-level terminalization for both the processing path
-/// (`complete_from_process_result`) and command-driven inline operations
-/// (`complete_from_summary`). Child terminalization stays caller-specific.
 fn apply_operation_terminal(
     snapshot: &mut OperationSnapshot,
     status: WorkOperationStatus,

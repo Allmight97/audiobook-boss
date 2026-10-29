@@ -1,14 +1,9 @@
-//! Preparation stage — validation and workspace setup.
-//!
-//! Functions are private to the audio processor cluster.
-
 use crate::audio::AudioFile;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::processing::{PreviewConfig, ProcessingContext};
 
 use super::ProcessingWorkflow;
 
-/// Validates processing inputs (files + settings).
 pub(crate) fn validate_processing_inputs(
     context: &ProcessingContext,
     files: &[AudioFile],
@@ -38,12 +33,10 @@ pub(crate) fn validate_processing_inputs(
         )?;
     }
 
-    // The output folder was checked writable when the job registered.
     crate::audio::settings::validate_sample_rate_config(&context.sample_rate)?;
     Ok(())
 }
 
-/// Prepares workspace (temp dir + concat file + total duration aggregation).
 pub(crate) fn prepare_workspace(
     context: &ProcessingContext,
     files: &[AudioFile],
@@ -88,7 +81,6 @@ pub(crate) fn progress_total_duration(files: &[AudioFile], preview: Option<&Prev
         .sum()
 }
 
-/// Orchestrates validation + workspace preparation.
 pub(crate) fn validate_and_prepare(
     context: &ProcessingContext,
     files: &[AudioFile],

@@ -1,5 +1,3 @@
-//! Online metadata lookup across Audible, Audnexus, and Open Library.
-
 mod mapping;
 mod parse;
 mod providers;

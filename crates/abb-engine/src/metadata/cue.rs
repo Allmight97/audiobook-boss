@@ -1,4 +1,3 @@
-//! Sibling CUE discovery and immutable, source-bound chapter intake facts.
 use super::{parse_cue, validate_chapters, ChapterSpec, CueInterpretation};
 use crate::errors::{AppError, Result};
 use abb_metadata_core::normalize_embedded_chapters;

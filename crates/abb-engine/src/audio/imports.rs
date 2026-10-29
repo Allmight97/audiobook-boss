@@ -1,5 +1,3 @@
-//! Backend-owned local audio import discovery and support metadata.
-
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fs;
@@ -51,7 +49,6 @@ pub fn supported_audio_import_metadata() -> SupportedAudioImportMetadata {
     }
 }
 
-/// A path an import could not read, and why.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SkippedImportPath {

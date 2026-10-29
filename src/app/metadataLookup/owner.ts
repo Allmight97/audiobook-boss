@@ -16,10 +16,6 @@ export type MetadataLookupAction =
 	| { type: 'search' }
 	| { type: 'skipQueueItem' };
 
-/**
- * The engine owns the lookup: its queue, searches, and applying a result.
- * This owner shows the engine's snapshot and sends intents.
- */
 export type MetadataLookupOwner = {
 	readonly view: Accessor<MetadataLookupState>;
 	run(action: MetadataLookupAction): Promise<void>;
@@ -54,7 +50,6 @@ export function createMetadataLookupOwner(deps: {
 }): MetadataLookupOwner {
 	const { link } = deps;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	// Query text entered and not yet confirmed by the engine.
 	type QueryEcho = { value: string; path: string | undefined; binding: number };
 	const typed: { titleQuery?: QueryEcho; authorQuery?: QueryEcho } = {};
 

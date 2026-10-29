@@ -1,10 +1,5 @@
 name: ci
 
-# Policy facts live in this file; scripts/check-pr-workflow-policy.ts enforces them.
-# Why this shape: docs/DECISIONS.md.
-# The daily cron refreshes advisories. Monday and Thursday prove every lane so
-# caches stay used. A merged PR proves main, then deletes that PR's caches.
-# scripts/verification.ts selects jobs; verify.sh owns commands.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]

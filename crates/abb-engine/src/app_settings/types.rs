@@ -55,7 +55,6 @@ pub enum SettingsUnit {
     PinnedDefaults,
 }
 
-/// What loading the saved settings could not keep.
 #[derive(Debug, Clone, Default, serde::Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsRecovery {
@@ -74,7 +73,6 @@ pub struct SettingsRecovery {
 )]
 #[serde(rename_all = "camelCase")]
 pub enum StartupBehavior {
-    /// Today's behavior: reopen with whatever the panels last persisted.
     #[default]
     RememberLastState,
     /// Reopen with the user-pinned defaults; in-flight panel tweaks are
@@ -82,7 +80,6 @@ pub enum StartupBehavior {
     PinnedDefaults,
 }
 
-/// A deliberately captured snapshot of the panel-owned durable preferences.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PinnedDefaults {

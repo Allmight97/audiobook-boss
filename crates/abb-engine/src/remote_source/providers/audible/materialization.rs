@@ -15,8 +15,6 @@ use crate::remote_source::materializer::{
 use crate::remote_source::scoped_output::{partial_sibling, remove_if_present};
 use crate::remote_source::types::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
 
-/// A successfully decrypted protected source plus the non-blocking purge
-/// diagnostic, if the encrypted staging source could not be removed (#393).
 pub(super) struct MaterializedProtectedSource {
     pub(super) path: PathBuf,
     pub(super) purge_diagnostic: Option<RemoteSourceDiagnostic>,
@@ -151,13 +149,6 @@ const PURGE_RETRY_DELAYS: [std::time::Duration; 2] = [
     std::time::Duration::from_millis(400),
 ];
 
-/// Purge the now-redundant encrypted source after a successful materialization
-/// and return the decrypted output unchanged. Purge failure retries briefly,
-/// then surfaces a non-blocking typed diagnostic (#393): the user's
-/// import-ready M4B is never blocked by housekeeping, and the encrypted
-/// staging source is guaranteed gone by the startup session sweep at the
-/// latest. `remove` and `sleep` are injected so this policy is provable
-/// without running the real decrypt subprocess or waiting real time.
 fn finalize_materialized_source(
     materialized: PathBuf,
     downloaded_path: &Path,
@@ -259,11 +250,8 @@ mod tests {
             no_sleep,
         );
 
-        // A failed purge must not block or alter the decrypted M4B path...
         assert_eq!(outcome.path, materialized);
-        // ...every retry attempt must have run...
         assert_eq!(attempts.into_inner(), 1 + PURGE_RETRY_DELAYS.len());
-        // ...and the failure must surface as the typed non-blocking diagnostic.
         let diagnostic = outcome
             .purge_diagnostic
             .expect("persistent purge failure emits a diagnostic");

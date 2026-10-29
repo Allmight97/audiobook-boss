@@ -4,11 +4,6 @@ import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixture
 import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 
-// Naming, the path preview, and size estimates are the engine's. These tests
-// cover what this owner adds: wording, the intents it sends, the template
-// shown while typing, and the collision dialog.
-
-/** The outputs the engine says already exist. */
 describe('output plan owner', () => {
 	let runtime: AppRuntime | undefined;
 	let engine: FakeEngine;

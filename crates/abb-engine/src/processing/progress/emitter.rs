@@ -1,5 +1,3 @@
-//! Progress event emitter
-
 use super::{
     EventStage, ProgressEvent, PROGRESS_ANALYZING_START, PROGRESS_COMPLETE,
     PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START, PROGRESS_FINALIZING,
@@ -11,9 +9,6 @@ use std::sync::Arc;
 
 type ProgressListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
 
-/// Emit context shared by progress and terminal events: the operation
-/// family, and (for batch items) the job id and input index. Bundled so callers
-/// pass one value instead of a positional tuple.
 #[derive(Clone)]
 pub struct EmitContext {
     pub operation_kind: OperationKind,
@@ -21,19 +16,14 @@ pub struct EmitContext {
     pub input_index: Option<usize>,
 }
 
-/// Centralized progress event emitter
 pub struct ProgressEmitter {
-    /// Backend operation family this emitter reports for
     operation_kind: OperationKind,
-    /// Optional job identifier for parallel batch processing
     job_id: Option<String>,
-    /// Optional input index for batch processing
     input_index: Option<usize>,
     progress_listener: Option<ProgressListener>,
 }
 
 impl ProgressEmitter {
-    /// Progress goes to the owning engine reducer through its listener.
     pub(crate) fn with_context(context: EmitContext) -> Self {
         Self {
             operation_kind: context.operation_kind,
@@ -73,7 +63,6 @@ impl ProgressEmitter {
         self.notify_listener(&event);
     }
 
-    /// Emits analyzing start event
     pub fn emit_analyzing_start(&self, message: &str) {
         self.emit_event(
             ProcessingStage::Analyzing,
@@ -84,7 +73,6 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits converting start event
     pub fn emit_converting_start(&self, message: &str) {
         self.emit_event(
             ProcessingStage::Converting,
@@ -95,7 +83,6 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits converting progress with file info
     pub fn emit_converting_progress(
         &self,
         percentage: f32,
@@ -113,7 +100,6 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits metadata writing start event
     pub fn emit_metadata_start(&self, message: &str) {
         self.emit_event(
             ProcessingStage::WritingMetadata,
@@ -124,7 +110,6 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits finalizing event
     pub fn emit_finalizing(&self, message: &str) {
         self.emit_event(
             ProcessingStage::WritingMetadata,
@@ -135,7 +120,6 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits completion event
     pub fn emit_complete(&self, message: &str) {
         self.emit_event(
             ProcessingStage::Completed,
@@ -146,17 +130,14 @@ impl ProgressEmitter {
         );
     }
 
-    /// Emits terminal failed event.
     pub fn emit_terminal_failed(&self, message: &str) {
         self.emit_terminal_event(EventStage::Failed, message);
     }
 
-    /// Emits terminal cancelled event.
     pub fn emit_terminal_cancelled(&self, message: &str) {
         self.emit_terminal_event(EventStage::Cancelled, message);
     }
 
-    /// Emits terminal skipped event.
     pub fn emit_terminal_skipped(&self, message: &str) {
         self.emit_terminal_event(EventStage::Skipped, message);
     }
@@ -165,7 +146,6 @@ impl ProgressEmitter {
     pub fn emit_cancelled(&self, message: &str) {
         self.emit_terminal_cancelled(message);
     }
-    /// Emits custom progress event with all parameters
     #[cfg(test)]
     pub fn emit_custom(
         &self,
@@ -178,7 +158,6 @@ impl ProgressEmitter {
         self.emit_event(stage, percentage, message, current_file, eta_seconds);
     }
 
-    /// Internal method to emit progress events
     fn emit_event(
         &self,
         stage: ProcessingStage,

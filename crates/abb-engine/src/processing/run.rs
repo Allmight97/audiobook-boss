@@ -86,8 +86,6 @@ fn processing_request_rejected_record(error: &AppError) -> Option<String> {
     ))
 }
 
-/// Preflights an export, then gives each title an output record from what
-/// the preflight read.
 pub(crate) fn preflight_title_outputs(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
@@ -476,8 +474,6 @@ mod tests {
         std::fs::write(path, bytes).expect("write WAV fixture");
     }
 
-    // Exercise the production planner's two metadata representations through the
-    // real writers. Supplying metadata directly to the engine misses this handoff.
     async fn execute_reviewed_metadata_batch(
         mut payload: ProcessPayload,
         metadata: &HashMap<String, crate::metadata::MetadataIntentPatch>,
@@ -621,8 +617,6 @@ mod tests {
             .enumerate()
         {
             if pass == 1 {
-                // The session's tests prove retention of these earlier edits;
-                // this half proves that both accumulated requests reach disk.
                 for (source, title) in seeds.iter().zip(titles) {
                     edits
                         .get_mut(&source.to_string_lossy().into_owned())

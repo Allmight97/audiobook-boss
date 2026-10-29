@@ -6,7 +6,6 @@ import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile } from '../../types/audio';
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 
-/** Source ordering uses the same pointer gesture as ordering output titles. */
 export function TitleSources(props: {
 	readonly file: AudioFile;
 	readonly id: string;

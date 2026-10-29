@@ -86,8 +86,6 @@ function summaryText(operation: OperationSnapshot): string {
 	return operation.progress.message;
 }
 
-/** Why a title failed, or what to know about a finished one: a companion
- * warning, the title's own warnings, and the latest tag edit's outcome all show. */
 function childReason(child: ChildJobSnapshot): string | null {
 	if (child.status === 'failed') return child.message ?? null;
 	const notes = [child.supplementalWarning, ...child.warnings, outputUpdateText(child)].filter(
@@ -96,7 +94,6 @@ function childReason(child: ChildJobSnapshot): string | null {
 	return notes.length > 0 ? notes.join(' ') : null;
 }
 
-/** How a Save's edit to this title's output went, when there was one. */
 function outputUpdateText(child: ChildJobSnapshot): string | null {
 	const status = child.outputUpdate?.status;
 	switch (status?.kind) {

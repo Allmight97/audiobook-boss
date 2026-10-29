@@ -2,7 +2,6 @@ import { globSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-// Enforces the motion rule in src/ui/AGENTS.md (Styles) across every app stylesheet.
 const root = fileURLToPath(new URL('..', import.meta.url));
 const stylesheets = Object.fromEntries(
 	globSync('src/**/*.css', { cwd: root }).map((file) => [
@@ -13,7 +12,6 @@ const stylesheets = Object.fromEntries(
 
 type Declaration = { readonly file: string; readonly text: string; readonly scopes: string[] };
 
-/** Every declaration with the at-rule and selector preludes that enclose it. */
 function declarations(file: string, css: string): Declaration[] {
 	const found: Declaration[] = [];
 	const scopes: string[] = [];

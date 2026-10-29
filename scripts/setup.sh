@@ -111,11 +111,9 @@ hash_from_sums() {
 	' "${sums}"
 }
 
-# Download a release asset and check it against the release's checksum file.
 fetch_verified() {
 	local base="$1" asset="$2" sums="$3" dest="$4"
 	local expected actual
-	# Bounded: a stalled download fails in minutes instead of holding CI.
 	local curl_opts=(-fsSL --connect-timeout 20 --max-time 600 --retry 3 --retry-all-errors)
 	curl "${curl_opts[@]}" -o "${dest}/${asset}" "${base}/${asset}"
 	curl "${curl_opts[@]}" -o "${dest}/${sums}" "${base}/${sums}"
@@ -388,9 +386,6 @@ check_rust() {
 	fi
 }
 
-# Eval-able PATH and toolchain exports. Host env for media tests includes
-# ABB_FFMPEG / ABB_FFPROBE when setup.sh can see FFmpeg 9 (Homebrew prefix
-# or ~/.local/bin), so verify.sh does not keep a second copy of that lookup.
 print_env() {
 	local ffmpeg ffprobe ffmpeg_dir
 	if ffmpeg="$(ffmpeg_bin)"; then
@@ -537,7 +532,6 @@ brew_pkgs() {
 }
 
 apt_install() {
-	# Retries and timeouts make a stalled mirror fail with a message.
 	local apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
 	run_as_root apt-get "${apt_opts[@]}" update -q
 	run_as_root env DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install -y -q --no-install-recommends "$@"
@@ -696,8 +690,6 @@ ensure_uv() {
 		Linux-aarch64 | Linux-arm64) triple=aarch64-unknown-linux-gnu ;;
 		Darwin-x86_64) triple=x86_64-apple-darwin ;;
 		Darwin-arm64)
-			# uv's macOS arm64 tarball uses the Rust host triple. Split so
-			# the old helper sidecar name is not a literal in this file.
 			triple="aarch64-"
 			triple+="apple-darwin"
 			;;
@@ -730,7 +722,6 @@ ensure_dotnet() {
 	fi
 	tmp="$(mktemp -d)"
 	log "Installing .NET SDK ${required} into ${DOTNET_ROOT}"
-	# Bounded: a stalled download fails in minutes instead of holding CI.
 	local curl_opts=(-fsSL --connect-timeout 20 --max-time 600 --retry 3 --retry-all-errors)
 	curl "${curl_opts[@]}" -o "${tmp}/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
 	bash "${tmp}/dotnet-install.sh" --version "${required}" --install-dir "${DOTNET_ROOT}"
@@ -749,7 +740,6 @@ ensure_aaxclean_helper() {
 	(cd "${repo_root}" && bun run aaxclean-helper:publish)
 }
 
-# Repo-local git config, not a shell profile: commits run .githooks/pre-commit.
 install_git_hooks() {
 	if [[ "$(git -C "${repo_root}" config --get core.hooksPath || true)" != .githooks ]]; then # allow-silence: an unset key exits 1 and means not installed
 		log "Installing git hooks (core.hooksPath .githooks)"
@@ -757,7 +747,6 @@ install_git_hooks() {
 	fi
 }
 
-# Fail before minutes of installs when a prerequisite setup cannot install.
 require_prerequisites() {
 	if is_darwin && ! have brew; then
 		printf 'error: Homebrew is required on macOS. Install it from https://brew.sh, then rerun.\n' >&2

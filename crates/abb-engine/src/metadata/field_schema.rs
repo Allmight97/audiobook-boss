@@ -1,5 +1,3 @@
-//! Canonical metadata field schema shared by ffmpeg and mp4ameta adapters.
-
 use crate::metadata::tag_registry::{
     SERIES, SERIES_CLEAR_KEYS, SERIES_PART, SERIES_PART_CLEAR_KEYS, SERIES_PART_READ_KEYS,
     SERIES_READ_KEYS,
@@ -29,7 +27,6 @@ const DISK_CLEAR_KEYS: [&str; 8] = [
     "totaldisks",
 ];
 
-/// Logical audiobook metadata fields handled by container adapters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TagField {
     Title,

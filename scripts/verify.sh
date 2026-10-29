@@ -1,17 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Same lanes as CI. The lane list lives only in this file.
-#   bash scripts/verify.sh            # every lane this OS supports
-#   bash scripts/verify.sh frontend   # one or more lanes
-#   bash scripts/verify.sh supply-chain  # advisories and licenses (named only)
-#
-# Lanes run one after another and keep going after a failure. Each lane prints
-# PASS or FAIL. The exit code is nonzero if any lane failed.
-# Before engine/media/host/apple/decrypt, setup.sh --check rust must pass. Core checks
-# cargo, rustfmt, clippy, and uvx only (no apt). Missing tools fail that lane
-# at once and print the exact setup command.
-
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
@@ -181,13 +170,8 @@ lane_tooling() {
 	bun scripts/check-known-mistakes.ts
 	bun scripts/check-pr-workflow-policy.ts
 	local scripts
-	# Globs are expanded against committed files; fail if a directory is empty.
 	scripts=(scripts/*.sh .claude/hooks/*.sh .githooks/* .agents/skills/verify-abb/*.sh .agents/skills/verify-abb/features/*.sh)
 	shellcheck -S warning "${scripts[@]}"
-	# Source files stay small enough to read whole. ABB_FILE_SIZE_BASE is the
-	# pull-request base; a full run leaves it unset and compares HEAD to itself,
-	# so files already over the budget do not fail the lane. The script owns
-	# which changed files count, and a missing base fails closed.
 	local file_size_base="${ABB_FILE_SIZE_BASE:-HEAD}"
 	if ! git rev-parse --verify --end-of-options "${file_size_base}^{commit}" >/dev/null; then
 		printf 'file-size ratchet: base %s is not in this checkout. Fetch it before the tooling lane; a missing base fails closed.\n' "${file_size_base}" >&2
@@ -211,8 +195,6 @@ lane_supply_chain() {
 requested=()
 if [[ "${1:-}" == --changed ]]; then
 	[[ $# -eq 2 ]] || { usage >&2; exit 2; }
-	# The argument is the ratchet base. A named lane still uses
-	# ABB_FILE_SIZE_BASE from the environment, which CI sets to the pull-request base.
 	export ABB_FILE_SIZE_BASE="$2"
 	needed="$(bun scripts/verification.ts needed "$2")"
 	while IFS= read -r lane; do

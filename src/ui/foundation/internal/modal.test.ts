@@ -5,8 +5,6 @@ async function flushMicrotasks(): Promise<void> {
 	await new Promise<void>((resolve) => queueMicrotask(resolve));
 }
 
-// Track every controller so afterEach can detach the document-level listener
-// of any modal a test left open — leaked listeners bleed across tests.
 const liveControllers: BareModalController[] = [];
 class ModalController extends BareModalController {
 	constructor() {
@@ -101,7 +99,6 @@ describe('ModalController', () => {
 		outside.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 		expect(onEscape).toHaveBeenCalledTimes(1);
 
-		// After close, the document listener is gone.
 		modal.sync(false, { container }, { onEscape });
 		outside.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 		expect(onEscape).toHaveBeenCalledTimes(1);
@@ -140,7 +137,6 @@ describe('ModalController', () => {
 		expect(onUpperEscape).toHaveBeenCalledTimes(1);
 		expect(onLowerEscape).not.toHaveBeenCalled();
 
-		// With the upper modal closed, the lower one becomes topmost.
 		upperModal.sync(false, { container: upper.container }, { onEscape: onUpperEscape });
 		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 		expect(onUpperEscape).toHaveBeenCalledTimes(1);
@@ -199,8 +195,6 @@ describe('ModalController', () => {
 		container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 		expect(guardedClose).toHaveBeenCalledTimes(1);
 
-		// Matches what clicking a disabled Cancel affordance would do: no-op,
-		// because the primitive never bypasses the caller's own guard.
 		cancelDisabled = false;
 		container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 		expect(guardedClose).toHaveBeenCalledTimes(2);

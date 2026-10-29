@@ -56,8 +56,6 @@ pub(super) fn meta_temp(input_path: &std::path::Path) -> Result<SiblingTemp> {
     SiblingTemp::beside(input_path, "meta", &format!(".{ext}")).map_err(AppError::Io)
 }
 
-/// Remuxes `input_path` with new metadata into `temp_path`. FFmpeg's handles
-/// are closed when this returns.
 pub(super) fn remux_into(
     input_path: &std::path::Path,
     temp_path: &std::path::Path,

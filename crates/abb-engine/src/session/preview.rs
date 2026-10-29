@@ -1,5 +1,3 @@
-//! Preview identity and lifecycle, using the same progress reducer as exports.
-
 use super::submission::{Draft, SubmissionStatus};
 use crate::processing::{ProcessResultStatus, ProgressEvent};
 use crate::work_runtime::{
@@ -189,8 +187,6 @@ impl Preview {
     }
 }
 
-/// The preview that opens by itself: the one output a run nobody cancelled
-/// produced. Several outputs, or none, open nothing.
 fn output_to_open(
     result: &crate::processing::ProcessCommandResult,
     cancelled: bool,

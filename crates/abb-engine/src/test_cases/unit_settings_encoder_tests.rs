@@ -1,7 +1,3 @@
-//! Unit tests for encoder settings validation.
-//!
-//! Extracted from settings_encoder.rs to keep production code clean.
-
 use abb_engine::audio::{
     resolve_encoder_name, validate_encoder_settings, BitrateMode, ChannelConfig, EncoderSettings,
     EncoderType,

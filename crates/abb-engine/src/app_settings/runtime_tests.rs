@@ -27,7 +27,6 @@ fn start() -> Rig {
     start_in(TempDir::new().expect("temp dir"))
 }
 
-/// Starts over settings a previous run saved.
 fn start_with(saved: AppSettingsPatch) -> Rig {
     let root = TempDir::new().expect("temp dir");
     let settings = AppSettings::default().merge(saved).expect("valid seed");
@@ -97,8 +96,6 @@ impl Drop for Rig {
     }
 }
 
-// ---- Startup ----
-
 #[test]
 fn a_launch_starts_from_pinned_defaults_only_when_chosen_and_pinned() {
     let pinned = PinnedDefaults {
@@ -159,7 +156,6 @@ async fn a_launch_applies_the_saved_concurrency_without_rewriting_it() {
         ConcurrencyPreference::Fixed(2)
     );
     assert_eq!(snapshot.concurrency.effective, 2);
-    // Starting from the pin does not overwrite the last-used choice.
     assert_eq!(
         rig.on_disk().max_concurrent_jobs,
         ConcurrencyPreference::Fixed(1)
@@ -297,8 +293,6 @@ async fn a_file_that_cannot_be_kept_aside_is_never_saved_over_and_the_block_is_r
     assert_eq!(rig.on_disk().output_defaults, output_in("/chosen"));
 }
 
-// ---- Acceptance and durability ----
-
 #[tokio::test]
 async fn a_change_the_scheduler_refuses_keeps_the_previous_concurrency() {
     let rig = start();
@@ -354,7 +348,6 @@ async fn an_accepted_concurrency_survives_a_failed_write_and_retry_only_saves() 
     );
     assert!(reply.snapshot.save_error.is_some());
 
-    // A job starts; retrying the write must not need the scheduler.
     let (_job, _permit) = rig.jobs.register_job().await.expect("a job is running");
     rig.set_writable(true);
     let reply = rig.send(SettingsIntent::Retry).await;
@@ -379,7 +372,6 @@ async fn retry_writes_the_newest_accepted_defaults() {
         })
         .await;
 
-    // Accepted values are in effect although nothing reached disk.
     let accepted = reply.snapshot.settings;
     assert_eq!(accepted.output_defaults, output_in("/second"));
     assert_eq!(accepted.default_acquisition_lane, AcquisitionLane::Indexer);
@@ -439,8 +431,6 @@ async fn a_choice_that_cannot_be_saved_stays_in_effect_and_saves_on_retry() {
     assert!(rig.on_disk().pinned_defaults.is_some());
 }
 
-// ---- Pinning ----
-
 #[tokio::test]
 async fn pinning_captures_the_current_defaults() {
     let rig = start();
@@ -467,7 +457,6 @@ async fn pinning_after_a_pinned_launch_keeps_the_defaults_on_screen() {
         ..Default::default()
     });
 
-    // Only the output changes; the encoder on screen is still the pinned one.
     rig.send(remember_output("/edited")).await;
     rig.send(SettingsIntent::PinCurrentDefaults).await;
 
@@ -476,8 +465,6 @@ async fn pinning_after_a_pinned_launch_keeps_the_defaults_on_screen() {
     assert_eq!(pinned.output_defaults, output_in("/edited"));
     assert_eq!(pinned.max_concurrent_jobs, ConcurrencyPreference::Fixed(2));
 }
-
-// ---- Reset ----
 
 #[tokio::test]
 async fn reset_restores_defaults_and_automatic_concurrency() {
@@ -499,7 +486,6 @@ async fn reset_restores_defaults_and_automatic_concurrency() {
     assert_eq!(rig.jobs.max_concurrent(), JobRegistry::default_max());
     assert_eq!(rig.on_disk(), AppSettings::default());
 
-    // A choice made after the reset is accepted and saved on its own.
     rig.send(remember_output("/after")).await;
     assert_eq!(rig.on_disk().output_defaults, output_in("/after"));
 }

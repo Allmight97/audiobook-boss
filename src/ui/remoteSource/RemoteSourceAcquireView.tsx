@@ -38,7 +38,6 @@ function RemoteTitleCover(props: { readonly title: RemoteTitle }): JSX.Element {
 	);
 }
 
-/** Closing unmounts the rows, so a list returns to where it was scrolled once they render. */
 function keepScroll(saved: { top: number }) {
 	return (list: HTMLElement) => {
 		list.addEventListener('scroll', () => {

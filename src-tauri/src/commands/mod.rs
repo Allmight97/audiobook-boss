@@ -1,6 +1,3 @@
-//! Tauri command ingress. Each command forwards to the engine and returns its
-//! result in the wire error shape; no product rule lives here.
-
 pub mod audio;
 pub mod frontend_log;
 pub mod session;

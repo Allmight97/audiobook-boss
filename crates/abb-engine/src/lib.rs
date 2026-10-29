@@ -71,10 +71,8 @@ pub use metadata::{
     PatchOp,
 };
 
-/// Shared handle to the job scheduler.
 pub(crate) type ManagedJobRegistry = std::sync::Arc<processing::JobRegistry>;
 
-// Real-file proofs are crate-local so tests cannot enlarge the host interface.
 #[cfg(test)]
 extern crate self as abb_engine;
 #[cfg(test)]

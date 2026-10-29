@@ -105,7 +105,6 @@ fn a_multi_file_drop_picks_the_first_supported_image_whatever_its_case() {
         dropped_cover_path(paths(&["/art/readme.txt", "/art/cover.PNG"])).as_deref(),
         Some("/art/cover.PNG")
     );
-    // With nothing supported, the first goes on so the user hears why.
     assert_eq!(
         dropped_cover_path(paths(&["/art/notes.txt", "/art/other.doc"])).as_deref(),
         Some("/art/notes.txt")

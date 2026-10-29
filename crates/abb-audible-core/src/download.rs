@@ -9,9 +9,6 @@ pub struct ParsedContentRange {
     pub total: Option<u64>,
 }
 
-/// Why a download response could not be accepted. The runtime adapter maps these
-/// to provider-private `AppError` messages so this pure layer stays free of
-/// reqwest and runtime error types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DownloadResponseError {
     RedirectNotHttps,

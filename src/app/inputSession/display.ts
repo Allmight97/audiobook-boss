@@ -41,7 +41,6 @@ export function formatFileDetails(
 	return `Error: ${file.error || 'Invalid file'}`;
 }
 
-/** Words what the engine says the last import could not do. */
 function inputNoticeText(notice: InputNotice | null): string {
 	switch (notice?.kind) {
 		case undefined:
@@ -64,7 +63,6 @@ function inputNoticeText(notice: InputNotice | null): string {
 	}
 }
 
-/** What the views show: the engine's titles and selection plus view-local state. */
 export function toInputView(
 	titles: SessionTitles,
 	selection: SessionSelection,

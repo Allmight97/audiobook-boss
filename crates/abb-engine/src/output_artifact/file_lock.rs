@@ -22,7 +22,6 @@ pub(crate) struct OutputFileLock {
     key: PathBuf,
 }
 
-/// Waits until no other writer holds `path`, then holds it.
 pub(crate) fn lock_output_file(path: &Path) -> OutputFileLock {
     let key = lock_key(path);
     let (writers, freed) = &*WRITERS;
@@ -64,7 +63,6 @@ fn lock_key(path: &Path) -> PathBuf {
     }
 }
 
-/// What ABB last saw of a file it wrote: its size and modification time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct FileIdentity {
     len: u64,
@@ -100,7 +98,6 @@ mod tests {
         )]
         let second = std::thread::spawn({
             let entered = Arc::clone(&entered);
-            // Another spelling of the same file shares the lock.
             let path = folder.path().join(".").join(if cfg!(target_os = "macos") {
                 "Book.m4b"
             } else {

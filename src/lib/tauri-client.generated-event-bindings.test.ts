@@ -25,12 +25,8 @@ describe('tauriClient generated event bindings', () => {
 		const tauriListen = vi.mocked(listen);
 		const { tauriClient } = await import('./tauri/client');
 
-		await tauriClient.listen(EVENTS.SESSION_UPDATE, () => {
-			/* no-op */
-		});
-		await tauriClient.listen(EVENTS.WORK_OPERATIONS_UPDATE, () => {
-			/* no-op */
-		});
+		await tauriClient.listen(EVENTS.SESSION_UPDATE, () => {});
+		await tauriClient.listen(EVENTS.WORK_OPERATIONS_UPDATE, () => {});
 
 		expect(tauriListen).toHaveBeenNthCalledWith(1, EVENTS.SESSION_UPDATE, expect.any(Function));
 		expect(tauriListen).toHaveBeenNthCalledWith(

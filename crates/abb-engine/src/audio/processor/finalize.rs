@@ -1,11 +1,3 @@
-//! Finalization stage — metadata writing and processor lifecycle completion.
-//!
-//! Output artifact commit policy lives in `output_artifact`; this module
-//! sequences processor progress, cleanup registration, and success emission.
-//! Native muxing writes initial metadata; Metadata's finish step completes
-//! the artifact's tags and chapter checks before commit.
-//! Cancellation checks run after each sub-step to avoid unnecessary work.
-
 use std::path::PathBuf;
 
 use crate::audio::CleanupGuard;
@@ -85,7 +77,6 @@ pub(super) fn complete_staged_output(
     Ok(success.result_message)
 }
 
-/// Completes processing: move to final path + cleanup + final UI emit
 pub(crate) fn complete_processing(
     context: &ProcessingContext,
     workflow: ProcessingWorkflow,
@@ -98,7 +89,6 @@ pub(crate) fn complete_processing(
     complete_staged_output(context, merged_output, &mut cleanup_guard)
 }
 
-/// Finalize pipeline: metadata + completion
 pub(crate) fn finalize_processing(
     context: &ProcessingContext,
     workflow: ProcessingWorkflow,

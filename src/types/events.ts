@@ -2,14 +2,6 @@ import type { SettingsSnapshot } from './appSettings';
 import type { SessionUpdate } from './session';
 import type { WorkOperationsUpdate } from './workRuntime';
 
-/**
- * Frontend event contract for payloads that cross the Tauri runtime boundary.
- *
- * The specta-generated bindings in `src/lib/generated/tauri.ts` are the
- * canonical source for backend event shapes. This file re-exports those
- * payloads in UI-friendly form and adds the built-in Tauri file-drop events.
- */
-
 export const EVENTS = {
 	WORK_OPERATIONS_UPDATE: 'work-operations-update',
 	SESSION_UPDATE: 'session-update',

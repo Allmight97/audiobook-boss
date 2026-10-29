@@ -201,7 +201,6 @@ pub fn parse_cue(text: &str, duration_ms: i64) -> Result<CueSheet> {
     })
 }
 
-/// Largest move a repair may make to one chapter end.
 const MAX_EMBEDDED_REPAIR_MS: i64 = 1_000;
 
 /// Repairs the drift real files carry in embedded chapters: sorts by start,

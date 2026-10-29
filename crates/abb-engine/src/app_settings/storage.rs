@@ -1,7 +1,3 @@
-//! The settings file: `settings.toml` in the host's config folder, one
-//! section per area. Its shape is defined here, apart from the IPC types, so
-//! a change to what hosts send cannot silently change what a saved file means.
-
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -23,15 +19,12 @@ const SETTINGS_FILE_NAME: &str = "settings.toml";
 
 pub(super) struct Loaded {
     pub(super) settings: AppSettings,
-    /// Settings whose saved value was refused and took its default.
     pub(super) reset: Vec<SettingsUnit>,
     /// Present when the file could not be read or parsed: the name it was
     /// kept under, or why it could not be kept.
     pub(super) set_aside: Option<io::Result<Option<String>>>,
 }
 
-/// The saved settings, or the defaults when there are none. Each setting is
-/// recovered on its own; an absent one takes its default silently.
 pub(super) fn load(config_dir: &Path) -> Loaded {
     let table = match std::fs::read_to_string(settings_path(config_dir)) {
         Ok(content) => toml::from_str::<toml::Table>(&content).map_err(|error| error.to_string()),
@@ -104,7 +97,6 @@ fn recover(table: &toml::Table) -> Loaded {
     }
 }
 
-/// The value at `path`, converted; `None` when it is absent.
 fn read<S: DeserializeOwned, T>(
     table: &toml::Table,
     path: &[&str],
@@ -218,14 +210,12 @@ struct Encoder {
     encoder_type: EncoderType,
     bitrate_kbps: u16,
     bitrate_mode: Mode,
-    /// Present only with `bitrate_mode = "vbr"`.
     vbr_quality: Option<u16>,
     channels: ChannelConfig,
     native_aac_speed: u8,
     faac_profile: FaacProfile,
 }
 
-/// `"auto"` or a number, as one plain value.
 #[derive(Clone, Copy, Serialize, Deserialize)]
 #[serde(untagged)]
 enum AutoOr<T> {
@@ -295,7 +285,6 @@ fn split_mode(mode: BitrateMode) -> (Mode, Option<u16>) {
     }
 }
 
-/// A VBR mode saved without its quality is not a usable choice.
 fn join_mode(mode: Mode, vbr_quality: Option<u16>) -> std::result::Result<BitrateMode, String> {
     Ok(match mode {
         Mode::Cbr => BitrateMode::Cbr,

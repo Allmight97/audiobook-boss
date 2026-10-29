@@ -1,10 +1,3 @@
-//! Metadata handling for audiobook files
-//!
-//! This module provides functionality to read and write metadata from/to audio
-//! files through container-aware metadata strategies. Pure metadata intent and
-//! naming facts live in `abb-metadata-core` so focused tests can run without
-//! compiling Tauri, FFmpeg, or container adapters.
-
 use crate::errors::{AppError, Result};
 
 pub mod reader;
@@ -69,9 +62,6 @@ pub use passthrough::{
     PassthroughSource,
 };
 
-/// Applies an explicit metadata intent patch to a real file: validate/plan,
-/// then container-adapted write. The single save entry for command ingress
-/// and integration round-trip proof (media-execution lane).
 pub fn save_metadata_intent(path: &std::path::Path, patch: &MetadataIntentPatch) -> Result<()> {
     let plan = plan_metadata_write_for_path(path, patch)?;
     save_metadata_with_plan(path, &plan)

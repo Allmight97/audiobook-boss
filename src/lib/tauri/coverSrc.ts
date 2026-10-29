@@ -1,6 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 
-/** A cover a view shows, as the engine names it. */
 export type CoverSource =
 	| { readonly kind: 'remote'; readonly url: string; readonly size: 'small' | 'full' }
 	/** `revision` is the titles part's `coversRevision`. */

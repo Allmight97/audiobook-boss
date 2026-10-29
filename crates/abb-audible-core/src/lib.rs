@@ -1,13 +1,3 @@
-//! Pure Audible provider-protocol logic: license-response interpretation and
-//! acquisition strategy, license decryption, voucher key-material extraction,
-//! filename naming, JSON probing, and HTTP download response classification.
-//!
-//! This crate holds the provider-private logic that needs fast, isolated tests
-//! and no Tauri/FFmpeg/IO coupling. The `src-tauri` Audible module is the thin
-//! runtime adapter that performs network/file IO and maps these pure results to
-//! runtime types. `abb-remote-source-core` stays provider-neutral; Audible
-//! specifics live here.
-
 mod download;
 mod json_probe;
 mod license;

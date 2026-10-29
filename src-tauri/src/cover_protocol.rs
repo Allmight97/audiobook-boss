@@ -1,7 +1,3 @@
-//! Serves `abb-cover` addresses: the webview's `<img>` requests a cover, the
-//! request path goes to `Engine::cover` unchanged, and the answer becomes the
-//! HTTP response. The status mapping is the host's only decision.
-
 use std::sync::Arc;
 
 use abb_engine::{AppErrorCategory, AppErrorEnvelope};
@@ -32,8 +28,6 @@ pub(crate) fn handle<R: tauri::Runtime>(
     });
 }
 
-/// A cover is JPEG and never changes at its address; a missing or refused
-/// one is not found, a failed one a bad gateway. Errors are never cached.
 fn response(answer: abb_engine::Result<Option<Arc<[u8]>>>) -> Response<Vec<u8>> {
     let builder = Response::builder().header(header::X_CONTENT_TYPE_OPTIONS, "nosniff");
     let (builder, body) = match answer {

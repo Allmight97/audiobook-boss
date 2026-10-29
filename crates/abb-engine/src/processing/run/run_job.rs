@@ -36,7 +36,6 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) input_index: usize,
     pub(crate) operation_kind: OperationKind,
     pub(crate) operation_id: Option<String>,
-    /// This title's cancel flag; set by title or whole-operation cancel.
     pub(crate) title_cancel: Option<Arc<AtomicBool>>,
     pub(crate) output_plan: ResolvedOutputPlan,
     pub(crate) file_info: FileListInfo,
@@ -126,7 +125,6 @@ pub(crate) async fn run_processing_job(
     .await
 }
 
-/// Records a title's terminal outcome in the registry and its lifecycle log.
 async fn settle_job(
     registry: &crate::ManagedJobRegistry,
     job_id: JobId,
@@ -206,9 +204,6 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
     }
 }
 
-/// Lists the field ops processing applies, without tag values, e.g.
-/// `title=set,album_sort=set`: the user's edits plus the derived album sort.
-/// Fields absent here keep the source tag; `metadata_plan` lines cannot tell the two apart.
 fn describe_requested_fields(patch: Option<&crate::metadata::MetadataIntentPatch>) -> String {
     // Drop cover bytes first: only the op name is logged, and serializing a
     // cover would build one JSON value per byte.
@@ -253,8 +248,6 @@ pub(crate) fn supplemental_assets_for_input(
         .collect()
 }
 
-/// Publishes the title's companions off the async threads: the commit waits on
-/// the output's file lock and copies files.
 #[expect(
     clippy::disallowed_methods,
     reason = "joined by commit_supplemental_assets"
@@ -275,9 +268,6 @@ pub(crate) async fn commit_supplemental_assets(
     .map_err(|error| AppError::General(format!("Companion publish stopped: {error}")))?
 }
 
-/// Maps audio execution to the title's outcome. Companions commit only after
-/// the audiobook is published, so a companion failure stays a warning on a
-/// successful title rather than failing it.
 pub(crate) async fn title_outcome(
     audio: Result<crate::audio::AudioRunOutcome>,
     output_path: Option<String>,
@@ -301,7 +291,6 @@ pub(crate) async fn title_outcome(
     }
 }
 
-/// Job identity known before registration, used for lifecycle records.
 pub(crate) struct ProcessingJobLogContext {
     pub(crate) operation_id: Option<String>,
     pub(crate) input_index: usize,

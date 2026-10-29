@@ -230,7 +230,6 @@ fn a_title_ending_unpublished_removes_only_the_empty_folders_made_for_it_alone()
     assert!(!root.join("existing").join("gamma").exists());
     assert!(root.join("existing").exists(), "existed before the run");
 
-    // Beta published: ending it removes nothing.
     std::fs::write(root.join("author").join("beta").join("book.m4b"), b"").expect("beta");
     cleanup.end_title(1, true).expect("beta ends");
     cleanup.release();
@@ -246,7 +245,6 @@ fn no_cleanup_removes_a_folder_another_runs_output_will_write_into() {
     let second = output_plan(PlannedOutputAction::Write, folder.join("second.m4b"));
 
     let mut created = ensure_output_parent_dirs(root, [&first]).expect("first run");
-    // A second run writes into the folder the first created.
     let mut writing = ensure_output_parent_dirs(root, [&second]).expect("second run");
 
     created.end_title(0, false).expect("first title ends");

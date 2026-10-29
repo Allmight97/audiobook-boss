@@ -1,5 +1,3 @@
-//! Frame encoding and packet writing utilities.
-
 use super::session::PacketStats;
 use crate::errors::{AppError, Result};
 use ff::packet::Mut;
@@ -10,7 +8,6 @@ fn debug_validate_frame_contract(
     frame: &ff::frame::Audio,
     encoder: &ff::codec::encoder::audio::Encoder,
 ) {
-    // Format/layout/rate must match encoder
     debug_assert_eq!(
         frame.format(),
         encoder.format(),
@@ -23,7 +20,6 @@ fn debug_validate_frame_contract(
     );
     debug_assert_eq!(frame.rate(), encoder.rate(), "Sample rate mismatch");
 
-    // Samples must be > 0 and respect encoder frame size if non-zero
     let samples_i64 = frame.samples() as i64;
     debug_assert!(samples_i64 > 0, "Frame must contain at least one sample");
     let enc_frame_size_i64 = encoder.frame_size() as i64;
@@ -34,7 +30,6 @@ fn debug_validate_frame_contract(
         );
     }
 
-    // PTS should be set
     debug_assert!(
         frame.pts().is_some(),
         "Frame PTS must be set before encoding"
@@ -75,7 +70,6 @@ pub(super) fn encode_and_write_frame(
     )
 }
 
-/// Flushes pending FFmpeg packets; the session owns the output trailer.
 pub(super) fn flush_encoder(
     encoder: &mut ff::codec::encoder::audio::Encoder,
     output_context: &mut ff::format::context::Output,

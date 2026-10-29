@@ -1,16 +1,12 @@
-//! File list management and validation
-
 use super::{AudioChapter, AudioFile, DecoderSelection};
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use std::fs;
 use std::path::Path;
 
-/// Summary information for a file list
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FileListInfo {
-    /// List of validated audio files
     pub files: Vec<AudioFile>,
     /// Total duration in seconds
     #[specta(type = specta_typescript::Number)]
@@ -18,20 +14,15 @@ pub struct FileListInfo {
     /// Total size in bytes
     #[specta(type = specta_typescript::Number)]
     pub total_size: f64,
-    /// Number of valid files
     pub valid_count: usize,
-    /// Number of invalid files
     pub invalid_count: usize,
 }
 
-/// Validates a single audio file
 fn validate_single_file(path: &Path) -> Result<AudioFile> {
     let mut audio_file = AudioFile::new(path.to_path_buf());
 
-    // Use shared validation first
     let canonical_path = match crate::audio::path_validation::validate_input_audio_path(path) {
         Ok(canonical) => {
-            // Update AudioFile to use canonical path
             audio_file.path = canonical.clone();
             canonical
         }
@@ -41,7 +32,6 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
         }
     };
 
-    // Get file size (canonical path should exist)
     let file_size = match fs::metadata(&canonical_path) {
         Ok(metadata) => {
             audio_file.size = Some(metadata.len() as f64);
@@ -53,7 +43,6 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
         }
     };
 
-    // Validate audio format and get comprehensive metadata using canonical path
     match validate_audio_format(&canonical_path, file_size) {
         Ok(properties) => {
             audio_file.format = Some(properties.format);
@@ -96,7 +85,6 @@ fn validate_single_file(path: &Path) -> Result<AudioFile> {
     Ok(audio_file)
 }
 
-/// Validates audio format using ffmpeg-next and returns comprehensive metadata
 struct AudioProperties {
     format: String,
     duration: f64,
@@ -154,7 +142,6 @@ fn validate_mp4_audio_extent(
 fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties> {
     ff::init().map_err(AppError::Ffmpeg)?;
 
-    // First check if we support the file extension
     let format = crate::audio::extensions::audio_format_for_path(path)?.label;
 
     let (duration, length_estimated, chapters, (tag_title, tag_artist), container_name) = {
@@ -202,14 +189,12 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
         )
     };
 
-    // Validate that we got a reasonable duration
     if duration <= 0.0 {
         return Err(AppError::InvalidInput(
             "Audio file has invalid duration (0 seconds)".to_string(),
         ));
     }
 
-    // Extract technical metadata
     let inspection = crate::audio::processor::inspect_audio_decoder(path)?;
     let selected_decoder = inspection.selected_decoder;
     log::debug!(
@@ -246,7 +231,6 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
     })
 }
 
-/// Gets comprehensive information about a file list
 pub fn get_file_list_info<P: AsRef<Path>>(file_paths: &[P]) -> Result<FileListInfo> {
     let mut files = Vec::new();
 
@@ -263,7 +247,6 @@ pub fn get_file_list_info<P: AsRef<Path>>(file_paths: &[P]) -> Result<FileListIn
 }
 
 impl FileListInfo {
-    /// Totals for files that were already inspected.
     pub fn from_files(files: Vec<AudioFile>) -> Self {
         let mut total_duration = 0.0;
         let mut total_size = 0.0;

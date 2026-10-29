@@ -12,11 +12,6 @@ import {
 	type OutputView,
 } from './types';
 
-/**
- * The engine owns where exports go, how they are named, the path preview,
- * and each title's size estimate. This owner shows them, opens the folder
- * picker, and holds the collision dialog a submission asks through.
- */
 export type OutputPlanOwner = {
 	readonly view: Accessor<OutputView>;
 	estimateTitleSizeText(file: AudioFile): string | null;
@@ -51,7 +46,6 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	const { link } = deps;
 	let disposed = false;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	// The template as typed, shown until the engine confirms it.
 	let typedTemplate: { readonly value: string } | undefined;
 
 	const view: Accessor<OutputView> = () => {

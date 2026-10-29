@@ -151,7 +151,6 @@ pub struct OperationLogEntry {
     pub child_job_id: Option<String>,
 }
 
-/// Maximum retained log entries per operation (drop-oldest).
 pub const OPERATION_LOG_TAIL_CAP: usize = 20;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -215,7 +214,6 @@ pub struct WorkOperationsUpdate {
 pub struct WorkSubmissionAccepted {
     pub operation_id: OperationId,
     pub snapshot: OperationSnapshot,
-    /// Each title's output record, in title order.
     pub(crate) titles: Vec<std::sync::Arc<crate::processing::TitleOutput>>,
 }
 
@@ -227,6 +225,5 @@ pub struct SubmitProcessingOperationRequest {
     pub operation_id: OperationId,
     pub payload: ProcessPayload,
     pub metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    /// Names the submitted books so concurrent operations stay distinguishable.
     pub title: String,
 }

@@ -8,7 +8,6 @@ pub enum CoverFormat {
 }
 
 impl CoverFormat {
-    /// FFmpeg encoder/codec id used to embed this cover image.
     pub(crate) fn codec_id(self) -> ff::codec::Id {
         match self {
             CoverFormat::Jpeg => ff::codec::Id::MJPEG,
@@ -16,15 +15,13 @@ impl CoverFormat {
         }
     }
 
-    /// FFmpeg pixel format for the cover-art encoder context.
     pub(crate) fn pixel_format(self) -> ff::format::Pixel {
         match self {
-            CoverFormat::Jpeg => ff::format::Pixel::YUVJ420P, // Common JPEG pixel format
-            CoverFormat::Png => ff::format::Pixel::RGBA,      // PNG with alpha
+            CoverFormat::Jpeg => ff::format::Pixel::YUVJ420P,
+            CoverFormat::Png => ff::format::Pixel::RGBA,
         }
     }
 
-    /// mp4ameta image format variant for MP4 artwork atoms.
     pub(crate) fn img_fmt(self) -> ImgFmt {
         match self {
             CoverFormat::Jpeg => ImgFmt::Jpeg,
@@ -33,7 +30,6 @@ impl CoverFormat {
     }
 }
 
-/// Detects JPEG or PNG format from raw bytes
 pub fn detect_cover_art_format(cover_data: &[u8]) -> Option<CoverFormat> {
     if cover_data.starts_with(&[0xFF, 0xD8, 0xFF]) {
         return Some(CoverFormat::Jpeg);
@@ -44,10 +40,6 @@ pub fn detect_cover_art_format(cover_data: &[u8]) -> Option<CoverFormat> {
     None
 }
 
-/// Detects image dimensions from raw image data
-///
-/// This is a simple implementation that handles basic JPEG and PNG headers.
-/// Returns None if dimensions cannot be detected.
 pub(crate) fn detect_image_dimensions(data: &[u8], format: CoverFormat) -> Option<(i32, i32)> {
     match format {
         CoverFormat::Jpeg => detect_jpeg_dimensions(data),
@@ -55,7 +47,6 @@ pub(crate) fn detect_image_dimensions(data: &[u8], format: CoverFormat) -> Optio
     }
 }
 
-/// Detects JPEG image dimensions from JPEG header
 pub(crate) fn detect_jpeg_dimensions(data: &[u8]) -> Option<(i32, i32)> {
     if data.len() < 10 {
         return None;
@@ -77,7 +68,6 @@ pub(crate) fn detect_jpeg_dimensions(data: &[u8]) -> Option<(i32, i32)> {
             }
         }
 
-        // Skip to next marker
         if i + 3 < data.len() {
             let length = u16::from_be_bytes([data[i + 2], data[i + 3]]) as usize;
             i += 2 + length;
@@ -88,7 +78,6 @@ pub(crate) fn detect_jpeg_dimensions(data: &[u8]) -> Option<(i32, i32)> {
     None
 }
 
-/// Detects PNG image dimensions from PNG header
 pub(crate) fn detect_png_dimensions(data: &[u8]) -> Option<(i32, i32)> {
     if data.len() < 24 {
         return None;

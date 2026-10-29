@@ -19,7 +19,6 @@ export type RuntimeCapabilities = {
 	readonly remoteSource?: Omit<RemoteSourceOwnerDeps, 'link'>;
 };
 
-/** The connection's own state: whether it is attached, and refused posts. */
 export type EngineStatus = Pick<EngineLink, 'attachment' | 'refusal' | 'dismissRefusal'>;
 
 export type AppRuntime = {

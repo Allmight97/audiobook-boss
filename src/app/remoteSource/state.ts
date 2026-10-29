@@ -37,7 +37,6 @@ function connectedAccountNote(remote: RemoteUiSnapshot): string {
 	return remote.account.message ?? '';
 }
 
-/** A connected account message is how the engine says a sign-in will not last. */
 function withConnectedAccountNote(status: string, remote: RemoteUiSnapshot): string {
 	const note = connectedAccountNote(remote);
 	if (!note || status.includes(note)) return status;

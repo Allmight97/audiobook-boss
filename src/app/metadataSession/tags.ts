@@ -16,7 +16,6 @@ export type TagField =
 
 export type TagPreviewValues = Record<TagField, string>;
 
-/** The engine's tag preview under the tag panel's row names. */
 export function tagPreviewValues(tags: TagPreview): TagPreviewValues {
 	return {
 		title: tags.title,

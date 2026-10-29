@@ -1,4 +1,3 @@
-//! Shared diagnostic records; never changes an operation's result or file ownership.
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::time::Instant;

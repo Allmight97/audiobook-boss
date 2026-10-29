@@ -5,7 +5,6 @@ import type {
 	MaxConcurrentJobsCapabilities as GeneratedMaxConcurrentJobsCapabilities,
 } from '../../lib/generated/tauri';
 
-/** Encoder and concurrency capabilities as the engine reports them. */
 type RuntimeSettingsCapabilities = {
 	encoder: EncoderSettingsCapabilities;
 	maxConcurrentJobs: MaxConcurrentJobsCapabilities;
@@ -19,9 +18,6 @@ type RuntimeSettingsCapabilitiesFixtureOverrides = {
 export function runtimeSettingsCapabilitiesFixture(
 	overrides: RuntimeSettingsCapabilitiesFixtureOverrides = {},
 ): RuntimeSettingsCapabilities {
-	// Build the base object with a satisfies check against the generated type
-	// so that generated IPC shape drift (e.g. added/removed/changed fields on
-	// RuntimeSettingsCapabilities) fails TypeScript at this literal.
 	const base = {
 		encoder: {
 			availability: {
@@ -112,9 +108,6 @@ export function runtimeSettingsCapabilitiesFixture(
 		} satisfies GeneratedMaxConcurrentJobsCapabilities,
 	};
 
-	// Apply caller overrides on top of the generated-shape base.
-	// Use a local mutable copy so we can apply overrides without
-	// fighting the satisfies-narrowed types.
 	const result: RuntimeSettingsCapabilities = { ...base };
 	if (overrides.encoder?.availability) {
 		result.encoder.availability = overrides.encoder.availability;

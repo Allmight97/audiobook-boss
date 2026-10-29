@@ -1,5 +1,3 @@
-//! Audio processing settings validation utilities
-
 use super::{EncoderType, FaacProfile, SampleRateConfig};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::path::Path;
@@ -9,15 +7,13 @@ const SUPPORTED_SAMPLE_RATES: &[u32] = &[
 ];
 const FAAC_SAMPLE_RATES: &[u32] = &[32000, 44100, 48000];
 
-/// Validates sample rate configuration
 pub fn validate_sample_rate_config(config: &SampleRateConfig) -> Result<()> {
     match config {
-        SampleRateConfig::Auto => Ok(()), // Auto is always valid
+        SampleRateConfig::Auto => Ok(()),
         SampleRateConfig::Explicit(rate) => validate_explicit_sample_rate(*rate),
     }
 }
 
-/// Validates explicit sample rate is supported
 fn validate_explicit_sample_rate(sample_rate: u32) -> Result<()> {
     if !SUPPORTED_SAMPLE_RATES.contains(&sample_rate) {
         return Err(AppError::InvalidInput(format!(
@@ -31,9 +27,6 @@ pub fn supported_sample_rates() -> &'static [u32] {
     SUPPORTED_SAMPLE_RATES
 }
 
-/// Returns the output rates supported by the selected encoder. The general
-/// sample-rate list remains unchanged for existing encoders; FAAC HE-AAC has
-/// a narrower ABB-supported set for its explicit HE profile.
 pub(crate) fn encoder_sample_rates(encoder: EncoderType, profile: FaacProfile) -> &'static [u32] {
     match encoder {
         EncoderType::Opus => &[8000, 12000, 16000, 24000, 48000],
@@ -42,8 +35,6 @@ pub(crate) fn encoder_sample_rates(encoder: EncoderType, profile: FaacProfile) -
     }
 }
 
-/// Validates an explicit rate against both the general audio settings and the
-/// selected encoder's supported rates.
 pub(crate) fn validate_encoder_sample_rate(
     encoder: EncoderType,
     profile: FaacProfile,
@@ -61,7 +52,6 @@ pub(crate) fn validate_encoder_sample_rate(
     Ok(())
 }
 
-/// Validates output directory is writable by creating and removing a temp file
 fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()> {
     let dir = dir_path.as_ref();
 
@@ -79,7 +69,6 @@ fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()>
         )));
     }
 
-    // Probe write permission by creating and removing a temp file
     let temp_file = dir.join(format!(
         ".audiobook_boss_write_test_{}",
         uuid::Uuid::new_v4()
@@ -91,7 +80,6 @@ fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()>
     {
         Ok(file) => {
             drop(file);
-            // Clean up test file
             let _ = std::fs::remove_file(&temp_file);
             Ok(())
         }
@@ -101,16 +89,13 @@ fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()>
     }
 }
 
-/// Validates output path is writable
 pub fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
     let path = path.as_ref();
 
-    // Validate parent directory exists and is writable
     if let Some(parent) = path.parent() {
         validate_output_directory_writable(parent)?;
     }
 
-    // Check file extension
     match path.extension().and_then(|s| s.to_str()) {
         Some("m4b" | "m4a" | "mka") => Ok(()),
         Some(ext) => Err(AppError::InvalidInput(format!(
@@ -122,7 +107,6 @@ pub fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
     }
 }
 
-/// Validates an output path for a byte-preserved source artifact.
 pub fn validate_preserved_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
     let path = path.as_ref();
     if let Some(parent) = path.parent() {
@@ -145,12 +129,10 @@ pub fn validate_preserved_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
 }
 
 impl SampleRateConfig {
-    /// Returns whether this configuration requires sample rate detection
     pub fn requires_detection(&self) -> bool {
         matches!(self, SampleRateConfig::Auto)
     }
 
-    /// Returns the sample rate value if explicit, None if auto
     pub fn explicit_rate(&self) -> Option<u32> {
         match self {
             SampleRateConfig::Explicit(rate) => Some(*rate),

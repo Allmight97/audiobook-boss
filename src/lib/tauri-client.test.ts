@@ -1,15 +1,6 @@
-/**
- * Tests for the Tauri tauri client boundary.
- *
- * These tests verify boundary normalization and command/event wiring
- * against mocked Tauri APIs.
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { runtimeSettingsCapabilitiesFixture } from '../test/fixtures/runtimeSettingsCapabilities';
 import mainWindowCapability from '../../src-tauri/capabilities/default.json';
-
-// Note: Tauri APIs are auto-mocked by src/test/setup.ts
 
 describe('tauriClient', () => {
 	beforeEach(() => {
@@ -358,9 +349,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(result).toBe(bareEncoderAvailability);
 	});
 
-	// Misclassification guard: without the discriminant check on `status === 'ok' | 'error'`,
-	// a hypothetical future domain type with an unrelated `status` field (e.g. job state)
-	// would be incorrectly stripped to its `.data`. This locks the safety property in place.
 	it('passes through records with unrelated status values rather than treating them as Result', async () => {
 		const { unwrapGeneratedResult } = await import('./tauri/appError');
 		const bareDomainObject = { status: 'pending', data: { jobId: 'abc' } };

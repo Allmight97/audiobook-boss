@@ -1,8 +1,3 @@
-//! Audio media module for audiobook creation
-//!
-//! This module handles file list management, audio settings, media probing,
-//! encoder selection, and the media processor engine.
-
 use crate::errors::{AppError, Result};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -21,27 +16,22 @@ mod settings;
 mod settings_capabilities;
 mod settings_encoder;
 
-/// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioFile {
     /// Stable workbench/session identity for joins that must survive reorder/remove operations.
     pub input_id: String,
-    /// File path
     pub path: PathBuf,
     /// File size in bytes (None if unavailable)
     pub size: Option<f64>,
     /// Duration in seconds (None if unavailable)
     pub duration: Option<f64>,
-    /// Audio format (None if unavailable)
     pub format: Option<String>,
     /// Source audio bitrate in bits per second (None if unavailable)
     pub bitrate: Option<u32>,
     /// Sample rate in Hz (None if unavailable)
     pub sample_rate: Option<u32>,
-    /// Number of channels (None if unavailable)
     pub channels: Option<u32>,
-    /// Friendly codec label for display (None if unavailable)
     pub codec_label: Option<String>,
     /// Whether this source can be copied without re-encoding and whether the
     /// source meets the automatic low-bitrate recommendation.
@@ -49,9 +39,7 @@ pub struct AudioFile {
     pub preservation: Option<AudioPreservation>,
     /// Friendly selected decoder label for display only (None if unavailable)
     pub selected_decoder: Option<String>,
-    /// Title tag discovered during input analysis (None if unavailable)
     pub tag_title: Option<String>,
-    /// Artist tag discovered during input analysis (None if unavailable)
     pub tag_artist: Option<String>,
     /// Chapters embedded in this individual source file, normalized to milliseconds.
     #[serde(default)]
@@ -60,9 +48,7 @@ pub struct AudioFile {
     pub chapter_plan: Option<crate::metadata::ChapterPlan>,
     #[serde(default)]
     pub cue_source: Option<crate::metadata::CueSource>,
-    /// Validation status
     pub is_valid: bool,
-    /// Error message if validation failed
     pub error: Option<String>,
 }
 
@@ -74,7 +60,6 @@ pub struct AudioPreservation {
 
 pub type AudioChapter = crate::metadata::ChapterSpec;
 
-/// Machine-readable decoder identity paired with the friendly display label.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DecoderSelection {
@@ -91,7 +76,6 @@ impl fmt::Display for DecoderSelection {
 }
 
 impl AudioFile {
-    /// Creates a new AudioFile instance
     pub fn new(path: PathBuf) -> Self {
         Self {
             input_id: uuid::Uuid::new_v4().to_string(),
@@ -116,7 +100,6 @@ impl AudioFile {
     }
 }
 
-/// Sample rate configuration options
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum SampleRateConfig {
@@ -126,7 +109,6 @@ pub enum SampleRateConfig {
     Explicit(u32),
 }
 
-// Audio Engine Deep Module Public API Strip.
 pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
 pub(crate) use imports::{discover_audio_import_paths, supported_audio_import_metadata};
 pub use imports::{SkippedImportPath, SupportedAudioImportFormat, SupportedAudioImportMetadata};
@@ -158,7 +140,6 @@ pub use settings_encoder::{
     BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, FaacProfile,
 };
 
-// Crate-internal cleanup strip used by owned backend boundaries.
 pub(crate) use cleanup::CleanupGuard;
 
 pub(crate) fn processing_workspace_root(cache_dir: &Path) -> PathBuf {

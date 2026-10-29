@@ -1,4 +1,3 @@
-//! Audio owns the decision shared by title previews and processing preflight.
 use super::{EncoderSettings, EncoderType, FileListInfo, SampleRateConfig};
 use crate::{
     errors::{AppError, Result},

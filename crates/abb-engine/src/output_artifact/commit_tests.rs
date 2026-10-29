@@ -322,8 +322,6 @@ fn commit_removes_stale_replacement_temp_for_same_final_artifact() {
     let temp_output = root.path().join("temp-output.m4b");
     let final_output = root.path().join("book.m4b");
     std::fs::write(&temp_output, b"new").expect("write temp output");
-    // Simulate a hard crash mid replace-commit: full-size copy stranded
-    // beside the destination.
     let stale_temp = replacement_temp_named(&final_output, "0000-crashed");
     std::fs::write(&stale_temp, b"stranded copy").expect("write stale temp");
 
@@ -343,14 +341,11 @@ fn commit_preserves_unrelated_and_imitation_entries_in_destination() {
     let final_output = root.path().join("book.m4b");
     std::fs::write(&temp_output, b"new").expect("write temp output");
 
-    // Same ABB prefix, different final artifact: not ours to sweep here.
     let other_artifact_temp =
         replacement_temp_named(&root.path().join("other.m4b"), "0000-crashed");
     std::fs::write(&other_artifact_temp, b"other").expect("write other temp");
-    // User dotfile without ABB naming.
     let user_dotfile = root.path().join(".book.m4b");
     std::fs::write(&user_dotfile, b"user").expect("write user dotfile");
-    // Directory imitating the temp naming: regular files only.
     let imitation_dir = replacement_temp_named(&final_output, "dir");
     std::fs::create_dir(&imitation_dir).expect("create imitation dir");
 

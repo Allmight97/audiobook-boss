@@ -1,6 +1,3 @@
-//! The session's audio choices: the defaults a new title starts from, each
-//! title's own choice, and the encoder capabilities both are checked against.
-
 use std::collections::BTreeMap;
 
 use serde::Serialize;
@@ -10,17 +7,14 @@ use super::plans::{SizeEstimate, TitlePlan};
 use crate::app_settings::EncoderDefaults;
 use crate::audio::{EncoderSettingsCapabilities, TitleAudioRequest};
 
-/// A choice and what the capabilities allow for it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioChoiceView {
     pub choice: AudioChoice,
     pub facts: AudioChoiceFacts,
-    /// The request processing receives for this choice.
     pub request: TitleAudioRequest,
 }
 
-/// One title's audio: its choice, what it resolves to, and its size.
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TitleAudio {
@@ -32,7 +26,6 @@ pub struct TitleAudio {
     pub estimate: Option<SizeEstimate>,
 }
 
-/// The audio part of the session.
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioSnapshot {
@@ -48,7 +41,6 @@ pub struct AudioSnapshot {
     pub refusal: Option<AudioRefusal>,
 }
 
-/// The selected titles' audio, edited together.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectionAudio {
@@ -61,7 +53,6 @@ pub struct SelectionAudio {
     pub mixed: Vec<AudioField>,
 }
 
-/// One part of an audio choice, named as its `AudioEdit` is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AudioField {
@@ -77,7 +68,6 @@ pub enum AudioField {
     Channels,
 }
 
-/// Why a title audio edit changed nothing.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AudioRefusal {
@@ -92,7 +82,6 @@ pub enum AudioRefusal {
     },
 }
 
-/// The selected titles' audio as one choice. `titles` are in list order.
 pub(crate) fn selection_audio(titles: &[(&String, &TitleAudio)]) -> Option<SelectionAudio> {
     let ((_, first), rest) = titles.split_first()?;
     let mut facts = first.facts.clone();
@@ -124,7 +113,6 @@ const FIELDS: [AudioField; 10] = [
     AudioField::Channels,
 ];
 
-/// Narrows `facts` to what `other` also accepts.
 fn share(facts: &mut AudioChoiceFacts, other: &AudioChoiceFacts) {
     for option in &mut facts.encoder_options {
         option.available &= other
@@ -197,18 +185,14 @@ impl AudioDefaults {
         Self { choice, caps }
     }
 
-    /// Replaces the defaults, as after a settings reset. Loaded titles keep
-    /// their own choices.
     pub(crate) fn replace(&mut self, defaults: &EncoderDefaults) {
         self.choice = AudioChoice::from_defaults(defaults, self.caps.as_ref());
     }
 
-    /// The request a title entering the session starts with.
     pub(crate) fn request(&self) -> TitleAudioRequest {
         self.choice.request(self.caps.as_ref())
     }
 
-    /// Edits the defaults. Returns the defaults to record when they changed.
     pub(crate) fn edit(&mut self, edit: AudioEdit) -> Option<EncoderDefaults> {
         (self.choice.edit(edit, self.caps.as_ref(), false) == EditResult::Changed)
             .then(|| self.choice.defaults(self.caps.as_ref()))
@@ -218,9 +202,6 @@ impl AudioDefaults {
         self.choice.for_title(request)
     }
 
-    /// The title's request after `edit`, or `None` when the edit is refused.
-    /// Setting a value the title already has still selects Encode for an
-    /// encoding edit.
     pub(crate) fn edit_title(
         &self,
         request: &TitleAudioRequest,
@@ -231,7 +212,6 @@ impl AudioDefaults {
             .then(|| choice.request(self.caps.as_ref()))
     }
 
-    /// The choice a title with `request` shows.
     pub(crate) fn title_view(&self, request: &TitleAudioRequest) -> AudioChoiceView {
         self.view(self.title_choice(request))
     }

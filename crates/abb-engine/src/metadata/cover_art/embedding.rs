@@ -36,11 +36,8 @@ pub fn add_cover_art_stream_pre_header(
         Ok(mut stream) => {
             let idx = stream.index();
 
-            // Configure stream parameters for cover art
             configure_cover_art_stream_parameters(&mut stream, format, cover_data)?;
 
-            // Set the ATTACHED_PIC disposition using FFI
-            // This is crucial for M4B/MP4 containers to properly recognize cover art
             set_attached_pic_disposition(octx, idx)?;
 
             log::info!("Added cover art stream with attached_pic disposition (index={}, format={:?}, bytes={})",
@@ -79,8 +76,6 @@ pub fn write_cover_art_packet_post_header(
     pkt.set_stream(stream_index);
     pkt.set_flags(ff::packet::flag::Flags::KEY);
 
-    // For attached pics, set PTS and DTS to 0
-    // This indicates it's a single frame that should be treated as cover art
     pkt.set_pts(Some(0));
     pkt.set_dts(Some(0));
 
@@ -94,10 +89,6 @@ pub fn write_cover_art_packet_post_header(
     Ok(())
 }
 
-/// Configures stream parameters for cover art embedding
-///
-/// This creates a proper codec context for the cover art stream to ensure it
-/// is recognized correctly by the container format.
 fn configure_cover_art_stream_parameters(
     stream: &mut ff::format::stream::StreamMut,
     format: CoverFormat,
@@ -105,7 +96,6 @@ fn configure_cover_art_stream_parameters(
 ) -> Result<()> {
     use crate::errors::AppError;
 
-    // Create a codec context for the cover art
     let codec_id = format.codec_id();
 
     let codec = ff::encoder::find(codec_id)
@@ -116,9 +106,6 @@ fn configure_cover_art_stream_parameters(
         .video()
         .map_err(|e| AppError::General(format!("Failed to create video encoder context: {}", e)))?;
 
-    // Return an error when dimensions cannot be detected; explicit cover-art
-    // writes must not be reported as successful if the stream cannot be built.
-    // Using a fixed 600×600 here would produce wrong codec parameters.
     let (width, height) = detect_image_dimensions(cover_data, format).ok_or_else(|| {
         AppError::General(format!(
             "Cannot detect dimensions for {:?} cover art ({} bytes); skipping embedding",
@@ -130,13 +117,10 @@ fn configure_cover_art_stream_parameters(
     ctx.set_width(width as u32);
     ctx.set_height(height as u32);
 
-    // Set pixel format for the codec
     ctx.set_format(format.pixel_format());
 
-    // Set time base for single frame
     ctx.set_time_base(ff::Rational(1, 1));
 
-    // Open the encoder to finalize parameters
     let encoder = ctx
         .open_as(codec)
         .map_err(|e| AppError::General(format!("Failed to open cover art encoder: {}", e)))?;

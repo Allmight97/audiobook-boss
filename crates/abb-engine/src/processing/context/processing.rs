@@ -1,5 +1,3 @@
-//! Processing context structures and builders.
-
 use crate::audio::{EncoderSettings, SampleRateConfig};
 use crate::errors::Result;
 use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
@@ -20,17 +18,14 @@ fn default_processing_workspace_root() -> PathBuf {
 
 pub(crate) type ProgressEventListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
 
-/// Output configuration derived from user input
 #[derive(Debug, Clone)]
 pub struct OutputConfig {
-    /// Final destination artifact for the processed audiobook or preview.
     final_path: PathBuf,
     kind: OutputKind,
     action: PlannedOutputAction,
 }
 
 impl OutputConfig {
-    /// Creates a new output configuration
     #[cfg(test)]
     pub fn new<P: Into<PathBuf>>(final_path: P) -> Self {
         Self {
@@ -48,7 +43,6 @@ impl OutputConfig {
         }
     }
 
-    /// Returns a reference to the final output path
     pub fn final_path(&self) -> &Path {
         &self.final_path
     }
@@ -62,31 +56,18 @@ impl OutputConfig {
     }
 }
 
-/// Groups core processing dependencies together
-///
-/// This context contains the essential components needed for audio processing,
-/// reducing the need to pass multiple parameters through function calls.
 #[derive(Clone)]
 pub struct ProcessingContext {
-    /// Processing session with state management
     pub session: Arc<ProcessingSession>,
-    /// Encoder settings
     pub encoder_settings: Option<EncoderSettings>,
-    /// Sample rate configuration
     pub sample_rate: SampleRateConfig,
-    /// Output configuration
     pub output: OutputConfig,
-    /// App-owned local workspace root for in-flight processing artifacts.
     workspace_root: PathBuf,
-    /// Optional preview configuration (when present, processing should early-stop)
     pub preview: Option<PreviewConfig>,
-    /// Optional job identifier for parallel batch processing
     pub job_id: Option<String>,
     /// WorkRuntime operation identity; absent for foreground processing.
     pub(crate) operation_id: Option<String>,
-    /// Optional index of the input file in the original request
     pub input_index: Option<usize>,
-    /// Backend operation family for lifecycle events emitted by this context
     pub operation_kind: OperationKind,
     pub(crate) progress_listener: Option<ProgressEventListener>,
     /// The export title's output record; publication goes through it.
@@ -135,7 +116,6 @@ impl ProcessingContext {
         }
     }
 
-    /// A context for tests, writing under the system temp folder.
     #[cfg(test)]
     pub fn new_headless(
         session: Arc<ProcessingSession>,
@@ -177,12 +157,10 @@ impl ProcessingContext {
         })
     }
 
-    /// Checks if the current processing has been cancelled
     pub fn is_cancelled(&self) -> bool {
         self.session.is_cancelled()
     }
 
-    /// Sends progress to the session or WorkRuntime reducer that owns this run.
     pub fn new_emitter(&self) -> crate::processing::progress::ProgressEmitter {
         crate::processing::progress::ProgressEmitter::with_context(
             crate::processing::progress::EmitContext {
@@ -198,7 +176,6 @@ impl ProcessingContext {
         &self.workspace_root
     }
 
-    /// Returns the effective bitrate in kbps
     pub fn effective_bitrate_kbps(&self) -> u32 {
         self.encoder_settings
             .as_ref()

@@ -7,8 +7,6 @@ use crate::errors::{AppError, Result};
 use crate::remote_source::types::{RemoteIndexerConnection, RemoteIndexerConnectionUpdate};
 use crate::remote_source::vault::SecretVault;
 
-// Keys are host-scoped: a failed settings save must never pair an old host with
-// a new host's credential. Old slots remain available for deliberate reconnection.
 pub(super) fn api_key_vault_key(base_url: &str) -> String {
     format!("indexer.api_key:{base_url}")
 }
@@ -37,7 +35,6 @@ fn default_category_ids() -> Vec<u32> {
     DEFAULT_CATEGORY_IDS.to_vec()
 }
 
-/// The categories a search uses: at least one, or nothing can be searched.
 fn chosen_category_ids(ids: Vec<u32>) -> Result<Vec<u32>> {
     let mut chosen: Vec<u32> = ids.into_iter().filter(|id| *id > 0).collect();
     chosen.sort_unstable();
@@ -177,8 +174,6 @@ pub(super) fn draft_credentials(
     Ok((base_url, api_key))
 }
 
-/// The saved connection, or none configured. A file damaged outside ABB is
-/// not used, so a stored URL is never exposed or contacted unchecked.
 fn load_stored_connection(config_dir: &Path) -> StoredIndexerConnection {
     let content = match std::fs::read_to_string(connection_path(config_dir)) {
         Ok(content) => content,
@@ -199,8 +194,6 @@ fn load_stored_connection(config_dir: &Path) -> StoredIndexerConnection {
                 .transpose()
                 .map_err(|error| error.to_string())?
                 .flatten();
-            // A settings file without a usable category gets the default
-            // ones, so a search still has something to search.
             Ok(StoredIndexerConnection {
                 base_url,
                 category_ids: chosen_category_ids(stored.category_ids)

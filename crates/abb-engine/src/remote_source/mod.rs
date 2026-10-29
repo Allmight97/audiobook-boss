@@ -13,7 +13,6 @@ mod staging;
 mod types;
 mod ui;
 
-/// How long Amazon may take to register a completed sign-in.
 const AUTH_REGISTRATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 #[cfg(test)]
 pub(crate) use providers::audible::{run_protected_materialization, ProtectedMaterializationRun};
@@ -38,22 +37,17 @@ use vault::{KeyringSecretVault, SecretVault};
 
 use crate::errors::{AppError, Result};
 
-/// What the remote-source owner needs from the engine that constructs it.
 pub(crate) struct RemoteSourceConfig {
     pub(crate) cache_dir: PathBuf,
     pub(crate) config_dir: PathBuf,
-    /// Scopes stored credentials; a different identifier is a different vault.
     pub(crate) app_identifier: String,
     pub(crate) power: crate::power::PowerManager,
-    /// Where acquisition progress is published.
     pub(crate) host: crate::host::Host,
     /// Host-supplied helper location; `None` resolves it beside the executable.
     pub(crate) aaxclean_helper: Option<PathBuf>,
-    /// The engine's background tasks; acquisitions run here.
     pub(crate) tasks: crate::engine::EngineTasks,
 }
 
-/// Imports a finished acquisition's files into the session.
 pub(crate) type Handoff = Arc<
     dyn Fn(RemoteAcquisitionJob) -> Pin<Box<dyn Future<Output = AcquisitionHandoff> + Send>>
         + Send
@@ -116,8 +110,6 @@ impl RemoteSourceRuntime {
         let _ = self.inner.handoff.set(handoff);
     }
 
-    /// Where staged downloads live. A source file under this root is
-    /// temporary: it is removed once its title has been exported.
     pub(crate) fn staging_root(&self) -> PathBuf {
         self.inner.lifecycle.staging.session_root()
     }
@@ -128,7 +120,6 @@ impl RemoteSourceRuntime {
         self.inner.lifecycle.abort_all_acquisition_tasks();
     }
 
-    /// Downloads `abort_acquisitions` would stop.
     pub(crate) fn running_acquisitions(&self) -> Vec<String> {
         self.inner.lifecycle.running_acquisitions()
     }
@@ -258,7 +249,6 @@ impl RemoteSourceRuntime {
         account
     }
 
-    /// Searches the indexer. A new search forgets which releases were sent.
     pub(crate) async fn search_releases(
         &self,
         request: types::RemoteReleaseSearchRequest,
@@ -283,8 +273,6 @@ impl RemoteSourceRuntime {
             .await
     }
 
-    /// Sends a release to the downloader, once per search: a release already
-    /// sent since the last search is not sent again.
     pub(crate) async fn grab_release(
         &self,
         request: types::RemoteReleaseGrabRequest,
@@ -327,7 +315,6 @@ impl RemoteSourceRuntime {
         response
     }
 
-    /// A share of the indexer turn, refused while a connection save runs.
     fn indexer_turn(&self) -> Result<tokio::sync::RwLockReadGuard<'_, ()>> {
         self.inner.indexer_turn.try_read().map_err(|_| {
             AppError::InvalidInput(
@@ -372,8 +359,6 @@ impl RemoteSourceRuntime {
         .await
     }
 
-    /// Saves the connection. Refused while a search or grab runs; releases
-    /// found with the previous connection must be searched again.
     pub(crate) async fn update_indexer_connection(
         &self,
         update: types::RemoteIndexerConnectionUpdate,
@@ -641,7 +626,6 @@ pub(crate) mod tests {
             );
         assert_eq!(runtime.running_acquisitions().len(), 1);
 
-        // A job that ended counts no longer, whatever task handle remains.
         runtime.inner.lifecycle.mark_job_failed(
             job_id,
             RemoteProviderId::Audible,
@@ -730,7 +714,6 @@ pub(crate) mod tests {
             .cancel_acquisition(job_id)
             .expect("cancel acquisition");
 
-        // The engine may already be importing these files.
         assert_eq!(answered.status, types::RemoteAcquisitionStatus::Validated);
         let stored = runtime.acquisition_status(job_id).expect("job status");
         assert_eq!(stored.materialized_files.len(), 1);
@@ -778,7 +761,6 @@ pub(crate) mod tests {
 
             let stored = runtime.acquisition_status(job_id).expect("job status");
             assert_eq!(stored.handoff, Some(answer));
-            // Removing an unimported download is the session's (`staged.rs`).
             assert!(audio.exists());
             assert_eq!(stored.materialized_files.is_empty(), !kept);
         }
@@ -807,17 +789,14 @@ pub(crate) mod tests {
         let runtime = test_runtime(&root);
         runtime.sent_releases().insert((7, "release-1".to_string()));
 
-        // No connection is saved, so a real send would fail.
         let again = runtime
             .grab_release(release("release-1"))
             .await
             .expect("answered without sending");
         assert!(again.accepted);
         assert!(runtime.grab_release(release("release-2")).await.is_err());
-        // A send that failed releases its claim, so it can be retried.
         assert!(runtime.grab_release(release("release-2")).await.is_err());
 
-        // A new search, or a saved connection, forgets what was sent.
         let _ = runtime
             .search_releases(types::RemoteReleaseSearchRequest {
                 author: None,

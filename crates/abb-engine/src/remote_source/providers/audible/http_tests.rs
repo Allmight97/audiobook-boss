@@ -1,5 +1,3 @@
-//! A plain-HTTP stub stands in for the Audible API. The device key is made at
-//! test time, so the real client can sign requests.
 use super::*;
 use audible_api::auth::localization;
 use audible_api::auth::register::Registration;
@@ -43,7 +41,6 @@ pub(in crate::remote_source::providers::audible) fn signing_auth(country_code: &
     }
 }
 
-/// Serves one reply per connection, in order, and returns each request line.
 pub(in crate::remote_source::providers::audible) async fn stub_api(
     replies: Vec<(u16, String)>,
 ) -> (AudibleApi, JoinHandle<Vec<String>>) {

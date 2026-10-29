@@ -1,10 +1,4 @@
-/* ═══════════════════════════════════════════════
-   AudioBook Boss™ — "The Private Library"
-   Warm espresso tones, copper accents, literary serif
-   ═══════════════════════════════════════════════ */
-
 :root {
-  /* Palette — lamplit library */
   --bg-deep: #0d0b08;
   --bg-surface: #161210;
   --bg-card: #1e1914;
@@ -29,8 +23,6 @@
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* ── Reset & Base ── */
-
 *,
 *::before,
 *::after {
@@ -54,8 +46,6 @@ body {
   overflow-x: hidden;
 }
 
-/* ── Grain overlay — analog warmth ── */
-
 body::before {
   content: "";
   position: fixed;
@@ -68,8 +58,6 @@ body::before {
   background-size: 256px 256px;
 }
 
-/* ── Ambient light — warm gradient mesh ── */
-
 .ambient-light {
   position: fixed;
   inset: 0;
@@ -80,8 +68,6 @@ body::before {
     radial-gradient(ellipse 60% 60% at 80% 80%, rgba(139, 96, 56, 0.04) 0%, transparent 50%),
     radial-gradient(ellipse 40% 40% at 50% 50%, rgba(100, 70, 40, 0.03) 0%, transparent 40%);
 }
-
-/* ── Typography ── */
 
 h1, h2, h3 {
   font-family: var(--serif);
@@ -99,8 +85,6 @@ a:hover {
   color: var(--accent-bright);
 }
 
-/* ── Layout ── */
-
 .container {
   width: min(90%, 1080px);
   margin-inline: auto;
@@ -109,8 +93,6 @@ a:hover {
 section {
   padding: 6rem 0;
 }
-
-/* ── Decorative rule ── */
 
 .rule {
   border: none;
@@ -126,8 +108,6 @@ section {
   opacity: 0.3;
   margin: 0;
 }
-
-/* ── Navigation ── */
 
 nav {
   position: fixed;
@@ -209,8 +189,6 @@ nav.scrolled {
   height: 18px;
   fill: currentColor;
 }
-
-/* ── Hero ── */
 
 .hero {
   min-height: 100vh;
@@ -336,8 +314,6 @@ nav.scrolled {
   50% { opacity: 0.7; transform: translateX(-50%) translateY(6px); }
 }
 
-/* ── Features ── */
-
 .features-header {
   text-align: center;
   margin-bottom: 4rem;
@@ -434,8 +410,6 @@ nav.scrolled {
   line-height: 1.65;
 }
 
-/* ── Built With ── */
-
 .built-with {
   text-align: center;
 }
@@ -502,8 +476,6 @@ nav.scrolled {
 .tech-badge .tech-color.solid { background: #446995; }
 .tech-badge .tech-color.ffmpeg { background: #5cb85c; }
 
-/* ── Open Source ── */
-
 .open-source {
   text-align: center;
 }
@@ -550,8 +522,6 @@ nav.scrolled {
   margin-top: 1.5rem;
 }
 
-/* ── Footer ── */
-
 footer {
   padding: 3rem 0;
   text-align: center;
@@ -571,8 +541,6 @@ footer {
   line-height: 1.8;
 }
 
-/* ── Scroll reveal animations ── */
-
 .reveal {
   opacity: 0;
   transform: translateY(28px);
@@ -588,8 +556,6 @@ footer {
 .reveal-delay-2 { transition-delay: 0.2s; }
 .reveal-delay-3 { transition-delay: 0.3s; }
 .reveal-delay-4 { transition-delay: 0.4s; }
-
-/* ── Responsive ── */
 
 @media (max-width: 768px) {
   section {

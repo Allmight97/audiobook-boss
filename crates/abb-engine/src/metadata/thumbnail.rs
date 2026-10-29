@@ -12,7 +12,6 @@ const THUMBNAIL_MAX_INPUT_DIMENSION: u32 = 4096;
 pub(crate) const THUMBNAIL_MAX_ENCODED_BYTES: usize = 10 * 1024 * 1024;
 const THUMBNAIL_MAX_DECODER_ALLOC_BYTES: u64 = 96 * 1024 * 1024;
 
-/// Reads an audio file's embedded cover and returns a small display thumbnail.
 pub fn read_audio_cover_thumbnail(path: &Path) -> Result<Option<Vec<u8>>> {
     render_cover_thumbnail(read_embedded_cover_bytes(path)?)
 }
@@ -43,7 +42,6 @@ pub(crate) fn optimize_cover_art(bytes: &[u8]) -> Result<Vec<u8>> {
     )
 }
 
-/// Write-side cover contract: keep a JPEG that already meets the target, convert once otherwise.
 pub(crate) fn prepare_cover_art_for_write(bytes: &[u8]) -> Result<Vec<u8>> {
     if cover_art_meets_write_target(bytes) {
         log::info!(
@@ -78,7 +76,6 @@ fn render_cover_thumbnail(cover_art: Option<Vec<u8>>) -> Result<Option<Vec<u8>>>
         .transpose()
 }
 
-/// A cover image as a small display thumbnail.
 pub(crate) fn render_display_thumbnail(bytes: &[u8]) -> Result<Vec<u8>> {
     ensure_thumbnail_encoded_size(bytes.len())?;
     encode_jpeg_with_limits(

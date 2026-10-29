@@ -11,7 +11,6 @@ pub fn title_ref(title_id: &str) -> String {
         .collect()
 }
 
-/// File extension for the protected/import-ready download produced by a lane.
 pub fn download_extension_for_strategy(strategy: AcquisitionStrategy) -> &'static str {
     match strategy {
         AcquisitionStrategy::DownloadImportReady => "m4b",
@@ -39,7 +38,6 @@ pub fn remote_materialized_filename_stem(title_name: Option<&str>, title_id: &st
     }
 }
 
-/// User-facing filename for a downloaded Supplemental PDF beside the audiobook.
 pub fn supplemental_pdf_display_file_name(title_name: Option<&str>, title_id: &str) -> String {
     format!(
         "{} - Supplemental PDF.pdf",

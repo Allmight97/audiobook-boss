@@ -1,6 +1,3 @@
-//! Where exports are written and how they are named, and the path a title
-//! would get.
-
 use std::path::Path;
 
 use serde::Serialize;
@@ -22,7 +19,6 @@ pub const DEFAULT_CUSTOM_TEMPLATE: &str = "{author}/{title}";
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum OutputPreview {
     NoDirectory,
-    /// No title to name yet.
     NoTitle,
     Path {
         path: String,
@@ -84,7 +80,6 @@ impl OutputPlan {
         }
     }
 
-    /// The directory exports go to, if one is chosen.
     pub(crate) fn naming_directory(&self) -> Option<String> {
         self.directory.clone()
     }
@@ -109,7 +104,6 @@ impl OutputPlan {
         self.preset.unwrap_or(NamingPreset::AbsDefault)
     }
 
-    /// The naming processing receives.
     pub(crate) fn naming(&self) -> OutputNamingConfig {
         let custom = self.preset() == NamingPreset::CustomTemplate;
         OutputNamingConfig {
@@ -125,7 +119,6 @@ impl OutputPlan {
         }
     }
 
-    /// The choices as durable defaults.
     pub(crate) fn defaults(&self) -> OutputDefaults {
         OutputDefaults {
             output_directory: self.directory.clone(),
@@ -137,7 +130,6 @@ impl OutputPlan {
         }
     }
 
-    /// The path a title with `metadata` would be written to.
     pub(crate) fn preview(
         &self,
         title: Option<(&AudiobookMetadata, &Path, AudiobookFormat)>,

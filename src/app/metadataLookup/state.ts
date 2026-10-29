@@ -6,7 +6,6 @@ type MetadataLookupStatusVariant = 'error' | 'success' | 'info';
 export type MetadataLookupApplyMode = 'current' | 'queue';
 export type MetadataLookupSource = 'auto' | MetadataSource;
 
-/** The lookup dialog as the view renders it. */
 export type MetadataLookupState = {
 	isOpen: boolean;
 	titleQuery: string;
@@ -37,7 +36,6 @@ function afterStep(step: QueueStep | null): string {
 	}
 }
 
-/** Words the engine's account of the last lookup action. */
 function statusOf(status: LookupStatus | null): Status {
 	const error = (message: string): Status => ({ message, variant: 'error' });
 	switch (status?.kind) {
@@ -82,10 +80,6 @@ function statusOf(status: LookupStatus | null): Status {
 	}
 }
 
-/**
- * `typed` holds query text the user has entered that the engine has not
- * confirmed yet.
- */
 export function toLookupState(
 	lookup: SessionLookup,
 	typed: { readonly titleQuery?: string; readonly authorQuery?: string },

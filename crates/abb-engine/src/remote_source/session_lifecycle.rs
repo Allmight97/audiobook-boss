@@ -16,7 +16,6 @@ use crate::remote_source::{types, AcquisitionJob as RemoteAcquisitionJob};
 
 use super::{RemoteProviderId, RemoteSourceRuntime};
 
-/// How often a download's progress reaches hosts; a stage change always does.
 const PROGRESS_EVENT_INTERVAL: Duration = Duration::from_millis(100);
 
 pub(super) struct RemoteAcquisitionLifecycle {
@@ -26,7 +25,6 @@ pub(super) struct RemoteAcquisitionLifecycle {
     acquisition_tasks: Mutex<HashMap<String, AbortHandle>>,
     host: Host,
     ui: std::sync::Arc<Mutex<super::ui::UiState>>,
-    /// When each job's progress last reached hosts.
     progress_sent: Mutex<HashMap<String, Instant>>,
 }
 
@@ -257,15 +255,12 @@ impl RemoteAcquisitionLifecycle {
                 );
             }
             Err(error) => {
-                // A failed download has nothing to import; its staging goes now.
                 self.cleanup_cancelled_job_session(&job_id);
                 self.mark_job_failed(&job_id, plan.provider_id, error.to_string());
             }
         }
     }
 
-    /// Gives a finished job's files to the session and records how that went.
-    /// The session decides when the staged files go, imported or not.
     pub(super) async fn hand_off(&self, runtime: &RemoteSourceRuntime, job: RemoteAcquisitionJob) {
         let ready = job.status == types::RemoteAcquisitionStatus::Validated
             && !job.materialized_files.is_empty()
@@ -274,7 +269,6 @@ impl RemoteAcquisitionLifecycle {
             return;
         };
         let job_id = job.job_id.clone();
-        // The session removes an unimported download itself.
         let result = handoff(job).await;
         let updated = self.jobs.lock().ok().and_then(|mut jobs| {
             let job = jobs.get_mut(&job_id)?;
@@ -467,8 +461,6 @@ impl RemoteAcquisitionLifecycle {
         let job = jobs.get_mut(job_id).ok_or_else(|| {
             AppError::InvalidInput("Remote acquisition job was not found.".to_string())
         })?;
-        // A finished job's files may already be in the session; there is
-        // nothing left to cancel.
         if !matches!(
             job.status,
             types::RemoteAcquisitionStatus::Planned | types::RemoteAcquisitionStatus::Acquiring
@@ -484,8 +476,6 @@ impl RemoteAcquisitionLifecycle {
         Ok(cancelled_job)
     }
 
-    /// Removes a download the session released, and the job's record with
-    /// it; hosts already hold the job's last snapshot.
     fn purge_session(&self, job_id: &str) -> Result<()> {
         self.abort_acquisition_task(job_id);
         self.staging.purge_session(job_id)?;
@@ -515,7 +505,6 @@ impl RemoteSourceRuntime {
             .map(Into::into)
     }
 
-    /// Removes a job's staged files. The session decides when.
     pub(crate) fn purge_session(&self, job_id: &str) -> Result<()> {
         self.inner.lifecycle.purge_session(job_id)
     }

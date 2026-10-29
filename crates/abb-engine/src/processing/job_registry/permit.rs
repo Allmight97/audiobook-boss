@@ -8,11 +8,6 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 const PERMIT_CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 impl JobRegistry {
-    /// Registers a new job and acquires a semaphore permit.
-    ///
-    /// This method will block if max_concurrent jobs are already running.
-    /// Returns the JobId and an owned permit that must be held for the
-    /// duration of processing.
     #[cfg(test)]
     pub async fn register_job(&self) -> Result<(JobId, OwnedSemaphorePermit)> {
         self.register_job_with_external_cancel(None).await
@@ -54,8 +49,6 @@ impl JobRegistry {
     }
 }
 
-/// Removes a job whose admission failed, was cancelled, or was dropped while
-/// waiting, so an abandoned admission never blocks reconfiguration.
 struct PendingAdmission<'a> {
     registry: &'a JobRegistry,
     job_id: JobId,

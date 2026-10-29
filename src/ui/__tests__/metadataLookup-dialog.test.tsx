@@ -10,10 +10,6 @@ import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { App } from '../App';
 
-// The lookup's rules (queue order, which title a result applies to, what a
-// replaced cover stages) are proven in the engine. These tests cover what the
-// dialog does with the engine's answers and which intents it sends.
-
 const support: SupportedAudioImportMetadata = {
 	formats: [{ extension: 'm4b', label: 'M4B' }],
 	extensions: ['m4b'],
@@ -63,7 +59,6 @@ function applyButton(): HTMLButtonElement {
 	return button;
 }
 
-/** The engine's lookup with the queue on title `index` of the two. */
 function queued(index: number, patch: Partial<SessionLookup> = {}): Partial<SessionLookup> {
 	return {
 		open: true,
@@ -91,10 +86,6 @@ describe('metadata lookup dialog', () => {
 		runtime = undefined;
 	});
 
-	/**
-	 * Renders the app with two titles imported and selected, and the lookup
-	 * open. `answers` gives the engine's lookup after each intent kind.
-	 */
 	async function openLookupOverTwoTitles(
 		answers: Partial<Record<SessionIntent['kind'], Partial<SessionLookup>>> = {},
 	) {

@@ -19,10 +19,6 @@ import type {
 	SessionUpdate,
 } from '../../types/session';
 
-/**
- * The frontend's connection to the engine: the latest session and settings
- * the engine reported, and the way to send it intents.
- */
 export type EngineLink = {
 	readonly titles: Accessor<SessionTitles>;
 	readonly selection: Accessor<SessionSelection>;
@@ -36,7 +32,6 @@ export type EngineLink = {
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
 	send(intent: SessionIntent): Promise<SessionOutcome>;
-	/** Claims a finished preview's output and has the host open it. */
 	openPreview(runId: string): Promise<SessionOutcome>;
 	/** Sends an intent whose outcome the caller does not need. A refusal is
 	 * kept as `refusal` until dismissed. */
@@ -50,7 +45,6 @@ export type EngineLink = {
 	 * is truthful before then. */
 	readonly attachment: Accessor<Attachment>;
 	sendSettings(intent: SettingsIntent): Promise<SettingsOutcome>;
-	/** Resolves once the engine's current state has been received. */
 	ready(): Promise<void>;
 	dispose(): void;
 };
@@ -154,7 +148,6 @@ function emptyOutput(): SessionOutput {
 	};
 }
 
-/** What shows before the engine's audio part arrives: the fresh defaults, no capabilities. */
 function emptyAudio(): SessionAudio {
 	const settings = {
 		encoderType: 'native_aac',
@@ -255,11 +248,6 @@ function emptySettings(): SettingsSnapshot {
 	};
 }
 
-/**
- * Keeps the existing object for every file whose content did not change.
- * Views key their rows by file object, so an update that changes one title
- * must not rebuild the others.
- */
 function shareUnchangedFiles(previous: SessionTitles, next: SessionTitles): SessionTitles {
 	const known = new Map<string, { file: AudioFile; content: string }>();
 	const remember = (file: AudioFile) =>
@@ -279,7 +267,6 @@ function shareUnchangedFiles(previous: SessionTitles, next: SessionTitles): Sess
 	};
 }
 
-/** The same for lookup results: an unrelated lookup change keeps their rows. */
 function shareUnchangedResults(previous: SessionLookup, next: SessionLookup): SessionLookup {
 	const known = new Map(previous.results.map((result) => [JSON.stringify(result), result]));
 	return {
@@ -344,7 +331,6 @@ function shareUnchangedRemote(
 
 type Part<T> = { readonly read: () => T; apply(next: T | null | undefined): void };
 
-/** Keeps the newest copy of one session part; replies and events may cross. */
 function sessionPart<T extends { readonly revision: number }>(
 	initial: T,
 	share: (current: T, next: T) => T = (_current, next) => next,
@@ -455,7 +441,6 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		bumpAttachment((n) => n + 1);
 	}
 
-	/** Numbers a session request in the order it was made and applies its reply. */
 	function dispatch(
 		request: (client: number, sequence: number) => Promise<SessionReply>,
 	): Promise<SessionOutcome> {

@@ -1,30 +1,10 @@
-//! Sample accumulation to build exact encoder-sized frames without truncation.
-//! Isolates frame sizing logic from the main pipeline. Supports F32 planar
-//! and packed F32/S16 formats.
-//!
-//! ## Supported Formats
-//! - `F32(Planar)`: Native AAC encoder (ffmpeg's built-in aac)
-//! - `I16(Packed)`: AAC-AT encoder (macOS AudioToolbox)
-//! - `F32(Packed)`: Opus encoder
-//!
-//! Other formats and invalid frame sizes return an error at construction time to prevent
-//! silent data corruption.
-
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use log;
 
-/// Storage abstraction for different sample formats.
-///
-/// Only supports formats actually used by our encoders:
-/// - `F32Planar`: Separate buffers per channel with f32 samples (native AAC)
-/// - `Packed`: Interleaved sample bytes (AAC-AT or Opus)
-///
-/// Attempting to use other formats or a zero frame size will return an error from
-/// `SampleAccumulator::new()`.
 enum SampleStorage {
     F32Planar(Vec<Vec<f32>>),
-    Packed(Vec<u8>), // Interleaved sample bytes: [L0, R0, L1, R1, ...]
+    Packed(Vec<u8>),
 }
 
 pub struct SampleAccumulator {
@@ -62,12 +42,8 @@ impl SampleAccumulator {
             ));
         }
 
-        // Explicit format matching - only support formats actually used by our encoders.
-        // This prevents silent data corruption from format/storage mismatches.
-        // See: Gemini review on PR #28 regarding memory safety concern.
         let (bytes_per_sample, is_planar, storage) = match format {
             ff::format::Sample::F32(ff::format::sample::Type::Planar) => {
-                // Native AAC encoder uses F32 planar
                 let storage = SampleStorage::F32Planar(
                     (0..channels)
                         .map(|_| Vec::with_capacity(frame_size * 2))
@@ -110,7 +86,6 @@ impl SampleAccumulator {
             consumed_samples: 0,
         })
     }
-    /// Push a frame; return any full frames now available.
     pub fn push_frame(&mut self, frame: &ff::frame::Audio) -> Vec<ff::frame::Audio> {
         let mut ready = Vec::new();
         let in_samples = frame.samples();
@@ -118,11 +93,9 @@ impl SampleAccumulator {
             return ready;
         }
 
-        // First, copy samples into storage (scoped to release borrow)
         {
             match &mut self.storage {
                 SampleStorage::F32Planar(buffers) => {
-                    // F32 planar: each channel in separate plane
                     let available_planes = frame.planes();
                     for (ch, buffer) in buffers.iter_mut().enumerate() {
                         if ch >= available_planes {
@@ -161,7 +134,6 @@ impl SampleAccumulator {
             }
         }
 
-        // Now drain full frames (borrow released above)
         while self.has_full_frame() {
             if let Some(f) = self.drain_one(false) {
                 ready.push(f);
@@ -173,7 +145,6 @@ impl SampleAccumulator {
         ready
     }
 
-    /// Check if storage has enough samples for a full frame
     fn has_full_frame(&self) -> bool {
         self.available_samples() >= self.frame_size
     }
@@ -198,7 +169,6 @@ impl SampleAccumulator {
     }
 
     fn drain_one(&mut self, allow_short: bool) -> Option<ff::frame::Audio> {
-        // Extract immutable fields to avoid borrow conflicts
         let config = DrainConfig {
             frame_size: self.frame_size,
             format: self.format,
@@ -356,7 +326,6 @@ impl SampleAccumulator {
 /// excursions suggest a gain, format, or layout mismatch worth investigating.
 const CLIP_WARN_PEAK: f32 = 1.122;
 
-/// Float sample repair before encoding: clamp to [-1.0, 1.0], zero NaN/Inf.
 #[derive(Default)]
 struct SanitizeReport {
     clipped: usize,

@@ -233,7 +233,6 @@ fn a_save_waits_for_the_load_and_old_test_replies_cannot_replace_a_new_test() {
         panic!("load")
     };
     ui.begin(edit(Some("key"))).expect("fixture step succeeded");
-    // Nothing is saved while the stored connection is still loading.
     assert!(ui.begin(RemoteUiIntent::SaveConnection).is_err());
     ui.loaded(request, revision, &Ok(configured()));
     let UiAction::Save {
@@ -529,7 +528,6 @@ fn save_and_test_refuse_a_refused_draft_and_a_draft_still_loading() {
     assert!(ui.begin(RemoteUiIntent::SaveConnection).is_err());
     assert!(ui.begin(RemoteUiIntent::TestConnection).is_err());
 
-    // An accepted edit clears it.
     ui.begin(RemoteUiIntent::EditConnection {
         base_url: Some("https://indexer.test".into()),
         category_ids: None,
@@ -538,7 +536,6 @@ fn save_and_test_refuse_a_refused_draft_and_a_draft_still_loading() {
     .expect("accepted edit");
     assert!(ui.snapshot().connection.draft_error.is_none());
 
-    // While the saved connection loads, nothing is saved or tested.
     let mut loading = UiState::default();
     loading
         .begin(RemoteUiIntent::LoadConnection)
@@ -552,7 +549,6 @@ fn a_connection_that_loads_after_typing_keeps_the_typed_fields_and_fills_the_res
     let Ok(UiAction::Load { request, revision }) = ui.begin(RemoteUiIntent::LoadConnection) else {
         panic!("load starts");
     };
-    // Only categories were typed while the keychain read was pending.
     ui.begin(RemoteUiIntent::EditConnection {
         base_url: None,
         category_ids: Some(vec![3000]),
@@ -937,7 +933,6 @@ async fn a_library_failure_after_lane_replacement_or_disconnect_is_superseded() 
         .finish()
         .await
         .expect("replacement lane");
-    // The empty fixture vault fails before any live Audible HTTP request.
     assert!(matches!(
         stale.finish().await.expect("stale failure discarded"),
         RemoteUiResult::Superseded

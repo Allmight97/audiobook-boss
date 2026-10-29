@@ -4,10 +4,6 @@ import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixture
 import type { SessionOutcome } from '../../types/session';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 
-// The form's rules live in the engine. These tests cover what this owner
-// adds: text that shows before the engine confirms it, the wording of what
-// the engine reports, and the lifetime of a cover message.
-
 describe('metadata owner', () => {
 	let runtime: AppRuntime | undefined;
 	let engine: FakeEngine;
@@ -44,7 +40,6 @@ describe('metadata owner', () => {
 
 		expect(title(app)).toMatchObject({ value: 'Alp', dirty: true });
 		await vi.waitFor(() => expect(replies).toHaveLength(2));
-		// The engine answers the first keystroke; the second is still what shows.
 		replies[0]?.({ kind: 'applied' });
 		await Promise.resolve();
 		await Promise.resolve();
@@ -133,7 +128,6 @@ describe('metadata owner', () => {
 		});
 		expect(app.metadata.view().statusMessage).toBe('Bad number');
 
-		// The outcome of the last action shows ahead of a standing problem.
 		engine.status({
 			kind: 'saveComplete',
 			succeeded: 1,
@@ -156,7 +150,6 @@ describe('metadata owner', () => {
 		});
 		expect(app.metadata.view().statusMessage).toBe('The disk is read-only.');
 
-		// Saves that waited for an export report how they ended.
 		engine.status({ kind: 'deferredWritesFinished', written: 1, failed: 2 });
 		expect(app.metadata.view().statusMessage).toBe(
 			'1 file saved after the export reading it finished.' +
@@ -172,7 +165,6 @@ describe('metadata owner', () => {
 		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Typed for alpha' });
 		expect(title(app).value).toBe('Typed for alpha');
 
-		// The engine binds the form to another title before the keystroke's reply.
 		engine.change((state) => {
 			state.metadata.binding += 1;
 		});

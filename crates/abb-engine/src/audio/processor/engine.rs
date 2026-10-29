@@ -1,5 +1,3 @@
-//! ffmpeg-next engine implementation (native in-process path)
-
 use std::path::Path;
 use std::sync::Once;
 
@@ -25,8 +23,6 @@ struct EncodingRunDiagnostics {
     encoder_details: Option<String>,
 }
 
-/// Processes a single input file through the decode/resample/encode pipeline
-/// Returns PreviewAction to signal adaptive preview transitions
 pub(crate) fn process_input_file(
     input_path: &Path,
     encoder: &mut super::encoder::EncoderSession,
@@ -49,7 +45,6 @@ pub(crate) fn process_input_file(
         return Err(AppError::cancelled());
     }
 
-    // Initialize per-file preview state if adaptive preview is active
     if let Some(ref mut ps) = ctx.preview_state {
         ps.start_new_file(file_index);
         log::info!(
@@ -77,7 +72,6 @@ pub(crate) fn process_input_file(
         stream_index
     );
 
-    // Update context indices for this file
     ctx.current_file_index = file_index;
     ctx.current_stream_index = stream_index;
     log::info!(
@@ -105,10 +99,6 @@ pub(crate) fn process_input_file(
     Ok(action)
 }
 
-/// Executes a media processing plan through the native ffmpeg-next pipeline.
-///
-/// Synchronous and CPU-bound; the caller offloads this onto a blocking
-/// thread via `spawn_blocking` so it never occupies an async worker.
 pub(crate) fn execute(
     plan: &MediaProcessingPlan,
     context: &ProcessingContext,
@@ -137,14 +127,11 @@ fn execute_pipeline(
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
     mut diagnostics: Option<&mut EncodingRunDiagnostics>,
 ) -> Result<()> {
-    // Initialize FFmpeg (idempotent)
     static INIT: Once = Once::new();
     INIT.call_once(|| {
         let _ = ff::init();
     });
 
-    // Setup encoder and output context with metadata
-    // Skip chapter passthrough in preview mode (chapters won't align with shortened output)
     let skip_chapter_passthrough = context.preview.is_some();
     // The session drops its codec/output handles before cleanup removes the path.
     let mut cleanup_guard = CleanupGuard::new(context.session.id());
@@ -182,7 +169,6 @@ fn execute_pipeline(
     }
     result?;
 
-    // Preserve output on success
     let _ = cleanup_guard.remove_path(&plan.output_path);
 
     if metadata.is_some() {

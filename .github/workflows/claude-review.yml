@@ -1,12 +1,5 @@
 name: claude review
 
-# One Claude review when a PR opens ready, reopens, or leaves draft, following
-# REVIEW.md; pushes and drafts start none (scripts/check-pr-workflow-policy.ts).
-# In a draft, ask for a review with an @claude comment (claude.yml). A review
-# that posts nothing fails. Needs the
-# CLAUDE_CODE_OAUTH_TOKEN repository secret; missing credentials fail explicitly.
-# Toggle this workflow in GitHub Actions; claude.yml handles mentions separately.
-
 on:
   pull_request:
     types: [opened, ready_for_review, reopened]

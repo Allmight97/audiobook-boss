@@ -15,7 +15,6 @@ use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, Acquisit
 use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 use tokio::io::AsyncWriteExt;
 
-/// The wait before the first retry; each later retry waits twice as long.
 const RETRY_BASE: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Copy)]
@@ -216,13 +215,9 @@ struct DownloadProgress {
 
 enum AttemptOutcome {
     Complete,
-    /// Worth another try; names what failed.
     Retry(&'static str),
 }
 
-/// Run a single download attempt: send the ranged request, classify the
-/// response, then stream the body into `path`. `Err` is reserved for terminal
-/// failures (status, size change, IO) that must not be retried.
 async fn run_download_attempt(
     client: &reqwest::Client,
     url: &reqwest::Url,

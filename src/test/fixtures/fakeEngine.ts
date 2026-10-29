@@ -1,12 +1,3 @@
-/**
- * A stand-in for the engine's session and settings, for frontend tests.
- *
- * The engine's rules are proven in Rust. This fake only keeps enough state
- * for the frontend to render something and to show which intents it sent; a
- * test that needs a specific engine answer sets it up through `respond` or
- * the seed methods.
- */
-
 import type { EngineCapability } from '../../lib/tauri/capabilities/engine';
 import type {
 	AppSettings,
@@ -36,7 +27,6 @@ import type {
 	SubmissionStatus,
 } from '../../types/session';
 
-/** A file's tags as the fake engine keeps them, keyed by tag name. */
 type FileTags = {
 	readonly title?: string;
 	readonly date?: string;
@@ -89,7 +79,6 @@ export function defaultAppSettings(): AppSettings {
 	};
 }
 
-/** An analyzed audio file as the engine would report it. */
 export function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
 	return {
 		inputId: path,
@@ -106,14 +95,10 @@ export function audioFile(path: string, overrides: Partial<AudioFile> = {}): Aud
 type Rejection = { readonly message: string };
 
 export type FakeEngine = EngineCapability & {
-	/** Every session intent received, in order. */
 	readonly sessionIntents: SessionIntent[];
 	readonly settingsIntents: SettingsIntent[];
-	/** Preview outputs the host opened, in order. */
 	readonly openedPreviews: string[];
-	/** What reading each file's tags yields. */
 	readonly tags: Map<string, FileTags>;
-	/** What importing a set of paths yields. Defaults to one valid file per path. */
 	analyze: (paths: readonly string[]) => AudioFile[];
 	/**
 	 * Answers an intent in place of the fake's default behavior. A reply of
@@ -122,35 +107,19 @@ export type FakeEngine = EngineCapability & {
 	respond?: (
 		intent: SessionIntent,
 	) => SessionOutcome | Promise<SessionOutcome | undefined> | undefined;
-	/**
-	 * How the engine answers a submit, preview, or collision choice. Defaults
-	 * to an accepted export, a finished preview, and a cancelled review.
-	 */
 	answerSubmission: (intent: SessionIntent) => SubmissionStatus;
-	/** Fails the next settings writes, as a full disk would. */
 	settingsWriteError?: Rejection;
-	/** Refuses the next concurrency change, as running jobs would. */
 	concurrencyError?: Rejection;
-	/** What loading the saved settings could not keep; the next accepted change clears it. */
 	recovery?: SettingsSnapshot['recovery'];
-	/** Records settings the way the engine does after a session edit, and announces them. */
 	recordSettings(patch: Partial<AppSettings>): void;
-	/**
-	 * Groups listed titles under the first, as the engine would after
-	 * grouping them; `choiceRequired` marks their audio as disagreeing.
-	 */
 	seedGroup(sources: AudioFile[], options?: { readonly choiceRequired?: boolean }): void;
-	/** Shows `value` as an edit on the bound form, as the engine would after applying one. */
 	seedField(field: MetadataField, value: string): void;
-	/** Shows a chosen cover image as the engine would after loading it. */
 	seedCover(bytes: number[], notice?: CoverNotice): void;
-	/** Sets a title's audio as the engine would after an edit and its plan. */
 	seedTitleAudio(
 		titleId: string,
 		request: TitleAudioRequest,
 		resolved?: { readonly plan?: TitlePlan; readonly estimate?: SizeEstimate | null },
 	): void;
-	/** Loads titles as an import would. */
 	loadTitles(files: AudioFile[], selected?: number[]): void;
 	status(status: MetadataStatus | null): void;
 	titles(): SessionTitles;
@@ -160,7 +129,6 @@ export type FakeEngine = EngineCapability & {
 	audio(): SessionAudio;
 	output(): SessionOutput;
 	settings(): SettingsSnapshot;
-	/** Changes session state the way the engine does on its own, and tells listeners. */
 	change(
 		mutate: (state: {
 			titles: SessionTitles;
@@ -228,7 +196,6 @@ function fakeOutput(): SessionOutput {
 	};
 }
 
-/** The engine's fresh audio defaults over the fixture capabilities; tests seed other choices. */
 function fakeAudio(): SessionAudio {
 	const settings = {
 		encoderType: 'native_aac',
@@ -286,7 +253,6 @@ function fakeAudio(): SessionAudio {
 	};
 }
 
-/** A preview of every title that finished without trouble. */
 function finishedPreview(): ProcessCommandResult {
 	return {
 		summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
@@ -432,7 +398,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		return { ...engine.tags.get(file.path) };
 	}
 
-	/** Rebuilds what the form shows from the selected titles' tags and what was typed. */
 	function project(): void {
 		const selected = selectedFiles();
 		const key = selected.map((file) => file.path).join('\0');
@@ -472,7 +437,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		}
 	}
 
-	/** Stamps every part with a new revision; the fake does not track which changed. */
 	function settle(): SessionUpdate {
 		project();
 		revision += 1;
@@ -544,7 +508,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		if (first && added.length === 1 && added[0].isValid) select([0]);
 	}
 
-	// One case per intent; each is a line or two of stand-in behavior.
 	function apply(intent: SessionIntent): SessionOutcome {
 		const { titles } = state;
 		const locked = titles.orderLocked;
@@ -579,8 +542,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				state.audio.titles = {};
 				state.selection.selectedIndices = [];
 				break;
-			// The engine's rules: a test seeds the result it needs through `change`,
-			// `seedTitleAudio`, or `respond`.
 			case 'moveFile':
 			case 'reorderFiles':
 			case 'toggleSort':
@@ -668,7 +629,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				state.lookup.replaceCover = intent.replace;
 				break;
 			default:
-				// Intents no test drives are accepted without stand-in behavior.
 				break;
 		}
 		return { kind: 'applied' };
@@ -704,7 +664,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		});
 	}
 
-	/** Puts `patch` in effect; a failed write leaves it in effect and unsaved. */
 	function write(patch: Partial<AppSettings>): SettingsOutcome {
 		settingsValue = { ...settingsValue, ...patch };
 		const failed = engine.settingsWriteError && rejection(engine.settingsWriteError);
@@ -764,7 +723,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			return { client: 1, session: settle(), settings: settingsSnapshot() };
 		},
 		async sessionDispatch(_client: number, sequence: number, intent: SessionIntent) {
-			// The host applies intents in sequence order; a gap would stall it.
 			if (sequence !== nextSessionSequence)
 				throw new Error(`session intent ${sequence} arrived out of order`);
 			nextSessionSequence += 1;
@@ -861,7 +819,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			if (resolved.plan) view.plan = resolved.plan;
 			if (resolved.estimate !== undefined) view.estimate = resolved.estimate;
 			state.audio.titles = { ...state.audio.titles, [titleId]: view };
-			// A title given its own request no longer needs a choice.
 			state.titles.audioChoiceRequired = state.titles.audioChoiceRequired.filter(
 				(id) => id !== titleId,
 			);
@@ -879,7 +836,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 
 let current = createFakeEngine();
 
-/** The fake engine the mocked backend answers from in this test. */
 export function fakeEngine(): FakeEngine {
 	return current;
 }

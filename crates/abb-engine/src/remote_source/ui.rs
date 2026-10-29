@@ -1,5 +1,3 @@
-//! Working remote choices and connection drafts; hosts send intents and read facts.
-
 use super::providers::audible::{AudibleRequestError, SIGN_IN_REJECTED_MESSAGE};
 use super::{
     AcquisitionPlan, AcquisitionSelection, ProviderId, RemoteAcquisitionSnapshot,
@@ -708,7 +706,6 @@ impl UiState {
                 .collect(),
         }))
     }
-    /// Save and Test act on the draft only once the fields show what it holds.
     fn ensure_draft_usable(&self) -> Result<()> {
         if self.connection_loading {
             return Err(AppError::InvalidInput(
@@ -818,7 +815,6 @@ impl UiState {
                 if self.edit_revision == revision {
                     self.apply_connection(connection);
                 } else {
-                    // Fields typed while it loaded stay; the rest come from disk.
                     if !self.url_edited {
                         self.snapshot.connection.base_url =
                             connection.base_url.clone().unwrap_or_default();
@@ -1061,7 +1057,6 @@ impl RemoteSourceRuntime {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
-    /// Whether a library title shows the cover at `url`.
     pub(crate) fn library_offers_cover(&self, url: &str) -> bool {
         self.ui()
             .library

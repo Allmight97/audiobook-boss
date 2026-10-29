@@ -8,7 +8,6 @@ export interface MetadataOpenFileOptions {
 	}>;
 }
 
-/** Host services the metadata views use directly: the image picker. */
 export interface MetadataCapability {
 	openFile(options?: MetadataOpenFileOptions): Promise<string | null>;
 }

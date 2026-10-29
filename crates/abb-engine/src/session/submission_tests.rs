@@ -1,5 +1,3 @@
-//! What a submission sends, and when it refuses.
-
 use std::path::PathBuf;
 
 use super::*;
@@ -93,7 +91,6 @@ fn a_grouped_title_sends_its_ordered_sources_and_refuses_an_invalid_one() {
     let refused = build_draft(&[title(&first, &broken)], inputs(), no_edits, title_label);
     assert_eq!(refused.err(), Some(SubmitRefusal::InvalidSource));
 
-    // An invalid first source does not let the group drop out beside a valid title.
     let anchor = file("broken", false);
     let led_by_broken = [anchor.clone(), first.clone()];
     let other = file("other", true);

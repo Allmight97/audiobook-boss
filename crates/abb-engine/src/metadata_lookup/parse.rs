@@ -126,7 +126,6 @@ pub(super) fn split_primary_series_name(name: &str) -> Option<(String, String)> 
 mod tests {
     use super::*;
 
-    // EXCEPTION: inline tests for private helper functions.
     #[test]
     fn extract_asin_finds_first_asin() {
         let query = "Project Hail Mary B01234ABCD [uk]";

@@ -1,10 +1,3 @@
-/**
- * High-value UI workflow smoke test through mocked Tauri boundaries.
- *
- * Keep this as one golden-path composition proof. Owner tests cover their
- * isolated branches; this test protects the user workflow that joins them at
- * the engine submission.
- */
 import { cleanup, render, waitFor, screen, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -108,7 +101,6 @@ describe('UI Workflow Smoke Test', () => {
 		native.listen.mockResolvedValue(() => undefined);
 		native.listWorkOperations.mockResolvedValue({ revision: 0, order: [], operations: [] });
 
-		// The engine holds the session: the file's tags, the lookup, and its edits.
 		const engine = createFakeEngine(settings);
 		engine.analyze = () => [importedFile()];
 		engine.tags.set(INPUT_PATH, {
@@ -116,7 +108,6 @@ describe('UI Workflow Smoke Test', () => {
 			artist: 'Old Author',
 			cover_art: [1, 1, 1],
 		});
-		// The engine's lookup: one result, and the edits it applies.
 		engine.respond = (intent) => {
 			if (intent.kind === 'lookupOpen') {
 				engine.change((state) => {
@@ -178,7 +169,6 @@ describe('UI Workflow Smoke Test', () => {
 			await user.click(screen.getByRole('button', { name: /Audio plan for/ }));
 			const audioEditor = screen.getByRole('dialog', { name: 'Audio plan' });
 			await user.selectOptions(within(audioEditor).getByLabelText('Audio handling'), 'encode');
-			// The engine applies each edit; the panel then shows the encoding settings.
 			engine.seedTitleAudio('input-dune', {
 				format: 'm4b',
 				intent: 'encode',

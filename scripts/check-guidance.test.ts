@@ -27,7 +27,6 @@ describe('check-guidance', () => {
 		);
 	});
 
-	// d4afeb48^:scripts/AGENTS.md:41 copied workspace Clippy flags that went stale.
 	it('rejects a copied --features string', () => {
 		expect(
 			messages(
@@ -43,7 +42,6 @@ describe('check-guidance', () => {
 		]);
 	});
 
-	// 4af7bdcb:scripts/AGENTS.md:137 named `app:dev`, which package.json never had.
 	it('rejects a package script that does not exist, bare or after bun run', () => {
 		expect(messages('including `bun run bindings:generate` and `app:dev`.')).toEqual([
 			expect.stringMatching(/`bindings:generate` is not a package.json script/),
@@ -51,7 +49,6 @@ describe('check-guidance', () => {
 		]);
 	});
 
-	// a7853682^:scripts/AGENTS.md:101 pointed at a folder that had moved.
 	it('rejects a repo path that resolves nowhere, from the root or the file', () => {
 		expect(messages('Rules: `src-tauri/src/commands/AGENTS.md` + `src-tauri/AGENTS.md`.')).toEqual([
 			expect.stringMatching(

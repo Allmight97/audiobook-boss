@@ -1,10 +1,3 @@
-//! Wall-clock rate smoothing for backend-authored ETA.
-//!
-//! Producers feed monotonic progress samples (`units_done` toward
-//! `units_total`, any unit) and get back an ETA in seconds once the smoothed
-//! rate stabilizes. The UI never estimates; it only formats what the backend
-//! authored.
-
 use std::time::Instant;
 
 const EWMA_ALPHA: f64 = 0.3;
@@ -27,13 +20,8 @@ impl EtaEstimator {
         }
     }
 
-    /// Records monotonic progress at `now` and returns the current ETA in
-    /// seconds toward `units_total`, or `None` until the rate stabilizes
-    /// (fewer than two rate samples, zero elapsed time, or a stalled rate).
     pub fn update(&mut self, now: Instant, units_done: f64, units_total: f64) -> Option<f64> {
         if let Some((last_at, last_units)) = self.last_sample {
-            // A regressing sample must not move the baseline: recording it
-            // would double-count the re-covered units on the next advance.
             if units_done < last_units {
                 return self.eta_seconds(last_units, units_total);
             }
@@ -102,7 +90,6 @@ mod tests {
             .update(at(start, 2.0), 20.0, 100.0)
             .expect("steady rate produces an ETA");
 
-        // 80 units left at 10 units/sec.
         assert!((value - 8.0).abs() < 0.25, "eta was {value}");
     }
 
@@ -119,7 +106,6 @@ mod tests {
             .expect("stalled eta");
         assert!(stalled > moving, "stall must grow the ETA");
 
-        // A long enough stall decays the smoothed rate to ~zero and suppresses.
         let mut suppressed = Some(stalled);
         for step in 4..80 {
             suppressed = eta.update(at(start, f64::from(step)), 20.0, 100.0);
@@ -173,11 +159,8 @@ mod regression_tests {
         eta.update(at(start, 0.0), 0.0, 100.0);
         eta.update(at(start, 1.0), 10.0, 100.0);
 
-        // Regression is ignored entirely (no baseline move, no rate sample).
         eta.update(at(start, 1.5), 5.0, 100.0);
 
-        // Recovery to the prior value counts zero new units over the window
-        // instead of double-counting the re-covered 5.
         let value = eta
             .update(at(start, 2.0), 10.0, 100.0)
             .expect("rate is live");

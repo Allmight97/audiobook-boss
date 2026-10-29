@@ -38,10 +38,6 @@ export type MetadataView = {
 	readonly statusMessage: string;
 };
 
-/**
- * The engine owns the metadata form, its drafts, and Save. This owner shows
- * the engine's snapshot and turns what the user does into intents.
- */
 export type MetadataOwner = {
 	readonly view: Accessor<MetadataView>;
 	readonly capability: Accessor<MetadataCapability>;
@@ -84,7 +80,6 @@ function outputText(outputs: OutputEdits): string {
 	);
 }
 
-/** Words the engine's account of the last metadata action. */
 function statusText(status: MetadataStatus | null): string {
 	switch (status?.kind) {
 		case undefined:
@@ -138,10 +133,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	const capabilityValue = deps.capability ?? liveMetadataCapability;
 	const capability: Accessor<MetadataCapability> = () => capabilityValue;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	// Text entered and not yet confirmed by the engine, shown so typing never lags.
-	// Unconfirmed typing, tied to the form it was typed into.
 	const typed = new Map<MetadataField, { readonly value: string; readonly binding: number }>();
-	// View-local cover state: none of it is session truth.
 	let isHovered = false;
 	let isDragOver = false;
 	let urlInputValue = '';
@@ -245,7 +237,6 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				.send(intent)
 				.catch((error: unknown) => link.refuse(intent, error))
 				.finally(() => {
-					// Later keystrokes keep their own text until their own reply.
 					if (typed.get(field) !== entry) return;
 					typed.delete(field);
 					changed();

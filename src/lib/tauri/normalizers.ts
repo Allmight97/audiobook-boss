@@ -1,17 +1,3 @@
-/**
- * IPC payload normalizers for the Rust → TypeScript boundary.
- *
- * Each public normalizer accepts a specta-generated payload type from
- * `../generated/tauri` (where Rust `Option<T>` surfaces as `T | null`) and
- * returns the matching UI-friendly type from `../../types/*` (where `null`
- * has been converted to optional via `NullToOptionalDeep`). This keeps the
- * adapter layer thin and well-typed: input drift is caught at compile time,
- * and the runtime transform is centralized in `normalizeNullish`.
- *
- * Inverse direction: `denormalizeNullish` rebuilds a payload with explicit
- * `null` values for the wire.
- */
-
 import type {
 	FrontendAttachment as GeneratedFrontendAttachment,
 	SessionReply as GeneratedSessionReply,
@@ -49,16 +35,6 @@ function isScalarArrayWithoutNullish(value: readonly unknown[]): boolean {
 	return true;
 }
 
-/**
- * Recursively strips `null` from a generated Tauri payload so fields that were
- * typed as `T | null` on the wire become `T | undefined` (optional) in app code.
- *
- * The return type is `NullToOptionalDeep<T>` — the type-level twin of this
- * runtime transform. Typing the return this way means every downstream
- * normalizer can return a UI-friendly type (e.g. `SettingsSnapshot =
- * NullToOptionalDeep<GeneratedSettingsSnapshot>`) without an `as` cast at the
- * call site.
- */
 function normalizeNullish<T>(value: T): NullToOptionalDeep<T> {
 	if (value == null) {
 		return undefined as NullToOptionalDeep<T>;

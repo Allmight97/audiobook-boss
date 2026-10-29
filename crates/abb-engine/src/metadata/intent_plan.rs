@@ -12,8 +12,6 @@ pub enum CoverArtPassthroughPolicy {
 }
 
 impl CoverArtPassthroughPolicy {
-    /// The tags read from a source already hold its cover, so only the intent
-    /// says whether the cover a title carries was chosen by the user.
     pub(crate) fn from_intent_patch(patch: Option<&MetadataIntentPatch>) -> Self {
         match patch.and_then(|patch| patch.cover_art.as_ref()) {
             Some(super::PatchOp::Clear) => Self::SuppressAfterExplicitClear,
@@ -64,8 +62,6 @@ pub(crate) fn plan_metadata_outcome(
     plan_metadata_outcome_from(source, request)
 }
 
-/// `plan_metadata_outcome` over source tags already read from
-/// `request.input_path`.
 pub(crate) fn plan_metadata_outcome_from(
     source: Option<AudiobookMetadata>,
     request: MetadataOutcomeRequest<'_>,
@@ -126,7 +122,6 @@ fn resolve_effective_processing_metadata(
         (None, Some(patch)) => patch.to_processing_overlay()?,
         (None, None) => return Ok(None),
     };
-    // Outputs carry a current series sort key unless the user stated one.
     if patch.is_none_or(|patch| patch.album_sort.is_none()) {
         effective.album_sort = crate::metadata::processing_album_sort(&effective);
     }

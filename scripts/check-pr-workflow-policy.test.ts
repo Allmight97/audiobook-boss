@@ -41,7 +41,6 @@ jobs:
 `;
 
 describe('check-pr-workflow-policy', () => {
-	// Fixture is 64ec2240^:.github/workflows/ci.yml, before drafts were skipped.
 	it('fails the draft leak in the vendored pre-guard workflow', () => {
 		const text = readFileSync(
 			path.join(repoRoot, 'scripts/fixtures/ci-64ec2240-parent.yml'),

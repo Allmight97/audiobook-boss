@@ -13,18 +13,12 @@ mod types;
 
 use serde::{Deserialize, Serialize};
 
-/// Processing stage enumeration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 pub enum ProcessingStage {
-    /// Analyzing input files.
     Analyzing,
-    /// Converting audio files.
     Converting,
-    /// Writing metadata.
     WritingMetadata,
-    /// Process completed.
     Completed,
-    /// Process failed.
     Failed(String),
 }
 

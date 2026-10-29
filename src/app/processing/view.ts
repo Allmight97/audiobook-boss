@@ -1,7 +1,6 @@
 import type { JobListItem } from './viewTypes';
 
 export type StatusView = {
-	/** The address of the running preview's artwork. */
 	readonly coverArtSrc: string | null;
 	readonly jobItems: ReadonlyArray<JobListItem>;
 	readonly progressPercentage: number;

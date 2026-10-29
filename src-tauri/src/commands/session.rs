@@ -8,8 +8,6 @@ use serde::Serialize;
 use crate::commands::{CommandResult, EngineState};
 use crate::intent_order::{IntentOrder, Refused};
 
-/// Orders the attached frontend's intents. Session and settings intents are
-/// numbered separately because they change separate state.
 #[derive(Default)]
 pub struct FrontendLink {
     clients: AtomicU64,
@@ -19,7 +17,6 @@ pub struct FrontendLink {
 
 type Link<'a> = tauri::State<'a, FrontendLink>;
 
-/// What a starting frontend needs: who it is to this host, and the state to show.
 #[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FrontendAttachment {
@@ -41,7 +38,6 @@ fn refused(reason: Refused) -> AppErrorEnvelope {
     AppErrorEnvelope::from(&AppError::InvalidInput(message.to_string()))
 }
 
-/// Attaches a starting frontend and returns the whole session and settings.
 #[tauri::command]
 #[specta::specta]
 pub async fn attach_frontend(

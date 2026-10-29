@@ -1,12 +1,3 @@
-//! execute.rs
-//!
-//! Execution stage for audio processing.
-//!
-//! This module owns the conversion/merge boundary in the processing pipeline:
-//! it transitions progress into `Converting`, builds a `MediaProcessingPlan`,
-//! dispatches to the selected processor implementation, and performs
-//! cancellation checks before returning the merged output path.
-
 use std::path::{Path, PathBuf};
 
 use crate::audio::constants::TEMP_MERGED_FILENAME;
@@ -18,7 +9,6 @@ use super::engine;
 use super::plan::MediaProcessingPlan;
 use super::ProcessingWorkflow;
 
-/// Executes core audio processing operations (merge / convert).
 pub(crate) fn execute_processing(
     context: &ProcessingContext,
     workflow: &ProcessingWorkflow,
@@ -48,7 +38,6 @@ pub(crate) fn execute_processing(
     Ok(merged_output)
 }
 
-/// Merges audio files with context-based progress tracking.
 pub(crate) fn merge_audio_files_with_context(
     temp_dir: &Path,
     context: &ProcessingContext,

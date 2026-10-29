@@ -5,7 +5,6 @@ export type RemoteSourceDiagnostic = AcquisitionJob['diagnostics'][number];
 
 const STAGED_FILES_REMOVED_SUFFIX = 'Staged remote files were removed.';
 
-/** Words how a settled job's files reached the session; `null` when it never got that far. */
 export function handoffMessage(job: AcquisitionJob): string | null {
 	const handoff = job.handoff;
 	if (!handoff) {

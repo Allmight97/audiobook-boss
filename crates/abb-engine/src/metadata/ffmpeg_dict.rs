@@ -1,5 +1,3 @@
-//! FFmpeg metadata dictionary helpers for AudiobookMetadata.
-
 use super::{AlbumSortWriteAction, AudiobookMetadata, MetadataWritePlan};
 use crate::errors::Result;
 use crate::metadata::metadata_sinks::{
@@ -56,8 +54,6 @@ pub(crate) fn merge_metadata_with_plan<'a>(
     Ok(merged)
 }
 
-/// Sets global metadata on output format context
-/// This applies metadata at the container level
 pub fn set_container_metadata(
     octx: &mut ff::format::context::Output,
     metadata: &AudiobookMetadata,

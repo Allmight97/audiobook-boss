@@ -1,28 +1,18 @@
-//! Shared input path validation for audio and image files
-//!
-//! Ensures a provided path is a regular file, has a supported extension,
-//! contains no disallowed characters, and returns a canonical absolute path.
-
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 
-/// Validate a single input audio file path and return its canonical absolute path.
 pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
-    // Strip invalid chars (CR/LF/NUL)
     validate_path_characters(path)?;
 
     // Reject symlinks before any other checks to prevent extension bypass.
     reject_symlink(path, "audio")?;
 
-    // Check exists and is regular file
     validate_file_existence_and_type(path)?;
 
-    // Extension whitelist check
     validate_audio_extension(path)?;
 
-    // Canonicalize to prevent path traversal and resolve symlinks
     let canonical = path.canonicalize().map_err(|e| {
         AppError::FileValidation(format!(
             "Cannot canonicalize path '{}': {}",
@@ -34,8 +24,6 @@ pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
     Ok(canonical)
 }
 
-/// Validate a single input image file path and return its canonical absolute path.
-/// Used for cover art loading to prevent path traversal attacks.
 pub fn validate_input_image_path(path: &Path) -> Result<PathBuf> {
     validate_path_characters(path)?;
     reject_symlink(path, "image")?;
@@ -53,7 +41,6 @@ pub fn validate_input_image_path(path: &Path) -> Result<PathBuf> {
     Ok(canonical)
 }
 
-/// Validate a local import directory and return its canonical absolute path.
 pub(super) fn validate_input_directory_path(path: &Path) -> Result<PathBuf> {
     validate_path_characters(path)?;
     reject_symlink(path, "directory")?;
@@ -98,7 +85,6 @@ fn reject_symlink(path: &Path, kind: &str) -> Result<()> {
     Ok(())
 }
 
-/// Validates path doesn't contain invalid characters (CR/LF/NUL)
 fn validate_path_characters(path: &Path) -> Result<()> {
     if path_contains_invalid_character(path) {
         return Err(AppError::FileValidation(
@@ -127,7 +113,6 @@ fn path_contains_invalid_character(path: &Path) -> bool {
         .any(|unit| matches!(unit, 0x000A | 0x000D | 0x0000))
 }
 
-/// Validates file exists and is a regular file
 fn validate_file_existence_and_type(path: &Path) -> Result<()> {
     let metadata = fs::metadata(path).map_err(|e| {
         AppError::FileValidation(format!(
@@ -147,13 +132,11 @@ fn validate_file_existence_and_type(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Validates audio file extension against whitelist
 fn validate_audio_extension(path: &Path) -> Result<()> {
     super::extensions::audio_format_for_path(path)?;
     Ok(())
 }
 
-/// Validates image file extension against whitelist
 fn validate_image_extension(path: &Path) -> Result<()> {
     let ext = path
         .extension()

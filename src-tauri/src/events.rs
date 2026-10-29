@@ -1,6 +1,3 @@
-//! The engine's events as Tauri events. Names and payload shapes here are the
-//! frontend contract; `ipc_contract.rs` registers them for binding generation.
-
 use abb_engine::app_settings::SettingsSnapshot;
 use abb_engine::session::SessionUpdate;
 use abb_engine::work_runtime::WorkOperationsUpdate;
@@ -39,7 +36,6 @@ impl tauri_specta::Event for SettingsUpdateEvent {
     const NAME: &'static str = "settings-update";
 }
 
-/// Forwards engine events to every webview.
 pub struct TauriEvents(pub tauri::AppHandle);
 
 impl TauriEvents {

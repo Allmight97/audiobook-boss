@@ -1,10 +1,3 @@
-//! What each title's audio would become: its resolved audio plan, the chapter
-//! plans it carries, and its estimated output size.
-//!
-//! Resolving a plan reads file facts, so the state hands out tickets and
-//! accepts their results only while the title still has the request and
-//! sources the ticket was made for.
-
 use std::collections::HashMap;
 
 use serde::Serialize;
@@ -16,11 +9,9 @@ use crate::audio::{
 use crate::metadata::{ChapterPlan, CueStatus};
 use crate::processing::AudioHandling;
 
-/// A title's resolved audio plan.
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum TitlePlan {
-    /// Being resolved.
     Pending,
     Resolved {
         plan: TitleAudioPlan,
@@ -47,8 +38,6 @@ pub enum SizeEstimate {
     VariesWithAudio,
 }
 
-/// The chapter plans one title's sources carry into processing. A CUE sheet
-/// waiting for confirmation, or a merged title with CUE chapters, refuses.
 pub(crate) fn chapter_plans_for(
     sources: &[AudioFile],
 ) -> Result<HashMap<String, ChapterPlan>, String> {
@@ -78,7 +67,6 @@ pub(crate) fn chapter_plans_for(
     Ok(plans)
 }
 
-/// Work to resolve one title's plan.
 #[derive(Debug, Clone)]
 pub(crate) struct PlanTicket {
     pub(crate) title_id: String,
@@ -88,7 +76,6 @@ pub(crate) struct PlanTicket {
 }
 
 impl PlanTicket {
-    /// Resolves the plan; reads source file facts to check chapter plans.
     pub(crate) fn resolve(&self) -> Result<TitleAudioPlan, PlanFailure> {
         let chapter_plans = chapter_plans_for(&self.sources)?;
         let mut info = FileListInfo::from_files(self.sources.clone());
@@ -100,7 +87,6 @@ impl PlanTicket {
     }
 }
 
-/// Why a title's plan failed.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PlanFailure {
     pub(crate) message: String,
@@ -116,7 +102,6 @@ impl From<String> for PlanFailure {
     }
 }
 
-/// One title's inputs to its plan.
 pub(crate) struct PlanInput<'a> {
     pub(crate) title_id: &'a str,
     pub(crate) request: &'a TitleAudioRequest,
@@ -130,13 +115,10 @@ pub(crate) struct Plans {
 }
 
 fn plan_key(request: &TitleAudioRequest, sources: &[AudioFile]) -> String {
-    // The plan reads the request and each source's facts, chapters included.
     serde_json::to_string(&(request, sources)).unwrap_or_default()
 }
 
 impl Plans {
-    /// Brings plans in line with the titles. Returns the plans to resolve:
-    /// those whose request or sources changed since they were resolved.
     pub(crate) fn refresh<'a>(
         &mut self,
         titles: impl IntoIterator<Item = PlanInput<'a>>,
@@ -171,7 +153,6 @@ impl Plans {
         tickets
     }
 
-    /// Accepts a resolved plan if the title still has what it was resolved for.
     pub(crate) fn finish(
         &mut self,
         ticket: &PlanTicket,
@@ -206,10 +187,6 @@ fn sum_known(values: impl Iterator<Item = Option<f64>>) -> Option<f64> {
     values.sum()
 }
 
-/// The estimated size of a title's output: the sources' bytes when they are
-/// kept, or duration times target bitrate plus 3 percent when encoded. Auto
-/// has no estimate until its plan says which it will be, and a missing
-/// source fact means no estimate.
 pub(crate) fn estimate_size(
     request: &TitleAudioRequest,
     plan: &TitlePlan,

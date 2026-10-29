@@ -92,16 +92,6 @@ export function normalizeAppError(
 	};
 }
 
-/**
- * Canonical Result shape produced by specta-generated command bindings:
- *
- *     { status: "ok"; data: T } | { status: "error"; error: E }
- *
- * See `src/lib/generated/tauri.ts`'s `export type Result<T, E>` for the
- * authoritative declaration. Anything else returned from a generated command
- * is a bare value (e.g. `get_max_concurrent_jobs: number`) and flows through
- * unchanged.
- */
 type SpectaResult = { status: 'ok'; data?: unknown } | { status: 'error'; error?: unknown };
 
 function isSpectaResult(value: unknown): value is SpectaResult {
@@ -141,7 +131,6 @@ export function toUserMessage(
 	return normalized.message || fallback;
 }
 
-/** True when a cause carries the engine's typed cancellation category. */
 export function isCancellation(cause: unknown): boolean {
 	return normalizeAppError(cause).category === 'cancellation';
 }

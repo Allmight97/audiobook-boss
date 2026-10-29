@@ -1,5 +1,3 @@
-//! Metadata batch save: writes each file's intent as one WorkRuntime operation.
-
 use crate::audio::validate_input_audio_path;
 use crate::errors::{sanitize_path_str_for_display, AppError, AppErrorEnvelope, Result};
 use crate::host::Host;
@@ -26,8 +24,6 @@ pub(crate) enum MetadataSaveResultStatus {
     Failed,
 }
 
-/// Per-file outcome the session uses to clear or retain accepted edits.
-/// The Work Center renders the operation child's terminal message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MetadataSaveResultEntry {
     pub input_index: usize,
@@ -38,7 +34,6 @@ pub(crate) struct MetadataSaveResultEntry {
     pub rewrite: Option<Rewrite>,
 }
 
-/// A tag write's effect on a file's source fingerprint.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Rewrite {
     pub before: String,
@@ -51,8 +46,6 @@ pub(crate) struct MetadataSaveBatchResult {
     pub results: Vec<MetadataSaveResultEntry>,
 }
 
-/// A finished batch plus each file's `(input_index, status, reason)` terminal
-/// for its WorkRuntime child.
 struct SavedMetadataBatch {
     result: MetadataSaveBatchResult,
     children: Vec<(usize, ProcessResultStatus, String)>,
@@ -127,11 +120,6 @@ pub(crate) async fn save_metadata_batch(
         ));
     }
 
-    // Metadata save is a WorkRuntime operation rendered in the Work Center.
-    // The caller still awaits the per-file `MetadataSaveBatchResult` (drafts
-    // clear only for files that succeeded), while progress and terminal truth
-    // flow through the operation snapshot. Cancellation is operation-scoped
-    // (`cancel_work_operation`).
     let file_paths: Vec<String> = items.iter().map(|item| item.file_path.clone()).collect();
     let (operation_id, cancel_flag) = runtime.begin_metadata_save_operation(host, &file_paths)?;
 
@@ -277,7 +265,6 @@ where
                 ));
             }
             Err(error) => {
-                // The envelope message is the sanitized, user-facing reason.
                 let reason = AppErrorEnvelope::from(error).message;
                 log::error!("Failed metadata save: {display_name}: {reason}");
                 emit_progress(MetadataSaveProgress {
@@ -382,7 +369,6 @@ mod tests {
         assert_eq!(progress[1].stage, EventStage::Failed);
         assert_eq!(progress[2].stage, EventStage::Writing);
         assert_eq!(progress[3].stage, EventStage::Failed);
-        // Each failed child keeps its own actionable reason for Work Center.
         for (child, name) in batch
             .children
             .iter()

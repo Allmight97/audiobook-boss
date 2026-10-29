@@ -1,4 +1,3 @@
-//! Bounded Matroska attachment scan; audio clusters are skipped without demuxing.
 use super::embedded_cover::{cover_error, read_exact_at, MAX_CONTAINER_RECORDS};
 use super::thumbnail::THUMBNAIL_MAX_ENCODED_BYTES;
 use crate::errors::Result;

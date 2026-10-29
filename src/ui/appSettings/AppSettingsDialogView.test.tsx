@@ -16,7 +16,6 @@ describe('AppSettingsDialogView', () => {
 		runtime = undefined;
 	});
 
-	/** Opens the dialog over an engine prepared by `prepare`. */
 	async function renderOpenDialog(
 		prepare: (engine: FakeEngine) => void = () => {},
 	): Promise<AppRuntime> {
@@ -65,7 +64,6 @@ describe('AppSettingsDialogView', () => {
 				edit: { field: 'encoder', value: 'faac' },
 			}),
 		);
-		// The engine applies the choice and records it; the write fails.
 		engine.change((state) => {
 			state.audio.defaults.choice.encoder = 'faac';
 			state.audio.defaults.facts.effectiveEncoder = 'faac';
@@ -187,7 +185,6 @@ describe('AppSettingsDialogView', () => {
 				intent: { kind: 'editConnection', baseUrl: null, categoryIds: [], apiKey: null },
 			}),
 		);
-		// The engine refused an empty choice and kept the category.
 		engine.change((state) => {
 			state.remote.connection.emptyCategoriesRefused = true;
 		});

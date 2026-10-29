@@ -91,7 +91,6 @@ fn assert_ffprobe_tag(
 
 const SAMPLE_RATE: u32 = 44_100;
 
-/// One headless engine over throwaway roots, shared by this test process.
 fn test_engine() -> &'static abb_engine::Engine {
     static ENGINE: std::sync::OnceLock<(TempDir, abb_engine::Engine)> = std::sync::OnceLock::new();
     &ENGINE
@@ -122,7 +121,6 @@ fn preflight_processing_plan(
     )?)
 }
 
-/// An encoder-sized zero pad must not become playable source audio.
 #[tokio::test]
 async fn native_aac_reprocessing_keeps_the_original_playable_sample_count() {
     for settings in [
@@ -441,7 +439,6 @@ async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() 
     );
 }
 
-/// Writes a mono 16-bit PCM WAV of `seconds` of sine at `freq_hz`.
 pub(crate) fn write_sine_wav(path: &Path, seconds: f64, freq_hz: f64) {
     let total_samples = (seconds * f64::from(SAMPLE_RATE)) as u32;
     let data_len = total_samples * 2;
@@ -478,8 +475,6 @@ pub(crate) fn native_encoder_settings() -> EncoderSettings {
     }
 }
 
-/// Isolated on-disk lane: fixture inputs, output destination, and a private
-/// processing workspace root, all inside one TempDir.
 pub(crate) struct MediaLane {
     tmp: TempDir,
     inputs: Vec<PathBuf>,
@@ -507,8 +502,6 @@ impl MediaLane {
         }
     }
 
-    /// A lane whose inputs are pre-built media files (e.g. a committed M4B
-    /// from an earlier engine pass, or a synthesized MP3) instead of WAVs.
     fn for_inputs(inputs: Vec<PathBuf>) -> Self {
         let tmp = TempDir::new().expect("create media lane tempdir");
         Self {
@@ -519,13 +512,11 @@ impl MediaLane {
         }
     }
 
-    /// Same lane, different encoder route (e.g. Apple AAC via AudioToolbox).
     fn with_encoder(mut self, encoder_settings: EncoderSettings) -> Self {
         self.encoder_settings = encoder_settings;
         self
     }
 
-    /// Same lane, explicit output sample rate (exercises the resample path).
     fn with_sample_rate(mut self, sample_rate: SampleRateConfig) -> Self {
         self.sample_rate = sample_rate;
         self
@@ -569,7 +560,6 @@ impl MediaLane {
         )
     }
 
-    /// Runs the engine on this lane's inputs and returns the committed path.
     pub(crate) async fn process(&self, metadata: Option<AudiobookMetadata>) -> PathBuf {
         execute_audio_engine(self.execution_request(ProcessingSession::new(), metadata))
             .await
@@ -577,7 +567,6 @@ impl MediaLane {
         self.output_path()
     }
 
-    /// Directories left under the private workspace root after a run.
     fn residual_workspace_dirs(&self) -> Vec<PathBuf> {
         let root = self.workspace_root();
         if !root.exists() {
@@ -607,8 +596,6 @@ async fn import_configure_process_produces_decodable_m4b_with_truthful_duration(
         "engine success message names the committed final path, got: {result}"
     );
 
-    // Re-import the artifact through the same public probe the app uses:
-    // proves container validity and decodability, not just file presence.
     let probe = get_file_list_info(&[&output]).expect("re-probe committed M4B");
     assert_eq!(probe.valid_count, 1, "output M4B probes as valid audio");
     let drift = (probe.total_duration - expected_duration).abs();
@@ -666,8 +653,6 @@ async fn metadata_saved_during_processing_rereads_from_output_artifact() {
     assert_eq!(reread.subseries_part.as_deref(), Some("1"));
 }
 
-/// A remux save that fails after creating its temporary output leaves the
-/// source untouched and no `.abb_meta_*` sibling beside it.
 #[test]
 fn failed_remux_save_leaves_source_bytes_and_no_temporary_residue() {
     let dir = TempDir::new().expect("temp dir");
@@ -735,9 +720,6 @@ async fn cancellation_yields_terminal_error_without_artifact_or_staging_residue(
     );
 }
 
-/// #281 artifact round-trip on a real committed artifact: normal saves
-/// preserve artifact fields; explicit clear intent removes exactly the
-/// cleared fields.
 #[tokio::test]
 async fn artifact_fields_survive_normal_saves_and_clear_only_by_explicit_intent() {
     let lane = MediaLane::with_fixtures(&[1.0]);
@@ -762,7 +744,6 @@ async fn artifact_fields_survive_normal_saves_and_clear_only_by_explicit_intent(
     assert_eq!(written.track, Some((7, Some(42))));
     assert_eq!(written.disk, Some((1, Some(2))));
 
-    // A normal save that only touches a primary field preserves artifacts.
     let title_only = MetadataIntentPatch {
         title: Some(PatchOp::Set("Renamed Artifact Book".to_string())),
         ..Default::default()
@@ -779,7 +760,6 @@ async fn artifact_fields_survive_normal_saves_and_clear_only_by_explicit_intent(
     assert_eq!(preserved.track, Some((7, Some(42))));
     assert_eq!(preserved.disk, Some((1, Some(2))));
 
-    // Explicit clear intent removes exactly the cleared artifact fields.
     let clear_artifacts = MetadataIntentPatch {
         album_sort: Some(AlbumSortPatchOp::Clear),
         comment: Some(PatchOp::Clear),
@@ -842,7 +822,6 @@ async fn artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route() {
     finalize_artifact_metadata(&output, Some(&metadata), Some(&passthrough))
         .expect("artifact metadata finalize");
 
-    // ABB readback: the same reader the app uses after import.
     let read_back = read_metadata(&output).expect("read finalized artifact");
     assert_eq!(read_back.title.as_deref(), Some("Finalized Title"));
     assert_eq!(
@@ -857,7 +836,6 @@ async fn artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route() {
         "album_sort must survive artifact finalize on the MP4 route"
     );
 
-    // External-reader truth, not just ABB readback.
     let tags = ffprobe_format_tags(&output);
     assert_eq!(
         ffprobe_tag_ci(&tags, "title").as_deref(),
@@ -879,7 +857,6 @@ async fn artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route() {
         "album-sort must be externally visible; full tags: {tags:?}"
     );
 
-    // Chapters written during finalize survive the MP4 tag rewrite.
     let artifact_chapters = extract_passthrough_metadata(&[PassthroughSource {
         chapters: None,
         path: output.clone(),
@@ -919,7 +896,6 @@ async fn metadata_save_writes_external_ffprobe_visible_mp4_tags() {
     #[cfg(unix)]
     let inode_before = std::os::unix::fs::MetadataExt::ino(&fs::metadata(&output).expect("stat"));
     save_metadata_intent(&output, &patch).expect("metadata save through mp4ameta path");
-    // A new inode at the path proves the save wrote a copy and swapped it in.
     #[cfg(unix)]
     assert_ne!(
         std::os::unix::fs::MetadataExt::ino(&fs::metadata(&output).expect("stat")),
@@ -1246,9 +1222,6 @@ fn parse_mdhd(bytes: &[u8], start: usize, end: usize) -> (u32, u64) {
     }
 }
 
-/// The user's dominant real input is M4B, not WAV. Two-pass: the engine's own
-/// committed output becomes the single input for a second run — exercising
-/// AAC decode → encode and the MP4 tag read path with no committed media.
 #[tokio::test]
 async fn m4b_input_processes_with_metadata_intact_and_cover_passthrough() {
     let wav_lane = MediaLane::with_fixtures(&[1.5]);
@@ -1261,8 +1234,6 @@ async fn m4b_input_processes_with_metadata_intact_and_cover_passthrough() {
     let m4b_lane = MediaLane::for_inputs(vec![m4b_input]);
     let mut second_pass = AudiobookMetadata::new();
     second_pass.title = Some("Second Pass".to_string());
-    // No cover art in pass B: with the Preserve policy the source M4B's
-    // embedded cover must pass through to the new artifact.
     let output = m4b_lane.process(Some(second_pass)).await;
 
     let probe = get_file_list_info(&[&output]).expect("re-probe reprocessed M4B");
@@ -1285,8 +1256,6 @@ async fn m4b_input_processes_with_metadata_intact_and_cover_passthrough() {
     assert!(!cover.is_empty(), "passed-through cover art has bytes");
 }
 
-/// Cover art supplied with the save must land in the committed artifact and
-/// read back through the same public metadata reader the app uses.
 #[tokio::test]
 async fn cover_art_saved_during_processing_rereads_from_output_artifact() {
     let lane = MediaLane::with_fixtures(&[1.0]);
@@ -1334,9 +1303,6 @@ async fn embedded_cover_thumbnail_is_bounded_jpeg_and_coverless_artifact_returns
     );
 }
 
-/// Chapter truth across the two behaviors the pipeline owns: multi-file
-/// merges synthesize one chapter per source, and reprocessing a chaptered
-/// M4B as a single input preserves the embedded chapters (#341 residual).
 #[tokio::test]
 async fn chapters_synthesize_on_merge_and_survive_reprocessing() {
     let merge_lane = MediaLane::with_fixtures(&[1.5, 1.0]);
@@ -1406,9 +1372,6 @@ async fn qt_chapter_track_times_span_the_book_when_cover_art_is_muxed() {
     );
 }
 
-/// Synthesizes a mono sine MP3 with the environment's FFmpeg CLI. Fixture
-/// generation stays independent of ABB's linked decoder/encoder feature set;
-/// the test below still exercises the real linked MP3 import path.
 fn write_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
     write_sine_mp3_with(path, seconds, freq_hz, &["-b:a", "64k"]);
 }
@@ -1456,8 +1419,6 @@ fn write_chaptered_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
     mux_chapters(&audio, &[("Opening", 0, 450), ("Closing", 450, 900)], path);
 }
 
-/// Copies every stream of `audio` into `path` with `chapters` (title, start
-/// ms, end ms) as its embedded chapters, exactly as given.
 fn mux_chapters(audio: &Path, chapters: &[(&str, i64, i64)], path: &Path) {
     let metadata = path.with_extension("ffmetadata");
     let mut text = ";FFMETADATA1\n".to_string();
@@ -1591,9 +1552,6 @@ fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
     );
 }
 
-/// MP3 is the other common real input. The fixture is a genuine lame-encoded
-/// MP3 synthesized at test time; the assertions mirror the M4B-input test:
-/// decodable output, truthful duration, and tags re-read from the artifact.
 #[tokio::test]
 async fn mp3_input_processes_with_metadata_intact() {
     let tmp = TempDir::new().expect("mp3 fixture tempdir");
@@ -1979,7 +1937,6 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
     assert_eq!(reread.title.as_deref(), Some("Apple AAC Route"));
 }
 
-/// Writes a stereo 16-bit PCM WAV with a distinct sine per channel.
 fn write_stereo_sine_wav(path: &Path, seconds: f64, left_hz: f64, right_hz: f64) {
     let total_samples = (seconds * f64::from(SAMPLE_RATE)) as u32;
     let data_len = total_samples * 4;
@@ -2007,9 +1964,6 @@ fn write_stereo_sine_wav(path: &Path, seconds: f64, left_hz: f64, right_hz: f64)
     fs::write(path, bytes).expect("write stereo WAV fixture");
 }
 
-/// Rate-converted merge: the resample path (44.1kHz WAV → 22.05kHz output)
-/// must keep truthful duration and the requested output rate. Guards the
-/// resampler + tail-flush boundary the same-rate lane never exercises.
 #[tokio::test]
 async fn rate_converted_merge_keeps_truthful_duration_and_rate() {
     let lane =
@@ -2093,14 +2047,12 @@ async fn assert_auto_merge_stereo(settings: EncoderSettings) {
     }
 }
 
-/// One CUE case: supplied names/start positions survive encoding and final tags.
 #[tokio::test]
 async fn cue_chapters_survive_mp3_encoding_and_finalization() {
     let tmp = TempDir::new().expect("CUE fixture directory");
     let mp3 = tmp.path().join("book.mp3");
     write_sine_mp3(&mp3, 1.5, 440.0);
     fs::write(tmp.path().join("book.cue"), "FILE \"stale.mp3\" MP3\nTRACK 01 AUDIO\nTITLE \"Opening\"\nINDEX 01 00:00:00\nTRACK 02 AUDIO\nTITLE \"Near end\"\nINDEX 01 00:01:36\n").expect("write CUE");
-    // The session's plan for the title uses the chapter choice, as preflight does.
     let engine = test_engine();
     let plan_after = |intent| {
         let engine = engine.clone();
@@ -2167,8 +2119,6 @@ async fn cue_chapters_survive_mp3_encoding_and_finalization() {
     assert!(lane.residual_workspace_dirs().is_empty());
 }
 
-/// The chapters an import accepts for `path`: its embedded chapters with the
-/// last one ending at the probed audio length.
 fn accepted_chapters(path: &Path) -> Vec<(Option<String>, i64, i64)> {
     get_file_list_info(&[path]).expect("import fixture").files[0]
         .chapter_plan
@@ -2185,8 +2135,6 @@ fn duration_ms(path: &Path) -> i64 {
     (info.files[0].duration.expect("fixture length") * 1000.0).round() as i64
 }
 
-/// Runs one title the way an export does: the production planner reads the
-/// sources and their tags, then the planned job executes.
 async fn run_planned_title(
     payload: abb_engine::processing::ProcessPayload,
     metadata: Option<std::collections::HashMap<String, MetadataIntentPatch>>,
@@ -2313,7 +2261,6 @@ async fn drifting_embedded_chapters_convert_on_every_route() {
                 .collect::<Vec<_>>()
         };
         assert_eq!(listed(plan), expected, "{name}");
-        // An ignored CUE falls back to these, so they must be the repaired ones.
         assert_eq!(listed(&file.chapters), expected, "{name}");
         let request = TitleAudioRequest {
             format,
@@ -2409,8 +2356,6 @@ fn a_joined_mp3_imports_with_its_chapters_and_saves_its_tags() {
     );
 }
 
-/// A Preserve that rewrites a same-container file's chapters carries the
-/// file's own pictures through unchanged: none of them is a chosen cover.
 #[tokio::test]
 async fn preserving_with_repaired_chapters_keeps_every_source_picture() {
     use abb_engine::audio::{AudioIntent, AudiobookFormat, TitleAudioRequest};
@@ -2537,8 +2482,6 @@ fn oversized_jpeg(path: &Path) -> Vec<u8> {
     bytes
 }
 
-/// A joined title's source cover that cannot be prepared is left off with a
-/// warning; a cover the user chose for the same title still stops it.
 #[tokio::test]
 async fn joined_title_drops_an_unpreparable_source_cover_but_not_a_chosen_one() {
     use abb_engine::audio::{AudioIntent, AudiobookFormat, TitleAudioRequest};
@@ -2617,8 +2560,6 @@ async fn joined_title_drops_an_unpreparable_source_cover_but_not_a_chosen_one() 
     assert!(error.to_string().contains("Image"), "{error}");
 }
 
-/// One file whose chapters cannot be repaired is marked with the reason; the
-/// rest of the same import still lands.
 #[tokio::test]
 async fn import_marks_a_file_with_unrepairable_chapters_and_keeps_the_rest() {
     let tmp = TempDir::new().expect("mixed import workspace");
@@ -2834,7 +2775,6 @@ async fn faac_preview_omits_chapters_and_rejects_unsupported_rate_without_residu
     assert!(invalid.residual_workspace_dirs().is_empty());
 }
 
-/// Apple's HE reader must retain short clips and the tail after final tag writes.
 #[cfg(target_os = "macos")]
 #[tokio::test]
 async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
@@ -2885,8 +2825,6 @@ async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
     }
 }
 
-/// Re-import must preserve position and the final audio,
-/// including clips whose last playable sample needs an extra HE access unit.
 #[tokio::test]
 async fn faac_reimport_preserves_audio_alignment_and_tail() {
     assert_faac_reimport(
@@ -2944,7 +2882,6 @@ async fn faac_lc_and_auto_vbr_reimport_preserve_audio_interval() {
     }
 }
 
-/// Deterministic noise has one correlation peak, so a shifted decode shows.
 fn fill_with_filtered_noise(pcm16: &mut [u8]) {
     let mut state = 42u32;
     let mut filtered = 0.0_f64;
@@ -3033,7 +2970,6 @@ async fn assert_faac_reimport(
             "declared output channels"
         );
         let decoded = decode_pcm_f32(&second_output);
-        // A forced-stereo output carries the mono reference in each channel.
         let decoded = if output_settings.channels == ChannelConfig::Stereo {
             decoded
                 .as_chunks::<2>()
@@ -3065,7 +3001,6 @@ async fn assert_faac_reimport(
 }
 
 fn best_signal_lag(reference: &[f32], decoded: &[f32], radius: i32) -> i32 {
-    // Compare a fixed interior window, so silence at either edge cannot improve a score.
     let start = radius as usize;
     let end = reference.len().min(decoded.len()) - radius as usize;
     (-radius..=radius)
@@ -3780,7 +3715,6 @@ async fn default_audio_plan_reduces_large_aac_but_explicit_keep_never_encodes() 
 async fn encoding_rejects_a_non_anchor_source_replaced_after_planning() {
     let lane = MediaLane::with_fixtures(&[0.2, 0.2]);
     let request = lane.execution_request(ProcessingSession::new(), None);
-    // Simulate replacement while this title waits in the processing queue.
     write_sine_wav(&lane.inputs[1], 0.4, 880.0);
     let replacement = fs::read(&lane.inputs[1]).expect("read replacement source");
     let error = execute_audio_engine(request)

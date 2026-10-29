@@ -4,7 +4,6 @@
 # unchanged. Policy and exceptions live in scripts/AGENTS.md (Dependencies).
 minimumReleaseAge = 864000
 
-# Keep unrelated transitive resolutions gated during explicit prerelease updates.
 minimumReleaseAgeExcludes = [
   # One-time early install for the Oct 25, 2026 dependency refresh, J-approved
   # Oct 25, 2026. scripts/early-install.test.ts fails once the date passes.

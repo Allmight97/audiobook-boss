@@ -35,7 +35,6 @@ export type AppSettings = Omit<
 	pinnedDefaults?: PinnedDefaults;
 };
 
-/** The settings in effect and whether they are saved. Rust owns the shape. */
 export type SettingsSnapshot = Omit<
 	NullToOptionalDeep<GeneratedSettingsSnapshot>,
 	'settings' | 'startupDefaults'

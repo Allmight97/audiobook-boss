@@ -1,5 +1,3 @@
-//! Download lifecycle harness: a local TLS stub stands in for Audible's CDN, so
-//! resume, retry exhaustion, and cancellation are proven without an account.
 use super::*;
 use crate::remote_source::scoped_output::partial_sibling;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -10,11 +8,9 @@ const BODY_LEN: usize = 1000;
 
 #[derive(Clone, Copy)]
 enum Serve {
-    /// Send the requested range in full.
     Full,
     /// Send this many bytes of the requested range, then close the connection.
     Truncate(usize),
-    /// Send this many bytes, pause, then send the rest.
     Pause(usize),
     /// Read the request, then close without a response.
     Close,

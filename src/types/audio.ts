@@ -1,4 +1,3 @@
-// TypeScript interfaces for audio processing
 import type {
 	ChapterSpec as GeneratedAudioChapter,
 	AudioHandling as GeneratedAudioHandling,
@@ -59,7 +58,6 @@ export type MaxConcurrentJobsCapabilities =
 	NullToOptionalDeep<GeneratedMaxConcurrentJobsCapabilities>;
 export type SupportedAudioImportMetadata = GeneratedSupportedAudioImportMetadata;
 
-// Output naming options for folder/filename generation
 export type OutputNamingConfig = NullToOptionalDeep<GeneratedOutputNamingConfig>;
 
 export type ProcessResultStatus = GeneratedProcessResultStatus;
@@ -80,7 +78,6 @@ export type ProcessCommandResult = Omit<
 
 export type BitrateKbps = EncoderSettings['bitrateKbps'];
 
-// Utility functions
 export const formatDuration = (seconds: number | undefined): string => {
 	if (seconds == null || Number.isNaN(seconds)) {
 		return '---';

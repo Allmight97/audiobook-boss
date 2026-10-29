@@ -160,8 +160,6 @@ const blobBytes = (spec) => {
 	const size = gitOk(['cat-file', '-s', spec]);
 	return size === null ? null : Number(size.trim());
 };
-// A file opts out with the pragma near its top, in whatever comment syntax
-// its language uses.
 const ignored = (spec) =>
 	(gitOk(['cat-file', 'blob', spec]) ?? '')
 		.split('\n', pragmaLines)
@@ -236,7 +234,7 @@ const inRepo = (filePath) => {
 	try {
 		return relative(root, realpathSync(filePath));
 	} catch {
-		return relative(root, filePath); // Deleted, so nothing to measure.
+		return relative(root, filePath);
 	}
 };
 

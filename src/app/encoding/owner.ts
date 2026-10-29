@@ -6,15 +6,9 @@ import { editFor, projectView, type EncodingField, type EncodingView } from './p
 
 export type { EncodingField, EncodingView } from './project';
 
-/**
- * The engine owns the audio choices: the defaults new titles start from and
- * each title's own choice, with the rules for editing them. This owner shows
- * them in the encoder panel's terms and sends edits.
- */
 export type EncodingOwner = {
 	/** The request processing receives for `file`, or the defaults' request. */
 	audioRequest(file?: AudioFile): TitleAudioRequest;
-	/** What the engine resolved `file`'s audio to. */
 	plan(file: AudioFile): TitlePlan;
 	titleView(file: AudioFile): EncodingView;
 	/** The selected titles' audio as the engine combines it; `null` with
@@ -53,7 +47,6 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		return link.audio().titles[titleId(file)]?.plan ?? { kind: 'pending' };
 	}
 
-	/** `titles` is empty for the defaults, which describe future imports. */
 	function display(
 		view: Pick<AudioChoiceView, 'choice' | 'facts'>,
 		titles: readonly AudioFile[],

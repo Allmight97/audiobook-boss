@@ -7,7 +7,6 @@ export type CoverArtMessage =
 	| { readonly kind: 'success'; readonly text: string };
 
 export type CoverUiState = {
-	/** The address of the cover on screen; absent when there is none. */
 	readonly imageSrc: string | null;
 	readonly isLoading: boolean;
 	readonly message: CoverArtMessage;
@@ -20,7 +19,6 @@ export type CoverUiState = {
 
 export const HIDDEN_COVER_MESSAGE: CoverArtMessage = { kind: 'hidden' };
 
-/** How long a cover message stays up before it hides itself. */
 export const COVER_MESSAGE_MS = 4000;
 
 export function coverNoticeMessage(notice: CoverNotice | null): CoverArtMessage {

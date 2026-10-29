@@ -1,5 +1,3 @@
-//! The audio choice rules the encoder panel and title edits rely on.
-
 use super::*;
 use crate::audio::{EncoderAvailability, FaacProfileCapability};
 
@@ -96,7 +94,6 @@ fn mp3_copies_its_source_and_carries_no_encoder_settings() {
         choice.edit(AudioEdit::Intent(AudioIntent::Encode), Some(&caps), false),
         EditResult::Refused
     );
-    // The encoding choices survive for a switch back.
     choice.edit(AudioEdit::Format(AudiobookFormat::M4b), Some(&caps), false);
     assert_eq!(choice.defaults(Some(&caps)).settings.bitrate_kbps, 65);
 }
@@ -109,8 +106,6 @@ fn editing_how_audio_is_encoded_selects_encode() {
     choice.edit(AudioEdit::Bitrate(96), Some(&caps), false);
     assert_eq!(choice.intent, AudioIntent::Encode);
 
-    // A title edit to the value it already has still selects Encode; a
-    // defaults edit that changes nothing does not.
     let mut title = AudioChoice::default();
     title.edit(AudioEdit::Channels(ChannelConfig::Auto), Some(&caps), true);
     assert_eq!(title.intent, AudioIntent::Encode);
@@ -118,7 +113,6 @@ fn editing_how_audio_is_encoded_selects_encode() {
     defaults.edit(AudioEdit::Channels(ChannelConfig::Auto), Some(&caps), false);
     assert_eq!(defaults.intent, AudioIntent::Auto);
 
-    // Format and intent edits leave the intent to the user.
     let mut format = AudioChoice::default();
     format.edit(
         AudioEdit::Format(AudiobookFormat::M4aOpus),
@@ -174,7 +168,6 @@ fn values_outside_the_capabilities_are_refused() {
         );
         assert_eq!(choice, before, "{edit:?} changed the choice");
     }
-    // Without capabilities, nothing that needs their bounds is accepted.
     assert_eq!(
         choice.edit(AudioEdit::Bitrate(96), None, false),
         EditResult::Refused
@@ -222,7 +215,6 @@ fn an_explicit_rate_the_encoder_rejects_is_kept_for_the_user_to_replace() {
     let facts = choice.facts(Some(&caps));
     assert!(!facts.sample_rate_supported);
     assert_eq!(facts.allowed_sample_rates, [44_100]);
-    // The request still names it; preflight rejects the combination.
     assert_eq!(
         choice.request(Some(&caps)).sample_rate,
         SampleRateConfig::Explicit(22_050)
@@ -274,7 +266,6 @@ fn a_title_choice_is_the_defaults_with_its_own_request_on_top() {
         (title.format, title.intent),
         (AudiobookFormat::M4b, AudioIntent::Preserve)
     );
-    // Settings the title never chose come from the defaults.
     assert_eq!(title.opus_bitrate_kbps, 48);
 }
 

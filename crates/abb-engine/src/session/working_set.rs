@@ -114,9 +114,7 @@ pub(crate) struct WorkingSet {
     import_ordinal_by_path: HashMap<PathBuf, u64>,
     next_import_ordinal: u64,
     audio_requests: BTreeMap<String, TitleAudioRequest>,
-    /// Counts changes to anything [`TitlesSnapshot`] carries.
     titles_changes: u64,
-    /// Counts changes to audio requests.
     audio_changes: u64,
 }
 
@@ -203,7 +201,6 @@ impl WorkingSet {
             .collect()
     }
 
-    /// A title's ordered sources; an ungrouped title is its own single source.
     pub(crate) fn sources_for<'a>(&'a self, file: &'a AudioFile) -> &'a [AudioFile] {
         self.title_sources
             .get(identity(file))
@@ -211,7 +208,6 @@ impl WorkingSet {
             .unwrap_or(std::slice::from_ref(file))
     }
 
-    /// Every source path in the set, including sources hidden inside groups.
     pub(crate) fn source_paths(&self) -> HashSet<PathBuf> {
         self.files
             .iter()
@@ -220,8 +216,6 @@ impl WorkingSet {
             .collect()
     }
 
-    /// Every source identity in the set, including sources hidden inside
-    /// groups.
     pub(crate) fn source_ids(&self) -> HashSet<&str> {
         self.files
             .iter()
@@ -252,8 +246,6 @@ impl WorkingSet {
         }
         false
     }
-
-    // ---- Import ----
 
     pub(crate) fn set_notice(&mut self, notice: InputNotice) {
         self.notice = Some(notice);
@@ -309,8 +301,6 @@ impl WorkingSet {
         }
         self.notice = None;
     }
-
-    // ---- Selection ----
 
     /// Selects the named title. Unknown ids change nothing. Range selection
     /// resolves the stored anchor by identity against current order, then
@@ -373,8 +363,6 @@ impl WorkingSet {
         self.selected_anchor = None;
     }
 
-    /// Keeps the anchor when it is still selected; otherwise moves it to the
-    /// last selected index.
     fn reanchor(&mut self) {
         self.selected_indices.sort_unstable();
         let anchored = self
@@ -398,7 +386,6 @@ impl WorkingSet {
         (ids, anchor)
     }
 
-    /// Re-derives selection indices from identities after the order changed.
     fn restore_selection(&mut self, ids: &HashSet<String>, anchor: Option<String>) {
         self.selected_indices = self
             .files
@@ -415,9 +402,6 @@ impl WorkingSet {
         };
     }
 
-    // ---- Removal ----
-
-    /// Removes a title with all its sources. Returns the removed sources.
     pub(crate) fn remove_file(&mut self, index: usize) -> Vec<AudioFile> {
         if self.order_locked || index >= self.files.len() {
             return Vec::new();
@@ -457,7 +441,6 @@ impl WorkingSet {
         sources
     }
 
-    /// Empties the set. Returns whether anything was cleared.
     pub(crate) fn clear_all(&mut self) -> bool {
         if self.order_locked || self.files.is_empty() {
             return false;
@@ -466,7 +449,6 @@ impl WorkingSet {
         true
     }
 
-    /// Empties the set unconditionally.
     pub(crate) fn reset(&mut self) {
         *self = Self {
             titles_changes: self.titles_changes + 1,
@@ -474,9 +456,6 @@ impl WorkingSet {
         };
     }
 
-    // ---- Order ----
-
-    /// Where the title with `title_id` is in the list now.
     pub(crate) fn title_index(&self, title_id: &str) -> Option<usize> {
         self.files.iter().position(|file| file.input_id == title_id)
     }
@@ -584,8 +563,6 @@ impl WorkingSet {
         }
     }
 
-    // ---- Titles ----
-
     /// Merges the selected titles into one, anchored on the first selected
     /// title. Conflicting audio choices require an explicit choice afterward.
     /// Returns whether a group was formed.
@@ -629,7 +606,6 @@ impl WorkingSet {
         if choices_differ || choice_was_required {
             self.audio_choice_required.push(key.clone());
         }
-        // Member titles stop being titles; their own groupings fold into this one.
         for id in &selected_ids {
             self.title_sources.remove(id);
         }
@@ -641,7 +617,6 @@ impl WorkingSet {
         true
     }
 
-    /// Splits a grouped title back into its sources, in order, and selects them.
     pub(crate) fn ungroup(&mut self, title_id: &str) -> bool {
         if self.order_locked {
             return false;
@@ -707,7 +682,6 @@ impl WorkingSet {
             .for_each(apply);
     }
 
-    /// Records the user's decision about one source's CUE sheet.
     pub(crate) fn choose_cue(&mut self, input_id: &str, choice: CueChoice) {
         if self.order_locked {
             return;
@@ -741,7 +715,6 @@ impl WorkingSet {
         self.touch();
     }
 
-    /// Sets a title's audio request and settles a pending audio choice.
     pub(crate) fn set_audio_request(&mut self, title_id: &str, request: TitleAudioRequest) {
         if self.order_locked || self.index_of(title_id).is_none() {
             return;

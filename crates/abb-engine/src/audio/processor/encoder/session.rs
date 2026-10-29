@@ -1,5 +1,3 @@
-//! One in-process session owns codec, muxing, and the submitted audio interval.
-
 use super::{
     faac::{self, FaacEncoder},
     write,

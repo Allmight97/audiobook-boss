@@ -1,15 +1,3 @@
-//! Audio processor module.
-//!
-//! Staged modules:
-//!   - prepare.rs   : validation and workspace setup
-//!   - execute.rs   : merge / ffmpeg execution
-//!   - finalize.rs  : metadata writing, output move, cleanup
-//!   - staging.rs   : app-cache local processing workspace directories
-//!   - resolution.rs: encoder and output-channel resolution
-//!
-//! Every route runs on the in-process ffmpeg-next engine.
-
-// Imports for orchestrator function
 use crate::audio::cleanup::CleanupGuard;
 use crate::audio::file_list::FileListInfo;
 use crate::audio::settings_encoder::EncoderSettings;
@@ -22,7 +10,6 @@ use crate::metadata::{
 use crate::processing::AudioHandling;
 use crate::processing::ProcessingContext;
 
-// Submodules
 mod encoder;
 mod engine;
 mod engine_orchestrator;
@@ -283,20 +270,13 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
     })?
 }
 
-/// Internal workflow state passed between processing stages.
-///
-/// This replaces ad-hoc tuples and keeps intermediate artifacts cohesive.
-/// Fields are intentionally minimal; additional items should only be added if
-/// required across stage boundaries to avoid hidden coupling.
 pub(crate) struct ProcessingWorkflow {
-    /// Session-scoped temporary working directory
     pub(crate) temp_dir: std::path::PathBuf,
     /// Total duration (seconds) of all valid input files (pre‑computed)
     pub(crate) total_duration: f64,
 }
 
 impl ProcessingWorkflow {
-    /// Constructor helper to keep instantiation explicit at call sites.
     pub(crate) fn new(temp_dir: std::path::PathBuf, total_duration: f64) -> Self {
         Self {
             temp_dir,
@@ -305,22 +285,16 @@ impl ProcessingWorkflow {
     }
 }
 
-/// Coordinates the three-stage processing pipeline:
-/// 1. Validate & Prepare
-/// 2. Execute Processing
-/// 3. Finalize Processing
 fn process_audiobook_with_context(
     context: ProcessingContext,
     files: Vec<AudioFile>,
     metadata: Option<AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
 ) -> Result<AudioRunOutcome> {
-    // Stage 1: Validate + Prepare (from prepare module)
     let mut workflow_cleanup = CleanupGuard::new(context.session.id());
     let workflow = prepare::validate_and_prepare(&context, &files, &mut workflow_cleanup)?;
     let workflow_temp_dir = workflow.temp_dir.clone();
 
-    // Extract passthrough metadata (chapters, original cover art) from all valid files.
     let passthrough_sources = passthrough_sources_from_audio_files(&files);
     let passthrough_metadata = cover_art_passthrough
         .apply_to_passthrough(extract_passthrough_metadata(&passthrough_sources).into_option());
@@ -328,7 +302,6 @@ fn process_audiobook_with_context(
     let (effective_metadata, passthrough_metadata, cover_warning) =
         prepare_output_cover_art(metadata, passthrough_metadata, cover_art_passthrough)?;
 
-    // Stage 2: Execute (execute module)
     let merged_output = execute::execute_processing(
         &context,
         &workflow,
@@ -337,7 +310,6 @@ fn process_audiobook_with_context(
         passthrough_metadata.as_ref(),
     )?;
 
-    // Stage 3: Finalize
     let message = finalize::finalize_processing(
         &context,
         workflow,

@@ -415,7 +415,6 @@ fn apply(set: &mut WorkingSet, step: Step) {
 }
 
 proptest! {
-    /// Laws that hold after any sequence of working-set intents.
     #[test]
     fn any_intent_sequence_keeps_the_working_set_consistent(
         steps in prop::collection::vec(step(), 0..60)
