@@ -257,8 +257,9 @@ mod entry_tests {
             cover_art_passthrough: crate::metadata::CoverArtPassthroughPolicy::Preserve,
             audio_plan: crate::audio::TitleAudioPlan {
                 format: crate::audio::AudiobookFormat::M4b,
-                handling: crate::processing::AudioHandling::Encode,
-                settings: None,
+                handling: crate::processing::AudioHandling::Encode {
+                    settings: crate::audio::EncoderSettings::default(),
+                },
                 sample_rate: 44_100,
                 channels: 1,
                 source_codec: "AAC".into(),

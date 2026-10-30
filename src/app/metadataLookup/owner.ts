@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { EngineLink } from '../engineLink';
+import { createTypingEcho, type EngineLink } from '../engineLink';
 import type { SessionIntent } from '../../types/session';
 import {
 	toLookupState,
@@ -16,10 +16,6 @@ export type MetadataLookupAction =
 	| { type: 'search' }
 	| { type: 'skipQueueItem' };
 
-/**
- * The engine owns the lookup: its queue, searches, and applying a result.
- * This owner shows the engine's snapshot and sends intents.
- */
 export type MetadataLookupOwner = {
 	readonly view: Accessor<MetadataLookupState>;
 	run(action: MetadataLookupAction): Promise<void>;
@@ -54,47 +50,30 @@ export function createMetadataLookupOwner(deps: {
 }): MetadataLookupOwner {
 	const { link } = deps;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	// Query text entered and not yet confirmed by the engine.
-	type QueryEcho = { value: string; path: string | undefined; binding: number };
-	const typed: { titleQuery?: QueryEcho; authorQuery?: QueryEcho } = {};
-
 	function changed(): void {
 		bump((n) => n + 1);
 	}
+	const typed = createTypingEcho<'titleQuery' | 'authorQuery'>({
+		scopeOf: () => [link.lookup().queuePosition?.path, link.metadata().binding],
+		changed,
+	});
 
 	function setQuery(key: 'titleQuery' | 'authorQuery', value: string): void {
-		const entry = {
-			value,
-			path: link.lookup().queuePosition?.path,
-			binding: link.metadata().binding,
-		};
-		typed[key] = entry;
-		changed();
 		const intent: SessionIntent =
 			key === 'titleQuery'
 				? { kind: 'lookupSetTitleQuery', value }
 				: { kind: 'lookupSetAuthorQuery', value };
-		link
-			.send(intent)
-			.catch((error: unknown) => link.refuse(intent, error))
-			.finally(() => {
-				if (typed[key] !== entry) return;
-				delete typed[key];
-				changed();
-			});
+		typed.show(key, value, () =>
+			link.send(intent).catch((error: unknown) => link.refuse(intent, error)),
+		);
 	}
 
 	return {
 		view: () => {
 			rev();
-			const lookup = link.lookup();
-			const echo = (entry: QueryEcho | undefined) =>
-				entry?.path === lookup.queuePosition?.path && entry?.binding === link.metadata().binding
-					? entry?.value
-					: undefined;
-			return toLookupState(lookup, {
-				titleQuery: echo(typed.titleQuery),
-				authorQuery: echo(typed.authorQuery),
+			return toLookupState(link.lookup(), {
+				titleQuery: typed.valueOf('titleQuery'),
+				authorQuery: typed.valueOf('authorQuery'),
 			});
 		},
 		async run(action) {
@@ -125,9 +104,7 @@ export function createMetadataLookupOwner(deps: {
 			link.post({ kind: 'lookupSetReplaceCover', replace });
 		},
 		reset() {
-			delete typed.titleQuery;
-			delete typed.authorQuery;
-			changed();
+			typed.clear();
 		},
 	};
 }

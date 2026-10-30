@@ -1,5 +1,3 @@
-//! Progress module: shared types, utilities, and submodule re-exports
-
 mod emitter;
 mod eta;
 
@@ -9,35 +7,17 @@ use crate::processing::lifecycle::OperationKind;
 use crate::processing::ProcessingStage;
 use serde::Serialize;
 
-// ============================================================================
-// Progress Math
-// ============================================================================
-
-/// Progress percentage at the start of the analyzing stage.
 pub const PROGRESS_ANALYZING_START: f32 = 0.0;
 
-/// Progress percentage range for the converting stage.
 pub const PROGRESS_CONVERTING_START: f32 = 10.0;
-/// Max converting percentage to avoid reaching finalization too early.
 pub const PROGRESS_CONVERTING_MAX: f32 = 79.0;
 
-/// Progress percentage for metadata writing.
 pub const PROGRESS_METADATA_START: f32 = 90.0;
-/// Progress percentage for final artifact finalization.
 pub const PROGRESS_FINALIZING: f32 = 95.0;
-/// Progress percentage for complete.
 pub const PROGRESS_COMPLETE: f32 = 100.0;
 
-/// Progress percentage calculation range (maps file progress to UI progress).
-pub const PROGRESS_RANGE_MULTIPLIER: f64 = 70.0;
+const PROGRESS_CONVERTING_SPAN: f32 = PROGRESS_CONVERTING_MAX - PROGRESS_CONVERTING_START;
 
-// ============================================================================
-// Data Contract (UI boundary)
-// ============================================================================
-
-/// The stage a progress event reports, as a plain discriminator. Distinct from
-/// [`ProcessingStage`], the internal orchestration enum that carries data
-/// such as `Failed(String)`. WorkRuntime folds these into operation snapshots.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum EventStage {
@@ -68,19 +48,14 @@ impl From<ProcessingStage> for EventStage {
     }
 }
 
-/// Progress event structure for frontend communication
 #[derive(Clone, Serialize, specta::Type)]
 pub struct ProgressEvent {
-    /// Backend operation family that emitted this event
     pub operation_kind: OperationKind,
-    /// Current processing stage
     pub stage: EventStage,
     /// Progress percentage (0-100)
     #[specta(type = specta_typescript::Number)]
     pub percentage: f32,
-    /// Human-readable status message
     pub message: String,
-    /// Currently processing file (if applicable)
     pub current_file: Option<String>,
     /// Estimated time remaining in seconds
     pub eta_seconds: Option<f64>,
@@ -92,35 +67,43 @@ pub struct ProgressEvent {
     pub input_index: Option<usize>,
 }
 
-// ============================================================================
-// Pure Math Utilities
-// ============================================================================
-
-/// Converts seconds to converting-stage UI percentage
 pub fn converting_percentage_from_seconds(current_seconds: f64, total_duration: f64) -> f32 {
     if total_duration <= 0.0 {
         return PROGRESS_CONVERTING_START;
     }
-    let ratio = (current_seconds / total_duration).clamp(0.0, 1.0);
-    let pct = PROGRESS_CONVERTING_START as f64 + ratio * PROGRESS_RANGE_MULTIPLIER;
-    pct as f32
+    converting_percentage((current_seconds / total_duration) as f32)
 }
 
-// ============================================================================
-// Re-exports
-// ============================================================================
+pub fn converting_percentage(fraction: f32) -> f32 {
+    PROGRESS_CONVERTING_START + fraction.clamp(0.0, 1.0) * PROGRESS_CONVERTING_SPAN
+}
 
 pub use emitter::{EmitContext, ProgressEmitter};
 
 #[cfg(test)]
 mod tests {
-    use super::converting_percentage_from_seconds;
+    use super::{
+        converting_percentage, converting_percentage_from_seconds, PROGRESS_CONVERTING_MAX,
+        PROGRESS_CONVERTING_START,
+    };
 
     #[test]
-    fn converting_percentage_maps_seconds_into_converting_range() {
-        assert!(converting_percentage_from_seconds(0.0, 100.0) >= 10.0);
-        assert!(converting_percentage_from_seconds(50.0, 100.0) > 10.0);
-        assert!(converting_percentage_from_seconds(100.0, 100.0) <= 80.0);
+    fn converting_percentage_maps_into_the_converting_range_and_never_exceeds_its_max() {
+        assert!(converting_percentage_from_seconds(50.0, 100.0) > PROGRESS_CONVERTING_START);
+        assert_eq!(converting_percentage(1.5), PROGRESS_CONVERTING_MAX);
+        assert_eq!(converting_percentage(-0.5), PROGRESS_CONVERTING_START);
+        assert_eq!(
+            converting_percentage_from_seconds(100.0, 100.0),
+            PROGRESS_CONVERTING_MAX
+        );
+        assert_eq!(
+            converting_percentage_from_seconds(500.0, 100.0),
+            PROGRESS_CONVERTING_MAX
+        );
+        assert_eq!(
+            converting_percentage_from_seconds(0.0, 100.0),
+            PROGRESS_CONVERTING_START
+        );
     }
 
     #[test]

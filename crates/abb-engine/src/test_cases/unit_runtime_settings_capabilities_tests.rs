@@ -1,9 +1,3 @@
-//! Unit tests for runtime settings capability facts.
-//!
-//! These tests live outside the production capability module so the Public API
-//! Strip proves the capability contract without inlining test-only code into the
-//! Audio Engine implementation file.
-
 use abb_engine::audio::{
     encoder_settings_capabilities, validate_encoder_settings, validate_sample_rate_config,
     BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,

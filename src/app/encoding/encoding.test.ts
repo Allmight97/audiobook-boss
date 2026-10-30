@@ -4,10 +4,6 @@ import { createAppRuntime, type AppRuntime } from '../runtime';
 import type { TitlePlan } from '../../types/session';
 import type { EncodingView } from './project';
 
-// The audio choice rules live in the engine (`crates/abb-engine/src/session/
-// audio_choice.rs`). These tests cover what this owner adds: the panel's
-// terms for the engine's choice, and the edit each control sends.
-
 describe('encoding owner', () => {
 	let runtime: AppRuntime | undefined;
 	let engine: FakeEngine;
@@ -99,13 +95,19 @@ describe('encoding owner', () => {
 			const plan = (id: string, value: TitlePlan) => {
 				state.audio.titles[id] = { ...structuredClone(state.audio.titles[id]), plan: value };
 			};
-			// The engine raised alpha's 44.1 kHz source to what its encoder accepts.
 			plan(alpha.inputId ?? '', {
 				kind: 'resolved',
 				plan: {
 					format: 'm4b',
 					handling: 'encode',
-					settings: null,
+					settings: {
+						encoderType: 'native_aac',
+						bitrateKbps: 65,
+						bitrateMode: { mode: 'cbr' },
+						channels: 'stereo',
+						nativeAacSpeed: 0,
+						faacProfile: 'auto',
+					},
 					sampleRate: 48000,
 					channels: 2,
 					sourceCodec: 'AAC',
@@ -127,7 +129,6 @@ describe('encoding owner', () => {
 		expect(autoLabel(betaView, 'channelOptions')).toBe('Auto');
 		expect(betaView.channelsHint).toBe('Choose Mono or Stereo to downmix.');
 		expect(betaView.sampleRateHint).toBeNull();
-		// The defaults describe future imports, so they name no source.
 		expect(autoLabel(app.encoding.view(), 'sampleRateOptions')).toBe('Auto · Source audio');
 	});
 

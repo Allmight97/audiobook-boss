@@ -2,10 +2,6 @@ use std::path::{Path, PathBuf};
 
 use crate::errors::{AppError, Result};
 
-/// RAII guard for a staged output file and its intermediate (`.partial`/temp)
-/// sibling. Callers must follow the owned lifecycle:
-/// `prepare` → write partial → `rename_and_commit`. Drop removes the partial;
-/// only `rename_and_commit` creates the final path.
 #[derive(Debug)]
 pub(crate) struct StagedTempFile {
     final_path: PathBuf,
@@ -13,9 +9,6 @@ pub(crate) struct StagedTempFile {
     prepared: bool,
 }
 
-/// Holds a committed staged file until validation and downstream acquisition
-/// steps succeed. Drop removes the file unless [`ProvisionalCommittedFile::permanent`]
-/// was called.
 #[derive(Debug)]
 pub(crate) struct ProvisionalCommittedFile {
     path: PathBuf,
@@ -23,16 +16,12 @@ pub(crate) struct ProvisionalCommittedFile {
 }
 
 impl StagedTempFile {
-    /// Guard a staged output whose intermediate sibling is `<final>.partial`
-    /// (or `partial` when the path has no extension).
     pub(crate) fn new(final_path: impl Into<PathBuf>) -> Self {
         let final_path = final_path.into();
         let partial_path = partial_sibling(&final_path);
         Self::from_paths(final_path, partial_path)
     }
 
-    /// Guard a staged output with an explicit intermediate/temp path (e.g. the
-    /// materializer's `output_temp_path`).
     pub(crate) fn with_partial(
         final_path: impl Into<PathBuf>,
         partial_path: impl Into<PathBuf>,
@@ -66,7 +55,6 @@ impl StagedTempFile {
         Ok(())
     }
 
-    /// Cancel check → same-directory rename partial→final. Consumes the guard.
     pub(crate) async fn rename_and_commit(self, is_cancelled: impl Fn() -> bool) -> Result<()> {
         if is_cancelled() {
             return Err(AppError::cancelled());
@@ -128,7 +116,6 @@ impl Drop for ProvisionalCommittedFile {
     }
 }
 
-/// Remove a committed staged file when a later acquisition step fails after commit.
 pub(crate) fn rollback_committed_file(path: &Path) -> Result<()> {
     remove_if_present(path).map_err(Into::into)
 }
@@ -252,7 +239,6 @@ mod tests {
         let final_path = root.path().join("book.m4b");
         let mut staged = StagedTempFile::new(&final_path);
         staged.prepare().expect("prepare");
-        // The staged write existed after prepare(), then vanished before commit.
         std::fs::write(staged.partial_path(), b"payload").expect("write partial");
         std::fs::remove_file(staged.partial_path()).expect("remove partial");
 
@@ -282,8 +268,6 @@ mod tests {
         let final_path = final_dir.join("book.m4b");
         let partial_path = partial_dir.join("book.m4b.partial");
 
-        // The same-parent guard runs before the existence check, so no partial
-        // is written: a cross-device rename fallback must never be attempted.
         let staged = StagedTempFile::with_partial(&final_path, &partial_path);
         let error = staged
             .rename_and_commit(|| false)

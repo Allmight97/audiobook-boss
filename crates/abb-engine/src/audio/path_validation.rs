@@ -1,28 +1,17 @@
-//! Shared input path validation for audio and image files
-//!
-//! Ensures a provided path is a regular file, has a supported extension,
-//! contains no disallowed characters, and returns a canonical absolute path.
-
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 
-/// Validate a single input audio file path and return its canonical absolute path.
 pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
-    // Strip invalid chars (CR/LF/NUL)
     validate_path_characters(path)?;
 
-    // Reject symlinks before any other checks to prevent extension bypass.
     reject_symlink(path, "audio")?;
 
-    // Check exists and is regular file
     validate_file_existence_and_type(path)?;
 
-    // Extension whitelist check
     validate_audio_extension(path)?;
 
-    // Canonicalize to prevent path traversal and resolve symlinks
     let canonical = path.canonicalize().map_err(|e| {
         AppError::FileValidation(format!(
             "Cannot canonicalize path '{}': {}",
@@ -34,8 +23,6 @@ pub fn validate_input_audio_path(path: &Path) -> Result<PathBuf> {
     Ok(canonical)
 }
 
-/// Validate a single input image file path and return its canonical absolute path.
-/// Used for cover art loading to prevent path traversal attacks.
 pub fn validate_input_image_path(path: &Path) -> Result<PathBuf> {
     validate_path_characters(path)?;
     reject_symlink(path, "image")?;
@@ -53,7 +40,6 @@ pub fn validate_input_image_path(path: &Path) -> Result<PathBuf> {
     Ok(canonical)
 }
 
-/// Validate a local import directory and return its canonical absolute path.
 pub(super) fn validate_input_directory_path(path: &Path) -> Result<PathBuf> {
     validate_path_characters(path)?;
     reject_symlink(path, "directory")?;
@@ -82,7 +68,6 @@ pub(super) fn validate_input_directory_path(path: &Path) -> Result<PathBuf> {
     })
 }
 
-/// Rejects symlink inputs to avoid extension whitelist bypass via symlink targets.
 fn reject_symlink(path: &Path, kind: &str) -> Result<()> {
     let is_symlink = path
         .symlink_metadata()
@@ -98,7 +83,6 @@ fn reject_symlink(path: &Path, kind: &str) -> Result<()> {
     Ok(())
 }
 
-/// Validates path doesn't contain invalid characters (CR/LF/NUL)
 fn validate_path_characters(path: &Path) -> Result<()> {
     if path_contains_invalid_character(path) {
         return Err(AppError::FileValidation(
@@ -127,7 +111,6 @@ fn path_contains_invalid_character(path: &Path) -> bool {
         .any(|unit| matches!(unit, 0x000A | 0x000D | 0x0000))
 }
 
-/// Validates file exists and is a regular file
 fn validate_file_existence_and_type(path: &Path) -> Result<()> {
     let metadata = fs::metadata(path).map_err(|e| {
         AppError::FileValidation(format!(
@@ -147,13 +130,11 @@ fn validate_file_existence_and_type(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Validates audio file extension against whitelist
 fn validate_audio_extension(path: &Path) -> Result<()> {
     super::extensions::audio_format_for_path(path)?;
     Ok(())
 }
 
-/// Validates image file extension against whitelist
 fn validate_image_extension(path: &Path) -> Result<()> {
     let ext = path
         .extension()
@@ -172,9 +153,9 @@ fn validate_image_extension(path: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_path_characters;
+    use super::{validate_input_audio_path, validate_input_image_path, validate_path_characters};
     use crate::errors::AppError;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     fn assert_invalid_path(path: PathBuf) {
         let error = validate_path_characters(&path).expect_err("path should be rejected");
@@ -199,5 +180,51 @@ mod tests {
         assert_invalid_path(PathBuf::from(OsString::from_vec(
             b"book-\xFF\none.m4b".to_vec(),
         )));
+    }
+
+    #[cfg(unix)]
+    fn assert_symlink_rejected(error: AppError) {
+        assert!(
+            matches!(error, AppError::InvalidInput(ref message) if message.contains("Symlinks are not supported")),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[cfg(unix)]
+    fn link(dir: &Path, target: &str, link_name: &str) -> PathBuf {
+        std::fs::write(dir.join(target), b"data").expect("write target");
+        let link_path = dir.join(link_name);
+        std::os::unix::fs::symlink(dir.join(target), &link_path).expect("create symlink");
+        link_path
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn audio_symlinks_are_rejected_before_the_extension_check() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        for (target, link_name) in [
+            ("real.m4b", "linked.m4b"),
+            ("notes.txt", "disguised.m4b"),
+            ("real.m4b", "linked.txt"),
+        ] {
+            let link_path = link(dir.path(), target, link_name);
+            let error = validate_input_audio_path(&link_path).expect_err("symlink is rejected");
+            assert_symlink_rejected(error);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn image_symlinks_are_rejected_before_the_extension_check() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        for (target, link_name) in [
+            ("real.png", "linked.png"),
+            ("notes.txt", "disguised.png"),
+            ("real.png", "linked.txt"),
+        ] {
+            let link_path = link(dir.path(), target, link_name);
+            let error = validate_input_image_path(&link_path).expect_err("symlink is rejected");
+            assert_symlink_rejected(error);
+        }
     }
 }

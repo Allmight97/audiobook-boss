@@ -251,9 +251,6 @@ async fn download_supplemental_pdf_with_client(
     ))
 }
 
-/// Follow redirects and stream the companion-file PDF into `partial_path`,
-/// returning the bytes/hash/header facts. Cleanup of `partial_path` on failure is
-/// the caller's [`StagedTempFile`] guard responsibility.
 async fn fetch_pdf_to_partial(
     client: &reqwest::Client,
     cookie: &HeaderValue,
@@ -374,9 +371,6 @@ async fn is_sign_in_page(path: &Path) -> bool {
         .any(|window| window == SIGN_IN_PATH.as_bytes())
 }
 
-/// Stream the response body to the staged partial path, enforcing the size cap
-/// and cancellation. Cleanup of the partial on failure is the caller's
-/// [`StagedTempFile`] guard responsibility.
 async fn stream_pdf_body(
     mut response: reqwest::Response,
     partial_path: &Path,

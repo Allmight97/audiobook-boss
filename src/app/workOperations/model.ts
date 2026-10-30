@@ -5,12 +5,6 @@ import type {
 	WorkOperationsUpdate,
 } from '../../types/workRuntime';
 
-/**
- * The engine numbers every Work Center change and sends the display order with
- * it. Updates may arrive in any order, so this keeps the newest snapshot of
- * each operation and the order with the highest revision; operations outside
- * that order are gone.
- */
 export interface WorkCenterModel {
 	revision: number;
 	order: OperationId[];
@@ -51,7 +45,6 @@ export function applyWorkOperations(
 	return { revision: newer ? incoming.revision : model.revision, order, byId };
 }
 
-/** A cancel reply: one operation's snapshot, with no newer order. */
 export function applyOperationSnapshot(
 	model: WorkCenterModel,
 	snapshot: OperationSnapshot,

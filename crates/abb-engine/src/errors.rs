@@ -36,7 +36,6 @@ pub struct AppErrorEnvelope {
     pub detail: Option<String>,
 }
 
-/// Application-wide error type for structured error handling
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("File validation failed: {0}")]
@@ -224,7 +223,6 @@ pub fn sanitize_path_for_display(path: &Path) -> String {
         .unwrap_or_else(|| "[path]".to_string())
 }
 
-/// Sanitizes string paths for user-facing messages.
 pub fn sanitize_path_str_for_display(path: &str) -> String {
     sanitize_path_for_display(Path::new(path))
 }

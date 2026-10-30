@@ -57,7 +57,6 @@ export type EncodingView = {
 	readonly sampleRate: string;
 	readonly sampleRateOptions: ReadonlyArray<EncodingOption>;
 	readonly sampleRateDisabled: boolean;
-	/** A note under the sample rate, when the engine has one. */
 	readonly sampleRateHint: string | null;
 	readonly channels: string;
 	readonly channelOptions: ReadonlyArray<EncodingOption>;
@@ -65,12 +64,10 @@ export type EncodingView = {
 	readonly channelsHint: string | null;
 };
 
-/** What the panel shows for one engine choice. */
 export type EncodingSource = {
 	readonly choice: AudioChoice;
 	readonly facts: AudioChoiceFacts;
 	readonly capabilities: EncoderSettingsCapabilities | null;
-	/** The engine's plan for each title shown; `null` for the defaults. */
 	readonly plans: readonly TitlePlan[] | null;
 };
 
@@ -134,11 +131,6 @@ function channelLabel(value: string): string {
 	}
 }
 
-/**
- * What Auto resolves to, from the engine's plans: one value when every title
- * resolved to it, "Differs by title" when they disagree, and no detail while
- * a plan is pending or failed. The defaults describe future imports.
- */
 function autoLabel(
 	plans: readonly TitlePlan[] | null,
 	auto: boolean,
@@ -158,7 +150,6 @@ function channelCount(channels: number): string {
 	return channels === 1 ? 'Mono' : channels === 2 ? 'Stereo' : `${channels} channels`;
 }
 
-/** The engine's reason a shown title failed on `field`. */
 function planProblem(
 	plans: readonly TitlePlan[] | null,
 	field: 'sampleRate' | 'channels',
@@ -267,7 +258,6 @@ export function projectView(source: EncodingSource): EncodingView {
 	};
 }
 
-/** The engine edit a control's value names, or `null` for a value it cannot name. */
 export function editFor(field: EncodingField, value: string): AudioEdit | null {
 	const number = Number(value);
 	const whole = value.trim() !== '' && Number.isInteger(number) && number >= 0;

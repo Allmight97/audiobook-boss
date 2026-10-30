@@ -1,5 +1,5 @@
 # Rust functions allowed above the cyclomatic limit of scripts/check-rust-complexity.sh.
-# Format: <path from the repository root>:<function>  # reason. Remove a line when its function drops to the limit.
+# Format: <path from the repository root>:<function>  # reason: a shape (flat dispatch match:, format parser:, sequential ? setup), a disposition (Proof-first:, Reduce:, Preserve:, Observe:), or '; Reduce at next change'. Remove a line when its function drops to the limit.
 crates/abb-engine/src/bin/abb_dev.rs:parse  # flat dispatch match: one arm per command-line flag
 crates/abb-engine/src/audio/processor/encoder/context.rs:setup_encoder  # sequential ? setup of one FFmpeg encoder session
 crates/abb-engine/src/audio/processor/frame_pipeline.rs:process_input_packets  # read loop mixes cancel, skip, early stop, and drain; Reduce at next change

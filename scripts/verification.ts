@@ -1,10 +1,3 @@
-/**
- * Owns path-to-proof planning and local proof receipts. verify.sh owns commands.
- * Usage: bun scripts/verification.ts plan [base] | plan --explain <path> | needed <base> | resolve
- *        bun scripts/verification.ts prepare <run-dir> <lane>
- *        bun scripts/verification.ts record <run-dir> <lane> <exit-code|skip> <seconds>
- *        bun scripts/verification.ts gate (VERIFY_NEEDS is GitHub's needs JSON)
- */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {

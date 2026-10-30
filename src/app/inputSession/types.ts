@@ -8,7 +8,6 @@ export type SelectionModifiers = {
 };
 
 export type InputView = {
-	// Each visible entry anchors a title's metadata. Ordered sources live separately.
 	readonly files: ReadonlyArray<AudioFile>;
 	readonly sourceFiles: ReadonlyArray<AudioFile>;
 	readonly selectedSourceFiles: ReadonlyArray<AudioFile>;

@@ -5,7 +5,6 @@ import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app
 
 import { FileImportView } from './FileImportView';
 
-/** A runtime whose saved default lane is Indexer. */
 async function runtimeDefaultingToIndexer() {
 	const engine = createFakeEngine({ ...defaultAppSettings(), defaultAcquisitionLane: 'indexer' });
 	const runtime = createAppRuntime({ engine });

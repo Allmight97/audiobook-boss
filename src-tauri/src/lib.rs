@@ -1,5 +1,3 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-
 pub mod commands;
 mod cover_protocol;
 mod events;
@@ -84,8 +82,6 @@ fn configure_startup_window(window: &WebviewWindow) -> Result<(), tauri::Error> 
     Ok(())
 }
 
-/// Builds the engine over this app's directories and identity, forwarding its
-/// events to the webview.
 fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
     let resolve = |kind: &str, path: tauri::Result<std::path::PathBuf>| {
         path.map_err(|error| {
@@ -103,8 +99,6 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
     })
 }
 
-/// Tells the user another ABB owns the working folder, then quits without an
-/// engine; the running copy keeps its work.
 fn quit_as_second_copy(app: &tauri::App, message: String) {
     if let Some(window) = app.get_webview_window("main") {
         if let Err(error) = window.hide() {
@@ -118,15 +112,12 @@ fn quit_as_second_copy(app: &tauri::App, message: String) {
         .show(move |_| handle.exit(0));
 }
 
-/// How quitting is going: engine shutting down, done.
 #[derive(Default)]
 struct Quit {
     shutting_down: AtomicBool,
     done: AtomicBool,
 }
 
-/// How long quitting waits for the engine to settle before asking whether
-/// to keep waiting.
 const SHUTDOWN_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
 
 /// Awaits `shutdown`, asking after each `SHUTDOWN_WAIT` whether to keep
@@ -150,7 +141,6 @@ where
     }
 }
 
-/// Asks whether to retry saving settings that could not be written.
 async fn ask_to_retry_settings_save(app: tauri::AppHandle, reason: String) -> bool {
     let (answer, answered) = tokio::sync::oneshot::channel();
     app.dialog()
@@ -169,7 +159,6 @@ async fn ask_to_retry_settings_save(app: tauri::AppHandle, reason: String) -> bo
     answered.await.unwrap_or(false)
 }
 
-/// Asks whether to keep waiting for a shutdown that has not settled.
 async fn ask_to_keep_waiting(app: tauri::AppHandle) -> bool {
     let (answer, answered) = tokio::sync::oneshot::channel();
     app.dialog()
@@ -188,9 +177,6 @@ async fn ask_to_keep_waiting(app: tauri::AppHandle) -> bool {
     answered.await.unwrap_or(false)
 }
 
-/// Shuts the engine down, then exits. Exports are cancelled, waiting saves
-/// written, and every background task settled before the process ends,
-/// unless the user chooses to quit before then.
 fn shut_down_then_exit(app: &tauri::AppHandle) {
     let quit = app.state::<Quit>();
     if quit.shutting_down.swap(true, Ordering::SeqCst) {
@@ -225,8 +211,6 @@ fn plural(count: usize, one: &str, many: &str) -> String {
     format!("{count} {}", if count == 1 { one } else { many })
 }
 
-/// What to ask before quitting stops `running` work, as a title and message;
-/// `None` when quitting stops nothing.
 fn quit_prompt(running: &abb_engine::RunningWork) -> Option<(&'static str, String)> {
     // Saves waiting only behind a review or preview are written while
     // shutting down; the prompt says so before an early Quit Now can drop them.
@@ -274,8 +258,6 @@ fn quit_prompt(running: &abb_engine::RunningWork) -> Option<(&'static str, Strin
     }
 }
 
-/// Holds a quit until the engine has shut down, asking first when exports
-/// or downloads are running. Returns whether the quit must be held.
 fn hold_quit(app: &tauri::AppHandle) -> bool {
     let quit = app.state::<Quit>();
     if quit.done.load(Ordering::SeqCst) {
@@ -319,7 +301,6 @@ fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) 
         });
 }
 
-/// Hands OS-opened files to the engine, which imports them.
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
 fn open_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
     let paths = urls
@@ -337,7 +318,6 @@ fn open_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize logging with INFO level for production
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     log::info!("Starting AudioBook Boss application");
@@ -403,7 +383,6 @@ pub fn run() {
 mod tests {
     use super::monitor_fit_window_size;
 
-    // EXCEPTION: tiny helper inline test.
     #[test]
     fn monitor_fit_window_size_returns_none_for_zero_inputs() {
         assert_eq!(monitor_fit_window_size(0, 1080, 1.0), None);
@@ -411,7 +390,6 @@ mod tests {
         assert_eq!(monitor_fit_window_size(1920, 1080, 0.0), None);
     }
 
-    // EXCEPTION: tiny helper inline test.
     #[test]
     fn monitor_fit_window_size_prefers_1600_by_1000_when_budget_allows() {
         let Some((width, height)) = monitor_fit_window_size(2560, 1600, 1.0) else {
@@ -422,7 +400,6 @@ mod tests {
         assert_eq!(height, 1000.0);
     }
 
-    // EXCEPTION: tiny helper inline test.
     #[test]
     fn monitor_fit_window_size_uses_logical_dimensions_for_high_dpi_monitors() {
         let Some((width, height)) = monitor_fit_window_size(3456, 2234, 2.0) else {
@@ -433,7 +410,6 @@ mod tests {
         assert_eq!(height, 1000.0);
     }
 
-    // EXCEPTION: tiny helper inline test.
     #[test]
     fn monitor_fit_window_size_uses_available_space_on_small_monitors() {
         let Some((width, height)) = monitor_fit_window_size(1024, 640, 1.0) else {
@@ -482,7 +458,6 @@ mod quit_tests {
         let asked = AtomicUsize::new(0);
         let settled = settle_or_ask(std::future::pending::<()>(), || {
             let times = asked.fetch_add(1, Ordering::SeqCst) + 1;
-            // Keep waiting once, then quit.
             async move { times < 2 }
         })
         .await;

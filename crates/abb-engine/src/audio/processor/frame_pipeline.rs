@@ -1,20 +1,14 @@
-//! Frame processing pipeline (behavior-preserving extraction)
-
+use crate::audio::buffer::allocated_audio_frame;
 use crate::audio::processor::preview_state::PreviewState;
 use crate::errors::Result;
 use ffmpeg_next as ff;
 
-/// Progress emission throttle interval (milliseconds)
 const PROGRESS_EMIT_INTERVAL_MS: u64 = 1000;
 
-/// Result of checking per-file preview progress
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreviewAction {
-    /// Continue processing current file
     Continue,
-    /// Current file excerpt complete, move to next file
     NextFile,
-    /// All file excerpts complete, stop processing
     StopAll,
 }
 
@@ -35,10 +29,6 @@ pub(crate) struct FramePipelineCtx<'a> {
     pub(crate) preview_state: Option<&'a mut PreviewState>,
 }
 
-/// The audio seconds this run actually intends to produce. `total_duration`
-/// already carries the attainable target for every mode: full source total
-/// normally, and the per-file-capped preview total when previewing
-/// (`prepare::progress_total_duration`).
 fn eta_target_seconds(ctx: &FramePipelineCtx) -> f64 {
     ctx.total_duration
 }
@@ -50,7 +40,7 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
         let percentage = crate::processing::converting_percentage_from_seconds(
             current_seconds,
             ctx.total_duration,
-        ) as f64;
+        );
         let eta_seconds = ctx.eta.update(
             std::time::Instant::now(),
             current_seconds,
@@ -62,7 +52,7 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
             ctx.current_file_name.as_str()
         };
         ctx.emitter.emit_converting_progress(
-            percentage.min(crate::processing::PROGRESS_CONVERTING_MAX as f64) as f32,
+            percentage,
             "Converting and merging audio files...",
             Some(format!(
                 "{} ({}/{})",
@@ -75,7 +65,6 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
     }
 }
 
-/// Checks per-file preview progress and returns the appropriate action
 #[inline]
 fn check_per_file_preview_stop(ctx: &mut FramePipelineCtx) -> PreviewAction {
     let Some(preview_state) = ctx.preview_state.as_mut() else {
@@ -111,7 +100,6 @@ fn check_per_file_preview_stop(ctx: &mut FramePipelineCtx) -> PreviewAction {
 /// Communicates purely through the `ctx.early_stop` side effect.
 #[inline]
 fn check_and_mark_preview_early_stop(ctx: &mut FramePipelineCtx) {
-    // Skip if adaptive preview is active (handled by check_per_file_preview_stop)
     if ctx.preview_state.is_some() {
         return;
     }
@@ -166,17 +154,12 @@ fn allocate_resampler_output_frame(
     samples: usize,
 ) -> ff::frame::Audio {
     let out_def = *resampler.output();
-    let mut out = ff::frame::Audio::empty();
-    out.set_format(out_def.format);
-    out.set_channel_layout(out_def.channel_layout);
-    out.set_rate(out_def.rate);
-    out.set_samples(samples);
-    // SAFETY: Format, layout, rate, and sample count are copied from the resampler output above, and `alloc`
-    // is called once on an empty frame.
-    unsafe {
-        out.alloc(out_def.format, samples, out_def.channel_layout);
-    }
-    out
+    allocated_audio_frame(
+        out_def.format,
+        out_def.channel_layout,
+        out_def.rate,
+        samples,
+    )
 }
 
 fn resampler_output_frame_samples(
@@ -216,7 +199,6 @@ fn drain_resampler_sample_count(
     Ok(samples)
 }
 
-/// Encodes the resampler's held-back tail after the decoder is fully drained.
 fn flush_resampler_tail(
     resampler: &mut ff::software::resampling::Context,
     encoder: &mut super::encoder::EncoderSession,
@@ -279,8 +261,6 @@ pub(crate) fn flush_accumulator_tail(
     Ok(())
 }
 
-/// Processes audio frames from decoder through resample and encode pipeline
-/// Returns PreviewAction to signal adaptive preview file transitions
 pub(crate) fn process_decoded_frames(
     decoder: &mut ff::codec::decoder::Audio,
     encoder: &mut super::encoder::EncoderSession,
@@ -357,8 +337,6 @@ pub(crate) fn process_decoded_frames(
     Ok(action)
 }
 
-/// Processes packets from input stream through decoder pipeline
-/// Returns PreviewAction to signal adaptive preview file transitions
 pub(crate) fn process_input_packets(
     ictx: &mut ff::format::context::Input,
     decoder: &mut ff::codec::decoder::Audio,
@@ -514,8 +492,6 @@ fn process_packet_frames(
     }
 }
 
-// EXCEPTION: inline test pins the swresample tail invariant this pipeline
-// depends on; it needs no decoder/encoder scaffolding.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -534,21 +510,11 @@ mod tests {
                 .expect("build 44.1k->22.05k resampler");
 
         let input_samples = 4096usize;
-        let mut input = ff::frame::Audio::empty();
-        input.set_format(fmt);
-        input.set_channel_layout(layout);
-        input.set_rate(44_100);
-        input.set_samples(input_samples);
-        // SAFETY: Format, layout, rate, and sample count are set above, and `alloc` is called once on an empty
-        // frame.
-        unsafe {
-            input.alloc(fmt, input_samples, layout);
-        }
+        let mut input = allocated_audio_frame(fmt, layout, 44_100, input_samples);
         for v in input.plane_mut::<f32>(0) {
             *v = 0.25;
         }
 
-        // Mirror the pipeline's run() usage: pre-allocated output frame.
         let mut out = allocate_resampler_output_frame(&resampler, input_samples);
         resampler.run(&input, &mut out).expect("resample run");
         let converted = out.samples();
@@ -579,16 +545,7 @@ mod tests {
                 .expect("build 22.05k->44.1k resampler");
 
         let input_samples = 4096usize;
-        let mut input = ff::frame::Audio::empty();
-        input.set_format(fmt);
-        input.set_channel_layout(layout);
-        input.set_rate(22_050);
-        input.set_samples(input_samples);
-        // SAFETY: Format, layout, rate, and sample count are set above, and `alloc` is called once on an empty
-        // frame.
-        unsafe {
-            input.alloc(fmt, input_samples, layout);
-        }
+        let mut input = allocated_audio_frame(fmt, layout, 22_050, input_samples);
         for v in input.plane_mut::<f32>(0) {
             *v = 0.25;
         }

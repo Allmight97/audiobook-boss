@@ -1,6 +1,3 @@
-# A settings file as ABB saves it with Apple AAC in use and Opus pinned.
-# contract_tests.rs checks it loads unchanged.
-
 [general]
 keep_awake_while_working = true
 max_concurrent_jobs = 4

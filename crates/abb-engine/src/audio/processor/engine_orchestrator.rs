@@ -1,5 +1,3 @@
-//! Owned orchestration for the ffmpeg-next input processing loop.
-
 use crate::audio::buffer::SampleAccumulator;
 use crate::audio::processor::frame_pipeline::{
     flush_accumulator_tail, FramePipelineCtx, PreviewAction,
@@ -72,8 +70,6 @@ pub(crate) fn process_input_files(
         plan.input_file_paths.len()
     );
 
-    // This runs on the adapter's `spawn_blocking` thread (adapter.rs), so no
-    // additional `block_in_place` layer is needed here.
     for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
         let file_label = in_path
             .file_name()

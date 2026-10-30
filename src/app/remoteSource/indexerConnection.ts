@@ -5,7 +5,6 @@ import type { EngineLink } from '../engineLink';
 export type IndexerConnectionSettingsView = {
 	baseUrlDraft: string;
 	categoryIdsDraft: number[];
-	/** The last category edit chose none and the engine refused it. */
 	categoriesRefused: boolean;
 	apiKeyDraft: string;
 	apiKeyConfigured: boolean;
@@ -15,7 +14,6 @@ export type IndexerConnectionSettingsView = {
 	testMessage: string;
 };
 
-/** Only unconfirmed typing and the entered key's visual echo live here. */
 export function createIndexerConnectionSettings(link: EngineLink): {
 	readonly view: Accessor<IndexerConnectionSettingsView>;
 	load(): Promise<void>;

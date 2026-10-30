@@ -1,28 +1,15 @@
-//! Runs a frontend's intents in the order it sent them.
-//!
-//! IPC may deliver two requests sent back to back in either order, and each
-//! request runs as its own task. The frontend numbers its intents; an intent
-//! waits here until every earlier one has taken its turn.
-
 use std::collections::BTreeSet;
 use std::time::Duration;
 
 use tokio::sync::watch;
 
-/// How long an intent waits for an earlier one that has not arrived. An
-/// intent the frontend numbered but never delivered must not stall every
-/// intent after it.
 const MISSING_INTENT_WAIT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct Position {
-    /// Identifies the attached frontend; a reload attaches a new one.
     client: u64,
-    /// The sequence number whose turn it is.
     next: u64,
-    /// An intent holds its turn.
     running: bool,
-    /// Intents that arrived and wait for their turn.
     waiting: BTreeSet<u64>,
 }
 
@@ -38,17 +25,12 @@ impl Default for IntentOrder {
     }
 }
 
-/// Why an intent did not get a turn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Refused {
-    /// It came from a frontend that is no longer attached.
     Replaced,
-    /// Later intents already ran without it, so running it now would apply
-    /// it out of order.
     Late,
 }
 
-/// One intent's turn. The next intent may go once this is dropped.
 pub struct Turn<'a> {
     order: &'a IntentOrder,
     client: u64,
@@ -69,8 +51,6 @@ impl Drop for Turn<'_> {
 }
 
 impl IntentOrder {
-    /// A frontend started: its intents count from zero, and intents still
-    /// arriving from an earlier frontend are refused.
     pub fn attach(&self, client: u64) {
         self.position.send_replace(Position {
             client,
@@ -78,9 +58,6 @@ impl IntentOrder {
         });
     }
 
-    /// Waits until it is `sequence`'s turn. When the intent whose turn it is
-    /// has not arrived after `MISSING_INTENT_WAIT`, the earliest intent that
-    /// did arrive goes next; one still running is always waited for.
     pub async fn turn(&self, client: u64, sequence: u64) -> Result<Turn<'_>, Refused> {
         self.position.send_if_modified(|position| {
             position.client == client && position.waiting.insert(sequence)
@@ -125,7 +102,6 @@ impl IntentOrder {
                 Ok(Ok(_)) => break,
                 Ok(Err(_)) => return Err(Refused::Replaced),
                 Err(_) => {
-                    // Skip only an intent that never arrived.
                     self.position.send_if_modified(|position| {
                         let earliest = position.waiting.first().copied();
                         let skip = position.client == client
@@ -184,15 +160,12 @@ mod tests {
         let order = IntentOrder::default();
         order.attach(1);
 
-        // Intent 0 is not delivered in time.
         drop(order.turn(1, 1).await.expect("runs after the wait"));
 
-        // Later intents are not delayed again.
         let started = tokio::time::Instant::now();
         drop(order.turn(1, 2).await.expect("next intent"));
         assert_eq!(started.elapsed(), std::time::Duration::ZERO);
 
-        // Intent 0 finally arrives; running it now would undo 1 and 2.
         assert_eq!(order.turn(1, 0).await.err(), Some(super::Refused::Late));
     }
 
@@ -200,7 +173,6 @@ mod tests {
     async fn a_waiting_or_running_intent_is_never_skipped() {
         let order = Arc::new(IntentOrder::default());
         order.attach(1);
-        // Intent 0 runs for longer than the missing-intent wait.
         let first = order.turn(1, 0).await.expect("intent 0");
         let ran = Arc::new(Mutex::new(Vec::new()));
         let later = [2, 1].map(|sequence| {

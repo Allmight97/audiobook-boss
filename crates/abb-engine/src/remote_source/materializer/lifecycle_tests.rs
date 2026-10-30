@@ -1,6 +1,3 @@
-//! Helper lifecycle harness: a fake AAXClean helper script stands in for the
-//! real sidecar, so reaping, registration release, and staged-output cleanup are
-//! proven without an Audible account or a bundled helper.
 use super::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 

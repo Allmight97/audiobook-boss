@@ -1,8 +1,3 @@
-//! Unit tests for settings validation logic.
-//!
-//! Tests validation functions for sample rate and output paths
-//! without touching real files or FFmpeg infrastructure.
-
 use abb_engine::audio::{validate_output_path, validate_sample_rate_config, SampleRateConfig};
 use std::path::PathBuf;
 use tempfile::TempDir;

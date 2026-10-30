@@ -8,11 +8,6 @@ import { renderConcurrencyStatus, renderPreview, renderStatus } from './render';
 import { coverSrc } from '../../lib/tauri/coverSrc';
 import { createStatusViewStore, DEFAULT_STATUS_VIEW, type StatusView } from './view';
 
-/**
- * The engine builds, reviews, and runs exports and previews. This owner
- * starts them, routes collision review through the Output dialog, and shows
- * preview progress and outcomes in the status panel.
- */
 export type ProcessingOwner = {
 	readonly status: Accessor<StatusView>;
 	readonly restartOffers: Accessor<readonly RestartOffer[]>;

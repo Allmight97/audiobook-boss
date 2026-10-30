@@ -2,8 +2,6 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-// Enforces the removal date of each early-release exemption in bunfig.toml
-// (scripts/AGENTS.md, Dependencies).
 const bunfig = readFileSync(fileURLToPath(new URL('../bunfig.toml', import.meta.url)), 'utf8');
 
 type Exemption = { readonly until: string; readonly packages: readonly string[] };

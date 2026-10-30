@@ -1,5 +1,3 @@
-//! Canonical supported audio extension handling.
-
 use std::path::Path;
 
 use crate::errors::{AppError, Result};

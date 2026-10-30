@@ -20,13 +20,6 @@ function focusableElements(container: HTMLElement): HTMLElement[] {
 // on the same node — this stack can.
 const openModals: ModalController[] = [];
 
-/// Escape/focus-trap/initial-focus/focus-restore for a dialog that stays
-/// MOUNTED while hidden (visibility toggled by the owning state module), so
-/// behavior keys on open-state TRANSITIONS rather than component mount/destroy.
-/// Call `sync` whenever the owning `isOpen` state changes. Escape always
-/// routes through the caller-supplied `onEscape` callback — the same
-/// close/cancel path a visible Close/Cancel button uses — never a force-hide
-/// here.
 export class ModalController {
 	#isOpen = false;
 	#container: HTMLElement | null = null;

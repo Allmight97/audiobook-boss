@@ -1,12 +1,7 @@
-//! Apple AAC (AudioToolbox) encoder options.
-
 use crate::audio::settings_encoder::EncoderSettings;
 use ff::Dictionary;
 use ffmpeg_next as ff;
 
-/// Apple AAC (AudioToolbox) encoder options.
-///
-/// Sets bit_rate on context (required for CVBR) and returns Dictionary with aac_at_mode.
 pub(in crate::audio::processor::encoder) fn build_apple_options(
     ctx: &mut ff::codec::context::Context,
     settings: &EncoderSettings,

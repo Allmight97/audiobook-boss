@@ -1,13 +1,3 @@
-/**
- * Fails when a workflow drifts from the CI policy. Pull-request workflows must
- * keep the trigger types, a stable per-PR concurrency key, and a draft guard on
- * every check job. Every job needs a timeout. Linux runners stay on Ubuntu
- * 24.04. A job that diffs the pull request base fetches that commit or
- * checks out full history. Each error names the fix.
- *
- * Usage: bun scripts/check-pr-workflow-policy.ts [workflow.yml ...]
- * With no paths, checks every workflow under .github/workflows.
- */
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseDocument } from 'yaml';

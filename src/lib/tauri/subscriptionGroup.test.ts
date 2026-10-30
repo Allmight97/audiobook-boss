@@ -19,7 +19,7 @@ describe('subscription group', () => {
 		expect(group.disposed).toBe(false);
 
 		group.dispose();
-		group.dispose(); // idempotent
+		group.dispose();
 
 		expect(fromPromise).toHaveBeenCalledTimes(1);
 		expect(fromSync).toHaveBeenCalledTimes(1);

@@ -388,7 +388,6 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		});
 		flush();
 		expect(screen.getByText('Downloader unavailable')).toBeInTheDocument();
-		// A changed grab state updates the row in place.
 		expect(screen.getByRole('button', { name: /^Select Release from 8/ })).toBe(releaseButton);
 		expect(
 			screen.getByRole('button', { name: 'Retry Release from 8 from Indexer 8' }),
@@ -405,7 +404,6 @@ describe('RemoteSourceAcquireView during a download', () => {
 		document.body.innerHTML = '';
 	});
 
-	/** Delivers one engine update the way the host does: only the parts that changed. */
 	function engineWithUpdates() {
 		const engine = createFakeEngine();
 		let deliver: ((update: SessionUpdate) => void) | undefined;

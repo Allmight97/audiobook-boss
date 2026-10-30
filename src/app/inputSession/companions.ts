@@ -1,4 +1,3 @@
-/** How the companion PDFs of the given titles read in the inspector. */
 export type CompanionSummary = {
 	readonly text: string;
 	readonly title: string;

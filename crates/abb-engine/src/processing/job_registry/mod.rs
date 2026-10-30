@@ -1,8 +1,3 @@
-//! Job Registry for parallel batch processing
-//!
-//! Provides concurrent job management using a semaphore-based approach
-//! to limit simultaneous processing operations.
-
 mod cancel;
 mod permit;
 #[cfg(test)]
@@ -26,32 +21,17 @@ pub use types::{JobId, MaxConcurrentJobsCapabilities};
 pub const MIN_CONCURRENT_JOBS: usize = 1;
 pub const MAX_CONCURRENT_JOBS: usize = 8;
 
-/// Registry for managing concurrent processing jobs
-///
-/// Uses a semaphore to limit the number of concurrent jobs. Cancellation is
-/// title-scoped; see `CancellationChecker`.
 pub struct JobRegistry {
-    /// Admission state; one lock so reconfiguration and admission agree.
     admission: Mutex<Admission>,
-    /// Maximum number of concurrent jobs
     max_concurrent: AtomicUsize,
 }
 
-/// A job enters `jobs` when it starts waiting for a permit, and admission
-/// clones `semaphore` under the same lock. Reconfiguration therefore either
-/// sees that job and refuses, or swaps the semaphore before the job reads it.
 struct Admission {
-    /// Admitting and running jobs
     jobs: HashSet<Uuid>,
-    /// Semaphore limiting concurrent jobs
     semaphore: Arc<Semaphore>,
-    /// Accepted exports and previews still running (`ActiveRun`).
     runs: usize,
 }
 
-/// Held for the whole life of an accepted export or a preview, so
-/// concurrency never changes under it, even between titles when no job is
-/// registered.
 pub(crate) struct ActiveRun {
     registry: Arc<JobRegistry>,
 }
@@ -63,7 +43,6 @@ impl Drop for ActiveRun {
     }
 }
 
-/// Internal batch scheduler facade backed by JobRegistry concurrency settings.
 pub struct BatchScheduler<'a> {
     registry: &'a JobRegistry,
 }
@@ -73,10 +52,6 @@ impl<'a> BatchScheduler<'a> {
         Self { registry }
     }
 
-    /// Runs a batch of futures with bounded in-flight concurrency.
-    ///
-    /// Tasks continue to be scheduled even when earlier tasks fail so callers
-    /// can receive complete, deterministic per-index outcomes.
     pub async fn run_batch<R, Fut>(&self, futures: Vec<Fut>) -> Vec<Result<R>>
     where
         R: Send + 'static,
@@ -169,7 +144,6 @@ fn spawn_indexed_task<R, Fut>(
 }
 
 impl JobRegistry {
-    /// Creates a new JobRegistry with the specified concurrency limit
     pub fn new(max_concurrent: usize) -> Self {
         let effective_max = Self::normalize_max(max_concurrent);
         Self {
@@ -182,7 +156,6 @@ impl JobRegistry {
         }
     }
 
-    /// Creates a JobRegistry with auto-detected concurrency (detected cores / 2)
     pub fn auto() -> Self {
         let cores = Self::detected_cores();
         let max_concurrent = Self::normalize_max(cores / 2);
@@ -221,26 +194,22 @@ impl JobRegistry {
         }
     }
 
-    /// Returns a scheduler facade for bounded batch task orchestration.
     pub fn scheduler(&self) -> BatchScheduler<'_> {
         BatchScheduler::new(self)
     }
 
-    /// Marks a job as completed and removes it from active tracking
     pub async fn complete_job(&self, job_id: JobId) {
         if self.remove_job(job_id) {
             log::info!("Job {} completed", job_id);
         }
     }
 
-    /// Marks a job as failed
     pub async fn fail_job(&self, job_id: JobId, error: String) {
         if self.remove_job(job_id) {
             log::error!("Job {} failed: {}", job_id, error);
         }
     }
 
-    /// Marks an export or preview as running until the guard drops.
     pub(crate) fn hold_run(self: &Arc<Self>) -> ActiveRun {
         self.admission().runs += 1;
         ActiveRun {
@@ -259,10 +228,8 @@ impl JobRegistry {
         self.admission().jobs.remove(&job_id.0)
     }
 
-    /// Gets aggregate progress information
     #[cfg(test)]
     pub async fn get_aggregate_status(&self) -> AggregateJobStatus {
-        // Every tracked job is admitting or active; terminal paths remove it.
         let total = self.admission().jobs.len();
 
         AggregateJobStatus {
@@ -271,12 +238,10 @@ impl JobRegistry {
         }
     }
 
-    /// Returns the maximum concurrency setting
     pub fn max_concurrent(&self) -> usize {
         self.max_concurrent.load(Ordering::SeqCst)
     }
 
-    /// Updates the maximum concurrency. Requires no admitting or active jobs.
     pub async fn update_max_concurrent(&self, max: usize) -> Result<usize> {
         let effective = Self::normalize_max(max);
         let mut admission = self.admission();
@@ -290,7 +255,6 @@ impl JobRegistry {
         Ok(effective)
     }
 
-    /// Resets max concurrency to the auto-detected default when idle.
     pub async fn reset_to_auto(&self) -> Result<usize> {
         self.update_max_concurrent(Self::default_max()).await
     }

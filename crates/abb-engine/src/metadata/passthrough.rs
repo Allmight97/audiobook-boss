@@ -1,8 +1,3 @@
-//! Metadata passthrough helpers (chapters, cover art) for preserving source metadata.
-//!
-//! This module extracts metadata that should be copied from source files
-//! without re-encoding or rewriting (chapters and original cover art).
-
 use std::path::PathBuf;
 
 use ffmpeg_next as ff;
@@ -10,7 +5,6 @@ use ffmpeg_next as ff;
 use crate::errors::Result;
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 
-/// Metadata-owned facts needed to extract chapters and cover art from source files.
 #[derive(Debug, Clone)]
 pub struct PassthroughSource {
     pub path: PathBuf,
@@ -21,7 +15,6 @@ pub struct PassthroughSource {
 
 pub use super::ChapterSpec;
 
-/// Aggregated passthrough metadata collected from input files.
 #[derive(Debug, Clone, Default)]
 pub struct PassthroughMetadata {
     pub chapters: Vec<ChapterSpec>,
@@ -149,7 +142,6 @@ fn synthesize_chapters_from_files(files: &[PassthroughSource]) -> Vec<ChapterSpe
 /// Chapters are normalized to milliseconds and offset by cumulative durations
 /// to preserve ordering for multi-file merges.
 pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughMetadata {
-    // Ensure FFmpeg is initialized before probing chapters.
     let _ = ff::init();
 
     let mut passthrough = PassthroughMetadata::default();
@@ -158,7 +150,6 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
     for file in files.iter().filter(|f| f.is_valid) {
         match ff::format::input(&file.path) {
             Ok(ictx) => {
-                // Collect chapters
                 if file.chapters.is_none() && ictx.nb_chapters() > 0 {
                     for chapter in ictx.chapters() {
                         let title = chapter.metadata().get("title").map(str::to_string);
@@ -174,7 +165,6 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
                     }
                 }
 
-                // Collect original cover art from the first file that provides it
                 if passthrough.cover_art.is_none() {
                     passthrough.cover_art = super::reader::extract_attached_pic(&ictx);
                 }
@@ -205,8 +195,6 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
         }
     }
 
-    // If no chapters were found and we have multiple valid inputs, synthesize
-    // one chapter per file using file order and filenames.
     let valid_file_count = files.iter().filter(|f| f.is_valid).count();
     if passthrough.chapters.is_empty() && valid_file_count > 1 {
         let synthetic = synthesize_chapters_from_files(files);
@@ -224,7 +212,6 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
     passthrough
 }
 
-/// Adds chapters to an output context using millisecond time base (1/1000).
 pub fn add_chapters_to_output(
     octx: &mut ff::format::context::Output,
     chapters: &[ChapterSpec],
@@ -236,7 +223,7 @@ pub fn add_chapters_to_output(
         return Ok(0);
     }
 
-    let time_base = ff::Rational(1, 1000); // milliseconds
+    let time_base = ff::Rational(1, 1000);
     for (idx, chapter) in chapters.iter().enumerate() {
         let title = chapter.title.clone().unwrap_or_default();
         match octx.add_chapter(
@@ -258,7 +245,6 @@ pub fn add_chapters_to_output(
     Ok(copied)
 }
 
-/// Fail before artifact commit if finalization lost selected chapters.
 pub fn verify_chapters(path: &std::path::Path, expected: &[ChapterSpec]) -> Result<()> {
     crate::diagnostics::stage("metadata_verify_chapters", path, || {
         verify_chapters_inner(path, expected)

@@ -13,8 +13,14 @@
   callers use it instead of private implementation files.
 - Editing guidance: root holds repo-wide rules, a local `AGENTS.md` holds its
   path's rules, a skill holds a reusable procedure; each meaning lives in one.
-  Put a rule's non-obvious "why" in one line beside it, or as a comment at the
-  enforcing code. `README.md` is for people.
+  Put a rule's non-obvious "why" in one line beside it. `README.md` is for
+  people.
+- Code states its rules as names, types, tests, asserts, or checks; agents
+  copy a comment that excuses a workaround. A comment stays only for a
+  license, behavior forced by an outside dependency, platform, or protocol, a
+  lint's required text or a suppression's reason, a public API contract the signature cannot show,
+  or an issue or RFC link. `scripts/check-known-mistakes.ts` rejects banners,
+  `EXCEPTION:` stamps, and `DO NOT REMOVE`.
 - Upstream source enters the repo only as ABB-owned build provenance under
   `vendor/`.
 

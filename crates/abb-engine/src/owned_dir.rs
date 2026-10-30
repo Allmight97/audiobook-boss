@@ -8,12 +8,10 @@ use crate::errors::{AppError, Result};
 #[derive(Clone, Copy)]
 pub(crate) struct OwnedRoot<'a> {
     pub(crate) path: &'a Path,
-    /// Human label used in refusal messages, e.g. "processing workspace".
     pub(crate) label: &'a str,
 }
 
 impl OwnedRoot<'_> {
-    /// Removes `child` and its contents when it exists inside this root.
     pub(crate) fn remove_child(&self, child: &Path) -> Result<()> {
         if !child.exists() {
             return Ok(());
@@ -22,7 +20,6 @@ impl OwnedRoot<'_> {
         self.remove_dir(child)
     }
 
-    /// Removes the root itself when it exists and is not a symlink.
     pub(crate) fn remove_root(&self) -> Result<()> {
         if !self.path.exists() {
             return Ok(());
@@ -30,7 +27,6 @@ impl OwnedRoot<'_> {
         self.remove_dir(self.path)
     }
 
-    /// Refuses a root that is a symlink before an owner walks its children.
     pub(crate) fn ensure_root_not_symlink(&self) -> Result<()> {
         self.ensure_not_symlink(self.path)
     }

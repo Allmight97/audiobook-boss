@@ -109,10 +109,6 @@ impl AudibleProvider {
         Ok(auth)
     }
 
-    /// Serialize the Audible auth and persist it to the secure vault, then
-    /// report the resulting account state. Separated from `complete_auth` so
-    /// the persistence boundary is testable without the live OAuth `register`
-    /// exchange.
     pub(in crate::remote_source) fn persist_auth(
         vault: &dyn SecretVault,
         auth: &Auth,
@@ -559,8 +555,6 @@ mod tests {
             "Tree"
         );
     }
-
-    // -- Audible auth -> keychain persistence chain (mock vault, no network) --
 
     use crate::errors::{AppError, Result as AppResult};
     use crate::remote_source::vault::SecretVault;

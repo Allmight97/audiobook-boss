@@ -80,7 +80,6 @@ fn unknown() -> AppError {
 }
 
 impl Session {
-    /// The cover `request` names; `None` when its source has no cover.
     pub(crate) async fn cover(&self, request: &str) -> Result<Option<Cover>> {
         let request = CoverRequest::parse(request).inspect_err(|_| {
             log::warn!("cover_load outcome=refused reason=malformed_address");

@@ -1,5 +1,3 @@
-//! Metadata field sinks for ffmpeg and mp4ameta adapters.
-
 use crate::metadata::field_schema::TagField;
 use crate::metadata::metadata_ops::MetadataOp;
 use crate::metadata::publication_year_from_date;
@@ -211,12 +209,6 @@ mod tests {
     use crate::metadata::AudiobookMetadata;
     use mp4ameta::{FreeformIdent, MediaType, Tag};
 
-    // These tests assert the literal external contract a third-party reader
-    // consumes (atom names/values), not the production constants the sink
-    // writes — so the test cannot drift in lockstep with a bug in the code it
-    // guards. Everything is driven through the real planner + real Mp4ametaSink
-    // into an in-memory Tag (no file/ffmpeg I/O; honors the #341 freeze).
-
     fn apply_real_sink(metadata: &AudiobookMetadata) -> Tag {
         let mut tag = Tag::default();
         let ops = plan_metadata_field_ops(metadata);
@@ -275,7 +267,6 @@ mod tests {
         assert_eq!(tag.strings_of(&itunes_series).next(), Some("Primary; Sub"));
         assert_eq!(tag.strings_of(&itunes_series_part).next(), Some("1; 2"));
 
-        // Legacy tv-show/tv-episode compatibility atoms must not be emitted.
         assert_eq!(tag.tv_show_name(), None);
         assert_eq!(tag.tv_episode(), None);
     }
@@ -303,7 +294,6 @@ mod tests {
         assert_eq!(tag.strings_of(&itunes_series).next(), Some("Temp Series"));
         assert_eq!(tag.strings_of(&itunes_series_part).next(), Some("9"));
 
-        // Empty-string intent flows through the planner as a Clear op.
         let clear_ops = plan_metadata_field_ops(&AudiobookMetadata {
             title: Some("   ".to_string()),
             artist: Some(String::new()),
@@ -316,7 +306,6 @@ mod tests {
             apply_metadata_ops(&mut sink, &clear_ops);
         }
 
-        // The atoms are removed entirely, not left as empty values.
         assert_eq!(tag.title(), None);
         assert_eq!(tag.artist(), None);
         assert_eq!(tag.album_artist(), None);

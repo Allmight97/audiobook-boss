@@ -4,7 +4,6 @@ import { useAppRuntime } from '../app/runtime';
 import { Button } from './foundation';
 import './refusedChangeNotice.css';
 
-/** Shows why a change was refused when nothing else waited for its answer. */
 export function RefusedChangeNotice(): JSX.Element {
 	const engine = useAppRuntime().engine;
 	return (

@@ -14,10 +14,6 @@ import {
 	type SelectionModifiers,
 } from './types';
 
-/**
- * The engine owns the titles, their order, and the selection. This owner
- * shows them and turns what the user does into intents.
- */
 export type InputOwner = {
 	readonly view: Accessor<InputView>;
 	readonly capability: Accessor<InputCapability>;
@@ -26,7 +22,6 @@ export type InputOwner = {
 	ungroup(file: AudioFile): void;
 	reorderSources(file: AudioFile, from: number, to: number): void;
 	audioChoiceRequired(file: AudioFile): boolean;
-	/** Whether a downloaded title has companion PDFs. */
 	hasCompanions(inputId: string | undefined): boolean;
 	companionSummary(inputIds: ReadonlyArray<string | undefined>): CompanionSummary;
 	/** Resolves once the picker closes and the import is sent, before it lands. */
@@ -60,7 +55,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	const capabilityValue = deps.capability ?? liveInputCapability;
 	const capability: Accessor<InputCapability> = () => capabilityValue;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	// View-local state: none of it is session truth.
 	let localError = '';
 	let isDragOver = false;
 	let supportText = DEFAULT_SUPPORT_TEXT;
@@ -171,8 +165,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 				changed();
 			} catch {}
 		},
-		// Positions are read from the list the user acted on; the engine is
-		// told which title, so an earlier reorder still in flight cannot retarget it.
 		selectFile(command) {
 			const file = link.titles().files[command.index];
 			if (!file) return Promise.resolve(false);
@@ -199,8 +191,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		clearAllFiles() {
 			link.post({ kind: 'clearAll' });
 		},
-		// Positions are read from the list the user acted on; the engine is
-		// told which title, so an earlier move still in flight cannot redirect it.
 		moveFile(command) {
 			const file = link.titles().files[command.index];
 			if (!file) return;
@@ -226,7 +216,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 			isDragOver = false;
 			supportText = DEFAULT_SUPPORT_TEXT;
 			changed();
-			// The engine's session outlives this view; a new frontend attaches to it.
 		},
 	};
 }

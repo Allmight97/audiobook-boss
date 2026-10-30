@@ -4,7 +4,6 @@ import { EVENTS } from '../../../types/events';
 import type { SessionIntent, SessionReply, SessionUpdate } from '../../../types/session';
 import { tauriClient } from '../client';
 
-/** The engine's session and settings as the frontend reaches them. */
 export interface EngineCapability {
 	attach(): Promise<{ client: number; session: SessionUpdate; settings: SettingsSnapshot }>;
 	sessionDispatch(client: number, sequence: number, intent: SessionIntent): Promise<SessionReply>;

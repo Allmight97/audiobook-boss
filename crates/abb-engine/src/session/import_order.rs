@@ -1,7 +1,3 @@
-//! Imports take effect in the order they were accepted. Each takes a turn
-//! when accepted and runs once every earlier turn has ended, whatever order
-//! their tasks start in.
-
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Default)]
@@ -11,10 +7,8 @@ pub(super) struct ImportOrder {
     changed: tokio::sync::Notify,
 }
 
-/// A place in the import order, taken when the import is accepted.
 pub(super) struct Turn(u64);
 
-/// Held while an import runs; the next turn starts when it drops.
 pub(super) struct Running<'a>(&'a ImportOrder);
 
 impl ImportOrder {

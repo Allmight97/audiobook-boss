@@ -4,9 +4,6 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
-/// The parent folder of every output, in every run, that has not ended yet.
-/// No cleanup removes a folder one of them will still write into, whichever
-/// run created it.
 #[derive(Default)]
 struct DirectoryOwnership {
     claims: Vec<PathBuf>,
@@ -50,8 +47,6 @@ fn claimed_under(claims: &[PathBuf], dir: &Path) -> bool {
     claims.iter().any(|parent| parent.starts_with(dir))
 }
 
-/// Owns every directory execution created for its outputs, including a missing
-/// output root, until the run releases them or rolls them back.
 #[derive(Debug)]
 pub(crate) struct OutputParentDirCleanup {
     /// Canonical directory that existed before execution created anything; only
@@ -75,7 +70,6 @@ impl OutputParentDirCleanup {
         }
     }
 
-    /// Keeps every folder: the run published what it planned.
     pub(crate) fn release(&mut self) {
         let mut owned = ownership();
         owned
@@ -87,14 +81,10 @@ impl OutputParentDirCleanup {
         self.created_dirs.clear();
     }
 
-    /// Removes every created folder that is empty.
     pub(crate) fn cleanup_now(&mut self) -> Result<()> {
         self.cleanup_active()
     }
 
-    /// Ends the output at `position`. When it did not publish, removes the
-    /// empty folders created for it that no output still running writes
-    /// into; the run's own cleanup sees the rest later.
     pub(crate) fn end_title(&mut self, position: usize, published: bool) -> Result<()> {
         let Some(parent) = self.title_parents.get_mut(position).and_then(Option::take) else {
             return Ok(());

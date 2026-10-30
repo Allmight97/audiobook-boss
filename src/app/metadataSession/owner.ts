@@ -12,7 +12,7 @@ import {
 	liveMetadataCapability,
 	type MetadataCapability,
 } from '../../lib/tauri/capabilities/metadata';
-import type { EngineLink } from '../engineLink';
+import { createTypingEcho, type EngineLink } from '../engineLink';
 import {
 	COVER_ART_IMAGE_EXTENSION_HINTS,
 	COVER_MESSAGE_MS,
@@ -38,10 +38,6 @@ export type MetadataView = {
 	readonly statusMessage: string;
 };
 
-/**
- * The engine owns the metadata form, its drafts, and Save. This owner shows
- * the engine's snapshot and turns what the user does into intents.
- */
 export type MetadataOwner = {
 	readonly view: Accessor<MetadataView>;
 	readonly capability: Accessor<MetadataCapability>;
@@ -84,7 +80,6 @@ function outputText(outputs: OutputEdits): string {
 	);
 }
 
-/** Words the engine's account of the last metadata action. */
 function statusText(status: MetadataStatus | null): string {
 	switch (status?.kind) {
 		case undefined:
@@ -138,10 +133,6 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	const capabilityValue = deps.capability ?? liveMetadataCapability;
 	const capability: Accessor<MetadataCapability> = () => capabilityValue;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	// Text entered and not yet confirmed by the engine, shown so typing never lags.
-	// Unconfirmed typing, tied to the form it was typed into.
-	const typed = new Map<MetadataField, { readonly value: string; readonly binding: number }>();
-	// View-local cover state: none of it is session truth.
 	let isHovered = false;
 	let isDragOver = false;
 	let urlInputValue = '';
@@ -152,6 +143,10 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	function changed(): void {
 		bump((n) => n + 1);
 	}
+	const typed = createTypingEcho<MetadataField>({
+		scopeOf: () => [link.metadata().binding],
+		changed,
+	});
 
 	function hideMessageLater(hide: () => void): void {
 		if (messageTimer !== undefined) clearTimeout(messageTimer);
@@ -191,14 +186,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	const view: Accessor<MetadataView> = () => {
 		rev();
 		const metadata = link.metadata();
-		const form = toFormState(
-			metadata.form,
-			new Map(
-				[...typed]
-					.filter(([, entry]) => entry.binding === metadata.binding)
-					.map(([field, entry]) => [field, entry.value]),
-			),
-		);
+		const form = toFormState(metadata.form, (field) => typed.valueOf(field));
 		return {
 			form,
 			cover: {
@@ -237,25 +225,15 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		setFieldValue(command) {
 			const field = fieldForInputId(command.inputId);
 			if (!field) return;
-			const entry = { value: command.value, binding: link.metadata().binding };
-			typed.set(field, entry);
-			changed();
 			const intent: SessionIntent = { kind: 'setField', field, value: command.value };
-			link
-				.send(intent)
-				.catch((error: unknown) => link.refuse(intent, error))
-				.finally(() => {
-					// Later keystrokes keep their own text until their own reply.
-					if (typed.get(field) !== entry) return;
-					typed.delete(field);
-					changed();
-				});
+			typed.show(field, command.value, () =>
+				link.send(intent).catch((error: unknown) => link.refuse(intent, error)),
+			);
 		},
 		setFieldAction(command) {
 			const field = fieldForActionId(command.actionId);
 			if (!field) return;
-			typed.delete(field);
-			changed();
+			typed.drop(field);
 			link.post({ kind: 'setFieldAction', field, action: command.action });
 		},
 		setCoverHovered(hovered) {

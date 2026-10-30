@@ -1,6 +1,3 @@
-//! Audible license-response interpretation: which content to fetch, how it is
-//! protected, and which acquisition strategy follows.
-
 use abb_media_core::{MediaContainerKind, MediaProtectionKind};
 use abb_remote_source_core::{
     materialized_source_kind_for_container, AcquisitionStrategy, MaterializedSourceKind,

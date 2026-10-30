@@ -670,8 +670,6 @@ fn assert_matches_source(output: &Path, source: &Path) {
     }
 }
 
-/// Runs the helper through the materializer and returns whether it exited 0
-/// with a non-empty result. The temp output is dropped with this call.
 async fn helper_accepts(
     lane: AaxcleanLane,
     input: PathBuf,

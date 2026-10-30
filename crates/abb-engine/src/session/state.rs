@@ -1,10 +1,3 @@
-//! The working session's state and every transition that needs no I/O.
-//!
-//! The runtime holds this behind one lock and never across an await, so each
-//! method here is atomic. Anything that must read or write a file returns to
-//! the runtime as data (`ReadTicket`s, save plans) and comes back as a
-//! completion (`finish_reads`, `finish_save`).
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -24,7 +17,7 @@ use super::submission::{
 };
 use super::tag_cache::{ReadTicket, TagCache};
 use super::working_set::{SelectionSnapshot, TitlesSnapshot, WorkingSet};
-use crate::audio::AudioFile;
+use crate::audio::{AudioFile, TitleAudioRequest};
 use crate::errors::{AppError, AppErrorEnvelope};
 use crate::metadata::{
     processing_album_sort, validate_metadata_intent_patch, AudiobookMetadata, MetadataIntentPatch,
@@ -56,7 +49,6 @@ pub enum MetadataStatus {
         waiting: usize,
         /// Temporary downloads; never written, their edits go with exports.
         held: usize,
-        /// What the Save did to exported titles' outputs.
         outputs: OutputEdits,
     },
     SaveCancelled,
@@ -151,7 +143,6 @@ pub struct SessionUpdate {
     pub remote_acquisition: Option<crate::remote_source::RemoteAcquisitionSnapshot>,
 }
 
-/// Why the metadata draft gate refused a change of selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum GateBlock {
     SaveInProgress,
@@ -160,9 +151,7 @@ pub(crate) enum GateBlock {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum StageOutcome {
-    /// Edits were staged, or there were none.
     Staged,
-    /// There are edits and no valid title to carry them.
     NoTarget,
     Invalid(String),
 }
@@ -174,7 +163,6 @@ struct BoundTitle {
     is_valid: bool,
 }
 
-/// One file's edit on its way to disk.
 #[derive(Debug, Clone)]
 pub(crate) struct SaveItem {
     pub(crate) path: PathBuf,
@@ -182,27 +170,19 @@ pub(crate) struct SaveItem {
     pub(crate) revision: u64,
 }
 
-/// What a Save decided to do with each pending edit.
 #[derive(Debug, Default)]
 pub(crate) struct SavePlan {
-    /// No export is reading these; write them now.
     pub(crate) immediate: Vec<SaveItem>,
-    /// Local sources in flight; written when their exports finish reading.
     pub(crate) waiting: usize,
-    /// Temporary downloads; never written.
     pub(crate) held: usize,
-    /// The edit each exported title's output should carry.
     pub(crate) outputs: Vec<OutputEdit>,
-    /// A grouped title has edits, kept for its output.
     pub(crate) grouped: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DeferredPhase {
     Waiting,
-    /// Taken by the deferred writer; the file is being written now.
     Writing,
-    /// Failed accepted intent survives removal, but waits for explicit Save.
     Failed,
 }
 
@@ -221,8 +201,6 @@ struct Cover {
     notice_serial: u64,
     displayed: Option<Vec<u8>>,
     image_revision: u64,
-    /// Advances with every cover choice or Clear; a load started before the
-    /// latest one is dropped when it finishes.
     request: u64,
 }
 
@@ -243,9 +221,7 @@ struct Parts {
 }
 
 pub(crate) struct SessionState {
-    /// Advances on reset; completions from before a reset are dropped.
     pub(crate) epoch: u64,
-    /// Advances whenever the form binds to a different selection.
     pub(crate) binding: u64,
     pub(crate) working_set: WorkingSet,
     pub(crate) tags: TagCache,
@@ -256,36 +232,22 @@ pub(crate) struct SessionState {
     plans: Plans,
     /// The title and audio-request changes plans were last refreshed for.
     plans_seen: (u64, u64),
-    /// How the latest submission or preview is going.
     submission: Option<SubmissionStatus>,
-    /// A submission waiting for the user's collision choice.
     pending_review: Option<super::submission::PendingReview>,
-    /// Never reset: a delayed answer must not name a later question.
     review_serial: u64,
-    /// The submission or preview between `begin_submission` and
-    /// `finish_submission`. Kept apart from `submission`, which a refusal of
-    /// a later request overwrites.
     submitting: Option<Submitting>,
-    /// Why the latest title audio edit changed nothing.
     audio_refusal: Option<AudioRefusal>,
-    /// Covers a Save has written into sources; see `TitlesSnapshot::covers_revision`.
     covers_written: u64,
     keeping_locations: usize,
-    /// Sources a submission being prepared will read; Save treats them as busy.
     reserved: Vec<PathBuf>,
-    /// Downloads the session imported, and when they may be removed.
     pub(crate) staged: StagedSources,
-    /// Files of downloads being removed: nothing may write or submit them.
     removing: Vec<PathBuf>,
-    /// Which export output each title's Saves update.
     pub(crate) exports: Exports,
     form: MetadataForm,
     bound: Vec<BoundTitle>,
     selection_key: Vec<PathBuf>,
     cover: Cover,
     save_in_progress: bool,
-    /// Files a Save is writing right now. Kept through a Reset, which
-    /// forgets the Save's form but cannot stop its write.
     writing: Vec<PathBuf>,
     status: Option<MetadataStatus>,
     deferred: Vec<DeferredWrite>,
@@ -368,8 +330,6 @@ impl Default for SessionState {
 }
 
 impl SessionState {
-    // ---- Snapshots ----
-
     pub(crate) fn revision(&self) -> u64 {
         self.parts.revision
     }
@@ -378,8 +338,6 @@ impl SessionState {
         self.parts.lookup.revision
     }
 
-    /// Re-derives what hosts see and stamps each changed part with a new
-    /// revision. The runtime calls this once after every transition.
     pub(crate) fn settle(&mut self) {
         self.refresh_displayed_cover();
         // A refusal answers the titles and lock it was made for.
@@ -509,8 +467,6 @@ impl SessionState {
         }
     }
 
-    /// The title the output preview names: the first selected one, or the
-    /// first valid one.
     fn preview_title(&self) -> Option<&AudioFile> {
         let files = self.working_set.files();
         self.working_set
@@ -541,7 +497,7 @@ impl SessionState {
             let format = self
                 .working_set
                 .audio_request(&file.input_id)
-                .map_or_else(|| self.audio.request().format, |request| request.format);
+                .map_or_else(|| self.audio.format(), TitleAudioRequest::format);
             (&metadata, file.path.as_path(), format)
         });
         let preview = self.output.preview(title);
@@ -570,15 +526,10 @@ impl SessionState {
         )
     }
 
-    // ---- Submission ----
-
-    /// Starts a submission or preview: accepts the edits on screen, builds
-    /// what will be sent, reserves its sources, and locks the list.
     pub(crate) fn begin_submission(&mut self, preview_seconds: Option<f64>) -> Option<Draft> {
         self.begin_submission_of(preview_seconds, None)
     }
 
-    /// `begin_submission` for one title (`only`) or every valid one.
     fn begin_submission_of(
         &mut self,
         preview_seconds: Option<f64>,
@@ -686,9 +637,6 @@ impl SessionState {
         Ok(draft)
     }
 
-    // ---- Exports ----
-
-    /// Links each title of an accepted export to its output record.
     pub(crate) fn link_exports(
         &mut self,
         draft: &Draft,
@@ -708,8 +656,6 @@ impl SessionState {
         self.exports.link(operation_id, titles, outputs);
     }
 
-    /// Records what the outputs did with a Save's edits: restart offers for
-    /// edits that would move an unpublished output, and links that ended.
     pub(crate) fn record_output_edits(
         &mut self,
         replies: Vec<(OutputEdit, Result<UpdateReply, String>)>,
@@ -744,9 +690,6 @@ impl SessionState {
         counts
     }
 
-    /// Starts restarting a title at the location a Save offered: begins a
-    /// submission of that title alone, which holds its
-    /// sources and locks the list before the old export is cancelled.
     pub(crate) fn begin_restart(
         &mut self,
         title_id: &str,
@@ -770,7 +713,6 @@ impl SessionState {
         Some((draft, link))
     }
 
-    /// The user keeps a title's output where it is.
     pub(crate) fn kept_location(&mut self, title_id: &str, revision: u64) {
         self.exports.decline(title_id, revision);
     }
@@ -798,10 +740,6 @@ impl SessionState {
         self.keeping_locations -= 1;
     }
 
-    // ---- Staged downloads ----
-
-    /// The downloads that may be removed now. `in_use` is every source of an
-    /// unfinished export. Nothing is removed while a Save writes.
     pub(crate) fn removable_staged(&self, in_use: &HashSet<PathBuf>, now: Instant) -> Vec<String> {
         let writing = self.save_in_progress
             || !self.writing.is_empty()
@@ -815,8 +753,6 @@ impl SessionState {
         self.staged.removable(&self.busy(in_use), now)
     }
 
-    /// Picks the downloads to remove now and holds their files so nothing
-    /// writes or submits them meanwhile.
     pub(crate) fn begin_staged_removal(
         &mut self,
         in_use: &HashSet<PathBuf>,
@@ -829,8 +765,6 @@ impl SessionState {
         jobs
     }
 
-    /// Ends a removal; a failed one stays registered and is tried again
-    /// after `staged::RETRY_DELAY`. Returns the reads the form now needs.
     pub(crate) fn finish_staged_removal(
         &mut self,
         job_id: &str,
@@ -848,7 +782,6 @@ impl SessionState {
         self.rebind()
     }
 
-    /// Holds a submission for the user's collision choice.
     pub(crate) fn await_review(
         &mut self,
         mut draft: Draft,
@@ -870,7 +803,6 @@ impl SessionState {
         self.submission = Some(SubmissionStatus::Refused { reason });
     }
 
-    /// Drops a submission held for review.
     pub(crate) fn cancel_review(&mut self) {
         if let Some(review) = self.pending_review.take() {
             self.finish_submission(&review.draft, SubmissionStatus::Cancelled);
@@ -901,7 +833,6 @@ impl SessionState {
         }
     }
 
-    /// The submission waiting for a collision choice, if any.
     pub(crate) fn take_review(&mut self, review_id: u64) -> Option<Draft> {
         if !self.review_matches(review_id) {
             return None;
@@ -918,8 +849,6 @@ impl SessionState {
         self.submission = Some(SubmissionStatus::Previewing);
     }
 
-    /// Ends a submission: frees its sources and the list, and records how it
-    /// ended.
     pub(crate) fn finish_submission(&mut self, draft: &Draft, status: SubmissionStatus) {
         self.preview.finish(draft, &status);
         for source in &draft.sources {
@@ -934,9 +863,6 @@ impl SessionState {
         self.submission = Some(status);
     }
 
-    // ---- Title plans ----
-
-    /// The plans to resolve because a title's request or sources changed.
     pub(crate) fn take_plan_tickets(&mut self) -> Vec<PlanTicket> {
         let seen = (
             self.working_set.titles_changes(),
@@ -972,7 +898,6 @@ impl SessionState {
         self.plans.finish(ticket, result);
     }
 
-    /// The parts that changed after `revision`; everything for `None`.
     pub(crate) fn update_since(&self, revision: Option<u64>) -> SessionUpdate {
         let newer = |part: u64| revision.is_none_or(|revision| part > revision);
         SessionUpdate {
@@ -1045,8 +970,6 @@ impl SessionState {
         })
     }
 
-    // ---- Selection and the draft gate ----
-
     fn selected_titles(&self) -> Vec<BoundTitle> {
         self.working_set
             .selected_files()
@@ -1059,8 +982,6 @@ impl SessionState {
             .collect()
     }
 
-    /// Validates the edits on screen and stages them onto every valid bound
-    /// title. Invalid inputs never receive intent.
     pub(crate) fn stage_bound_form(&mut self) -> StageOutcome {
         let patch = self.form.compose_intent();
         if !patch.is_actionable() {
@@ -1077,13 +998,10 @@ impl SessionState {
         for target in targets {
             self.tags.stage(&target.path, &validation.metadata_patch);
         }
-        // Staged values become the baseline Keep restores.
         self.form.reset_dirty();
         StageOutcome::Staged
     }
 
-    /// The metadata draft gate: the edits on screen must be accepted before
-    /// the selection, the grouping, or the set of titles may change.
     pub(crate) fn gate(&mut self) -> Result<(), GateBlock> {
         if self.save_in_progress {
             return Err(GateBlock::SaveInProgress);
@@ -1097,7 +1015,6 @@ impl SessionState {
                 self.cover.removal_requested = false;
                 Ok(())
             }
-            // Only invalid inputs are bound; they cannot carry edits.
             StageOutcome::NoTarget => Ok(()),
             StageOutcome::Invalid(message) => {
                 self.status = Some(MetadataStatus::DraftInvalid {
@@ -1108,9 +1025,6 @@ impl SessionState {
         }
     }
 
-    /// Binds the form to the current selection after the titles or the
-    /// selection changed, and returns the source reads that would complete
-    /// what the session knows about it.
     pub(crate) fn rebind(&mut self) -> Vec<ReadTicket> {
         if self.working_set.files().is_empty() {
             self.reset_metadata();
@@ -1143,7 +1057,6 @@ impl SessionState {
                 .collect();
             tickets.extend(paths.iter().filter_map(|path| self.tags.begin_read(path)));
         }
-        // The cover comes from the same read when the selection asked for it.
         if let Some(cover) = self.cover_read() {
             if !tickets.iter().any(|ticket| ticket.path == cover.path) {
                 tickets.push(cover);
@@ -1170,9 +1083,6 @@ impl SessionState {
         }
     }
 
-    /// Applies finished source reads. Reads land in the cache even when the
-    /// selection moved on; the form refreshes only if it is still bound to
-    /// the selection that asked for them.
     pub(crate) fn finish_reads(
         &mut self,
         binding: u64,
@@ -1217,11 +1127,6 @@ impl SessionState {
         self.status = None;
     }
 
-    // ---- Audio ----
-
-    /// Edits every named title's audio choice, or none: a locked list or a
-    /// title that refuses the edit changes nothing and is recorded as the
-    /// refusal. A title already at the value takes it.
     pub(crate) fn edit_title_audio(&mut self, title_ids: &[String], edit: AudioEdit) {
         let mut next = Vec::new();
         let mut refusing: Vec<String> = Vec::new();
@@ -1257,8 +1162,6 @@ impl SessionState {
         self.apply_title_audio(refusal, next);
     }
 
-    /// Gives every named title the default audio choice, unless the list is
-    /// locked.
     pub(crate) fn apply_default_audio(&mut self, title_ids: &[String]) {
         let request = self.audio.request();
         let refusal = self
@@ -1272,7 +1175,7 @@ impl SessionState {
     fn apply_title_audio(
         &mut self,
         refusal: Option<AudioRefusal>,
-        next: Vec<(&String, crate::audio::TitleAudioRequest)>,
+        next: Vec<(&String, TitleAudioRequest)>,
     ) {
         match &refusal {
             None => {
@@ -1289,11 +1192,7 @@ impl SessionState {
         self.audio_refusal = refusal;
     }
 
-    /// Returns the session to empty. Writes already waiting on an export stay
-    /// accepted.
     pub(crate) fn reset(&mut self) {
-        // A submission held for review goes with the titles; a running one
-        // keeps its sources until it ends.
         self.cancel_review();
         self.working_set.reset();
         self.audio_refusal = None;
@@ -1307,10 +1206,6 @@ impl SessionState {
         self.reset_metadata();
     }
 
-    // ---- Form ----
-
-    // An edit ends the last action's status; what shows next is whatever is
-    // wrong with the values on screen.
     pub(crate) fn set_field(&mut self, field: MetadataField, value: String) {
         self.form.set_value(field, value);
         self.status = None;
@@ -1325,8 +1220,6 @@ impl SessionState {
         self.status = None;
     }
 
-    /// Applies a lookup result to the form when `title` is the one title both
-    /// selected and bound. Returns whether it applied.
     pub(crate) fn apply_lookup(
         &mut self,
         title: &QueuedTitle,
@@ -1344,9 +1237,6 @@ impl SessionState {
         true
     }
 
-    // ---- Cover ----
-
-    /// The one title a cover change applies to: exactly one valid selected title.
     fn cover_owner(&self) -> Option<PathBuf> {
         let mut valid = self
             .working_set
@@ -1359,9 +1249,6 @@ impl SessionState {
         }
     }
 
-    /// Whose cover is shown: the selected title's; for several selected
-    /// titles, theirs only when they all match; with nothing selected, the
-    /// first valid title's.
     fn cover_display_path(&self) -> Option<PathBuf> {
         let valid: Vec<&AudioFile> = self
             .working_set
@@ -1396,8 +1283,6 @@ impl SessionState {
         }
     }
 
-    /// A read of the file whose cover should be shown, unless the session
-    /// already knows whether that file has art.
     fn cover_read(&mut self) -> Option<ReadTicket> {
         let target = self.cover_read_target()?;
         let answered = self.tags.effective_cover(&target).is_some()
@@ -1412,8 +1297,6 @@ impl SessionState {
         self.tags.begin_read(&target)
     }
 
-    /// The first valid selected title, or the first valid title when none is
-    /// selected.
     fn cover_read_target(&self) -> Option<PathBuf> {
         let selected = self.working_set.selected_files();
         selected
@@ -1428,7 +1311,6 @@ impl SessionState {
         self.cover.displayed.clone()
     }
 
-    /// The cover on screen while it is still the one at `revision`.
     pub(crate) fn displayed_cover_at(&self, revision: u64) -> Option<Vec<u8>> {
         (self.cover.image_revision == revision)
             .then(|| self.cover.displayed.clone())
@@ -1442,7 +1324,6 @@ impl SessionState {
             .any(|result| result.cover_url.as_deref() == Some(url))
     }
 
-    /// Whether `path` is a source of a listed title.
     pub(crate) fn lists_source(&self, path: &std::path::Path) -> bool {
         self.working_set.files().iter().any(|file| {
             self.working_set
@@ -1457,8 +1338,6 @@ impl SessionState {
         self.cover.notice_serial += 1;
     }
 
-    /// Starts a cover load and returns its request; a later choice or Clear
-    /// supersedes it.
     pub(crate) fn begin_cover_request(&mut self, from_url: bool) -> u64 {
         self.cover.request += 1;
         if from_url {
@@ -1476,8 +1355,6 @@ impl SessionState {
         self.set_cover_notice(CoverNotice::UrlRequired);
     }
 
-    /// Stages `bytes` as the selected title's cover. Returns whether a title
-    /// took it.
     pub(crate) fn apply_cover(&mut self, bytes: Vec<u8>) -> bool {
         let Some(owner) = self.cover_owner() else {
             return false;
@@ -1511,7 +1388,6 @@ impl SessionState {
         self.cover.request += 1;
     }
 
-    /// Ends a cover load that was shown as loading.
     pub(crate) fn cover_load_finished(
         &mut self,
         from_url: bool,
@@ -1536,10 +1412,6 @@ impl SessionState {
         }
     }
 
-    // ---- Save ----
-
-    /// Files exports read, plus those a submission being prepared will read
-    /// and downloads being removed.
     fn busy(&self, in_use: &HashSet<PathBuf>) -> HashSet<PathBuf> {
         in_use
             .iter()
@@ -1574,8 +1446,6 @@ impl SessionState {
             return None;
         }
 
-        // A grouped title's draft is kept for its output and never written
-        // into a constituent source.
         let files = self.working_set.files();
         let grouped = files
             .iter()
@@ -1613,21 +1483,16 @@ impl SessionState {
             ..SavePlan::default()
         };
         for item in items {
-            // A file the deferred writer is writing right now is as busy as
-            // one an export is reading.
             let being_written = self
                 .deferred
                 .iter()
                 .any(|write| write.phase == DeferredPhase::Writing && write.item.path == item.path);
-            // A download is only an export's input: its edit goes with the
-            // export and the file itself is never written.
             if is_temporary(&item.path) {
                 plan.held += 1;
             } else if in_use.contains(&item.path) || being_written {
                 plan.waiting += 1;
                 self.defer(item);
             } else {
-                // This write carries everything an earlier waiting one would.
                 self.deferred.retain(|write| write.item.path != item.path);
                 plan.immediate.push(item);
             }
@@ -1639,8 +1504,6 @@ impl SessionState {
         Some(plan)
     }
 
-    /// Queues `item`, replacing an older waiting edit for the file. A write
-    /// already running stays recorded, so the file stays busy until it ends.
     fn defer(&mut self, item: SaveItem) {
         self.deferred
             .retain(|write| write.item.path != item.path || write.phase == DeferredPhase::Writing);
@@ -1650,9 +1513,6 @@ impl SessionState {
         });
     }
 
-    /// Records what a Save wrote. `saved` are the items the file now carries;
-    /// `written` every file it was writing, which are free again even if a
-    /// Reset forgot the Save.
     pub(crate) fn finish_save(
         &mut self,
         epoch: u64,
@@ -1675,7 +1535,6 @@ impl SessionState {
             self.covers_written += u64::from(cover_was_submitted);
             self.tags
                 .commit_saved(&item.path, &item.patch, item.revision);
-            // A cover changed while the save ran is still unsaved.
             let cover_still_pending = self
                 .tags
                 .pending(&item.path)
@@ -1689,8 +1548,6 @@ impl SessionState {
         self.status = Some(status);
     }
 
-    /// Takes the waiting writes whose files no export is reading any more.
-    /// Each stays taken until `finish_deferred` reports its result.
     pub(crate) fn take_ready_deferred(&mut self, in_use: &HashSet<PathBuf>) -> Vec<SaveItem> {
         let in_use = &self.busy(in_use);
         let writing: HashSet<PathBuf> = self
@@ -1719,9 +1576,6 @@ impl SessionState {
             .any(|write| write.phase == DeferredPhase::Waiting)
     }
 
-    /// Whether `file`'s output will carry a title: the pending edit's, else
-    /// the file's own tag. Without a read of the file's tags this session,
-    /// analysis is what is known of them.
     fn has_title(&self, file: &AudioFile) -> bool {
         let pending = self
             .tags
@@ -1738,8 +1592,6 @@ impl SessionState {
         title.is_some_and(|title| !title.trim().is_empty())
     }
 
-    /// The export being prepared or reviewed. Its identity becomes the
-    /// accepted export's, so quit consent survives the handoff.
     pub(crate) fn export_in_preparation(&self) -> Option<&OperationId> {
         self.submitting
             .as_ref()
@@ -1747,7 +1599,6 @@ impl SessionState {
             .map(|submitting| &submitting.operation_id)
     }
 
-    /// Files with a Save accepted and not yet written.
     pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
         let mut paths: Vec<PathBuf> = self
             .deferred
@@ -1760,10 +1611,6 @@ impl SessionState {
         paths
     }
 
-    /// Records what the deferred writer wrote. The title may have left the
-    /// list and come back meanwhile: a written edit still becomes the known
-    /// tags of a loaded file, and a failed one is pending again there so Save
-    /// retries it.
     pub(crate) fn finish_deferred(&mut self, results: &[(SaveItem, bool)]) {
         let loaded = self.working_set.source_paths();
         let mut written_count = 0;
@@ -1793,7 +1640,6 @@ impl SessionState {
                 self.covers_written += u64::from(item.patch.cover_art.is_some());
             }
             if !loaded.contains(&item.path) {
-                // Not loaded: nothing on screen describes this file.
             } else if *written {
                 self.tags
                     .commit_saved(&item.path, &item.patch, item.revision);
@@ -1832,10 +1678,6 @@ impl SessionState {
         }
     }
 
-    // ---- Processing handoff ----
-
-    /// The pending edits for `paths`, as processing takes them. The engine
-    /// reads each source's own tags during processing; only edits cross here.
     pub(crate) fn pending_intents(&self, paths: &[PathBuf]) -> Vec<(PathBuf, MetadataIntentPatch)> {
         paths
             .iter()

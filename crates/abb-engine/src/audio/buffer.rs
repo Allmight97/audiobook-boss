@@ -1,30 +1,29 @@
-//! Sample accumulation to build exact encoder-sized frames without truncation.
-//! Isolates frame sizing logic from the main pipeline. Supports F32 planar
-//! and packed F32/S16 formats.
-//!
-//! ## Supported Formats
-//! - `F32(Planar)`: Native AAC encoder (ffmpeg's built-in aac)
-//! - `I16(Packed)`: AAC-AT encoder (macOS AudioToolbox)
-//! - `F32(Packed)`: Opus encoder
-//!
-//! Other formats and invalid frame sizes return an error at construction time to prevent
-//! silent data corruption.
-
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use log;
 
-/// Storage abstraction for different sample formats.
-///
-/// Only supports formats actually used by our encoders:
-/// - `F32Planar`: Separate buffers per channel with f32 samples (native AAC)
-/// - `Packed`: Interleaved sample bytes (AAC-AT or Opus)
-///
-/// Attempting to use other formats or a zero frame size will return an error from
-/// `SampleAccumulator::new()`.
 enum SampleStorage {
     F32Planar(Vec<Vec<f32>>),
-    Packed(Vec<u8>), // Interleaved sample bytes: [L0, R0, L1, R1, ...]
+    Packed(Vec<u8>),
+}
+
+pub(super) fn allocated_audio_frame(
+    format: ff::format::Sample,
+    channel_layout: ff::channel_layout::ChannelLayout,
+    sample_rate: u32,
+    samples: usize,
+) -> ff::frame::Audio {
+    let mut frame = ff::frame::Audio::empty();
+    frame.set_format(format);
+    frame.set_channel_layout(channel_layout);
+    frame.set_rate(sample_rate);
+    frame.set_samples(samples);
+    // SAFETY: Format, layout, rate, and sample count are set above, and `alloc` is called once on an empty
+    // frame, so the buffer has no earlier allocation to leak or alias.
+    unsafe {
+        frame.alloc(format, samples, channel_layout);
+    }
+    frame
 }
 
 pub struct SampleAccumulator {
@@ -62,12 +61,8 @@ impl SampleAccumulator {
             ));
         }
 
-        // Explicit format matching - only support formats actually used by our encoders.
-        // This prevents silent data corruption from format/storage mismatches.
-        // See: Gemini review on PR #28 regarding memory safety concern.
         let (bytes_per_sample, is_planar, storage) = match format {
             ff::format::Sample::F32(ff::format::sample::Type::Planar) => {
-                // Native AAC encoder uses F32 planar
                 let storage = SampleStorage::F32Planar(
                     (0..channels)
                         .map(|_| Vec::with_capacity(frame_size * 2))
@@ -110,7 +105,6 @@ impl SampleAccumulator {
             consumed_samples: 0,
         })
     }
-    /// Push a frame; return any full frames now available.
     pub fn push_frame(&mut self, frame: &ff::frame::Audio) -> Vec<ff::frame::Audio> {
         let mut ready = Vec::new();
         let in_samples = frame.samples();
@@ -118,11 +112,9 @@ impl SampleAccumulator {
             return ready;
         }
 
-        // First, copy samples into storage (scoped to release borrow)
         {
             match &mut self.storage {
                 SampleStorage::F32Planar(buffers) => {
-                    // F32 planar: each channel in separate plane
                     let available_planes = frame.planes();
                     for (ch, buffer) in buffers.iter_mut().enumerate() {
                         if ch >= available_planes {
@@ -161,7 +153,6 @@ impl SampleAccumulator {
             }
         }
 
-        // Now drain full frames (borrow released above)
         while self.has_full_frame() {
             if let Some(f) = self.drain_one(false) {
                 ready.push(f);
@@ -173,7 +164,6 @@ impl SampleAccumulator {
         ready
     }
 
-    /// Check if storage has enough samples for a full frame
     fn has_full_frame(&self) -> bool {
         self.available_samples() >= self.frame_size
     }
@@ -198,7 +188,6 @@ impl SampleAccumulator {
     }
 
     fn drain_one(&mut self, allow_short: bool) -> Option<ff::frame::Audio> {
-        // Extract immutable fields to avoid borrow conflicts
         let config = DrainConfig {
             frame_size: self.frame_size,
             format: self.format,
@@ -238,16 +227,12 @@ impl SampleAccumulator {
         }
         let take = available.min(config.frame_size);
 
-        let mut frame = ff::frame::Audio::empty();
-        frame.set_format(config.format);
-        frame.set_channel_layout(config.channel_layout);
-        frame.set_rate(config.sample_rate);
-        frame.set_samples(take);
-        // SAFETY: Format, channel layout, rate, and sample count are set on the frame just above, and
-        // `alloc` is called once on an empty frame, so the buffer has no earlier allocation to leak or alias.
-        unsafe {
-            frame.alloc(config.format, take, config.channel_layout);
-        }
+        let mut frame = allocated_audio_frame(
+            config.format,
+            config.channel_layout,
+            config.sample_rate,
+            take,
+        );
 
         for (ch, buffer) in buffers.iter().enumerate() {
             if ch >= frame.planes() {
@@ -292,16 +277,12 @@ impl SampleAccumulator {
         let take_total = take * bytes_per_frame;
         let start = *consumed_samples * bytes_per_frame;
 
-        let mut frame = ff::frame::Audio::empty();
-        frame.set_format(config.format);
-        frame.set_channel_layout(config.channel_layout);
-        frame.set_rate(config.sample_rate);
-        frame.set_samples(take);
-        // SAFETY: Format, channel layout, rate, and sample count are set on the frame just above, and
-        // `alloc` is called once on an empty frame, so the buffer has no earlier allocation to leak or alias.
-        unsafe {
-            frame.alloc(config.format, take, config.channel_layout);
-        }
+        let mut frame = allocated_audio_frame(
+            config.format,
+            config.channel_layout,
+            config.sample_rate,
+            take,
+        );
 
         // Packed samples share plane zero; byte copies preserve alignment and precision.
         let dst = &mut frame.data_mut(0)[..take_total];
@@ -356,7 +337,6 @@ impl SampleAccumulator {
 /// excursions suggest a gain, format, or layout mismatch worth investigating.
 const CLIP_WARN_PEAK: f32 = 1.122;
 
-/// Float sample repair before encoding: clamp to [-1.0, 1.0], zero NaN/Inf.
 #[derive(Default)]
 struct SanitizeReport {
     clipped: usize,

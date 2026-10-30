@@ -1,5 +1,3 @@
-//! Decoder and resampler setup.
-
 use crate::audio::{AudioPreservation, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use ffmpeg_next as ff;
@@ -533,7 +531,6 @@ fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
     })
 }
 
-/// Opens the best available decoder for the input and returns stream properties.
 pub(crate) fn inspect_audio_decoder(path: &Path) -> Result<AudioDecoderInspection> {
     ff::init().map_err(AppError::Ffmpeg)?;
     let opened = open_best_audio_decoder(path)?;
@@ -592,7 +589,6 @@ mod preservation_tests {
     }
 }
 
-/// Sets up decoder and resampler for a single input file.
 pub(crate) fn setup_decoder_and_resampler(
     input_path: &Path,
     encoder: &super::encoder::EncoderSession,
@@ -766,7 +762,6 @@ mod tests {
 
     #[test]
     fn linked_ffmpeg_provides_required_aac_decoders() {
-        // AAC import needs FFmpeg's decoder everywhere; macOS also promises Apple AAC.
         let availability = detect_aac_decoder_availability();
 
         assert!(availability.default_aac, "FFmpeg AAC decoder is not linked");

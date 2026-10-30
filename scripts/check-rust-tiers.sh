@@ -16,7 +16,6 @@ failed=0
 
 check() {
 	local crate="$1" forbidden="$2" tree hits
-	# A failed dependency listing fails the check rather than reading as clean.
 	tree="$(cargo tree --locked -p "$crate" -e normal --target all --prefix none --format '{p}')"
 	# grep exits 1 when no forbidden crate matches; any other failure fails.
 	hits="$(awk '{ print $1 }' <<<"$tree" | sort -u | grep -E "$forbidden" || [[ $? -eq 1 ]])"

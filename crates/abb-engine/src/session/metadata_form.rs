@@ -1,10 +1,3 @@
-//! The metadata form: what the user sees for the selected titles and which
-//! of those values they asked to change.
-//!
-//! Only fields the user changed, or explicitly blanked, become intent.
-//! Everything else stays absent so inherited values are neither rewritten nor
-//! revalidated.
-
 use serde::{Deserialize, Serialize};
 
 use crate::metadata::{
@@ -147,7 +140,6 @@ struct FieldState {
     action: FieldAction,
     dirty: bool,
     mixed: bool,
-    /// What the field showed when the selection was hydrated or last staged.
     hydrated_value: String,
     hydrated_mixed: bool,
 }
@@ -182,8 +174,6 @@ impl MetadataForm {
         }
     }
 
-    /// One form over several titles: a field shows a value only when every
-    /// title agrees on it.
     pub(crate) fn multi(metadata: &[AudiobookMetadata], selection_count: usize) -> Self {
         let fields = MetadataField::ALL.map(|field| {
             let value_of = |metadata: &AudiobookMetadata| {
@@ -245,8 +235,6 @@ impl MetadataForm {
         self.fields.iter().any(|field| field.dirty)
     }
 
-    /// Records what the user typed. Typed text replaces an earlier Blank;
-    /// over several titles, emptying a field means Blank.
     pub(crate) fn set_value(&mut self, field: MetadataField, value: String) {
         let blank = self.mode == FormMode::Multi && value.trim().is_empty();
         let state = &mut self.fields[field.index()];
@@ -259,8 +247,6 @@ impl MetadataForm {
         state.dirty = true;
     }
 
-    /// Blank clears the field on every selected title; Keep revokes that
-    /// pending edit and restores what the field showed.
     pub(crate) fn set_action(&mut self, field: MetadataField, action: FieldAction) {
         let state = &mut self.fields[field.index()];
         if state.action == action {
@@ -280,7 +266,6 @@ impl MetadataForm {
         }
     }
 
-    /// Applies a lookup result's values as explicit edits.
     pub(crate) fn apply_lookup(&mut self, metadata: &AudiobookMetadata) {
         for field in MetadataField::ALL {
             let provided = match field {
@@ -309,15 +294,12 @@ impl MetadataForm {
         }
     }
 
-    /// Accepts the current values as the new baseline once their edits are staged.
     pub(crate) fn reset_dirty(&mut self) {
         for state in &mut self.fields {
             *state = FieldState::hydrated(std::mem::take(&mut state.value), state.mixed);
         }
     }
 
-    /// Replaces this form with `fresh` while keeping every field the user is
-    /// editing; those fields take only `fresh`'s baseline.
     pub(crate) fn rehydrate(&mut self, fresh: Self) {
         let editing = std::mem::replace(self, fresh);
         for (state, edited) in self.fields.iter_mut().zip(editing.fields) {
@@ -355,7 +337,6 @@ impl MetadataForm {
         patch
     }
 
-    /// Problems in the values on screen, whether or not the user edited them.
     fn validate_visible_values(&self) -> Vec<(MetadataIntentValidationField, String)> {
         let mut patch = MetadataIntentPatch::default();
         for field in [

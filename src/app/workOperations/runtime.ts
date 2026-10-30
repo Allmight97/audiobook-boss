@@ -166,8 +166,6 @@ export function createWorkOperationsSession(
 		},
 		applyUpdate,
 		async cancel(operationId, childJobId) {
-			// A title cancel is idempotent in the backend and its snapshot shows
-			// the request at once, so only whole-operation cancels track pending.
 			if (childJobId !== undefined) {
 				await sendCancel(operationId, childJobId);
 				return;

@@ -93,9 +93,6 @@ fn classify_link_failure(error: &std::io::Error, final_path: &Path) -> Result<bo
     Ok(false)
 }
 
-/// Installs a fully copied and flushed temp at a free `final_path` on a disk
-/// without hard links: an empty placeholder claims the name (refused if taken),
-/// then the temp is renamed over that placeholder.
 fn publish_by_placeholder(destination_temp: SiblingTemp, final_path: &Path) -> Result<()> {
     std::fs::OpenOptions::new()
         .write(true)
@@ -162,8 +159,6 @@ pub(super) fn publish_copy_without_replacing(source: &Path, final_path: &Path) -
     Ok(final_path.to_path_buf())
 }
 
-/// `replace_install_<key>`: the key is the final name's hash, so a sweep can
-/// find this file's stale temps by name without matching another file's.
 fn replacement_temp_tag(final_path: &Path) -> Result<String> {
     let file_name = final_path.file_name().ok_or_else(|| {
         AppError::FileValidation(format!(

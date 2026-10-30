@@ -119,7 +119,6 @@ fn saved_values_without_a_read_are_partial_knowledge() {
         })
     );
     assert!(!cache.has_source_read(path()));
-    // The source value is unknown, so a later Blank still has to reach the file.
     cache.stage(path(), &clear_author());
     assert_eq!(
         cache.pending(path()).map(|pending| &pending.patch),

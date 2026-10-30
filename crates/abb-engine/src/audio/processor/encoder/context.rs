@@ -1,5 +1,3 @@
-//! Encoder context creation and output stream setup.
-
 use crate::audio::settings_encoder::{self, EncoderSettings, EncoderType};
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
@@ -11,7 +9,6 @@ use super::{
     session::{Backend, EncoderSession},
 };
 
-/// Creates and configures an AAC audio encoder with optimal settings
 pub(crate) fn create_audio_encoder(
     encoder_settings: &EncoderSettings,
     target_sample_rate: u32,
@@ -224,8 +221,6 @@ pub(crate) fn setup_encoder(
         }
     };
 
-    // Chapter passthrough: copy chapters from source inputs (#66)
-    // Skip in preview mode since chapters won't align with shortened output
     if !skip_chapter_passthrough {
         if let Some(p) = passthrough {
             let count = crate::metadata::add_chapters_to_output(&mut octx, &p.chapters)?;
@@ -235,7 +230,6 @@ pub(crate) fn setup_encoder(
         log::debug!("Chapter passthrough skipped (preview mode)");
     }
 
-    // Header
     octx.write_header()
         .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
     if let Backend::Faac(encoder) = &enc_ctx {
@@ -257,7 +251,6 @@ pub(crate) fn setup_encoder(
         }
     }
 
-    // Post-header cover art packet
     if let Some((stream_index, format)) = cover_art_stream_info {
         if let Some((cover_data, source)) = selected_cover {
             log::info!(
@@ -340,7 +333,6 @@ fn samples_per_frame(frame_size: usize, resolved_encoder: EncoderType) -> Result
 }
 
 #[cfg(test)]
-// EXCEPTION: tiny private frame-size invariant tests; keeping them inline avoids widening the production API for test access.
 mod tests {
     use super::*;
 

@@ -23,15 +23,12 @@ const LOCAL_READS: usize = 2;
 
 type Fetch = dyn Fn(String) -> Pin<Box<dyn Future<Output = Result<Vec<u8>>> + Send>> + Send + Sync;
 
-/// A cover's bytes, shared between the cache and its readers.
 pub(crate) type Cover = Arc<[u8]>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Key {
-    /// Write-ready bytes of a remote cover.
     RemoteFull(String),
     RemoteSmall(String),
-    /// An audio file's embedded cover, as of the file's last change.
     EmbeddedSmall {
         path: PathBuf,
         modified: Option<SystemTime>,
@@ -80,7 +77,6 @@ struct Inner {
 }
 
 impl CoverService {
-    /// `fetch` returns a remote cover's downloaded bytes.
     pub(crate) fn new(fetch: Box<Fetch>) -> Self {
         Self {
             inner: Arc::new(Inner {
@@ -98,7 +94,6 @@ impl CoverService {
         }))
     }
 
-    /// A remote cover's write-ready bytes.
     pub(crate) async fn remote_full(&self, url: &str) -> Result<Cover> {
         let fetched = self
             .load(Key::RemoteFull(url.to_string()), async {
@@ -109,7 +104,6 @@ impl CoverService {
         fetched.ok_or_else(|| AppError::General("The cover could not be loaded.".into()))
     }
 
-    /// A remote cover sized for a thumbnail, made from its downloaded bytes.
     pub(crate) async fn remote_small(&self, url: &str) -> Result<Cover> {
         let small = self
             .load(Key::RemoteSmall(url.to_string()), async {

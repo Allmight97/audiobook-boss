@@ -1,12 +1,3 @@
-//! Cover image ingestion: bounded local reads and the guarded remote fetch.
-//! Both return write-ready JPEG bytes.
-//!
-//! URL covers are HTTPS only. The host must be a domain or a public IP literal
-//! at entry and on every redirect; resolved addresses drop private ranges,
-//! environment proxies are ignored, and logs keep only the URL origin.
-//! Downloads cap at 10 MB and local files at 32 MB. HTTP 401/403 tells the
-//! user to load the image from a file instead.
-
 use crate::audio::validate_input_image_path;
 use crate::errors::{AppError, Result};
 use crate::metadata::optimize_cover_art;
@@ -20,8 +11,6 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use url::Host;
 
-/// Prefer a supported-looking image in a multi-file drop. An unsupported
-/// first file still goes through ingestion so the user receives its diagnostic.
 pub(crate) fn dropped_cover_path(paths: Vec<String>) -> Option<String> {
     paths
         .iter()
@@ -39,7 +28,6 @@ pub(crate) fn dropped_cover_path(paths: Vec<String>) -> Option<String> {
         .or_else(|| paths.into_iter().next())
 }
 
-/// Loads a cover image from disk and returns write-ready JPEG bytes.
 #[expect(clippy::disallowed_methods, reason = "joined by load_cover_art_file")]
 pub(crate) async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
     tokio::task::spawn_blocking(move || {
@@ -70,12 +58,6 @@ fn read_bounded_image(path: &std::path::Path) -> Result<Vec<u8>> {
     Ok(image_data)
 }
 
-/// Downloads cover art from a remote URL and returns the image as served.
-///
-/// HTTPS-only with size and content-type validation. SSRF protection: literal
-/// hosts must be public addresses, resolved domains drop private/reserved
-/// addresses, every redirect is rechecked, and environment proxies are ignored
-/// so the destination is always resolved here.
 pub(crate) async fn download_cover_art(url: String) -> Result<Vec<u8>> {
     let validated_url = validate_cover_art_url(&url)?;
     let origin = url_origin_for_log(&validated_url);
@@ -192,13 +174,9 @@ fn build_cover_art_http_client() -> std::result::Result<reqwest::Client, String>
         .map_err(|error| error.to_string())
 }
 
-/// Max download size for remote cover art (DoS prevention)
 const COVER_ART_MAX_DOWNLOAD_BYTES: usize = 10 * 1024 * 1024;
-/// Max size of a local cover image read before decoding
 const COVER_ART_MAX_FILE_BYTES: u64 = 32 * 1024 * 1024;
-/// HTTP fetch timeout for cover art
 const COVER_ART_FETCH_TIMEOUT_SECS: u64 = 30;
-/// Max redirects for cover art URL fetch
 const COVER_ART_MAX_REDIRECTS: usize = 5;
 
 fn validate_cover_art_url(url: &str) -> Result<reqwest::Url> {
@@ -237,7 +215,6 @@ fn check_cover_redirect(
     check_cover_url(url)
 }
 
-/// Scheme, host, and port only: paths, queries, and credentials stay out of logs.
 fn url_origin_for_log(url: &reqwest::Url) -> String {
     url.origin().ascii_serialization()
 }

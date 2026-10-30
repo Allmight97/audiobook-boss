@@ -71,7 +71,6 @@ struct Options {
     state_dir: Option<PathBuf>,
 }
 
-/// Reads an engine enum from its wire name.
 fn named<T: serde::de::DeserializeOwned>(what: &str, name: &str) -> Result<T, String> {
     serde_json::from_value(serde_json::Value::String(name.to_string()))
         .map_err(|_| format!("unknown {what} '{name}'"))
@@ -169,7 +168,6 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
     Ok(options)
 }
 
-/// Prints each title's progress as an export runs, once per change of stage.
 #[derive(Default)]
 struct PrintProgress {
     seen: Mutex<HashMap<String, String>>,
@@ -194,7 +192,6 @@ impl EventSink for PrintProgress {
     }
 }
 
-/// Sends an intent and reports one that the session did not apply.
 async fn shut_down(engine: &Engine) {
     if let abb_engine::ShutdownOutcome::SettingsUnsaved { error } = engine.shutdown().await {
         eprintln!("settings were not saved: {}", error.message);
@@ -257,7 +254,6 @@ fn collision_review(engine: &Engine) -> Option<CollisionReview> {
         .and_then(|output| output.collision_review)
 }
 
-/// Chooses audio and output for every title.
 async fn plan(engine: &Engine, options: &Options) -> Result<(), String> {
     let title_ids: Vec<String> = engine
         .session_snapshot()
@@ -306,7 +302,6 @@ async fn plan(engine: &Engine, options: &Options) -> Result<(), String> {
     Ok(())
 }
 
-/// Submits the session, settling a collision review with `--on-collision`.
 async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, String> {
     let intent = match options.preview {
         Some(seconds) => SessionIntent::Preview { seconds },
@@ -385,7 +380,6 @@ async fn follow(
     }
 }
 
-/// Prints each title's outcome and the tags read back from its export.
 async fn print_export(engine: &Engine, operation: &OperationSnapshot) {
     println!("Export: {:?}", operation.status);
     for child in &operation.children {
@@ -416,8 +410,6 @@ async fn print_export(engine: &Engine, operation: &OperationSnapshot) {
     }
 }
 
-/// Succeeds only when the requested title was cancelled and every other
-/// title was published.
 fn export_verdict(
     operation: &OperationSnapshot,
     cancel_title: Option<usize>,
@@ -436,7 +428,6 @@ fn export_verdict(
     }
 }
 
-/// Exports or previews, and prints how it went.
 async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
     match submit(engine, options).await? {
         SubmissionStatus::Submitted {
@@ -526,7 +517,6 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, Strin
     Ok(AbbDevStatus::Success)
 }
 
-/// A Save the engine accepted can still fail to write; that fails the run.
 fn save_written(session: &SessionUpdate) -> Result<(), String> {
     let status = session
         .metadata
@@ -552,7 +542,6 @@ fn nothing_imported(session: &SessionUpdate) -> bool {
         .is_none_or(|titles| titles.files.is_empty())
 }
 
-/// Every host outcome abb-dev can finish with.
 enum AbbDevStatus {
     Success,
     Help,
@@ -576,7 +565,6 @@ fn classify_failed(message: String) -> AbbDevStatus {
     }
 }
 
-/// One exhaustive map from host outcome to process exit code.
 fn exit_code(status: AbbDevStatus) -> ExitCode {
     match status {
         AbbDevStatus::Help => {

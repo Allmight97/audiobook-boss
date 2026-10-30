@@ -72,8 +72,6 @@ fn untouched_fields_carry_no_intent_even_when_their_inherited_value_is_invalid()
     let mut form = MetadataForm::single(&tagged());
     form.set_value(MetadataField::Author, "Someone Else".to_string());
 
-    // "7/8" is an invalid book number the file already had; it is reported
-    // on screen and left out of the edit.
     assert_eq!(
         form.compose_intent(),
         MetadataIntentPatch {

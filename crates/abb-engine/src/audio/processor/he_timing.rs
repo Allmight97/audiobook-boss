@@ -24,7 +24,6 @@ fn core_priming(tool: Option<&str>) -> Option<i64> {
     }
 }
 
-/// Whether this is an ABB-produced FAAC HE file, whose timing only ABB knows.
 pub(super) fn is_abb_faac_he(input: &ff::format::context::Input) -> bool {
     core_priming(input.metadata().get("encoder")).is_some()
 }
@@ -62,15 +61,12 @@ fn itunes_gapless(value: &str) -> Option<Gapless> {
     })
 }
 
-/// Whether the stream duration matches the tag's playable or whole coded
-/// length; one HE access unit of slack covers encoder padding rounding.
 fn agrees_with_duration(samples: i64, coded: i64, duration: i64) -> bool {
     [samples, coded]
         .iter()
         .any(|len| (duration - len).abs() <= 2048)
 }
 
-/// The best audio stream's time base, output rate, and duration.
 struct AudioClock {
     time_base: ff::Rational,
     rate: i32,
@@ -125,9 +121,6 @@ impl HeDecodeWindow {
         Self::itunes(input, gapless)
     }
 
-    /// Trusts the tag only when the stream's duration agrees with it, as either
-    /// the playable length or the whole coded length; a stale tag would
-    /// otherwise cut the end of the audio. Disagreement keeps FFmpeg's trimming.
     fn itunes(input: &ff::format::context::Input, gapless: Gapless) -> Result<Option<Self>> {
         let clock = audio_clock(input)?;
         let to_output = |ticks: i64| ticks.rescale(clock.time_base, ff::Rational(1, clock.rate));
@@ -261,10 +254,8 @@ mod tests {
     fn stale_itunsmpb_length_keeps_ffmpeg_trimming() {
         let (priming, samples, remainder) = (0x840, 0x6BAA8, 0x518);
         let coded = priming + samples + remainder;
-        // Apple's edit-list duration, or the whole coded length, both agree.
         assert!(agrees_with_duration(samples, coded, samples));
         assert!(agrees_with_duration(samples, coded, coded));
-        // A tag left over from a shorter edit would cut the end of the book.
         assert!(!agrees_with_duration(samples, coded, coded + 44_100 * 60));
         assert!(!agrees_with_duration(samples, coded, samples - 4096));
     }

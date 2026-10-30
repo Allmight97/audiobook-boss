@@ -29,7 +29,6 @@ describe('check-known-mistakes', () => {
 		).toEqual([]);
 	});
 
-	// 6e0ead37~1:scripts/check-rust-tiers.sh:19-22 hid a cargo tree failure.
 	it('rejects || true inside a multi-line command substitution', () => {
 		const old = [
 			'\thits="$(',
@@ -50,7 +49,6 @@ describe('check-known-mistakes', () => {
 		expect(found('scripts/x.sh', 'kill "$pid" 2>/dev/null || true')).toEqual([]);
 	});
 
-	// 1c66b9a5:crates/abb-engine/src/remote_source/providers/indexer/connection.rs:518
 	it('rejects a permission-bit failure fake in Rust, inline test modules included', () => {
 		const line =
 			'        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o500))';
@@ -64,6 +62,17 @@ describe('check-known-mistakes', () => {
 				`// allow-permission-fake: runs as nobody\n${line}`,
 			),
 		).toEqual([]);
+	});
+
+	it('rejects comments that stand in for structure or enforcement', () => {
+		expect(found('crates/abb-engine/src/session/state.rs', '// ---- Titles ----')).toEqual([
+			expect.stringMatching(/^1: `---- Titles ----` is a comment that stands in/),
+		]);
+		expect(found('src-tauri/src/lib.rs', '// EXCEPTION: tiny helper inline test.')).toHaveLength(1);
+		expect(found('src-tauri/Cargo.toml', '# DO NOT REMOVE!!')).toHaveLength(1);
+		expect(found('src/app/x.ts', '/* ==== Layout ==== */')).toHaveLength(1);
+		expect(found('src/app/x.ts', "const rule = '---';\n// Titles")).toEqual([]);
+		expect(found('docs/x.md', '<!-- ---- Section ---- -->')).toEqual([]);
 	});
 
 	it('leaves vendored code alone', () => {

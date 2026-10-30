@@ -1,4 +1,3 @@
-# Logs
 logs
 .logs/
 *.log
@@ -14,18 +13,15 @@ dist-ssr
 *.local
 .mise.local.toml
 
-# Local Codex/agent state
 .agents/settings.local.json
 .agents/environments/environment.toml
 .codebase-memory/
 
-# Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea
 
-# macOS metadata noise
 .DS_Store
 **/.DS_Store
 .AppleDouble
@@ -48,7 +44,6 @@ Icon
 *.sw?
 docs/model_tests/*
 
-# Python bytecode and caches
 __pycache__/
 *.py[cod]
 *.pyc.*
@@ -56,44 +51,34 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# Rust build artifacts (root workspace + src-tauri)
 /target/
 /src-tauri/target/
 
-# Generated Tauri sidecar binaries
 /src-tauri/binaries/abb-aaxclean-helper-*
 
-# Generated AAXClean helper build artifacts
 /tools/abb-aaxclean-helper/.publish/
 /tools/abb-aaxclean-helper/**/bin/
 /tools/abb-aaxclean-helper/**/obj/
 
-# Local coverage reports
 /coverage/
 
-# Generated presentation companions belong outside repo docs.
 /docs/**/*.html
 
-# Local AI/editor settings
 .cursor/*
 !.cursor/environment.json
 .learnings/
 
-# Perf run artifacts (generated locally/CI)
 /scripts/perf/results/*
 !/scripts/perf/results/.gitkeep
 
-# Repomix handoff artifacts (local AI context exports)
 /.repomix/handoffs/*
 !/.repomix/handoffs/.gitkeep
 
-# Local generated reports / AI artifacts
 /.artifacts/*
 !/.artifacts/harness/
 !/.artifacts/harness/.gitkeep
 /.audit/
 
-# Generated human-facing artifacts belong under .artifacts, not docs canon
 /docs/artifacts/
 
 # Claude Code runtime state

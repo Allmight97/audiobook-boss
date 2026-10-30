@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 
-// Which settings are in effect, and whether they are saved, is the engine's
-// to decide. These tests cover what this owner adds: how it shows the
-// engine's answer, and the progress it keeps for each dialog control.
-
 describe('settings owner', () => {
 	let runtime: AppRuntime | undefined;
 	let engine: FakeEngine;
@@ -48,7 +44,6 @@ describe('settings owner', () => {
 		});
 		await app.initialize();
 
-		// The engine records a default the session chose, and the write fails.
 		engine.recordSettings({
 			encoderDefaults: { ...engine.settings().settings!.encoderDefaults, intent: 'preserve' },
 		});

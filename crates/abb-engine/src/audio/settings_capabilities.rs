@@ -1,5 +1,3 @@
-//! Backend-owned capability facts for runtime encoder settings.
-
 use super::settings::{encoder_sample_rates, supported_sample_rates};
 use super::settings_encoder::{
     allowed_bitrate_mode_kinds_for, default_bitrate_mode_for, linked_encoder_available,
@@ -8,7 +6,6 @@ use super::settings_encoder::{
 };
 use serde::{Deserialize, Serialize};
 
-/// Which linked encoders this build offers, and what Auto resolves to.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderAvailability {

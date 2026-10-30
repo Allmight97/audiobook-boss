@@ -140,7 +140,6 @@ pub fn derive_output_artifact_path(
     }
 }
 
-/// The companion PDF ABB writes beside a final audiobook.
 pub fn supplemental_pdf_path(final_audio_path: &Path) -> PathBuf {
     let parent = final_audio_path.parent().unwrap_or_else(|| Path::new("."));
     let stem = final_audio_path

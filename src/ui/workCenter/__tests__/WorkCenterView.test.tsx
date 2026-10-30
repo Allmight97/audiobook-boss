@@ -130,7 +130,6 @@ it('shows a finished file whose PDF was not saved as done, with every warning', 
 	};
 	showOperation(operation);
 	expect(screen.getByText('Done in 00:18')).toBeVisible();
-	// A failed tag edit shows alongside the companion warning, not hidden by it.
 	expect(
 		screen.getByText(
 			'Audiobook output was created, but the PDF could not be committed. Tags not updated: Disk full.',

@@ -46,12 +46,10 @@ function missingStripMessage(owner: string): string {
 	return `src/${owner} has an index.ts but no STRIPS entry. Fix: add its hand-written export list to STRIPS in src/__tests__/public-api-strips.contract.test.ts (and the owner's AGENTS.md).`;
 }
 
-// Each owner's index.ts is its exact Public API Strip (src/app/AGENTS.md, src/ui/AGENTS.md).
-// The expected lists are written here by hand, independent of the modules.
 const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 	['app/appSettings', appSettings, ['createSettingsOwner']],
 	['app/encoding', encoding, ['createEncodingOwner']],
-	['app/engineLink', engineLink, ['createEngineLink']],
+	['app/engineLink', engineLink, ['createEngineLink', 'createTypingEcho']],
 	[
 		'app/inputSession',
 		inputSession,

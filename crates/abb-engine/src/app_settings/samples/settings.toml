@@ -1,6 +1,3 @@
-# A settings file as ABB saves it, with every setting chosen. Keep it loading:
-# contract_tests.rs checks that each value comes back as the user chose it.
-
 [general]
 keep_awake_while_working = false
 max_concurrent_jobs = 2

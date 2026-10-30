@@ -5,9 +5,6 @@ import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngin
 import type { AudioChoiceView, SessionAudio } from '../../types/session';
 import { EncoderView } from '../encoderPanel';
 
-// The engine decides what each edit does; these tests seed the engine's
-// choice and check what the panel shows and which edit it sends.
-
 const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.value = value;
 	select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -77,7 +74,6 @@ describe('encoder panel behavior controls', () => {
 				{ kind: 'setDefaultAudio', edit: { field: 'bitrate', value: 0 } },
 			]),
 		);
-		// The engine refused 0, so the panel still shows its value.
 		engine.change(() => undefined);
 		await vi.waitFor(() => expect(bitrate.value).toBe('193'));
 	});

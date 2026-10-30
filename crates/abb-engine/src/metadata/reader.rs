@@ -1,11 +1,9 @@
-//! Metadata reading for audiobook files.
 use super::{mp4ameta_bridge, normalize_publication_date, split_series_list, AudiobookMetadata};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::field_schema::TagField;
 use ffmpeg_next as ff;
 use std::path::Path;
 
-/// Reads audiobook metadata, preferring mp4ameta for probed MP4-family containers.
 pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> {
     let path = file_path.as_ref();
 
@@ -60,7 +58,6 @@ fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<
         .as_deref(),
     );
 
-    // Series metadata: prefer canonical tags, then supported legacy aliases.
     let series_raw = first_tag(&dict, TagField::Series);
     let series_part_raw = first_tag(&dict, TagField::SeriesPart);
     let (series, subseries) = split_series_list(series_raw.as_deref());
@@ -70,13 +67,11 @@ fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<
     metadata.subseries = subseries;
     metadata.subseries_part = subseries_part;
 
-    // Year/date can be stored under `date` or `year`
     metadata.date = dict
         .get("date")
         .or_else(|| dict.get("year"))
         .and_then(normalize_publication_date);
 
-    // Attached picture (cover art)
     metadata.cover_art = extract_attached_pic(ictx);
 
     Ok(metadata)
@@ -107,7 +102,6 @@ fn first_tag(dict: &ff::DictionaryRef<'_>, field: TagField) -> Option<String> {
     first_tag_keys(dict, field.read_keys())
 }
 
-/// Returns the display-safe title and artist tags from an already-open FFmpeg input.
 pub fn display_tags_from_ffmpeg_dict(
     dict: &ff::DictionaryRef<'_>,
 ) -> (Option<String>, Option<String>) {
@@ -147,13 +141,11 @@ fn parse_total_value(value: &str) -> Option<u32> {
     value.trim().parse::<u32>().ok()
 }
 
-/// Extracts the first attached picture (cover art) from the container streams.
 pub(super) fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
     ictx.streams()
         .find_map(|stream| attached_pic_bytes(&stream))
 }
 
-/// The picture bytes of an attached-picture stream.
 pub(super) fn attached_pic_bytes(stream: &ff::format::stream::Stream) -> Option<Vec<u8>> {
     if !stream
         .disposition()
@@ -173,7 +165,6 @@ pub(super) fn attached_pic_bytes(stream: &ff::format::stream::Stream) -> Option<
     }
 }
 
-// EXCEPTION: tiny helper inline tests — first_tag_with_lookup is private, no I/O
 #[cfg(test)]
 mod tests {
     use super::{ff, read_comment};

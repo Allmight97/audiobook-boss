@@ -1,5 +1,3 @@
-//! Encoder and output-channel resolution shared by planning and execution.
-
 use crate::audio::settings_encoder::{
     linked_encoder_available, validate_encoder_available, validate_encoder_settings, ChannelConfig,
     EncoderSettings, EncoderType, AUTO_ENCODER,

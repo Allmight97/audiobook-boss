@@ -1,4 +1,4 @@
-use super::{SampleAccumulator, SanitizeReport};
+use super::{allocated_audio_frame, SampleAccumulator, SanitizeReport};
 use ffmpeg_next as ff;
 
 const PLANAR: ff::format::Sample = ff::format::Sample::F32(ff::format::sample::Type::Planar);
@@ -6,16 +6,7 @@ const PACKED: ff::format::Sample = ff::format::Sample::F32(ff::format::sample::T
 
 fn planar_frame(channels: i32, samples: &[f32]) -> ff::frame::Audio {
     let layout = ff::ChannelLayout::default(channels);
-    let mut frame = ff::frame::Audio::empty();
-    frame.set_format(PLANAR);
-    frame.set_channel_layout(layout);
-    frame.set_rate(44_100);
-    frame.set_samples(samples.len());
-    // SAFETY: Format, layout, rate, and sample count are set above, and `alloc` is called once on an empty
-    // frame.
-    unsafe {
-        frame.alloc(PLANAR, samples.len(), layout);
-    }
+    let mut frame = allocated_audio_frame(PLANAR, layout, 44_100, samples.len());
     for channel in 0..frame.planes() {
         frame.plane_mut::<f32>(channel).copy_from_slice(samples);
     }

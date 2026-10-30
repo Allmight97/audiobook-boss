@@ -1,13 +1,7 @@
-//! Encoder settings types and validation
-//!
-//! This module defines the advanced encoder settings surface used by the
-//! processing command, along with validation helpers and encoder selection rules.
-
 use crate::errors::{AppError, Result};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// Supported encoder types for audiobooks
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum EncoderType {
@@ -15,11 +9,8 @@ pub enum EncoderType {
     Auto,
     /// Apple AAC (AudioToolbox), macOS-only
     AacAt,
-    /// Native FFmpeg AAC encoder (aac)
     NativeAac,
-    /// Bundled FAAC AAC-LC / HE-AAC v1.
     Faac,
-    /// Opus via bundled libopus.
     Opus,
 }
 
@@ -49,7 +40,6 @@ pub enum FaacProfile {
 pub const FAAC_QUALITY_PRESETS: &[u16] = &[50, 100, 200];
 pub const DEFAULT_FAAC_QUALITY: u16 = 100;
 
-/// Bitrate/quality control mode per encoder
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(tag = "mode", content = "value", rename_all = "snake_case")]
 pub enum BitrateMode {
@@ -61,7 +51,6 @@ pub enum BitrateMode {
     VbrTarget,
 }
 
-/// Bitrate mode capability without encoder-specific values.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum BitrateModeKind {
@@ -82,7 +71,6 @@ impl BitrateModeKind {
     }
 }
 
-/// Channel selection strategy
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ChannelConfig {
@@ -101,11 +89,6 @@ impl ChannelConfig {
     }
 }
 
-/// Advanced encoder settings payload
-///
-/// AAC encoders (native `aac`, `aac_at`) do not frame-thread, so
-/// there is deliberately no thread setting here; encoding always uses the
-/// encoder's single-threaded path.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderSettings {
@@ -158,7 +141,6 @@ pub const ALL_ENCODER_TYPES: [EncoderType; 5] = [
 const MAX_ENCODER_BITRATE: u16 = 1152;
 pub const NATIVE_SPEED_MAX: u8 = 4;
 
-/// Target bitrate bounds before rate/channel ceilings; capabilities and validation share them.
 pub fn encoder_bitrate_range(encoder: EncoderType) -> std::ops::RangeInclusive<u16> {
     if encoder == EncoderType::Opus {
         6..=510
@@ -185,7 +167,6 @@ pub fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
     }
 }
 
-/// Validates encoder settings (no engine side-effects)
 pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
     if (settings.encoder_type == EncoderType::Opus)
         != (settings.bitrate_mode == BitrateMode::VbrTarget)
@@ -194,7 +175,6 @@ pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
             "Opus uses a VBR target bitrate.".into(),
         ));
     }
-    // VBR quality owns bitrate; every other mode takes a target.
     let bitrate_range = encoder_bitrate_range(settings.encoder_type);
     if !matches!(settings.bitrate_mode, BitrateMode::Vbr(_))
         && !bitrate_range.contains(&settings.bitrate_kbps)
@@ -300,17 +280,13 @@ pub(super) fn linked_encoder_available(encoder: EncoderType) -> bool {
     }
 }
 
-/// The encoder Auto resolves to.
 pub(super) const AUTO_ENCODER: EncoderType = EncoderType::NativeAac;
 
-/// Rejects an unavailable linked encoder (Native, Apple, Opus).
 pub(super) fn validate_encoder_available(requested: EncoderType, available: bool) -> Result<()> {
     if available {
         return Ok(());
     }
     let message = match requested {
-        // Platform-truthful: on macOS the encoder exists but this build lacks
-        // it; elsewhere AudioToolbox does not exist at all.
         EncoderType::AacAt if cfg!(target_os = "macos") => {
             "Apple AAC is unavailable in this build."
         }
@@ -324,8 +300,6 @@ pub(super) fn validate_encoder_available(requested: EncoderType, available: bool
     Err(AppError::InvalidInput(message.into()))
 }
 
-/// Resolves the requested FFmpeg encoder name for the chosen encoder type.
-/// This does not open the encoder; it only maps the already-resolved selection.
 pub fn resolve_encoder_name(encoder_type: EncoderType) -> &'static str {
     match encoder_type {
         EncoderType::Auto => unreachable!("resolve_encoder_name requires a resolved encoder type"),

@@ -1,5 +1,3 @@
-//! When a staged download may be removed.
-
 use super::*;
 
 fn path(name: &str) -> PathBuf {
@@ -18,7 +16,6 @@ fn pdf(input_id: &str) -> SupplementalProcessingAsset {
     }
 }
 
-/// One finished export title per `(input id, status, companion warning)`.
 pub(crate) fn exported(titles: &[(&str, ChildJobStatus, bool)]) -> Vec<ChildJobSnapshot> {
     // A grouped title lists its sources joined by "+".
     titles
@@ -61,7 +58,6 @@ fn a_download_goes_only_when_every_title_from_it_is_finished_with() {
         "beta still needs job-1"
     );
 
-    // Beta left the list; gamma is still listed.
     assert!(staged.finish_unlisted(&HashSet::from(["alpha", "gamma"])));
     assert_eq!(staged.removable(&free, Instant::now()), ["job-1"]);
 

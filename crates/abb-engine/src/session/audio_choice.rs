@@ -1,21 +1,12 @@
-//! A title's audio choice and the rules for editing it.
-//!
-//! The choice keeps what a `TitleAudioRequest` cannot: the AAC and Opus
-//! bitrates separately, and FAAC's average-or-quality mode and quality, so
-//! switching format or encoder and back restores what the user chose. Every
-//! edit is checked against the encoder capabilities; a refused edit changes
-//! nothing.
-
 use serde::{Deserialize, Serialize};
 
 use crate::app_settings::EncoderDefaults;
 use crate::audio::{
     AudioIntent, AudiobookFormat, BitrateMode, BitrateModeKind, ChannelConfig,
     EncoderConfigurationCapability, EncoderSettings, EncoderSettingsCapabilities, EncoderType,
-    FaacProfile, SampleRateConfig, TitleAudioRequest,
+    FaacProfile, OutputAudio, SampleRateConfig, TitleAudioRequest,
 };
 
-/// FAAC's rate control: an average bitrate, or a quality preset.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum FaacRateControl {
@@ -24,7 +15,6 @@ pub enum FaacRateControl {
     Vbr,
 }
 
-/// One change to an audio choice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "field", content = "value", rename_all = "camelCase")]
 pub enum AudioEdit {
@@ -34,7 +24,6 @@ pub enum AudioEdit {
     Encoder(EncoderType),
     FaacProfile(FaacProfile),
     RateControl(FaacRateControl),
-    /// FAAC quality preset.
     Quality(u16),
     NativeSpeed(u8),
     /// Target kbps for the format's encoder, across all channels.
@@ -44,19 +33,15 @@ pub enum AudioEdit {
 }
 
 impl AudioEdit {
-    /// Editing how audio is encoded means the user wants it encoded.
     fn selects_encode(self) -> bool {
         !matches!(self, Self::Format(_) | Self::Intent(_))
     }
 }
 
-/// What an edit did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EditResult {
     Changed,
-    /// The choice already had that value.
     Same,
-    /// The value is not allowed for this choice.
     Refused,
 }
 
@@ -107,7 +92,6 @@ pub struct EncoderOption {
     pub available: bool,
 }
 
-/// What the capabilities allow for one choice, for hosts to render.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioChoiceFacts {
@@ -122,7 +106,6 @@ pub struct AudioChoiceFacts {
     pub bitrate_kbps_max: u16,
     pub allowed_modes: Vec<BitrateModeKind>,
     pub faac_profiles: Vec<FaacProfile>,
-    /// Explicit sample rates this encoder accepts.
     pub allowed_sample_rates: Vec<u32>,
     /// False when an explicit sample rate is kept that this encoder does not
     /// accept; the user must choose another before export.
@@ -136,7 +119,6 @@ fn is_opus(format: AudiobookFormat) -> bool {
 }
 
 impl AudioChoice {
-    /// The defaults a launch starts from, fitted to the capabilities.
     pub(crate) fn from_defaults(
         defaults: &EncoderDefaults,
         caps: Option<&EncoderSettingsCapabilities>,
@@ -150,13 +132,12 @@ impl AudioChoice {
         choice
     }
 
-    /// The defaults with a title's own request on top.
     pub(crate) fn for_title(&self, request: &TitleAudioRequest) -> Self {
         let mut choice = self.clone();
-        if let Some(settings) = &request.settings {
+        if let Some(settings) = request.output.encoder_settings() {
             choice.take_settings(settings);
         }
-        choice.format = request.format;
+        choice.format = request.format();
         choice.intent = request.intent;
         choice.sample_rate = request.sample_rate;
         choice
@@ -184,9 +165,6 @@ impl AudioChoice {
         self.channels = settings.channels;
     }
 
-    /// Brings numeric values inside the capability bounds. An explicit sample
-    /// rate any encoder accepts is kept even when this encoder does not, so
-    /// the user chooses its replacement.
     pub(crate) fn fit(&mut self, caps: Option<&EncoderSettingsCapabilities>) {
         let Some(caps) = caps else {
             return;
@@ -237,8 +215,6 @@ impl AudioChoice {
         }
     }
 
-    /// Applies one edit. An edit to how audio is encoded also selects Encode,
-    /// when `select_encode_on_same` is set even if the value was already set.
     pub(crate) fn edit(
         &mut self,
         edit: AudioEdit,
@@ -262,7 +238,6 @@ impl AudioChoice {
             AudioEdit::Format(format) => {
                 let same = self.format == format;
                 self.format = format;
-                // MP3 output only copies the source audio.
                 if format == AudiobookFormat::Mp3 {
                     self.intent = AudioIntent::Preserve;
                 }
@@ -348,7 +323,6 @@ impl AudioChoice {
         }
     }
 
-    /// The encoder that would run.
     pub(crate) fn effective_encoder(
         &self,
         caps: Option<&EncoderSettingsCapabilities>,
@@ -439,19 +413,14 @@ impl AudioChoice {
         }
     }
 
-    /// The request processing receives. MP3 copies its source, so it carries
-    /// no encoder settings.
     pub(crate) fn request(&self, caps: Option<&EncoderSettingsCapabilities>) -> TitleAudioRequest {
         TitleAudioRequest {
-            format: self.format,
+            output: OutputAudio::new(self.format, self.settings(caps)),
             intent: self.intent,
-            settings: (self.format != AudiobookFormat::Mp3).then(|| self.settings(caps)),
             sample_rate: self.request_sample_rate(caps),
         }
     }
 
-    /// The choice as durable defaults; MP3 keeps its encoding choices for a
-    /// later switch back.
     pub(crate) fn defaults(&self, caps: Option<&EncoderSettingsCapabilities>) -> EncoderDefaults {
         EncoderDefaults {
             format: self.format,

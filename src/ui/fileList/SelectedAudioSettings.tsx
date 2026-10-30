@@ -4,7 +4,6 @@ import { useAppRuntime } from '../../app/runtime';
 import { EncoderView } from '../encoderPanel';
 import './fileList.css';
 
-/** Selection stays owned by Input; this view only owns the editor's disclosure. */
 export function SelectedAudioSettings(): JSX.Element {
 	const runtime = useAppRuntime();
 	const selected = () => {

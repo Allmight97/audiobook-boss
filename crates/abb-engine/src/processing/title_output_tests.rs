@@ -1,5 +1,3 @@
-//! When an edit accepted for an export title reaches its output file.
-
 use std::sync::{Arc, Mutex};
 
 use super::*;
@@ -32,7 +30,6 @@ fn set(value: &str) -> Option<PatchOp<String>> {
     Some(PatchOp::Set(value.to_string()))
 }
 
-/// A title accepted with no edit, writing through a recorder.
 fn title(folder: &Path) -> (Arc<TitleOutput>, Writes) {
     let mut plan = TitleOutputPlan {
         anchor: PathBuf::from("/books/alpha.m4b"),
@@ -61,7 +58,6 @@ fn title(folder: &Path) -> (Arc<TitleOutput>, Writes) {
     (title, writes)
 }
 
-/// Publishes `title` by writing a file at its requested path.
 fn publish(title: &TitleOutput, staged: &Path) -> PathBuf {
     let path = title.plan.requested.clone();
     std::fs::create_dir_all(path.parent().expect("parent")).expect("folder");
@@ -93,7 +89,6 @@ fn an_edit_accepted_before_publication_is_written_to_the_staged_file() {
             elsewhere: false
         }
     );
-    // The same edit again changes nothing.
     assert_eq!(
         title.update(2, &genre("Mystery")).expect("update"),
         UpdateReply::Unchanged
@@ -134,7 +129,6 @@ fn an_edit_accepted_during_publication_reaches_the_published_file() {
     title
         .publish(&folder.path().join("staged.m4b"), &path, || {
             std::fs::write(&path, b"audiobook").expect("publish");
-            // Accepted while the file is being published.
             title.update(1, &genre("Mystery")).expect("update");
             Ok(((), path.clone()))
         })
@@ -189,7 +183,6 @@ fn a_published_file_changed_by_someone_else_is_not_written_and_the_next_save_ret
         Some(OutputUpdateStatus::Failed { .. })
     ));
 
-    // The output still carries the old tags, so the same edit is accepted again.
     assert!(matches!(
         title.update(2, &genre("Mystery")).expect("update"),
         UpdateReply::Accepted { .. }
@@ -211,7 +204,6 @@ fn a_cover_clear_is_written_even_when_the_planned_tags_already_lack_a_cover() {
         Some(PatchOp::Clear)
     );
 
-    // Leaving the cover to the sources again restores the anchor's picture.
     title
         .update(2, &MetadataIntentPatch::default())
         .expect("update");

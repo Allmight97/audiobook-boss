@@ -1,14 +1,3 @@
-//! Downloads an acquisition staged and the session imported: which titles
-//! they belong to, their companion PDFs, and when a download is no longer
-//! needed.
-//!
-//! A download is removed a whole acquisition at a time, once every title
-//! imported from it is finished with and no export or submission reads its
-//! files. A title is finished with when an export of it completed without a
-//! companion warning, or when it left the list. Skipped, cancelled, and
-//! failed exports keep the download for a retry. A removal that fails is
-//! tried again once `RETRY_DELAY` has passed.
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -22,15 +11,12 @@ pub(crate) struct StagedSources {
     jobs: BTreeMap<String, StagedJob>,
 }
 
-/// How long a download whose removal failed waits before the next attempt,
-/// so a lasting failure is not retried on every change to the session.
 pub(crate) const RETRY_DELAY: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Default)]
 struct StagedJob {
     /// By session input id.
     titles: BTreeMap<String, StagedTitle>,
-    /// After a failed removal, when the next attempt may start.
     retry_at: Option<Instant>,
 }
 
@@ -42,7 +28,6 @@ struct StagedTitle {
 }
 
 impl StagedSources {
-    /// Records that `input_id` was imported from `path`, staged by `job_id`.
     pub(crate) fn register(
         &mut self,
         job_id: &str,
@@ -84,7 +69,6 @@ impl StagedSources {
         self.jobs.values().find_map(|job| job.titles.get(input_id))
     }
 
-    /// The companion files to export with each of `input_ids`.
     pub(crate) fn assets_for<'a>(
         &self,
         input_ids: impl IntoIterator<Item = &'a str>,
@@ -99,7 +83,6 @@ impl StagedSources {
         (!assets.is_empty()).then_some(assets)
     }
 
-    /// Companion file names by input id, for titles that have any.
     pub(crate) fn companions(&self) -> BTreeMap<String, Vec<String>> {
         self.jobs
             .values()
@@ -116,8 +99,6 @@ impl StagedSources {
             .collect()
     }
 
-    /// Marks the sources of every title an export published with its
-    /// companions. Returns whether any was staged.
     pub(crate) fn finish_export(&mut self, children: &[ChildJobSnapshot]) -> bool {
         let published = children
             .iter()
@@ -128,7 +109,6 @@ impl StagedSources {
         self.finish(published)
     }
 
-    /// Marks titles as finished with. Returns whether any was staged.
     fn finish<'a>(&mut self, input_ids: impl IntoIterator<Item = &'a str>) -> bool {
         let mut any = false;
         for input_id in input_ids {
@@ -142,8 +122,6 @@ impl StagedSources {
         any
     }
 
-    /// Marks every staged title not in `listed` as finished with. Returns
-    /// whether any was newly marked.
     pub(crate) fn finish_unlisted(&mut self, listed: &HashSet<&str>) -> bool {
         let mut any = false;
         for title in self
@@ -159,8 +137,6 @@ impl StagedSources {
         any
     }
 
-    /// Jobs whose every title is finished with, none of whose files is in
-    /// `in_use`, and whose last failed removal is `RETRY_DELAY` behind `now`.
     pub(crate) fn removable(&self, in_use: &HashSet<PathBuf>, now: Instant) -> Vec<String> {
         self.jobs
             .iter()
@@ -179,7 +155,6 @@ impl StagedSources {
             .collect()
     }
 
-    /// Every file of a job's download.
     pub(crate) fn paths(&self, job_id: &str) -> Vec<PathBuf> {
         self.jobs
             .get(job_id)
@@ -192,12 +167,10 @@ impl StagedSources {
             .collect()
     }
 
-    /// Forgets a job whose download was removed.
     pub(crate) fn removed(&mut self, job_id: &str) {
         self.jobs.remove(job_id);
     }
 
-    /// Records that removing a job's download failed at `now`.
     pub(crate) fn removal_failed(&mut self, job_id: &str, now: Instant) {
         if let Some(job) = self.jobs.get_mut(job_id) {
             job.retry_at = Some(now + RETRY_DELAY);

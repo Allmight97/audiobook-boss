@@ -9,8 +9,6 @@ pub(crate) struct SiblingTemp {
 }
 
 impl SiblingTemp {
-    /// Names `.abb_<tag>_<uuid><extension>` beside `destination`; the writer
-    /// creates the file.
     pub(crate) fn beside(destination: &Path, tag: &str, extension: &str) -> io::Result<Self> {
         let parent = destination.parent().ok_or_else(|| {
             io::Error::new(
@@ -28,8 +26,6 @@ impl SiblingTemp {
         &self.path
     }
 
-    /// Flushes the temp, gives it the destination's permissions, and installs
-    /// it over `destination`.
     pub(crate) fn commit(self, destination: &Path) -> io::Result<()> {
         self.commit_with(destination, replace_file)
     }
@@ -70,8 +66,6 @@ impl Drop for SiblingTemp {
     }
 }
 
-/// Writes `content` to a synced temporary file beside `path`, then moves it
-/// into place, so a crash leaves the old file or the new one, never a torn one.
 pub(crate) fn write_atomically(path: &Path, content: &[u8]) -> io::Result<()> {
     let temp = SiblingTemp::beside(path, "write", ".tmp")?;
     if let Some(parent) = path.parent() {

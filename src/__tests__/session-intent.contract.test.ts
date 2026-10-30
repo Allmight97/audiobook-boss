@@ -13,9 +13,6 @@ type IntegerField = {
 
 type AllowedIntegerField = IntegerField & { readonly reason: string };
 
-// Generated TypeScript types usize, u64, and f64 as `number`. Entries the
-// Architect named are the remaining title-adjacent integers; the rest are
-// identities and durations, not list positions.
 const ALLOWED_INTEGER_FIELDS: readonly AllowedIntegerField[] = [
 	{ variant: 'ReorderFiles', field: 'to', reason: 'destination slot.' },
 	{

@@ -41,9 +41,6 @@ pub struct AudiobookMetadata {
 }
 
 impl AudiobookMetadata {
-    /// Empty metadata with every field unset; alias for [`Default::default`].
-    /// Kept as a constructor so build-then-populate call sites avoid
-    /// `clippy::field_reassign_with_default`.
     pub fn new() -> Self {
         Self::default()
     }
@@ -282,7 +279,6 @@ impl MetadataWritePlan {
 }
 
 impl MetadataIntentPatch {
-    /// Whether the patch asks for at least one change.
     pub fn is_actionable(&self) -> bool {
         self != &Self::default()
     }
@@ -927,7 +923,6 @@ mod tests {
         let shown = MetadataIntentPatch {
             title: Some(PatchOp::Set("New".into())),
             genre: Some(PatchOp::Clear),
-            // Invalid for a write, but a projection must still show it.
             series_part: Some(PatchOp::Set("1/2".into())),
             ..Default::default()
         }
@@ -1062,9 +1057,6 @@ mod tests {
 
     #[test]
     fn metadata_intent_patch_write_contract_carries_explicit_artifact_intent_only() {
-        // #281 posture: artifact fields (comment/track/disk) enter write
-        // intent only when the caller states them; a default patch (see
-        // absent_artifact_intents_preserve_values) leaves them untouched.
         let patch = MetadataIntentPatch {
             title: Some(PatchOp::Set("Read Compatible".to_string())),
             track: Some(PatchOp::Set((3, Some(12)))),
@@ -1336,8 +1328,6 @@ mod tests {
 
     #[test]
     fn validation_reply_carries_only_requested_fields() {
-        // The frontend merges this reply into earlier pending edits; any field it
-        // carries for an untouched tag would overwrite an earlier requested change.
         let result = validate_metadata_intent_patch(&MetadataIntentPatch {
             title: Some(PatchOp::Set("NMR 64k".to_string())),
             date: Some(PatchOp::Set("2024-07-15".to_string())),

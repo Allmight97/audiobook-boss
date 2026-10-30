@@ -32,8 +32,6 @@ pub(crate) async fn dispatch_title_jobs(
         file_info,
         output_parent_cleanup,
     } = execution_plan;
-    // Each title removes its own empty folders when it ends; the run cleans
-    // up the rest at the end.
     let folders = Arc::new(Mutex::new(output_parent_cleanup));
     let batch = Batch {
         plan,
@@ -45,8 +43,6 @@ pub(crate) async fn dispatch_title_jobs(
     crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(result, &mut folders)
 }
 
-/// What a run dispatches: its titles, their inspected sources, and the
-/// folders execution created for them.
 struct Batch {
     plan: ResolvedProcessingPlan,
     file_info: audio::FileListInfo,
@@ -105,8 +101,7 @@ async fn dispatch_batch_plan(
             host: host.clone(),
             registry: registry.clone(),
             workspace_root: workspace_root.clone(),
-            encoder_settings: planned_job.audio_plan.settings.clone(),
-            audio_handling: planned_job.audio_plan.handling,
+            audio_handling: planned_job.audio_plan.handling.clone(),
             audio_request: payload.audio_requests[input_index].clone(),
             audio_reason: planned_job.audio_plan.reason.clone(),
             metadata_intent: planned_job.metadata_intent.clone(),
@@ -170,7 +165,6 @@ async fn run_title_job(
         );
     }
     drop(folders);
-    // Ended after its folders are gone: a restart waits for this.
     if let Some(title) = &title_output {
         title.end();
     }

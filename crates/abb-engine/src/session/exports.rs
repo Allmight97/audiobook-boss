@@ -1,12 +1,3 @@
-//! The exports the session submitted: which output each title's later Saves
-//! update, and the restart offered when an edit would move an output that is
-//! not published yet.
-//!
-//! A title links to its latest export while it stays listed. The edit an
-//! output should carry is everything written to the title's source since the
-//! export was accepted plus the edit still pending, so a Save that already
-//! reached the source is not undone on the output.
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -58,7 +49,6 @@ pub struct OutputEdits {
     pub failed: usize,
 }
 
-/// One Save's edit for one linked output.
 #[derive(Debug, Clone)]
 pub(crate) struct OutputEdit {
     pub(crate) title_id: String,
@@ -70,13 +60,11 @@ pub(crate) struct OutputEdit {
 #[derive(Debug, Clone)]
 struct Ticket {
     offer: RestartOffer,
-    /// The output folder and naming the offer was computed under.
     directory: Option<String>,
     naming: OutputNamingConfig,
     answered: bool,
 }
 
-/// Why a restart was not started.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RestartStale {
     /// No offer with that revision, or the output settings changed since.
@@ -93,8 +81,6 @@ pub(crate) struct Exports {
 }
 
 impl Exports {
-    /// Links each of `titles` (title id, anchor path) to its output in an
-    /// accepted export, replacing an earlier export of the same title.
     pub(crate) fn link(
         &mut self,
         operation_id: &OperationId,
@@ -117,14 +103,12 @@ impl Exports {
         }
     }
 
-    /// Records that `patch` was written to the file at `path`.
     pub(crate) fn acknowledge(&mut self, path: &Path, patch: &MetadataIntentPatch) {
         for link in self.links.values_mut().filter(|link| link.anchor == path) {
             link.acknowledged.merge(patch);
         }
     }
 
-    /// Forgets titles that left the list.
     pub(crate) fn retain_listed(&mut self, listed: &HashSet<&str>) {
         self.links
             .retain(|title_id, _| listed.contains(title_id.as_str()));
@@ -138,8 +122,6 @@ impl Exports {
         self.links.is_empty()
     }
 
-    /// The edit each linked output should carry now, given the edit still
-    /// pending on a file.
     pub(crate) fn edits(
         &mut self,
         pending: impl Fn(&Path) -> Option<MetadataIntentPatch>,
@@ -163,8 +145,6 @@ impl Exports {
             .collect()
     }
 
-    /// Offers to restart a title whose edit would move its output, unless
-    /// the user already kept it where it is.
     pub(crate) fn offer(
         &mut self,
         edit: &OutputEdit,
@@ -180,7 +160,6 @@ impl Exports {
             return false;
         }
         let operation_id = link.operation_id.clone();
-        // A reply from an older Save that arrived late changes nothing.
         let older = self
             .tickets
             .get(&edit.title_id)
@@ -223,20 +202,15 @@ impl Exports {
                 .is_none_or(|ticket| ticket.offer.revision <= edit.revision)
     }
 
-    /// The edit no longer moves the output.
     pub(crate) fn withdraw(&mut self, title_id: &str) {
         self.tickets.remove(title_id);
     }
 
-    /// Forgets a link whose title ended without an output.
     pub(crate) fn unlink(&mut self, title_id: &str) {
         self.links.remove(title_id);
         self.tickets.remove(title_id);
     }
 
-    /// The export to restart for `title_id`'s offer, if it is still the one
-    /// the user saw and the output settings are the ones it was made under.
-    /// The offer stays until `consume_offer`.
     pub(crate) fn offered(
         &self,
         title_id: &str,
@@ -283,7 +257,6 @@ impl Exports {
         self.tickets.remove(title_id);
     }
 
-    /// The user keeps the output where it is.
     pub(crate) fn decline(&mut self, title_id: &str, revision: u64) -> bool {
         let Some(ticket) = self
             .tickets
@@ -361,7 +334,6 @@ mod tests {
         let mut exports = linked();
         exports.acknowledge(Path::new("/books/alpha.m4b"), &set("genre", "Mystery"));
 
-        // Only the narrator is pending now; the genre went to the source.
         let edits = exports.edits(|_| Some(set("narrator", "Reader")));
 
         let intent = &edits[0].intent;

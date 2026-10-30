@@ -1,5 +1,3 @@
-//! Local staging for processor output artifacts.
-
 use std::path::{Path, PathBuf};
 
 use crate::errors::{sanitize_path_for_display, AppError, Result};
@@ -85,7 +83,6 @@ pub(crate) fn purge_processing_session(workspace_root: &Path, session_dir: &Path
 }
 
 #[cfg(test)]
-// EXCEPTION: tiny private staging-path invariant tests; keeping them inline avoids exposing helper internals for external tests.
 mod tests {
     use super::*;
     use tempfile::TempDir;

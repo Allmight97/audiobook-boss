@@ -19,10 +19,6 @@ pub(crate) fn operation_terminal_summary(
     }
 }
 
-/// Terminal status from a raw result summary via the canonical classifier.
-/// Shared by the processing path and command-driven inline operations
-/// (metadata save) so both map `RunTerminalClass → WorkOperationStatus`
-/// identically. Do not reintroduce a parallel rule from snapshot counts.
 pub(crate) fn work_status_from_summary(summary: &OperationResultSummary) -> WorkOperationStatus {
     work_status_from_terminal_class(classify_run_terminal(summary))
 }

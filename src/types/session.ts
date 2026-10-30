@@ -1,11 +1,3 @@
-/**
- * The engine's working session as the frontend receives it.
- *
- * Rust owns every shape here. Audio files and lookup results are converted
- * to the optional-field forms the rest of the frontend already uses; the
- * other parts are the generated shapes unchanged.
- */
-
 import type {
 	AudioSnapshot as GeneratedAudioSnapshot,
 	CollisionReview as GeneratedCollisionReview,
@@ -90,9 +82,7 @@ export type SessionTitles = Omit<GeneratedTitlesSnapshot, 'files' | 'titleSource
 };
 export type SessionSelection = GeneratedSelectionSnapshot;
 export type SessionMetadata = GeneratedMetadataSnapshot;
-/** The audio part keeps the generated shape: an MP3 request's null settings are meaningful. */
 export type SessionAudio = GeneratedAudioSnapshot;
-/** A finished preview's result takes the frontend's optional-field form. */
 export type SubmissionStatus =
 	| Exclude<GeneratedSubmissionStatus, { kind: 'previewFinished' }>
 	| { kind: 'previewFinished'; result: ProcessCommandResult };

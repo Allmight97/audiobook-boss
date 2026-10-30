@@ -109,7 +109,6 @@ function openDirectory(options?: DialogOptions): Promise<string | null> {
 }
 
 export const tauriClient = {
-	/** Attaches this frontend and returns the whole session and settings. */
 	attachFrontend: (): Promise<CommandResult<'attach_frontend'>> => commandSpecs.attach_frontend(),
 	/**
 	 * Applies one session intent. `sequence` counts this frontend's session
@@ -153,7 +152,6 @@ export const tauriClient = {
 	openFile,
 	openFiles,
 	openDirectory,
-	/** Shows the file selected in the host OS file manager. */
 	revealPath: (path: string): Promise<void> => revealItemInDir(path),
 	openUrl: (url: string | URL, openWith?: string): Promise<void> => tauriOpenUrl(url, openWith),
 };

@@ -1,15 +1,3 @@
-//! Audio processor module.
-//!
-//! Staged modules:
-//!   - prepare.rs   : validation and workspace setup
-//!   - execute.rs   : merge / ffmpeg execution
-//!   - finalize.rs  : metadata writing, output move, cleanup
-//!   - staging.rs   : app-cache local processing workspace directories
-//!   - resolution.rs: encoder and output-channel resolution
-//!
-//! Every route runs on the in-process ffmpeg-next engine.
-
-// Imports for orchestrator function
 use crate::audio::cleanup::CleanupGuard;
 use crate::audio::file_list::FileListInfo;
 use crate::audio::settings_encoder::EncoderSettings;
@@ -22,7 +10,6 @@ use crate::metadata::{
 use crate::processing::AudioHandling;
 use crate::processing::ProcessingContext;
 
-// Submodules
 mod encoder;
 mod engine;
 mod engine_orchestrator;
@@ -77,20 +64,16 @@ impl AudioExecutionRequest {
         file_info: FileListInfo,
         metadata: Option<AudiobookMetadata>,
         cover_art_passthrough: CoverArtPassthroughPolicy,
+        handling: AudioHandling,
     ) -> Self {
         Self {
             context,
             file_info,
             metadata,
             cover_art_passthrough,
-            handling: AudioHandling::Encode,
+            handling,
             metadata_intent: None,
         }
-    }
-
-    pub fn with_handling(mut self, handling: AudioHandling) -> Self {
-        self.handling = handling;
-        self
     }
 
     pub fn with_metadata_intent(
@@ -197,39 +180,43 @@ pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<P
         .collect()
 }
 
-#[expect(clippy::disallowed_methods, reason = "joined by execute_audio_engine")]
-pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<AudioRunOutcome> {
-    if request.handling == AudioHandling::Preserve {
-        return tokio::task::spawn_blocking(move || {
-            if request.file_info.files.len() > 1 {
-                return preserve_merge::execute(
-                    request.context,
-                    request.file_info,
-                    request.metadata,
-                    request.cover_art_passthrough,
-                );
-            }
-            preserve::execute_preserved_audio(
+#[expect(clippy::disallowed_methods, reason = "joined by execute_preserved")]
+async fn execute_preserved(request: AudioExecutionRequest) -> Result<AudioRunOutcome> {
+    tokio::task::spawn_blocking(move || {
+        if request.file_info.files.len() > 1 {
+            return preserve_merge::execute(
                 request.context,
                 request.file_info,
-                request.metadata_intent,
-            )
-            .map(|message| AudioRunOutcome {
-                message,
-                warnings: Vec::new(),
-            })
+                request.metadata,
+                request.cover_art_passthrough,
+            );
+        }
+        preserve::execute_preserved_audio(
+            request.context,
+            request.file_info,
+            request.metadata_intent,
+        )
+        .map(|message| AudioRunOutcome {
+            message,
+            warnings: Vec::new(),
         })
-        .await
-        .map_err(|error| {
-            crate::errors::AppError::General(format!("audio preservation task failed: {error}"))
-        })?;
-    }
-    let mut settings = request.context.required_encoder_settings()?.clone();
+    })
+    .await
+    .map_err(|error| {
+        crate::errors::AppError::General(format!("audio preservation task failed: {error}"))
+    })?
+}
+
+#[expect(clippy::disallowed_methods, reason = "joined by execute_audio_engine")]
+pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<AudioRunOutcome> {
+    let mut settings = match request.handling {
+        AudioHandling::Encode { settings } => settings,
+        AudioHandling::Preserve => return execute_preserved(request).await,
+    };
     let requested_channels = settings.channels;
     let resolved_channels =
         resolution::resolve_output_channels(requested_channels, &request.file_info.files)?;
     settings.channels = resolved_channels;
-    request.context.encoder_settings = Some(settings);
     log::info!(
         "audio output channels: requested={:?} resolved={:?}",
         requested_channels,
@@ -255,8 +242,7 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
         }
     }
     let FileListInfo { files, .. } = request.file_info;
-    let mut context = request.context;
-    let mut settings = context.required_encoder_settings()?.clone();
+    let context = request.context;
     let encoder_type = resolution::resolve_linked_encoder(&settings)?;
     log::info!(
         "audio engine encoder: operation_id={} job_id={} input_index={} requested_encoder={:?} resolved_encoder={encoder_type:?}",
@@ -268,14 +254,13 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
         settings.encoder_type,
     );
     settings.resolve_encoder(encoder_type);
-    context.encoder_settings = Some(settings);
     let metadata = request.metadata;
     let cover_art_passthrough = request.cover_art_passthrough;
     // The pipeline (prepare -> encode -> finalize) is synchronous, CPU-bound
     // work. Run it on a blocking thread so it never occupies an async runtime
     // worker; progress emission and the atomic cancel flag work off the runtime.
     tokio::task::spawn_blocking(move || {
-        process_audiobook_with_context(context, files, metadata, cover_art_passthrough)
+        process_audiobook_with_context(context, settings, files, metadata, cover_art_passthrough)
     })
     .await
     .map_err(|join_error| {
@@ -283,20 +268,13 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
     })?
 }
 
-/// Internal workflow state passed between processing stages.
-///
-/// This replaces ad-hoc tuples and keeps intermediate artifacts cohesive.
-/// Fields are intentionally minimal; additional items should only be added if
-/// required across stage boundaries to avoid hidden coupling.
 pub(crate) struct ProcessingWorkflow {
-    /// Session-scoped temporary working directory
     pub(crate) temp_dir: std::path::PathBuf,
     /// Total duration (seconds) of all valid input files (pre‑computed)
     pub(crate) total_duration: f64,
 }
 
 impl ProcessingWorkflow {
-    /// Constructor helper to keep instantiation explicit at call sites.
     pub(crate) fn new(temp_dir: std::path::PathBuf, total_duration: f64) -> Self {
         Self {
             temp_dir,
@@ -305,22 +283,17 @@ impl ProcessingWorkflow {
     }
 }
 
-/// Coordinates the three-stage processing pipeline:
-/// 1. Validate & Prepare
-/// 2. Execute Processing
-/// 3. Finalize Processing
 fn process_audiobook_with_context(
     context: ProcessingContext,
+    settings: EncoderSettings,
     files: Vec<AudioFile>,
     metadata: Option<AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
 ) -> Result<AudioRunOutcome> {
-    // Stage 1: Validate + Prepare (from prepare module)
     let mut workflow_cleanup = CleanupGuard::new(context.session.id());
     let workflow = prepare::validate_and_prepare(&context, &files, &mut workflow_cleanup)?;
     let workflow_temp_dir = workflow.temp_dir.clone();
 
-    // Extract passthrough metadata (chapters, original cover art) from all valid files.
     let passthrough_sources = passthrough_sources_from_audio_files(&files);
     let passthrough_metadata = cover_art_passthrough
         .apply_to_passthrough(extract_passthrough_metadata(&passthrough_sources).into_option());
@@ -328,16 +301,15 @@ fn process_audiobook_with_context(
     let (effective_metadata, passthrough_metadata, cover_warning) =
         prepare_output_cover_art(metadata, passthrough_metadata, cover_art_passthrough)?;
 
-    // Stage 2: Execute (execute module)
     let merged_output = execute::execute_processing(
         &context,
+        &settings,
         &workflow,
         &files,
         effective_metadata.as_ref(),
         passthrough_metadata.as_ref(),
     )?;
 
-    // Stage 3: Finalize
     let message = finalize::finalize_processing(
         &context,
         workflow,

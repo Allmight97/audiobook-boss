@@ -46,14 +46,14 @@ Other harnesses use the same verifier and evidence files.
   (`scripts/check-workflows.sh`), shellcheck, and `scripts/check-guidance.ts`,
   which fails when guidance copies a command, names a missing package script,
   or points at a missing path. `scripts/check-known-mistakes.ts` fails on
-  GNU-only shell, errors silenced inside a command substitution, and Rust
-  that fakes an I/O failure with permission bits; each error names the fix
-  and its allow marker. `scripts/check-file-size.mjs` ratchets source file
+  code shapes behind repeated past failures; each error names the fix and
+  any allow marker. `scripts/check-file-size.mjs` ratchets source file
   size. `bun scripts/check-file-size.mjs --help` prints how a file that fails it is split.
 - JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
   on dependency or policy changes and daily advisory refreshes. Accepted
   advisories live in
-  `.cargo/audit.toml`; license and source rules in `deny.toml`.
+  `.cargo/audit.toml`; license, source, and single-version rules in
+  `deny.toml`.
 
 For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.

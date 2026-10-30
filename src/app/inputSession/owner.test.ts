@@ -5,10 +5,6 @@ import type { SessionOutcome } from '../../types/session';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 import { toInspectorViewFromInput } from '.';
 
-// The titles, their order, and the selection live in the engine. These tests
-// cover what this owner adds: the intents it sends, the wording of what the
-// engine reports, and state that belongs to the view.
-
 describe('input owner', () => {
 	let runtime: AppRuntime | undefined;
 	let engine: FakeEngine;

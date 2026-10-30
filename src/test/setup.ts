@@ -1,12 +1,3 @@
-/**
- * Vitest global setup file.
- *
- * This file runs before each test file and sets up:
- * - Tauri API mocks for testing outside the Tauri window
- * - DOM environment configuration
- * - Global test utilities
- */
-
 import '@testing-library/jest-dom/vitest';
 import { pathBasename } from '../lib/path/basename';
 import { afterEach, beforeEach, vi } from 'vitest';
@@ -131,10 +122,6 @@ function mockOperationSnapshot(
 	};
 }
 
-/**
- * Publishes what the engine publishes when a metadata save runs: an accepted
- * operation, then running, then completed, one child per file.
- */
 export function publishMockMetadataSave(filePaths: string[]): void {
 	mockJobCounter += 1;
 	const operationId = `mock-metadata-operation-${mockJobCounter}`;
@@ -176,7 +163,6 @@ export function publishMockMetadataSave(filePaths: string[]): void {
 	});
 }
 
-// Mock Tauri's invoke API
 vi.mock('@tauri-apps/api/core', () => ({
 	convertFileSrc: (path: string, protocol: string) =>
 		`${protocol}://localhost/${encodeURIComponent(path)}`,
@@ -188,7 +174,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 			filePaths: string[];
 		};
 		switch (cmd) {
-			// The session and settings are answered by this test's fake engine.
 			case 'attach_frontend':
 				return fakeEngine().attach();
 			case 'session_dispatch':
@@ -257,7 +242,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 	},
 }));
 
-// Mock Tauri's event API
 vi.mock('@tauri-apps/api/event', () => ({
 	listen: vi.fn().mockImplementation((event: string, handler: TestEventHandler) => {
 		if (!eventListeners.has(event)) {
@@ -271,7 +255,6 @@ vi.mock('@tauri-apps/api/event', () => ({
 	emit: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock Tauri's dialog plugin
 vi.mock('@tauri-apps/plugin-dialog', () => ({
 	open: vi.fn().mockResolvedValue(null),
 	save: vi.fn().mockResolvedValue(null),
@@ -279,21 +262,17 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 	confirm: vi.fn().mockResolvedValue(false),
 }));
 
-// Mock Tauri's opener plugin
 vi.mock('@tauri-apps/plugin-opener', () => ({
 	openUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Ensure browser-like runtime for tests (no embedded Tauri internals)
 Object.defineProperty(window, '__TAURI_INTERNALS__', {
 	value: undefined,
 	writable: true,
 });
 
-// Keep DEV true in tests for consistent frontend test behavior
 vi.stubEnv('DEV', true);
 
-/** A fresh fake engine whose own changes reach the frontend as events. */
 function startFakeEngine(): void {
 	resetFakeEngine();
 	const engine = fakeEngine();

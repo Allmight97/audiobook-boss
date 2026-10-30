@@ -1,8 +1,3 @@
-//! The session runtime's own behavior: ordering between an intent and its
-//! file or network work, and what a host is told along the way. Rules with
-//! no I/O are proven in `state_tests.rs`; real files in the engine's
-//! integration tests.
-
 use std::collections::VecDeque;
 use std::sync::Mutex as StdMutex;
 use std::time::Duration;
@@ -41,26 +36,19 @@ impl EventSink for Events {
     }
 }
 
-/// A session over files that do not exist, with a scripted network.
 struct Rig {
     session: Session,
     events: Arc<Events>,
     searches: Arc<StdMutex<Vec<Search>>>,
-    /// Replies to hand out, in order. A search with no reply waiting gets an
-    /// empty result.
     replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>>,
     cover: Arc<StdMutex<Result<Vec<u8>>>>,
-    /// How many times a cover was fetched from the network.
     cover_fetches: Arc<std::sync::atomic::AtomicUsize>,
-    /// Acquisition jobs whose downloads the session removed.
     removed: Arc<StdMutex<Vec<String>>>,
     /// Removals that fail before one succeeds.
     failing_removals: Arc<std::sync::atomic::AtomicUsize>,
-    /// Holds the settings the session records defaults into.
     _config: tempfile::TempDir,
 }
 
-/// The image the fake cover server sends.
 fn downloaded_cover() -> Vec<u8> {
     let mut bytes = std::io::Cursor::new(Vec::new());
     image::RgbImage::from_pixel(4, 2, image::Rgb([40, 120, 200]))
@@ -69,7 +57,6 @@ fn downloaded_cover() -> Vec<u8> {
     bytes.into_inner()
 }
 
-/// What a full cover made from [`downloaded_cover`] holds.
 fn written_cover() -> Vec<u8> {
     crate::metadata::optimize_cover_art(&downloaded_cover()).expect("optimize cover")
 }
@@ -205,7 +192,6 @@ fn path(name: &str) -> PathBuf {
 }
 
 impl Rig {
-    /// Loads titles without analysis and records what is known of their tags.
     fn load(&self, names: &[&str]) {
         self.session.transition(|state| {
             let files = names
@@ -234,7 +220,6 @@ impl Rig {
         });
     }
 
-    /// Locks the list, as a submission or preview does.
     fn listed_paths(&self) -> Vec<PathBuf> {
         self.session
             .snapshot()
@@ -338,7 +323,6 @@ impl Rig {
             .selected_indices
     }
 
-    /// Scripts the next search to wait until the returned sender answers.
     fn hold_next_search(&self) -> tokio::sync::oneshot::Sender<SearchReply> {
         let (reply, wait) = tokio::sync::oneshot::channel();
         self.replies.lock().expect("replies").push_back(wait);
@@ -362,8 +346,6 @@ impl Rig {
         }
     }
 }
-
-// ---- Lookup ----
 
 #[tokio::test]
 async fn lookup_opened_with_no_valid_title_says_so_and_does_not_search() {
@@ -430,7 +412,6 @@ async fn the_open_lookup_is_published_before_its_search_answers() {
         let session = rig.session.clone();
         async move { session.dispatch(SessionIntent::LookupOpen).await }
     });
-    // The search is waiting on `answer`, so what was published came first.
     while rig.searches().is_empty() {
         tokio::task::yield_now().await;
     }
@@ -578,7 +559,6 @@ async fn applying_to_the_current_title_edits_its_form_and_stays_on_it() {
     );
     assert_eq!(rig.searches().len(), searched, "no advance, no new search");
     assert_eq!(rig.selected(), [0]);
-    // Keeping the title's cover leaves cover intent absent.
     assert!(
         rig.pending("alpha").is_none(),
         "applied values are form edits"
@@ -757,7 +737,6 @@ async fn a_result_is_not_applied_when_its_title_cannot_be_selected() {
     rig.select(&[0]).await;
     rig.answer_next_search(Ok(found(&["Found"])));
     rig.send(SessionIntent::LookupOpen).await;
-    // The user selects another title and leaves an invalid edit on it.
     rig.select(&[1]).await;
     rig.send(SessionIntent::SetField {
         field: MetadataField::Date,
@@ -815,7 +794,6 @@ async fn an_unknown_select_file_title_id_changes_nothing() {
 async fn a_select_file_begun_after_a_reorder_still_targets_the_same_title() {
     let rig = rig();
     rig.load(&["alpha", "beta", "gamma"]);
-    // beta is at index 1. Reorder first so that index would now name gamma.
     let reorder = rig.session.begin(SessionIntent::ReorderFiles {
         title_id: "alpha".into(),
         to: 2,
@@ -975,8 +953,6 @@ async fn editing_the_lookup_query_drops_a_search_for_the_old_query() {
         rig.lookup().results
     );
 }
-
-// ---- Intents and what the host is told ----
 
 #[tokio::test]
 async fn a_reply_carries_what_its_intent_changed() {
@@ -1147,9 +1123,6 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
     rig.load(&["alpha", "beta"]);
     rig.select(&[0]).await;
 
-    // The user selects the second title, then types. Each intent's
-    // immediate effect applies as it begins; their remaining work is
-    // finished in the opposite order.
     let select = rig.session.begin(SessionIntent::SelectFile {
         title_id: rig.title_id(1),
         modifiers: SelectionModifiers::default(),
@@ -1266,7 +1239,6 @@ async fn a_host_that_attached_mid_intent_learns_its_result_from_an_event() {
     let finished = tokio::spawn(search.finish());
     tokio::task::yield_now().await;
 
-    // A new frontend attaches while the search runs, then the search answers.
     let attached = rig.session.snapshot();
     answer
         .send(Ok(found(&["Dune"])))
@@ -1312,13 +1284,10 @@ async fn a_cover_cleared_while_loading_is_not_replaced_by_the_load() {
     rig.send(SessionIntent::ClearCover).await;
 
     assert_eq!(load.finish().await.outcome, SessionOutcome::Superseded);
-    // The title had no cover, so nothing is staged and nothing shows.
     assert_eq!(rig.pending("alpha").and_then(|patch| patch.cover_art), None);
     let cover = rig.metadata().cover;
     assert!(!cover.loading && !cover.present);
 }
-
-// ---- Audio ----
 
 fn audio(rig: &Rig) -> crate::session::AudioSnapshot {
     rig.session.snapshot().audio.expect("audio part")
@@ -1355,7 +1324,6 @@ async fn a_default_audio_edit_is_recorded_in_the_settings_and_announced() {
         Some(settings.revision)
     );
 
-    // An edit that changes nothing records nothing.
     let before = rig.events.1.lock().expect("events").len();
     rig.send(SessionIntent::SetDefaultAudio {
         edit: AudioEdit::Bitrate(96),
@@ -1397,7 +1365,6 @@ async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
         audio(&rig).titles["alpha"].choice.format,
         AudiobookFormat::M4b
     );
-    // The defaults themselves never moved.
     assert_eq!(audio(&rig).defaults.choice.format, AudiobookFormat::M4b);
 }
 
@@ -1509,8 +1476,6 @@ async fn covers_are_served_only_for_what_the_session_shows() {
     );
 }
 
-// ---- Output and plans ----
-
 fn output(rig: &Rig) -> crate::session::OutputSnapshot {
     rig.session.snapshot().output.expect("output part")
 }
@@ -1598,7 +1563,6 @@ async fn output_choices_are_recorded_and_template_typing_once_it_pauses() {
 async fn a_title_plan_resolves_in_the_background_and_reports_why_it_cannot() {
     let rig = rig();
     rig.load(&["alpha"]);
-    // The rig's titles have no audio facts, so the plan cannot resolve.
     rig.send(SessionIntent::SetTitleAudio {
         title_ids: vec!["alpha".to_string()],
         edit: AudioEdit::Intent(AudioIntent::Encode),
@@ -1642,11 +1606,9 @@ async fn ending_a_submission_wakes_a_save_waiting_on_its_sources() {
     rig.send(SessionIntent::Save).await;
     assert_eq!(rig.session.waiting_write_paths(), [path("alpha")]);
 
-    // Let the writer find the file held and wait.
     for _ in 0..20 {
         tokio::task::yield_now().await;
     }
-    // Nothing in WorkRuntime changes; only the submission ending frees the file.
     rig.session
         .end_submission(&draft, SubmissionStatus::Cancelled);
 
@@ -1659,7 +1621,6 @@ async fn ending_a_submission_wakes_a_save_waiting_on_its_sources() {
     .expect("the waiting write is attempted once its source is free");
 }
 
-/// A one-second silent WAV, as an acquisition would stage it.
 fn staged_wav(dir: &std::path::Path, name: &str) -> PathBuf {
     const SAMPLE_RATE: u32 = 44_100;
     let data_len = SAMPLE_RATE * 2;
@@ -1801,7 +1762,6 @@ async fn a_failed_removal_waits_out_the_retry_delay_before_the_next_change_retri
 
     rig.send(SessionIntent::ClearAll).await;
     assert_eq!(rig.removed_jobs().await, ["job-1"]);
-    // Later changes inside the delay leave the failed download alone.
     rig.send(SessionIntent::SetOutputDirectory {
         directory: "/library".to_string(),
     })
@@ -1849,7 +1809,6 @@ async fn a_download_goes_once_its_title_is_exported() {
         "{:?}",
         rig.session.snapshot().output.expect("output").submission
     );
-    // The title stays listed; its export completed, so the download goes.
     assert_eq!(rig.removed_jobs().await, ["job-1"]);
     assert_eq!(
         rig.session.snapshot().titles.expect("titles").files.len(),
@@ -1979,7 +1938,6 @@ async fn reset_supersedes_an_acquired_handoff_waiting_for_an_earlier_import() {
             reason: HandoffRefusal::NothingAdded
         }
     );
-    // The session removes the refused job's download itself.
     assert_eq!(rig.removed_jobs().await, ["job-before-reset"]);
     assert!(rig
         .session
@@ -2188,7 +2146,6 @@ async fn moves_name_the_title_so_a_second_click_moves_the_same_title_again() {
         direction: crate::session::MoveDirection::Up,
     };
 
-    // Both clicks were sent before either was answered.
     rig.send(up()).await;
     rig.send(up()).await;
 

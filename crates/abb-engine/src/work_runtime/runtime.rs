@@ -25,7 +25,6 @@ pub struct WorkRuntime {
 /// Source paths by operation id, then title index.
 type TitleSources = HashMap<String, Vec<Vec<PathBuf>>>;
 
-/// Told an export's terminal snapshot.
 pub(crate) type OnFinished = Box<dyn FnOnce(OperationSnapshot) + Send>;
 
 struct WorkRuntimeInner {
@@ -34,9 +33,7 @@ struct WorkRuntimeInner {
     /// Source files each accepted processing title reads, by operation id and
     /// title index. An entry lives until its operation finishes.
     title_sources: Mutex<TitleSources>,
-    /// Accepted exports run here; closed when the engine shuts down.
     tasks: crate::engine::EngineTasks,
-    /// Advances whenever an operation's state changes.
     changes: tokio::sync::watch::Sender<u64>,
     sequence: AtomicU64,
 }
@@ -48,7 +45,6 @@ impl Default for WorkRuntime {
 }
 
 impl WorkRuntime {
-    /// A runtime whose exports run as `tasks`, so the engine can wait for them.
     pub(crate) fn new(tasks: crate::engine::EngineTasks) -> Self {
         Self {
             inner: Arc::new(WorkRuntimeInner {
@@ -64,8 +60,6 @@ impl WorkRuntime {
 }
 
 impl WorkRuntime {
-    /// Accepts an export and runs it. `on_finished` receives the operation's
-    /// terminal snapshot once it ends.
     pub(crate) async fn submit_processing_operation(
         &self,
         host: Host,
@@ -189,7 +183,6 @@ impl WorkRuntime {
                 },
             )
             .await;
-            // A title the run never reached, or one skipped, has no output.
             for title in &run_titles {
                 title.end();
             }
@@ -209,7 +202,6 @@ impl WorkRuntime {
         })
     }
 
-    /// Publishes a title's update state in its operation's snapshot.
     fn output_listener(
         &self,
         host: &Host,
@@ -473,12 +465,8 @@ impl WorkRuntime {
         }
     }
 
-    /// Source files accepted exports have yet to finish reading: every source
-    /// of every title that is queued or running.
     pub(crate) fn sources_in_use(&self) -> HashSet<PathBuf> {
         let sources = self.title_sources();
-        // Reporting nothing in use would let Save write a file an export is
-        // reading, so a poisoned lock still answers from the data it holds.
         let state = self
             .inner
             .state
@@ -516,7 +504,6 @@ impl WorkRuntime {
             .collect()
     }
 
-    /// A receiver that wakes whenever any operation's state changes.
     pub(crate) fn subscribe_changes(&self) -> tokio::sync::watch::Receiver<u64> {
         self.inner.changes.subscribe()
     }
@@ -669,15 +656,11 @@ fn plural_suffix(count: usize) -> &'static str {
     }
 }
 
-/// Result facts for a command-driven inline run: its summary and each child's
-/// `(input_index, status, reason)` terminal.
 pub struct InlineRunTerminal<'a> {
     pub summary: &'a OperationResultSummary,
     pub children: &'a [(usize, ProcessResultStatus, String)],
 }
 
-/// A run that aborted before producing results: cancellation → Cancelled,
-/// anything else → Failed.
 fn terminalize_aborted_run(
     state: &mut WorkRuntimeState,
     operation_id: &OperationId,
@@ -689,7 +672,6 @@ fn terminalize_aborted_run(
     }
 }
 
-/// Wall-clock milliseconds for operation snapshots.
 pub(crate) fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
@@ -748,6 +730,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn sources_in_use_still_reports_queued_sources_after_the_state_lock_is_poisoned() {
+        let runtime = WorkRuntime::default();
+        let source = PathBuf::from("/library/book.m4b");
+        let operation_id = OperationId("operation-1".to_string());
+        let snapshot = new_processing_snapshot(
+            operation_id.clone(),
+            1,
+            "Book".to_string(),
+            &[source.display().to_string()],
+            None,
+            0,
+        );
+        lock_state(&runtime.inner.state)
+            .expect("state lock")
+            .insert_operation(snapshot);
+        runtime
+            .title_sources()
+            .insert(operation_id.0.clone(), vec![vec![source.clone()]]);
+
+        let poisoned = std::thread::scope(|scope| {
+            scope
+                .spawn(|| {
+                    let _guard = runtime.inner.state.lock().expect("state lock");
+                    panic!("poison the state lock");
+                })
+                .join()
+        });
+        assert!(poisoned.is_err());
+        assert!(runtime.inner.state.is_poisoned());
+
+        assert_eq!(runtime.sources_in_use(), HashSet::from([source]));
+    }
+
+    #[test]
     fn cancelling_one_title_sets_only_its_flag_and_whole_cancel_sets_all() {
         let flags = CancelFlags::per_title(3);
         let titles = flags.titles();
@@ -802,8 +818,6 @@ mod tests {
 
     #[test]
     fn work_operation_record_labels_pin_all_contract_variants() {
-        // Operation-kind labels remain owned by the processing lifecycle
-        // utility; this test pins the work-runtime status vocabulary here.
         assert_eq!(
             [
                 WorkOperationStatus::Accepted,

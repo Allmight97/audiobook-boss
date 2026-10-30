@@ -1,10 +1,3 @@
-/**
- * Fails on code shapes behind repeated past failures in this repo. Each rule
- * names the fix and an allow marker, on the line or the line above, for a
- * line where the shape is intended; the marker gives the reason.
- *
- * Usage: bun scripts/check-known-mistakes.ts
- */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -17,15 +10,14 @@ export interface Finding {
 
 interface Rule {
 	appliesTo: (file: string) => boolean;
-	comment: RegExp;
-	allow: string;
+	comment?: RegExp;
+	allow?: string;
 	findIn: (line: string, insideCapture: boolean) => string | null;
 	message: string;
 }
 
 const OWNED_SHELL = (file: string) =>
 	(file.endsWith('.sh') && !file.startsWith('vendor/')) || file.startsWith('.githooks/');
-// All owned Rust, because test modules also live inline in source files.
 const OWNED_RUST = (file: string) => file.endsWith('.rs') && !file.startsWith('vendor/');
 
 const GNU_ONLY = [
@@ -40,6 +32,13 @@ const GNU_ONLY = [
 	/\b(mapfile|readarray)\b/,
 	/\$\{\w+(,,|\^\^)\}/,
 ];
+const OWNED_SOURCE = (file: string) =>
+	/\.(rs|ts|tsx|mjs|css|sh|toml|ya?ml)$/.test(file) &&
+	!file.startsWith('vendor/') &&
+	file !== 'src/lib/generated/tauri.ts';
+const STAND_IN_COMMENT =
+	/(?:^|\s)(?:\/\/+|#|\/\*+|\*)\s*([-=]{3,}\s*\S.*?\s*[-=]{3,}|EXCEPTION:|DO NOT REMOVE)/;
+
 const SILENCED = /2>\s*\/dev\/null|\|\|\s*true\b/;
 const CAPTURE_WITH_SILENCE = /\$\((?:[^()]|\([^()]*\))*(2>\s*\/dev\/null|\|\|\s*true\b)/;
 
@@ -71,6 +70,12 @@ const RULES: Rule[] = [
 		message:
 			'fakes an I/O failure with permission bits, which root ignores (cloud containers run as root). Fix: put a file where a directory is expected, or the reverse, or mark the line `// allow-permission-fake: <why it runs unprivileged>`.',
 	},
+	{
+		appliesTo: OWNED_SOURCE,
+		findIn: (line) => line.match(STAND_IN_COMMENT)?.[1] ?? null,
+		message:
+			'is a comment that stands in for structure or enforcement. Fix: split the code where a banner sits, follow the rule an EXCEPTION stamp excuses, and replace a scare comment with a name, type, test, or check.',
+	},
 ];
 
 export function checkFile(file: string, text: string): Finding[] {
@@ -83,10 +88,10 @@ export function checkFile(file: string, text: string): Finding[] {
 			insideCapture = false;
 		}
 		for (const rule of rules) {
+			const { allow } = rule;
 			if (
-				rule.comment.test(line) ||
-				line.includes(rule.allow) ||
-				lines[index - 1]?.includes(rule.allow)
+				rule.comment?.test(line) ||
+				(allow && (line.includes(allow) || lines[index - 1]?.includes(allow)))
 			) {
 				continue;
 			}

@@ -1,11 +1,3 @@
-//! Remux-time cover-art selection and embed-failure severity.
-//!
-//! Owns two decisions in one place: which cover wins when both an explicit
-//! (metadata) and a passthrough (source-preserved) cover are available, and how
-//! an embed failure is graded by that source. Explicit covers are mandatory —
-//! a failed embed is fatal; passthrough covers are best-effort — a failed embed
-//! is warned and skipped.
-
 use crate::errors::{AppError, Result};
 
 use super::super::passthrough::PassthroughMetadata;
@@ -18,8 +10,6 @@ pub(crate) enum ResolvedCover<'a> {
 }
 
 impl<'a> ResolvedCover<'a> {
-    /// Select the cover to write: an explicit metadata cover wins over a
-    /// passthrough cover, and an empty cover is dropped (`set | clear | absent`).
     pub(crate) fn select(
         metadata: Option<&'a AudiobookMetadata>,
         passthrough: Option<&'a PassthroughMetadata>,
@@ -45,10 +35,6 @@ impl<'a> ResolvedCover<'a> {
         matches!(self, Self::Passthrough(_))
     }
 
-    /// Grade an embed-stage failure by cover source: passthrough covers warn and
-    /// continue (`Ok`), explicit covers propagate the error (`Err`). This is the
-    /// single owner of the severity decision shared by the pre-header stream and
-    /// post-header packet remux stages.
     pub(crate) fn handle_embed_failure(self, error: AppError, stage: &str) -> Result<()> {
         if self.is_passthrough() {
             log::warn!("metadata_cover stage={stage:?} source=passthrough decision=skip reason=embed_failed error={error}");

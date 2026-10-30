@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { coverSrc } from './coverSrc';
 
-/** The request path the engine parses: decoded once as a whole. */
 function requestOf(address: string): string {
 	return decodeURIComponent(address.replace('abb-cover://localhost/', ''));
 }

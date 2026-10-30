@@ -1,4 +1,3 @@
-//! Sibling CUE discovery and immutable, source-bound chapter intake facts.
 use super::{parse_cue, validate_chapters, ChapterSpec, CueInterpretation};
 use crate::errors::{AppError, Result};
 use abb_metadata_core::normalize_embedded_chapters;
@@ -231,9 +230,10 @@ mod tests {
         assert_eq!(first.chapters[0].start_ms, 940);
         assert_eq!(second.chapters[0].start_ms, 1000);
         let grouped_title = crate::audio::TitleAudioRequest {
-            format: crate::audio::AudiobookFormat::M4b,
+            output: crate::audio::OutputAudio::M4b {
+                settings: crate::audio::EncoderSettings::default(),
+            },
             intent: crate::audio::AudioIntent::Encode,
-            settings: None,
             sample_rate: crate::audio::SampleRateConfig::Auto,
         };
         assert!(

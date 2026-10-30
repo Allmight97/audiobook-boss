@@ -61,7 +61,6 @@ function DialogRoot(props: DialogProps): JSX.Element {
 	const modal = new ModalController();
 	const [faded, setFaded] = createSignal(true, { ownedWrite: true });
 	let fadeTimer: ReturnType<typeof setTimeout> | undefined;
-	/** The longest declared transition on the backdrop, the time its close fade takes. */
 	const fadeMs = () =>
 		Math.max(
 			0,

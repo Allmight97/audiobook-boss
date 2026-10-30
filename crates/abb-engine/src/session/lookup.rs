@@ -1,7 +1,3 @@
-//! Online lookup rules: which titles are queued, what to search for, and how
-//! a result maps onto the metadata form. The search itself and applying a
-//! result run in the session runtime.
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -9,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use crate::metadata::AudiobookMetadata;
 use crate::metadata_lookup::{MetadataSource, OnlineMetadataResult};
 
-/// How many results one search asks for.
 pub(crate) const RESULT_LIMIT: u8 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
@@ -81,7 +76,6 @@ pub enum LookupStatus {
     QueueComplete {
         cover_failed: bool,
     },
-    /// The next queued title could not be selected.
     NextTitleRejected,
     Failed,
 }
@@ -99,8 +93,6 @@ pub struct LookupQueuePosition {
 pub struct LookupSnapshot {
     pub revision: u64,
     pub open: bool,
-    /// Search criteria stay separate so each can be seen and fixed; they are
-    /// joined only when a search runs.
     pub title_query: String,
     pub author_query: String,
     pub source: LookupSource,
@@ -162,8 +154,6 @@ impl LookupState {
         self.queue.get(self.index)
     }
 
-    /// Starts a lookup over `queue`, deriving the first search from what is
-    /// known about the first title.
     pub(crate) fn open(&mut self, queue: Vec<QueuedTitle>, first: Option<&AudiobookMetadata>) {
         self.open = true;
         self.queue = queue;
@@ -194,8 +184,6 @@ impl LookupState {
         self.has_searched = false;
     }
 
-    /// The one query string the providers take; an ASIN pasted into either
-    /// criterion passes through.
     pub(crate) fn search_query(&self) -> String {
         [self.title_query.trim(), self.author_query.trim()]
             .into_iter()
@@ -205,7 +193,6 @@ impl LookupState {
     }
 }
 
-/// Whether a stored title names a piece of a book rather than the book.
 fn is_track_like(title: &str) -> bool {
     let lower = title.trim().to_lowercase();
     ["chapter", "track", "disc", "disk", "episode"]
@@ -217,8 +204,6 @@ fn is_track_like(title: &str) -> bool {
         })
 }
 
-/// The title to search for: the stored title, or the album when the title is
-/// missing or track-like, falling back to a cleaned file name.
 pub(crate) fn title_query(stored: Option<&AudiobookMetadata>, path: &Path) -> String {
     fn trimmed(value: &Option<String>) -> Option<&str> {
         value
@@ -252,8 +237,6 @@ pub(crate) fn title_query(stored: Option<&AudiobookMetadata>, path: &Path) -> St
         .to_string()
 }
 
-/// The author to search for: the stored artist, falling back to the composer
-/// (narrator). Empty when the file carries neither.
 pub(crate) fn author_query(stored: Option<&AudiobookMetadata>) -> String {
     let Some(stored) = stored else {
         return String::new();
@@ -266,8 +249,6 @@ pub(crate) fn author_query(stored: Option<&AudiobookMetadata>) -> String {
         .to_string()
 }
 
-/// The form values a lookup result supplies. Fields the result lacks stay
-/// absent so applying it leaves them alone.
 pub(crate) fn result_metadata(result: &OnlineMetadataResult) -> AudiobookMetadata {
     let joined = |names: &[String]| (!names.is_empty()).then(|| names.join(", "));
     let present = |value: &Option<String>| value.clone().filter(|value| !value.is_empty());

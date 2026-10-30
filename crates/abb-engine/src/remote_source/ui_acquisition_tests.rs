@@ -1,4 +1,3 @@
-//! How acquisition jobs reach the remote UI state and its published parts.
 use super::*;
 
 #[test]
@@ -93,7 +92,6 @@ fn attaching_during_an_accepted_acquisition_retains_library_without_resending_it
     );
     updates.0.lock().expect("events").clear();
     let since = runtime.ui_revisions();
-    // The lifecycle's progress reducer advances only the acquisition part.
     runtime.inner.lifecycle.mark_job_failed(
         "progress-job",
         ProviderId::Audible,
@@ -201,12 +199,10 @@ fn download_update_bytes(count: usize) -> Vec<(bool, bool, bool, usize)> {
     job.diagnostics.clear();
     let job_id = job.job_id.clone();
     (runtime.inner.lifecycle.jobs.lock().expect("jobs")).insert(job_id.clone(), job);
-    // An admitted acquisition is already busy, so its ticks never flip `busy`.
     runtime
         .ui()
         .set_acquisition(|acquisition| acquisition.acquiring = true);
     updates.0.lock().expect("updates").clear();
-    // The first tick and each stage change publish at once, so no tick waits on the throttle.
     for stage in [AcquisitionStage::License, AcquisitionStage::Download] {
         runtime.inner.lifecycle.update_job_progress(
             &job_id,

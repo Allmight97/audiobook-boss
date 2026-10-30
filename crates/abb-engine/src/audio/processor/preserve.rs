@@ -134,10 +134,8 @@ pub(super) fn copy_with_cancellation(
 }
 
 pub(super) fn emit_progress(context: &ProcessingContext, fraction: f32, message: &str) {
-    use crate::processing::{PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START};
     context.new_emitter().emit_converting_progress(
-        PROGRESS_CONVERTING_START
-            + (PROGRESS_CONVERTING_MAX - PROGRESS_CONVERTING_START) * fraction,
+        crate::processing::converting_percentage(fraction),
         message,
         None,
         None,
@@ -170,7 +168,6 @@ mod tests {
         let events = observed.clone();
         let mut context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::new()),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("out.m4b")),
         );
@@ -203,7 +200,7 @@ mod tests {
         );
         assert!(
             progress.last().expect("copy reports progress")
-                < &crate::processing::PROGRESS_CONVERTING_MAX,
+                < &crate::processing::converting_percentage(1.0),
             "joining must retain its own progress interval"
         );
     }
@@ -224,7 +221,6 @@ mod tests {
         std::os::unix::fs::symlink(&replacement, &source).expect("replace source with symlink");
         let context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::new()),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),
         );
@@ -259,7 +255,6 @@ mod tests {
         std::fs::rename(&replacement, &source).expect("install regular replacement");
         let context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::new()),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),
         );
@@ -296,7 +291,6 @@ mod tests {
         let checker = crate::processing::CancellationChecker::new(Some(cancelled.clone()));
         let mut context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),
         );
@@ -325,7 +319,6 @@ mod tests {
         let source_for_listener = source.clone();
         let mut context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::new()),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),
         );
@@ -356,7 +349,6 @@ mod tests {
         let source_for_listener = source.clone();
         let mut context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::new()),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),
         );

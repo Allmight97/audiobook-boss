@@ -1,4 +1,3 @@
-/** Status-panel wording of engine progress; run truth remains in engine snapshots. */
 export type DisplayStage =
 	| 'analyzing'
 	| 'converting'
@@ -29,13 +28,6 @@ export function isActiveEventStage(stage: ProcessingStatus['stage']): stage is A
 	return stage === 'analyzing' || stage === 'converting' || stage === 'writing';
 }
 
-/**
- * Factory that constructs the correct `ProcessingStatus` variant based on the
- * `stage` discriminant. `active` extras are applied only when `stage` is an
- * active event stage; for terminal and idle stages the extras are ignored at
- * the type level. Idle is always normalized to `percentage: 0`, even if an
- * out-of-band caller passes a stale numeric value.
- */
 export function buildStatus(
 	stage: ProcessingStatus['stage'],
 	percentage: number,

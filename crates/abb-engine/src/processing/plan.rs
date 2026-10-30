@@ -48,16 +48,11 @@ pub(crate) struct ExecutionProcessingPlan {
     pub(crate) output_parent_cleanup: OutputParentDirCleanup,
 }
 
-/// The source inspection and resolved plan the user reviewed. Execution keeps
-/// these exact facts; Audio checks their fingerprints after scheduler waits.
 pub(crate) struct InspectedProcessingPlan {
     pub(crate) plan: ResolvedProcessingPlan,
     pub(crate) file_info: FileListInfo,
 }
 
-/// Preflight requires an existing output folder. Execution may find it missing
-/// (removed after review); the output owner recreates it only after the
-/// reviewed plan is enforced.
 fn resolve_output_dir(output_dir: &str, allow_missing: bool) -> Result<PathBuf> {
     let base_output_dir = PathBuf::from(output_dir);
     if !base_output_dir.exists() {
@@ -126,7 +121,7 @@ fn build_plan_signature(
         let output_action = format!("{:?}", output.action);
         let collision_summary = format!("{collision_path}::{collision_detail}");
         lines.push(format!(
-            "{}|{}|{}|{}|{}|{}|{}|{}|{:?}",
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}",
             job.input_index,
             output.requested_path.display(),
             output.resolved_path.display(),
@@ -139,7 +134,11 @@ fn build_plan_signature(
             output_action,
             collision_kind,
             collision_summary,
-            job.audio_plan.handling,
+            if job.audio_plan.handling.preserves() {
+                "Preserve"
+            } else {
+                "Encode"
+            },
         ));
     }
 
@@ -241,7 +240,6 @@ fn log_output_plan(phase: &str, payload: &ProcessPayload, plan: &ResolvedProcess
     }
 }
 
-/// The preflight plan with each title's planning detail.
 pub(crate) fn resolve_processing_plan(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
@@ -378,8 +376,6 @@ fn build_title_processing_jobs(
     Ok(jobs)
 }
 
-/// A title with a Supplemental PDF is refused before encoding when the PDF's
-/// name beside the audiobook would not fit.
 fn check_companion_pdf_name(
     payload: &ProcessPayload,
     index: usize,

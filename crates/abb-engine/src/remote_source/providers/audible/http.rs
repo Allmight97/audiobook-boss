@@ -16,7 +16,6 @@ const AUDIBLE_API_HOST_PREFIX: &str = "https://api.audible.";
 pub(in crate::remote_source) const SIGN_IN_REJECTED_MESSAGE: &str =
     "Audible did not accept the saved sign-in. Sign in to Audible again.";
 
-/// Follows redirects with an HTTPS-only guard and redirect cap.
 pub(super) fn audio_download_client(max_redirects: usize) -> Result<reqwest::Client> {
     client(Policy::custom(move |attempt| {
         if attempt.previous().len() >= max_redirects {
@@ -29,7 +28,6 @@ pub(super) fn audio_download_client(max_redirects: usize) -> Result<reqwest::Cli
     }))
 }
 
-/// Follows no redirects; callers handle redirect loops themselves.
 pub(super) fn no_redirect_client() -> Result<reqwest::Client> {
     client(Policy::none())
 }
@@ -44,7 +42,6 @@ fn client(redirect: Policy) -> Result<reqwest::Client> {
 
 #[derive(Debug)]
 pub(in crate::remote_source) enum AudibleRequestError {
-    /// Audible answered 401 or 403: the saved sign-in no longer works.
     AuthRejected,
     Failed(AppError),
 }
@@ -64,7 +61,6 @@ impl AudibleRequestError {
     }
 }
 
-/// Signed JSON requests to the Audible API on the auth's own marketplace.
 pub(super) struct AudibleApi {
     client: AudibleClient,
     base_url: String,
@@ -73,7 +69,6 @@ pub(super) struct AudibleApi {
 
 impl AudibleApi {
     pub(super) fn new(auth: Auth) -> Result<Self> {
-        // The client signs the URL path left after removing this exact prefix.
         let base_url = format!("{AUDIBLE_API_HOST_PREFIX}{}", auth.locale.domain);
         let client = AudibleClient::new(auth).map_err(|error| {
             AppError::General(format!("Failed to create Audible client: {error}"))
@@ -154,13 +149,9 @@ impl AudibleApi {
     }
 }
 
-/// Which refusal means the saved sign-in no longer works.
 #[derive(Clone, Copy)]
 pub(super) enum Scope {
-    /// Library pages and title lookup: 401 or 403.
     Account,
-    /// A license: only 401. A 403 can refuse just this title (entitlement,
-    /// region) or be a rate limit while the sign-in is fine.
     Title,
 }
 

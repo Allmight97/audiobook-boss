@@ -1,7 +1,5 @@
 name: Claude mentions
 
-# On-demand work for an @claude mention.
-# A manual run checks the subscription token without posting or changing files.
 on:
   issue_comment:
     types: [created]

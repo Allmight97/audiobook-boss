@@ -33,7 +33,6 @@ describe('engine link', () => {
 		};
 		const link = linkTo(engine);
 
-		// Sent before attach has finished; the second does not wait for the first.
 		const sent = [
 			link.send({ kind: 'setField', field: 'title', value: 'A' }),
 			link.send({ kind: 'save' }),
@@ -61,7 +60,6 @@ describe('engine link', () => {
 		await link.send({ kind: 'setField', field: 'title', value: 'Newer' });
 		const current = link.metadata();
 
-		// An event carrying an older copy of the part arrives late.
 		publish({
 			revision: current.revision - 1,
 			metadata: { ...current, revision: current.revision - 1, saveInProgress: true },

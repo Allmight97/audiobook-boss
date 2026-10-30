@@ -21,7 +21,6 @@ pub(crate) struct ReadTicket {
     token: u64,
 }
 
-/// A file's pending intent with the revision a save must present to clear it.
 #[derive(Debug, Clone)]
 pub(crate) struct PendingIntent {
     pub(crate) patch: MetadataIntentPatch,
@@ -32,7 +31,6 @@ pub(crate) struct PendingIntent {
 pub(crate) struct TagCache {
     known: HashMap<PathBuf, AudiobookMetadata>,
     pending: HashMap<PathBuf, PendingIntent>,
-    /// Files whose own tags were read in this session.
     read: HashSet<PathBuf>,
     reads_in_flight: HashMap<PathBuf, u64>,
     next_token: u64,
@@ -61,8 +59,6 @@ impl TagCache {
         })
     }
 
-    /// Accepts a finished read if nothing invalidated it. Returns whether the
-    /// read was applied.
     pub(crate) fn complete_read(
         &mut self,
         ticket: &ReadTicket,
@@ -84,12 +80,10 @@ impl TagCache {
         true
     }
 
-    /// Whether this session holds a usable read of the file's own tags.
     pub(crate) fn has_source_read(&self, path: &Path) -> bool {
         self.read.contains(path)
     }
 
-    /// The file's tags with this session's pending changes applied.
     pub(crate) fn effective(&self, path: &Path) -> Option<AudiobookMetadata> {
         let known = self.known.get(path);
         match self.pending.get(path) {
@@ -157,7 +151,6 @@ impl TagCache {
         }
     }
 
-    /// Forgets every file not in `live`, including its outstanding reads.
     pub(crate) fn retain_paths(&mut self, live: &HashSet<PathBuf>) {
         self.known.retain(|path, _| live.contains(path));
         self.pending.retain(|path, _| live.contains(path));

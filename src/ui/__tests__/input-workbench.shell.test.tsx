@@ -1,4 +1,4 @@
-import { titleAudioRequest } from '../../test/fixtures/titleAudio';
+import { mp3AudioRequest, titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -50,7 +50,6 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 
 let engine: FakeEngine;
 
-/** A runtime whose engine analyzes any import as `files`, or one file per path. */
 function runtimeFor(
 	options: { files?: AudioFile[]; input?: Partial<InputCapability> } = {},
 ): AppRuntime {
@@ -62,7 +61,6 @@ function runtimeFor(
 	return createAppRuntime({ input: fakeInput(options.input), engine });
 }
 
-/** Renders the app and waits for the engine's first snapshot. */
 async function renderApp(runtime: AppRuntime) {
 	const rendered = render(() => (
 		<AppRuntimeProvider runtime={runtime}>
@@ -119,7 +117,6 @@ describe('Solid input workbench', () => {
 			paths: files.map((file) => file.path),
 		});
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
-		// The engine holds different choices for the first two titles.
 		engine.change((state) => {
 			const first = state.audio.titles[files[0]!.path]!;
 			const second = state.audio.titles[files[1]!.path]!;
@@ -140,7 +137,6 @@ describe('Solid input workbench', () => {
 					faacProfiles: ['auto', 'aac_lc', 'he_aac_v1'],
 				};
 			}
-			// The engine's answer for the two selected titles.
 			state.audio.selection = {
 				titleIds: [files[0]!.path, files[1]!.path],
 				choice: first.choice,
@@ -203,7 +199,6 @@ describe('Solid input workbench', () => {
 				plan: {
 					format: 'm4b',
 					handling: 'preserve',
-					settings: null,
 					sampleRate: 44100,
 					channels: 6,
 					sourceCodec: 'AAC',
@@ -274,8 +269,7 @@ describe('Solid input workbench', () => {
 			paths: files.map((file) => file.path),
 		});
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
-		engine.seedTitleAudio(files[0]!.path, titleAudioRequest({ format: 'mp3', settings: null }));
-		// The engine grouped the first two, whose audio disagrees.
+		engine.seedTitleAudio(files[0]!.path, mp3AudioRequest());
 		engine.seedGroup([files[0]!, files[1]!], { choiceRequired: true });
 		engine.respond = (intent) => {
 			if (intent.kind !== 'applyDefaultAudio') return undefined;

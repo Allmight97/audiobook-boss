@@ -134,8 +134,6 @@ pub(super) async fn acquire(
     Ok(job)
 }
 
-/// Folds one title's outcome into the job. A title without import-compatible
-/// audio already carries its own specific diagnostic.
 fn record_title_outcome(
     job: &mut AcquisitionJob,
     title_id: &str,
@@ -387,9 +385,6 @@ pub(super) fn unsupported_result_for_unmaterializable_lane(
     }
 }
 
-/// Drives protected-download materialization the way acquisition does, including
-/// the MaterializationFailed mapping, so the decrypt lane can prove a wrong
-/// key without standing up a license request.
 #[cfg(test)]
 #[derive(Debug)]
 pub(crate) struct ProtectedMaterializationRun {

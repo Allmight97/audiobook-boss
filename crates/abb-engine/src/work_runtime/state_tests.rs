@@ -484,7 +484,6 @@ fn metadata_save_snapshot_uses_metadata_write_lane() {
         .all(|child| child.lane == ResourceLane::MetadataWrite));
     assert_eq!(snapshot.children[0].input_index, Some(0));
     assert_eq!(snapshot.children[0].label, "a.m4b");
-    // Inline operations carry no per-child job_id; progress matches by index.
     assert!(snapshot.children.iter().all(|child| child.job_id.is_none()));
 }
 
@@ -493,8 +492,6 @@ fn complete_from_summary_terminalizes_metadata_save_children_by_index() {
     let (mut state, operation_id) = metadata_save_state();
     state.mark_running(&operation_id, 150).expect("running");
 
-    // One success, one failure → canonical classifier resolves the run to Mixed,
-    // and each child terminalizes from its (input_index, status, message) fact.
     let summary = OperationResultSummary {
         total: 2,
         succeeded: 1,
@@ -535,9 +532,6 @@ fn complete_from_summary_terminalizes_metadata_save_children_by_index() {
 
 #[test]
 fn cancel_terminalizes_metadata_save_operation_as_cancelled_not_failed() {
-    // A metadata save cancelled before its loop (e.g. the operation cancel flag
-    // flips during the permit wait) must resolve to Cancelled, mirroring the
-    // processing path â `cancel_metadata_save_operation` routes through `cancel`.
     let (mut state, operation_id) = metadata_save_state();
     state.mark_running(&operation_id, 150).expect("running");
 
@@ -579,7 +573,6 @@ fn log_tail_records_lifecycle_and_progress_with_dedupe() {
             200,
         )
         .expect("progress");
-    // Identical consecutive message must not rotate the tail.
     state
         .apply_progress_event(
             &operation_id,
@@ -663,8 +656,6 @@ fn multi_child_batch_events_suppress_operation_eta() {
         .apply_progress_event(&operation_id, &event, 200)
         .expect("progress");
 
-    // Two children: the aggregate percentage renders beside the ETA, so one
-    // child's ETA must not be presented as the operation's.
     assert_eq!(snapshot.progress.eta_seconds, None);
     let child = snapshot
         .children
@@ -704,7 +695,6 @@ fn log_tail_keeps_identical_messages_from_distinct_children() {
 fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
     let mut state = WorkRuntimeState::default();
 
-    // 25 terminal operations, sequence 1..=25, oldest first.
     for sequence in 1..=25u64 {
         let id = OperationId(format!("term-{sequence}"));
         state.insert_operation(new_processing_snapshot(
@@ -720,7 +710,6 @@ fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
             .expect("fail terminalizes and prunes");
     }
 
-    // A running operation must survive pruning regardless of its sequence.
     let running_id = OperationId("running-op".to_string());
     state.insert_operation(new_processing_snapshot(
         running_id.clone(),
@@ -736,8 +725,6 @@ fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
     assert_eq!(list.operations.len(), 21, "20 terminal + 1 running");
     assert!(state.get(&running_id).is_ok());
 
-    // Oldest 5 terminal ops (sequence 1..=5) were pruned; the 20 most recent
-    // (sequence 6..=25) remain.
     for sequence in 1..=5u64 {
         assert!(
             state.get(&OperationId(format!("term-{sequence}"))).is_err(),
@@ -756,7 +743,6 @@ fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
 fn prune_orders_by_terminalization_so_a_just_finished_long_runner_survives() {
     let mut state = WorkRuntimeState::default();
 
-    // A low-sequence operation that stays running for a long time.
     let long_runner = OperationId("long-runner".to_string());
     state.insert_operation(new_processing_snapshot(
         long_runner.clone(),
@@ -768,7 +754,6 @@ fn prune_orders_by_terminalization_so_a_just_finished_long_runner_survives() {
     ));
     state.mark_running(&long_runner, 100).expect("running");
 
-    // 25 newer operations terminalize while it runs.
     for sequence in 2..=26u64 {
         let id = OperationId(format!("term-{sequence}"));
         state.insert_operation(new_processing_snapshot(
@@ -784,9 +769,6 @@ fn prune_orders_by_terminalization_so_a_just_finished_long_runner_survives() {
             .expect("fail terminalizes and prunes");
     }
 
-    // Now the long runner finishes. Pruning by submission sequence would
-    // evict it immediately (it has the lowest sequence); pruning by
-    // terminalization order must keep it as the NEWEST terminal entry.
     state
         .fail(&long_runner, "done late".to_string(), 10_000)
         .expect("long runner terminalizes");
@@ -797,7 +779,6 @@ fn prune_orders_by_terminalization_so_a_just_finished_long_runner_survives() {
     );
     let list = state.list();
     assert_eq!(list.operations.len(), 20, "terminal cap holds");
-    // The oldest-terminalized entries were evicted instead.
     assert!(state.get(&OperationId("term-2".to_string())).is_err());
 }
 
@@ -888,7 +869,6 @@ fn cancelling_one_title_leaves_its_siblings_running_and_stays_cancelled() {
         "progress must not re-offer cancel for a title already cancelling"
     );
 
-    // The dispatcher reports a cancelled title by index as soon as it stops.
     let cancelled = ProgressEvent {
         stage: EventStage::Cancelled,
         job_id: None,
@@ -948,8 +928,6 @@ fn cancellation_and_failure_terminalize_queued_child_progress_for_reattachment()
     }
 }
 
-// Hosts take the order from the update with the highest revision, so each
-// publish must advance it and carry the order as of that moment.
 #[test]
 fn each_published_change_advances_the_revision_and_orders_active_work_first() {
     let (mut state, finished) = accepted_state();

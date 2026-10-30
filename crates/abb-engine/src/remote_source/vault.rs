@@ -11,15 +11,11 @@ pub(super) trait SecretVault: Send + Sync {
     fn set_secret(&self, key: &str, value: SecretString) -> Result<()>;
     fn delete_secret(&self, key: &str) -> Result<()>;
 
-    /// Whether a secret written now is still readable after an OS restart or a
-    /// WSL VM stop. Test doubles keep secrets for the test, so they report true.
-    /// The OS vault reports the registered store's persistence.
     fn survives_restart(&self) -> bool {
         true
     }
 }
 
-/// Shown on the account view when the registered store will not keep a sign-in.
 pub(super) const SIGN_IN_NOT_REMEMBERED: &str = "Sign-in won't be remembered after a restart.";
 
 pub(super) fn account_message(base: Option<&str>, survives_restart: bool) -> Option<String> {
@@ -48,7 +44,6 @@ pub(super) struct KeyringSecretVault {
 impl KeyringSecretVault {
     pub(super) fn for_app_identifier(identifier: &str) -> Self {
         Self {
-            // Keep shipped credentials reachable; other app identities own their slots.
             service: if identifier == "com.audiobook-boss" {
                 PRODUCTION_SERVICE.to_string()
             } else {

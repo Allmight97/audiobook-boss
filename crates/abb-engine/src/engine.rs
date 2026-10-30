@@ -1,5 +1,3 @@
-//! The engine's host-facing interface and lifetime.
-
 use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions, TryLockError};
 use std::future::Future;
@@ -65,7 +63,6 @@ impl EngineTasks {
         Ok(())
     }
 
-    /// Runs `work` unless shutdown begins first; then it is dropped.
     pub(crate) async fn until_closing<T>(
         &self,
         work: impl Future<Output = Result<T>>,
@@ -118,16 +115,13 @@ fn lock_cache_dir(cache_dir: &Path) -> Result<Option<File>> {
     }
 }
 
-/// What a host supplies to start the engine.
 pub struct EngineConfig {
     /// Root for engine-owned working files: processing workspaces and staged
     /// remote downloads. The engine locks it, then clears abandoned contents.
     pub cache_dir: PathBuf,
-    /// Root for durable settings.
     pub config_dir: PathBuf,
     /// Scopes stored credentials. Two identifiers never share a vault.
     pub app_identifier: String,
-    /// Where the engine publishes events.
     pub events: Arc<dyn EventSink>,
     /// Location of the Audible helper binary. `None` resolves it beside the
     /// running executable.
@@ -151,7 +145,6 @@ struct EngineInner {
     work: WorkRuntime,
     remote_source: RemoteSourceRuntime,
     session: Session,
-    /// Every background task the engine starts; shutdown waits for them.
     tasks: EngineTasks,
     _cache_dir_lock: Option<File>,
 }
@@ -169,7 +162,6 @@ pub struct RunningWork {
     pub consent: QuitConsent,
 }
 
-/// How [`Engine::shutdown`] ended.
 #[must_use]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShutdownOutcome {
@@ -206,8 +198,6 @@ impl Engine {
         let power = PowerManager::default();
         let host = Host::new(config.events, power.clone());
         let tasks = EngineTasks::default();
-        // Leftover working files never stop ABB from starting; the next
-        // start tries again.
         if let Err(error) = audio::cleanup_abandoned_processing_workspaces(&config.cache_dir) {
             log::warn!("Abandoned processing files were left in place: {error}");
         }
@@ -255,7 +245,6 @@ impl Engine {
         })
     }
 
-    /// What quitting now would stop.
     pub fn running_work(&self) -> RunningWork {
         let mut exports: BTreeSet<String> = self
             .inner
@@ -323,16 +312,12 @@ impl Engine {
         }
         self.inner.remote_source.abort_acquisitions();
         self.inner.tasks.wait().await;
-        // A choice whose write failed gets one more attempt before ABB exits.
         match self.inner.settings.flush().await {
             None => ShutdownOutcome::Settled,
             Some(error) => ShutdownOutcome::SettingsUnsaved { error },
         }
     }
 
-    // ---- Settings ----
-
-    /// Applies one intent to the settings and returns the settings in effect.
     pub async fn settings_dispatch(&self, intent: SettingsIntent) -> SettingsReply {
         let reset = matches!(intent, SettingsIntent::Reset);
         let accepted = self.inner.tasks.admit(|| {
@@ -380,12 +365,9 @@ impl Engine {
         }
     }
 
-    /// The settings in effect and whether they are saved.
     pub async fn settings_snapshot(&self) -> SettingsSnapshot {
         self.inner.settings.snapshot().await
     }
-
-    // ---- Working session ----
 
     /// Applies one intent to the working session and returns what changed.
     /// Changes the engine makes on its own arrive as [`crate::EngineEvent::Session`].
@@ -415,8 +397,6 @@ impl Engine {
             .await
     }
 
-    // ---- Import ----
-
     pub fn supported_audio_import_metadata(&self) -> SupportedAudioImportMetadata {
         audio::supported_audio_import_metadata()
     }
@@ -432,8 +412,6 @@ impl Engine {
         self.inner.session.import_opened(supported)
     }
 
-    // ---- Metadata ----
-
     #[expect(
         clippy::disallowed_methods,
         reason = "joined by Engine::read_audio_metadata"
@@ -446,8 +424,6 @@ impl Engine {
         .await
         .map_err(|e| AppError::General(format!("Metadata read task failed: {e}")))?
     }
-
-    // ---- Output and processing ----
 
     pub fn list_work_operations(&self) -> Result<WorkOperationsSnapshot> {
         self.inner.work.list_operations()

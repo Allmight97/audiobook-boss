@@ -48,7 +48,6 @@ pub fn find_nearest_non_empty_string_for_keys(value: &Value, keys: &[&str]) -> O
     }
 }
 
-/// Whether any key in `keys` holds a non-empty object anywhere in the tree.
 pub fn has_non_empty_object_for_keys(value: &Value, keys: &[&str]) -> bool {
     match value {
         Value::Object(map) => {

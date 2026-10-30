@@ -17,7 +17,6 @@ import {
 } from './selection';
 import type { ReleaseGrabState, RemoteSourceState, RemoteSourceView } from './types';
 
-/** Semantic actions sent to the engine; browser opening belongs to this frontend. */
 export type RemoteSourceAction =
 	| { readonly type: 'startAuth' | 'completeAuth' | 'logout' | 'loadLibrary' }
 	| { readonly type: 'searchReleases' }
@@ -88,7 +87,6 @@ export type RemoteSourceOwner = {
 	readonly canGrabSelection: Accessor<boolean>;
 	readonly hiddenReleaseSelectionCount: Accessor<number>;
 	readonly acquisition: Accessor<AcquisitionJob | null>;
-	/** The library title the download is on now. */
 	readonly acquisitionTitle: Accessor<RemoteTitle | undefined>;
 	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
 	open(options?: { readonly lane?: AcquisitionLane }): Promise<void>;

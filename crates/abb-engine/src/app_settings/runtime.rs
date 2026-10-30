@@ -1,9 +1,3 @@
-//! The settings in effect for this run, and whether they are on disk yet.
-//!
-//! A preference a panel has accepted stays in effect when writing it fails;
-//! the settings in effect are written whole on retry. One lock serializes
-//! every change, so an older write can never report a newer choice as saved.
-
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -19,7 +13,6 @@ use crate::power::PowerManager;
 use crate::processing::{JobRegistry, MaxConcurrentJobsCapabilities};
 use crate::ManagedJobRegistry;
 
-/// Something the user asked of the settings.
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SettingsIntent {
@@ -41,7 +34,6 @@ pub enum SettingsIntent {
     SetStartupBehavior {
         behavior: StartupBehavior,
     },
-    /// Captures the current defaults as the ones a later launch starts from.
     PinCurrentDefaults,
     /// Writes accepted changes that an earlier write failed to save.
     Retry,
@@ -72,7 +64,6 @@ pub struct ConcurrencySnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct SettingsSnapshot {
     pub revision: u64,
-    /// The settings in effect.
     pub settings: AppSettings,
     /// Why accepted changes are not on disk yet. Absent when all are saved.
     pub save_error: Option<AppErrorEnvelope>,
@@ -127,7 +118,6 @@ struct Inner {
 struct State {
     revision: u64,
     accepted: AppSettings,
-    /// Whether the settings in effect have changed since they last reached disk.
     unsaved: bool,
     save_error: Option<AppErrorEnvelope>,
     recovery: Option<SettingsRecovery>,
@@ -136,7 +126,6 @@ struct State {
     unpreserved: bool,
 }
 
-/// The defaults a launch starts from.
 fn startup_defaults(settings: &AppSettings) -> PinnedDefaults {
     match (&settings.startup_behavior, &settings.pinned_defaults) {
         (StartupBehavior::PinnedDefaults, Some(pinned)) => pinned.clone(),
@@ -161,8 +150,6 @@ fn rejected(error: &AppError) -> SettingsOutcome {
 }
 
 impl SettingsRuntime {
-    /// Loads the saved settings and builds the job scheduler they ask for.
-    /// Also returns the defaults this launch starts from.
     pub(crate) fn start(
         config_dir: PathBuf,
         power: PowerManager,
@@ -170,9 +157,6 @@ impl SettingsRuntime {
         let loaded = storage::load(&config_dir);
         let mut accepted = loaded.settings;
         let startup = startup_defaults(&accepted);
-        // The defaults on screen are the ones in effect: after a launch from
-        // pinned defaults, a later pin or save starts from those, not from the
-        // last-used values the launch set aside.
         accepted.max_concurrent_jobs = startup.max_concurrent_jobs;
         accepted.encoder_defaults = startup.encoder_defaults.clone();
         accepted.output_defaults = startup.output_defaults.clone();
@@ -262,8 +246,6 @@ impl SettingsRuntime {
         self.enqueue(intent, None, tasks)
     }
 
-    /// Template typing owns its settings turn immediately, but writes only
-    /// once the latest edit has paused. Reset follows every earlier choice.
     pub(crate) fn remember_output_after_pause(
         &self,
         output: OutputDefaults,
@@ -328,7 +310,6 @@ impl SettingsRuntime {
     }
 
     async fn apply_ordered(&self, intent: SettingsIntent) -> SettingsReply {
-        // Held for the whole intent: changes apply and write in the order asked.
         let mut state = self.inner.state.lock().await;
         let outcome = self.apply(&mut state, intent).await;
         state.revision += 1;
@@ -388,8 +369,6 @@ impl SettingsRuntime {
         }
     }
 
-    /// Puts `patch` in effect, then tries to save the settings in effect. A
-    /// failed write leaves the change in effect and reported as unsaved.
     async fn accept(&self, state: &mut State, patch: AppSettingsPatch) -> SettingsOutcome {
         match state.accepted.clone().merge(patch) {
             Ok(next) => state.accepted = next,
@@ -402,8 +381,6 @@ impl SettingsRuntime {
         SettingsOutcome::Applied
     }
 
-    /// Writes the settings in effect if any change has not reached disk. The
-    /// caller holds the settings turn, so writes stay in order.
     async fn write(&self, state: &mut State) {
         if !state.unsaved {
             return;
@@ -439,15 +416,12 @@ impl SettingsRuntime {
         }
     }
 
-    /// Writes anything still unsaved, as ABB closes. Returns why accepted
-    /// settings are still not on disk, if they are not.
     pub(crate) async fn flush(&self) -> Option<AppErrorEnvelope> {
         let mut state = self.inner.state.lock().await;
         self.write(&mut state).await;
         state.save_error.clone()
     }
 
-    /// The runtime side of the settings in effect.
     fn apply_to_runtime(&self, state: &State) {
         self.inner
             .power
@@ -480,7 +454,6 @@ impl SettingsRuntime {
         .await
     }
 
-    /// Captures the defaults in effect as the ones a later launch starts from.
     async fn pin_current_defaults(&self, state: &mut State) -> SettingsOutcome {
         let current = &state.accepted;
         let pinned = PinnedDefaults {
@@ -498,7 +471,6 @@ impl SettingsRuntime {
         .await
     }
 
-    /// Returns every setting to its default and concurrency to automatic.
     async fn reset(&self, state: &mut State) -> SettingsOutcome {
         if self.inner.jobs.reset_to_auto().await.is_err() {
             return rejected(&AppError::InvalidInput(

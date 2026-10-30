@@ -29,7 +29,6 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			const remoteSource = createRemoteSourceOwner({ link, ...capabilities.remoteSource });
 			const processing = createProcessingOwner({ link, settings });
 			const workOperations = createWorkOperationsOwner();
-			/** Resolves once the engine's session and settings have arrived. */
 			function initialize(): Promise<void> {
 				return link.ready().catch((error: unknown) => {
 					if (!disposed) throw error;

@@ -1,4 +1,3 @@
-//! The developer host exercised as a separately compiled executable.
 use std::{
     path::{Path, PathBuf},
     process::Command,

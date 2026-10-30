@@ -1,16 +1,3 @@
-//! Runs the working session: applies intents to [`SessionState`], performs
-//! the file and network work a transition asks for, and tells the host what
-//! changed.
-//!
-//! The state lock is never held across an await. Each async workflow reads
-//! what it needs under the lock, works without it, and comes back with a
-//! completion the state accepts or drops.
-//!
-//! An intent runs in two steps. [`Session::begin`] applies its immediate
-//! effect before returning, so intents begun in order take effect in order.
-//! The engine starts the remaining file or network work, which may overlap
-//! with later intents; [`SessionRun::finish`] only waits for its reply.
-
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -54,7 +41,6 @@ use crate::work_runtime::WorkRuntime;
 use crate::work_runtime::{OperationSnapshot, SubmitProcessingOperationRequest};
 use crate::ManagedJobRegistry;
 
-/// How many source files are read for tags at once.
 const READ_CONCURRENCY: usize = 8;
 
 fn remember_output(defaults: crate::app_settings::OutputDefaults) -> SettingsIntent {
@@ -65,14 +51,12 @@ fn remember_output(defaults: crate::app_settings::OutputDefaults) -> SettingsInt
     }
 }
 
-/// Something the user asked the session to do.
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SessionIntent {
     Remote {
         intent: crate::remote_source::RemoteUiIntent,
     },
-    // ---- Titles ----
     /// Discovers and analyzes audio under `paths` and adds new titles, each
     /// starting from the default audio choice.
     Import {
@@ -99,7 +83,6 @@ pub enum SessionIntent {
         title_id: String,
         direction: MoveDirection,
     },
-    /// Moves a title to position `to`.
     #[serde(rename_all = "camelCase")]
     ReorderFiles {
         title_id: String,
@@ -123,10 +106,8 @@ pub enum SessionIntent {
         input_id: String,
         choice: CueChoice,
     },
-    /// Returns the session to empty.
     Reset,
 
-    // ---- Export ----
     /// Exports every valid title.
     Submit,
     /// Renders the first `seconds` of each valid title, in the foreground.
@@ -171,7 +152,6 @@ pub enum SessionIntent {
         run_id: String,
     },
 
-    // ---- Output ----
     /// Where exports are written; recorded in the settings.
     SetOutputDirectory {
         directory: String,
@@ -188,7 +168,6 @@ pub enum SessionIntent {
         template: String,
     },
 
-    // ---- Audio ----
     /// Edits the default audio choice new titles start from, and records it
     /// in the settings.
     SetDefaultAudio {
@@ -201,13 +180,11 @@ pub enum SessionIntent {
         title_ids: Vec<String>,
         edit: AudioEdit,
     },
-    /// Gives each named title the default audio choice.
     #[serde(rename_all = "camelCase")]
     ApplyDefaultAudio {
         title_ids: Vec<String>,
     },
 
-    // ---- Metadata ----
     SetField {
         field: MetadataField,
         value: String,
@@ -229,7 +206,6 @@ pub enum SessionIntent {
     /// Writes every pending edit that can be written now.
     Save,
 
-    // ---- Lookup ----
     LookupOpen,
     LookupClose,
     LookupSearch,
@@ -293,11 +269,8 @@ pub struct SessionReply {
 
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 
-/// The session's network calls, replaceable so lookup rules can be proven
-/// without a network.
 pub(crate) struct Network {
     pub(crate) search: Box<SearchFn>,
-    /// Every remote and embedded cover the session shows or applies.
     pub(crate) covers: crate::cover_service::CoverService,
 }
 
@@ -326,13 +299,9 @@ pub(crate) struct SessionDeps {
     pub(crate) jobs: ManagedJobRegistry,
     /// Source files under this root are temporary downloads.
     pub(crate) temporary_root: PathBuf,
-    /// Where audio and output defaults chosen in the session are recorded.
     pub(crate) settings: SettingsRuntime,
-    /// The engine's background tasks; the session's run here.
     pub(crate) tasks: crate::engine::EngineTasks,
-    /// Where processing keeps its working files.
     pub(crate) workspace_root: PathBuf,
-    /// Removes an acquisition's staged download.
     pub(crate) remove_staged: RemoveStaged,
 }
 
@@ -375,7 +344,6 @@ fn failed(error: &AppError) -> SubmissionStatus {
     }
 }
 
-/// One working session. Cloning shares it.
 #[derive(Clone)]
 pub(crate) struct Session {
     inner: Arc<SessionInner>,
@@ -385,20 +353,14 @@ struct SessionInner {
     state: Mutex<SessionState>,
     deps: SessionDeps,
     network: Network,
-    /// One import runs at a time, in the order accepted.
     imports: super::import_order::ImportOrder,
-    /// Advances on reset; an import that started earlier is dropped.
     resets: AtomicU64,
     /// The revision the last event carried.
     published: AtomicU64,
     deferred_writer_running: AtomicBool,
-    /// Wakes the deferred writer when a submission frees its sources.
     sources_freed: tokio::sync::Notify,
-    /// Wakes imports and acquisition handoffs waiting for the list to unlock.
     list_unlocked: tokio::sync::Notify,
-    /// A staged-download sweep is scheduled or running; one at a time.
     sweeping: AtomicBool,
-    /// Cancels the running preview's titles.
     preview_cancels: Mutex<Vec<Arc<AtomicBool>>>,
     /// Advances with every output change; a delayed record checks it.
     output_edits: Arc<AtomicU64>,
@@ -406,7 +368,6 @@ struct SessionInner {
     settings_applied: AtomicU64,
 }
 
-/// A selection change the state accepted and the reads it asked for.
 struct Bound {
     binding: u64,
     reads: Vec<ReadTicket>,
@@ -415,13 +376,11 @@ struct Bound {
 /// A disposable reply to work the engine has already accepted and started.
 pub struct SessionRun {
     session: Session,
-    /// The session revision before the intent began.
     since: u64,
     remote_since: RemoteRevisions,
     reply: tokio::sync::oneshot::Receiver<SessionOutcome>,
 }
 
-/// What an intent still has to do after its immediate effect.
 enum Rest {
     Remote(crate::remote_source::RemoteUiRun),
     Done(SessionOutcome),
@@ -431,20 +390,16 @@ enum Rest {
         resets: u64,
         turn: super::import_order::Turn,
     },
-    /// Record a choice in the settings, unless they were reset since `resets`.
     Remember(SettingsRun),
-    /// Preflight, review, then export or preview.
     Submit {
         draft: Box<Draft>,
         resets: u64,
     },
-    /// Continue a reviewed submission under `policy`.
     Reviewed {
         draft: Box<Draft>,
         policy: CollisionPolicy,
         resets: u64,
     },
-    /// Stop a title's export, then submit `draft` (that title alone).
     Restart {
         draft: Box<Draft>,
         link: Box<ExportLink>,
@@ -476,7 +431,6 @@ enum Rest {
     },
 }
 
-/// A lookup result picked for a queued title.
 struct ChosenResult {
     result: OnlineMetadataResult,
     title: QueuedTitle,
@@ -575,8 +529,6 @@ impl Session {
             Rest::LookupApply { request, chosen } => session.lookup_apply(request, *chosen).await,
             Rest::LookupAdvance { request, step } => session.lookup_advance(request, step).await,
         };
-        // Other hosts, and a frontend that attached while this ran, learn
-        // the result here; the caller also gets it in the reply.
         session.publish();
         outcome
     }
@@ -617,9 +569,6 @@ impl Session {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Runs one atomic transition and re-derives the snapshots. Title plans
-    /// the transition made stale are resolved in the background, and a
-    /// download the transition left removable is removed.
     fn transition<T>(&self, change: impl FnOnce(&mut SessionState) -> T) -> T {
         let (value, tickets, sweep) = {
             let mut state = self.lock();
@@ -637,9 +586,6 @@ impl Session {
         value
     }
 
-    /// Whether a download may be removed now and no sweep is on its way.
-    /// Every change that frees a download is a transition, so this is the
-    /// one place a sweep starts.
     fn sweep_due(&self, state: &SessionState) -> bool {
         !state.staged.is_empty()
             && !self.inner.sweeping.load(Ordering::SeqCst)
@@ -648,8 +594,6 @@ impl Session {
                 .is_empty()
     }
 
-    /// Removes the downloads no title or export needs any more, until none
-    /// is left to remove.
     fn sweep_staged(&self) {
         if tokio::runtime::Handle::try_current().is_err()
             || self.inner.sweeping.swap(true, Ordering::SeqCst)
@@ -688,7 +632,6 @@ impl Session {
                             binding: state.binding,
                         }
                     });
-                    // A removed download that was selected rebinds the form.
                     session.complete_reads(bound).await;
                 }
                 session.publish();
@@ -696,7 +639,6 @@ impl Session {
         });
     }
 
-    /// Records which titles an export finished.
     fn export_finished(&self, snapshot: &OperationSnapshot) {
         self.transition(|state| state.staged.finish_export(&snapshot.children));
     }
@@ -721,8 +663,6 @@ impl Session {
         });
     }
 
-    /// Tells the host what changed since the last event. Used before a wait
-    /// the user should not sit through blind, and by background work.
     fn publish(&self) {
         let update = {
             let state = self.lock();
@@ -738,14 +678,10 @@ impl Session {
         self.inner.deps.host.emit(EngineEvent::Session(update));
     }
 
-    // ---- Host-facing ----
-
     pub(crate) async fn dispatch(&self, intent: SessionIntent) -> SessionReply {
         self.begin(intent).finish().await
     }
 
-    /// Applies the intent's immediate effect. Intents begun in order take
-    /// effect in order, whatever work each still has to finish.
     pub(crate) fn begin(&self, intent: SessionIntent) -> SessionRun {
         let remote_since = self.inner.deps.remote.ui_revisions();
         let since = self.lock().revision();
@@ -794,8 +730,6 @@ impl Session {
         }
     }
 
-    /// Sets the defaults new titles start from and the output choices, at
-    /// engine start.
     pub(crate) fn start_from_defaults(
         &self,
         defaults: Option<&PinnedDefaults>,
@@ -860,7 +794,6 @@ impl Session {
         self.lock().export_in_preparation().cloned()
     }
 
-    /// Source files with a Save accepted and not yet written.
     pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
         self.lock().waiting_write_paths()
     }
@@ -965,7 +898,6 @@ impl Session {
             I::Reset => {
                 self.inner.resets.fetch_add(1, Ordering::SeqCst);
                 self.transition(SessionState::reset);
-                // A review the reset dropped frees its sources.
                 self.sources_released();
                 Rest::Done(SessionOutcome::Applied)
             }
@@ -1063,16 +995,11 @@ impl Session {
         }
     }
 
-    // ---- Titles ----
-
-    /// A change to the titles that leaves the selection on the same titles.
     fn edit_titles(&self, change: impl FnOnce(&mut WorkingSet)) -> Rest {
         self.transition(|state| change(&mut state.working_set));
         Rest::Done(SessionOutcome::Applied)
     }
 
-    /// Selects the named title against the list as it is now. An unknown id
-    /// changes nothing and does not run the draft gate.
     fn begin_select_file(&self, title_id: String, modifiers: SelectionModifiers) -> Rest {
         let bound = self.transition(|state| {
             if state.working_set.index_of(&title_id).is_none() {
@@ -1097,8 +1024,6 @@ impl Session {
         }
     }
 
-    /// A change that may move the selection: the draft gate accepts the edits
-    /// on screen first, then the form binds to the new selection.
     fn change_selection(&self, change: impl FnOnce(&mut WorkingSet)) -> Rest {
         let bound = self.transition(|state| {
             state.gate()?;
@@ -1146,9 +1071,6 @@ impl Session {
         }
     }
 
-    /// Imports files the operating system asked ABB to open, with no host
-    /// asking. Unlike a user's import it is not refused while the list is
-    /// locked: it appends once the list unlocks, and a Reset meanwhile drops it.
     pub(crate) fn import_opened(&self, paths: Vec<PathBuf>) -> Result<()> {
         let paths = paths
             .into_iter()
@@ -1174,7 +1096,6 @@ impl Session {
         turn: super::import_order::Turn,
     ) -> SessionOutcome {
         let _in_order = self.inner.imports.wait(turn).await;
-        // A Reset since this import began drops it, success or failure.
         let superseded = || self.inner.resets.load(Ordering::SeqCst) != resets;
         let failed = |notice| {
             if superseded() {
@@ -1267,15 +1188,9 @@ impl Session {
         }
     }
 
-    /// Imports a finished acquisition's files and records them as staged
-    /// downloads, in the transition that lists them, so no Reset or removal
-    /// can fall between the two.
     async fn import_acquired(&self, job: AcquisitionJob) -> AcquisitionHandoff {
         let handoff = self.import_acquired_files(&job).await;
         if matches!(handoff, AcquisitionHandoff::Removed { .. }) {
-            // Nothing from it is listed; the staged record owns removing the
-            // download, and retries if removal fails. Canonical, as listed
-            // titles' paths are.
             let paths = job
                 .materialized_files
                 .iter()
@@ -1360,8 +1275,6 @@ impl Session {
         }
     }
 
-    /// Hands finished acquisitions to this session. Holds the session weakly,
-    /// since the remote-source runtime outlives no engine.
     pub(crate) fn handoff(&self) -> Handoff {
         let session = Arc::downgrade(&self.inner);
         Arc::new(move |job| {
@@ -1377,8 +1290,6 @@ impl Session {
         })
     }
 
-    // ---- Export ----
-
     fn begin_submission(&self, preview_seconds: Option<f64>) -> Rest {
         let draft = self.transition(|state| state.begin_submission(preview_seconds));
         match draft {
@@ -1390,8 +1301,6 @@ impl Session {
         }
     }
 
-    /// Preflights a draft, holds it for review when outputs collide, then
-    /// exports or previews it.
     async fn submit(&self, draft: Draft, resets: u64) -> SessionOutcome {
         self.publish();
         let checking = draft.clone();
@@ -1414,8 +1323,6 @@ impl Session {
             return self.end_submission(&draft, SubmissionStatus::Cancelled);
         }
         let public = plan.plan.to_public();
-        // A policy applies only to collisions the user reviewed; a new one
-        // that appeared meanwhile sends the submission back to review.
         let collided: Vec<_> = public
             .outputs
             .iter()
@@ -1445,11 +1352,6 @@ impl Session {
         }
     }
 
-    /// Holds a draft for the user's collision choice, unless the engine is
-    /// closing or a Reset superseded this submit. Closing is registered under
-    /// admit, so shutdown's cancel of reviews either finds this one or this
-    /// sees shutdown. A Reset during preflight drops the preflight and
-    /// unlocks the list.
     fn hold_for_review(
         &self,
         draft: Draft,
@@ -1610,7 +1512,6 @@ impl Session {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Sets actual work flags and keeps cancellation visible until cleanup ends.
     fn cancel_preview_run(&self, run_id: &str, child: Option<&str>) -> SessionOutcome {
         let flags = self.preview_cancels();
         let indexes = self.transition(|state| {
@@ -1647,16 +1548,11 @@ impl Session {
         }
     }
 
-    /// Drops a submission held for review and frees its sources, waking a
-    /// Save that waits on them. Shutdown calls this too: a review nobody
-    /// answers would otherwise hold the files forever.
     pub(crate) fn cancel_review(&self) {
         self.transition(SessionState::cancel_review);
         self.sources_released();
     }
 
-    /// A submission ended and freed its sources and the list: wakes a Save
-    /// and an acquisition handoff waiting on them.
     fn sources_released(&self) {
         self.inner.sources_freed.notify_one();
         self.inner.list_unlocked.notify_waiters();
@@ -1670,7 +1566,6 @@ impl Session {
         SessionOutcome::Applied
     }
 
-    /// Changes the output choices and records them.
     fn edit_output(&self, change: impl FnOnce(&mut OutputPlan)) -> Rest {
         let defaults = self.transition(|state| {
             change(&mut state.output);
@@ -1680,7 +1575,6 @@ impl Session {
         self.remember_later(remember_output(defaults))
     }
 
-    /// Reserves the choice's settings turn before another intent can begin.
     fn remember_later(&self, intent: SettingsIntent) -> Rest {
         Rest::Remember(
             self.inner
@@ -1689,8 +1583,6 @@ impl Session {
                 .begin(intent, &self.inner.deps.tasks),
         )
     }
-
-    // ---- Cover ----
 
     fn begin_cover_load(&self, source: CoverSource) -> Rest {
         let from_url = matches!(source, CoverSource::Url(_));
@@ -1723,8 +1615,6 @@ impl Session {
                 .map(|cover| cover.to_vec()),
         };
         self.transition(|state| {
-            // The image was chosen for a selection that is no longer bound,
-            // or a later choice or Clear replaced it.
             if (state.epoch, state.binding, state.cover_request()) != started {
                 return SessionOutcome::Superseded;
             }
@@ -1737,8 +1627,6 @@ impl Session {
             }
         })
     }
-
-    // ---- Save ----
 
     async fn keep_location(
         &self,
@@ -1868,11 +1756,6 @@ impl Session {
         SessionOutcome::Applied
     }
 
-    /// Sends each exported title's edit to its output, then records restart
-    /// offers and ended links.
-    /// A published output is written before this returns, so the Save's
-    /// status says whether it took the edit; an unpublished one takes it at
-    /// publication and reports through its export's snapshot.
     async fn update_outputs(&self, edits: Vec<OutputEdit>) -> OutputEdits {
         if edits.is_empty() {
             return OutputEdits::default();
@@ -1937,8 +1820,6 @@ impl Session {
         }
     }
 
-    /// Stops the title's export, then submits it again from the session. A
-    /// title that published first keeps its output, which takes the edit.
     async fn restart(&self, draft: Draft, link: ExportLink, resets: u64) -> SessionOutcome {
         self.publish();
         let deps = &self.inner.deps;
@@ -1962,8 +1843,6 @@ impl Session {
         self.end_submission(&draft, SubmissionStatus::FinishedBeforeRestart { outputs })
     }
 
-    /// Writes `items` as one accepted operation. The result says, per item,
-    /// whether the file now carries the edit.
     async fn write(&self, items: &[SaveItem]) -> Result<Written> {
         let deps = &self.inner.deps;
         let requests = items
@@ -2007,8 +1886,6 @@ impl Session {
             .spawn(async move { session.write_deferred_when_free().await });
     }
 
-    /// Writes each waiting edit once no accepted export, preview, or
-    /// submission being prepared reads its file.
     async fn write_deferred_when_free(&self) {
         let mut changes = self.inner.deps.work.subscribe_changes();
         loop {
@@ -2053,8 +1930,6 @@ impl Session {
         }
     }
 
-    // ---- Lookup ----
-
     fn edit_lookup(&self, change: impl FnOnce(&mut lookup::LookupState)) -> Rest {
         self.transition(|state| {
             change(&mut state.lookup);
@@ -2063,14 +1938,12 @@ impl Session {
         Rest::Done(SessionOutcome::Applied)
     }
 
-    /// Starts a lookup action; any earlier one still running is superseded.
     fn begin_lookup_action(&self) -> u64 {
         let mut state = self.lock();
         state.lookup.request += 1;
         state.lookup.request
     }
 
-    /// Runs `change` if `request` is still the current lookup action.
     fn lookup_step<T>(
         &self,
         request: u64,
@@ -2145,8 +2018,6 @@ impl Session {
         outcome_of(applied)
     }
 
-    /// Selects a queued title through the draft gate and waits for its tags.
-    /// Returns whether the form is bound to it.
     async fn select_title(
         &self,
         title: &QueuedTitle,
@@ -2254,8 +2125,6 @@ impl Session {
         match applied {
             None => SessionOutcome::Superseded,
             Some(true) if mode == LookupApplyMode::Queue => {
-                // Applied values are form edits; moving on passes the draft
-                // gate, which validates and stages them like any other edit.
                 let step = if cover_failed {
                     QueueStep::AppliedWithoutCover
                 } else {
@@ -2325,7 +2194,6 @@ enum CoverSource {
     Url(String),
 }
 
-/// Per submitted item, whether the file now carries the edit.
 struct Written {
     items: Vec<bool>,
     succeeded: usize,
@@ -2333,8 +2201,6 @@ struct Written {
     cancelled: usize,
 }
 
-/// Lists an acquisition's analyzed files and records each imported title as
-/// staged, in the same transition.
 fn list_acquired(
     state: &mut SessionState,
     job: &AcquisitionJob,
@@ -2383,7 +2249,6 @@ fn list_acquired(
     ))
 }
 
-/// Each materialized title's id and canonical path.
 fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
     job.materialized_files
         .iter()
@@ -2394,7 +2259,6 @@ fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
         .collect()
 }
 
-/// The title a one-title draft submits.
 fn draft_title_id(draft: &Draft) -> String {
     draft
         .payload

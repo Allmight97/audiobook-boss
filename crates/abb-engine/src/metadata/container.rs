@@ -1,5 +1,3 @@
-//! Container classification for metadata routing.
-
 use std::path::Path;
 
 use ffmpeg_next as ff;

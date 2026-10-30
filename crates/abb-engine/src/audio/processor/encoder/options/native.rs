@@ -1,5 +1,3 @@
-//! Native FFmpeg NMR AAC configuration and opened-setting verification.
-
 use crate::audio::settings_encoder::EncoderSettings;
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;

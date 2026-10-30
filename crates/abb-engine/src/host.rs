@@ -1,8 +1,3 @@
-//! What the engine asks of the process that hosts it.
-//!
-//! A host supplies an [`EventSink`] and the directories in [`crate::EngineConfig`].
-//! Everything else (job scheduling, keep-awake, operation state) is engine-owned.
-
 use std::sync::Arc;
 
 use crate::app_settings::SettingsSnapshot;
@@ -34,15 +29,12 @@ pub trait EventSink: Send + Sync {
     fn emit(&self, event: EngineEvent);
 }
 
-/// An event sink that drops every event, for hosts and tests with no UI.
 pub struct DiscardEvents;
 
 impl EventSink for DiscardEvents {
     fn emit(&self, _event: EngineEvent) {}
 }
 
-/// The engine-internal link a running operation holds: where its events go and
-/// the keep-awake owner it acquires while it works.
 #[derive(Clone)]
 pub(crate) struct Host {
     events: Arc<dyn EventSink>,

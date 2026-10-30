@@ -1,5 +1,3 @@
-//! The audio choice rules the encoder panel and title edits rely on.
-
 use super::*;
 use crate::audio::{EncoderAvailability, FaacProfileCapability};
 
@@ -75,9 +73,10 @@ fn caps() -> EncoderSettingsCapabilities {
 fn fresh_defaults_are_m4b_auto_native_aac_at_65_kbps_constant() {
     let request = AudioChoice::default().request(Some(&caps()));
 
-    assert_eq!(request.format, AudiobookFormat::M4b);
     assert_eq!(request.intent, AudioIntent::Auto);
-    let settings = request.settings.expect("settings");
+    let crate::audio::OutputAudio::M4b { settings } = request.output else {
+        panic!("fresh defaults are M4B: {:?}", request.output);
+    };
     assert_eq!(settings.encoder_type, EncoderType::NativeAac);
     assert_eq!(settings.bitrate_kbps, 65);
     assert_eq!(settings.bitrate_mode, BitrateMode::Cbr);
@@ -91,12 +90,11 @@ fn mp3_copies_its_source_and_carries_no_encoder_settings() {
 
     let request = choice.request(Some(&caps));
     assert_eq!(request.intent, AudioIntent::Preserve);
-    assert_eq!(request.settings, None);
+    assert_eq!(request.output, crate::audio::OutputAudio::Mp3);
     assert_eq!(
         choice.edit(AudioEdit::Intent(AudioIntent::Encode), Some(&caps), false),
         EditResult::Refused
     );
-    // The encoding choices survive for a switch back.
     choice.edit(AudioEdit::Format(AudiobookFormat::M4b), Some(&caps), false);
     assert_eq!(choice.defaults(Some(&caps)).settings.bitrate_kbps, 65);
 }
@@ -109,8 +107,6 @@ fn editing_how_audio_is_encoded_selects_encode() {
     choice.edit(AudioEdit::Bitrate(96), Some(&caps), false);
     assert_eq!(choice.intent, AudioIntent::Encode);
 
-    // A title edit to the value it already has still selects Encode; a
-    // defaults edit that changes nothing does not.
     let mut title = AudioChoice::default();
     title.edit(AudioEdit::Channels(ChannelConfig::Auto), Some(&caps), true);
     assert_eq!(title.intent, AudioIntent::Encode);
@@ -118,7 +114,6 @@ fn editing_how_audio_is_encoded_selects_encode() {
     defaults.edit(AudioEdit::Channels(ChannelConfig::Auto), Some(&caps), false);
     assert_eq!(defaults.intent, AudioIntent::Auto);
 
-    // Format and intent edits leave the intent to the user.
     let mut format = AudioChoice::default();
     format.edit(
         AudioEdit::Format(AudiobookFormat::M4aOpus),
@@ -140,13 +135,23 @@ fn aac_and_opus_keep_their_own_bitrates_across_format_switches() {
     );
     choice.edit(AudioEdit::Bitrate(40), Some(&caps), false);
 
-    let opus = choice.request(Some(&caps)).settings.expect("opus settings");
+    let opus = choice
+        .request(Some(&caps))
+        .output
+        .encoder_settings()
+        .cloned()
+        .expect("opus settings");
     assert_eq!(
         (opus.encoder_type, opus.bitrate_kbps, opus.bitrate_mode),
         (EncoderType::Opus, 40, BitrateMode::VbrTarget)
     );
     choice.edit(AudioEdit::Format(AudiobookFormat::M4b), Some(&caps), false);
-    let aac = choice.request(Some(&caps)).settings.expect("aac settings");
+    let aac = choice
+        .request(Some(&caps))
+        .output
+        .encoder_settings()
+        .cloned()
+        .expect("aac settings");
     assert_eq!(
         (aac.encoder_type, aac.bitrate_kbps),
         (EncoderType::NativeAac, 96)
@@ -174,7 +179,6 @@ fn values_outside_the_capabilities_are_refused() {
         );
         assert_eq!(choice, before, "{edit:?} changed the choice");
     }
-    // Without capabilities, nothing that needs their bounds is accepted.
     assert_eq!(
         choice.edit(AudioEdit::Bitrate(96), None, false),
         EditResult::Refused
@@ -222,7 +226,6 @@ fn an_explicit_rate_the_encoder_rejects_is_kept_for_the_user_to_replace() {
     let facts = choice.facts(Some(&caps));
     assert!(!facts.sample_rate_supported);
     assert_eq!(facts.allowed_sample_rates, [44_100]);
-    // The request still names it; preflight rejects the combination.
     assert_eq!(
         choice.request(Some(&caps)).sample_rate,
         SampleRateConfig::Explicit(22_050)
@@ -261,12 +264,7 @@ fn a_title_choice_is_the_defaults_with_its_own_request_on_top() {
         false,
     );
     defaults.edit(AudioEdit::Bitrate(48), Some(&caps), false);
-    let request = TitleAudioRequest {
-        format: AudiobookFormat::M4b,
-        intent: AudioIntent::Preserve,
-        settings: None,
-        sample_rate: SampleRateConfig::Auto,
-    };
+    let request = TitleAudioRequest::default_m4b(AudioIntent::Preserve);
 
     let title = defaults.for_title(&request);
 
@@ -274,7 +272,6 @@ fn a_title_choice_is_the_defaults_with_its_own_request_on_top() {
         (title.format, title.intent),
         (AudiobookFormat::M4b, AudioIntent::Preserve)
     );
-    // Settings the title never chose come from the defaults.
     assert_eq!(title.opus_bitrate_kbps, 48);
 }
 

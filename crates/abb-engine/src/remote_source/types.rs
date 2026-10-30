@@ -288,7 +288,6 @@ pub struct AcquisitionJob {
     pub handoff: Option<AcquisitionHandoff>,
 }
 
-/// Host facts are derived from the record at the publication/read boundary.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AcquisitionSnapshot {
@@ -297,14 +296,12 @@ pub struct AcquisitionSnapshot {
     pub terminal: bool,
     pub settled: bool,
 }
-/// The remote parts' revisions at one moment; only `remote_source` reads them.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RemoteRevisions {
     pub(super) remote: u64,
     pub(super) library: u64,
     pub(super) acquisition: u64,
 }
-/// The Audible download as hosts show it, with its own revision.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteAcquisitionSnapshot {
@@ -315,7 +312,6 @@ pub struct RemoteAcquisitionSnapshot {
     pub job: Option<Box<AcquisitionSnapshot>>,
 }
 impl RemoteAcquisitionSnapshot {
-    /// Admission or an unsettled job keeps the Audible account and library busy.
     pub(crate) fn busy(&self) -> bool {
         self.acquiring || self.job.as_ref().is_some_and(|job| !job.settled)
     }
@@ -356,8 +352,6 @@ impl std::ops::Deref for AcquisitionSnapshot {
     }
 }
 
-/// What happened when the engine imported an acquisition's files into the
-/// session.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AcquisitionHandoff {

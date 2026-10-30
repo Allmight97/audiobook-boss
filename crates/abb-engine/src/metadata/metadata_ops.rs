@@ -1,5 +1,3 @@
-//! Planned metadata field operations derived from `AudiobookMetadata`.
-
 use crate::metadata::field_schema::TagField;
 use crate::metadata::{build_series_list, AudiobookMetadata};
 

@@ -1,5 +1,3 @@
-//! What the remote UI state publishes to hosts: the remote, library, and
-//! acquisition parts, each with its own revision.
 use super::{
     ProviderId, RemoteAcquisitionSnapshot, RemoteAuthStatus, RemoteDraftStatus,
     RemoteLibrarySnapshot, RemoteUiSnapshot,
@@ -7,7 +5,6 @@ use super::{
 use crate::host::EngineEvent;
 use crate::remote_source::{RemoteRevisions, RemoteSourceRuntime};
 
-/// A snapshot that carries its own revision.
 pub(super) trait Revisioned: Clone {
     fn revision(&self) -> u64;
     fn revision_mut(&mut self) -> &mut u64;
@@ -37,7 +34,6 @@ impl Revisioned for RemoteAcquisitionSnapshot {
     }
 }
 
-/// One published part: its value and the last revision sent to hosts.
 #[derive(Default)]
 pub(super) struct Part<T> {
     value: T,
@@ -53,7 +49,6 @@ impl<T: Revisioned> Part<T> {
     fn current(&self) -> u64 {
         self.value.revision()
     }
-    /// Advances the revision; every edit that hosts must see ends here.
     pub(super) fn bump(&mut self) {
         *self.value.revision_mut() += 1;
     }
@@ -113,7 +108,6 @@ impl super::UiState {
             }
     }
 
-    /// Changes the acquisition part; the remote part moves too when `busy` flips.
     pub(in crate::remote_source) fn set_acquisition(
         &mut self,
         change: impl FnOnce(&mut RemoteAcquisitionSnapshot),
@@ -126,8 +120,6 @@ impl super::UiState {
         }
     }
 
-    /// Records `job`, and its update: the acquisition part, plus the remote
-    /// part when the job changed it (a rejected sign-in, or `busy`).
     pub(in crate::remote_source) fn acquisition_changed(
         &mut self,
         job: crate::remote_source::AcquisitionJob,
@@ -151,7 +143,6 @@ impl super::UiState {
             ..Default::default()
         }
     }
-    /// Every part not yet sent to hosts, marked sent.
     fn publish(&mut self) -> crate::session::SessionUpdate {
         crate::session::SessionUpdate {
             remote: self.snapshot.unpublished().map(|_| self.snapshot()),

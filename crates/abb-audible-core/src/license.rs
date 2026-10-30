@@ -16,8 +16,6 @@ use crate::json_probe::find_first_string_for_keys;
 
 type Aes128CbcDec = cbc::Decryptor<Aes128>;
 
-/// Decryption material extracted from an Audible license response, ready to hand
-/// to the AAXClean materializer. Secrets stay wrapped in [`SecretString`].
 pub enum AudibleDecryptionMaterial {
     Aax {
         activation_bytes_hex: SecretString,
@@ -28,8 +26,6 @@ pub enum AudibleDecryptionMaterial {
     },
 }
 
-/// Inputs required to decrypt an Audible `license_response` blob. Built by the
-/// runtime adapter from stored auth.
 pub struct AudibleLicenseDecryptContext {
     pub device_type: String,
     pub device_serial: String,

@@ -1,11 +1,3 @@
-/**
- * Fails when agent guidance copies what a script or workflow owns, names a
- * package script that does not exist, or points at a repo path that does not
- * exist. Guidance names the owner (a verify.sh lane, a script) and never its
- * flags, so a changed command has one place to change.
- *
- * Usage: bun scripts/check-guidance.ts
- */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';

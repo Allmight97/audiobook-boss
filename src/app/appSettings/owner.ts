@@ -42,11 +42,6 @@ export type AppSettingsDialogState = {
 	laneSaveError: string;
 };
 
-/**
- * The engine owns the settings in effect, their validation, and whether they
- * are saved. This owner shows the engine's snapshot, sends intents, and
- * keeps the dialog's per-control progress.
- */
 export type SettingsOwner = {
 	readonly durability: Accessor<SettingsDurability>;
 	/** What this launch could not keep from the saved settings; empty when nothing. */
@@ -72,7 +67,6 @@ export type SettingsOwnerDeps = {
 	readonly link: EngineLink;
 };
 
-/** The dialog's own progress: which control is saving and how it ended. */
 type DialogProgress = Omit<AppSettingsDialogState, 'settings'>;
 type ProgressKey = 'save' | 'powerSave' | 'startupSave' | 'laneSave';
 
@@ -132,7 +126,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		changed();
 	}
 
-	/** Sends an intent; a transport failure reads as a rejection. */
 	async function send(intent: SettingsIntent): Promise<SettingsOutcome | { error: unknown }> {
 		try {
 			return await link.sendSettings(intent);
@@ -141,12 +134,10 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		}
 	}
 
-	/** Why an intent did not apply: the engine refused it, or it never arrived. */
 	function failure(outcome: SettingsOutcome | { error: unknown }): string | null {
 		return 'error' in outcome ? describe(outcome.error) : null;
 	}
 
-	/** Runs a dialog action and shows its progress on the control that started it. */
 	async function runDialogAction(key: ProgressKey, intent: SettingsIntent): Promise<boolean> {
 		const started = generation;
 		updateDialog(started, { [`${key}State`]: 'saving', [`${key}Error`]: '' });

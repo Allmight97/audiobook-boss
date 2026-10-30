@@ -46,7 +46,6 @@ pub(super) fn write_run_header(
     }
 }
 
-/// Operation identity shared by every adapter record.
 pub(super) fn write_run_identity(
     output: &mut String,
     context: &crate::processing::ProcessingContext,
@@ -107,7 +106,6 @@ pub(crate) fn write_common_run_fields(
     );
 }
 
-/// Observe the finalized staged file, without decoding or changing processing success.
 pub(super) fn log_output_observation(context: &crate::processing::ProcessingContext, path: &Path) {
     if !encoding_log_enabled() && !log::log_enabled!(log::Level::Info) {
         return;

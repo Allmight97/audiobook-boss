@@ -13,18 +13,12 @@ mod types;
 
 use serde::{Deserialize, Serialize};
 
-/// Processing stage enumeration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 pub enum ProcessingStage {
-    /// Analyzing input files.
     Analyzing,
-    /// Converting audio files.
     Converting,
-    /// Writing metadata.
     WritingMetadata,
-    /// Process completed.
     Completed,
-    /// Process failed.
     Failed(String),
 }
 
@@ -44,7 +38,9 @@ pub use types::{
 };
 
 pub(crate) use job_registry::{CancellationChecker, JobRegistry};
-pub(crate) use progress::{converting_percentage_from_seconds, ProgressEmitter};
+pub(crate) use progress::{
+    converting_percentage, converting_percentage_from_seconds, ProgressEmitter,
+};
 #[cfg(test)]
 pub(crate) fn preflight_payload(
     payload: ProcessPayload,
@@ -56,4 +52,4 @@ pub(crate) fn preflight_payload(
 }
 
 pub(crate) use context::processing::ProgressEventListener;
-pub(crate) use progress::{EtaEstimator, PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START};
+pub(crate) use progress::EtaEstimator;

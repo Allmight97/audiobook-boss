@@ -1,6 +1,3 @@
-//! Session rules proven without I/O: a `Desk` plays the runtime's part,
-//! answering source reads and saves from an in-memory disk.
-
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::Instant;
@@ -8,7 +5,7 @@ use std::time::Instant;
 use proptest::prelude::*;
 
 use super::*;
-use crate::audio::{AudioFile, AudioIntent, AudiobookFormat, SampleRateConfig, TitleAudioRequest};
+use crate::audio::{AudioFile, AudioIntent, TitleAudioRequest};
 use crate::session::metadata_form::{FieldAction, FieldSnapshot};
 use crate::session::staged::tests::exported;
 use crate::session::submission::SubmissionStatus;
@@ -36,12 +33,7 @@ fn audio_file(name: &str, valid: bool) -> AudioFile {
 }
 
 fn audio_request() -> TitleAudioRequest {
-    TitleAudioRequest {
-        format: AudiobookFormat::M4b,
-        intent: AudioIntent::Auto,
-        settings: None,
-        sample_rate: SampleRateConfig::Auto,
-    }
+    TitleAudioRequest::default_m4b(AudioIntent::Auto)
 }
 
 fn paths_of(items: &[SaveItem]) -> Vec<PathBuf> {
@@ -93,7 +85,6 @@ struct Desk {
     state: SessionState,
     disk: HashMap<PathBuf, AudiobookMetadata>,
     reads: Vec<ReadTicket>,
-    /// Every patch a Save wrote, by file.
     written: Vec<(PathBuf, MetadataIntentPatch)>,
 }
 
@@ -117,7 +108,6 @@ impl Desk {
                 self.disk.insert(path(name), tags.clone());
             }
         }
-        // Analysis reads the title tag, as it does for real files.
         let files = books
             .iter()
             .map(|(name, tags)| AudioFile {
@@ -154,7 +144,6 @@ impl Desk {
         self.state.settle();
     }
 
-    /// Replaces the selection with `indices` through the draft gate.
     fn select(&mut self, indices: &[usize]) -> Result<(), GateBlock> {
         self.gate()?;
         self.state.working_set.clear_selection();
@@ -198,7 +187,6 @@ impl Desk {
             .expect("field")
     }
 
-    /// What a host would show right now.
     fn metadata(&mut self) -> MetadataSnapshot {
         self.state.settle();
         self.state
@@ -259,13 +247,11 @@ impl Desk {
         }
     }
 
-    /// The exports reading `in_use` are all that remain; write what is free.
     fn exports_now_reading(&mut self, in_use: &HashSet<PathBuf>) {
         let ready = self.begin_deferred(in_use);
         self.end_deferred(ready, &[]);
     }
 
-    /// Takes the waiting writes that are free, as the deferred writer does.
     fn begin_deferred(&mut self, in_use: &HashSet<PathBuf>) -> Vec<SaveItem> {
         let ready = self.state.take_ready_deferred(in_use);
         self.state.settle();
@@ -310,8 +296,6 @@ fn two_books() -> Desk {
         &[0, 1],
     )
 }
-
-// ---- Edit intent reaches Save unchanged ----
 
 #[test]
 fn keep_after_blank_revokes_the_bulk_clear() {
@@ -435,8 +419,6 @@ fn an_invalid_edit_blocks_save_and_stages_nothing() {
     assert!(desk.metadata().form.validation_message.is_some());
 }
 
-// ---- Processing handoff ----
-
 #[test]
 fn staging_reports_edits_with_no_valid_title_to_carry_them() {
     let mut desk = Desk::open(&[], &[]);
@@ -532,8 +514,6 @@ fn earlier_text_and_cover_intent_survive_a_later_edit_and_second_handoff() {
     );
 }
 
-// ---- Selection, the draft gate, and what the form shows ----
-
 #[test]
 fn a_dirty_edit_is_staged_onto_the_previous_title_before_the_next_one_shows() {
     let mut desk = Desk::open(
@@ -592,7 +572,6 @@ fn an_unreadable_file_still_shows_its_staged_edits_when_selected_again() {
 fn an_edit_typed_while_tags_load_survives_their_arrival() {
     let mut desk = Desk::open(&[], &[]);
     desk.disk.insert(path("alpha"), alpha_tags());
-    // A first import of one valid file selects it; its tags are still loading.
     desk.state
         .working_set
         .append_analyzed(vec![audio_file("alpha", true)], &audio_request());
@@ -663,8 +642,6 @@ fn one_title_draft_survives_grouping_source_reorder_save_and_separation() {
     desk.bind();
     assert_eq!(desk.field(MetadataField::Title).value, "Alpha draft");
 
-    // Saving a grouped title's draft keeps it for the output and writes no
-    // constituent source.
     desk.type_into(MetadataField::Title, "Grouped title");
     assert!(desk.save(&[]).is_none());
     assert!(desk.written.is_empty());
@@ -733,8 +710,6 @@ fn selection_cannot_change_while_a_save_is_in_progress() {
     );
     assert!(desk.select(&[1]).is_ok());
 }
-
-// ---- Cover ----
 
 #[test]
 fn a_cover_belongs_to_exactly_one_valid_selected_title() {
@@ -843,8 +818,6 @@ fn a_cover_load_failure_is_reported_and_changes_nothing() {
     assert!(desk.pending("alpha").is_none());
 }
 
-// ---- Lookup ----
-
 #[test]
 fn a_lookup_result_applies_only_to_the_title_it_was_chosen_for() {
     let mut desk = Desk::open(
@@ -867,7 +840,6 @@ fn a_lookup_result_applies_only_to_the_title_it_was_chosen_for() {
     desk.select(&[0]).expect("select alpha");
     assert!(desk.state.apply_lookup(&alpha, &found, None));
     desk.save(&[]);
-    // Keeping the existing cover leaves cover intent absent.
     assert_eq!(
         desk.written_by_file()[&path("alpha")],
         MetadataIntentPatch {
@@ -877,8 +849,6 @@ fn a_lookup_result_applies_only_to_the_title_it_was_chosen_for() {
         }
     );
 }
-
-// ---- Save targets ----
 
 #[test]
 fn save_with_no_export_running_writes_every_pending_edit_now() {
@@ -892,7 +862,6 @@ fn save_with_no_export_running_writes_every_pending_edit_now() {
 
     let plan = desk.save(&[]).expect("save runs");
 
-    // Save covers every title with a pending edit, not only the selection.
     assert_eq!(plan.immediate.len(), 2);
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Mystery"));
     assert_eq!(desk.disk[&path("beta")].genre.as_deref(), Some("Mystery"));
@@ -911,7 +880,6 @@ fn save_on_a_local_source_in_flight_waits_for_every_export_reading_it() {
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Fantasy"));
     assert_eq!(desk.metadata().waiting_writes, [path("alpha")]);
 
-    // A second, queued export still reads the file.
     desk.exports_now_reading(&reading);
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Fantasy"));
 
@@ -974,7 +942,6 @@ fn a_save_while_a_waiting_write_runs_never_writes_the_file_alongside_it() {
     let running = desk.begin_deferred(&HashSet::new());
     assert_eq!(running.len(), 1);
 
-    // Two more Saves while that write runs: both wait for it.
     for author in ["First", "Second"] {
         desk.type_into(MetadataField::Author, author);
         let plan = desk.save_during(&HashSet::new(), &[], &[]).expect("save");
@@ -1004,7 +971,6 @@ fn a_waiting_write_for_a_removed_title_reaches_it_when_it_returns() {
         .expect("remove");
         assert_eq!(desk.state.waiting_write_paths(), [path("alpha")]);
 
-        // Imported again and read while the export still holds the file.
         desk.import(&[("alpha", None)]);
         desk.select(&[0]).expect("select");
         assert_eq!(desk.field(MetadataField::Genre).value, "Fantasy");
@@ -1013,7 +979,6 @@ fn a_waiting_write_for_a_removed_title_reaches_it_when_it_returns() {
         let taken = desk.begin_deferred(&HashSet::new());
         desk.end_deferred(taken, fail);
 
-        // The form follows the file: written, or still pending for Save.
         assert_eq!(desk.field(MetadataField::Genre).value, "Mystery");
         assert_eq!(desk.pending("alpha").is_some(), fails);
         assert_eq!(
@@ -1059,15 +1024,12 @@ fn a_save_while_a_submission_is_prepared_waits_for_its_sources() {
     let plan = desk.save_during(&HashSet::new(), &[], &[]).expect("save");
     assert_eq!((plan.immediate.len(), plan.waiting), (0, 1));
 
-    // Once the submission ends (here refused), the waiting write is free.
     desk.state
         .finish_submission(&draft, SubmissionStatus::Cancelled);
     assert!(!desk.state.working_set.order_locked());
     desk.exports_now_reading(&HashSet::new());
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Mystery"));
 }
-
-// ---- Snapshots ----
 
 #[test]
 fn an_update_carries_only_the_parts_that_changed() {
@@ -1098,8 +1060,6 @@ fn an_update_carries_only_the_parts_that_changed() {
         "selecting does not resend the titles"
     );
 }
-
-// ---- Laws over generated sequences ----
 
 const NAMES: [&str; 3] = ["a", "b", "c"];
 const FIELDS: [MetadataField; 4] = [
@@ -1134,7 +1094,6 @@ enum Step {
         reading: u8,
         failing: u8,
     },
-    /// A read begun now lands later, after whatever happens in between.
     BeginRead(usize),
     LandReads,
 }
@@ -1167,7 +1126,6 @@ fn masked(mask: u8) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Pending patches by file, to check which edits a step dropped.
 fn pending_by_file(desk: &Desk) -> HashMap<PathBuf, MetadataIntentPatch> {
     NAMES
         .iter()
@@ -1192,7 +1150,6 @@ fn json<T: serde::Serialize>(value: &T) -> serde_json::Value {
     serde_json::to_value(value).expect("serialize")
 }
 
-/// What a host that applied every update would be showing.
 #[derive(Default)]
 struct Mirror {
     seen: Option<u64>,
@@ -1381,7 +1338,6 @@ impl Run {
                 for (ticket, stale) in std::mem::take(&mut self.begun) {
                     let path = ticket.path.clone();
                     let known_before = desk.state.known_tags(&path);
-                    // The file's tags as they were before this session wrote any.
                     let read = AudiobookMetadata {
                         title: Some("Stale".to_string()),
                         artist: Some("Stale".to_string()),
@@ -1409,8 +1365,6 @@ impl Run {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(192))] // PROPTEST_CASES overrides
 
-    /// Laws that hold after any sequence of edits, selection changes, source
-    /// reads, saves, and exports starting and finishing.
     #[test]
     fn any_sequence_keeps_edits_reads_and_writes_truthful(
         temporary in 0..8u8,
@@ -1431,7 +1385,6 @@ proptest! {
                 Step::Save { .. } | Step::ExportsReading { .. } | Step::Remove(_)
             );
             let disk_before = run.desk.disk.clone();
-            // Import puts a new file on the test's disk.
             let writes = matches!(
                 step,
                 Step::Save { .. } | Step::ExportsReading { .. } | Step::Import(_)
@@ -1525,7 +1478,6 @@ proptest! {
         desk.exports_now_reading(&HashSet::new());
         desk.save(&[]);
         if desk.metadata().status == Some(MetadataStatus::SaveInvalid) {
-            // The edits on screen are invalid, so Save rightly wrote nothing.
             return Ok(());
         }
         let files: Vec<AudioFile> = desk.state.working_set.files().to_vec();
@@ -1542,8 +1494,6 @@ proptest! {
     }
 }
 
-// ---- Staged downloads ----
-
 #[test]
 fn a_download_waits_for_the_export_and_the_submission_reading_it() {
     let mut desk = Desk::open(
@@ -1554,7 +1504,6 @@ fn a_download_waits_for_the_export_and_the_submission_reading_it() {
     staged.register("job-1", "alpha", path("alpha"), Vec::new());
     staged.register("job-2", "beta", path("beta"), Vec::new());
 
-    // Beta leaves the list while an export still reads it.
     desk.state.working_set.remove_file(1);
     desk.state.settle();
     assert!(desk
@@ -1567,7 +1516,6 @@ fn a_download_waits_for_the_export_and_the_submission_reading_it() {
         ["job-2"]
     );
 
-    // Alpha's export completed but it is submitted again.
     desk.state
         .staged
         .finish_export(&exported(&[("alpha", ChildJobStatus::Completed, false)]));
@@ -1592,7 +1540,6 @@ fn a_download_being_removed_is_neither_written_nor_submitted() {
     desk.state
         .staged
         .register("job-1", "alpha", path("alpha"), Vec::new());
-    // Its export completed; the title stays listed.
     desk.state
         .staged
         .finish_export(&exported(&[("alpha", ChildJobStatus::Completed, false)]));
@@ -1696,7 +1643,6 @@ fn a_save_still_writing_after_a_reset_keeps_its_file_busy() {
         .expect("save");
     let epoch = desk.state.epoch;
 
-    // Reset forgets the Save's form; its write keeps running.
     desk.state.reset();
     desk.state.settle();
     assert!(
@@ -1806,7 +1752,6 @@ fn a_refused_second_submission_does_not_let_a_third_through() {
     let snapshot = desk.state.output_snapshot(0);
     assert_eq!(snapshot.collision_review, Some(review.clone()));
     assert!(snapshot.submission_in_progress);
-    // Cancelling the held review frees its sources and the list.
     assert!(desk.state.cancel_review_named(review.review_id));
     assert!(!desk.state.working_set.order_locked());
     assert!(desk.state.begin_submission(None).is_some());
@@ -1883,7 +1828,6 @@ fn prompted_title(desk: &Desk) -> Option<String> {
         .map(|offer| offer.title_id)
 }
 
-/// Records a Save that moves each named exported title; returns the offers' revision.
 fn save_moves(desk: &mut Desk, titles: &[&str]) -> u64 {
     let edits: Vec<_> = desk
         .state

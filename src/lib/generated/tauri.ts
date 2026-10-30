@@ -5,7 +5,6 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
-	/**  Attaches a starting frontend and returns the whole session and settings. */
 	attachFrontend: () => typedError<FrontendAttachment, AppErrorEnvelope>(__TAURI_INVOKE("attach_frontend")),
 	/**
 	 *  Applies one intent to the working session and returns what changed.
@@ -23,7 +22,6 @@ export const commands = {
 	 *  Settings intents run one at a time in `sequence` order.
 	 */
 	settingsDispatch: (client: number, sequence: number, intent: SettingsIntent) => typedError<SettingsReply, AppErrorEnvelope>(__TAURI_INVOKE("settings_dispatch", { client, sequence, intent })),
-	/**  Returns backend-owned supported local audio import metadata for picker UI. */
 	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
 	listWorkOperations: () => typedError<WorkOperationsSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	cancelWorkOperation: (operationId: OperationId, childJobId: string | null) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId, childJobId })),
@@ -44,10 +42,6 @@ export type AccountRef = {
 	displayName: string,
 };
 
-/**
- *  What happened when the engine imported an acquisition's files into the
- *  session.
- */
 export type AcquisitionHandoff = { kind: "imported"; count: number } |
 /**  Nothing was imported, so the engine removes the staged files. */
 { kind: "removed"; reason: HandoffRefusal };
@@ -78,7 +72,6 @@ export type AcquisitionProgress = {
 	terminal: boolean,
 };
 
-/**  Host facts are derived from the record at the publication/read boundary. */
 export type AcquisitionSnapshot = {
 	terminal: boolean,
 	settled: boolean,
@@ -127,7 +120,6 @@ export type AudioChoice = {
 	sampleRate: SampleRateConfig,
 };
 
-/**  What the capabilities allow for one choice, for hosts to render. */
 export type AudioChoiceFacts = {
 	/**
 	 *  The encoder that would run: Opus for Opus formats, and what Auto
@@ -142,7 +134,6 @@ export type AudioChoiceFacts = {
 	bitrateKbpsMax: number,
 	allowedModes: BitrateModeKind[],
 	faacProfiles: FaacProfile[],
-	/**  Explicit sample rates this encoder accepts. */
 	allowedSampleRates: number[],
 	/**
 	 *  False when an explicit sample rate is kept that this encoder does not
@@ -153,45 +144,34 @@ export type AudioChoiceFacts = {
 	estimateKbps: number | null,
 };
 
-/**  A choice and what the capabilities allow for it. */
 export type AudioChoiceView = {
 	choice: AudioChoice,
 	facts: AudioChoiceFacts,
-	/**  The request processing receives for this choice. */
 	request: TitleAudioRequest,
 };
 
-/**  One change to an audio choice. */
 export type AudioEdit = { field: "format"; value: AudiobookFormat } | { field: "intent"; value: AudioIntent } |
 /**  The AAC encoder; Opus formats always use Opus. */
-{ field: "encoder"; value: EncoderType } | { field: "faacProfile"; value: FaacProfile } | { field: "rateControl"; value: FaacRateControl } |
-/**  FAAC quality preset. */
-{ field: "quality"; value: number } | { field: "nativeSpeed"; value: number } |
+{ field: "encoder"; value: EncoderType } | { field: "faacProfile"; value: FaacProfile } | { field: "rateControl"; value: FaacRateControl } | { field: "quality"; value: number } | { field: "nativeSpeed"; value: number } |
 /**  Target kbps for the format's encoder, across all channels. */
 { field: "bitrate"; value: number } | { field: "sampleRate"; value: SampleRateConfig } | { field: "channels"; value: ChannelConfig };
 
-/**  One part of an audio choice, named as its `AudioEdit` is. */
 export type AudioField = "format" | "intent" | "encoder" | "faacProfile" | "rateControl" | "quality" | "nativeSpeed" | "bitrate" | "sampleRate" | "channels";
 
-/**  Represents an audio file with metadata */
 export type AudioFile = {
 	/**  Stable workbench/session identity for joins that must survive reorder/remove operations. */
 	inputId: string,
-	/**  File path */
 	path: string,
 	/**  File size in bytes (None if unavailable) */
 	size: number | null,
 	/**  Duration in seconds (None if unavailable) */
 	duration: number | null,
-	/**  Audio format (None if unavailable) */
 	format: string | null,
 	/**  Source audio bitrate in bits per second (None if unavailable) */
 	bitrate: number | null,
 	/**  Sample rate in Hz (None if unavailable) */
 	sampleRate: number | null,
-	/**  Number of channels (None if unavailable) */
 	channels: number | null,
-	/**  Friendly codec label for display (None if unavailable) */
 	codecLabel: string | null,
 	/**
 	 *  Whether this source can be copied without re-encoding and whether the
@@ -200,21 +180,17 @@ export type AudioFile = {
 	preservation?: AudioPreservation | null,
 	/**  Friendly selected decoder label for display only (None if unavailable) */
 	selectedDecoder: string | null,
-	/**  Title tag discovered during input analysis (None if unavailable) */
 	tagTitle: string | null,
-	/**  Artist tag discovered during input analysis (None if unavailable) */
 	tagArtist: string | null,
 	/**  Chapters embedded in this individual source file, normalized to milliseconds. */
 	chapters?: ChapterSpec[],
 	chapterPlan?: ChapterPlan | null,
 	cueSource?: CueSource | null,
-	/**  Validation status */
 	isValid: boolean,
-	/**  Error message if validation failed */
 	error: string | null,
 };
 
-export type AudioHandling = "encode" | "preserve";
+export type AudioHandling = { handling: "encode"; settings: EncoderSettings } | { handling: "preserve" };
 
 export type AudioIntent = "auto" | "preserve" | "encode";
 
@@ -225,7 +201,6 @@ export type AudioPreservation = {
 	canPreserve: boolean,
 };
 
-/**  Why a title audio edit changed nothing. */
 export type AudioRefusal =
 /**  A submission holds the list. */
 { kind: "locked" } |
@@ -235,7 +210,6 @@ export type AudioRefusal =
  */
 { kind: "notAccepted"; titleIds: string[]; labels: string[] };
 
-/**  The audio part of the session. */
 export type AudioSnapshot = {
 	revision: number,
 	/**  `None` until the encoders have been detected. */
@@ -251,15 +225,12 @@ export type AudioSnapshot = {
 
 export type AudiobookFormat = "m4b" | "mp3" | "m4aOpus" | "mkaOpus";
 
-/**  Bitrate/quality control mode per encoder */
 export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "abr" } | { mode: "vbr"; value: number } |
 /**  Variable bitrate driven by target kbps (Opus). */
 { mode: "vbr_target" };
 
-/**  Bitrate mode capability without encoder-specific values. */
 export type BitrateModeKind = "cbr" | "cvbr" | "abr" | "vbr";
 
-/**  Channel selection strategy */
 export type ChannelConfig = "auto" | "mono" | "stereo";
 
 export type ChapterPlan = {
@@ -358,7 +329,6 @@ export type CueSource = {
 
 export type CueStatus = "ready" | "needsConfirmation" | "invalid" | "ignored" | "embeddedPreferred";
 
-/**  Which linked encoders this build offers, and what Auto resolves to. */
 export type EncoderAvailability = {
 	aacAtAvailable: boolean,
 	nativeAacAvailable: boolean,
@@ -392,13 +362,6 @@ export type EncoderOption = {
 	available: boolean,
 };
 
-/**
- *  Advanced encoder settings payload
- *
- *  AAC encoders (native `aac`, `aac_at`) do not frame-thread, so
- *  there is deliberately no thread setting here; encoding always uses the
- *  encoder's single-threaded path.
- */
 export type EncoderSettings = {
 	encoderType: EncoderType,
 	/**
@@ -425,18 +388,11 @@ export type EncoderSettingsCapabilities = {
 	channelOptions: ChannelConfig[],
 };
 
-/**  Supported encoder types for audiobooks */
 export type EncoderType =
 /**  Resolves to the Native NMR encoder. */
 "auto" |
 /**  Apple AAC (AudioToolbox), macOS-only */
-"aac_at" |
-/**  Native FFmpeg AAC encoder (aac) */
-"native_aac" |
-/**  Bundled FAAC AAC-LC / HE-AAC v1. */
-"faac" |
-/**  Opus via bundled libopus. */
-"opus";
+"aac_at" | "native_aac" | "faac" | "opus";
 
 /**  FAAC resolves Auto once from the requested output configuration. */
 export type FaacProfile = "auto" | "aac_lc" | "he_aac_v1";
@@ -446,7 +402,6 @@ export type FaacProfileCapability = {
 	explicitSampleRates: number[],
 };
 
-/**  FAAC's rate control: an average bitrate, or a quality preset. */
 export type FaacRateControl = "abr" | "vbr";
 
 /**
@@ -466,7 +421,6 @@ export type FieldSnapshot = {
 
 export type FormMode = "single" | "multi";
 
-/**  What a starting frontend needs: who it is to this host, and the state to show. */
 export type FrontendAttachment = {
 	/**  Sent with every intent so intents from an earlier frontend are refused. */
 	client: number,
@@ -542,10 +496,6 @@ export type LookupQueuePosition = {
 export type LookupSnapshot = {
 	revision: number,
 	open: boolean,
-	/**
-	 *  Search criteria stay separate so each can be seen and fixed; they are
-	 *  joined only when a search runs.
-	 */
 	titleQuery: string,
 	authorQuery: string,
 	source: LookupSource,
@@ -571,9 +521,7 @@ partial: boolean; after: QueueStep | null } | { kind: "searchFailed"; after: Que
 /**  Apply was requested with no title queued. */
 { kind: "noTitleQueued" } |
 /**  The title's pending edits were not accepted, so the result was not applied. */
-{ kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } |
-/**  The next queued title could not be selected. */
-{ kind: "nextTitleRejected" } | { kind: "failed" };
+{ kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } | { kind: "nextTitleRejected" } | { kind: "failed" };
 
 export type MaterializedSourceFile = {
 	inputId: string,
@@ -636,9 +584,7 @@ export type MetadataStatus =
 /**  Local sources an export is still reading; written when it finishes. */
 waiting: number;
 /**  Temporary downloads; never written, their edits go with exports. */
-held: number;
-/**  What the Save did to exported titles' outputs. */
-outputs: OutputEdits } | { kind: "saveCancelled" } | { kind: "saveFailed"; error: AppErrorEnvelope } |
+held: number; outputs: OutputEdits } | { kind: "saveCancelled" } | { kind: "saveFailed"; error: AppErrorEnvelope } |
 /**
  *  Saves that waited for an export have run. A failed write keeps its
  *  edit pending on a title still in the list, so Save retries it.
@@ -721,6 +667,8 @@ export type OperationTerminalSummary = {
 	message: string,
 };
 
+export type OutputAudio = { format: "m4b"; settings: EncoderSettings } | { format: "mp3" } | { format: "m4aOpus"; settings: EncoderSettings } | { format: "mkaOpus"; settings: EncoderSettings };
+
 export type OutputCollisionInfo = {
 	kind: OutputCollisionKind,
 	conflictingPath: string | null,
@@ -757,9 +705,7 @@ export type OutputNamingConfig = {
 };
 
 /**  The path the selected title would be written to. */
-export type OutputPreview = { kind: "noDirectory" } |
-/**  No title to name yet. */
-{ kind: "noTitle" } | { kind: "path"; path: string } |
+export type OutputPreview = { kind: "noDirectory" } | { kind: "noTitle" } | { kind: "path"; path: string } |
 /**  The metadata or template cannot name a file; `message` says why. */
 { kind: "unavailable"; message: string };
 
@@ -800,7 +746,6 @@ export type OutputUpdate = {
 	status: OutputUpdateStatus,
 };
 
-/**  How the latest edit accepted for a title's output is going. */
 export type OutputUpdateStatus =
 /**  Accepted; written before publication or as soon as the file is free. */
 { kind: "waiting" } | { kind: "applied" } |
@@ -809,7 +754,6 @@ export type OutputUpdateStatus =
 /**  The title ended without an output. */
 { kind: "notApplied" };
 
-/**  A deliberately captured snapshot of the panel-owned durable preferences. */
 export type PinnedDefaults = {
 	maxConcurrentJobs: ConcurrencyPreference,
 	encoderDefaults: EncoderDefaults,
@@ -917,7 +861,6 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
  */
 "supplementalPdfUnavailable" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
 
-/**  The Audible download as hosts show it, with its own revision. */
 export type RemoteAcquisitionSnapshot = {
 	revision: number,
 	/**  An accepted request whose job is not registered yet. */
@@ -1049,14 +992,12 @@ export type RestartOffer = {
 
 export type RunTerminalClass = "empty" | "success" | "skipped" | "cancelled" | "failed" | "mixed";
 
-/**  Sample rate configuration options */
 export type SampleRateConfig =
 /**  Automatically detect from input files */
 "auto" |
 /**  Explicit sample rate in Hz */
 { explicit: number };
 
-/**  The selected titles' audio, edited together. */
 export type SelectionAudio = {
 	/**  The titles this describes, in list order. */
 	titleIds: string[],
@@ -1082,7 +1023,6 @@ export type SelectionSnapshot = {
 /**  Non-blocking advice about the book number. Hosts word these. */
 export type SeriesPartWarning = { kind: "invalid"; message: string } | { kind: "matchesSubseriesPart" } | { kind: "missingBookNumber" };
 
-/**  Something the user asked the session to do. */
 export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 /**
  *  Discovers and analyzes audio under `paths` and adds new titles, each
@@ -1098,11 +1038,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  *  Moves a title one place. Named by identity, so a second click sent
  *  before the first is answered moves the same title again.
  */
-{ kind: "moveFile"; titleId: string; direction: MoveDirection } |
-/**  Moves a title to position `to`. */
-{ kind: "reorderFiles"; titleId: string; to: number } | { kind: "toggleSort" } | { kind: "restoreImportOrder" } | { kind: "groupSelected" } | { kind: "ungroup"; titleId: string } | { kind: "reorderSources"; titleId: string; from: number; to: number } | { kind: "chooseCue"; inputId: string; choice: CueChoice } |
-/**  Returns the session to empty. */
-{ kind: "reset" } |
+{ kind: "moveFile"; titleId: string; direction: MoveDirection } | { kind: "reorderFiles"; titleId: string; to: number } | { kind: "toggleSort" } | { kind: "restoreImportOrder" } | { kind: "groupSelected" } | { kind: "ungroup"; titleId: string } | { kind: "reorderSources"; titleId: string; from: number; to: number } | { kind: "chooseCue"; inputId: string; choice: CueChoice } | { kind: "reset" } |
 /**  Exports every valid title. */
 { kind: "submit" } |
 /**  Renders the first `seconds` of each valid title, in the foreground. */
@@ -1132,9 +1068,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  *  Edits the audio choice of each named title. Refused while the list is
  *  locked.
  */
-{ kind: "setTitleAudio"; titleIds: string[]; edit: AudioEdit } |
-/**  Gives each named title the default audio choice. */
-{ kind: "applyDefaultAudio"; titleIds: string[] } | { kind: "setField"; field: MetadataField; value: string } | { kind: "setFieldAction"; field: MetadataField; action: FieldAction } | { kind: "loadCoverFromFile"; path: string } | { kind: "loadCoverFromDrop"; paths: string[] } | { kind: "loadCoverFromUrl"; url: string } | { kind: "clearCover" } |
+{ kind: "setTitleAudio"; titleIds: string[]; edit: AudioEdit } | { kind: "applyDefaultAudio"; titleIds: string[] } | { kind: "setField"; field: MetadataField; value: string } | { kind: "setFieldAction"; field: MetadataField; action: FieldAction } | { kind: "loadCoverFromFile"; path: string } | { kind: "loadCoverFromDrop"; paths: string[] } | { kind: "loadCoverFromUrl"; url: string } | { kind: "clearCover" } |
 /**  Writes every pending edit that can be written now. */
 { kind: "save" } | { kind: "lookupOpen" } | { kind: "lookupClose" } | { kind: "lookupSearch" } | { kind: "lookupApply"; index: number;
 /**  Lookup part revision the host rendered; a mismatch changes nothing. */
@@ -1182,7 +1116,6 @@ export type SessionUpdate = {
  */
 export type SessionUpdateEvent = SessionUpdate;
 
-/**  Something the user asked of the settings. */
 export type SettingsIntent =
 /**
  *  Records defaults a panel has accepted. They stay in effect even when
@@ -1190,9 +1123,7 @@ export type SettingsIntent =
  */
 { kind: "remember"; encoderDefaults: EncoderDefaults | null; outputDefaults: OutputDefaults | null; defaultAcquisitionLane: AcquisitionLane | null } |
 /**  Changes how many titles export at once. Refused while jobs run. */
-{ kind: "setConcurrency"; preference: ConcurrencyPreference } | { kind: "setKeepAwake"; enabled: boolean } | { kind: "setStartupBehavior"; behavior: StartupBehavior } |
-/**  Captures the current defaults as the ones a later launch starts from. */
-{ kind: "pinCurrentDefaults" } |
+{ kind: "setConcurrency"; preference: ConcurrencyPreference } | { kind: "setKeepAwake"; enabled: boolean } | { kind: "setStartupBehavior"; behavior: StartupBehavior } | { kind: "pinCurrentDefaults" } |
 /**  Writes accepted changes that an earlier write failed to save. */
 { kind: "retry" } |
 /**  Returns every setting to its default. Refused while exports run. */
@@ -1202,7 +1133,6 @@ export type SettingsOutcome = { kind: "applied" } |
 /**  Nothing changed. */
 { kind: "rejected"; error: AppErrorEnvelope };
 
-/**  What loading the saved settings could not keep. */
 export type SettingsRecovery = {
 	/**  Settings whose saved value was refused; they took their defaults. */
 	reset: SettingsUnit[],
@@ -1220,7 +1150,6 @@ export type SettingsReply = {
 
 export type SettingsSnapshot = {
 	revision: number,
-	/**  The settings in effect. */
 	settings: AppSettings,
 	/**  Why accepted changes are not on disk yet. Absent when all are saved. */
 	saveError: AppErrorEnvelope | null,
@@ -1251,7 +1180,6 @@ export type SizeEstimate = { kind: "bytes"; bytes: number } |
 /**  A quality setting owns the bitrate, so size follows the audio. */
 { kind: "variesWithAudio" };
 
-/**  A path an import could not read, and why. */
 export type SkippedImportPath = {
 	path: string,
 	reason: string,
@@ -1264,21 +1192,16 @@ export type SortDirection = "none" | "ascending" | "descending";
  *  auto-persisting the top-level (last-used) values; this only chooses the
  *  hydration source.
  */
-export type StartupBehavior =
-/**  Today's behavior: reopen with whatever the panels last persisted. */
-"rememberLastState" |
+export type StartupBehavior = "rememberLastState" |
 /**
  *  Reopen with the user-pinned defaults; in-flight panel tweaks are
  *  ephemeral across restarts.
  */
 "pinnedDefaults";
 
-/**  How the latest submission or preview is going. */
 export type SubmissionStatus = { kind: "preparing"; preview: boolean } | { kind: "refused"; reason: SubmitRefusal } |
 /**  Some outputs already exist; `OutputSnapshot::collision_review` holds the question. */
-{ kind: "reviewRequired" } |
-/**  The output plan cannot proceed; `message` says why. */
-{ kind: "blocked"; message: string } | { kind: "failed"; error: AppErrorEnvelope } | { kind: "submitted"; operationId: OperationId; title: string } | { kind: "previewing" } | { kind: "previewFinished"; result: ProcessCommandResult } |
+{ kind: "reviewRequired" } | { kind: "blocked"; message: string } | { kind: "failed"; error: AppErrorEnvelope } | { kind: "submitted"; operationId: OperationId; title: string } | { kind: "previewing" } | { kind: "previewFinished"; result: ProcessCommandResult } |
 /**  The user cancelled the collision review. */
 { kind: "cancelled" } |
 /**
@@ -1294,13 +1217,9 @@ export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | {
 /**  A grouped title's sources disagree about their audio. */
 { kind: "audioChoiceRequired" } |
 /**  A CUE sheet needs a decision first; `message` says which. */
-{ kind: "chapterReview"; message: string } |
-/**  The edits on screen are invalid. */
-{ kind: "draftInvalid"; message: string } |
+{ kind: "chapterReview"; message: string } | { kind: "draftInvalid"; message: string } |
 /**  There are edits and no valid title to carry them. */
-{ kind: "noTarget" } |
-/**  A metadata Save is writing. */
-{ kind: "saveInProgress" } |
+{ kind: "noTarget" } | { kind: "saveInProgress" } |
 /**  Another submission or a preview is still running. */
 { kind: "busy" } |
 /**  A preview length that is not a positive number of seconds. */
@@ -1362,7 +1281,6 @@ export type TagPreview = {
 	genre: string,
 };
 
-/**  One title's audio: its choice, what it resolves to, and its size. */
 export type TitleAudio = {
 	choice: AudioChoice,
 	facts: AudioChoiceFacts,
@@ -1374,26 +1292,19 @@ export type TitleAudio = {
 
 export type TitleAudioPlan = {
 	format: AudiobookFormat,
-	handling: AudioHandling,
-	settings: EncoderSettings | null,
 	sampleRate: number,
 	channels: number,
 	sourceCodec: string,
 	/**  Why Auto needs encoding even though the output codec matches. */
 	reason: string | null,
-};
+} & AudioHandling;
 
 export type TitleAudioRequest = {
-	format: AudiobookFormat,
 	intent: AudioIntent,
-	settings: EncoderSettings | null,
 	sampleRate: SampleRateConfig,
-};
+} & OutputAudio;
 
-/**  A title's resolved audio plan. */
-export type TitlePlan =
-/**  Being resolved. */
-{ kind: "pending" } | { kind: "resolved"; plan: TitleAudioPlan } |
+export type TitlePlan = { kind: "pending" } | { kind: "resolved"; plan: TitleAudioPlan } |
 /**
  *  The title cannot be exported as chosen; `message` says why, and
  *  `field` names the audio setting to change when one setting is the cause.

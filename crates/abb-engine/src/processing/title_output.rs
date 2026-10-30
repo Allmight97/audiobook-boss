@@ -1,13 +1,3 @@
-//! One export title's output after acceptance: the tags it carries, the
-//! latest edit accepted for it, and when that edit reaches the file.
-//!
-//! An edit accepted before publication is written to the staged file just
-//! before it is published, under the same locks as publication. One accepted
-//! after publication is written to the published file once its size and
-//! modification time show it is still the file ABB wrote. Writes to one
-//! output never overlap, and a failed write never changes the title's export
-//! outcome.
-
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
@@ -22,7 +12,6 @@ use crate::output_artifact::{
     build_output_path_preview, lock_output_file, FileIdentity, OutputNamingConfig,
 };
 
-/// How the latest edit accepted for a title's output is going.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum OutputUpdateStatus {
@@ -46,32 +35,29 @@ pub struct OutputUpdate {
     pub status: OutputUpdateStatus,
 }
 
-/// What `TitleOutput::update` did with an edit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum UpdateReply {
-    /// The output already carries it, or will.
     Unchanged,
     /// Accepted. `published`: the file exists, and the caller writes it with
     /// `apply_published`. `elsewhere`: the tags now name a location other
     /// than where the output is.
-    Accepted { published: bool, elsewhere: bool },
-    /// Not applied: the output is unpublished and the edit names another
-    /// location. The title must be restarted to follow it.
-    MovesOutput { from: PathBuf, to: PathBuf },
-    /// The title ended without an output.
+    Accepted {
+        published: bool,
+        elsewhere: bool,
+    },
+    MovesOutput {
+        from: PathBuf,
+        to: PathBuf,
+    },
     NoOutput,
 }
 
-/// Everything fixed when the export was accepted.
 #[derive(Debug, Clone)]
 pub(crate) struct TitleOutputPlan {
     pub(crate) anchor: PathBuf,
-    /// Every source, for the cover processing would take when the edit leaves
-    /// the cover to the sources.
     pub(crate) sources: Vec<PassthroughSource>,
     /// The anchor's own tags as read when the export was planned.
     pub(crate) base: Option<AudiobookMetadata>,
-    /// The intent the export was accepted with.
     pub(crate) accepted: Option<MetadataIntentPatch>,
     pub(crate) output_dir: PathBuf,
     pub(crate) naming: OutputNamingConfig,
@@ -95,7 +81,6 @@ enum Phase {
         path: PathBuf,
         identity: Option<FileIdentity>,
     },
-    /// Ended without publishing.
     Ended,
 }
 
@@ -104,7 +89,6 @@ struct State {
     wanted: Option<(u64, Tags)>,
     phase: Phase,
     update: Option<OutputUpdate>,
-    /// The newest edit revision seen; an older one arriving late is ignored.
     newest: u64,
     moving: Option<(u64, Tags, PathBuf)>,
     kept_location: Option<PathBuf>,
@@ -156,7 +140,6 @@ impl TitleOutput {
         }))
     }
 
-    /// Calls `listener` with the update state whenever it changes.
     pub(crate) fn on_change(&self, listener: Box<Listener>) {
         let _ = self.on_change.set(listener);
     }
@@ -174,7 +157,6 @@ impl TitleOutput {
     ) -> Result<UpdateReply> {
         let (tags, location) = self.plan.tags(Some(intent))?;
         let mut state = self.lock();
-        // Saves read their edits in order but may reach here out of order.
         if revision < state.newest {
             return Ok(UpdateReply::Unchanged);
         }
@@ -218,8 +200,6 @@ impl TitleOutput {
         Ok(reply)
     }
 
-    /// Keeps the published path while accepting the most recent tags the
-    /// chosen offer described. Later Saves at that same naming are tag edits.
     pub(crate) fn keep_location(&self, revision: u64) -> Result<bool> {
         let mut state = self.lock();
         if matches!(state.phase, Phase::Ended) {
@@ -250,9 +230,6 @@ impl TitleOutput {
         Ok(published)
     }
 
-    /// Publishes the title: writes an accepted edit to `staged`, runs
-    /// `commit`, which returns the published path, then writes any edit
-    /// accepted meanwhile to the published file. Blocking.
     pub(crate) fn publish<T>(
         &self,
         staged: &Path,
@@ -282,7 +259,6 @@ impl TitleOutput {
         Ok(value)
     }
 
-    /// Writes an accepted edit to the published output. Blocking.
     pub(crate) fn apply_published(&self) {
         let _title = self.writing.lock().unwrap_or_else(PoisonError::into_inner);
         let (path, identity) = match &self.lock().phase {
@@ -302,7 +278,6 @@ impl TitleOutput {
         self.record_identity(&path);
     }
 
-    /// Ends the title. One that did not publish drops any edit still waiting.
     pub(crate) fn end(&self) {
         let mut state = self.lock();
         let unpublished = matches!(state.phase, Phase::Pending);
@@ -412,7 +387,6 @@ impl TitleOutput {
 }
 
 impl TitleOutputPlan {
-    /// The tags and location the output gets under `intent`.
     fn tags(&self, intent: Option<&MetadataIntentPatch>) -> Result<(Tags, PathBuf)> {
         let outcome = plan_metadata_outcome_from(
             self.base.clone(),
@@ -437,9 +411,6 @@ impl TitleOutputPlan {
         Ok((tags, location))
     }
 
-    /// The tag save that turns an output carrying `from` into one carrying
-    /// `to`. A cover left to the sources is the one processing takes: the
-    /// first source's own picture.
     fn patch_between(&self, from: &Tags, to: &Tags) -> Result<MetadataIntentPatch> {
         let mut patch = MetadataIntentPatch::between(&from.text, &to.text);
         if from.cover != to.cover {

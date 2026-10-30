@@ -16,7 +16,6 @@ impl CancellationChecker {
         Self { cancel_flag }
     }
 
-    /// Checks if this work was cancelled
     pub fn is_cancelled(&self) -> bool {
         self.cancel_flag
             .as_ref()

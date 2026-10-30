@@ -1,15 +1,6 @@
-/**
- * Tests for the Tauri tauri client boundary.
- *
- * These tests verify boundary normalization and command/event wiring
- * against mocked Tauri APIs.
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { runtimeSettingsCapabilitiesFixture } from '../test/fixtures/runtimeSettingsCapabilities';
 import mainWindowCapability from '../../src-tauri/capabilities/default.json';
-
-// Note: Tauri APIs are auto-mocked by src/test/setup.ts
 
 describe('tauriClient', () => {
 	beforeEach(() => {
@@ -55,10 +46,10 @@ describe('tauriClient', () => {
 		expect(reply.snapshot.recovery).toBeUndefined();
 	});
 
-	it('keeps explicit nulls in audio requests and drops them from audio files', async () => {
+	it('passes audio requests through and drops nulls from audio files', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const { tauriClient } = await import('./tauri/client');
-		const passThrough = { format: 'mp3', intent: 'preserve', settings: null, sampleRate: 'auto' };
+		const passThrough = { format: 'mp3', intent: 'preserve', sampleRate: 'auto' };
 		vi.mocked(invoke).mockResolvedValueOnce({
 			outcome: { kind: 'applied' },
 			update: {
@@ -95,7 +86,6 @@ describe('tauriClient', () => {
 		});
 		const titles = reply.update.titles;
 		expect(titles?.files[0]).toEqual({ inputId: 'a', path: '/books/a.mp3', isValid: true });
-		// A null `settings` is the request for MP3 pass-through.
 		expect(reply.update.audio?.defaults.request).toEqual(passThrough);
 		expect(reply.update).not.toHaveProperty('selection', null);
 		expect(reply.update.selection).toBeUndefined();
@@ -358,9 +348,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(result).toBe(bareEncoderAvailability);
 	});
 
-	// Misclassification guard: without the discriminant check on `status === 'ok' | 'error'`,
-	// a hypothetical future domain type with an unrelated `status` field (e.g. job state)
-	// would be incorrectly stripped to its `.data`. This locks the safety property in place.
 	it('passes through records with unrelated status values rather than treating them as Result', async () => {
 		const { unwrapGeneratedResult } = await import('./tauri/appError');
 		const bareDomainObject = { status: 'pending', data: { jobId: 'abc' } };

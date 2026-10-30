@@ -1,6 +1,3 @@
-//! Turning the session into an export: which titles go, with what audio,
-//! sources, chapters, and naming, and how far the submission has got.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -31,13 +28,11 @@ pub enum SubmitRefusal {
     ChapterReview {
         message: String,
     },
-    /// The edits on screen are invalid.
     DraftInvalid {
         message: String,
     },
     /// There are edits and no valid title to carry them.
     NoTarget,
-    /// A metadata Save is writing.
     SaveInProgress,
     /// Another submission or a preview is still running.
     Busy,
@@ -81,7 +76,6 @@ pub(crate) struct PendingReview {
     pub(crate) draft: Draft,
 }
 
-/// How the latest submission or preview is going.
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SubmissionStatus {
@@ -93,7 +87,6 @@ pub enum SubmissionStatus {
     },
     /// Some outputs already exist; `OutputSnapshot::collision_review` holds the question.
     ReviewRequired,
-    /// The output plan cannot proceed; `message` says why.
     Blocked {
         message: String,
     },
@@ -118,17 +111,14 @@ pub enum SubmissionStatus {
     },
 }
 
-/// A submission being prepared: what will be sent, and the sources it holds.
 #[derive(Clone)]
 pub(crate) struct Draft {
     pub(crate) payload: ProcessPayload,
     pub(crate) metadata: Option<HashMap<String, MetadataIntentPatch>>,
     pub(crate) preview_seconds: Option<f64>,
-    /// The export's or preview's identity from acceptance on.
     pub(crate) operation_id: OperationId,
     pub(crate) title: String,
     pub(crate) sources: Vec<PathBuf>,
-    /// The collisions the user saw when choosing a policy.
     pub(crate) reviewed: Option<Vec<String>>,
 }
 
@@ -141,7 +131,6 @@ impl Draft {
         self.preview().then_some(&self.operation_id)
     }
 
-    /// The draft approved under `policy` for the plan signed `signature`.
     pub(crate) fn approved(mut self, policy: CollisionPolicy, signature: String) -> Self {
         self.payload.collision_policy = Some(policy);
         self.payload.preflight_signature = Some(signature);
@@ -149,17 +138,14 @@ impl Draft {
     }
 }
 
-/// One title as it goes into a submission.
 pub(crate) struct SubmittedTitle<'a> {
     pub(crate) anchor: &'a AudioFile,
     pub(crate) sources: &'a [AudioFile],
     pub(crate) request: crate::audio::TitleAudioRequest,
     pub(crate) choice_required: bool,
-    /// Whether the output will carry a title: typed, or the source's tag.
     pub(crate) has_title: bool,
 }
 
-/// Everything a draft needs besides the titles.
 pub(crate) struct DraftInputs {
     pub(crate) output_directory: Option<String>,
     pub(crate) naming: OutputNamingConfig,
@@ -179,8 +165,6 @@ pub(crate) fn build_draft(
     if titles.is_empty() {
         return Err(SubmitRefusal::NoTitles);
     }
-    // Before standalone titles are filtered: a group whose first source is
-    // invalid is still a group with an invalid source.
     if titles
         .iter()
         .any(|title| title.sources.len() > 1 && title.sources.iter().any(|source| !source.is_valid))
@@ -273,7 +257,6 @@ pub(crate) fn build_draft(
     })
 }
 
-/// A title's name for the operation list: its edited title, else its label.
 fn label_with_edit(
     anchor: &AudioFile,
     metadata: &HashMap<String, MetadataIntentPatch>,
@@ -290,7 +273,6 @@ fn label_with_edit(
     edited.unwrap_or_else(|| label(anchor))
 }
 
-/// The label a title shows before any edit: its tag title, else its file name.
 pub(crate) fn title_label(file: &AudioFile) -> String {
     file.tag_title
         .as_deref()
@@ -305,8 +287,6 @@ pub(crate) fn title_label(file: &AudioFile) -> String {
         .unwrap_or_else(|| file.path.to_string_lossy().into_owned())
 }
 
-/// The outputs that already exist in `outputs`, by where each was asked for
-/// and what it collides with. Independent of the collision policy chosen.
 pub(crate) fn collisions(outputs: &[PlannedOutput]) -> Vec<String> {
     let mut collisions: Vec<String> = outputs
         .iter()
@@ -324,7 +304,6 @@ pub(crate) fn collisions(outputs: &[PlannedOutput]) -> Vec<String> {
     collisions
 }
 
-/// What a preflight plan asks of the user before it can proceed.
 pub(crate) enum PlanVerdict {
     Proceed,
     Review(Vec<PlannedOutput>),
