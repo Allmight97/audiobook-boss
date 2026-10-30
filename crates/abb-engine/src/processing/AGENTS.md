@@ -6,14 +6,13 @@
   `InspectedProcessingPlan` carries the single source inspection and resolved
   audio/metadata plan through review, output records, and execution.
   `prepare_inspected_execution` refreshes collision facts at the already
-  derived output path and enforces review before creating directories. Audio
-  revalidates retained fingerprints after scheduler/permit waits.
+  derived output path and enforces review before creating directories.
   `title_file_info` projects the same inspection into each title's source
   order.
-- Import shared lifecycle vocabulary and event helpers from `crate::processing`
-  (its `pub use` list), not from `audio`. `ProgressEmitter` passes progress to
-  the owning engine reducer. `operation_kind_log_label` is the stable dev-log
-  label that `scripts/dev-log-analysis.ts` parses.
+- Shared lifecycle vocabulary comes from `crate::processing`'s `pub use` list.
+  `ProgressEmitter` passes progress to the owning engine reducer.
+  `operation_kind_log_label` is the stable dev-log label that
+  `scripts/dev-log-analysis.ts` parses.
 - `TitleOutput` is engine-internal; `OutputUpdate` and `OutputUpdateStatus` are
   host vocabulary (`title_output.rs`).
 - Pure lifecycle and terminal summary classification lives in
@@ -47,9 +46,8 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   request before output collision review; `audio_plans` exposes that result.
   The resolved format sets the extension. Source order and resolved audio plan
   participate in the review signature. Preview and CUE reconstruction require
-  encoding. One title cannot compose CUE-bearing sources; the Audio planner
-  rejects it in preflight and execution alike. Chapter plans apply once, in the
-  validation preflight and execution share.
+  encoding. Chapter plans apply once, in the validation preflight and
+  execution share.
 - Settings and sample-rate checks apply only to encoding plans. A copy plan
   carries no encoder settings and follows normal registration, cancellation,
   output review, and terminal reporting.
@@ -69,12 +67,8 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 ## Progress and stages
 
 - Processing emits internal `ProgressEvent` values to its supplied listener.
-  WorkRuntime exports and session previews share the WorkRuntime state reducer;
-  hosts receive operation/session snapshots rather than a second queue stream.
 - `EventStage` in `progress/mod.rs` maps internal `ProcessingStage` into
-  reducer input. The UI consumes `WorkProgressStage` from snapshots. Evolve the
-  owning Rust types and reducers, regenerate bindings for public shape changes,
-  and update snapshot rendering/proof together.
+  reducer input. The UI consumes `WorkProgressStage` from snapshots.
 
 ## Job registry (`job_registry/`)
 
@@ -82,7 +76,7 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   max-concurrent capability facts settings expose
   (`MaxConcurrentJobsCapabilities`).
 - Register each job through `register_job_with_external_cancel` before work
-  starts (`register_job` is test-only). It records the job and acquires its
+  starts. It records the job and acquires its
   permit before execution. `BatchScheduler` keeps result order deterministic,
   keeps issuing queued work after per-task errors, and gives every scheduled
   index a terminal result.
@@ -102,19 +96,10 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 - `run.rs`'s `metadata_workflow` tests connect production preflight/planning to
   real encode and preserve writers, then inspect output atoms. They complement
   the session's edit-retention tests and the IPC-contract proof; they do not
-  exercise the Tauri window, scheduler, or UI. Keep this proof crate-local;
-  commands live in `scripts/AGENTS.md`.
-- Keep preflight side-effect-free; execution creates and tracks output dirs only
-  after review enforcement.
+  exercise the Tauri window, scheduler, or UI.
+- Keep preflight side-effect-free.
 - `ProcessingRunOptions.title_cancels` carries one cancel flag per output title
   from WorkRuntime or the session preview. Each job's admission and
   `CancellationChecker` (built from that title's flag) observe only that flag;
   the registry holds no other cancel state. Cancelled titles finish as
   Cancelled results while siblings continue.
-- The runner handles encoder request validation, job registration, scheduler
-  dispatch, audio execution requests through `crate::audio`, and handoff to
-  terminal outcome helpers. Encoder selection stays audio-owned.
-- Metadata-save operation truth belongs to `crate::work_runtime`; metadata save
-  may reuse this strip's `OperationKind`, `ProgressEvent`, and
-  `OperationResultSummary` vocabulary while metadata write policy stays inside
-  metadata-owned APIs.

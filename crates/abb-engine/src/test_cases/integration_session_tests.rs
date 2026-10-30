@@ -969,7 +969,7 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
         .collect();
 
     let moved = desk.root.path().join("set-aside.m4b");
-    fs::rename(&exported[1], &moved).expect("set one output aside");
+    crate::test_cases::move_test_file(&exported[1], &moved);
     desk.send(SessionIntent::Submit).await;
     assert_eq!(submission(&desk), Some(SubmissionStatus::ReviewRequired));
     let CollisionReview {
@@ -979,7 +979,7 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
     } = collision_review(&desk);
     assert_eq!(seen.len(), 1);
 
-    fs::rename(&moved, &exported[1]).expect("put it back");
+    crate::test_cases::move_test_file(&moved, &exported[1]);
     desk.send(SessionIntent::ChooseCollisionPolicy {
         review_id,
         policy: CollisionPolicy::ReplaceExisting,

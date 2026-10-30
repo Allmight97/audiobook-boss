@@ -2,12 +2,12 @@
 
 ## Public API Strip
 
-- `client.ts` exports `tauriClient`, the one runtime surface.
-  `src/lib/tauri-public-api.contract.test.ts` pins its methods, commands, and
-  events. Read those sources for the exact list.
-- Generated invokers in `src/lib/generated/tauri.ts` belong to `commands.ts` and
-  `client.ts`. Regenerate them with `bun run bindings:generate`. Plugin and
-  event imports also stay in `src/lib/tauri`.
+- `client.ts` exports `tauriClient`, the one runtime surface (pinned by
+  `src/lib/tauri-public-api.contract.test.ts`).
+- Regenerate bindings with `bun run bindings:generate`.
+  `check-tauri-runtime-boundary.ts` keeps generated imports in `commands.ts`
+  and `client.ts`; Biome `noRestrictedImports` keeps plugin and event imports
+  in `src/lib/tauri`.
 - Native-dialog methods select files and folders only. Session questions render
   identified snapshots; a native question cannot be dismissed on frontend
   replacement.
@@ -19,16 +19,15 @@
   `openPreviewOutput` also takes a numbered session turn
   (`src-tauri/AGENTS.md`). The
   `session-update` and `settings-update` events carry engine changes between
-  replies. Remote account and auth state, choices, and preview progress travel
-  in the session snapshot. Library contents and the Audible download
-  (`remoteAcquisition`) have their own revisioned parts. Auth-start replies
-  supply the one-time URL the host opens in a browser.
+  replies. Auth-start replies supply the one-time URL the host opens in a
+  browser.
 - A `tauriClient` method that calls a plugin API needs its permission in
   `src-tauri/capabilities/default.json`; jsdom mocks cannot catch a missing one.
 
 ## Private To This Folder
 
-- `commands.ts` and `normalizers.ts`.
+- `commands.ts` and `normalizers.ts` are private to this folder (Biome
+  `noRestrictedImports`).
 - `normalizers.ts` turns `null` into an absent field for the snapshot families
   it names (for example title files, remote account and acquisition, settings)
   and passes every other field through unchanged, so a meaningful null (a
@@ -39,13 +38,12 @@
 
 ## Frontend Utilities
 
-`appError.ts`, `subscriptionGroup.ts`, and `coverSrc.ts` are not IPC adapters
-and not `tauriClient` methods. Solid views import them directly. Each has its
+`appError.ts`, `subscriptionGroup.ts`, and `coverSrc.ts` are frontend
+utilities, not `tauriClient` methods; views import them directly. Each has its
 own module test.
 
-- `appError.ts` owns error normalization and presentation: `normalizeAppError`,
-  `toUserMessage`, `isCancellation`, `logAppError`, `unwrapGeneratedResult`.
-  Derive user messages and cancellation here.
+- `appError.ts` owns error normalization and presentation. Derive user
+  messages and cancellation here.
 - `subscriptionGroup.ts` (`createSubscriptionGroup`) owns Tauri event-unlisten
   teardown and the dispose and late-arrival race. Views collect unlisteners
   through a group.
