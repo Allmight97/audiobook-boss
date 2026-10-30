@@ -147,6 +147,15 @@ mod tests {
         }
     }
 
+    fn request_settings(request: &mut crate::audio::TitleAudioRequest) -> &mut EncoderSettings {
+        match &mut request.output {
+            crate::audio::OutputAudio::M4b { settings }
+            | crate::audio::OutputAudio::M4aOpus { settings }
+            | crate::audio::OutputAudio::MkaOpus { settings } => settings,
+            crate::audio::OutputAudio::Mp3 => panic!("MP3 requests carry no encoder settings"),
+        }
+    }
+
     fn process_payload(overrides: impl FnOnce(&mut ProcessPayload)) -> ProcessPayload {
         let mut payload = ProcessPayload {
             title_sources: None,
@@ -155,9 +164,10 @@ mod tests {
             input_ids: None,
             output_dir: "/tmp/out".to_string(),
             audio_requests: vec![crate::audio::TitleAudioRequest {
-                format: crate::audio::AudiobookFormat::M4b,
+                output: crate::audio::OutputAudio::M4b {
+                    settings: encoder_settings(),
+                },
                 intent: crate::audio::AudioIntent::Encode,
-                settings: Some(encoder_settings()),
                 sample_rate: crate::audio::SampleRateConfig::Auto,
             }],
             output_naming: None,
@@ -249,26 +259,11 @@ mod tests {
             let payload = process_payload(|payload| {
                 payload.input_files = vec![source.to_string_lossy().into_owned()];
                 payload.output_dir = output.to_string_lossy().into_owned();
-                payload.audio_requests[0]
-                    .settings
-                    .as_mut()
-                    .expect("encode fixture settings")
-                    .encoder_type = EncoderType::NativeAac;
-                payload.audio_requests[0]
-                    .settings
-                    .as_mut()
-                    .expect("encode fixture settings")
-                    .bitrate_mode = BitrateMode::Cbr;
-                payload.audio_requests[0]
-                    .settings
-                    .as_mut()
-                    .expect("encode fixture settings")
-                    .bitrate_kbps = bitrate;
-                payload.audio_requests[0]
-                    .settings
-                    .as_mut()
-                    .expect("encode fixture settings")
-                    .channels = channels;
+                request_settings(&mut payload.audio_requests[0]).encoder_type =
+                    EncoderType::NativeAac;
+                request_settings(&mut payload.audio_requests[0]).bitrate_mode = BitrateMode::Cbr;
+                request_settings(&mut payload.audio_requests[0]).bitrate_kbps = bitrate;
+                request_settings(&mut payload.audio_requests[0]).channels = channels;
                 payload.audio_requests[0].sample_rate = rate;
             });
             let result = preflight_payload(payload, None, None);
@@ -317,10 +312,7 @@ mod tests {
                     vec![stereo.clone(), mono.clone()]
                 };
                 payload.output_dir = temp.path().to_string_lossy().into_owned();
-                let settings = payload.audio_requests[0]
-                    .settings
-                    .as_mut()
-                    .expect("encode fixture settings");
+                let settings = request_settings(&mut payload.audio_requests[0]);
                 settings.encoder_type = EncoderType::NativeAac;
                 settings.bitrate_mode = BitrateMode::Cbr;
                 settings.bitrate_kbps = 300;
@@ -401,10 +393,7 @@ mod tests {
                 ],
             )]));
             payload.output_dir = temp.path().to_string_lossy().into_owned();
-            let settings = payload.audio_requests[0]
-                .settings
-                .as_mut()
-                .expect("encode settings");
+            let settings = request_settings(&mut payload.audio_requests[0]);
             settings.encoder_type = EncoderType::NativeAac;
             settings.bitrate_mode = BitrateMode::Cbr;
         });
@@ -502,15 +491,19 @@ mod tests {
             outputs.push(job.output.resolved_path.clone());
             let context = ProcessingContext::new_headless_with_workspace_root(
                 std::sync::Arc::new(ProcessingSession::new()),
-                job.audio_plan.settings,
                 SampleRateConfig::Explicit(job.audio_plan.sample_rate),
                 OutputConfig::from_plan(job.output),
                 workspace.to_path_buf(),
             );
             execute_audio_engine(
-                AudioExecutionRequest::new(context, info, job.metadata, job.cover_art_passthrough)
-                    .with_handling(job.audio_plan.handling)
-                    .with_metadata_intent(job.metadata_intent),
+                AudioExecutionRequest::new(
+                    context,
+                    info,
+                    job.metadata,
+                    job.cover_art_passthrough,
+                    job.audio_plan.handling,
+                )
+                .with_metadata_intent(job.metadata_intent),
             )
             .await
             .expect("write planned metadata to audio artifact");
@@ -531,15 +524,9 @@ mod tests {
                 .collect();
             payload.output_dir = output.to_string_lossy().into();
             payload.audio_requests[0].intent = intent;
-            let settings = payload.audio_requests[0]
-                .settings
-                .as_mut()
-                .expect("settings");
+            let settings = request_settings(&mut payload.audio_requests[0]);
             settings.encoder_type = EncoderType::NativeAac;
             settings.bitrate_mode = BitrateMode::Cbr;
-            if intent == crate::audio::AudioIntent::Preserve {
-                payload.audio_requests[0].settings = None;
-            }
         })
     }
 
@@ -745,7 +732,7 @@ mod tests {
                 operation_id: Some("log-proof".into()),
                 ..batch_log_context()
             },
-            crate::processing::AudioHandling::Encode,
+            false,
         )
         .await
         .is_ok()
@@ -808,7 +795,7 @@ mod tests {
             &invalid_output,
             None,
             batch_log_context(),
-            crate::processing::AudioHandling::Encode,
+            false,
         )
         .await
         {

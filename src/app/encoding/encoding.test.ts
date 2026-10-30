@@ -100,7 +100,14 @@ describe('encoding owner', () => {
 				plan: {
 					format: 'm4b',
 					handling: 'encode',
-					settings: null,
+					settings: {
+						encoderType: 'native_aac',
+						bitrateKbps: 65,
+						bitrateMode: { mode: 'cbr' },
+						channels: 'stereo',
+						nativeAacSpeed: 0,
+						faacProfile: 'auto',
+					},
 					sampleRate: 48000,
 					channels: 2,
 					sourceCodec: 'AAC',

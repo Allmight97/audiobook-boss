@@ -168,7 +168,6 @@ mod tests {
         let events = observed.clone();
         let mut context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::new()),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("out.m4b")),
         );
@@ -222,7 +221,6 @@ mod tests {
         std::os::unix::fs::symlink(&replacement, &source).expect("replace source with symlink");
         let context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::new()),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),
         );
@@ -257,7 +255,6 @@ mod tests {
         std::fs::rename(&replacement, &source).expect("install regular replacement");
         let context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::new()),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),
         );
@@ -294,7 +291,6 @@ mod tests {
         let checker = crate::processing::CancellationChecker::new(Some(cancelled.clone()));
         let mut context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),
         );
@@ -323,7 +319,6 @@ mod tests {
         let source_for_listener = source.clone();
         let mut context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::new()),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),
         );
@@ -354,7 +349,6 @@ mod tests {
         let source_for_listener = source.clone();
         let mut context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::new()),
-            None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),
         );

@@ -17,7 +17,7 @@ use super::submission::{
 };
 use super::tag_cache::{ReadTicket, TagCache};
 use super::working_set::{SelectionSnapshot, TitlesSnapshot, WorkingSet};
-use crate::audio::AudioFile;
+use crate::audio::{AudioFile, TitleAudioRequest};
 use crate::errors::{AppError, AppErrorEnvelope};
 use crate::metadata::{
     processing_album_sort, validate_metadata_intent_patch, AudiobookMetadata, MetadataIntentPatch,
@@ -497,7 +497,7 @@ impl SessionState {
             let format = self
                 .working_set
                 .audio_request(&file.input_id)
-                .map_or_else(|| self.audio.request().format, |request| request.format);
+                .map_or_else(|| self.audio.format(), TitleAudioRequest::format);
             (&metadata, file.path.as_path(), format)
         });
         let preview = self.output.preview(title);
@@ -1175,7 +1175,7 @@ impl SessionState {
     fn apply_title_audio(
         &mut self,
         refusal: Option<AudioRefusal>,
-        next: Vec<(&String, crate::audio::TitleAudioRequest)>,
+        next: Vec<(&String, TitleAudioRequest)>,
     ) {
         match &refusal {
             None => {

@@ -230,9 +230,10 @@ mod tests {
         assert_eq!(first.chapters[0].start_ms, 940);
         assert_eq!(second.chapters[0].start_ms, 1000);
         let grouped_title = crate::audio::TitleAudioRequest {
-            format: crate::audio::AudiobookFormat::M4b,
+            output: crate::audio::OutputAudio::M4b {
+                settings: crate::audio::EncoderSettings::default(),
+            },
             intent: crate::audio::AudioIntent::Encode,
-            settings: None,
             sample_rate: crate::audio::SampleRateConfig::Auto,
         };
         assert!(

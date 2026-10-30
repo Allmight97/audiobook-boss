@@ -303,7 +303,6 @@ mod tests {
         );
         let context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::new()),
-            settings,
             SampleRateConfig::Explicit(44_100),
             OutputConfig::new(Path::new("/tmp/final/Book.m4b")),
         );

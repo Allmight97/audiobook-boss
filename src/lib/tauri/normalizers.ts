@@ -88,8 +88,7 @@ export function denormalizeNullish<T>(value: T): T {
 
 /**
  * Audio files and lookup results take the optional-field forms the frontend
- * uses elsewhere. Audio requests keep their explicit nulls: a null `settings`
- * is the request for MP3 pass-through.
+ * uses elsewhere.
  */
 export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionUpdate {
 	const { titles, selection, metadata, lookup, audio, output, remote, remoteLibrary } = update;

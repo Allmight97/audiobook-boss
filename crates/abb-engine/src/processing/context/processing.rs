@@ -1,5 +1,4 @@
-use crate::audio::{EncoderSettings, SampleRateConfig};
-use crate::errors::Result;
+use crate::audio::SampleRateConfig;
 use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::processing::lifecycle::OperationKind;
 use crate::processing::preview_config::PreviewConfig;
@@ -59,7 +58,6 @@ impl OutputConfig {
 #[derive(Clone)]
 pub struct ProcessingContext {
     pub session: Arc<ProcessingSession>,
-    pub encoder_settings: Option<EncoderSettings>,
     pub sample_rate: SampleRateConfig,
     pub output: OutputConfig,
     workspace_root: PathBuf,
@@ -78,7 +76,6 @@ impl std::fmt::Debug for ProcessingContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProcessingContext")
             .field("session", &self.session)
-            .field("encoder_settings", &self.encoder_settings)
             .field("sample_rate", &self.sample_rate)
             .field("output", &self.output)
             .field("workspace_root", &self.workspace_root)
@@ -95,14 +92,12 @@ impl std::fmt::Debug for ProcessingContext {
 impl ProcessingContext {
     pub(crate) fn new_with_workspace_root(
         session: Arc<ProcessingSession>,
-        encoder_settings: impl Into<Option<EncoderSettings>>,
         sample_rate: SampleRateConfig,
         output: OutputConfig,
         workspace_root: PathBuf,
     ) -> Self {
         Self {
             session,
-            encoder_settings: encoder_settings.into(),
             sample_rate,
             output,
             workspace_root,
@@ -119,13 +114,11 @@ impl ProcessingContext {
     #[cfg(test)]
     pub fn new_headless(
         session: Arc<ProcessingSession>,
-        encoder_settings: impl Into<Option<EncoderSettings>>,
         sample_rate: SampleRateConfig,
         output: OutputConfig,
     ) -> Self {
         Self::new_headless_with_workspace_root(
             session,
-            encoder_settings,
             sample_rate,
             output,
             default_processing_workspace_root(),
@@ -135,26 +128,11 @@ impl ProcessingContext {
     #[cfg(test)]
     pub fn new_headless_with_workspace_root(
         session: Arc<ProcessingSession>,
-        encoder_settings: impl Into<Option<EncoderSettings>>,
         sample_rate: SampleRateConfig,
         output: OutputConfig,
         workspace_root: PathBuf,
     ) -> Self {
-        Self::new_with_workspace_root(
-            session,
-            encoder_settings,
-            sample_rate,
-            output,
-            workspace_root,
-        )
-    }
-
-    pub(crate) fn required_encoder_settings(&self) -> Result<&EncoderSettings> {
-        self.encoder_settings.as_ref().ok_or_else(|| {
-            crate::errors::AppError::InvalidInput(
-                "Encoder settings are required for encode processing.".into(),
-            )
-        })
+        Self::new_with_workspace_root(session, sample_rate, output, workspace_root)
     }
 
     pub fn is_cancelled(&self) -> bool {
@@ -174,11 +152,5 @@ impl ProcessingContext {
 
     pub(crate) fn processing_workspace_root(&self) -> &Path {
         &self.workspace_root
-    }
-
-    pub fn effective_bitrate_kbps(&self) -> u32 {
-        self.encoder_settings
-            .as_ref()
-            .map_or(0, |settings| settings.bitrate_kbps as u32)
     }
 }

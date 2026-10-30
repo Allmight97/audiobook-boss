@@ -46,10 +46,10 @@ describe('tauriClient', () => {
 		expect(reply.snapshot.recovery).toBeUndefined();
 	});
 
-	it('keeps explicit nulls in audio requests and drops them from audio files', async () => {
+	it('passes audio requests through and drops nulls from audio files', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const { tauriClient } = await import('./tauri/client');
-		const passThrough = { format: 'mp3', intent: 'preserve', settings: null, sampleRate: 'auto' };
+		const passThrough = { format: 'mp3', intent: 'preserve', sampleRate: 'auto' };
 		vi.mocked(invoke).mockResolvedValueOnce({
 			outcome: { kind: 'applied' },
 			update: {
@@ -86,7 +86,6 @@ describe('tauriClient', () => {
 		});
 		const titles = reply.update.titles;
 		expect(titles?.files[0]).toEqual({ inputId: 'a', path: '/books/a.mp3', isValid: true });
-		// A null `settings` is the request for MP3 pass-through.
 		expect(reply.update.audio?.defaults.request).toEqual(passThrough);
 		expect(reply.update).not.toHaveProperty('selection', null);
 		expect(reply.update.selection).toBeUndefined();

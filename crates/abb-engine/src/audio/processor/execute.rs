@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::audio::constants::TEMP_MERGED_FILENAME;
-use crate::audio::AudioFile;
+use crate::audio::{AudioFile, EncoderSettings};
 use crate::errors::{AppError, Result};
 use crate::processing::ProcessingContext;
 
@@ -11,6 +11,7 @@ use super::ProcessingWorkflow;
 
 pub(crate) fn execute_processing(
     context: &ProcessingContext,
+    settings: &EncoderSettings,
     workflow: &ProcessingWorkflow,
     files: &[AudioFile],
     metadata: Option<&crate::metadata::AudiobookMetadata>,
@@ -19,12 +20,13 @@ pub(crate) fn execute_processing(
     log::info!(
         "Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k",
         workflow.total_duration,
-        context.effective_bitrate_kbps()
+        settings.bitrate_kbps
     );
 
     let merged_output = merge_audio_files_with_context(
         &workflow.temp_dir,
         context,
+        settings,
         workflow.total_duration,
         files,
         metadata,
@@ -41,6 +43,7 @@ pub(crate) fn execute_processing(
 pub(crate) fn merge_audio_files_with_context(
     temp_dir: &Path,
     context: &ProcessingContext,
+    settings: &EncoderSettings,
     total_duration: f64,
     files: &[AudioFile],
     metadata: Option<&crate::metadata::AudiobookMetadata>,
@@ -53,7 +56,7 @@ pub(crate) fn merge_audio_files_with_context(
     let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
     let plan = MediaProcessingPlan::new(
         temp_output.clone(),
-        context.required_encoder_settings()?.clone(),
+        settings.clone(),
         context.sample_rate,
         file_paths,
         total_duration,
@@ -64,7 +67,7 @@ pub(crate) fn merge_audio_files_with_context(
         context.session.id(),
         context.job_id.as_deref().unwrap_or("unscoped"),
         crate::diagnostics::artifact_id(&temp_output),
-        context.required_encoder_settings()?.encoder_type
+        settings.encoder_type
     );
     crate::diagnostics::stage("encode_mux", &temp_output, || {
         engine::execute(&plan, context, metadata, passthrough)

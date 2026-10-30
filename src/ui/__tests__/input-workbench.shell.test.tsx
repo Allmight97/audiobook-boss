@@ -1,4 +1,4 @@
-import { titleAudioRequest } from '../../test/fixtures/titleAudio';
+import { mp3AudioRequest, titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -199,7 +199,6 @@ describe('Solid input workbench', () => {
 				plan: {
 					format: 'm4b',
 					handling: 'preserve',
-					settings: null,
 					sampleRate: 44100,
 					channels: 6,
 					sourceCodec: 'AAC',
@@ -270,7 +269,7 @@ describe('Solid input workbench', () => {
 			paths: files.map((file) => file.path),
 		});
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
-		engine.seedTitleAudio(files[0]!.path, titleAudioRequest({ format: 'mp3', settings: null }));
+		engine.seedTitleAudio(files[0]!.path, mp3AudioRequest());
 		engine.seedGroup([files[0]!, files[1]!], { choiceRequired: true });
 		engine.respond = (intent) => {
 			if (intent.kind !== 'applyDefaultAudio') return undefined;

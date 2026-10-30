@@ -1,5 +1,5 @@
 use super::*;
-use crate::audio::{AudioIntent, AudiobookFormat, SampleRateConfig};
+use crate::audio::{AudioIntent, SampleRateConfig};
 use proptest::prelude::*;
 
 fn file(name: &str) -> AudioFile {
@@ -11,9 +11,10 @@ fn file(name: &str) -> AudioFile {
 
 fn request(intent: AudioIntent) -> TitleAudioRequest {
     TitleAudioRequest {
-        format: AudiobookFormat::M4b,
+        output: crate::audio::OutputAudio::M4b {
+            settings: crate::audio::EncoderSettings::default(),
+        },
         intent,
-        settings: None,
         sample_rate: SampleRateConfig::Auto,
     }
 }

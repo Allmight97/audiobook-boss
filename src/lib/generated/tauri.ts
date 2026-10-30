@@ -190,7 +190,7 @@ export type AudioFile = {
 	error: string | null,
 };
 
-export type AudioHandling = "encode" | "preserve";
+export type AudioHandling = { handling: "encode"; settings: EncoderSettings } | { handling: "preserve" };
 
 export type AudioIntent = "auto" | "preserve" | "encode";
 
@@ -666,6 +666,8 @@ export type OperationTerminalSummary = {
 	failed: number,
 	message: string,
 };
+
+export type OutputAudio = { format: "m4b"; settings: EncoderSettings } | { format: "mp3" } | { format: "m4aOpus"; settings: EncoderSettings } | { format: "mkaOpus"; settings: EncoderSettings };
 
 export type OutputCollisionInfo = {
 	kind: OutputCollisionKind,
@@ -1290,21 +1292,17 @@ export type TitleAudio = {
 
 export type TitleAudioPlan = {
 	format: AudiobookFormat,
-	handling: AudioHandling,
-	settings: EncoderSettings | null,
 	sampleRate: number,
 	channels: number,
 	sourceCodec: string,
 	/**  Why Auto needs encoding even though the output codec matches. */
 	reason: string | null,
-};
+} & AudioHandling;
 
 export type TitleAudioRequest = {
-	format: AudiobookFormat,
 	intent: AudioIntent,
-	settings: EncoderSettings | null,
 	sampleRate: SampleRateConfig,
-};
+} & OutputAudio;
 
 export type TitlePlan = { kind: "pending" } | { kind: "resolved"; plan: TitleAudioPlan } |
 /**

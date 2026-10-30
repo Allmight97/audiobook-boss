@@ -1,23 +1,10 @@
 use super::complete_staged_output;
-use crate::audio::{
-    BitrateMode, ChannelConfig, CleanupGuard, EncoderSettings, EncoderType, SampleRateConfig,
-};
+use crate::audio::{CleanupGuard, SampleRateConfig};
 use crate::processing::{JobRegistry, OutputConfig, ProcessingContext, ProcessingSession};
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 use tempfile::TempDir;
-
-fn encoder_settings() -> EncoderSettings {
-    EncoderSettings {
-        encoder_type: EncoderType::NativeAac,
-        bitrate_kbps: 64,
-        bitrate_mode: BitrateMode::Cbr,
-        channels: ChannelConfig::Auto,
-        native_aac_speed: 0,
-        faac_profile: crate::audio::FaacProfile::Auto,
-    }
-}
 
 fn has_hidden_processing_artifact(root: &Path) -> bool {
     std::fs::read_dir(root).expect("read dir").any(|entry| {
@@ -49,7 +36,6 @@ async fn complete_staged_output_commits_from_local_workspace_without_destination
 
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        encoder_settings(),
         SampleRateConfig::Auto,
         OutputConfig::new(&final_output),
         workspace_root,
@@ -87,7 +73,6 @@ async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
 
     let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        encoder_settings(),
         SampleRateConfig::Auto,
         OutputConfig::new(&final_output),
         workspace_root,
@@ -148,7 +133,6 @@ async fn complete_staged_output_cleans_without_committing_when_cancelled_before_
 
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        encoder_settings(),
         SampleRateConfig::Auto,
         OutputConfig::new(&final_output),
         workspace_root,

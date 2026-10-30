@@ -1,5 +1,5 @@
 use crate::audio;
-use crate::audio::{AudioExecutionRequest, EncoderSettings, FileListInfo};
+use crate::audio::{AudioExecutionRequest, FileListInfo};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::host::Host;
 use crate::metadata::CoverArtPassthroughPolicy;
@@ -27,7 +27,6 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) host: Host,
     pub(crate) registry: crate::ManagedJobRegistry,
     pub(crate) workspace_root: PathBuf,
-    pub(crate) encoder_settings: Option<EncoderSettings>,
     pub(crate) audio_handling: AudioHandling,
     pub(crate) audio_request: audio::TitleAudioRequest,
     pub(crate) audio_reason: Option<String>,
@@ -65,7 +64,7 @@ pub(crate) async fn run_processing_job(
             input_index: request.input_index,
             operation_kind: request.operation_kind,
         },
-        request.audio_handling,
+        request.audio_handling.preserves(),
     )
     .await?;
     log_audio_decision(&request, job_id);
@@ -74,7 +73,6 @@ pub(crate) async fn run_processing_job(
     let (context, preview_seconds_resolved) = build_processing_context(ProcessingContextRequest {
         cancellation_checker,
         job_id,
-        encoder_settings: request.encoder_settings.clone(),
         sample_rate: request.sample_rate,
         input_index: Some(request.input_index),
         operation_kind: request.operation_kind,
@@ -95,8 +93,8 @@ pub(crate) async fn run_processing_job(
             request.file_info,
             request.metadata,
             request.cover_art_passthrough,
+            request.audio_handling,
         )
-        .with_handling(request.audio_handling)
         .with_metadata_intent(request.metadata_intent),
     )
     .await;
@@ -177,16 +175,16 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
         .as_deref()
         .unwrap_or(match request.audio_handling {
             AudioHandling::Preserve => "Source audio can be copied into the selected output.",
-            AudioHandling::Encode if request.preview_seconds.is_some() => {
+            AudioHandling::Encode { .. } if request.preview_seconds.is_some() => {
                 "Preview requires encoding."
             }
-            AudioHandling::Encode => "Encoding settings were explicitly selected.",
+            AudioHandling::Encode { .. } => "Encoding settings were explicitly selected.",
         });
     log::info!(
-        "audio_decision operation_id={} job_id={} input_index={:?} request={:?} action={:?} resolved_settings={:?} resolved_rate={:?} reason={:?} output_path={:?}",
+        "audio_decision operation_id={} job_id={} input_index={:?} request={:?} action={:?} resolved_rate={:?} reason={:?} output_path={:?}",
         request.operation_id.as_deref().unwrap_or("foreground"), job_id,
         request.input_index, request.audio_request, request.audio_handling,
-        request.encoder_settings, request.sample_rate, reason, request.output_plan.resolved_path
+        request.sample_rate, reason, request.output_plan.resolved_path
     );
     log::info!(
         "metadata_intent job_id={} input_index={} intent={}",
@@ -313,7 +311,7 @@ pub(crate) async fn register_job_and_validate_output(
     output_path: &Path,
     title_cancel: Option<Arc<AtomicBool>>,
     log_context: ProcessingJobLogContext,
-    audio_handling: AudioHandling,
+    preserves_audio: bool,
 ) -> Result<RegisteredProcessingJob> {
     let (job_id, permit) = registry
         .register_job_with_external_cancel(title_cancel.clone())
@@ -327,9 +325,12 @@ pub(crate) async fn register_job_and_validate_output(
     });
 
     let checked_path = output_path.to_path_buf();
-    let validation = tokio::task::spawn_blocking(move || match audio_handling {
-        AudioHandling::Encode => crate::audio::validate_output_path(&checked_path),
-        AudioHandling::Preserve => crate::audio::validate_preserved_output_path(&checked_path),
+    let validation = tokio::task::spawn_blocking(move || {
+        if preserves_audio {
+            crate::audio::validate_preserved_output_path(&checked_path)
+        } else {
+            crate::audio::validate_output_path(&checked_path)
+        }
     })
     .await
     .map_err(|error| AppError::General(format!("Output check stopped: {error}")))
@@ -352,7 +353,6 @@ pub(crate) async fn register_job_and_validate_output(
 struct ProcessingContextRequest {
     cancellation_checker: crate::processing::job_registry::CancellationChecker,
     job_id: crate::processing::job_registry::JobId,
-    encoder_settings: Option<EncoderSettings>,
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
     operation_kind: OperationKind,
@@ -369,7 +369,6 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
         ProcessingSession::with_cancellation(request.job_id.0, request.cancellation_checker);
     let mut context = ProcessingContext::new_with_workspace_root(
         std::sync::Arc::new(session),
-        request.encoder_settings,
         request.sample_rate,
         OutputConfig::from_plan(request.output_plan),
         request.workspace_root,
@@ -424,15 +423,10 @@ mod registration_tests {
         let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(1));
         for extension in ["m4b", "m4a", "mp3"] {
             let output = temp_dir.path().join(format!("output.{extension}"));
-            let registered = register_job_and_validate_output(
-                &registry,
-                &output,
-                None,
-                log_context(),
-                AudioHandling::Preserve,
-            )
-            .await
-            .expect("preserve extension should be accepted");
+            let registered =
+                register_job_and_validate_output(&registry, &output, None, log_context(), true)
+                    .await
+                    .expect("preserve extension should be accepted");
             registry.complete_job(registered.job_id).await;
         }
         assert_eq!(

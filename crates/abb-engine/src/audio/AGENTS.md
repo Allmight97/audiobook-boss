@@ -11,9 +11,8 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   `settings_encoder`, `path_validation`, `cleanup`) stay private.
 - `validate_resolved_audio_inputs` stays processor-private. Preflight and
   execution validate through the resolved audio plan.
-- `AudioExecutionRequest` takes encoder settings from the processing context,
-  so it cannot carry conflicting copies. Inspection owns source preservation
-  capability; the title planner owns the recommendation.
+- Inspection owns source preservation capability; the title planner owns the
+  recommendation.
 - `EncoderSettingsCapabilities.encoder_configurations` is the single
   per-encoder capability array. Quality presets are backend-owned capability
   values. The FAAC encoder owns upstream profile resolution and opened

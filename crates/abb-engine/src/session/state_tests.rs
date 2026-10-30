@@ -5,7 +5,7 @@ use std::time::Instant;
 use proptest::prelude::*;
 
 use super::*;
-use crate::audio::{AudioFile, AudioIntent, AudiobookFormat, SampleRateConfig, TitleAudioRequest};
+use crate::audio::{AudioFile, AudioIntent, TitleAudioRequest};
 use crate::session::metadata_form::{FieldAction, FieldSnapshot};
 use crate::session::staged::tests::exported;
 use crate::session::submission::SubmissionStatus;
@@ -33,12 +33,7 @@ fn audio_file(name: &str, valid: bool) -> AudioFile {
 }
 
 fn audio_request() -> TitleAudioRequest {
-    TitleAudioRequest {
-        format: AudiobookFormat::M4b,
-        intent: AudioIntent::Auto,
-        settings: None,
-        sample_rate: SampleRateConfig::Auto,
-    }
+    TitleAudioRequest::default_m4b(AudioIntent::Auto)
 }
 
 fn paths_of(items: &[SaveItem]) -> Vec<PathBuf> {

@@ -5,7 +5,7 @@ use serde::Serialize;
 use super::audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, EditResult};
 use super::plans::{SizeEstimate, TitlePlan};
 use crate::app_settings::EncoderDefaults;
-use crate::audio::{EncoderSettingsCapabilities, TitleAudioRequest};
+use crate::audio::{AudiobookFormat, EncoderSettingsCapabilities, TitleAudioRequest};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -147,16 +147,14 @@ fn differs(field: AudioField, first: &TitleAudio, other: &TitleAudio) -> bool {
         AudioField::Quality => a.faac_quality != b.faac_quality,
         AudioField::NativeSpeed => a.native_speed != b.native_speed,
         AudioField::Bitrate => {
-            first
-                .request
-                .settings
-                .as_ref()
-                .map(|settings| settings.bitrate_kbps)
-                != other
+            let kbps = |title: &TitleAudio| {
+                title
                     .request
-                    .settings
-                    .as_ref()
+                    .output
+                    .encoder_settings()
                     .map(|settings| settings.bitrate_kbps)
+            };
+            kbps(first) != kbps(other)
         }
         AudioField::SampleRate => a.sample_rate != b.sample_rate,
         AudioField::Channels => a.channels != b.channels,
@@ -191,6 +189,10 @@ impl AudioDefaults {
 
     pub(crate) fn request(&self) -> TitleAudioRequest {
         self.choice.request(self.caps.as_ref())
+    }
+
+    pub(crate) fn format(&self) -> AudiobookFormat {
+        self.choice.format
     }
 
     pub(crate) fn edit(&mut self, edit: AudioEdit) -> Option<EncoderDefaults> {

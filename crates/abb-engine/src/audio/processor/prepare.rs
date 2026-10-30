@@ -123,10 +123,7 @@ mod tests {
 
     #[tokio::test]
     async fn cancellation_after_workspace_creation_keeps_cleanup_ownership() {
-        use crate::audio::{
-            BitrateMode, ChannelConfig, CleanupGuard, EncoderSettings, EncoderType,
-            SampleRateConfig,
-        };
+        use crate::audio::{CleanupGuard, SampleRateConfig};
         use crate::processing::{JobRegistry, OutputConfig, ProcessingSession};
         let registry = JobRegistry::new(1);
         let (job, _permit) = registry.register_job().await.expect("register test job");
@@ -137,14 +134,6 @@ mod tests {
         let workspace = root.path().join("sessions");
         let context = ProcessingContext::new_headless_with_workspace_root(
             std::sync::Arc::new(ProcessingSession::with_cancellation(job.0, checker)),
-            EncoderSettings {
-                encoder_type: EncoderType::NativeAac,
-                bitrate_kbps: 64,
-                bitrate_mode: BitrateMode::Cbr,
-                channels: ChannelConfig::Mono,
-                native_aac_speed: 0,
-                faac_profile: crate::audio::FaacProfile::Auto,
-            },
             SampleRateConfig::Auto,
             OutputConfig::new(root.path().join("output.m4b")),
             workspace.clone(),

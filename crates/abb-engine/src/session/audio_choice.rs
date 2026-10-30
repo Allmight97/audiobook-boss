@@ -4,7 +4,7 @@ use crate::app_settings::EncoderDefaults;
 use crate::audio::{
     AudioIntent, AudiobookFormat, BitrateMode, BitrateModeKind, ChannelConfig,
     EncoderConfigurationCapability, EncoderSettings, EncoderSettingsCapabilities, EncoderType,
-    FaacProfile, SampleRateConfig, TitleAudioRequest,
+    FaacProfile, OutputAudio, SampleRateConfig, TitleAudioRequest,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -134,10 +134,10 @@ impl AudioChoice {
 
     pub(crate) fn for_title(&self, request: &TitleAudioRequest) -> Self {
         let mut choice = self.clone();
-        if let Some(settings) = &request.settings {
+        if let Some(settings) = request.output.encoder_settings() {
             choice.take_settings(settings);
         }
-        choice.format = request.format;
+        choice.format = request.format();
         choice.intent = request.intent;
         choice.sample_rate = request.sample_rate;
         choice
@@ -415,9 +415,8 @@ impl AudioChoice {
 
     pub(crate) fn request(&self, caps: Option<&EncoderSettingsCapabilities>) -> TitleAudioRequest {
         TitleAudioRequest {
-            format: self.format,
+            output: OutputAudio::new(self.format, self.settings(caps)),
             intent: self.intent,
-            settings: (self.format != AudiobookFormat::Mp3).then(|| self.settings(caps)),
             sample_rate: self.request_sample_rate(caps),
         }
     }

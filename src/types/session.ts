@@ -82,7 +82,6 @@ export type SessionTitles = Omit<GeneratedTitlesSnapshot, 'files' | 'titleSource
 };
 export type SessionSelection = GeneratedSelectionSnapshot;
 export type SessionMetadata = GeneratedMetadataSnapshot;
-/** The audio part keeps the generated shape: an MP3 request's null settings are meaningful. */
 export type SessionAudio = GeneratedAudioSnapshot;
 export type SubmissionStatus =
 	| Exclude<GeneratedSubmissionStatus, { kind: 'previewFinished' }>

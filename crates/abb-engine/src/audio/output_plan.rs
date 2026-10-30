@@ -36,19 +36,70 @@ pub enum AudioIntent {
     Encode,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(tag = "format", rename_all = "camelCase")]
+pub enum OutputAudio {
+    M4b { settings: EncoderSettings },
+    Mp3,
+    M4aOpus { settings: EncoderSettings },
+    MkaOpus { settings: EncoderSettings },
+}
+impl OutputAudio {
+    pub fn new(format: AudiobookFormat, settings: EncoderSettings) -> Self {
+        match format {
+            AudiobookFormat::M4b => Self::M4b { settings },
+            AudiobookFormat::Mp3 => Self::Mp3,
+            AudiobookFormat::M4aOpus => Self::M4aOpus { settings },
+            AudiobookFormat::MkaOpus => Self::MkaOpus { settings },
+        }
+    }
+    pub fn format(&self) -> AudiobookFormat {
+        match self {
+            Self::M4b { .. } => AudiobookFormat::M4b,
+            Self::Mp3 => AudiobookFormat::Mp3,
+            Self::M4aOpus { .. } => AudiobookFormat::M4aOpus,
+            Self::MkaOpus { .. } => AudiobookFormat::MkaOpus,
+        }
+    }
+    pub fn encoder_settings(&self) -> Option<&EncoderSettings> {
+        match self {
+            Self::M4b { settings } | Self::M4aOpus { settings } | Self::MkaOpus { settings } => {
+                Some(settings)
+            }
+            Self::Mp3 => None,
+        }
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TitleAudioRequest {
-    pub format: AudiobookFormat,
+    #[serde(flatten)]
+    pub output: OutputAudio,
     pub intent: AudioIntent,
-    pub settings: Option<EncoderSettings>,
     pub sample_rate: SampleRateConfig,
+}
+impl TitleAudioRequest {
+    pub fn format(&self) -> AudiobookFormat {
+        self.output.format()
+    }
+}
+#[cfg(test)]
+impl TitleAudioRequest {
+    pub(crate) fn default_m4b(intent: AudioIntent) -> Self {
+        Self {
+            output: OutputAudio::M4b {
+                settings: EncoderSettings::default(),
+            },
+            intent,
+            sample_rate: SampleRateConfig::Auto,
+        }
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TitleAudioPlan {
     pub format: AudiobookFormat,
+    #[serde(flatten)]
     pub handling: AudioHandling,
-    pub settings: Option<EncoderSettings>,
     pub sample_rate: u32,
     pub channels: u8,
     pub source_codec: String,
@@ -135,9 +186,8 @@ pub fn resolve_title_audio(
     } else {
         "mixed audio".into()
     };
-    if preview
-        && (request.format == AudiobookFormat::Mp3 || request.intent == AudioIntent::Preserve)
-    {
+    let format = request.format();
+    if preview && (format == AudiobookFormat::Mp3 || request.intent == AudioIntent::Preserve) {
         return Err(AppError::InvalidInput(
             "Encoding previews are available with M4B or Opus output.".into(),
         )
@@ -155,9 +205,8 @@ pub fn resolve_title_audio(
         reason = copy_rejection(request, info)?;
         if reason.is_none() {
             return Ok(TitleAudioPlan {
-                format: request.format,
+                format,
                 handling: AudioHandling::Preserve,
-                settings: None,
                 sample_rate: source_rate,
                 channels: first.channels.unwrap_or(0) as u8,
                 source_codec,
@@ -165,25 +214,28 @@ pub fn resolve_title_audio(
             });
         }
     }
-    if request.format == AudiobookFormat::Mp3 || request.intent == AudioIntent::Preserve {
-        return Err(AppError::InvalidInput(
+    match request.output.encoder_settings() {
+        Some(settings) if request.intent != AudioIntent::Preserve => {
+            encoding_plan(request, settings, info, source_rate, source_codec, reason)
+        }
+        _ => Err(AppError::InvalidInput(
             reason.unwrap_or_else(|| "Choose M4B or Opus to encode this title.".into()),
         )
-        .into());
+        .into()),
     }
-    encoding_plan(request, info, source_rate, source_codec, reason)
 }
 
 fn copy_rejection(request: &TitleAudioRequest, info: &FileListInfo) -> Result<Option<String>> {
-    if !sources_match_codec(request.format, info)? {
-        return Ok(Some(match request.format {
+    let format = request.format();
+    if !sources_match_codec(format, info)? {
+        return Ok(Some(match format {
                 AudiobookFormat::Mp3 => "MP3 output needs MP3 source audio. Choose M4B or Opus to encode this title.".into(),
-                _ if request.intent == AudioIntent::Preserve => format!("This audio cannot be kept unchanged in {}. Change the output format or choose encoding settings.", request.format.extension().to_uppercase()),
-                _ => format!("Encoding is required for the selected {} output.", request.format.extension().to_uppercase()),
+                _ if request.intent == AudioIntent::Preserve => format!("This audio cannot be kept unchanged in {}. Change the output format or choose encoding settings.", format.extension().to_uppercase()),
+                _ => format!("Encoding is required for the selected {} output.", format.extension().to_uppercase()),
             }));
     }
     if request.intent == AudioIntent::Auto
-        && request.format != AudiobookFormat::Mp3
+        && format != AudiobookFormat::Mp3
         && !info.files.iter().all(|file| {
             file.bitrate.is_some_and(|rate| {
                 (1..=super::constants::COMPACT_AUDIO_MAX_BITRATE).contains(&rate)
@@ -206,20 +258,21 @@ fn copy_rejection(request: &TitleAudioRequest, info: &FileListInfo) -> Result<Op
 
 fn encoding_plan(
     request: &TitleAudioRequest,
+    requested: &EncoderSettings,
     info: &FileListInfo,
     source_rate: u32,
     source_codec: String,
     reason: Option<String>,
 ) -> std::result::Result<TitleAudioPlan, TitleAudioError> {
     use super::processor::resolution::{resolve_linked_encoder, resolve_output_channels};
-    let mut settings = request
-        .settings
-        .clone()
-        .ok_or_else(|| AppError::InvalidInput("Choose encoding settings for this title.".into()))?;
-    if request.intent == AudioIntent::Auto && request.format == AudiobookFormat::M4b {
-        settings = EncoderSettings::default();
-    }
-    if request.format.is_opus() != (settings.encoder_type == EncoderType::Opus) {
+    let format = request.format();
+    let default_m4b = request.intent == AudioIntent::Auto && format == AudiobookFormat::M4b;
+    let mut settings = if default_m4b {
+        EncoderSettings::default()
+    } else {
+        requested.clone()
+    };
+    if format.is_opus() != (settings.encoder_type == EncoderType::Opus) {
         return Err(AppError::InvalidInput(
             "The encoder must match the selected output format.".into(),
         )
@@ -229,12 +282,11 @@ fn encoding_plan(
     settings.resolve_encoder(encoder_type);
     settings.channels = resolve_output_channels(settings.channels, &info.files)
         .map_err(TitleAudioError::on(AudioPlanField::Channels))?;
-    let requested_rate =
-        if request.intent == AudioIntent::Auto && request.format == AudiobookFormat::M4b {
-            &SampleRateConfig::Auto
-        } else {
-            &request.sample_rate
-        };
+    let requested_rate = if default_m4b {
+        &SampleRateConfig::Auto
+    } else {
+        &request.sample_rate
+    };
     let sample_rate = match requested_rate {
         SampleRateConfig::Explicit(rate) => *rate,
         SampleRateConfig::Auto => super::settings::automatic_sample_rate(
@@ -250,13 +302,12 @@ fn encoding_plan(
         &SampleRateConfig::Explicit(sample_rate),
     )?;
     Ok(TitleAudioPlan {
-        format: request.format,
-        handling: AudioHandling::Encode,
+        format,
         channels: settings
             .channels
             .forced_channels()
             .expect("resolved channels"),
-        settings: Some(settings),
+        handling: AudioHandling::Encode { settings },
         sample_rate,
         source_codec,
         reason,

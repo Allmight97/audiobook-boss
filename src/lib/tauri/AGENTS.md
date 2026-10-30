@@ -31,8 +31,8 @@
 - `commands.ts` and `normalizers.ts`.
 - `normalizers.ts` turns `null` into an absent field for the snapshot families
   it names (for example title files, remote account and acquisition, settings)
-  and passes every other field through unchanged. Meaningful nulls, such as an
-  audio request's MP3 pass-through settings, survive.
+  and passes every other field through unchanged, so a meaningful null (a
+  title's size estimate before it can be estimated) survives.
 - Name commands and types for the product; skip `_v1`/`_v2` and `_cmd`
   suffixes. A breaking change gets a new product-meaningful name.
 - The explicit blank field action (`setFieldAction` with `blank`) carries Blank.

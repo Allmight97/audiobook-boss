@@ -39,7 +39,6 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
     let checker = CancellationChecker::new(Some(Arc::clone(&cancelled)));
     let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        None,
         SampleRateConfig::Auto,
         OutputConfig::new(&destination),
         workspace.clone(),
@@ -58,15 +57,13 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
     let file_info = crate::audio::get_file_list_info(&sources).expect("probe MP3 fixtures");
     assert_eq!(file_info.invalid_count, 0, "fixtures probe as valid MP3");
 
-    let error = crate::audio::execute_audio_engine(
-        AudioExecutionRequest::new(
-            context,
-            file_info,
-            None,
-            CoverArtPassthroughPolicy::Preserve,
-        )
-        .with_handling(AudioHandling::Preserve),
-    )
+    let error = crate::audio::execute_audio_engine(AudioExecutionRequest::new(
+        context,
+        file_info,
+        None,
+        CoverArtPassthroughPolicy::Preserve,
+        AudioHandling::Preserve,
+    ))
     .await
     .expect_err("cancelled join must not publish");
 

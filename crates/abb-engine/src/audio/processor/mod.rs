@@ -64,20 +64,16 @@ impl AudioExecutionRequest {
         file_info: FileListInfo,
         metadata: Option<AudiobookMetadata>,
         cover_art_passthrough: CoverArtPassthroughPolicy,
+        handling: AudioHandling,
     ) -> Self {
         Self {
             context,
             file_info,
             metadata,
             cover_art_passthrough,
-            handling: AudioHandling::Encode,
+            handling,
             metadata_intent: None,
         }
-    }
-
-    pub fn with_handling(mut self, handling: AudioHandling) -> Self {
-        self.handling = handling;
-        self
     }
 
     pub fn with_metadata_intent(
@@ -184,39 +180,43 @@ pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<P
         .collect()
 }
 
-#[expect(clippy::disallowed_methods, reason = "joined by execute_audio_engine")]
-pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<AudioRunOutcome> {
-    if request.handling == AudioHandling::Preserve {
-        return tokio::task::spawn_blocking(move || {
-            if request.file_info.files.len() > 1 {
-                return preserve_merge::execute(
-                    request.context,
-                    request.file_info,
-                    request.metadata,
-                    request.cover_art_passthrough,
-                );
-            }
-            preserve::execute_preserved_audio(
+#[expect(clippy::disallowed_methods, reason = "joined by execute_preserved")]
+async fn execute_preserved(request: AudioExecutionRequest) -> Result<AudioRunOutcome> {
+    tokio::task::spawn_blocking(move || {
+        if request.file_info.files.len() > 1 {
+            return preserve_merge::execute(
                 request.context,
                 request.file_info,
-                request.metadata_intent,
-            )
-            .map(|message| AudioRunOutcome {
-                message,
-                warnings: Vec::new(),
-            })
+                request.metadata,
+                request.cover_art_passthrough,
+            );
+        }
+        preserve::execute_preserved_audio(
+            request.context,
+            request.file_info,
+            request.metadata_intent,
+        )
+        .map(|message| AudioRunOutcome {
+            message,
+            warnings: Vec::new(),
         })
-        .await
-        .map_err(|error| {
-            crate::errors::AppError::General(format!("audio preservation task failed: {error}"))
-        })?;
-    }
-    let mut settings = request.context.required_encoder_settings()?.clone();
+    })
+    .await
+    .map_err(|error| {
+        crate::errors::AppError::General(format!("audio preservation task failed: {error}"))
+    })?
+}
+
+#[expect(clippy::disallowed_methods, reason = "joined by execute_audio_engine")]
+pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<AudioRunOutcome> {
+    let mut settings = match request.handling {
+        AudioHandling::Encode { settings } => settings,
+        AudioHandling::Preserve => return execute_preserved(request).await,
+    };
     let requested_channels = settings.channels;
     let resolved_channels =
         resolution::resolve_output_channels(requested_channels, &request.file_info.files)?;
     settings.channels = resolved_channels;
-    request.context.encoder_settings = Some(settings);
     log::info!(
         "audio output channels: requested={:?} resolved={:?}",
         requested_channels,
@@ -242,8 +242,7 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
         }
     }
     let FileListInfo { files, .. } = request.file_info;
-    let mut context = request.context;
-    let mut settings = context.required_encoder_settings()?.clone();
+    let context = request.context;
     let encoder_type = resolution::resolve_linked_encoder(&settings)?;
     log::info!(
         "audio engine encoder: operation_id={} job_id={} input_index={} requested_encoder={:?} resolved_encoder={encoder_type:?}",
@@ -255,14 +254,13 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
         settings.encoder_type,
     );
     settings.resolve_encoder(encoder_type);
-    context.encoder_settings = Some(settings);
     let metadata = request.metadata;
     let cover_art_passthrough = request.cover_art_passthrough;
     // The pipeline (prepare -> encode -> finalize) is synchronous, CPU-bound
     // work. Run it on a blocking thread so it never occupies an async runtime
     // worker; progress emission and the atomic cancel flag work off the runtime.
     tokio::task::spawn_blocking(move || {
-        process_audiobook_with_context(context, files, metadata, cover_art_passthrough)
+        process_audiobook_with_context(context, settings, files, metadata, cover_art_passthrough)
     })
     .await
     .map_err(|join_error| {
@@ -287,6 +285,7 @@ impl ProcessingWorkflow {
 
 fn process_audiobook_with_context(
     context: ProcessingContext,
+    settings: EncoderSettings,
     files: Vec<AudioFile>,
     metadata: Option<AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
@@ -304,6 +303,7 @@ fn process_audiobook_with_context(
 
     let merged_output = execute::execute_processing(
         &context,
+        &settings,
         &workflow,
         &files,
         effective_metadata.as_ref(),

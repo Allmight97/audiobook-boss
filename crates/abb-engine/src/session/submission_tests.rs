@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::audio::{AudioIntent, AudiobookFormat, SampleRateConfig, TitleAudioRequest};
+use crate::audio::{AudioIntent, TitleAudioRequest};
 use crate::metadata::{ChapterPlan, CueSource, CueStatus, PatchOp};
 use crate::output_artifact::{NamingPreset, OutputNamingConfig};
 
@@ -13,12 +13,7 @@ fn file(name: &str, valid: bool) -> AudioFile {
 }
 
 fn request() -> TitleAudioRequest {
-    TitleAudioRequest {
-        format: AudiobookFormat::M4b,
-        intent: AudioIntent::Auto,
-        settings: None,
-        sample_rate: SampleRateConfig::Auto,
-    }
+    TitleAudioRequest::default_m4b(AudioIntent::Auto)
 }
 
 fn title<'a>(anchor: &'a AudioFile, sources: &'a [AudioFile]) -> SubmittedTitle<'a> {

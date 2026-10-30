@@ -121,7 +121,7 @@ fn build_plan_signature(
         let output_action = format!("{:?}", output.action);
         let collision_summary = format!("{collision_path}::{collision_detail}");
         lines.push(format!(
-            "{}|{}|{}|{}|{}|{}|{}|{}|{:?}",
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}",
             job.input_index,
             output.requested_path.display(),
             output.resolved_path.display(),
@@ -134,7 +134,11 @@ fn build_plan_signature(
             output_action,
             collision_kind,
             collision_summary,
-            job.audio_plan.handling,
+            if job.audio_plan.handling.preserves() {
+                "Preserve"
+            } else {
+                "Encode"
+            },
         ));
     }
 

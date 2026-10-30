@@ -6,11 +6,17 @@ pub use abb_processing_core::ProcessResultStatus;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(tag = "handling", rename_all = "camelCase")]
 pub enum AudioHandling {
-    Encode,
+    Encode { settings: audio::EncoderSettings },
     Preserve,
+}
+
+impl AudioHandling {
+    pub fn preserves(&self) -> bool {
+        matches!(self, Self::Preserve)
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]

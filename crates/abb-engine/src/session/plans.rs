@@ -203,7 +203,7 @@ pub(crate) fn estimate_size(
     let preserve = match request.intent {
         AudioIntent::Preserve => true,
         AudioIntent::Encode => false,
-        AudioIntent::Auto => resolved?.handling == AudioHandling::Preserve,
+        AudioIntent::Auto => resolved?.handling.preserves(),
     };
     if preserve {
         let bytes = sum_known(sources.iter().map(|source| source.size))?;
@@ -212,12 +212,12 @@ pub(crate) fn estimate_size(
         });
     }
     let duration = sum_known(sources.iter().map(|source| source.duration))?;
-    let kbps = match resolved.and_then(|plan| plan.settings.as_ref()) {
-        Some(settings) => match settings.bitrate_mode {
+    let kbps = match resolved.map(|plan| &plan.handling) {
+        Some(AudioHandling::Encode { settings }) => match settings.bitrate_mode {
             BitrateMode::Vbr(_) => None,
             _ => Some(settings.bitrate_kbps),
         },
-        None => request_kbps,
+        _ => request_kbps,
     };
     let Some(kbps) = kbps else {
         return Some(SizeEstimate::VariesWithAudio);
