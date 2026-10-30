@@ -43,7 +43,7 @@ function ownersWithIndex(kind: 'app' | 'ui', modules: Record<string, unknown>): 
 }
 
 function missingStripMessage(owner: string): string {
-	return `src/${owner} has an index.ts but no STRIPS entry. Fix: add its hand-written export list to STRIPS in src/__tests__/public-api-strips.contract.test.ts (and the owner's AGENTS.md).`;
+	return `src/${owner} has an index.ts but no STRIPS entry. Fix: add its hand-written export list to STRIPS in src/__tests__/public-api-strips.contract.test.ts.`;
 }
 
 const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [

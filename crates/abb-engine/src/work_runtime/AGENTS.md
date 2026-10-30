@@ -2,10 +2,7 @@
 
 ## Public API Strip
 
-- Engine-internal `WorkRuntime`, built with `new(tasks)` on the engine's
-  `EngineTasks`. Hosts see operation and child snapshots, progress, summary,
-  lane, and id vocabulary (`OperationId`); submit requests and accepted title
-  handles stay crate-internal.
+- `WorkRuntime` is built with `new(tasks)` on the engine's `EngineTasks`.
 - `submit_processing_operation` spawns a background export and returns
   `WorkSubmissionAccepted`. Callers name the operation after its books; the
   request `title` is required and non-empty. `on_finished` receives the
@@ -47,11 +44,9 @@
 - Each output title is one child. Operation and child `source_input_ids` retain
   all source identities, so a grouped title's downloads settle together at its
   terminal outcome, including in mixed-success batches.
-- A child's `supplemental_warning` carries Processing's partial-publication
-  fact: the audiobook was published but a requested companion PDF was not. The
-  child stays Completed; the session keeps that title's download. A child's
-  `warnings` copy the title's display-only notes from `ProcessResultEntry`;
-  the Work Center shows them on the finished title.
+- A child with `supplemental_warning` stays Completed; the session keeps that
+  title's download. A child's `warnings` copy the title's display-only notes
+  from `ProcessResultEntry`; the Work Center shows them on the finished title.
 - Own child `startedAtMs` / `finishedAtMs` in retained snapshots: first active
   progress through the output's Completed event. Keep each child's finish when
   the batch settles; missing timestamps mean unknown, so derive them from
@@ -72,13 +67,8 @@
   `TERMINAL_OPERATIONS_CAP` (20) terminal operations, pruned oldest-first by
   terminalization order (a just-finished long-running operation must survive
   its own prune). Running and accepted operations are never pruned.
-- Reach processing through `processing::run`; audio processor internals,
-  output-artifact internals, and remote-source provider/materializer modules
-  stay unimported.
-- Derive operation terminal status from `crate::processing::classify_run_terminal`
-  (`abb_processing_core`): map the canonical `RunTerminalClass` to
-  `WorkOperationStatus`. `WorkProgressStage` remains a work_runtime-owned
-  display vocabulary.
+- Reach processing through `processing::run`; do not import
+  `remote_source::materializer`.
+- `WorkProgressStage` is a work_runtime-owned display vocabulary.
 
-`mod.rs` is routing only. Add new behavior in a new module before expanding a
-large one.
+`mod.rs` is routing only.

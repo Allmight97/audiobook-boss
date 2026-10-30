@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Fast checks on staged files. A guidance-only change goes through a PR
-# whose gate passes, because the CI gate ruleset requires gate on main
-# (root AGENTS.md, Pull Requests And CI).
+# Fast checks on staged files.
 # Formatters and lints only; no builds, no tests. setup.sh installs it
 # with `git config core.hooksPath .githooks`.
 # Skip once with `git commit --no-verify`; CI still runs the full lanes.

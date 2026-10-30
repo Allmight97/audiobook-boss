@@ -2,9 +2,9 @@
 
 ## Public API Strip
 
-- This strip is engine-internal; the `pub use` list in `mod.rs` is the surface.
-  Hosts import output vocabulary and use session intents. Internal callers
-  import `crate::output_artifact`, not child modules.
+- Hosts import the `pub use` types in `mod.rs` and act through session
+  intents. The `pub(crate) use` items are for engine owners, which import
+  `crate::output_artifact`, not child modules.
 - Pure naming, collision, and review data facts live in
   `abb-output-artifact-core`; this directory owns runtime file I/O and final
   commit behavior.
@@ -57,6 +57,3 @@
 - Audio resolves the output extension before collision detection and review.
   Naming and collision policy consume that requested path; codec choice stays
   with Audio.
-- Final artifact writes and replacement policy live here; processor code asks
-  this boundary for artifact truth.
-- Replace final artifacts with explicit cross-platform semantics.

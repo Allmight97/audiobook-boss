@@ -1,7 +1,7 @@
 # Scripts Boundary
 
 This directory owns repo-local tooling: contract checks, build and release
-helpers, and diagnostics. Cargo commands run from the repository root.
+helpers, and diagnostics.
 
 ## What to run for a change
 
@@ -13,8 +13,7 @@ validity; `scripts/lane-paths.yml` owns the patterns and explicit exemptions.
 It rejects unmapped tracked or changed paths before CI schedules any job.
 `bun scripts/verification.ts plan --explain <path>` prints the lane and pattern
 that select a path, or `unmapped`.
-`verify.sh` owns the lane list and commands. Rust builds sharing `target/`
-run serially because Cargo locks their compiler output.
+`verify.sh` owns the lane list and commands.
 
 Each run keeps logs, input fingerprints, tool identities, and per-lane results
 under `.logs/verification/`. A passing receipt is reusable only for the same
@@ -32,7 +31,6 @@ Other harnesses use the same verifier and evidence files.
 - A core crate (`core`).
 - Engine rules, session, settings, metadata intent: `core` for complexity,
   then `engine`. The doctests guard which engine internals hosts can reach.
-  Bundled FAAC tests run in the engine lane.
 - Audio, metadata writing, output artifacts, processing: `engine` and `media`.
   Fixtures are synthesized at test time. `media` also runs the verify-abb
   feature scripts through `scripts/abb-dev.sh`.
@@ -50,7 +48,8 @@ Other harnesses use the same verifier and evidence files.
   any allow marker. `scripts/check-file-size.mjs` ratchets source file
   size. `bun scripts/check-file-size.mjs --help` prints how a file that fails it is split.
 - JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
-  on dependency or policy changes and daily advisory refreshes. Accepted
+  on dependency or policy changes and daily advisory refreshes; `--changed`
+  selects it for those paths. Accepted
   advisories live in
   `.cargo/audit.toml`; license, source, and single-version rules in
   `deny.toml`.
@@ -58,15 +57,8 @@ Other harnesses use the same verifier and evidence files.
 For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.
 
-`bash scripts/setup.sh` installs `.githooks/pre-commit` (repo-local
-`core.hooksPath`). It checks an isolated snapshot of the index: whitespace,
-rustfmt, Biome format, the guidance and known-mistakes lints, shellcheck,
-the file-size ratchet, and, when a workflow file changes, the workflow
-policy check.
-Unstaged edits cannot change the verdict, and the hook never changes the index.
-A guidance-only change goes through a PR whose `gate` passes,
-because the CI gate ruleset requires `gate` on `main` (root `AGENTS.md`,
-Pull Requests And CI). This hook is the fast check on the commit.
+`bash scripts/setup.sh` installs `.githooks/pre-commit`, a fast check of the
+staged index; it never changes the index.
 
 Traps:
 
@@ -103,10 +95,8 @@ Traps:
 
 - A new script enforces a live repo invariant or simplifies a build or release
   workflow, and has a package script or a usage header.
-- TypeScript 7 has no compiler API, so `src/` and `scripts/` do not import
-  `typescript` (Biome enforces it). The runtime-boundary scanner stays a text
-  scan. Replace it with a parser only when TypeScript 7's programmatic API
-  exists and an owner needs one.
+- The runtime-boundary scanner stays a text scan until TypeScript 7 ships a
+  programmatic API (Biome bans importing `typescript`).
 - Biome formats code and JSON only; its Markdown and YAML formatters are off
   because they would rewrite `vendor/` sources and hand-wrapped guidance.
 - Lint fails on warnings, so a Biome rule is an error or off. Biome rejects
@@ -116,11 +106,7 @@ Traps:
   for CI and agent setup. Dependabot updates the `bun` devDependency under the
   10-day cooldown. Setup installs that version or exits. Update `bun.lock` in
   place at `lockfileVersion` 1, because Dependabot's Bun updater rejects newer
-  versions. Node is pinned in `.node-version` (an exact version; only dev tools
-  such as Vite and Vitest run on it, the app does not ship it). Setup and
-  `--check` accept any Node at or above that major on PATH; setup installs
-  the pinned build into `~/.local/bin` only when none is found, since that
-  folder is usually on the owner's login PATH.
+  versions.
 
 ## Dependencies
 
@@ -172,16 +158,10 @@ Traps:
 
 ## Environment
 
-- `bash scripts/setup.sh` installs the locked Bun, Node from `.node-version`,
-  frontend dependencies, actionlint, and shellcheck. `rust` adds what engine
-  and host proof need (script header lists it), including `libssl-dev` on
-  Linux so `openssl-sys` can build, the .NET SDK from
-  `tools/abb-aaxclean-helper/global.json` into `~/.dotnet`, and a real AAXClean
-  helper for this host. `--check` installs nothing.
-  It cannot install rustup, or Homebrew on macOS; it stops first with the
-  install link. On Linux it installs curl, unzip, and xz first when missing.
-  Without root or sudo, frontend setup skips shellcheck; only
-  `verify.sh tooling` needs it.
+- What each mode installs: `bash scripts/setup.sh --help`. Setup cannot
+  install rustup, or Homebrew on macOS; it stops first with the install link.
+  Without root or sudo, frontend setup skips shellcheck; `verify.sh tooling`
+  and the pre-commit hook (on staged shell files) need it.
   The Claude Code cloud SessionStart hook runs `setup.sh frontend`. Cursor
   cloud runs `setup.sh` from `.cursor/environment.json`. Codex cloud uses the
   same command in its environment settings, not the repo.
@@ -206,6 +186,3 @@ Traps:
   artifact, not a regression.
 - Linux cannot prove Apple AAC (AudioToolbox) behavior; `verify.sh apple`
   skips there and the macOS rust CI leg runs it.
-- Windows via WSL is not a supported launch until issue #557's runbook is
-  recorded on a real machine. README states the Linux secret-service sign-in
-  behavior and lists the WSL notes as untested.

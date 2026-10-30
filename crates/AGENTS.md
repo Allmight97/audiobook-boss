@@ -8,9 +8,7 @@
 | Engine | `abb-engine` | Every product rule and workflow: the working session, settings, audio, metadata, processing, WorkRuntime, and remote sources. | A UI toolkit (`tauri`, `tauri-*`, `wry`, `tao`). |
 | Host | `src-tauri` (package `audiobook-boss`) | One UI host: commands, events, the window, native dialogs. | — |
 
-`bun run check:rust-tiers` enforces the last column and runs in CI.
-
-Put a rule in the engine, or in a core when it needs no I/O.
+`bun run check:rust-tiers` (core lane) enforces the last column.
 
 ## Ownership
 
@@ -20,8 +18,4 @@ Put a rule in the engine, or in a core when it needs no I/O.
   progress, materialized kinds). Provider protocol interpretation, such as
   Audible license keys and strategy choice, lives in that provider's core.
 - Engine owners and the engine's host interface: `crates/abb-engine/AGENTS.md`.
-- Host rules and what host tests cover: `src-tauri/AGENTS.md`.
-
-## Tests
-
-Commands: `scripts/AGENTS.md`, "What to run for a change".
+- Host rules: `src-tauri/AGENTS.md`.
