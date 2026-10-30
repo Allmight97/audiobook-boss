@@ -426,58 +426,8 @@ fn packaged_helper_path(root: &Path) -> PathBuf {
 }
 
 #[cfg(test)]
-mod helper_path_tests {
-    use super::*;
-
-    #[test]
-    fn env_helper_path_wins() {
-        let root = tempfile::TempDir::new().expect("temp root");
-        let env_path = root.path().join("custom-helper");
-
-        assert_eq!(
-            resolve_helper_path_from(Some(env_path.clone()), None, None),
-            env_path
-        );
-    }
-
-    #[test]
-    fn packaged_sibling_helper_wins() {
-        let root = tempfile::TempDir::new().expect("temp root");
-        let exe = packaged_exe_path(root.path());
-        let helper = packaged_helper_path(root.path());
-        std::fs::create_dir_all(helper.parent().expect("helper parent")).expect("create bundle");
-        make_executable(&helper);
-
-        assert_eq!(resolve_helper_path_from(None, Some(exe), None), helper);
-    }
-
-    #[test]
-    fn dev_build_finds_repo_sidecar_from_target_debug_executable() {
-        let root = tempfile::TempDir::new().expect("temp root");
-        let exe = target_debug_exe_path(root.path());
-        let helper = repo_sidecar_path(root.path());
-        std::fs::create_dir_all(exe.parent().expect("exe parent")).expect("create target dir");
-        std::fs::create_dir_all(helper.parent().expect("helper parent"))
-            .expect("create sidecar dir");
-        make_executable(&helper);
-
-        assert_eq!(resolve_helper_path_from(None, Some(exe), None), helper);
-    }
-
-    #[test]
-    fn dev_build_finds_repo_sidecar_from_repo_cwd() {
-        let root = tempfile::TempDir::new().expect("temp root");
-        let helper = repo_sidecar_path(root.path());
-        std::fs::create_dir_all(helper.parent().expect("helper parent"))
-            .expect("create sidecar dir");
-        make_executable(&helper);
-
-        assert_eq!(
-            resolve_helper_path_from(None, None, Some(root.path().to_path_buf())),
-            helper
-        );
-    }
-}
+#[path = "materializer_helper_path_tests.rs"]
+mod helper_path_tests;
 
 fn helper_request_json(request: &MaterializationRequest) -> Result<String> {
     let input_path = path_to_helper_string(&request.input_path)?;
@@ -579,48 +529,8 @@ fn signal_process(pid: u32) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn helper_request_serializes_secrets_only_in_stdin_payload() {
-        let request = MaterializationRequest {
-            job_id: "job-1".to_string(),
-            operation_id: "operation-1".to_string(),
-            lane: AaxcleanLane::Aaxc,
-            input_path: PathBuf::from("/tmp/source.aaxc"),
-            output_temp_path: PathBuf::from("/tmp/materialized.m4b.partial"),
-            output_path: PathBuf::from("/tmp/materialized.m4b"),
-            secret: AaxcleanSecret::Aaxc {
-                key_hex: SecretString::from("0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d"),
-                iv_hex: SecretString::from("2e2f3a3b3c3d3e3f4a4b4c4d4e4f5a5b"),
-            },
-        };
-
-        let payload = helper_request_json(&request).expect("helper request");
-        let value: serde_json::Value = serde_json::from_str(&payload).expect("json");
-
-        assert_eq!(value["schemaVersion"], REQUEST_SCHEMA_VERSION);
-        assert_eq!(value["lane"], "aaxc");
-        assert_eq!(
-            value["secret"]["keyHex"],
-            "0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d"
-        );
-        assert!(!payload.contains("license"));
-    }
-
-    #[test]
-    fn helper_errors_are_sanitized_again_in_rust_boundary() {
-        let message = safe_helper_error_message(
-            Some("materialization_failed"),
-            Some("/tmp/book.aaxc key=secret license=secret"),
-        );
-
-        assert!(message.contains("Provider-private details were withheld"));
-        assert!(!message.contains("/tmp/book"));
-        assert!(!message.contains("secret"));
-    }
-}
+#[path = "materializer_tests.rs"]
+mod tests;
 
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]

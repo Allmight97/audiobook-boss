@@ -19,3 +19,11 @@ mod unit_runtime_settings_capabilities_tests;
 mod unit_settings_encoder_tests;
 #[path = "unit_settings_validation_tests.rs"]
 mod unit_settings_validation_tests;
+
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tests move their own temp files to stage a scenario"
+)]
+pub(crate) fn move_test_file(from: &std::path::Path, to: &std::path::Path) {
+    std::fs::rename(from, to).expect("move a test file");
+}

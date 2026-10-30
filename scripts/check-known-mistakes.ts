@@ -19,6 +19,14 @@ interface Rule {
 const OWNED_SHELL = (file: string) =>
 	(file.endsWith('.sh') && !file.startsWith('vendor/')) || file.startsWith('.githooks/');
 const OWNED_RUST = (file: string) => file.endsWith('.rs') && !file.startsWith('vendor/');
+const RUST_TEST_FILE = (file: string) =>
+	/(^|\/|_)tests\.rs$/.test(file) || /(^|\/)(tests|test_cases)\//.test(file);
+const ENGINE_OUTSIDE_MEDIA_WRAPPERS = (file: string) =>
+	OWNED_RUST(file) &&
+	file.startsWith('crates/abb-engine/src/') &&
+	!file.startsWith('crates/abb-engine/src/audio/') &&
+	!file.startsWith('crates/abb-engine/src/metadata/');
+const CODE_ONLY = (line: string) => line.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/\/\/.*$/, '');
 
 const GNU_ONLY = [
 	/\b(sed|grep)\b[^|]*\\[?+|]/,
@@ -69,6 +77,21 @@ const RULES: Rule[] = [
 			line.match(/\b(from_mode|set_mode)\(0o[0145][0-7]{2}\)|\bchattr\b/)?.[0] ?? null,
 		message:
 			'fakes an I/O failure with permission bits, which root ignores (cloud containers run as root). Fix: put a file where a directory is expected, or the reverse, or mark the line `// allow-permission-fake: <why it runs unprivileged>`.',
+	},
+	{
+		appliesTo: (file) => OWNED_RUST(file) && !RUST_TEST_FILE(file),
+		comment: /^\s*\/\//,
+		findIn: (line) => line.match(/^\s*(#\[test\]|#\[tokio::test|proptest!)/)?.[1] ?? null,
+		message:
+			'is a rust test outside a test file. Fix: move the test module to a sibling `<file>_tests.rs` (`#[cfg(test)] #[path = "<file>_tests.rs"] mod tests;`); tests live in files named `*tests.rs` and under `tests/` or `test_cases/`.',
+	},
+	{
+		appliesTo: ENGINE_OUTSIDE_MEDIA_WRAPPERS,
+		comment: /^\s*\/\//,
+		findIn: (line) =>
+			CODE_ONLY(line).match(/\bunsafe\s*(\{|fn\b|impl\b|trait\b|extern\b)/)?.[0] ?? null,
+		message:
+			'is unsafe outside the media wrappers. Fix: keep `unsafe` in the FFmpeg and FAAC wrappers under `audio/` and `metadata/` and call a safe function from here (crates/abb-engine/AGENTS.md, Runtime Constraints).',
 	},
 	{
 		appliesTo: OWNED_SOURCE,
