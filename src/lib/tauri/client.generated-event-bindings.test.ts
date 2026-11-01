@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
-import { EVENTS } from '../types/events';
+import { EVENTS } from '../../types/events';
 import type {
 	AcquisitionProgress,
 	ChapterSpec,
@@ -11,7 +11,7 @@ import type {
 	ProgressSnapshot,
 	SelectionSnapshot,
 	SessionUpdate,
-} from './generated/tauri';
+} from '../generated/tauri';
 
 describe('tauriClient generated event bindings', () => {
 	beforeEach(() => {
@@ -23,7 +23,7 @@ describe('tauriClient generated event bindings', () => {
 	it('routes app events through generated tauri listeners', async () => {
 		const { listen } = await import('@tauri-apps/api/event');
 		const tauriListen = vi.mocked(listen);
-		const { tauriClient } = await import('./tauri/client');
+		const { tauriClient } = await import('./client');
 
 		await tauriClient.listen(EVENTS.SESSION_UPDATE, () => {});
 		await tauriClient.listen(EVENTS.WORK_OPERATIONS_UPDATE, () => {});
@@ -54,8 +54,8 @@ describe('tauriClient generated event bindings', () => {
 
 describe('remote snapshot normalization', () => {
 	it('normalizes cached library title optionals and preserves meaningful empty account/job snapshots', async () => {
-		const { normalizeSessionUpdate } = await import('./tauri/normalizers');
-		const { fakeRemote } = await import('../test/fixtures/fakeEngine');
+		const { normalizeSessionUpdate } = await import('./normalizers');
+		const { fakeRemote } = await import('../../test/fixtures/fakeEngine');
 		const seed = fakeRemote();
 		const remote = {
 			...seed,

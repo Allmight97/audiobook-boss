@@ -44,12 +44,9 @@ second copy of owner state.
 
 ## Owner Interface
 
-- Treat each owner as a deep module. Its `index.ts` is its Public API Strip.
-  Import from the owner root; Biome rejects deep imports. The exact export
-  names are the hand-written `STRIPS` list in
-  `src/__tests__/public-api-strips.contract.test.ts`. Cross-owner
-  coordination uses the other owner's strip, injected when App Runtime composes
-  the owners.
+- Each owner's `index.ts` is its Public API Strip (Biome enforces root
+  imports). Cross-owner coordination uses the other owner's strip, injected
+  when App Runtime composes the owners.
 - Expose a small `view()` or accessor surface plus semantic intents. A fact
   that changes often gets its own narrow accessor, so a row re-runs only when
   its own fact changes.
@@ -73,13 +70,11 @@ second copy of owner state.
   synchronous domain outcome.
 - Error normalization and cancellation follow `src/lib/tauri/AGENTS.md`. Keep
   typed provider diagnostics and backend terminal verdicts.
-- Publish observable state through the owner view and existing runtime and log
-  surfaces.
 
 ## Owners
 
-One bullet per owner: the invariant the code does not show. Engine paths name
-the owner of the truth.
+One bullet per owner with an invariant the code does not show; an owner
+without a bullet has none. Engine paths name the owner of the truth.
 
 - `appSettings` (`crates/abb-engine/src/app_settings/AGENTS.md`): the owner
   words durability from `saveError` and the reset notice from `recovery`,
@@ -116,11 +111,9 @@ the owner of the truth.
   identity and an optional child identity; whole-preview cancel needs no native
   job id, and disposal does not cancel. After `artworkReady` the artwork shows
   from the run's `coverSrc` address. A finished preview opens through
-  `link.openPreview(runId)`: the host claims the path with `takePreviewOutput`
-  and opens it, so the webview holds no permission to open a file path, and
-  the open happens even when the requesting frontend is disposed before the
-  reply. Submit and Cancel availability follow the engine preview
-  state, including for a frontend that attaches to an active run. Preview
+  `link.openPreview(runId)`, even when the requesting frontend is disposed
+  before the reply (host side: `src-tauri/AGENTS.md`). Submit and Cancel
+  availability follow the engine preview state, including for a frontend that attaches to an active run. Preview
   duration is screen-local state in `PreviewAudioControls`. Each owner instance
   owns its status store and publisher.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and

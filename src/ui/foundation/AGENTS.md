@@ -4,8 +4,7 @@
 
 Shared visual behavior crosses `src/ui/foundation/index.ts`, its Public API
 Strip. Views import from `src/ui/foundation`. Native CSS is the only styling
-language. The exact export names are the hand-written `STRIPS` list in
-`src/__tests__/public-api-strips.contract.test.ts`.
+language.
 
 ## Rules
 
@@ -14,8 +13,6 @@ language. The exact export names are the hand-written `STRIPS` list in
   Only `src/styles.css` imports `internal/foundation.css`. Callers use the
   primitives' props, never their private class names. Owner layout stays in the
   owner stylesheet.
-- Style with native CSS files and the public tokens. Biome rejects Tailwind and
-  `foundation/internal` imports.
 - A primitive stays only if deleting it redistributes real behavior across
   owners.
 - `SplitButton.disabled` disables both triggers and hides an open menu, so an
@@ -28,7 +25,3 @@ language. The exact export names are the hand-written `STRIPS` list in
   finished, and idle bars stay still. An active bar shimmers across its filled
   part only, or, under reduced motion, shows still stripes. Fill, stripes, and
   track keep at least 3:1 contrast in both themes (`tokens.css`).
-
-## Proof
-
-`bun run test -- src/ui/foundation`

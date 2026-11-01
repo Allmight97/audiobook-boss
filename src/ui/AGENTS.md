@@ -4,32 +4,22 @@ Each view under `src/ui/<view>/` renders its owner from `useAppRuntime()` and
 dispatches intents. It keeps screen-local state only: disclosure, focus, and
 typed input. Owner rules: `src/app/AGENTS.md`.
 
-A view folder's `index.ts` is its Public API Strip. Import another view through
-`src/ui/<view>`; Biome rejects deeper paths. Files in one folder import each
-other relatively. The exact export names are the hand-written `STRIPS` list in
-`src/__tests__/public-api-strips.contract.test.ts`.
+A view folder's `index.ts` is its Public API Strip (Biome enforces folder
+imports). Files in one folder import each other relatively.
 
 ## Composition
 
 - `App.tsx` composes the views and owns the global key bindings (Cmd+S saves
   metadata, Cmd+, opens Settings).
-- `metadataManager/` arranges the metadata form and cover art views.
-  `outputAndTags.css` holds the Output and tags panel layout.
-- Left column: the input workflow flexes and the inspector
-  (`leftColumn/FileInspectorView`) stays pinned.
 - A `<For>` over rows a snapshot rebuilds passes `keyed` a stable key
   (`option.value`, `title.titleId`, `releaseKey`), so unchanged rows keep their
   DOM. Why: a recreated `<option>` resets its `<select>` to the first option.
 
 ## Styles
 
-- Motion: an element is complete when still. Every transition and endless
-  animation sits inside `@media (prefers-reduced-motion: no-preference)`. An
-  endless animation also runs only under its owner's `[data-active]`
-  (`Progress` `active`). A transition names its properties: never `all`,
-  `width`, or `height`. `scripts/motion-policy.test.ts` enforces this for every
-  stylesheet under `src/`. Why: an endless animation repaints every frame, idle
-  or not; `all` and layout properties make each state change animate layout.
+- Motion: an element is complete when still. `scripts/motion-policy.test.ts`
+  enforces the rest. Why: an endless animation repaints every frame; `all` and
+  layout properties make each state change animate layout.
 - A long scrolling list sets `contain: content` (`.app-modal-results`). Why:
   without it, motion elsewhere in the dialog made WebKit redo every row.
 
@@ -45,8 +35,7 @@ One bullet per view. A view without a bullet has no trap beyond its owner.
   (`event.detail > 1`); a double-click's second press would answer a re-review
   the user has not read. Closing the restart dialog (Escape or close) keeps the
   location. Teardown answers neither question. Both dialogs use the foundation
-  `Dialog`, because an OS prompt cannot be dismissed when a frontend is
-  replaced.
+  `Dialog` (`src/lib/tauri/AGENTS.md`, native dialogs).
 - `encoderPanel`: one `EncoderView` serves Settings defaults (no props), one
   title (`title`), or a selection (`titles`). A mixed selection shows Mixed; the
   user picks a common format before editing encoder fields. Encoder fields show

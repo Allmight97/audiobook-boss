@@ -6,17 +6,14 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
 
 ## Public API Strip
 
-- Audio is the Audio Engine Deep Module. Import from `crate::audio`; the strip
-  is the `pub use` list in `audio/mod.rs`. Child modules (`processor`,
-  `settings_encoder`, `path_validation`, `cleanup`) stay private.
-- `validate_resolved_audio_inputs` stays processor-private. Preflight and
-  execution validate through the resolved audio plan.
+- Audio is the Audio Engine Deep Module. Callers import from `crate::audio`;
+  child modules are private and the compiler enforces it.
 - Inspection owns source preservation capability; the title planner owns the
   recommendation.
-- `EncoderSettingsCapabilities.encoder_configurations` is the single
-  per-encoder capability array. Quality presets are backend-owned capability
-  values. The FAAC encoder owns upstream profile resolution and opened
-  configuration readback.
+- Per-encoder bitrate, mode, rate, and FAAC-profile facts live in
+  `EncoderSettingsCapabilities.encoder_configurations`; FAAC quality presets
+  and Native speed max are top-level capability fields. The FAAC encoder owns
+  upstream profile resolution and opened configuration readback.
 - Native and bundled FAAC target bitrates check their resolved AAC ceilings
   during preflight and encoder setup. Resolve the encoder once per validation
   call; each title's ceiling uses its combined channels and first input rate.
@@ -76,9 +73,6 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
 - Resampler output buffers account for pending swr delay plus input samples
   scaled to the output rate; EOF drains stream flushed frames through the
   accumulator/encoder instead of collecting the whole drain.
-- Encoder option changes carry evidence for the affected encoder path:
-  targeted tests, real-file `ffprobe`/`ffmpeg` diagnostics, or documented
-  external encoder behavior.
 - Sample-buffer, resampler, or encoder-boundary changes include regression
   coverage for channel preservation and tail/frame behavior. Native AAC changes
   include a real-media probe when feasible: codec/profile, sample rate,
@@ -97,10 +91,6 @@ Each of these signals an audio-boundary assumption to investigate:
 - mismatched source/output duration beyond expected preview boundaries
 - wrapper API behavior that disagrees with FFmpeg frame/layout semantics
 
-When one appears, name the affected boundary, state the assumption used to
-continue, and add or propose the smallest regression test, invariant, or doc
-guard that prevents recurrence.
-
 ## Import Discovery
 
 `discover_audio_import_paths` never fails a whole import: each path it cannot
@@ -118,7 +108,7 @@ cannot be repaired is listed invalid with the reason; the rest of the import
 continues. `apply_chapter_plans` validates accepted plans against the audio
 identity and duration before dispatch. CUE confirmation or Ignore is
 explicit; multi-source CUE merging is rejected. Encoders consume accepted
-chapters. Preview omits chapters.
+chapters.
 
 ## Title Audio Plan
 

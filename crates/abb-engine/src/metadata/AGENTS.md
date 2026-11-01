@@ -57,8 +57,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   aliases, clear groups, and field op planning (fan-outs, track/disk tuples).
   Container adapters (`ffmpeg_dict`, `mp4ameta_bridge`, `reader`) apply ops
   only.
-- `cover_art` and `media_type` stay sink-owned outside the neutral field-op loop
-  (encode-path embed vs mp4 artwork; unconditional audiobook media type).
+- `cover_art` and the audiobook media type (`MetadataOp::SetMediaTypeAudiobook`)
+  stay sink-owned outside the neutral field-op loop (encode-path embed vs mp4
+  artwork; unconditional audiobook media type).
   `prepare_output_cover_art` prepares write-ready cover bytes once after merge:
   JPEG already at the write target (JPEG, 800px or smaller) stays as is; other
   covers go through `optimize_cover_art` before native mux, remux, or

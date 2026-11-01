@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { runtimeSettingsCapabilitiesFixture } from '../test/fixtures/runtimeSettingsCapabilities';
-import mainWindowCapability from '../../src-tauri/capabilities/default.json';
+import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
+import mainWindowCapability from '../../../src-tauri/capabilities/default.json';
 
 describe('tauriClient', () => {
 	beforeEach(() => {
@@ -9,7 +9,7 @@ describe('tauriClient', () => {
 
 	it('sends absent remembered defaults as null and returns the settings in effect', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
-		const { tauriClient } = await import('./tauri/client');
+		const { tauriClient } = await import('./client');
 		vi.mocked(invoke).mockResolvedValueOnce({
 			outcome: { kind: 'applied' },
 			snapshot: {
@@ -48,7 +48,7 @@ describe('tauriClient', () => {
 
 	it('passes audio requests through and drops nulls from audio files', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
-		const { tauriClient } = await import('./tauri/client');
+		const { tauriClient } = await import('./client');
 		const passThrough = { format: 'mp3', intent: 'preserve', sampleRate: 'auto' };
 		vi.mocked(invoke).mockResolvedValueOnce({
 			outcome: { kind: 'applied' },
@@ -93,7 +93,7 @@ describe('tauriClient', () => {
 
 	it('carries identified decisions and preserves nullable held-question facts', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
-		const { tauriClient } = await import('./tauri/client');
+		const { tauriClient } = await import('./client');
 		vi.mocked(invoke).mockResolvedValueOnce({
 			outcome: { kind: 'superseded' },
 			update: {
@@ -153,7 +153,7 @@ describe('tauriClient', () => {
 			const mockOpen = vi.mocked(open);
 			mockOpen.mockResolvedValueOnce('/tmp/book.m4b');
 
-			const { tauriClient } = await import('./tauri/client');
+			const { tauriClient } = await import('./client');
 			await expect(tauriClient.openFile({ title: 'Select file' })).resolves.toBe('/tmp/book.m4b');
 
 			expect(mockOpen).toHaveBeenLastCalledWith({
@@ -168,7 +168,7 @@ describe('tauriClient', () => {
 			const mockOpen = vi.mocked(open);
 			mockOpen.mockResolvedValueOnce(['/tmp/a.m4b', '/tmp/b.m4b']);
 
-			const { tauriClient } = await import('./tauri/client');
+			const { tauriClient } = await import('./client');
 			await expect(tauriClient.openFiles()).resolves.toEqual(['/tmp/a.m4b', '/tmp/b.m4b']);
 
 			expect(mockOpen).toHaveBeenLastCalledWith({ multiple: true, directory: false });
@@ -179,7 +179,7 @@ describe('tauriClient', () => {
 			const mockOpen = vi.mocked(open);
 			mockOpen.mockResolvedValueOnce('/tmp/output');
 
-			const { tauriClient } = await import('./tauri/client');
+			const { tauriClient } = await import('./client');
 			await expect(tauriClient.openDirectory()).resolves.toBe('/tmp/output');
 
 			expect(mockOpen).toHaveBeenLastCalledWith({ multiple: false, directory: true });
@@ -213,7 +213,7 @@ describe('tauriClient', () => {
 			const { openUrl } = await import('@tauri-apps/plugin-opener');
 			const mockOpenUrl = vi.mocked(openUrl);
 
-			const { tauriClient } = await import('./tauri/client');
+			const { tauriClient } = await import('./client');
 			await tauriClient.openUrl('https://example.com/login');
 
 			expect(mockOpenUrl).toHaveBeenLastCalledWith('https://example.com/login', undefined);
@@ -267,7 +267,7 @@ describe('tauriClient nullish adapters', () => {
 			},
 		});
 
-		const { tauriClient } = await import('./tauri/client');
+		const { tauriClient } = await import('./client');
 		const reply = await tauriClient.sessionDispatch(7, 0, { kind: 'preview', seconds: 30 });
 
 		const submission = reply.update.output?.submission;
@@ -293,7 +293,7 @@ describe('tauriClient nullish adapters', () => {
 			detail: 'user requested stop',
 		});
 
-		const { tauriClient } = await import('./tauri/client');
+		const { tauriClient } = await import('./client');
 
 		await expect(tauriClient.cancelWorkOperation('mock-operation-1')).rejects.toMatchObject({
 			code: 'cancelled',
@@ -304,7 +304,7 @@ describe('tauriClient nullish adapters', () => {
 	});
 
 	it('returns .data on canonical specta success shape', async () => {
-		const { unwrapGeneratedResult } = await import('./tauri/appError');
+		const { unwrapGeneratedResult } = await import('./appError');
 		const result = unwrapGeneratedResult<{ hello: string }>({
 			status: 'ok',
 			data: { hello: 'world' },
@@ -313,7 +313,7 @@ describe('tauriClient nullish adapters', () => {
 	});
 
 	it('throws normalized AppError on canonical specta error shape', async () => {
-		const { unwrapGeneratedResult } = await import('./tauri/appError');
+		const { unwrapGeneratedResult } = await import('./appError');
 		expect(() =>
 			unwrapGeneratedResult({
 				status: 'error',
@@ -333,12 +333,12 @@ describe('tauriClient nullish adapters', () => {
 	});
 
 	it('passes through bare scalar values unchanged (get_max_concurrent_jobs path)', async () => {
-		const { unwrapGeneratedResult } = await import('./tauri/appError');
+		const { unwrapGeneratedResult } = await import('./appError');
 		expect(unwrapGeneratedResult<number>(42)).toBe(42);
 	});
 
 	it('passes through bare object values unchanged (EncoderAvailability path)', async () => {
-		const { unwrapGeneratedResult } = await import('./tauri/appError');
+		const { unwrapGeneratedResult } = await import('./appError');
 		const bareEncoderAvailability = {
 			ffmpegAvailable: true,
 			ffprobeAvailable: true,
@@ -349,7 +349,7 @@ describe('tauriClient nullish adapters', () => {
 	});
 
 	it('passes through records with unrelated status values rather than treating them as Result', async () => {
-		const { unwrapGeneratedResult } = await import('./tauri/appError');
+		const { unwrapGeneratedResult } = await import('./appError');
 		const bareDomainObject = { status: 'pending', data: { jobId: 'abc' } };
 		const result = unwrapGeneratedResult<typeof bareDomainObject>(bareDomainObject);
 		expect(result).toBe(bareDomainObject);

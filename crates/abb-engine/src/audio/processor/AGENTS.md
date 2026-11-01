@@ -1,15 +1,10 @@
 # Audio Processor Directives
 
-Owns stage orchestration, cancellation checkpoints, and cleanup guarantees for
-the execution pipeline in this directory. This is the private execution cluster
-of the Audio Engine Deep Module; code outside `audio/` uses `crate::audio`.
-Final artifact commit policy lives in `output_artifact/`; finalization delegates
-those decisions to it.
+Owns stage orchestration, cancellation checkpoints, and cleanup for the
+execution pipeline. Final artifact commit policy lives in `output_artifact/`.
 
 ## Preferred Path
 
-- Keep stage flow explicit: prepare -> execute -> finalize. Emit stage-aligned
-  progress and failure states, so UI status reflects real backend state.
 - Encoding preparation validates every source against its retained inspection
   fingerprint before creating a workspace. A queued replacement fails instead
   of running with an audio plan resolved for the previous file.
@@ -30,11 +25,7 @@ those decisions to it.
   chapter finalization and output publication use their existing owners.
 - Resolve the encoder once at dispatch (`resolution.rs`) and carry that choice
   into encoder setup. Explicit Native, Apple, and Opus selections validate their
-  linked encoder; bundled FAAC is always available. Auto resolves to Native NMR
-  and does not select Apple or FAAC.
-- Use app-cache local processing workspaces, cleanup guards, and deterministic
-  teardown for temp artifacts. Finalize completes filesystem operations before
-  success is reported.
+  linked encoder; bundled FAAC is always available.
 
 ## Hard Invariants
 
@@ -48,8 +39,6 @@ those decisions to it.
   emission and proves it against actual artifact metadata.
 - Drop probe/inspection contexts before reopening the same path for decoder
   trials, processing, replacement, or another library.
-- Check cancellation at critical boundaries, including post-move and
-  pre-success paths.
 - Register newly created workspaces with cleanup before observing cancellation.
   Failed cleanup stays tracked for retry; post-publication cleanup failure
   preserves success with an explicit warning from Output Artifact.
@@ -92,5 +81,5 @@ those decisions to it.
   packet skip metadata that replaces what FFmpeg derived from iTunSMPB.
   Encoder selection does not change the source's playable audio.
 - Packet-copy joins refuse ABB's FAAC HE files by tag (`is_abb_faac_he`).
-  Other files keep main's packet checks, which already refuse a packet that
-  carries trim metadata, as a third-party file with iTunSMPB does.
+  Other files go through the normal packet checks, which refuse a packet that
+  carries trim metadata (a third-party file with iTunSMPB).

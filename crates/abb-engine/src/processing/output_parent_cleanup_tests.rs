@@ -1,0 +1,62 @@
+use super::*;
+use crate::output_artifact::{
+    ensure_output_parent_dirs, OutputKind, PlannedOutputAction, ResolvedOutputPlan,
+};
+use crate::processing::ProcessResultEntry;
+use std::path::PathBuf;
+use tempfile::TempDir;
+
+fn output_plan(path: impl Into<PathBuf>) -> ResolvedOutputPlan {
+    let path = path.into();
+    ResolvedOutputPlan {
+        kind: OutputKind::Final,
+        requested_path: path.clone(),
+        resolved_path: path,
+        rename_candidate: None,
+        collision: None,
+        action: PlannedOutputAction::Write,
+    }
+}
+
+fn result(status: ProcessResultStatus) -> ProcessCommandResult {
+    ProcessCommandResult::new(vec![ProcessResultEntry {
+        input_index: 0,
+        status,
+        message: "terminal".to_string(),
+        error: None,
+        output_path: None,
+        preview_actual_seconds: None,
+        supplemental_warning: None,
+        warnings: Vec::new(),
+        job_id: Some("job-1".to_string()),
+    }])
+}
+
+#[test]
+fn successful_result_releases_output_parent_cleanup() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let parent = temp_dir.path().join("author").join("title");
+    let output = output_plan(parent.join("book.m4b"));
+    let mut cleanup = ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
+
+    finalize_output_parent_cleanup(Ok(result(ProcessResultStatus::Success)), &mut cleanup)
+        .expect("finalize cleanup");
+
+    assert!(parent.exists(), "released cleanup should leave parent dirs");
+}
+
+#[test]
+fn cancelled_result_cleans_empty_output_parent() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let parent = temp_dir.path().join("author").join("title");
+    let output = output_plan(parent.join("book.m4b"));
+    let mut cleanup = ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
+
+    finalize_output_parent_cleanup(Ok(result(ProcessResultStatus::Cancelled)), &mut cleanup)
+        .expect("finalize cleanup");
+
+    assert!(
+        !parent.exists(),
+        "cancelled cleanup should prune empty parent dirs"
+    );
+}

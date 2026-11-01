@@ -2,13 +2,12 @@
 
 ## Start Here
 
-- Follow this file and the nested `AGENTS.md` chain for each changed path.
-  Read related owners when a task crosses their boundaries; verify
-  implementation facts in live code, types, generated contracts, and tests.
+- Each path's nested `AGENTS.md` adds its rules; when a task crosses owners,
+  read each owner's file.
 - The live TS/Rust runtime contract is `src-tauri/src/ipc_contract.rs`,
   `src/lib/tauri/client.ts`, and the generated bindings.
-- Cargo commands run from the repository root. Verification commands:
-  `scripts/AGENTS.md`. Frontend owner rules: `src/app/AGENTS.md`.
+- Cargo commands run from the repository root. Verification:
+  `scripts/AGENTS.md`.
 - "Public API Strip" means an owned module's allowed import/export surface;
   callers use it instead of private implementation files.
 - Editing guidance: root holds repo-wide rules, a local `AGENTS.md` holds its
@@ -58,8 +57,8 @@ simpler design.
   with typed diagnostics; hard-fail when the selected contract cannot be met.
   Every IPC, metadata, path, and lifecycle boundary behaves explicitly, with
   no silent or caller-side substitute.
-- Solid 2 is the frontend baseline: read `package.json` before changing Solid
-  APIs, and typecheck against this checkout's lockfile.
+- Solid 2 is the frontend baseline; for version-sensitive Solid API behavior
+  use the `abb-library-research` skill.
 
 ## Environment
 
@@ -68,41 +67,38 @@ The same two commands on a Mac, a Linux box, Cursor cloud, and in CI:
     bash scripts/setup.sh
     bash scripts/verify.sh
 
+Run `verify.sh` lanes, `setup.sh --check` and `--print-env`,
+`bun run bindings:check`, and `bun scripts/verification.ts plan --explain`
+without asking; they write only `.logs/`, `target/`, and temp dirs.
+
 `setup.sh` takes `frontend` or `rust`, or no argument for both. `--check`
-installs nothing and exits nonzero if something is missing. The active rustc
-must match `rust-toolchain.toml`. It never edits shell profiles (it sets this
-repo's git hook path); PATH comes
-from `eval "$(scripts/setup.sh --print-env)"` (`scripts/AGENTS.md`,
-Environment).
+installs nothing and exits nonzero if something is missing. It never edits
+shell profiles (it sets this repo's git hook path); PATH comes from
+`eval "$(scripts/setup.sh --print-env)"` (`scripts/AGENTS.md`, Environment).
 
 `verify.sh --changed origin/main` selects affected lanes without current proof.
-Explicit lane names run afresh: `frontend`, `core`, `engine`, `media`, `host`,
-`apple`, `decrypt`, `tooling`, and `supply-chain` (named only). No argument
-runs every other lane this OS supports. The
-commands for each lane live only in `verify.sh`. Owner-to-lane map:
-`scripts/AGENTS.md`.
+Explicit lane names run afresh (`verify.sh --help` lists them). No argument
+runs every lane this OS supports except `supply-chain`; name it, or
+`--changed` selects it for dependency and policy files. The commands for each
+lane live only in `verify.sh`.
 
 Codex cloud: paste `bash scripts/setup.sh` into the Codex environment settings
 field once. That setting is not in the repo.
-
-Golden-path verification without a window: `.agents/skills/verify-abb/SKILL.md`.
 
 ## Refactor Discipline
 
 - Name the owned invariant and its owner before refactoring; move truth to the
   owning layer before extracting helpers. A rule several callers must each
   remember belongs in that owner.
-- Source files stay small enough for an agent to read whole:
-  `scripts/check-file-size.mjs` ratchets that budget in the tooling lane.
-  `bun scripts/check-file-size.mjs --help` prints how a file that fails it is split.
+- Source files stay small enough to read whole (`scripts/check-file-size.mjs`).
 - When merging code paths, name what each old path relied on (reads it
   skipped, state it left alone, ordering); keep each reliance or say which one
   the change drops.
 - A new or reshaped function holds one nameable responsibility. Biome's
-  complexity limit (`biome.json`), the Rust check
-  (`scripts/check-rust-complexity.sh`), and complexity-lens flag one that grows
-  past it: split it, or name the reason at the code (a flat dispatch `match`, a
-  format parser, a sequential `?` setup). A file in `biome.json`'s hotspot
+  complexity limit (`biome.json`) and the Rust check
+  (`scripts/check-rust-complexity.sh`) flag one that grows past it: split it,
+  or name the reason at the code (a flat dispatch `match`, a format parser, a
+  sequential `?` setup). A file in `biome.json`'s hotspot
   exemptions, or a function in the Rust allowlist
   (`scripts/rust-complexity-allowlist.txt`), gets one disposition when next
   changed (Proof-first, Reduce, Preserve, or Observe) with evidence and its
@@ -131,6 +127,12 @@ Golden-path verification without a window: `.agents/skills/verify-abb/SKILL.md`.
   3. intent ordering and TS↔Rust contract shape: the host crate
      (`audiobook-boss`) and the binding tests;
   4. DOM and UI state: Vitest under `src/`.
+- Rust unit tests live in sibling `*_tests.rs` files: `foo.rs` declares
+  `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`, and may declare more
+  than one. A binary's folder uses `tests.rs`, since a `src/bin/*_tests.rs`
+  file becomes its own binary; `tests/` and `test_cases/` also count. Why: an agent reads the
+  implementation without the tests, and the file-size budget counts only
+  code. `scripts/check-known-mistakes.ts` rejects a test attribute elsewhere.
 - UI behavior also needs visual review where tests cannot prove UX.
 - An owned import/export surface change updates the nearest `AGENTS.md`. A
   frontend owner or view `index.ts` also updates its hand-written STRIPS list
@@ -174,20 +176,20 @@ another CI run.
 - J Star gives one yes per stack or PR. After that, agents mark each layer
   ready, wait for `gate`, and merge it, and come back only when something
   fails or the story changes.
-- Nothing new starts without J Star's yes, including work off a merge.
+- Work beyond the request (a new issue, PR, or follow-up after a merge)
+  waits for J Star's yes; steps inside an approved PR do not.
 - These rules beat another bot's request for a tiny standalone PR: push back
   and deliver the work this way.
 - Roadmaps are J Star's call, announced case by case. Link an issue when one
   exists; one is not required. A story-first PR body (why, outcome, which
   user, developer, or agent story, and what each layer unlocks) is a habit,
   not a rule.
-- Local proof is the primary proof. On the owner's machine, follow
-  `scripts/AGENTS.md` ("What to run for a change"). CI is the last check, and
-  the main proof for a cloud Linux agent. Why the CI policy is what it is:
+- Local proof is the primary proof. CI is the last check, and the main proof
+  for a cloud Linux agent. Why the CI policy is what it is:
   `docs/DECISIONS.md`. `gate` is the check `main` requires.
 - Guidance with no implementation (docs, `AGENTS.md`, skills, allowlists)
   goes through a PR whose `gate` passes, as required by the main ruleset.
-  The pre-commit hook (`scripts/AGENTS.md`) is the fast check before that PR.
+  The pre-commit hook is the fast check before that PR.
 
 ## Review Guidelines
 

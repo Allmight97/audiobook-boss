@@ -75,6 +75,41 @@ describe('check-known-mistakes', () => {
 		expect(found('docs/x.md', '<!-- ---- Section ---- -->')).toEqual([]);
 	});
 
+	it('rejects a Rust test outside a test file', () => {
+		const inline = '#[cfg(test)]\nmod tests {\n    #[test]\n    fn it_works() {}\n}';
+		expect(found('crates/abb-engine/src/session/state.rs', inline)).toEqual([
+			expect.stringMatching(/^3: `#\[test\]` is a rust test outside a test file/),
+		]);
+		expect(found('src-tauri/src/lib.rs', '    #[tokio::test]\n    async fn t() {}')).toHaveLength(
+			1,
+		);
+		expect(found('crates/abb-engine/src/x.rs', 'proptest! {\n    fn p() {}\n}')).toHaveLength(1);
+		expect(found('crates/abb-engine/src/session/state_tests.rs', inline)).toEqual([]);
+		expect(found('crates/abb-engine/src/processing/job_registry/tests.rs', inline)).toEqual([]);
+		expect(found('crates/abb-engine/src/test_cases/unit_x.rs', inline)).toEqual([]);
+		expect(found('crates/abb-engine/tests/all_tests.rs', inline)).toEqual([]);
+		expect(found('crates/abb-engine/src/x.rs', '// #[test]\nlet s = "#[test]";')).toEqual([]);
+	});
+
+	it('rejects unsafe in the engine outside the media wrappers', () => {
+		const block = 'let v = unsafe { read(p) };';
+		expect(found('crates/abb-engine/src/session/state.rs', block)).toEqual([
+			expect.stringMatching(/^1: `unsafe \{` is unsafe outside the media wrappers/),
+		]);
+		expect(
+			found('crates/abb-engine/src/x.rs', 'pub unsafe fn f() {}\nunsafe impl Send for X {}'),
+		).toHaveLength(2);
+		expect(found('crates/abb-engine/src/audio/processor/faac.rs', block)).toEqual([]);
+		expect(found('crates/abb-engine/src/metadata/ffi.rs', block)).toEqual([]);
+		expect(found('crates/abb-media-core/src/lib.rs', block)).toEqual([]);
+		expect(
+			found(
+				'crates/abb-engine/src/x.rs',
+				'// unsafe { }\nlet s = "unsafe { not code }";\nlet unsafe_title = 1;',
+			),
+		).toEqual([]);
+	});
+
 	it('leaves vendored code alone', () => {
 		expect(found('vendor/x/build.sh', "sed 's/a\\?//'")).toEqual([]);
 	});

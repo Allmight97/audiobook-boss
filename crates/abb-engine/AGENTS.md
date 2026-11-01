@@ -1,8 +1,8 @@
 # Engine
 
-`abb-engine` decides everything that happens to a user's audiobooks. It has no
-UI-toolkit dependency, so the Tauri app, a test, and the `abb-dev` tool drive
-the same code.
+`abb-engine` decides everything that happens to a user's audiobooks. The Tauri
+app, a test, and the `abb-dev` tool drive the same code
+(`crates/AGENTS.md` keeps the dependency rule).
 
 ## Host Interface
 
@@ -28,11 +28,10 @@ the same code.
 - Before exiting or reusing the engine's folders, a host awaits
   `Engine::shutdown`. A quit never stops work the user was not asked about:
   `running_work` and `close_for_quit` enforce that (rustdoc in `engine.rs`).
-- Every background task the engine starts runs on its one `EngineTasks` owner
-  over a `TaskTracker`, so shutdown can wait for it. Short scoped tasks joined
-  before their caller returns are the exception. Admission and shutdown share
-  one lock: registering visible work and its cancellation handles finishes
-  before shutdown enumerates work to stop.
+- `clippy.toml` `disallowed-methods` routes every spawn through the one
+  `EngineTasks` owner over a `TaskTracker`, so shutdown can wait for it.
+  Admission and shutdown share one lock: registering visible work and its
+  cancellation handles finishes before shutdown enumerates work to stop.
 - An accepted intent belongs to the engine. `SessionRun::finish` and settings
   replies only wait; dropping a host wait never drops accepted file work.
 - Hosts import intent/snapshot vocabulary from the public modules and call
@@ -72,8 +71,9 @@ the same code.
 - Final artifact paths, collision review, replacement, and commit truth cross
   `crate::output_artifact`.
 - Crash-safe file replacement (`SiblingTemp`, `write_atomically`,
-  `replace_file`) belongs to `file_replace.rs` (rustdoc); owners call it
-  instead of renaming over a file themselves.
+  `replace_file`) belongs to `file_replace.rs` (rustdoc). `clippy.toml`
+  `disallowed-methods` rejects direct `std::fs::rename` and
+  `tokio::fs::rename`; a bare rename over a file is not crash-safe.
 - Exports and previews start from the session (`Submit`, `Preview`). An
   export enters WorkRuntime through `submit_processing_operation`; a preview
   runs `process_inspected_with_options` with a stable identity, actual cancel
@@ -102,15 +102,9 @@ the same code.
 - Validate input audio paths where they enter the engine with
   `crate::audio::validate_input_audio_path()`. Paths the engine hands back are
   canonical; compare paths in that spelling.
-- `JobRegistry` tracks active jobs.
 - Production `unsafe` stays inside the FFmpeg and FAAC wrappers under
-  `audio/` and `metadata/`; product orchestration, UI contracts, and path or
-  output decisions stay safe. Prefer a safe `ffmpeg-next` API where one
-  exists. Each `unsafe` block carries a `// SAFETY:` comment stating the
-  invariant; Clippy's `undocumented_unsafe_blocks` requires it.
-- Keep Clippy allowances local and justified. Code-shape thresholds live at
-  root; lint commands and workspace posture are in `scripts/AGENTS.md` and
-  root `Cargo.toml`.
+  `audio/` and `metadata/`; `scripts/check-known-mistakes.ts` rejects it
+  elsewhere. Prefer a safe `ffmpeg-next` API where one exists.
 
 ## Proof placement
 
@@ -118,6 +112,4 @@ the same code.
   hosts never see those boundaries. `tests/all_tests.rs` proves only the
   separately compiled `abb-dev` host. Runtime construction helpers that serve
   those proofs compile only under `cfg(test)`.
-- Private-cluster tests sit in sibling `*_tests.rs` files, declared from the
-  owning module with `#[cfg(test)]` and `#[path = "..._tests.rs"]`. A test
-  never needs a wider export or a separate integration-test directory.
+- A test never needs a wider export or a separate integration-test directory.

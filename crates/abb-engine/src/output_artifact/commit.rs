@@ -107,6 +107,10 @@ fn publish_by_placeholder(destination_temp: SiblingTemp, final_path: &Path) -> R
     // shortcut: a crash between the placeholder and the rename leaves an empty file under the final name; upgrade to a no-replace rename (renameat2, renamex_np) if that is seen.
     destination_temp
         .commit_with(final_path, |temp, destination| {
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "installs over this job's own empty placeholder, never over a user's file"
+            )]
             std::fs::rename(temp, destination)
         })
         .map_err(|error| {

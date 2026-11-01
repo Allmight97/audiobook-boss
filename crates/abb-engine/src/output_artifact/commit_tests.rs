@@ -64,7 +64,7 @@ fn committed_output_survives_cleanup_failure_with_visible_warning_and_retry() {
         staged.clone(),
         &mut guard,
         || {
-            std::fs::rename(&workspace, &backup).expect("move test workspace");
+            crate::test_cases::move_test_file(&workspace, &backup);
             std::fs::write(&workspace, b"blocks cleanup traversal").expect("write test fixture");
         },
         || false,
@@ -84,7 +84,7 @@ fn committed_output_survives_cleanup_failure_with_visible_warning_and_retry() {
         .result_message
         .contains("temporary files could not be removed"));
     std::fs::remove_file(&workspace).expect("remove test traversal blocker");
-    std::fs::rename(&backup, &workspace).expect("move test workspace");
+    crate::test_cases::move_test_file(&backup, &workspace);
     drop(guard);
     assert!(!staged.exists());
     assert_eq!(

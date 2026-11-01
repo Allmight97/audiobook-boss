@@ -47,9 +47,9 @@ one host attachment.
   transition. It may read WorkRuntime (`sources_in_use`, `sources_held`) under
   the state lock; WorkRuntime and `TitleOutput` callbacks never take the session
   lock, which keeps that order deadlock-free.
-- A new rule belongs in the state modules with a test in `state_tests.rs`. It
-  goes in `runtime.rs` only when it is about ordering between an intent and its
-  I/O.
+- A new rule belongs in the state modules, tested beside the module that holds
+  it. It goes in `runtime.rs` only when it is about ordering between an intent
+  and its I/O.
 
 ## Rules That Are Easy To Break
 
@@ -190,8 +190,3 @@ one host attachment.
 - Rules: `state_tests.rs`, including its property test. Add a new sequence law
   there as an assertion.
 - Real files through `Engine`: `crates/abb-engine/src/test_cases/integration_session_tests.rs`.
-
-## Boundary Changes
-
-- A `pub use` in `mod.rs`, an intent, or a snapshot field changes: regenerate
-  bindings and update the frontend adapters in the same change.
