@@ -84,6 +84,10 @@ require_core() {
 		printf 'MISSING uvx\n' >&2
 		missing=1
 	fi
+	if [[ "$(uname -s)" == Linux ]] && ! command -v mold >/dev/null 2>&1; then
+		printf 'MISSING mold (.cargo/config.toml links Linux builds with it)\n' >&2
+		missing=1
+	fi
 	if [[ "${missing}" -ne 0 ]]; then
 		printf 'Install with: bash scripts/setup.sh rust\n' >&2
 		return 1
