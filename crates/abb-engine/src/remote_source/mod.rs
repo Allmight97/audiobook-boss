@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock};
 
 mod cancellation;
-pub(crate) mod materializer;
+mod materializer;
 mod providers;
 mod scoped_output;
 mod session_lifecycle;
@@ -14,8 +14,6 @@ mod types;
 mod ui;
 
 const AUTH_REGISTRATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
-#[cfg(test)]
-pub(crate) use providers::audible::{run_protected_materialization, ProtectedMaterializationRun};
 pub use ui::{
     IndexerDraftSnapshot, IndexerWorkSnapshot, ReleaseGrabSnapshot, ReleaseGrabStatus,
     RemoteAuthStatus, RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiIntent, RemoteUiSnapshot,

@@ -91,6 +91,21 @@ require_core() {
 	return 0
 }
 
+engine_lib_tests_matching() {
+	local filter="$1" log passed
+	log="$(mktemp)"
+	if ! cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- --color never "${filter}" 2>&1 | tee "${log}"; then
+		rm -f "${log}"
+		return 1
+	fi
+	passed="$(awk '/^test result: ok\./ { total += $4 } END { print total + 0 }' "${log}")"
+	rm -f "${log}"
+	if [[ "${passed}" -eq 0 ]]; then
+		printf 'error: the test filter "%s" ran zero tests; a renamed module would pass here silently\n' "${filter}" >&2
+		return 1
+	fi
+}
+
 lane_frontend() {
 	require_frontend
 	bun run fmt:check
@@ -98,7 +113,8 @@ lane_frontend() {
 	bun run bindings:check:runtime-boundary
 	bun run typecheck
 	bun run knip
-	bun run test
+	bun run test -- --project frontend
+	bun run test -- --project tooling src
 }
 
 lane_core() {
@@ -114,7 +130,8 @@ lane_engine() {
 	require_rust
 	cargo fmt --all -- --check
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
-		--skip test_cases::integration_media --skip test_cases::integration_decrypt
+		--skip test_cases::integration_media --skip integration_decrypt_tests
+	cargo test --locked -p abb-engine --features bundled-ffmpeg --bin abb-dev
 	cargo test --locked -p faac-sys
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests
@@ -124,8 +141,7 @@ lane_engine() {
 lane_media() {
 	require_rust
 	cargo fmt --all -- --check
-	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
-		test_cases::integration_media
+	engine_lib_tests_matching test_cases::integration_media
 	bash .agents/skills/verify-abb/run.sh
 }
 
@@ -140,10 +156,9 @@ lane_host() {
 lane_decrypt() {
 	require_rust
 	cargo fmt --all -- --check
-	dotnet test tools/abb-aaxclean-helper/tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj \
-		--configuration Release --nologo
-	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
-		test_cases::integration_decrypt
+	(cd tools/abb-aaxclean-helper && dotnet test tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj \
+		--configuration Release --nologo)
+	engine_lib_tests_matching integration_decrypt_tests
 }
 
 lane_apple() {
@@ -153,7 +168,7 @@ lane_apple() {
 	fi
 	require_rust
 	cargo fmt --all -- --check
-	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- apple
+	engine_lib_tests_matching apple
 }
 
 lane_tooling() {

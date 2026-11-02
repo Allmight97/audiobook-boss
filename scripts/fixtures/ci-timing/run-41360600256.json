@@ -1,0 +1,328 @@
+{
+	"run": {
+		"id": 41360600256,
+		"event": "pull_request",
+		"display_title": "Fewer, checked rules for agents",
+		"created_at": "2026-11-01T23:08:18Z"
+	},
+	"jobs": [
+		{
+			"id": 125009942487,
+			"name": "changes",
+			"conclusion": "success",
+			"created_at": "2026-11-01T23:08:19Z",
+			"started_at": "2026-11-01T23:08:22Z",
+			"completed_at": "2026-11-01T23:08:35Z",
+			"steps": []
+		},
+		{
+			"id": 125010013458,
+			"name": "Advisories and licenses",
+			"conclusion": "success",
+			"created_at": "2026-11-01T23:08:36Z",
+			"started_at": "2026-11-01T23:08:38Z",
+			"completed_at": "2026-11-01T23:09:12Z",
+			"steps": []
+		},
+		{
+			"id": 125010013507,
+			"name": "Frontend typecheck and tests",
+			"conclusion": "success",
+			"created_at": "2026-11-01T23:08:36Z",
+			"started_at": "2026-11-01T23:08:38Z",
+			"completed_at": "2026-11-01T23:09:15Z",
+			"steps": []
+		},
+		{
+			"id": 125010013538,
+			"name": "Core crate tests and clippy",
+			"conclusion": "success",
+			"created_at": "2026-11-01T23:08:36Z",
+			"started_at": "2026-11-01T23:08:38Z",
+			"completed_at": "2026-11-01T23:09:14Z",
+			"steps": [
+				{
+					"name": "Set up job",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:39Z",
+					"completed_at": "2026-11-01T23:08:40Z"
+				},
+				{
+					"name": "Run actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:40Z",
+					"completed_at": "2026-11-01T23:08:42Z"
+				},
+				{
+					"name": "Run bash scripts/setup.sh frontend",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:42Z",
+					"completed_at": "2026-11-01T23:08:49Z"
+				},
+				{
+					"name": "Run astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:49Z",
+					"completed_at": "2026-11-01T23:08:50Z"
+				},
+				{
+					"name": "Run bash scripts/verify.sh core",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:50Z",
+					"completed_at": "2026-11-01T23:09:10Z"
+				},
+				{
+					"name": "Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:09:10Z",
+					"completed_at": "2026-11-01T23:09:12Z"
+				},
+				{
+					"name": "Post Run astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:09:12Z",
+					"completed_at": "2026-11-01T23:09:12Z"
+				},
+				{
+					"name": "Post Run actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:09:12Z",
+					"completed_at": "2026-11-01T23:09:12Z"
+				},
+				{
+					"name": "Complete job",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:09:12Z",
+					"completed_at": "2026-11-01T23:09:12Z"
+				}
+			]
+		},
+		{
+			"id": 125010013564,
+			"name": "Rust (macos-latest)",
+			"conclusion": "success",
+			"created_at": "2026-11-01T23:08:36Z",
+			"started_at": "2026-11-01T23:08:39Z",
+			"completed_at": "2026-11-01T23:23:33Z",
+			"steps": [
+				{
+					"name": "Set up job",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:40Z",
+					"completed_at": "2026-11-01T23:08:42Z"
+				},
+				{
+					"name": "Run actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:42Z",
+					"completed_at": "2026-11-01T23:08:45Z"
+				},
+				{
+					"name": "Run actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:45Z",
+					"completed_at": "2026-11-01T23:08:50Z"
+				},
+				{
+					"name": "Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:50Z",
+					"completed_at": "2026-11-01T23:08:59Z"
+				},
+				{
+					"name": "Run bash scripts/setup.sh frontend",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:59Z",
+					"completed_at": "2026-11-01T23:09:28Z"
+				},
+				{
+					"name": "Run bash scripts/setup.sh rust",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:09:28Z",
+					"completed_at": "2026-11-01T23:10:41Z"
+				},
+				{
+					"name": "Run if [ \"macOS\" = macOS ]; then",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:10:41Z",
+					"completed_at": "2026-11-01T23:10:43Z"
+				},
+				{
+					"name": "Run actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:10:43Z",
+					"completed_at": "2026-11-01T23:10:59Z"
+				},
+				{
+					"name": "Run read -r -a lanes <<< \"$LANES\"",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:10:59Z",
+					"completed_at": "2026-11-01T23:23:05Z"
+				},
+				{
+					"name": "Run actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+					"conclusion": "skipped",
+					"started_at": "2026-11-01T23:23:05Z",
+					"completed_at": "2026-11-01T23:23:05Z"
+				},
+				{
+					"name": "Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:23:05Z",
+					"completed_at": "2026-11-01T23:23:07Z"
+				},
+				{
+					"name": "Post Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:23:07Z",
+					"completed_at": "2026-11-01T23:23:27Z"
+				},
+				{
+					"name": "Post Run actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:23:27Z",
+					"completed_at": "2026-11-01T23:23:27Z"
+				},
+				{
+					"name": "Post Run actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:23:27Z",
+					"completed_at": "2026-11-01T23:23:28Z"
+				},
+				{
+					"name": "Complete job",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:23:28Z",
+					"completed_at": "2026-11-01T23:23:32Z"
+				}
+			]
+		},
+		{
+			"id": 125010013592,
+			"name": "Workflows and shell",
+			"conclusion": "success",
+			"created_at": "2026-11-01T23:08:36Z",
+			"started_at": "2026-11-01T23:08:38Z",
+			"completed_at": "2026-11-01T23:09:03Z",
+			"steps": []
+		},
+		{
+			"id": 125010013598,
+			"name": "Rust (ubuntu-24.04)",
+			"conclusion": "success",
+			"created_at": "2026-11-01T23:08:36Z",
+			"started_at": "2026-11-01T23:08:39Z",
+			"completed_at": "2026-11-01T23:14:29Z",
+			"steps": [
+				{
+					"name": "Set up job",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:40Z",
+					"completed_at": "2026-11-01T23:08:41Z"
+				},
+				{
+					"name": "Run actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:41Z",
+					"completed_at": "2026-11-01T23:08:43Z"
+				},
+				{
+					"name": "Run actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:43Z",
+					"completed_at": "2026-11-01T23:08:45Z"
+				},
+				{
+					"name": "Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:08:45Z",
+					"completed_at": "2026-11-01T23:09:47Z"
+				},
+				{
+					"name": "Run bash scripts/setup.sh frontend",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:09:47Z",
+					"completed_at": "2026-11-01T23:09:57Z"
+				},
+				{
+					"name": "Run bash scripts/setup.sh rust",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:09:57Z",
+					"completed_at": "2026-11-01T23:10:55Z"
+				},
+				{
+					"name": "Run if [ \"Linux\" = macOS ]; then",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:10:55Z",
+					"completed_at": "2026-11-01T23:10:55Z"
+				},
+				{
+					"name": "Run actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:10:55Z",
+					"completed_at": "2026-11-01T23:11:07Z"
+				},
+				{
+					"name": "Run read -r -a lanes <<< \"$LANES\"",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:11:07Z",
+					"completed_at": "2026-11-01T23:14:24Z"
+				},
+				{
+					"name": "Run actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+					"conclusion": "skipped",
+					"started_at": "2026-11-01T23:14:24Z",
+					"completed_at": "2026-11-01T23:14:24Z"
+				},
+				{
+					"name": "Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:14:24Z",
+					"completed_at": "2026-11-01T23:14:26Z"
+				},
+				{
+					"name": "Post Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:14:26Z",
+					"completed_at": "2026-11-01T23:14:26Z"
+				},
+				{
+					"name": "Post Run actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:14:26Z",
+					"completed_at": "2026-11-01T23:14:26Z"
+				},
+				{
+					"name": "Post Run actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:14:26Z",
+					"completed_at": "2026-11-01T23:14:26Z"
+				},
+				{
+					"name": "Complete job",
+					"conclusion": "success",
+					"started_at": "2026-11-01T23:14:26Z",
+					"completed_at": "2026-11-01T23:14:26Z"
+				}
+			]
+		},
+		{
+			"id": 125013784927,
+			"name": "gate",
+			"conclusion": "success",
+			"created_at": "2026-11-01T23:23:34Z",
+			"started_at": "2026-11-01T23:23:36Z",
+			"completed_at": "2026-11-01T23:23:47Z",
+			"steps": []
+		},
+		{
+			"id": 125013841625,
+			"name": "Delete closed PR caches",
+			"conclusion": "success",
+			"created_at": "2026-11-01T23:23:48Z",
+			"started_at": "2026-11-01T23:23:50Z",
+			"completed_at": "2026-11-01T23:23:53Z",
+			"steps": []
+		}
+	]
+}

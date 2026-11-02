@@ -76,7 +76,7 @@ export function planJobs(lanes: string[]): Jobs {
 	}
 	if (macLanes.length > 0) {
 		rust.push({
-			os: 'macos-latest',
+			os: 'macos-26',
 			lanes: macLanes,
 			native: nativeLanes.length > 0 || lanes.includes('apple'),
 			frontend: lanes.includes('host'),

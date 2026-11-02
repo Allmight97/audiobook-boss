@@ -3,6 +3,8 @@ name: ci
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]
+  push:
+    branches: [main]
   schedule:
     - cron: "0 6 * * *"
     - cron: "30 6 * * 1,4"
@@ -11,7 +13,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || format('{0}-{1}', github.ref, github.event_name) }}
   cancel-in-progress: true
 
 env:
@@ -19,12 +21,14 @@ env:
 
 jobs:
   changes:
-    if: github.event.pull_request.draft != true && (github.event.action != 'closed' || github.event.pull_request.merged == true)
+    if: github.event.pull_request.draft != true && github.event.action != 'closed'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
+    env:
+      BASE: ${{ github.event.pull_request.base.sha || (github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before) || '' }}
     outputs:
       frontend: ${{ steps.plan.outputs.frontend }}
       core: ${{ steps.plan.outputs.core }}
@@ -39,14 +43,11 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
       # Depth 2 includes the test-merge parents. A stacked base is not one of them.
-      - if: github.event_name == 'pull_request' && github.event.action != 'closed'
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+      - if: env.BASE != ''
         run: git fetch --no-tags --depth=1 origin "$BASE"
       - run: bash scripts/setup.sh frontend
       - id: plan
         env:
-          BASE: ${{ github.event.action != 'closed' && github.event.pull_request.base.sha || '' }}
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
         run: |
@@ -70,9 +71,6 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .node-version
       - run: bash scripts/setup.sh frontend
       - run: bash scripts/verify.sh frontend
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -129,6 +127,16 @@ jobs:
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('tools/abb-aaxclean-helper/**/*.csproj', 'tools/abb-aaxclean-helper/global.json', 'tools/abb-aaxclean-helper/Directory.Build.props') }}
+      # rust-cache keys on every installed toolchain, so an image's extra stable would change the key.
+      - name: Keep only the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+          pinned="$(rustup show active-toolchain | cut -d' ' -f1)"
+          rustup default "$pinned"
+          rustup toolchain list --quiet | while read -r toolchain; do
+            [ "$toolchain" = "$pinned" ] || rustup toolchain uninstall "$toolchain"
+          done
+          [ "$(rustup toolchain list --quiet)" = "$pinned" ]
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-workspace-crates: true
@@ -163,6 +171,9 @@ jobs:
         with:
           path: target/abb-ffmpeg-cache
           key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
+      # rust-cache's post step cleans every unknown directory under target/; the FFmpeg tree has its own cache.
+      - if: always() && matrix.native
+        run: rm -rf target/abb-ffmpeg-cache
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
@@ -238,7 +249,7 @@ jobs:
   gate:
     name: gate
     needs: [changes, frontend, core, rust, tooling, supply-chain]
-    if: always() && github.event.pull_request.draft != true && (github.event.action != 'closed' || github.event.pull_request.merged == true)
+    if: always() && github.event.pull_request.draft != true && github.event.action != 'closed'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -254,8 +265,7 @@ jobs:
 
   cache-cleanup:
     name: Delete closed PR caches
-    needs: gate
-    if: always() && github.event.action == 'closed'
+    if: github.event.action == 'closed'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

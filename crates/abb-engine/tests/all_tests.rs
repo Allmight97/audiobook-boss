@@ -93,7 +93,9 @@ fn unprivileged_ids() -> (u32, u32) {
 /// regular file at the parent path so create_dir_all fails for every uid.
 /// Save writes this source in place, so that blocker cannot sit at the
 /// parent while Import still reads the book. Run the host unprivileged
-/// when uid 0 so the read-only file fails the write, without chattr.
+/// when uid 0 so the read-only file fails the write, without chattr. That
+/// host runs from a copy beside the book, because the user cannot traverse a
+/// private checkout such as one under /root.
 #[cfg(unix)]
 fn run_save_against_unwritable_book(source: &Path, state: &Path) -> std::process::Output {
     use std::os::unix::fs::PermissionsExt;
@@ -102,7 +104,15 @@ fn run_save_against_unwritable_book(source: &Path, state: &Path) -> std::process
     // allow-permission-fake: as root, abb-dev runs as nobody, which cannot write it
     std::fs::set_permissions(source, std::fs::Permissions::from_mode(0o444))
         .expect("make the book read-only");
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_abb-dev"));
+    let host = if euid_is_root() {
+        let copy = source.parent().expect("book parent").join("abb-dev");
+        std::fs::copy(env!("CARGO_BIN_EXE_abb-dev"), &copy)
+            .expect("copy the developer host beside the book");
+        copy
+    } else {
+        PathBuf::from(env!("CARGO_BIN_EXE_abb-dev"))
+    };
+    let mut cmd = Command::new(host);
     cmd.arg(source)
         .args(["--set", "genre=Mystery", "--save", "--state-dir"])
         .arg(state);

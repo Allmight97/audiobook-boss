@@ -56,6 +56,8 @@ Other harnesses use the same verifier and evidence files.
 
 For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.
+A lane that selects tests by a filter fails when the filter runs none,
+so a renamed module cannot pass by running nothing.
 
 `bash scripts/setup.sh` installs `.githooks/pre-commit`, a fast check of the
 staged index; it never changes the index.
@@ -70,6 +72,9 @@ Traps:
 - Each git worktree holds its own `target/`. Remove finished worktrees.
 - `bun run build` may still print the known DEP0205 and Vite plugin-timing
   warnings.
+
+A change to CI or validation speed quotes before and after numbers from
+`bun run ci:timing` in its PR body, so every comparison uses one recipe.
 
 ## Development tooling
 
@@ -154,6 +159,7 @@ Traps:
 | `package.json` | `nanoid (override)` | pin: security floor for PostCSS's transitive dependency; unpin when PostCSS requires `^3.3.20` or newer |
 | `package.json` | `undici (override)` | pin: security floor for jsdom's transitive dependency; unpin when jsdom requires this version or newer |
 | `.node-version` | `node` | pin: CI and a fresh setup install this exact build; setup keeps any Node of this major or newer; unpin when the owner moves to a newer Node |
+| `scripts/setup.sh` | Linux FFmpeg CLI (`ffmpeg_cli_release`) | pin: BtbN keeps month-end builds, so a fresh Linux box gets the same readback binary; unpin when the owner moves the media lane to a newer FFmpeg build |
 | `scripts/check-workflows.sh` | `zizmor` | pin: workflow findings stay the same between runs; unpin when the owner bumps zizmor |
 
 ## Environment
@@ -175,7 +181,8 @@ Traps:
   `bun run app:dev:log`. The first build compiles the revision in
   `vendor/ffmpeg-sys-next-*/ffmpeg-revision` into `target/abb-ffmpeg-cache`.
   Later builds, including Clippy after `bun run app:dev:log`, reuse that tree;
-  `ABB-PROVENANCE.md` beside the revision lists what invalidates it. Clippy
+  `ABB-PROVENANCE.md` beside the revision lists what invalidates it, how
+  trees unused for 14 days are pruned, and the offline source setup fetches. Clippy
   still typechecks the bindings crate: Cargo treats check and build as
   different units.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH

@@ -18,19 +18,27 @@ check rejects any agent-review workflow with other triggers. In a draft, a
 review runs only when someone asks for one with an @claude comment
 (`claude.yml`). A review that posts nothing fails its job.
 
-A closed pull request deletes its own caches, because GitHub caps a
-repository's caches at 10 GB and PR caches would otherwise evict main's. The
-Monday and Thursday full runs keep main's caches used, because GitHub evicts
-a cache after 7 days unused.
+Only main's own runs can save the caches every pull request restores: GitHub
+gives a pull request's runs read-only access to main's cache scope, and a
+merged pull request's closed run is one of them. So a push to main runs the
+lanes the merge changed and saves their caches, and the closed run only
+deletes that pull request's caches, because GitHub caps a repository's caches
+at 10 GB and PR caches would otherwise evict main's. The Monday and Thursday
+full runs keep main's caches used, because GitHub evicts a cache after 7 days
+unused. A `pull_request` trigger takes no `branches:` filter, so a stacked
+pull request on a non-main base still runs; `push` runs only on main.
+`scripts/check-pr-workflow-policy.ts` rejects both, and an unpinned runner
+label, because a moving image changes tools and the Rust cache key.
 
 A skipped `gate` counts as a successful required check. Draft status is what
 keeps a draft pull request unmergeable. This choice does not change the
 ruleset.
 
 The concurrency group is the workflow name plus the pull request number, and
-the ref when there is no pull request. A merged pull request's closed run
-uses that same group, so it shares the group with that pull request's earlier
-runs. The previous group isolated the closed run on its own ref.
+the ref and event name when there is no pull request. A pull request's closed
+run uses that same group, so it cancels that pull request's earlier runs
+before deleting their caches. On main, a push run cancels only an older push
+run, never the scheduled full run that keeps main's caches from expiring.
 
 - poteto, put the correction in the codebase first: https://x.com/poteto/status/2111133080526495985
 - Thorsten Ball, what a pull request is for: https://x.com/thorstenball/status/2111130129355481240

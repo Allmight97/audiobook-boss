@@ -124,13 +124,83 @@ describe('check-pr-workflow-policy', () => {
 		expect(found.join('\n')).toMatch(/types are missing closed/);
 	});
 
-	it('rejects ubuntu-latest inside a matrix the job runs on', () => {
-		const text = guarded.replace(
-			'runs-on: ubuntu-24.04',
-			`runs-on: \${{ matrix.os }}\n    strategy:\n      matrix:\n        os: [ubuntu-latest]`,
+	it('rejects an unpinned runner, directly or inside a matrix', () => {
+		for (const label of ['ubuntu-latest', 'ubuntu-22.04', 'macos-latest', 'macos-15']) {
+			const direct = guarded.replace('runs-on: ubuntu-24.04', `runs-on: ${label}`);
+			const matrix = guarded.replace(
+				'runs-on: ubuntu-24.04',
+				`runs-on: \${{ matrix.os }}\n    strategy:\n      matrix:\n        include:\n          - os: ${label}`,
+			);
+			for (const text of [direct, matrix]) {
+				expect(messages('ci.yml', text).join('\n')).toMatch(
+					new RegExp(
+						`job frontend runs on ${label}.*Fix: pin runs-on to (ubuntu-24\\.04|macos-26)`,
+					),
+				);
+			}
+		}
+		const pinned = guarded.replace('runs-on: ubuntu-24.04', 'runs-on: macos-26');
+		expect(messages('ci.yml', pinned)).toEqual([]);
+	});
+
+	it('rejects a draft guard that is not a top-level && conjunct', () => {
+		for (const iff of [
+			'(github.event.pull_request.draft != true || true)',
+			'or(github.event.pull_request.draft != true, true)',
+			"github.event.pull_request.draft != true || github.event.action == 'closed'",
+		]) {
+			const text = guarded.replace('github.event.pull_request.draft != true', iff);
+			expect(messages('ci.yml', text).join('\n')).toMatch(
+				/job frontend (runs on a draft|bypasses)/,
+			);
+		}
+		const conjunct = guarded.replace(
+			'github.event.pull_request.draft != true',
+			"(github.event.pull_request.draft != true) && github.event.action != 'closed'",
 		);
-		const found = messages('ci.yml', text);
-		expect(found.join('\n')).toMatch(/job frontend uses ubuntu-latest/);
+		expect(messages('ci.yml', conjunct)).toEqual([]);
+	});
+
+	it('rejects a branches filter on pull_request', () => {
+		const text = guarded.replace(
+			'    types: [opened,',
+			'    branches: [main]\n    types: [opened,',
+		);
+		expect(messages('ci.yml', text).join('\n')).toMatch(
+			/pull_request branches filter skips stacked/,
+		);
+	});
+
+	it('accepts push only to main', () => {
+		const withPush = (branches: string) =>
+			guarded.replace('concurrency:', `  push:\n    branches: ${branches}\nconcurrency:`);
+		expect(messages('ci.yml', withPush('[main]'))).toEqual([]);
+		for (const branches of ['[main, develop]', "['**']"]) {
+			expect(messages('ci.yml', withPush(branches)).join('\n')).toMatch(
+				/push runs only to seed main caches/,
+			);
+		}
+	});
+
+	it('applies the push rule to the shorthand trigger list', () => {
+		const found = messages(
+			'ci.yml',
+			'on: [push, pull_request]\njobs:\n  frontend:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n',
+		);
+		expect(found.join('\n')).toMatch(/push runs only to seed main caches/);
+	});
+
+	it('rejects a shallow diff of a base held in job env', () => {
+		const text = changesWorkflow('')
+			.replace(
+				`      - env:\n          BASE: \${{ github.event.pull_request.base.sha }}\n        run: bun`,
+				`      - run: bun`,
+			)
+			.replace(
+				'    timeout-minutes: 5\n    steps:',
+				`    timeout-minutes: 5\n    env:\n      BASE: \${{ github.event.pull_request.base.sha }}\n    steps:`,
+			);
+		expect(messages('ci.yml', text).join('\n')).toMatch(/diffs the pull request base/);
 	});
 
 	it('rejects a shallow diff of the pull request base', () => {
