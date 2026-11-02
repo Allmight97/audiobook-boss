@@ -185,6 +185,8 @@ A change to CI or validation speed quotes before and after numbers from
   trees unused for 14 days are pruned, and the offline source setup fetches. Clippy
   still typechecks the bindings crate: Cargo treats check and build as
   different units.
+- Linux builds link with mold through clang (`.cargo/config.toml`); `setup.sh
+  rust` installs both. A `RUSTFLAGS` variable replaces that config's flags.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
   (`ABB_FFMPEG` and `ABB_FFPROBE` override). `setup.sh rust` installs FFmpeg 9
   into `~/.local/bin` on Linux and uses Homebrew `ffmpeg` on macOS. Those

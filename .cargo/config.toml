@@ -1,0 +1,9 @@
+# Linux links with mold through clang: relinking after an engine edit drops
+# from about 20 s to 7 s. GCC before 12 rejects -fuse-ld=mold; clang accepts it.
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.aarch64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
