@@ -154,6 +154,8 @@ jobs:
           fi
       # Cached compilation is reusable even when a behavioral check fails.
       # FFmpeg's build owner validates each restored tree's effective inputs.
+      - if: matrix.native
+        run: touch "$RUNNER_TEMP/ffmpeg-job-start"
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: ffmpeg
         if: matrix.native
@@ -166,6 +168,13 @@ jobs:
         run: |
           read -r -a lanes <<< "$LANES"
           bash scripts/verify.sh "${lanes[@]}"
+      # A fallback restore brings back trees for older build identities; save only the trees this job built or reused.
+      - if: always() && matrix.native
+        run: |
+          for tree in target/abb-ffmpeg-cache/*/; do
+            [ -d "$tree" ] || continue
+            [ "$tree/abb-last-used" -nt "$RUNNER_TEMP/ffmpeg-job-start" ] || rm -rf "$tree"
+          done
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always() && matrix.native && steps.ffmpeg.outputs.cache-hit != 'true' && steps.ffmpeg.outputs.cache-primary-key != '' && hashFiles('target/abb-ffmpeg-cache/**/abb-build-inputs') != ''
         with:
