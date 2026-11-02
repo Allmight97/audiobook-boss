@@ -314,11 +314,15 @@ fn looks_like_target_triple(name: &str) -> bool {
 struct CacheGuard(PathBuf);
 
 impl CacheGuard {
-    fn acquire(dir: &Path) -> Self {
-        // /tmp, not the cache dir: CI restores `target/abb-ffmpeg-cache`, and a
-        // saved lock pid can collide with a live process on the next runner.
+    // /tmp, not the cache dir: CI restores `target/abb-ffmpeg-cache`, and a
+    // saved lock pid can collide with a live process on the next runner.
+    fn lock_path(dir: &Path) -> PathBuf {
         let name = dir.file_name().and_then(|name| name.to_str()).unwrap_or("cache");
-        let path = env::temp_dir().join(format!("abb-ffmpeg-{name}.lock"));
+        env::temp_dir().join(format!("abb-ffmpeg-{name}.lock"))
+    }
+
+    fn acquire(dir: &Path) -> Self {
+        let path = Self::lock_path(dir);
         loop {
             match fs::OpenOptions::new()
                 .write(true)
@@ -360,8 +364,72 @@ fn process_alive(pid: u32) -> bool {
         .unwrap_or(true)
 }
 
+const UNUSED_TREE_AGE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
+
+fn mark_tree_used() -> io::Result<()> {
+    fs::write(ffmpeg_tree().join("abb-last-used"), b"")
+}
+
+fn prune_unused_trees() {
+    let current = ffmpeg_tree();
+    let Some(cache) = current.parent() else {
+        return;
+    };
+    let entries = match fs::read_dir(cache) {
+        Ok(entries) => entries,
+        Err(err) => {
+            println!("cargo:warning=abb-ffmpeg-cache: cannot list {}: {err}", cache.display());
+            return;
+        }
+    };
+    for tree in entries.flatten().map(|entry| entry.path()) {
+        if tree == current || !tree.is_dir() || CacheGuard::lock_path(&tree).exists() {
+            continue;
+        }
+        let unused_for = fs::metadata(tree.join("abb-last-used"))
+            .or_else(|_| fs::metadata(&tree))
+            .and_then(|metadata| metadata.modified())
+            .ok()
+            .and_then(|modified| modified.elapsed().ok());
+        if !unused_for.is_some_and(|age| age > UNUSED_TREE_AGE) {
+            continue;
+        }
+        match fs::remove_dir_all(&tree) {
+            Ok(()) => eprintln!("abb-ffmpeg-cache: prune {}", tree.display()),
+            Err(err) => println!(
+                "cargo:warning=abb-ffmpeg-cache: cannot prune {}: {err}",
+                tree.display()
+            ),
+        }
+    }
+}
+
 fn source() -> PathBuf {
     ffmpeg_tree().join(format!("ffmpeg-{}", version()))
+}
+
+const FFMPEG_UPSTREAM: &str = "https://github.com/FFmpeg/FFmpeg";
+
+fn source_remote() -> String {
+    let mirror = ffmpeg_tree()
+        .parent()
+        .and_then(Path::parent)
+        .map(|target| target.join("abb-ffmpeg-source").join(format!("{}.git", source_commit())));
+    let has_commit = |mirror: &Path| {
+        Command::new("git")
+            .arg("-C")
+            .arg(mirror)
+            .args(["cat-file", "-e", &format!("{}^{{commit}}", source_commit())])
+            .status()
+            .is_ok_and(|status| status.success())
+    };
+    match mirror {
+        Some(mirror) if has_commit(&mirror) => {
+            eprintln!("abb-ffmpeg-cache: source from {}", mirror.display());
+            mirror.to_string_lossy().into_owned()
+        }
+        _ => FFMPEG_UPSTREAM.to_string(),
+    }
 }
 
 fn search() -> PathBuf {
@@ -373,16 +441,12 @@ fn fetch() -> io::Result<()> {
     let clone_dest_dir = format!("ffmpeg-{}", version());
     let _ = std::fs::remove_dir_all(output_base_path.join(&clone_dest_dir));
     fs::create_dir_all(source())?;
+    let remote = source_remote();
     // Fetch the immutable commit directly: git clone --branch accepts refs,
     // not arbitrary commit IDs.
     for args in [
         vec!["init"],
-        vec![
-            "remote",
-            "add",
-            "origin",
-            "https://github.com/FFmpeg/FFmpeg",
-        ],
+        vec!["remote", "add", "origin", &remote],
         vec!["fetch", "--depth=1", "origin", source_commit()],
         vec!["checkout", "--detach", "FETCH_HEAD"],
     ] {
@@ -1378,6 +1442,8 @@ fn main() {
         } else {
             eprintln!("abb-ffmpeg-cache: reuse {}", ffmpeg_tree().display());
         }
+        mark_tree_used().expect("failed to mark the FFmpeg tree used");
+        prune_unused_trees();
 
         // Check additional required libraries.
         {

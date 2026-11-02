@@ -178,7 +178,8 @@ Traps:
   `bun run app:dev:log`. The first build compiles the revision in
   `vendor/ffmpeg-sys-next-*/ffmpeg-revision` into `target/abb-ffmpeg-cache`.
   Later builds, including Clippy after `bun run app:dev:log`, reuse that tree;
-  `ABB-PROVENANCE.md` beside the revision lists what invalidates it. Clippy
+  `ABB-PROVENANCE.md` beside the revision lists what invalidates it, how
+  trees unused for 14 days are pruned, and the offline source setup fetches. Clippy
   still typechecks the bindings crate: Cargo treats check and build as
   different units.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH

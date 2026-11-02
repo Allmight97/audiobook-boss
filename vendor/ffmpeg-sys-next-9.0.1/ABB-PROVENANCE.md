@@ -41,7 +41,12 @@ inputs: build-script contents, compiler/version, target, features, CPU flags,
 SDK/sysroot and relevant compiler environment. Rebuild notifications are emitted
 before deciding reuse. The C library is stored in `target/abb-ffmpeg-cache/<identity>`
 rather than Cargo's per-unit `OUT_DIR`, because `cargo build` and `cargo clippy`
-are different units and would otherwise each compile FFmpeg. The build names the
+are different units and would otherwise each compile FFmpeg. Each build marks its
+tree used and deletes sibling trees unused for 14 days that no build holds locked;
+a build releases its lock before Cargo links against the tree, so only age makes a
+tree safe to delete. The source clone comes from
+`target/abb-ffmpeg-source/<revision>.git` when `scripts/setup.sh rust` has fetched
+it, so a build after setup needs no network, and from GitHub otherwise. The build names the
 static libopus archive's directory for the linker, since Linux pkg-config omits
 system library directories.
 Native and portable CPU mechanisms come from upstream sys 9.0.1; ABB's

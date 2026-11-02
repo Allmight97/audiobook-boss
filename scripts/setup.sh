@@ -5,7 +5,7 @@ set -euo pipefail
 # this repo's core.hooksPath so commits run .githooks/pre-commit.
 #   bash scripts/setup.sh                 # frontend and rust
 #   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck, uv, zizmor
-#   bash scripts/setup.sh rust            # bundled FFmpeg build deps, FFmpeg 9 CLI, .NET SDK, helper, uv, cargo fetch
+#   bash scripts/setup.sh rust            # bundled FFmpeg build deps and source, FFmpeg 9 CLI, .NET SDK, helper, uv, cargo fetch
 #   bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
 #   bash scripts/setup.sh --print-env     # eval-able PATH and toolchain exports
 #
@@ -736,6 +736,30 @@ ensure_aaxclean_helper() {
 	ensure_dotnet
 	log "Publishing AAXClean helper for this host"
 	(cd "${repo_root}" && bun run aaxclean-helper:publish)
+	log "Restoring the AAXClean helper test packages"
+	(cd "${repo_root}/tools/abb-aaxclean-helper" && dotnet restore tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj --nologo)
+}
+
+# The bundled FFmpeg build clones its pinned commit from this mirror when it
+# exists (vendor/ffmpeg-sys-next-*/build.rs, source_remote), so verify works
+# offline after setup.
+ensure_ffmpeg_source() {
+	if [[ -n "${CI:-}" ]]; then
+		log "Skipping the offline FFmpeg source: CI has the network and restores built FFmpeg trees"
+		return
+	fi
+	local commit mirror
+	commit="$(tr -d '[:space:]' <"$(echo "${repo_root}"/vendor/ffmpeg-sys-next-*/ffmpeg-revision)")"
+	mirror="${CARGO_TARGET_DIR:-${repo_root}/target}/abb-ffmpeg-source/${commit}.git"
+	if git -C "${mirror}" cat-file -e "${commit}^{commit}" 2>/dev/null; then # allow-silence: a missing mirror exits nonzero and means fetch it
+		log "Using FFmpeg source ${commit}"
+		return
+	fi
+	log "Fetching FFmpeg source ${commit} for offline builds"
+	rm -rf "$(dirname "${mirror}")"
+	git init -q --bare "${mirror}"
+	git -C "${mirror}" fetch -q --depth=1 https://github.com/FFmpeg/FFmpeg "${commit}"
+	git -C "${mirror}" update-ref refs/heads/pinned "${commit}"
 }
 
 install_git_hooks() {
@@ -786,6 +810,7 @@ if want_rust; then
 	bash "${repo_root}/scripts/check-rust-complexity.sh" --prefetch
 	log "Fetching Cargo crates"
 	(cd "${repo_root}" && cargo fetch --locked)
+	ensure_ffmpeg_source
 fi
 
 print_path_line
