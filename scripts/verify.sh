@@ -98,7 +98,8 @@ lane_frontend() {
 	bun run bindings:check:runtime-boundary
 	bun run typecheck
 	bun run knip
-	bun run test
+	bun run test -- --project frontend
+	bun run test -- --project tooling src
 }
 
 lane_core() {
