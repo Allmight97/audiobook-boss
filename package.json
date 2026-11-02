@@ -9,6 +9,7 @@
 		"build": "tsc && vite build",
 		"typecheck": "tsc --noEmit",
 		"knip": "knip",
+		"ci:timing": "bun scripts/ci-timing.ts",
 		"fmt": "bunx @biomejs/biome format --write --no-errors-on-unmatched .",
 		"fmt:check": "bunx @biomejs/biome format --no-errors-on-unmatched .",
 		"fmt:changed": "bunx @biomejs/biome format --write --changed --no-errors-on-unmatched",
