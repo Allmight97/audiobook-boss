@@ -24,6 +24,7 @@ shared: &shared
   - Cargo.toml
   - Cargo.lock
   - clippy.toml
+  - .cargo/config.toml
   - crates/*/Cargo.toml
   - src-tauri/Cargo.toml
   - rust-toolchain.toml

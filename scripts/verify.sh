@@ -64,8 +64,8 @@ require_rust() {
 	return 1
 }
 
-# Core crate tests do not need GTK, FFmpeg CLI, or the sidecar. The dedicated
-# CI core job has no apt; do not require the full rust --check there.
+# Core crate tests do not need GTK, FFmpeg CLI, or the sidecar. The CI core job
+# installs only mold; do not require the full rust --check there.
 require_core() {
 	local missing=0
 	if ! cargo --version >/dev/null 2>&1; then
@@ -82,6 +82,10 @@ require_core() {
 	fi
 	if ! command -v uvx >/dev/null 2>&1; then
 		printf 'MISSING uvx\n' >&2
+		missing=1
+	fi
+	if [[ "$(uname -s)" == Linux ]] && ! command -v mold >/dev/null 2>&1; then
+		printf 'MISSING mold (.cargo/config.toml links Linux builds with it)\n' >&2
 		missing=1
 	fi
 	if [[ "${missing}" -ne 0 ]]; then

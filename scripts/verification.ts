@@ -239,6 +239,10 @@ function toolIdentity(root: string, lane: string): Record<string, string> {
 	if (['core', 'apple', 'supply-chain', ...NATIVE_LANES].includes(lane)) {
 		tools.rustc = version('rustc', ['-vV']);
 		tools.cargo = version('cargo', ['--version']);
+		if (process.platform === 'linux') {
+			tools.clang = version('clang', ['--version']);
+			tools.mold = version('mold', ['--version']);
+		}
 	}
 	if (['apple', ...NATIVE_LANES].includes(lane)) {
 		tools.cc = version(process.env.CC ?? 'cc', ['--version']);
