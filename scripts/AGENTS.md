@@ -154,6 +154,7 @@ Traps:
 | `package.json` | `nanoid (override)` | pin: security floor for PostCSS's transitive dependency; unpin when PostCSS requires `^3.3.20` or newer |
 | `package.json` | `undici (override)` | pin: security floor for jsdom's transitive dependency; unpin when jsdom requires this version or newer |
 | `.node-version` | `node` | pin: CI and a fresh setup install this exact build; setup keeps any Node of this major or newer; unpin when the owner moves to a newer Node |
+| `scripts/setup.sh` | Linux FFmpeg CLI (`ffmpeg_cli_release`) | pin: BtbN keeps month-end builds, so a fresh Linux box gets the same readback binary; unpin when the owner moves the media lane to a newer FFmpeg build |
 | `scripts/check-workflows.sh` | `zizmor` | pin: workflow findings stay the same between runs; unpin when the owner bumps zizmor |
 
 ## Environment

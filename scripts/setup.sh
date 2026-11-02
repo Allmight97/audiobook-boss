@@ -458,7 +458,6 @@ ensure_node() {
 	case "$(uname -s)-$(uname -m)" in
 		Linux-x86_64) asset="node-v${required}-linux-x64.tar.xz" ;;
 		Linux-aarch64 | Linux-arm64) asset="node-v${required}-linux-arm64.tar.xz" ;;
-		Darwin-x86_64) asset="node-v${required}-darwin-x64.tar.xz" ;;
 		Darwin-arm64) asset="node-v${required}-darwin-arm64.tar.xz" ;;
 		*)
 			printf 'error: no Node release for %s %s\n' "$(uname -s)" "$(uname -m)" >&2
@@ -496,7 +495,6 @@ ensure_bun() {
 			fi
 			;;
 		Linux-aarch64 | Linux-arm64) asset=bun-linux-aarch64 ;;
-		Darwin-x86_64) asset=bun-darwin-x64 ;;
 		Darwin-arm64) asset=bun-darwin-aarch64 ;;
 		*)
 			printf 'error: no Bun release for %s %s\n' "$(uname -s)" "$(uname -m)" >&2
@@ -541,11 +539,12 @@ apt_install() {
 # A minimal Ubuntu image has none of these, and frontend setup runs first.
 ensure_download_tools() {
 	is_linux || return 0
-	if have curl && have unzip && have xz && [[ -s /etc/ssl/certs/ca-certificates.crt ]]; then
+	if have curl && have unzip && have xz && [[ -s /etc/ssl/certs/ca-certificates.crt ]] &&
+		/sbin/ldconfig -p | grep -q 'libatomic\.so\.1'; then
 		return
 	fi
 	log "Installing download tools"
-	apt_install ca-certificates curl unzip xz-utils
+	apt_install ca-certificates curl unzip xz-utils libatomic1
 }
 
 install_linux_packages() {
@@ -576,6 +575,9 @@ install_rust_packages() {
 
 # Media-lane fixtures and readback spawn ffmpeg/ffprobe; distro FFmpeg 6.x
 # decodes edit lists and Opus pre-skip differently than the engine's FFmpeg 9.
+ffmpeg_cli_release=autobuild-2026-10-31-12-59
+ffmpeg_cli_build=n9.0.2-39-g7adfbe40dc
+
 ensure_readback_cli() {
 	if ffmpeg_bin >/dev/null && ffprobe_bin >/dev/null; then
 		log "Using FFmpeg 9 readback CLI"
@@ -606,8 +608,8 @@ ensure_readback_cli() {
 	fi
 	local asset tmp
 	case "$(uname -m)" in
-		x86_64) asset="ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz" ;;
-		aarch64 | arm64) asset="ffmpeg-n9.0-latest-linuxarm64-gpl-9.0.tar.xz" ;;
+		x86_64) asset="ffmpeg-${ffmpeg_cli_build}-linux64-gpl-9.0.tar.xz" ;;
+		aarch64 | arm64) asset="ffmpeg-${ffmpeg_cli_build}-linuxarm64-gpl-9.0.tar.xz" ;;
 		*)
 			printf 'error: no FFmpeg CLI build for CPU %s\n' "$(uname -m)" >&2
 			exit 1
@@ -615,7 +617,7 @@ ensure_readback_cli() {
 	esac
 	tmp="$(mktemp -d)"
 	log "Installing FFmpeg 9 readback CLI into ${tools_bin}"
-	fetch_verified https://github.com/BtbN/FFmpeg-Builds/releases/download/latest \
+	fetch_verified "https://github.com/BtbN/FFmpeg-Builds/releases/download/${ffmpeg_cli_release}" \
 		"${asset}" checksums.sha256 "${tmp}"
 	tar -xJf "${tmp}/${asset}" -C "${tmp}"
 	mkdir -p "${tools_bin}"
@@ -688,7 +690,6 @@ ensure_uv() {
 	case "$(uname -s)-$(uname -m)" in
 		Linux-x86_64) triple=x86_64-unknown-linux-gnu ;;
 		Linux-aarch64 | Linux-arm64) triple=aarch64-unknown-linux-gnu ;;
-		Darwin-x86_64) triple=x86_64-apple-darwin ;;
 		Darwin-arm64) triple=aarch64-apple-darwin ;;
 		*)
 			printf 'error: no uv release for %s %s\n' "$(uname -s)" "$(uname -m)" >&2
@@ -745,6 +746,10 @@ install_git_hooks() {
 }
 
 require_prerequisites() {
+	if is_darwin && [[ "$(uname -m)" != arm64 ]]; then
+		printf 'error: ABB supports Apple Silicon Macs only (README, Requirements).\n' >&2
+		exit 1
+	fi
 	if is_darwin && ! have brew; then
 		printf 'error: Homebrew is required on macOS. Install it from https://brew.sh, then rerun.\n' >&2
 		exit 1

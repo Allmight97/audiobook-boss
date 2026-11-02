@@ -141,8 +141,8 @@ lane_host() {
 lane_decrypt() {
 	require_rust
 	cargo fmt --all -- --check
-	dotnet test tools/abb-aaxclean-helper/tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj \
-		--configuration Release --nologo
+	(cd tools/abb-aaxclean-helper && dotnet test tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj \
+		--configuration Release --nologo)
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
 		test_cases::integration_decrypt
 }
