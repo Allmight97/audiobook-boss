@@ -116,6 +116,7 @@ lane_engine() {
 	cargo fmt --all -- --check
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
 		--skip test_cases::integration_media --skip integration_decrypt_tests
+	cargo test --locked -p abb-engine --features bundled-ffmpeg --bin abb-dev
 	cargo test --locked -p faac-sys
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests
