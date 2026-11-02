@@ -1417,6 +1417,10 @@ fn main() {
         let build_identity = native_build_identity(sysroot.as_deref())
             .expect("failed to identify FFmpeg build inputs");
         prepare_ffmpeg_tree(&build_identity).expect("failed to prepare the FFmpeg cache");
+        println!(
+            "cargo:rerun-if-changed={}",
+            search().join("abb-build-inputs").display()
+        );
         let _cache_lock = CacheGuard::acquire(&ffmpeg_tree());
         println!(
             "cargo:rustc-link-search=native={}",

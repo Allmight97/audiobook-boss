@@ -44,7 +44,9 @@ rather than Cargo's per-unit `OUT_DIR`, because `cargo build` and `cargo clippy`
 are different units and would otherwise each compile FFmpeg. Each build marks its
 tree used and deletes sibling trees unused for 14 days that no build holds locked;
 a build releases its lock before Cargo links against the tree, so only age makes a
-tree safe to delete. The source clone comes from
+tree safe to delete. Cargo reruns the build script when its tree's
+`abb-build-inputs` stamp changes or disappears, so a profile whose cached build
+output named a pruned tree rebuilds it instead of failing to link. The source clone comes from
 `target/abb-ffmpeg-source/<revision>.git` when `scripts/setup.sh rust` has fetched
 it, so a build after setup needs no network, and from GitHub otherwise. The build names the
 static libopus archive's directory for the linker, since Linux pkg-config omits
