@@ -153,10 +153,10 @@ jobs:
           else
             echo "id=$( (cc --version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
           fi
-      # Cached compilation is reusable even when a behavioral check fails.
-      # FFmpeg's build owner validates each restored tree's effective inputs.
       - if: matrix.native
         run: touch "$RUNNER_TEMP/ffmpeg-job-start"
+      # Cached compilation is reusable even when a behavioral check fails.
+      # FFmpeg's build owner validates each restored tree's effective inputs.
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: ffmpeg
         if: matrix.native
