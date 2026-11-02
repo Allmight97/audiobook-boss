@@ -17,6 +17,7 @@ interface Step {
 
 interface Job {
 	if?: string;
+	env?: Record<string, unknown>;
 	uses?: string;
 	'runs-on'?: unknown;
 	'timeout-minutes'?: unknown;
@@ -35,6 +36,11 @@ const REVIEW_TYPES = ['opened', 'reopened', 'ready_for_review'];
 const AGENT_REVIEW_ACTION = /^anthropics\/claude-code-action@/;
 const PR_TRIGGERS = ['pull_request', 'pull_request_target'];
 const DRAFT_GUARD = /github\.event\.pull_request\.draft\s*!=\s*true/;
+const DRAFT_CONJUNCT = /^\(*\s*github\.event\.pull_request\.draft\s*!=\s*true\s*\)*$/;
+export const PINNED_RUNNERS: Record<string, string> = {
+	'ubuntu-': 'ubuntu-24.04',
+	'macos-': 'macos-26',
+};
 const BASE_SHA = /github\.event\.pull_request\.base\.sha/;
 const CLOSED_USE = /github\.event\.action\s*[!=]=\s*'closed'|pull_request\.merged\b/;
 const UNSTABLE_KEY = /github\.(?:sha|run_id|run_attempt)\b|head\.sha/;
@@ -111,10 +117,39 @@ function triggerFindings(
 				...(review
 					? reviewTriggerFindings(file, text, name, triggers[name])
 					: prTriggerFindings(file, text, name, triggers[name])),
+				...branchFilterFindings(file, text, name, triggers[name]),
 			);
 		}
 	}
+	if ('push' in triggers && checksPullRequests(triggers)) {
+		findings.push(...pushFindings(file, text, triggers.push));
+	}
 	return findings;
+}
+
+function branchFilterFindings(file: string, text: string, name: string, raw: unknown): Finding[] {
+	const config = eventConfig(raw);
+	if (!config.branches && !config['branches-ignore']) return [];
+	return [
+		{
+			file,
+			line: lineAfter(text, `${name}:`, 'branches'),
+			message: `a ${name} branches filter skips stacked pull requests whose base is not main. Fix: remove the filter.`,
+		},
+	];
+}
+
+function pushFindings(file: string, text: string, raw: unknown): Finding[] {
+	const branches = eventConfig(raw).branches;
+	if (Array.isArray(branches) && branches.length === 1 && branches[0] === 'main') return [];
+	return [
+		at(
+			file,
+			text,
+			'push:',
+			'push runs only to seed main caches; on any other branch it duplicates the pull request run. Fix: set push branches to [main].',
+		),
+	];
 }
 
 function eventConfig(raw: unknown): Record<string, unknown> {
@@ -259,15 +294,17 @@ function jobFindings(
 }
 
 function runnerFindings(file: string, line: number, name: string, job: Job): Finding[] {
-	const labels = runnerLabels(job);
-	if (!labels.includes('ubuntu-latest')) return [];
-	return [
-		{
-			file,
-			line,
-			message: `job ${name} uses ubuntu-latest, which moves to Ubuntu 26 on 2026-10-19. Fix: pin runs-on to ubuntu-24.04.`,
-		},
-	];
+	return runnerLabels(job).flatMap((label) => {
+		const pinned = Object.entries(PINNED_RUNNERS).find(([prefix]) => label.startsWith(prefix))?.[1];
+		if (!pinned || label === pinned) return [];
+		return [
+			{
+				file,
+				line,
+				message: `job ${name} runs on ${label}; images move under unpinned labels and change cache keys and tools. Fix: pin runs-on to ${pinned}.`,
+			},
+		];
+	});
 }
 
 function runnerLabels(job: Job): string[] {
@@ -324,7 +361,33 @@ function timeoutFinding(file: string, line: number, name: string, job: Job): Fin
 }
 
 function draftGuarded(iff: string): boolean {
-	return DRAFT_GUARD.test(iff) && !hasTopLevelOr(expressionBody(iff));
+	const body = expressionBody(iff);
+	return !hasTopLevelOr(body) && topLevelConjuncts(body).some((part) => DRAFT_CONJUNCT.test(part));
+}
+
+function topLevelConjuncts(expression: string): string[] {
+	const parts: string[] = [];
+	let depth = 0;
+	let quote = '';
+	let start = 0;
+	for (let index = 0; index < expression.length; index++) {
+		const char = expression[index];
+		if (quote) {
+			if (char === '\\') index += 1;
+			else if (char === quote) quote = '';
+			continue;
+		}
+		if (char === "'" || char === '"') quote = char;
+		else if (char === '(') depth += 1;
+		else if (char === ')') depth = Math.max(0, depth - 1);
+		else if (depth === 0 && expression.startsWith('&&', index)) {
+			parts.push(expression.slice(start, index).trim());
+			start = index + 2;
+			index += 1;
+		}
+	}
+	parts.push(expression.slice(start).trim());
+	return parts;
 }
 
 function expressionBody(iff: string): string {
@@ -360,13 +423,17 @@ function draftGuardMessage(name: string, iff: string): string {
 }
 
 function closedOnly(job: Job): boolean {
-	const iff = job.if ?? '';
-	return /github\.event\.action\s*==\s*'closed'/.test(iff) && !draftGuarded(iff);
+	const body = expressionBody(job.if ?? '');
+	return (
+		!hasTopLevelOr(body) &&
+		topLevelConjuncts(body).some((part) => /^github\.event\.action\s*==\s*'closed'$/.test(part))
+	);
 }
 
 function baseCheckoutFindings(file: string, text: string, name: string, job: Job): Finding[] {
 	const steps = stepsOf(job);
-	if (!diffsPullRequestBase(steps) || fetchesBaseOrFullHistory(steps)) return [];
+	const jobEnv = envText(job);
+	if (!diffsPullRequestBase(steps, jobEnv) || fetchesBaseOrFullHistory(steps, jobEnv)) return [];
 	return [
 		{
 			file,
@@ -381,8 +448,8 @@ function stepsOf(job: Job): Step[] {
 	return job.steps.filter((step) => step !== null && typeof step === 'object');
 }
 
-function diffsPullRequestBase(steps: Step[]): boolean {
-	const blob = steps.map((step) => `${step.run ?? ''}\n${envText(step)}`).join('\n');
+function diffsPullRequestBase(steps: Step[], jobEnv: string): boolean {
+	const blob = [jobEnv, ...steps.map((step) => `${step.run ?? ''}\n${envText(step)}`)].join('\n');
 	if (!BASE_SHA.test(blob)) return false;
 	return steps.some((step) => runDiffsBase(step.run ?? '', envText(step), blob));
 }
@@ -393,8 +460,8 @@ function runDiffsBase(run: string, stepEnv: string, jobBlob: string): boolean {
 	return /\$\{?\s*BASE\b/.test(run) && /BASE=.*pull_request\.base\.sha/.test(jobBlob);
 }
 
-function fetchesBaseOrFullHistory(steps: Step[]): boolean {
-	const envBlob = steps.map((step) => envText(step)).join('\n');
+function fetchesBaseOrFullHistory(steps: Step[], jobEnv: string): boolean {
+	const envBlob = [jobEnv, ...steps.map((step) => envText(step))].join('\n');
 	return steps.some((step) => fullHistory(step) || fetchesBaseSha(step.run ?? '', envBlob));
 }
 
@@ -416,9 +483,9 @@ function fetchesBaseSha(run: string, envBlob: string): boolean {
 	return /\$\{?\s*BASE\b/.test(run) && /BASE=.*pull_request\.base\.sha/.test(envBlob);
 }
 
-function envText(step: Step): string {
-	if (!step.env || typeof step.env !== 'object' || Array.isArray(step.env)) return '';
-	return Object.entries(step.env)
+function envText(owner: { env?: Record<string, unknown> }): string {
+	if (!owner.env || typeof owner.env !== 'object' || Array.isArray(owner.env)) return '';
+	return Object.entries(owner.env)
 		.map(([key, value]) => `${key}=${String(value)}`)
 		.join('\n');
 }

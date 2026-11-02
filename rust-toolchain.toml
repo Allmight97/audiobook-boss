@@ -1,4 +1,4 @@
 [toolchain]
-# pin: one Rust minor for every agent and CI; unpin when the owner moves to Rust 1.100
-channel = "1.99"
+# pin: one exact Rust release, so every agent and CI compile with the same rustc; unpin when the owner moves to a newer Rust
+channel = "1.99.1"
 components = ["rustfmt", "clippy"]

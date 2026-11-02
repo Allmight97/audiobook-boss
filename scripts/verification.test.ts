@@ -12,6 +12,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { PINNED_RUNNERS } from './check-pr-workflow-policy';
 import {
 	requiredLanes,
 	planJobs,
@@ -123,14 +124,19 @@ describe('platform job planning', () => {
 			core: true,
 			tooling: false,
 			supplyChain: false,
-			rust: [{ os: 'macos-latest', lanes: ['core'], native: false, frontend: false }],
+			rust: [{ os: 'macos-26', lanes: ['core'], native: false, frontend: false }],
 		});
 	});
 	it('adds Apple proof only when a native engine path is exercised', () => {
 		expect(planJobs(['engine', 'media']).rust).toEqual([
 			{ os: 'ubuntu-24.04', lanes: ['engine', 'media'], native: true, frontend: false },
-			{ os: 'macos-latest', lanes: ['engine', 'media', 'apple'], native: true, frontend: false },
+			{ os: 'macos-26', lanes: ['engine', 'media', 'apple'], native: true, frontend: false },
 		]);
+	});
+	it('plans Rust jobs only on the runner labels the workflow policy pins', () => {
+		const pinned = Object.values(PINNED_RUNNERS);
+		const all = ['frontend', 'core', 'engine', 'media', 'host', 'apple', 'decrypt', 'tooling'];
+		for (const job of planJobs(all).rust) expect(pinned).toContain(job.os);
 	});
 });
 

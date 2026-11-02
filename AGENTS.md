@@ -171,8 +171,7 @@ another CI run.
 - Merge commits only. Merge a stack with `gh stack merge --merge` or the
   async merge API (`merge_method: merge`). `gh pr merge` cannot merge a
   stack, and stack auto-merge is not ready to rely on. Link the stack with
-  `gh stack` or `POST /repos/{owner}/{repo}/stacks`. Do not add a `branches:`
-  filter to CI.
+  `gh stack` or `POST /repos/{owner}/{repo}/stacks`.
 - J Star gives one yes per stack or PR. After that, agents mark each layer
   ready, wait for `gate`, and merge it, and come back only when something
   fails or the story changes.
