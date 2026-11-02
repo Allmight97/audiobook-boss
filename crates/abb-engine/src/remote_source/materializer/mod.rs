@@ -19,13 +19,13 @@ const HELPER_SIDECAR_FILE: &str = concat!("abb-aaxclean-helper-", env!("ABB_TARG
 const REQUEST_SCHEMA_VERSION: u8 = 1;
 
 #[derive(Debug, Clone)]
-pub(crate) struct AaxcleanMaterializer {
+pub(in crate::remote_source) struct AaxcleanMaterializer {
     helper_path: Arc<PathBuf>,
     registry: Arc<MaterializerProcessRegistry>,
 }
 
 #[derive(Debug)]
-pub(crate) struct MaterializationRequest {
+pub(in crate::remote_source) struct MaterializationRequest {
     pub job_id: String,
     pub operation_id: String,
     pub lane: AaxcleanLane,
@@ -36,13 +36,13 @@ pub(crate) struct MaterializationRequest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AaxcleanLane {
+pub(in crate::remote_source) enum AaxcleanLane {
     Aax,
     Aaxc,
 }
 
 #[derive(Debug)]
-pub(crate) enum AaxcleanSecret {
+pub(in crate::remote_source) enum AaxcleanSecret {
     Aax {
         activation_bytes_hex: SecretString,
     },
@@ -77,12 +77,12 @@ struct HelperMessage {
 }
 
 impl AaxcleanMaterializer {
-    pub(crate) fn new_for_helper(helper_path: Option<PathBuf>) -> Self {
+    pub(in crate::remote_source) fn new_for_helper(helper_path: Option<PathBuf>) -> Self {
         Self::new(helper_path.unwrap_or_else(resolve_helper_path))
     }
 
     #[cfg(test)]
-    pub(crate) fn for_tests() -> Self {
+    pub(in crate::remote_source) fn for_tests() -> Self {
         Self::new(PathBuf::from(HELPER_NAME))
     }
 
@@ -93,15 +93,15 @@ impl AaxcleanMaterializer {
         }
     }
 
-    pub(crate) fn abort_job(&self, job_id: &str) {
+    pub(in crate::remote_source) fn abort_job(&self, job_id: &str) {
         self.registry.kill_job(job_id);
     }
 
-    pub(crate) fn abort_all(&self) {
+    pub(in crate::remote_source) fn abort_all(&self) {
         self.registry.kill_all();
     }
 
-    pub(crate) async fn materialize(
+    pub(in crate::remote_source) async fn materialize(
         &self,
         request: MaterializationRequest,
         mut progress: impl FnMut(AcquisitionProgress),

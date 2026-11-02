@@ -16,9 +16,6 @@ mod materialization;
 mod registration;
 mod supplemental_pdf;
 
-#[cfg(test)]
-pub(crate) use acquisition::{run_protected_materialization, ProtectedMaterializationRun};
-
 use acquisition::acquire;
 use http::{ApiCall, AudibleApi};
 pub(in crate::remote_source) use http::{AudibleRequestError, SIGN_IN_REJECTED_MESSAGE};

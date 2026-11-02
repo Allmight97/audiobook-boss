@@ -115,7 +115,7 @@ lane_engine() {
 	require_rust
 	cargo fmt --all -- --check
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
-		--skip test_cases::integration_media --skip test_cases::integration_decrypt
+		--skip test_cases::integration_media --skip integration_decrypt_tests
 	cargo test --locked -p faac-sys
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --test all_tests
@@ -144,7 +144,7 @@ lane_decrypt() {
 	(cd tools/abb-aaxclean-helper && dotnet test tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj \
 		--configuration Release --nologo)
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
-		test_cases::integration_decrypt
+		integration_decrypt_tests
 }
 
 lane_apple() {
