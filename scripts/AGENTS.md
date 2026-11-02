@@ -56,6 +56,8 @@ Other harnesses use the same verifier and evidence files.
 
 For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.
+A lane that selects tests by a filter fails when the filter runs none,
+so a renamed module cannot pass by running nothing.
 
 `bash scripts/setup.sh` installs `.githooks/pre-commit`, a fast check of the
 staged index; it never changes the index.
