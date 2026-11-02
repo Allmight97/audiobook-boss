@@ -35,9 +35,10 @@ keeps a draft pull request unmergeable. This choice does not change the
 ruleset.
 
 The concurrency group is the workflow name plus the pull request number, and
-the ref when there is no pull request. A pull request's closed run uses that
-same group, so it cancels that pull request's earlier runs before deleting
-their caches.
+the ref and event name when there is no pull request. A pull request's closed
+run uses that same group, so it cancels that pull request's earlier runs
+before deleting their caches. On main, a push run cancels only an older push
+run, never the scheduled full run that keeps main's caches from expiring.
 
 - poteto, put the correction in the codebase first: https://x.com/poteto/status/2111133080526495985
 - Thorsten Ball, what a pull request is for: https://x.com/thorstenball/status/2111130129355481240

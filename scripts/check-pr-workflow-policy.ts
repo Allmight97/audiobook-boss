@@ -75,7 +75,7 @@ function shorthandTriggers(on: string | unknown[]): Record<string, unknown> | nu
 	const names = (Array.isArray(on) ? on : [on]).filter((name) => typeof name === 'string');
 	const record: Record<string, unknown> = {};
 	for (const name of names) {
-		if (name === 'pull_request' || name === 'pull_request_target' || name === 'merge_group') {
+		if (['pull_request', 'pull_request_target', 'merge_group', 'push'].includes(name)) {
 			record[name] = null;
 		}
 	}

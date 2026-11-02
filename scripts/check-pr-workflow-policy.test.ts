@@ -182,6 +182,14 @@ describe('check-pr-workflow-policy', () => {
 		}
 	});
 
+	it('applies the push rule to the shorthand trigger list', () => {
+		const found = messages(
+			'ci.yml',
+			'on: [push, pull_request]\njobs:\n  frontend:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n',
+		);
+		expect(found.join('\n')).toMatch(/push runs only to seed main caches/);
+	});
+
 	it('rejects a shallow diff of a base held in job env', () => {
 		const text = changesWorkflow('')
 			.replace(
