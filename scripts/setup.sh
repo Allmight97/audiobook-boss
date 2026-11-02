@@ -301,6 +301,21 @@ check_frontend() {
 	fi
 }
 
+linux_rust_packages=(
+	build-essential clang nasm pkg-config libopus-dev
+	libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev librsvg2-dev
+	libssl-dev shellcheck
+)
+
+missing_apt_packages() {
+	local pkg
+	for pkg in "$@"; do
+		if ! dpkg-query -W -f='${Status}' "${pkg}" 2>/dev/null | grep -q 'install ok installed'; then # allow-silence: an unknown package exits nonzero and means install it
+			printf '%s\n' "${pkg}"
+		fi
+	done
+}
+
 check_rust() {
 	local ffprobe_path ffmpeg_path sidecar required_sdk sidecar_bytes required_rust rustc_ver
 	required_rust="$(pinned_rust_channel)"
@@ -352,15 +367,12 @@ check_rust() {
 		need "ffprobe 9 CLI (run: bash scripts/setup.sh rust)"
 	fi
 	if is_linux; then
-		if have pkg-config && pkg-config --exists webkit2gtk-4.1 gtk+-3.0; then
-			ok "GTK/WebKit (webkit2gtk-4.1)"
+		local missing_packages
+		mapfile -t missing_packages < <(missing_apt_packages "${linux_rust_packages[@]}") # allow-gnu: runs only inside the is_linux branch
+		if [[ ${#missing_packages[@]} -eq 0 ]]; then
+			ok "Linux build and Tauri packages"
 		else
-			need "GTK/WebKit (run: bash scripts/setup.sh rust)"
-		fi
-		if have pkg-config && pkg-config --exists openssl; then
-			ok "openssl ($(pkg-config --modversion openssl))"
-		else
-			need "openssl (run: bash scripts/setup.sh rust)"
+			need "Linux packages ${missing_packages[*]} (run as root or with sudo: bash scripts/setup.sh rust)"
 		fi
 	fi
 	required_sdk="$(pinned_dotnet_sdk)"
@@ -548,10 +560,13 @@ ensure_download_tools() {
 }
 
 install_linux_packages() {
-	log "Installing packages for the bundled FFmpeg build and Tauri host"
-	apt_install build-essential clang nasm pkg-config libopus-dev \
-		libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev librsvg2-dev \
-		libssl-dev shellcheck
+	local missing
+	mapfile -t missing < <(missing_apt_packages "${linux_rust_packages[@]}") # allow-gnu: install_linux_packages runs only on Linux
+	if [[ ${#missing[@]} -eq 0 ]]; then
+		return
+	fi
+	log "Installing packages for the bundled FFmpeg build and Tauri host: ${missing[*]}"
+	apt_install "${missing[@]}"
 }
 
 install_linux_shellcheck() {
