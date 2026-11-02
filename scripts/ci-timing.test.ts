@@ -64,9 +64,9 @@ function jobNamed(runId: number, name: string): JobInfo {
 }
 
 describe('classifyRun', () => {
-	it('calls a pull_request run with a non-skipped cache cleanup job post-merge', () => {
+	it('calls a pull_request run with a non-skipped cache cleanup job closed', () => {
 		const { run, jobs } = runFixture(postMergeRun);
-		expect(classifyRun(run.event, jobs)).toBe('post-merge');
+		expect(classifyRun(run.event, jobs)).toBe('closed');
 	});
 
 	it('calls an ordinary pull_request run pr, even though its cleanup job is skipped', () => {
@@ -226,12 +226,12 @@ describe('buildReport', () => {
 		expect(outcomes).toEqual([
 			{
 				id: postMergeRun,
-				kind: 'post-merge',
+				kind: 'closed',
 				rust: { 'Rust (macos-latest)': 'miss', 'Rust (ubuntu-24.04)': 'exact' },
 			},
 			{
 				id: exactRun,
-				kind: 'post-merge',
+				kind: 'closed',
 				rust: { 'Rust (macos-latest)': 'exact', 'Rust (ubuntu-24.04)': 'exact' },
 			},
 			{
@@ -256,20 +256,16 @@ describe('buildReport', () => {
 
 	it('groups Rust job totals by run kind and OS', () => {
 		const { summary } = buildReport(fixtureFetcher(), runIds);
-		const postMergeMac = summary.find(
-			(row) => row.kind === 'post-merge' && row.os === 'macos-latest',
-		);
-		expect(postMergeMac).toMatchObject({ jobs: 2, exact: 1, fallback: 0, miss: 1 });
-		expect(postMergeMac?.maxSeconds).toBe(894);
-		expect(postMergeMac?.minSeconds).toBeLessThan(894);
-		expect(postMergeMac?.medianSeconds).toBe(
-			Math.round(((postMergeMac?.minSeconds ?? 0) + 894) / 2),
-		);
+		const closedMac = summary.find((row) => row.kind === 'closed' && row.os === 'macos-latest');
+		expect(closedMac).toMatchObject({ jobs: 2, exact: 1, fallback: 0, miss: 1 });
+		expect(closedMac?.maxSeconds).toBe(894);
+		expect(closedMac?.minSeconds).toBeLessThan(894);
+		expect(closedMac?.medianSeconds).toBe(Math.round(((closedMac?.minSeconds ?? 0) + 894) / 2));
 		const prLinux = summary.find((row) => row.kind === 'pr' && row.os === 'ubuntu-24.04');
 		expect(prLinux).toMatchObject({ jobs: 1, fallback: 1 });
 		expect(summary.map((row) => `${row.kind}/${row.os}`)).toEqual([
-			'post-merge/macos-latest',
-			'post-merge/ubuntu-24.04',
+			'closed/macos-latest',
+			'closed/ubuntu-24.04',
 			'pr/macos-latest',
 			'pr/ubuntu-24.04',
 			'schedule-full/macos-latest',
@@ -279,7 +275,7 @@ describe('buildReport', () => {
 
 	it('renders a table row per job with cache result, key, and a refused save', () => {
 		const text = renderReport(buildReport(fixtureFetcher(), [postMergeRun]));
-		expect(text).toContain('## Run 41360600256: post-merge');
+		expect(text).toContain('## Run 41360600256: closed');
 		expect(text).toContain(
 			'| Rust (macos-latest) | 3s | 2m20s | 12m06s | 28s | 14m54s | rust miss, ffmpeg hit, save refused | `v0-rust-rust-Darwin-arm64-b1372a82-bbb68f93` |',
 		);

@@ -73,6 +73,9 @@ Traps:
 - `bun run build` may still print the known DEP0205 and Vite plugin-timing
   warnings.
 
+A change to CI or validation speed quotes before and after numbers from
+`bun run ci:timing` in its PR body, so every comparison uses one recipe.
+
 ## Development tooling
 
 - `bun run tauri` routes through `scripts/tauri.ts`. Dev runs (including

@@ -6,19 +6,14 @@
  *   --run ID    report these run ids instead (repeatable)
  *   --json      print JSON instead of markdown
  *
- * Reads GitHub Actions through `gh api` for the current repository. Every CI
- * change quotes before and after numbers from this command.
+ * Reads GitHub Actions through `gh api` for the current repository. A
+ * `closed` run is a pull request's closed event; before the push-to-main
+ * trigger it also re-ran the suite after a merge.
  */
 import { execFileSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 
-export type RunKind =
-	| 'pr'
-	| 'post-merge'
-	| 'push'
-	| 'schedule-full'
-	| 'schedule-advisory'
-	| 'dispatch';
+export type RunKind = 'pr' | 'closed' | 'push' | 'schedule-full' | 'schedule-advisory' | 'dispatch';
 
 export type RustCacheOutcome = 'exact' | 'fallback' | 'miss' | 'unknown';
 
@@ -124,7 +119,7 @@ export function classifyRun(event: string, jobs: JobInfo[]): RunKind {
 	const ran = jobs.filter(ranJob);
 	switch (event) {
 		case 'pull_request':
-			return ran.some((job) => job.name === deleteCachesJobName) ? 'post-merge' : 'pr';
+			return ran.some((job) => job.name === deleteCachesJobName) ? 'closed' : 'pr';
 		case 'push':
 			return 'push';
 		case 'schedule':
