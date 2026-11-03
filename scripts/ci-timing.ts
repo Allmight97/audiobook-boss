@@ -60,7 +60,8 @@ export interface RustLogReport {
 	cacheKey: string | null;
 	rustVersions: string[];
 	saveRefused: boolean;
-	ffmpegCache: 'hit' | 'miss';
+	ffmpegCache: 'restored' | 'none';
+	ffmpegCompiled: number | null;
 	lanes: LaneTiming[];
 }
 
@@ -235,6 +236,14 @@ function laneTimings(lines: LogLine[]): LaneTiming[] {
 	return lanes;
 }
 
+function compiledFfmpegTrees(lines: LogLine[]): number | null {
+	for (const { text } of lines) {
+		const match = /^abb-ffmpeg-cache: compiled (\d+) tree/.exec(text);
+		if (match) return Number(match[1]);
+	}
+	return null;
+}
+
 export function parseRustLog(log: string): RustLogReport {
 	const lines = parseLogLines(log);
 	return {
@@ -242,9 +251,12 @@ export function parseRustLog(log: string): RustLogReport {
 		cacheKey: lineAfter(lines, 'Cache Key:'),
 		rustVersions: listedRustVersions(lines),
 		saveRefused: lines.some(({ text }) => text.includes('does not permit writes')),
-		ffmpegCache: lines.some(({ text }) => text.startsWith('Cache hit for: ffmpeg-portable-'))
-			? 'hit'
-			: 'miss',
+		ffmpegCache: lines.some(({ text }) =>
+			/^Cache hit for( restore-key)?: ffmpeg-portable-/.test(text),
+		)
+			? 'restored'
+			: 'none',
+		ffmpegCompiled: compiledFfmpegTrees(lines),
 		lanes: laneTimings(lines),
 	};
 }
@@ -321,6 +333,7 @@ function duration(value: number | null): string {
 function cacheCell(rust: RustLogReport | null): string {
 	if (!rust) return '-';
 	const parts = [`rust ${rust.rustCache}`, `ffmpeg ${rust.ffmpegCache}`];
+	if (rust.ffmpegCompiled !== null) parts.push(`ffmpeg compiled ${rust.ffmpegCompiled}`);
 	if (rust.saveRefused) parts.push('save refused');
 	return parts.join(', ');
 }
