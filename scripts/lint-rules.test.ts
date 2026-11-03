@@ -214,6 +214,57 @@ const OXLINT_CASES: Case[] = [
 		source: nonNull,
 		rule: null,
 	},
+	{
+		name: 'a side-effect import of code fails',
+		file: 'src/lib/probe/sideEffect.ts',
+		source: "import './chainB';\n",
+		rule: 'import(no-unassigned-import)',
+	},
+	{
+		name: 'a side-effect import of CSS passes',
+		file: 'src/lib/probe/sideEffectCss.ts',
+		source: "import './style.css';\n",
+		rule: null,
+	},
+	{
+		name: 'expect with three arguments fails',
+		file: 'src/lib/probe/expectArgs.test.ts',
+		source:
+			"import { expect, it } from 'vitest';\n\nit('x', () => {\n\texpect(1, 'a', 'b').toBe(1);\n});\n",
+		rule: 'vitest(valid-expect)',
+	},
+	{
+		name: 'expect with a message passes',
+		file: 'src/lib/probe/expectMessage.test.ts',
+		source:
+			"import { expect, it } from 'vitest';\n\nit('x', () => {\n\texpect(1, 'one').toBe(1);\n});\n",
+		rule: null,
+	},
+	{
+		name: 'a dangling underscore fails',
+		file: 'src/lib/probe/dangle.ts',
+		source: 'export const value = { __hidden__: 1 }.__hidden__;\n',
+		rule: 'eslint(no-underscore-dangle)',
+	},
+	{
+		name: 'the Tauri global passes',
+		file: 'src/lib/probe/tauriGlobal.ts',
+		source:
+			"export const present = '__TAURI_INTERNALS__' in globalThis && globalThis.__TAURI_INTERNALS__ !== undefined;\n",
+		rule: null,
+	},
+	{
+		name: 'an unused argument fails',
+		file: 'src/lib/probe/unusedArg.ts',
+		source: 'export function pick(value: number, extra: number): number {\n\treturn value;\n}\n',
+		rule: 'eslint(no-unused-vars)',
+	},
+	{
+		name: 'an underscored unused argument passes',
+		file: 'src/lib/probe/underscoreArg.ts',
+		source: 'export function pick(value: number, _extra: number): number {\n\treturn value;\n}\n',
+		rule: null,
+	},
 ];
 
 const BIOME_CASES: Case[] = [
@@ -354,5 +405,34 @@ describe.each([
 
 	it.each(cases.filter((entry) => entry.rule === null))('$name', (entry) => {
 		expect(findingsFor(entry.file)).toEqual([]);
+	});
+});
+
+const CONFIG_LINES = readFileSync(path.join(repoRoot, '.oxlintrc.json'), 'utf8').split('\n');
+
+function reasonless(): string[] {
+	return CONFIG_LINES.flatMap((line, index) => {
+		const tuned = /^\t\t"[^"]+": (?:"off"|\[)/.test(line);
+		const override = line.startsWith('\t\t\t"files":');
+		if (!tuned && !override) return [];
+		return /^\s*\/\//.test(CONFIG_LINES[index - 1] ?? '') ? [] : [`${index + 1}: ${line.trim()}`];
+	});
+}
+
+function configuredRules(): string[] {
+	return CONFIG_LINES.flatMap((line) => {
+		const match = /^\t\t"([a-z-]+)\/([a-z-]+)": (?:"error"|\[)/.exec(line);
+		return match ? [`${match[1]}(${match[2]})`] : [];
+	});
+}
+
+describe('.oxlintrc.json', () => {
+	it('gives every tuned rule and override a reason on the line before it', () => {
+		expect(reasonless()).toEqual([]);
+	});
+
+	it('proves every configured rule with a fixture pair', () => {
+		const proved = new Set(OXLINT_CASES.flatMap((entry) => (entry.rule ? [entry.rule] : [])));
+		expect(configuredRules().filter((rule) => !proved.has(rule))).toEqual([]);
 	});
 });

@@ -3,8 +3,6 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 
-// The checkout owns its development settings, WebView state, and temporary jobs.
-// Keep the identity stable across branch changes and distinct from installed apps.
 export function withDevelopmentIdentity(repoRoot: string, args: string[]): string[] {
 	const boundary = args.indexOf('--');
 	const cliArgs = boundary < 0 ? args : args.slice(0, boundary);

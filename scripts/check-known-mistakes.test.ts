@@ -1,11 +1,120 @@
 import { describe, expect, it } from 'vitest';
 import { checkFile } from './check-known-mistakes';
 
+const DISABLE = ['oxlint', 'disable'].join('-');
+
 function found(file: string, text: string): string[] {
 	return checkFile(file, text).map((finding) => `${finding.line}: ${finding.message}`);
 }
 
 describe('check-known-mistakes', () => {
+	it('rejects a cover image outside CoverImage', () => {
+		expect(found('src/ui/coverArt/CoverArtView.tsx', '\t<img src={url()} />')).toEqual([
+			expect.stringMatching(/^1: .*outside CoverImage/),
+		]);
+		expect(found('src/ui/foundation/CoverImage.tsx', '\t<img src={url()} />')).toEqual([]);
+	});
+
+	it('rejects a lint suppression without a reason', () => {
+		expect(found('src/x.ts', `// ${DISABLE}-next-line no-explicit-any`)).toHaveLength(1);
+		expect(
+			found('scripts/x.ts', `/* ${DISABLE} typescript/no-unsafe-type-assertion */`),
+		).toHaveLength(1);
+		expect(found('src/x.ts', `// ${DISABLE}-next-line no-explicit-any -- generated shape`)).toEqual(
+			[],
+		);
+		expect(found('src/x.ts', '/* oxlint-enable typescript/no-unsafe-type-assertion */')).toEqual(
+			[],
+		);
+	});
+
+	it('rejects a uvx call without the release wait', () => {
+		expect(found('scripts/x.sh', 'tool=(uvx lizard)')).toHaveLength(1);
+		expect(found('scripts/x.sh', 'out="$(uvx zizmor .)"')).toHaveLength(1);
+		expect(found('scripts/x.sh', 'tool=(uvx --exclude-newer "10 days" lizard)')).toEqual([]);
+		expect(found('scripts/x.sh', 'if ! command -v uvx >/dev/null 2>&1; then')).toEqual([]);
+		expect(found('scripts/x.sh', 'for tool in actionlint uvx bun; do')).toEqual([]);
+	});
+
+	it('rejects a write to a shell profile', () => {
+		expect(found('scripts/setup.sh', 'echo "export PATH" >> "$HOME/.zshrc"')).toHaveLength(1);
+		expect(found('scripts/setup.sh', 'printf x | tee -a ~/.bashrc')).toHaveLength(1);
+		expect(found('scripts/setup.sh', 'printf \'%s\\n\' "$dir" >>"$GITHUB_PATH"')).toEqual([]);
+	});
+
+	it('keeps engine owners inside their boundaries', () => {
+		expect(
+			found('crates/abb-engine/src/metadata/save.rs', 'use crate::audio::AudioFile;'),
+		).toHaveLength(1);
+		expect(
+			found(
+				'crates/abb-engine/src/metadata/save.rs',
+				'use crate::audio::{AudioIntent, AudioFile};',
+			),
+		).toHaveLength(1);
+		expect(
+			found('crates/abb-engine/src/metadata/save.rs', 'use crate::audio::AudioIntent;'),
+		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/processing/run.rs', 'use crate::remote_source::RemoteTitle;'),
+		).toHaveLength(1);
+		expect(
+			found('crates/abb-engine/src/session/state.rs', 'use crate::remote_source::RemoteTitle;'),
+		).toEqual([]);
+		expect(
+			found(
+				'crates/abb-engine/src/work_runtime/runtime.rs',
+				'use crate::remote_source::materializer::Plan;',
+			),
+		).toHaveLength(1);
+		expect(
+			found('crates/abb-engine/src/work_runtime/runtime.rs', 'use crate::processing::run;'),
+		).toEqual([]);
+	});
+
+	it('keeps pure cores free of I/O and provider names', () => {
+		expect(
+			found('crates/abb-media-core/src/lib.rs', 'let bytes = std::fs::read(path)?;'),
+		).toHaveLength(1);
+		expect(found('crates/abb-media-core/src/lib.rs', 'tokio::spawn(work);')).toHaveLength(1);
+		expect(
+			found('crates/abb-media-core/src/lib_tests.rs', 'let bytes = std::fs::read(path)?;'),
+		).toEqual([]);
+		expect(found('crates/abb-engine/src/audio/x.rs', 'let bytes = std::fs::read(path)?;')).toEqual(
+			[],
+		);
+		expect(
+			found('crates/abb-remote-source-core/src/lib.rs', 'pub fn audible_region() {}'),
+		).toHaveLength(1);
+		expect(
+			found('crates/abb-remote-source-core/src/lib.rs', 'pub fn provider_region() {}'),
+		).toEqual([]);
+	});
+
+	it('pairs each `mod tests;` with its sibling test file', () => {
+		const declare = (pathLine: string) => `#[cfg(test)]\n${pathLine}\nmod tests;`;
+		expect(
+			found('crates/abb-engine/src/cover_source.rs', declare('#[path = "cover_source_tests.rs"]')),
+		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/cover_source.rs', declare('#[path = "other_tests.rs"]')),
+		).toEqual([
+			expect.stringMatching(/^3: .*loads other_tests.rs, not the sibling cover_source_tests.rs/),
+		]);
+		expect(found('crates/abb-engine/src/cover_source.rs', '#[cfg(test)]\nmod tests;')).toHaveLength(
+			1,
+		);
+		expect(
+			found('crates/abb-engine/src/metadata/mod.rs', declare('#[path = "metadata_tests.rs"]')),
+		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/processing/job_registry/mod.rs', '#[cfg(test)]\nmod tests;'),
+		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/bin/abb_dev.rs', declare('#[path = "abb_dev/tests.rs"]')),
+		).toEqual([]);
+	});
+
 	it('rejects destructured Solid component props', () => {
 		const file = 'src/ui/probe/Probe.tsx';
 		expect(found(file, 'export function Probe({ name }: Props): JSX.Element {')).toEqual([

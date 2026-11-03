@@ -71,8 +71,6 @@ fn license_denial(value: &Value) -> Option<LicenseDenial> {
 }
 
 pub fn license_facts_from_value(value: &Value) -> LicenseFacts {
-    // An audio-specific key outranks an unrelated generic URL anywhere in the
-    // response. Search each key separately while still skipping empty strings.
     let content_url = [
         "content_url",
         "contentUrl",

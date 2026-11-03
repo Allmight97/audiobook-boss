@@ -305,8 +305,6 @@ export function toolingRatchetIdentity(root: string): { head: string; mergeBase:
 		]).trim();
 		return { head, mergeBase: quiet(['merge-base', '--', sha, 'HEAD']).trim() };
 	} catch {
-		// The lane fails closed when this base is missing. A distinct identity
-		// stops a pass recorded against another base from being reused.
 		return { head, mergeBase: `unresolved:${requested}` };
 	}
 }

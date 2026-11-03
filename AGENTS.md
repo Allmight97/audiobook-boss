@@ -73,7 +73,8 @@ without asking; they write only `.logs/`, `target/`, and temp dirs.
 
 `setup.sh` takes `frontend` or `rust`, or no argument for both. `--check`
 installs nothing and exits nonzero if something is missing. It never edits
-shell profiles (it sets this repo's git hook path); PATH comes from
+shell profiles (`check-known-mistakes.ts` rejects a profile write; it sets
+this repo's git hook path); PATH comes from
 `eval "$(scripts/setup.sh --print-env)"` (`scripts/AGENTS.md`, Environment).
 
 `verify.sh --changed origin/main` selects affected lanes without current proof.
@@ -129,10 +130,12 @@ field once. That setting is not in the repo.
   4. DOM and UI state: Vitest under `src/`.
 - Rust unit tests live in sibling `*_tests.rs` files: `foo.rs` declares
   `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`, and may declare more
-  than one. A binary's folder uses `tests.rs`, since a `src/bin/*_tests.rs`
-  file becomes its own binary; `tests/` and `test_cases/` also count. Why: an agent reads the
+  than one. A folder's `mod.rs` may use `tests.rs`, and a binary uses
+  `<name>/tests.rs`, since a `src/bin/*_tests.rs` file becomes its own
+  binary; `tests/` and `test_cases/` also count. Why: an agent reads the
   implementation without the tests, and the file-size budget counts only
-  code. `scripts/check-known-mistakes.ts` rejects a test attribute elsewhere.
+  code. `scripts/check-known-mistakes.ts` rejects another pairing and a test
+  attribute elsewhere.
 - UI behavior also needs visual review where tests cannot prove UX.
 - An owned import/export surface change updates the nearest `AGENTS.md`. A
   frontend owner or view `index.ts` also updates its hand-written STRIPS list

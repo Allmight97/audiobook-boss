@@ -7,12 +7,14 @@
 		"perf": "error"
 	},
 	"rules": {
+		// Cyclomatic 20 matches the Rust check (scripts/check-rust-complexity.sh).
 		"eslint/complexity": [
 			"error",
 			{
 				"max": 20
 			}
 		],
+		// Each owner's import surface; overrides below repeat the whole list, since an override replaces it.
 		"eslint/no-restricted-imports": [
 			"error",
 			{
@@ -51,6 +53,7 @@
 		"typescript/no-floating-promises": "error",
 		// Solid ignores an event handler's return value, as Biome's noMisusedPromises did.
 		"typescript/no-misused-promises": ["error", { "checksVoidReturn": { "attributes": false } }],
+		// A default branch counts as exhaustive, as it did under Biome.
 		"typescript/switch-exhaustiveness-check": [
 			"error",
 			{ "considerDefaultExhaustiveForUnions": true }
@@ -84,12 +87,14 @@
 	},
 	"overrides": [
 		{
+			// The app runs in a WebView, which has no Node built-ins.
 			"files": ["src/**"],
 			"rules": {
 				"import/no-nodejs-modules": "error"
 			}
 		},
 		{
+			// Tests assert on values they just built.
 			"files": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**/*.ts"],
 			"rules": {
 				"typescript/no-non-null-assertion": "off"
@@ -126,6 +131,7 @@
 			}
 		},
 		{
+			// App owners and foundation import the base list only.
 			"files": ["src/app/**", "src/ui/foundation/**"],
 			"rules": {
 				"eslint/no-restricted-imports": [
@@ -164,6 +170,7 @@
 			}
 		},
 		{
+			// Top-level views import another view through its folder.
 			"files": ["src/ui/*.tsx", "src/ui/*.ts"],
 			"rules": {
 				"eslint/no-restricted-imports": [
@@ -206,6 +213,7 @@
 			}
 		},
 		{
+			// A view imports a sibling view through its folder; foundation is exempt.
 			"files": ["src/ui/*/**"],
 			"excludeFiles": ["src/ui/foundation/**"],
 			"rules": {
@@ -249,6 +257,7 @@
 			}
 		},
 		{
+			// src/lib/tauri owns the plugin and event APIs it wraps.
 			"files": ["src/lib/tauri/**"],
 			"rules": {
 				"eslint/no-restricted-imports": [

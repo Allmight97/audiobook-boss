@@ -11,8 +11,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   intents; `abb-dev` reads through `Engine::read_audio_metadata`. Real file
   saves route through `save_metadata_intent`, so series validation can see
   source metadata.
-- Audio maps `AudioFile` to `PassthroughSource` at call sites; metadata never
-  imports `crate::audio::AudioFile`.
+- Audio maps `AudioFile` to `PassthroughSource` at call sites
+  (`check-known-mistakes.ts` rejects `crate::audio::AudioFile` here).
 - `finish_artifact_tags` is the last step after a native mux or a remux:
   MP4-family tag rewrite through mp4ameta, then accepted-chapter verification.
   Its pre-write callback lets Audio report progress, so Audio never asks which

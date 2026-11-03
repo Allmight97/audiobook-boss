@@ -64,8 +64,6 @@ require_rust() {
 	return 1
 }
 
-# Core crate tests do not need GTK, FFmpeg CLI, or the sidecar. The CI core job
-# installs only mold; do not require the full rust --check there.
 require_core() {
 	local missing=0
 	if ! cargo --version >/dev/null 2>&1; then

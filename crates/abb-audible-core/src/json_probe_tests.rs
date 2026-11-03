@@ -19,3 +19,19 @@ fn first_present_key_wins() {
     );
     assert_eq!(find_first_string_for_keys(&value, &["missing"]), None);
 }
+
+#[test]
+fn nearest_search_takes_the_first_subtree_with_any_key_and_skips_empty_strings() {
+    let value = json!({
+        "a": { "url": "", "fallback": { "url": "generic" } },
+        "b": { "content_url": "audio" }
+    });
+    assert_eq!(
+        find_nearest_non_empty_string_for_keys(&value, &["content_url", "url"]),
+        Some("generic".to_string())
+    );
+    assert_eq!(
+        find_nearest_non_empty_string_for_keys(&value, &["content_url"]),
+        Some("audio".to_string())
+    );
+}
