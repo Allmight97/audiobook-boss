@@ -8,10 +8,10 @@ cd "$(dirname "$0")/.."
 
 ui_toolkit='^(tauri|tauri-.*|wry|tao)$'
 core_forbidden="$ui_toolkit|^(ffmpeg-next|ffmpeg-sys-next|keyring|keyring-core|.*-keyring-store|abb-engine)$"
-cores=(
-	abb-audible-core abb-media-core abb-metadata-core
-	abb-output-artifact-core abb-processing-core abb-remote-source-core
-)
+cores=()
+for manifest in crates/abb-*-core/Cargo.toml; do
+	cores+=("$(basename "$(dirname "$manifest")")")
+done
 failed=0
 
 check() {
