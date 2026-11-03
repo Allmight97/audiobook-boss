@@ -45,8 +45,6 @@ core:
 engine:
   - *shared
   - crates/**
-# Real-media tests drive the whole engine (session, work runtime, output
-# commit), so any crate change can break them.
 media:
   - *shared
   - crates/**
@@ -77,8 +75,6 @@ supply-chain:
   - scripts/verify.sh
   - .github/workflows/ci.yml
 tooling:
-  # Authored source selects this lane so the file-size ratchet runs. The
-  # tooling job is the one that has the pull-request base and its history.
   - crates/**
   - src/**
   - scripts/rust-complexity-allowlist.txt

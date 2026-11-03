@@ -107,6 +107,16 @@ describe('tooling ratchet identity', () => {
 	});
 });
 
+describe('core lane setup', () => {
+	it('checks only the tools core crates need, so the light CI core job can run it', () => {
+		const verify = readFileSync(path.join(import.meta.dirname, 'verify.sh'), 'utf8');
+		const body = /\nrequire_core\(\) \{\n([\s\S]*?)\n\}\n/.exec(verify)?.[1] ?? '';
+		expect(body).toContain('cargo clippy -V');
+		expect(body).not.toContain('${setup_bin}');
+		expect(body).not.toContain('--check');
+	});
+});
+
 describe('requiredLanes', () => {
 	it('rejects an unmapped file instead of reporting that no proof is needed', () => {
 		expect(() => requiredLanes(map, lanes, ['future/worker.rs'])).toThrow(/future\/worker.rs/);

@@ -108,11 +108,13 @@ if (values.all && values.against !== undefined) {
 const maxTokens = Number(values['max-tokens']);
 const maxBytes = maxTokens * 4;
 
+const GIT_OUTPUT_LIMIT_BYTES = 1 << 30;
+
 const git = (args, input) =>
 	execFileSync('git', args, {
 		encoding: 'utf8',
 		input,
-		maxBuffer: 1 << 30, // A large repository lists tens of megabytes of paths.
+		maxBuffer: GIT_OUTPUT_LIMIT_BYTES,
 		stdio: ['pipe', 'pipe', 'ignore'],
 	});
 
@@ -142,8 +144,7 @@ const isSource = (filePath) => {
 	return types.includes('programming') && !types.includes('prose');
 };
 
-// Paths .gitattributes marks as generated or vendored, read from the index.
-const unauthored = (paths) => {
+const generatedOrVendoredInIndex = (paths) => {
 	if (paths.length === 0) return new Set();
 	const output = git(
 		['check-attr', '--cached', '-z', '--stdin', 'linguist-generated', 'linguist-vendored'],
@@ -167,7 +168,7 @@ const ignored = (spec) =>
 const tokens = (bytes) => `~${Math.round(bytes / 4).toLocaleString('en')} tokens`;
 const sources = (paths) => {
 	const candidates = paths.filter(isSource);
-	const skipped = unauthored(candidates);
+	const skipped = generatedOrVendoredInIndex(candidates);
 	return candidates.filter((filePath) => !skipped.has(filePath));
 };
 

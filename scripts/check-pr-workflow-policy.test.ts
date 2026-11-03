@@ -51,6 +51,23 @@ describe('check-pr-workflow-policy', () => {
 		expect(found.join('\n')).toMatch(/job frontend runs on a draft pull request/);
 	});
 
+	it('rejects a cache that is dropped when a check fails', () => {
+		const steps = (rustCache: string, saveIf: string) =>
+			guarded.replace(
+				'timeout-minutes: 5\n',
+				`timeout-minutes: 5\n    steps:\n      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6\n        with:\n${rustCache}      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9\n        if: ${saveIf}\n        with:\n          path: target/x\n          key: x\n`,
+			);
+		expect(
+			messages('ci.yml', steps('          cache-on-failure: true\n', 'always() && matrix.native')),
+		).toEqual([]);
+		expect(
+			messages('ci.yml', steps('          prefix-key: v0\n', 'always() && matrix.native')),
+		).toEqual([expect.stringMatching(/frontend drops its compiled cache/)]);
+		expect(
+			messages('ci.yml', steps('          cache-on-failure: true\n', 'matrix.native')),
+		).toEqual([expect.stringMatching(/frontend drops its compiled cache/)]);
+	});
+
 	it('rejects a scalar pull_request trigger', () => {
 		const found = messages(
 			'ci.yml',

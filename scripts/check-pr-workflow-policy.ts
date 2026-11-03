@@ -9,6 +9,7 @@ export interface Finding {
 }
 
 interface Step {
+	if?: string;
 	uses?: string;
 	run?: string;
 	with?: Record<string, unknown>;
@@ -283,6 +284,7 @@ function jobFindings(
 			...runnerFindings(file, line, name, job),
 			...timeoutFinding(file, line, name, job),
 			...baseCheckoutFindings(file, text, name, job),
+			...cacheOnFailureFindings(file, text, name, job),
 		);
 		if (checksPr && !closedOnly(job) && !draftGuarded(job.if ?? '')) {
 			findings.push({
@@ -443,6 +445,24 @@ function baseCheckoutFindings(file: string, text: string, name: string, job: Job
 			message: `job ${name} diffs the pull request base from a shallow checkout that does not contain that commit. Fix: \`git fetch --no-tags --depth=1 origin\` the base sha, or set checkout fetch-depth to 0.`,
 		},
 	];
+}
+
+function cacheOnFailureFindings(file: string, text: string, name: string, job: Job): Finding[] {
+	return stepsOf(job).flatMap((step) => {
+		const uses = step.uses ?? '';
+		const rustCacheSkipsFailure =
+			uses.startsWith('Swatinem/rust-cache@') && step.with?.['cache-on-failure'] !== true;
+		const saveSkipsFailure =
+			uses.startsWith('actions/cache/save@') && !(step.if ?? '').includes('always()');
+		if (!rustCacheSkipsFailure && !saveSkipsFailure) return [];
+		return [
+			{
+				file,
+				line: lineAfter(text, `  ${name}:`, uses),
+				message: `job ${name} drops its compiled cache when a check fails, so the rerun compiles again. Fix: set \`cache-on-failure: true\` on rust-cache, and start a cache save's \`if:\` with \`always() &&\`.`,
+			},
+		];
+	});
 }
 
 function stepsOf(job: Job): Step[] {

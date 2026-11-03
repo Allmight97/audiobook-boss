@@ -17,6 +17,12 @@ function unmappedPaths(mapYaml: string, files: string[]): string[] {
 	return files.filter((file) => !isMatch(file));
 }
 
+function lanesFor(mapYaml: string, lane: string): (file: string) => boolean {
+	const filters = parseDocument(mapYaml).toJS() as Record<string, unknown[]>;
+	const patterns = (filters[lane] ?? []).flat(Number.POSITIVE_INFINITY) as string[];
+	return picomatch(patterns, { dot: true });
+}
+
 function noLaneEntriesWithoutReason(mapYaml: string): string[] {
 	const noLane = parseDocument(mapYaml).get('no-lane');
 	if (!isSeq(noLane)) {
@@ -38,6 +44,28 @@ describe('scripts/lane-paths.yml', () => {
 			unmappedPaths(mapYaml, tracked),
 			'Add each path to a lane in scripts/lane-paths.yml, or to no-lane with a # reason',
 		).toEqual([]);
+	});
+
+	it('runs real-media tests for a change to any crate, since they drive the whole engine', () => {
+		const media = lanesFor(mapYaml, 'media');
+		for (const file of [
+			'crates/abb-engine/src/session/state.rs',
+			'crates/abb-metadata-core/src/lib.rs',
+		]) {
+			expect(media(file), file).toBe(true);
+		}
+	});
+
+	it('runs the tooling lane, which holds the file-size ratchet, for any authored source', () => {
+		const tooling = lanesFor(mapYaml, 'tooling');
+		for (const file of [
+			'crates/abb-engine/src/lib.rs',
+			'src/ui/App.tsx',
+			'src-tauri/src/main.rs',
+			'scripts/ci-timing.ts',
+		]) {
+			expect(tooling(file), file).toBe(true);
+		}
 	});
 
 	it('gives every no-lane entry a reason', () => {

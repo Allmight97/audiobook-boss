@@ -180,7 +180,7 @@ pinned_node_major() {
 	printf '%s\n' "${version%%.*}"
 }
 
-node_is_supported() {
+node_meets_pinned_major() {
 	local major
 	have node || return 1
 	major="$(node_major node)"
@@ -282,7 +282,7 @@ check_frontend() {
 	else
 		need "bun ${required_bun}"
 	fi
-	if node_is_supported; then
+	if node_meets_pinned_major; then
 		ok "node $(node --version) (pin ${required_node})"
 	elif have node; then
 		need "node ${required_node%%.*} or newer (found $(node --version); pin ${required_node})"
@@ -458,12 +458,10 @@ if [[ "${check_only}" -eq 1 ]]; then
 	exit 0
 fi
 
-# Any Node at or above the pinned major already on PATH is kept: tools_bin is usually on the owner's
-# login PATH, so installing there would replace their node in every shell.
 ensure_node() {
 	local required asset tmp prefix
 	required="$(pinned_node_version)"
-	if node_is_supported; then
+	if node_meets_pinned_major; then
 		log "Using Node $(node --version)"
 		return
 	fi

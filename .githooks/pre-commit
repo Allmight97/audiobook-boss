@@ -17,7 +17,6 @@ done <"${snapshot}/paths"
 [[ ${#staged[@]} -gt 0 ]] || exit 0
 git diff --cached --check
 
-# Check the index's bytes so partial staging cannot validate a different commit.
 git_dir="$(git rev-parse --absolute-git-dir)"
 index_file="$(git rev-parse --git-path index)"
 [[ "${index_file}" == /* ]] || index_file="${repo_root}/${index_file}"
