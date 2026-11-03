@@ -17,32 +17,32 @@ import {
 export type InputOwner = {
 	readonly view: Accessor<InputView>;
 	readonly capability: Accessor<InputCapability>;
-	sourcesFor(file: AudioFile): ReadonlyArray<AudioFile>;
-	groupSelected(): void;
-	ungroup(file: AudioFile): void;
-	reorderSources(file: AudioFile, from: number, to: number): void;
-	audioChoiceRequired(file: AudioFile): boolean;
-	hasCompanions(inputId: string | undefined): boolean;
-	companionSummary(inputIds: ReadonlyArray<string | undefined>): CompanionSummary;
+	sourcesFor: (file: AudioFile) => ReadonlyArray<AudioFile>;
+	groupSelected: () => void;
+	ungroup: (file: AudioFile) => void;
+	reorderSources: (file: AudioFile, from: number, to: number) => void;
+	audioChoiceRequired: (file: AudioFile) => boolean;
+	hasCompanions: (inputId: string | undefined) => boolean;
+	companionSummary: (inputIds: ReadonlyArray<string | undefined>) => CompanionSummary;
 	/** Resolves once the picker closes and the import is sent, before it lands. */
-	importIntent(intent: ImportIntent): Promise<void>;
-	hydrateSupportText(): Promise<void>;
+	importIntent: (intent: ImportIntent) => Promise<void>;
+	hydrateSupportText: () => Promise<void>;
 	/** Resolves true when the selection changed and its tags have loaded. */
-	selectFile(command: {
+	selectFile: (command: {
 		readonly index: number;
 		readonly modifiers: SelectionModifiers;
-	}): Promise<boolean>;
-	selectAll(): void;
-	clearSelection(): void;
-	setDragOver(isDragOver: boolean): void;
-	removeFile(file: AudioFile): void;
-	clearAllFiles(): void;
-	moveFile(command: { readonly index: number; readonly direction: 'up' | 'down' }): void;
-	reorderFiles(command: { readonly fromIndex: number; readonly toIndex: number }): void;
-	toggleSort(): void;
-	restoreImportOrder(): void;
-	chooseCue(inputId: string, choice: 'confirmHundredths' | 'ignore'): void;
-	reset(): void;
+	}) => Promise<boolean>;
+	selectAll: () => void;
+	clearSelection: () => void;
+	setDragOver: (isDragOver: boolean) => void;
+	removeFile: (file: AudioFile) => void;
+	clearAllFiles: () => void;
+	moveFile: (command: { readonly index: number; readonly direction: 'up' | 'down' }) => void;
+	reorderFiles: (command: { readonly fromIndex: number; readonly toIndex: number }) => void;
+	toggleSort: () => void;
+	restoreImportOrder: () => void;
+	chooseCue: (inputId: string, choice: 'confirmHundredths' | 'ignore') => void;
+	reset: () => void;
 };
 
 export type InputOwnerDeps = {

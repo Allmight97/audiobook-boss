@@ -26,6 +26,9 @@ const ENGINE_OUTSIDE_MEDIA_WRAPPERS = (file: string) =>
 	file.startsWith('crates/abb-engine/src/') &&
 	!file.startsWith('crates/abb-engine/src/audio/') &&
 	!file.startsWith('crates/abb-engine/src/metadata/');
+const SOLID_SOURCE = (file: string) => file.startsWith('src/') && file.endsWith('.tsx');
+const DESTRUCTURED_PROPS =
+	/\bfunction [A-Z]\w*\s*\(\s*\{|\b(?:const|let) [A-Z]\w*\s*=\s*\(\s*\{|\b(?:const|let)\s*\{[^}]*\}\s*=\s*props\b/;
 const CODE_ONLY = (line: string) => line.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/\/\/.*$/, '');
 
 const GNU_ONLY = [
@@ -51,6 +54,13 @@ const SILENCED = /2>\s*\/dev\/null|\|\|\s*true\b/;
 const CAPTURE_WITH_SILENCE = /\$\((?:[^()]|\([^()]*\))*(2>\s*\/dev\/null|\|\|\s*true\b)/;
 
 const RULES: Rule[] = [
+	{
+		appliesTo: SOLID_SOURCE,
+		comment: /^\s*(\/\/|\*|\/\*)/,
+		findIn: (line) => CODE_ONLY(line).match(DESTRUCTURED_PROPS)?.[0] ?? null,
+		message:
+			'destructures Solid component props, which reads each prop once and drops its reactivity. Fix: read `props.name`, or split props with `omit`.',
+	},
 	{
 		appliesTo: OWNED_SHELL,
 		comment: /^\s*#/,

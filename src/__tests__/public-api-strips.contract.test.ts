@@ -39,7 +39,7 @@ function ownersWithIndex(kind: 'app' | 'ui', modules: Record<string, unknown>): 
 	return Object.keys(modules)
 		.filter((file) => file.startsWith(prefix) && file.endsWith(suffix))
 		.map((file) => `${kind}/${file.slice(prefix.length, -suffix.length)}`)
-		.sort();
+		.toSorted();
 }
 
 function missingStripMessage(owner: string): string {
@@ -119,12 +119,10 @@ describe('owner Public API Strips', () => {
 			...ownersWithIndex('app', APP_OWNER_INDEXES),
 			...ownersWithIndex('ui', UI_OWNER_INDEXES),
 		].filter((owner) => !listed.has(owner));
-		if (missing.length > 0) {
-			throw new Error(missing.map(missingStripMessage).join('\n'));
-		}
+		expect(missing, missing.map(missingStripMessage).join('\n')).toEqual([]);
 	});
 
 	it.each(STRIPS)('%s exports exactly its strip', (_owner, module, expected) => {
-		expect(Object.keys(module).sort()).toEqual([...expected].sort());
+		expect(Object.keys(module).toSorted()).toEqual([...expected].toSorted());
 	});
 });

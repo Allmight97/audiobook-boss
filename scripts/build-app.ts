@@ -247,7 +247,7 @@ export function verifyMacOsBundle(
 		throw new Error(
 			[
 				`Packaged app contains unexpected executables under ${macOsDir}:`,
-				...unexpectedExecutables.sort(),
+				...unexpectedExecutables.toSorted(),
 			].join('\n'),
 		);
 	}

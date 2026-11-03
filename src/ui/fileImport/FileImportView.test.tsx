@@ -32,7 +32,7 @@ describe('FileImportView import split button', () => {
 			</AppRuntimeProvider>
 		));
 
-		await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Import' }));
 
 		expect(runtime.remoteSource.view().isOpen).toBe(true);
 		await vi.waitFor(() =>
@@ -53,7 +53,7 @@ describe('FileImportView import split button', () => {
 			</AppRuntimeProvider>
 		));
 
-		await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Import' }));
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents).toContainEqual({
 				kind: 'remote',
@@ -62,8 +62,8 @@ describe('FileImportView import split button', () => {
 		);
 		runtime.remoteSource.close();
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
-		await fireEvent.click(document.getElementById('import-split-caret') as Element);
-		await fireEvent.click(screen.getByTestId('import-lane-audible'));
+		fireEvent.click(document.getElementById('import-split-caret') as Element);
+		fireEvent.click(screen.getByTestId('import-lane-audible'));
 
 		expect(runtime.remoteSource.view().isOpen).toBe(true);
 		await vi.waitFor(() =>

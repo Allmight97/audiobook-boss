@@ -26,12 +26,12 @@ it('restores the accepted select value and shows the engine rejection', async ()
 	expect(select.options[0]?.textContent).toBe('Auto · 4 jobs');
 
 	engine.concurrencyError = { message: 'Jobs active' };
-	await fireEvent.change(select, { target: { value: '3' } });
+	fireEvent.change(select, { target: { value: '3' } });
 	await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Jobs active'));
 	expect(select).toHaveValue('auto');
 
 	engine.concurrencyError = undefined;
-	await fireEvent.change(select, { target: { value: '3' } });
+	fireEvent.change(select, { target: { value: '3' } });
 	await vi.waitFor(() => expect(runtime!.settings.concurrency().effective).toBe(3));
 	expect(select).toHaveValue('3');
 	expect(select.options[0]?.textContent).toBe('Auto · 4 jobs');

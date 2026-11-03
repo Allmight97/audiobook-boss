@@ -37,7 +37,7 @@ function acceptedQueuePosition(
 	if (operation.status !== 'accepted') return null;
 	const accepted = operations
 		.filter((candidate) => candidate.status === 'accepted')
-		.sort((left, right) => left.sequence - right.sequence);
+		.toSorted((left, right) => left.sequence - right.sequence);
 	const index = accepted.findIndex((candidate) => candidate.operationId === operation.operationId);
 	return index >= 0 ? index + 1 : null;
 }
@@ -161,7 +161,7 @@ export function WorkCenterView(): JSX.Element {
 												type="button"
 												disabled={
 													!canCancel(operation) ||
-													Boolean(view().cancelPendingByOperationId[operation.operationId])
+													view().cancelPendingByOperationId[operation.operationId] === true
 												}
 												onClick={() => void workOperations.cancel(operation.operationId)}
 											>

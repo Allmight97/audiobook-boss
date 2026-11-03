@@ -109,11 +109,11 @@ it('shows each failed file with its own reason', () => {
 	const operation = completedOperation();
 	operation.status = 'mixed';
 	operation.children[0] = {
-		...operation.children[0]!,
+		...operation.children[0],
 		status: 'failed',
 		message: 'File validation failed: File not found: A Change of Plans.m4b',
 	};
-	operation.children[1] = { ...operation.children[1]!, message: 'Saved metadata: Feedback.m4b' };
+	operation.children[1] = { ...operation.children[1], message: 'Saved metadata: Feedback.m4b' };
 	showOperation(operation);
 	expect(
 		screen.getByText('File validation failed: File not found: A Change of Plans.m4b'),
@@ -124,7 +124,7 @@ it('shows each failed file with its own reason', () => {
 it('shows a finished file whose PDF was not saved as done, with every warning', () => {
 	const operation = completedOperation();
 	operation.children[0] = {
-		...operation.children[0]!,
+		...operation.children[0],
 		supplementalWarning: 'Audiobook output was created, but the PDF could not be committed.',
 		outputUpdate: { revision: 2, status: { kind: 'failed', message: 'Disk full.' } },
 	};
@@ -140,7 +140,7 @@ it('shows a finished file whose PDF was not saved as done, with every warning', 
 it('shows why a finished title has no cover', () => {
 	const operation = completedOperation();
 	operation.children[0] = {
-		...operation.children[0]!,
+		...operation.children[0],
 		warnings: ["The source file's cover could not be used, so this audiobook has no cover."],
 	};
 	showOperation(operation);
@@ -167,18 +167,18 @@ it('cancels one title in a running batch and hides title cancel for a single tit
 	expect(cancel).toHaveBeenCalledWith('batch', 'second');
 	cleanup();
 	runtime?.dispose();
-	showOperation({ ...operation, children: [operation.children[0]!] });
+	showOperation({ ...operation, children: [operation.children[0]] });
 	expect(screen.queryByTitle(/only$/)).not.toBeInTheDocument();
 });
 
 it('reveals only completed titles in the host file manager', () => {
 	const operation = completedOperation();
 	operation.children[0] = {
-		...operation.children[0]!,
+		...operation.children[0],
 		outputPath: '/Library/A Change of Plans.m4b',
 	};
 	operation.children[1] = {
-		...operation.children[1]!,
+		...operation.children[1],
 		status: 'cancelled' as const,
 		outputPath: '/x.m4b',
 	};
@@ -186,14 +186,14 @@ it('reveals only completed titles in the host file manager', () => {
 	const reveal = vi.spyOn(runtime!.workOperations, 'revealOutput').mockResolvedValue();
 	const buttons = screen.getAllByRole('button', { name: /^Show in / });
 	expect(buttons).toHaveLength(1);
-	buttons[0]!.click();
+	buttons[0].click();
 	expect(reveal).toHaveBeenCalledWith(operation.children[0]);
 });
 
 it('keeps retryable Restart and Keep actions on only the matching export row', () => {
 	const operation = completedOperation();
-	operation.children[0]!.inputId = 'first-title';
-	operation.children[1]!.inputId = 'other-title';
+	operation.children[0].inputId = 'first-title';
+	operation.children[1].inputId = 'other-title';
 	const offer = {
 		titleId: 'first-title',
 		operationId: 'batch',

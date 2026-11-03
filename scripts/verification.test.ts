@@ -237,7 +237,7 @@ if [[ "$1" == --print-env ]]; then printf 'export ABB_FFMPEG=/setup/ffmpeg\\nexp
 if [[ "$1" == --version ]]; then printf 'installer progress: %s\\n' "$RANDOM" >&2; exec "$REAL_BUN" "$@"; fi
 if [[ "$1" == scripts/verification.ts ]]; then exec "$REAL_BUN" "$@"; fi
 printf 'executed: %s\\n' "$*"
-if [[ "$*" == 'run lint:check' ]]; then exit "${'$'}{VERIFY_TEST_EXIT:-0}"; fi
+if [[ "$*" == 'run lint:check' ]]; then exit "\${VERIFY_TEST_EXIT:-0}"; fi
 `,
 				{ mode: 0o755 },
 			);

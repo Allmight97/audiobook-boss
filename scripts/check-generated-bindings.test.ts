@@ -21,7 +21,7 @@ for (const exitCode of ['0', '7']) {
 				writeFileSync(
 					path.join(root, 'bin/bun'),
 					`#!/bin/bash
-out="${'$'}{3:-src/lib/generated/tauri.ts}"
+out="\${3:-src/lib/generated/tauri.ts}"
 printf 'generated content\\n' > "$out"
 exit ${exitCode}
 `,

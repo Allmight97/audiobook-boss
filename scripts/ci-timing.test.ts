@@ -270,7 +270,7 @@ describe('buildReport', () => {
 	it('fetches logs only for Rust jobs that ran', () => {
 		const fetchedLogs: number[] = [];
 		const report = buildRunReport(fixtureFetcher(fetchedLogs), scheduleRun);
-		expect(fetchedLogs.sort()).toEqual([123478789048, 123478789100]);
+		expect(fetchedLogs.toSorted((a, b) => a - b)).toEqual([123478789048, 123478789100]);
 		expect(report.jobs.map((job) => job.name)).not.toContain('Delete closed PR caches');
 	});
 

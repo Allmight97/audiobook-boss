@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type SpawnSyncOptions, type SpawnSyncReturns } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
 	chmodSync,
@@ -48,8 +48,16 @@ interface AaxcleanHelperPaths {
 	triple: string;
 }
 
+type SpawnResult = SpawnSyncReturns<string | Buffer>;
+
+export type CommandRunner = (
+	command: string,
+	args: string[],
+	options: SpawnSyncOptions,
+) => Pick<SpawnResult, 'status'> & Partial<Pick<SpawnResult, 'stdout' | 'signal' | 'error'>>;
+
 interface PublishAaxcleanHelperOptions {
-	commandRunner?: typeof spawnSync;
+	commandRunner?: CommandRunner;
 	force?: boolean;
 }
 
@@ -191,7 +199,7 @@ function helperSourceIdentity(repoRoot: string, rid: string, sdk: string): strin
 	const helperRoot = path.join(repoRoot, 'tools/abb-aaxclean-helper');
 	const hash = createHash('sha256').update(JSON.stringify({ rid, sdk }));
 	hash.update(readFileSync(new URL(import.meta.url)));
-	for (const file of [...walk(helperRoot)].filter(helperSourceAffectsPublish).sort()) {
+	for (const file of [...walk(helperRoot)].filter(helperSourceAffectsPublish).toSorted()) {
 		hash.update(path.relative(helperRoot, file)).update('\0').update(readFileSync(file));
 	}
 	return hash.digest('hex');

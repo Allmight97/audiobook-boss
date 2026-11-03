@@ -114,10 +114,11 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		void runtime.remoteSource.open();
 		await Promise.resolve();
 
-		await fireEvent.keyDown(document.getElementById('remote-source-close') as Element, {
+		fireEvent.keyDown(document.getElementById('remote-source-close') as Element, {
 			key: 'Escape',
 			bubbles: true,
 		});
+		flush();
 
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
 	});
@@ -145,7 +146,8 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		);
 		expect(screen.getByRole('button', { name: 'Refresh Library' })).toBeDisabled();
 		expect(screen.getByRole('button', { name: 'Cancel Acquisition' })).toBeEnabled();
-		await fireEvent.click(screen.getByRole('button', { name: 'Cancel Acquisition' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Cancel Acquisition' }));
+		flush();
 		await vi.waitFor(() =>
 			expect(fakeEngine().sessionIntents).toContainEqual({
 				kind: 'remote',
@@ -191,9 +193,10 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		expect(
 			screen.getByRole('option', { name: new RegExp(remoteTitle().title) }),
 		).toBeInTheDocument();
-		await fireEvent.input(screen.getByLabelText('Filter'), {
+		fireEvent.input(screen.getByLabelText('Filter'), {
 			target: { value: 'no matching book' },
 		});
+		flush();
 		expect(screen.queryByText(remoteTitle().title)).not.toBeInTheDocument();
 	});
 
@@ -246,9 +249,10 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		await runtime.remoteSource.open();
 		expect(screen.getByRole('button', { name: 'Connect Audible' })).toBeDisabled();
 		expect(screen.getByRole('button', { name: 'Complete Auth' })).toBeDisabled();
-		await fireEvent.input(screen.getByLabelText('Auth Handoff'), {
+		fireEvent.input(screen.getByLabelText('Auth Handoff'), {
 			target: { value: '/auth/handoff' },
 		});
+		flush();
 		fakeEngine().change((state) => {
 			state.remote.auth = {
 				kind: 'failed',
@@ -265,7 +269,8 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		expect(screen.getByRole('button', { name: 'Connect Audible' })).toBeEnabled();
 		expect(screen.getByText('Authorization failed; retry.')).toBeInTheDocument();
 		expect(screen.getByLabelText('Auth Handoff')).toHaveValue('/auth/handoff');
-		await fireEvent.click(screen.getByRole('button', { name: 'Complete Auth' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Complete Auth' }));
+		flush();
 		await vi.waitFor(() =>
 			expect(fakeEngine().sessionIntents).toContainEqual({
 				kind: 'remote',
@@ -301,11 +306,13 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		await Promise.resolve();
 		runAction.mockClear();
 
-		await fireEvent.keyDown(screen.getByTestId('remote-source-indexer-author'), { key: 'Enter' });
+		fireEvent.keyDown(screen.getByTestId('remote-source-indexer-author'), { key: 'Enter' });
+		flush();
 		expect(runAction).toHaveBeenCalledWith({ type: 'searchReleases' });
 
 		runAction.mockClear();
-		await fireEvent.keyDown(screen.getByTestId('remote-source-indexer-title'), { key: 'Enter' });
+		fireEvent.keyDown(screen.getByTestId('remote-source-indexer-title'), { key: 'Enter' });
+		flush();
 		expect(runAction).toHaveBeenCalledWith({ type: 'searchReleases' });
 	});
 
@@ -356,7 +363,8 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			</AppRuntimeProvider>
 		));
 		await openConnected(runtime, 'indexer', releases);
-		await fireEvent.click(screen.getByRole('button', { name: /^Select Release from 8/ }));
+		fireEvent.click(screen.getByRole('button', { name: /^Select Release from 8/ }));
+		flush();
 		await vi.waitFor(() =>
 			expect(fakeEngine().sessionIntents).toContainEqual({
 				kind: 'remote',
@@ -372,9 +380,8 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			'true',
 		);
 		const releaseButton = screen.getByRole('button', { name: /^Select Release from 8/ });
-		await fireEvent.click(
-			screen.getByRole('button', { name: 'Grab Release from 8 from Indexer 8' }),
-		);
+		fireEvent.click(screen.getByRole('button', { name: 'Grab Release from 8 from Indexer 8' }));
+		flush();
 		await vi.waitFor(() =>
 			expect(fakeEngine().sessionIntents).toContainEqual({
 				kind: 'remote',
@@ -559,7 +566,8 @@ describe('RemoteSourceAcquireView during a download', () => {
 		flush();
 		const list = () => screen.getByRole('listbox', { name: 'Audible titles' });
 		list().scrollTop = 400;
-		await fireEvent.scroll(list());
+		fireEvent.scroll(list());
+		flush();
 		runtime.remoteSource.close();
 		flush();
 		await new Promise((resolve) => setTimeout(resolve, 0));

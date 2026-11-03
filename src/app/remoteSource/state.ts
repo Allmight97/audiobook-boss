@@ -17,10 +17,10 @@ import {
 export type RemoteSourceStateStore = {
 	readonly current: () => RemoteSourceState;
 	readonly snapshot: () => RemoteSourceView;
-	patch(patch: RemoteSourcePatch): void;
-	setAcquisitionError(cause: unknown, fallback: string, providerId: ProviderId): void;
-	clearError(providerId: ProviderId): void;
-	reset(): void;
+	patch: (patch: RemoteSourcePatch) => void;
+	setAcquisitionError: (cause: unknown, fallback: string, providerId: ProviderId) => void;
+	clearError: (providerId: ProviderId) => void;
+	reset: () => void;
 };
 
 function requestFailure(remote: RemoteUiSnapshot): string {

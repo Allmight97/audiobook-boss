@@ -14,7 +14,7 @@ import { createSubscriptionGroup, type SubscriptionGroup } from '../../lib/tauri
 export type WorkOperationsView = {
 	readonly initialized: boolean;
 	readonly operations: ReadonlyArray<OperationSnapshot>;
-	readonly cancelPendingByOperationId: Readonly<Record<string, boolean>>;
+	readonly cancelPendingByOperationId: Readonly<Partial<Record<string, boolean>>>;
 	readonly errorMessage: string | null;
 };
 
@@ -48,11 +48,11 @@ export function emptyWorkOperationsView(): WorkOperationsView {
 
 export type WorkOperationsSession = {
 	readonly view: () => WorkOperationsView;
-	initialize(): Promise<void>;
-	dispose(): void;
-	applyUpdate(update: WorkOperationsUpdate): void;
-	cancel(operationId: OperationId, childJobId?: string): Promise<void>;
-	revealOutput(child: { outputPath?: string | null }): Promise<void>;
+	initialize: () => Promise<void>;
+	dispose: () => void;
+	applyUpdate: (update: WorkOperationsUpdate) => void;
+	cancel: (operationId: OperationId, childJobId?: string) => Promise<void>;
+	revealOutput: (child: { outputPath?: string | null }) => Promise<void>;
 };
 
 function isTauriRuntimeAvailable(): boolean {

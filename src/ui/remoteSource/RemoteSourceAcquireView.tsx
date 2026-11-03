@@ -110,7 +110,11 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							data-testid="remote-source-provider"
 							disabled={view().isBusy}
 							value={view().providerId}
-							onChange={(event) => handleLaneChange(event.currentTarget.value as AcquisitionLane)}
+							onChange={(event) => {
+								const value = event.currentTarget.value;
+								const lane = view().providers.find((provider) => provider.providerId === value);
+								if (lane) handleLaneChange(lane.providerId);
+							}}
 						>
 							<For each={view().providers} keyed={(provider) => provider.providerId}>
 								{(provider) => <option value={provider().providerId}>{provider().label}</option>}
@@ -307,7 +311,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							tone="primary"
 							onClick={() => {
 								close();
-								void settings.openDialog();
+								settings.openDialog();
 							}}
 						>
 							Open Settings
@@ -372,7 +376,6 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					>
 						<For each={remoteSource.visibleTitles()} keyed={(title) => title.titleId}>
 							{(title) => (
-								// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 uses the lowercase tabindex attribute.
 								<div
 									class={`remote-title-row${remoteSource.isTitleSelected(title().titleId) ? ' selected' : ''}${!isTitleAcquirable(title()) ? ' unavailable' : ''}`}
 									role="option"

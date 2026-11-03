@@ -6,6 +6,18 @@ function found(file: string, text: string): string[] {
 }
 
 describe('check-known-mistakes', () => {
+	it('rejects destructured Solid component props', () => {
+		const file = 'src/ui/probe/Probe.tsx';
+		expect(found(file, 'export function Probe({ name }: Props): JSX.Element {')).toEqual([
+			expect.stringMatching(/^1: .*destructures Solid component props/),
+		]);
+		expect(found(file, 'const Probe = ({ name }: Props) => <p>{name}</p>;')).toHaveLength(1);
+		expect(found(file, '\tconst { name, size } = props;')).toHaveLength(1);
+		expect(found(file, 'export function Probe(props: Props): JSX.Element {')).toEqual([]);
+		expect(found(file, '\tconst { name } = options;')).toEqual([]);
+		expect(found('src/lib/probe.ts', 'export function Probe({ name }: Props) {')).toEqual([]);
+	});
+
 	// d7c41f03:scripts/setup.sh:24 and :142; BSD sed reads \? as a literal ?.
 	it('rejects GNU-only regex escapes in sed', () => {
 		expect(found('scripts/setup.sh', `\tsed -n '2,12p' "$0" | sed 's/^# \\?//'`)).toEqual([

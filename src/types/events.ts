@@ -31,15 +31,17 @@ export type EventPayload<T extends EventName> = ApplicationEvents[T];
 type DragDropPayload = TauriFileDropEvents['tauri://drag-drop'];
 
 export function isFileDropEvent(event: unknown): event is DragDropPayload {
-	const e = event as Partial<DragDropPayload>;
+	if (typeof event !== 'object' || event === null) return false;
+	if (!('paths' in event) || !('position' in event)) return false;
+	const { paths, position } = event;
 	return (
-		typeof e === 'object' &&
-		e !== null &&
-		Array.isArray(e.paths) &&
-		e.paths.every((item) => typeof item === 'string') &&
-		typeof e.position === 'object' &&
-		e.position !== null &&
-		typeof e.position.x === 'number' &&
-		typeof e.position.y === 'number'
+		Array.isArray(paths) &&
+		paths.every((item) => typeof item === 'string') &&
+		typeof position === 'object' &&
+		position !== null &&
+		'x' in position &&
+		'y' in position &&
+		typeof position.x === 'number' &&
+		typeof position.y === 'number'
 	);
 }

@@ -303,10 +303,21 @@ describe('tauriClient nullish adapters', () => {
 		});
 	});
 
+	it('shows the fallback text when an error field is an object', async () => {
+		const { normalizeAppError } = await import('./appError');
+		expect(
+			normalizeAppError({ code: { id: 7 }, category: 'io', message: { text: 'x' } }),
+		).toMatchObject({
+			code: 'unknown_error',
+			category: 'io',
+			message: 'Unknown error',
+		});
+	});
+
 	it('returns .data on canonical specta success shape', async () => {
 		const { unwrapGeneratedResult } = await import('./appError');
-		const result = unwrapGeneratedResult<{ hello: string }>({
-			status: 'ok',
+		const result = unwrapGeneratedResult({
+			status: 'ok' as const,
 			data: { hello: 'world' },
 		});
 		expect(result).toEqual({ hello: 'world' });
@@ -328,7 +339,7 @@ describe('tauriClient nullish adapters', () => {
 				code: 'toolchain_missing',
 				category: 'toolchain',
 				message: 'ffmpeg not found',
-			}) as unknown as Error,
+			}) as unknown,
 		);
 	});
 

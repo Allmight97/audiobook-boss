@@ -59,7 +59,7 @@ describe('MetadataLookup cover preview', () => {
 			</AppRuntimeProvider>
 		));
 		await runtime.input.importIntent({ type: 'importPaths', paths: ['/books/alpha.m4b'] });
-		await runtime.input.selectAll();
+		runtime.input.selectAll();
 		await runtime.lookup.run({ type: 'open' });
 
 		await waitFor(() => {

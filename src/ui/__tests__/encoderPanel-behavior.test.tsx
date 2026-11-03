@@ -46,9 +46,10 @@ describe('encoder panel behavior controls', () => {
 			engine.change((state) => {
 				state.audio.defaults.choice.intent = intent;
 			});
+			// oxlint-disable-next-line eslint/no-await-in-loop -- each intent must render before the next one is set.
 			await vi.waitFor(() => expect(screen.queryByLabelText('Encoder')).toBeNull());
 		}
-		changeSelectValue(screen.getByLabelText('Audio handling') as HTMLSelectElement, 'encode');
+		changeSelectValue(screen.getByLabelText('Audio handling'), 'encode');
 		await vi.waitFor(() =>
 			expect(sent().slice(-1)[0]).toEqual({
 				kind: 'setDefaultAudio',

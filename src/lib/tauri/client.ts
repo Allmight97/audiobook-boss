@@ -78,6 +78,7 @@ function listen(
 		| SettingsUpdateHandler
 		| ((event: { payload: ApplicationEvents[RuntimeEventName] }) => void),
 ): Promise<UnlistenFn> {
+	/* oxlint-disable typescript/no-unsafe-type-assertion -- the overloads above pair each event name with its handler type; the implementation cannot see that pairing. */
 	if (event === EVENTS.WORK_OPERATIONS_UPDATE) {
 		return listenWorkOperationsUpdate(handler as WorkOperationsUpdateHandler);
 	}
@@ -94,6 +95,7 @@ function listen(
 		event,
 		handler as (event: { payload: ApplicationEvents[RuntimeEventName] }) => void,
 	);
+	/* oxlint-enable typescript/no-unsafe-type-assertion */
 }
 
 function openFile(options?: DialogOptions): Promise<string | null> {
@@ -156,6 +158,7 @@ export const tauriClient = {
 	openUrl: (url: string | URL, openWith?: string): Promise<void> => tauriOpenUrl(url, openWith),
 };
 
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.keys returns string[]; commandSpecs is keyed by TauriCommand.
 export const TAURI_COMMAND_NAMES = Object.freeze(
 	Object.keys(commandSpecs),
 ) as readonly TauriCommand[];

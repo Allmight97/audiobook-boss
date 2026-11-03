@@ -46,7 +46,7 @@ export function resolveReleaseDmgArtifact(repoRoot: string, version: string): st
 
 	const matches = readdirSync(bundleDir)
 		.filter((entry) => matchesReleaseDmg(entry, productName, version))
-		.sort();
+		.toSorted();
 
 	if (matches.length === 0) {
 		throw new Error(`No DMG matched ${path.join(bundleDir, `${productName}_${version}_*.dmg`)}`);

@@ -26,7 +26,7 @@ describe('MetadataLookupView modal wiring', () => {
 		));
 		await runtime.lookup.run({ type: 'open' });
 
-		await fireEvent.keyDown(document.getElementById('metadata-lookup-close') as Element, {
+		fireEvent.keyDown(document.getElementById('metadata-lookup-close') as Element, {
 			key: 'Escape',
 			bubbles: true,
 		});

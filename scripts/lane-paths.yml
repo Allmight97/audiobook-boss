@@ -11,6 +11,9 @@ frontend:
   - vite.config.ts
   - vitest.config.ts
   - biome.json
+  - .oxlintrc.json
+  - .oxfmtrc.json
+  - scripts/tsconfig.json
   - knip.json
   - .node-version
   - scripts/**/*.ts

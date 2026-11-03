@@ -5,18 +5,22 @@ import type { SessionIntent, SessionReply, SessionUpdate } from '../../../types/
 import { tauriClient } from '../client';
 
 export interface EngineCapability {
-	attach(): Promise<{ client: number; session: SessionUpdate; settings: SettingsSnapshot }>;
-	sessionDispatch(client: number, sequence: number, intent: SessionIntent): Promise<SessionReply>;
+	attach: () => Promise<{ client: number; session: SessionUpdate; settings: SettingsSnapshot }>;
+	sessionDispatch: (
+		client: number,
+		sequence: number,
+		intent: SessionIntent,
+	) => Promise<SessionReply>;
 	/** Claims a finished preview's output and opens it, numbered with the session intents. */
-	openPreviewOutput(client: number, sequence: number, runId: string): Promise<SessionReply>;
-	settingsDispatch(
+	openPreviewOutput: (client: number, sequence: number, runId: string) => Promise<SessionReply>;
+	settingsDispatch: (
 		client: number,
 		sequence: number,
 		intent: SettingsIntent,
-	): Promise<SettingsReply>;
-	listenSessionUpdates(handler: (update: SessionUpdate) => void): Promise<UnlistenFn>;
+	) => Promise<SettingsReply>;
+	listenSessionUpdates: (handler: (update: SessionUpdate) => void) => Promise<UnlistenFn>;
 	/** Settings changed by something other than a settings intent. */
-	listenSettingsUpdates(handler: (snapshot: SettingsSnapshot) => void): Promise<UnlistenFn>;
+	listenSettingsUpdates: (handler: (snapshot: SettingsSnapshot) => void) => Promise<UnlistenFn>;
 }
 
 export const liveEngineCapability: EngineCapability = {

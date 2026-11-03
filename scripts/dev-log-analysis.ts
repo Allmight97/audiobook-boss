@@ -313,7 +313,7 @@ function jobFromFields(fields: Record<string, string>): MutableJob | null {
 		inputIndex,
 		kind,
 		status,
-		elapsedMs,
+		elapsedMs: elapsedMs ?? undefined,
 		code: fields.code,
 		category: fields.category,
 		terminal,
@@ -333,9 +333,9 @@ function mergeOperation(
 	operations.set(next.id, {
 		...current,
 		...next,
-		sawStart: Boolean(current?.sawStart || next.sawStart),
-		sawTerminal: Boolean(current?.sawTerminal || next.sawTerminal),
-		terminal: Boolean(current?.sawTerminal || next.sawTerminal),
+		sawStart: current?.sawStart || next.sawStart,
+		sawTerminal: current?.sawTerminal || next.sawTerminal,
+		terminal: current?.sawTerminal || next.sawTerminal,
 	});
 	return true;
 }
@@ -355,15 +355,15 @@ function mergeJob(jobs: Map<string, MutableJob>, next: MutableJob): boolean {
 	jobs.set(next.id, {
 		...current,
 		...next,
-		sawStart: Boolean(current?.sawStart || next.sawStart),
-		sawTerminal: Boolean(current?.sawTerminal || next.sawTerminal),
-		terminal: Boolean(current?.sawTerminal || next.sawTerminal),
+		sawStart: current?.sawStart || next.sawStart,
+		sawTerminal: current?.sawTerminal || next.sawTerminal,
+		terminal: current?.sawTerminal || next.sawTerminal,
 	});
 	return true;
 }
 
 function sortedValues<T extends { id: string }>(values: Map<string, T>): T[] {
-	return [...values.values()].sort((left, right) => left.id.localeCompare(right.id));
+	return [...values.values()].toSorted((left, right) => left.id.localeCompare(right.id));
 }
 
 function parseInProcessEncoderRuns(input: string): {

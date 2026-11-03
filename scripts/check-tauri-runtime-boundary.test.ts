@@ -74,7 +74,7 @@ function expectStatus(result: CheckResult, status: number): void {
 			[
 				`Expected status ${status}, received ${String(result.status)}`,
 				`signal: ${String(result.signal)}`,
-				`error: ${String(result.error ?? '')}`,
+				`error: ${result.error ?? ''}`,
 				'stdout:',
 				result.stdout,
 				'stderr:',
@@ -241,7 +241,6 @@ describe('check-tauri-runtime-boundary.ts', () => {
 		try {
 			writeFileSync(
 				path.join(repoRoot, 'src/ui/templateInvoke.ts'),
-				// biome-ignore lint/suspicious/noTemplateCurlyInString: scanner fixture needs literal template syntax.
 				'`${window.__TAURI_INVOKE("process_audiobook_files")}`;\n',
 			);
 

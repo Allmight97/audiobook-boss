@@ -214,7 +214,7 @@ function repositoryFiles(root: string): string[] {
 				.split('\0')
 				.filter(Boolean),
 		),
-	].sort();
+	].toSorted();
 }
 
 function changedFiles(root: string, base: string): string[] {
@@ -272,7 +272,7 @@ function toolIdentity(root: string, lane: string): Record<string, string> {
 
 export function fingerprintFiles(root: string, files: string[], context: unknown): string {
 	const hash = createHash('sha256').update(JSON.stringify(context));
-	for (const file of [...files].sort()) {
+	for (const file of [...files].toSorted()) {
 		const absolute = path.join(root, file);
 		hash.update(`\0${file}\0`);
 		if (!existsSync(absolute)) {
@@ -313,14 +313,14 @@ export function toolingRatchetIdentity(root: string): { head: string; mergeBase:
 
 function inputs(root: string, lane: string, map: LaneMap): Inputs {
 	const matches = picomatch(map[lane] ?? [], { dot: true });
-	const common = [
+	const common = new Set([
 		'scripts/verification.ts',
 		'scripts/verify.sh',
 		'scripts/setup.sh',
 		'scripts/lane-paths.yml',
 		'.gitignore',
-	];
-	const files = repositoryFiles(root).filter((file) => matches(file) || common.includes(file));
+	]);
+	const files = repositoryFiles(root).filter((file) => matches(file) || common.has(file));
 	const tools = toolIdentity(root, lane);
 	const environment = Object.fromEntries(
 		[

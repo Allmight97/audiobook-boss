@@ -185,6 +185,7 @@ export function toFormState(
 	snapshot: MetadataFormSnapshot,
 	typedValue: (field: MetadataField) => string | undefined,
 ): MetadataFormState {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the loop below fills one key per field definition.
 	const fields = {} as Record<MetadataFieldId, MetadataFieldState>;
 	for (const definition of METADATA_FIELD_DEFINITIONS) {
 		const reported = snapshot.fields.find((field) => field.field === definition.field);

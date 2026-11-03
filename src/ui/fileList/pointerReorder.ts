@@ -133,8 +133,9 @@ export function createFileListPointerReorder(options: {
 			if (grip instanceof Element && typeof grip.setPointerCapture === 'function') {
 				try {
 					grip.setPointerCapture(event.pointerId);
-					lostPointerCaptureListener = (lostEvent) =>
-						handlePointerCancel(lostEvent as PointerEvent);
+					lostPointerCaptureListener = (lostEvent) => {
+						if (lostEvent instanceof PointerEvent) handlePointerCancel(lostEvent);
+					};
 					pressedGrip = grip;
 					grip.addEventListener('lostpointercapture', lostPointerCaptureListener, { once: true });
 				} catch {

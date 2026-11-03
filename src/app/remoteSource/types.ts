@@ -16,7 +16,7 @@ export type AcquisitionState = {
 	providers: readonly RemoteSourceProviderCapabilities[];
 	accountState: RemoteSourceAccountState | null;
 	selectedTitleIds: ReadonlySet<string>;
-	includePdfByTitleId: Readonly<Record<string, boolean>>;
+	includePdfByTitleId: Readonly<Partial<Record<string, boolean>>>;
 	titleFilter: string;
 	showSupplementalPdfOnly: boolean;
 	hideUnavailableTitles: boolean;

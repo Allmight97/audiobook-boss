@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+// oxlint-disable-next-line import/default -- Vite's ?raw import exports the file text as its default.
 import generatedBindings from '../lib/generated/tauri.ts?raw';
 
 const TEST_FILE = 'src/__tests__/session-intent.contract.test.ts';
@@ -144,9 +145,9 @@ describe('SessionIntent binding schema', () => {
 				`parser missed allowlisted ${entry.variant}.${entry.field} (${entry.reason})`,
 			).toBe(true);
 		}
-		const unexpected = found.filter((field) => !allowed.has(allowlistKey(field)));
-		if (unexpected[0]) {
-			throw new Error(POSITION_INTEGER_MESSAGE(unexpected[0].variant, unexpected[0].field));
+		const unexpected = found.find((field) => !allowed.has(allowlistKey(field)));
+		if (unexpected) {
+			throw new Error(POSITION_INTEGER_MESSAGE(unexpected.variant, unexpected.field));
 		}
 	});
 });

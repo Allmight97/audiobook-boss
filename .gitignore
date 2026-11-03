@@ -82,6 +82,6 @@ __pycache__/
 /docs/artifacts/
 
 # Claude Code runtime state
-# Personal permissions; Biome does not read global Git ignore files.
+# Personal permissions; Oxlint, Oxfmt, and Biome do not read global Git ignore files.
 /.claude/settings.local.json
 /.claude/scheduled_tasks.lock

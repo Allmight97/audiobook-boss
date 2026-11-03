@@ -20,11 +20,7 @@ export type SplitButtonOptionProps = JSX.ButtonHTMLAttributes<HTMLButtonElement>
 function Option(props: SplitButtonOptionProps): JSX.Element {
 	const rest = omit(props, 'class', 'type', 'children');
 	return (
-		<button
-			{...rest}
-			type={props.type ?? 'button'}
-			class={`abb-split-option${props.class ? ` ${props.class}` : ''}`}
-		>
+		<button {...rest} type={props.type ?? 'button'} class={['abb-split-option', props.class]}>
 			{props.children}
 		</button>
 	);

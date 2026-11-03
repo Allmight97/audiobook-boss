@@ -4,10 +4,10 @@ import { createFileListPointerReorder, type FileListRowHit } from '../pointerReo
 const POINTER_ID = 7;
 const reorderFiles = vi.fn();
 
-function gripPointerDown(clientX = 0, clientY = 0): PointerEvent {
+function gripPointerDown(clientX = 0, clientY = 0, button = 0): PointerEvent {
 	return {
 		pointerId: POINTER_ID,
-		button: 0,
+		button,
 		clientX,
 		clientY,
 		preventDefault: vi.fn(),
@@ -115,10 +115,7 @@ describe('createFileListPointerReorder', () => {
 
 	it('ignores secondary-button presses and locked order', () => {
 		const handlers = createHandlers();
-		handlers.onGripPointerDown(0, {
-			...gripPointerDown(),
-			button: 2,
-		} as unknown as PointerEvent);
+		handlers.onGripPointerDown(0, gripPointerDown(0, 0, 2));
 		firePointer('pointermove', { clientX: 0, clientY: 24 });
 		firePointer('pointerup', {});
 		expect(reorderFiles).not.toHaveBeenCalled();

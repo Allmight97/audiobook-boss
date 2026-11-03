@@ -1,0 +1,295 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "promise", "vitest", "jsx-a11y"],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "error",
+		"perf": "error"
+	},
+	"rules": {
+		"eslint/complexity": [
+			"error",
+			{
+				"max": 20
+			}
+		],
+		"eslint/no-restricted-imports": [
+			"error",
+			{
+				"paths": [
+					{
+						"name": "typescript",
+						"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+					}
+				],
+				"patterns": [
+					{
+						"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
+						"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+					},
+					{
+						"group": ["**/foundation/internal", "**/foundation/internal/**"],
+						"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+					},
+					{
+						"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
+						"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+					},
+					{
+						"group": ["**/tauri/commands", "**/tauri/normalizers"],
+						"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+					},
+					{
+						"group": ["@tauri-apps/plugin-*", "@tauri-apps/api/event"],
+						"message": "Tauri plugin and event APIs stay in src/lib/tauri; call them through tauriClient (src/lib/tauri/AGENTS.md)."
+					}
+				]
+			}
+		],
+		"import/no-cycle": "error",
+		"typescript/no-explicit-any": "error",
+		"typescript/no-floating-promises": "error",
+		// Solid ignores an event handler's return value, as Biome's noMisusedPromises did.
+		"typescript/no-misused-promises": ["error", { "checksVoidReturn": { "attributes": false } }],
+		"typescript/switch-exhaustiveness-check": [
+			"error",
+			{ "considerDefaultExhaustiveForUnions": true }
+		],
+		"typescript/no-non-null-assertion": "error",
+		// Solid JSX labels use `for`; the rule reads only React's `htmlFor`.
+		"jsx-a11y/label-has-associated-control": "off",
+		// role="status" on a container is valid ARIA; <output> is a form control with different semantics.
+		"jsx-a11y/prefer-tag-over-role": "off",
+		// Component styles load as side-effect imports; Vitest setup registers jest-dom matchers the same way.
+		"import/no-unassigned-import": [
+			"error",
+			{ "allow": ["**/*.css", "**/*.install", "@testing-library/jest-dom/vitest"] }
+		],
+		// Vitest's expect takes a failure message as its second argument.
+		"vitest/valid-expect": ["error", { "maxArgs": 2 }],
+		// Tauri defines this global; tests stub it to toggle the runtime.
+		"eslint/no-underscore-dangle": ["error", { "allow": ["__TAURI_INTERNALS__"] }],
+		// tsc already rejects a typed function with a path that returns nothing (TS2366), including exhaustive switches.
+		"typescript/consistent-return": "off",
+		// vi.fn takes its type from the implementation or the slot it fills; a typed parameter adds no check there.
+		"vitest/require-mock-type-parameters": "off",
+		// Hoisting a closure that captures nothing protects no behavior; closures stay beside their one use.
+		"unicorn/consistent-function-scoping": "off",
+		// Solid's ref={x} attribute assigns these variables, which the rule cannot see.
+		"eslint/no-unassigned-vars": "off",
+		// The mapped copies are the point; mutating them would change shared snapshots.
+		"oxc/no-map-spread": "off",
+		// Same convention as tsc's noUnusedParameters: a leading underscore marks an intentionally unused argument.
+		"eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
+	},
+	"overrides": [
+		{
+			"files": ["src/**"],
+			"rules": {
+				"import/no-nodejs-modules": "error"
+			}
+		},
+		{
+			"files": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**/*.ts"],
+			"rules": {
+				"typescript/no-non-null-assertion": "off"
+			}
+		},
+		{
+			// Scripts parse JSON and YAML the repo writes and check it in the same run; a wrong shape fails the script loudly.
+			"files": ["scripts/**"],
+			"rules": {
+				"typescript/no-unsafe-type-assertion": "off",
+				"typescript/no-unnecessary-type-parameters": "off"
+			}
+		},
+		{
+			// A test double stands in for part of a platform or engine object, so the cast is the point.
+			"files": ["**/*.test.ts", "**/*.test.tsx", "src/test/**/*.ts"],
+			"rules": {
+				"typescript/no-unsafe-type-assertion": "off"
+			}
+		},
+		{
+			// Hotspot exemptions from the complexity limit; each gets a disposition when next changed (AGENTS.md, Refactor Discipline).
+			"files": [
+				"scripts/check-tauri-runtime-boundary.ts",
+				"scripts/dev-log-analysis.ts",
+				"scripts/verification.ts",
+				"src/app/encoding/project.ts",
+				"src/test/fixtures/fakeEngine.ts",
+				"src/ui/fileList/AudioHandlingControl.tsx",
+				"src/ui/remoteSource/RemoteSourceAcquireView.tsx"
+			],
+			"rules": {
+				"eslint/complexity": "off"
+			}
+		},
+		{
+			"files": ["src/app/**", "src/ui/foundation/**"],
+			"rules": {
+				"eslint/no-restricted-imports": [
+					"error",
+					{
+						"paths": [
+							{
+								"name": "typescript",
+								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+							}
+						],
+						"patterns": [
+							{
+								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
+								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+							},
+							{
+								"group": ["**/foundation/internal", "**/foundation/internal/**"],
+								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+							},
+							{
+								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
+								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+							},
+							{
+								"group": ["**/tauri/commands", "**/tauri/normalizers"],
+								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+							},
+							{
+								"group": ["@tauri-apps/plugin-*", "@tauri-apps/api/event"],
+								"message": "Tauri plugin and event APIs stay in src/lib/tauri; call them through tauriClient (src/lib/tauri/AGENTS.md)."
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": ["src/ui/*.tsx", "src/ui/*.ts"],
+			"rules": {
+				"eslint/no-restricted-imports": [
+					"error",
+					{
+						"paths": [
+							{
+								"name": "typescript",
+								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+							}
+						],
+						"patterns": [
+							{
+								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
+								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+							},
+							{
+								"group": ["**/foundation/internal", "**/foundation/internal/**"],
+								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+							},
+							{
+								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
+								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+							},
+							{
+								"group": ["./*/*"],
+								"message": "Import another view through its folder (src/ui/<view>); its index.ts is the Public API Strip (src/ui/AGENTS.md)."
+							},
+							{
+								"group": ["@tauri-apps/plugin-*", "@tauri-apps/api/event"],
+								"message": "Tauri plugin and event APIs stay in src/lib/tauri; call them through tauriClient (src/lib/tauri/AGENTS.md)."
+							},
+							{
+								"group": ["**/tauri/commands", "**/tauri/normalizers"],
+								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": ["src/ui/*/**"],
+			"excludeFiles": ["src/ui/foundation/**"],
+			"rules": {
+				"eslint/no-restricted-imports": [
+					"error",
+					{
+						"paths": [
+							{
+								"name": "typescript",
+								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+							}
+						],
+						"patterns": [
+							{
+								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
+								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+							},
+							{
+								"group": ["**/foundation/internal", "**/foundation/internal/**"],
+								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+							},
+							{
+								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
+								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+							},
+							{
+								"group": ["../*/*"],
+								"message": "Import another view through its folder (src/ui/<view>); its index.ts is the Public API Strip (src/ui/AGENTS.md)."
+							},
+							{
+								"group": ["@tauri-apps/plugin-*", "@tauri-apps/api/event"],
+								"message": "Tauri plugin and event APIs stay in src/lib/tauri; call them through tauriClient (src/lib/tauri/AGENTS.md)."
+							},
+							{
+								"group": ["**/tauri/commands", "**/tauri/normalizers"],
+								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": ["src/lib/tauri/**"],
+			"rules": {
+				"eslint/no-restricted-imports": [
+					"error",
+					{
+						"paths": [
+							{
+								"name": "typescript",
+								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+							}
+						],
+						"patterns": [
+							{
+								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
+								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+							},
+							{
+								"group": ["**/foundation/internal", "**/foundation/internal/**"],
+								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+							},
+							{
+								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
+								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+							},
+							{
+								"group": ["**/tauri/commands", "**/tauri/normalizers"],
+								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+							}
+						]
+					}
+				]
+			}
+		}
+	],
+	"ignorePatterns": [
+		"src/lib/generated/**",
+		"src-tauri/**",
+		"target/**",
+		"dist/**",
+		"coverage/**",
+		"site/**",
+		"docs/**"
+	]
+}

@@ -118,8 +118,8 @@ describe('Solid input workbench', () => {
 		});
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
 		engine.change((state) => {
-			const first = state.audio.titles[files[0]!.path]!;
-			const second = state.audio.titles[files[1]!.path]!;
+			const first = state.audio.titles[files[0].path];
+			const second = state.audio.titles[files[1].path];
 			for (const [title, channels, profile] of [
 				[first, 'mono', 'aac_lc'],
 				[second, 'stereo', 'he_aac_v1'],
@@ -138,7 +138,7 @@ describe('Solid input workbench', () => {
 				};
 			}
 			state.audio.selection = {
-				titleIds: [files[0]!.path, files[1]!.path],
+				titleIds: [files[0].path, files[1].path],
 				choice: first.choice,
 				facts: first.facts,
 				mixed: ['faacProfile', 'channels'],
@@ -156,7 +156,7 @@ describe('Solid input workbench', () => {
 		await waitFor(() =>
 			expect(engine.sessionIntents).toContainEqual({
 				kind: 'setTitleAudio',
-				titleIds: [files[0]!.path, files[1]!.path],
+				titleIds: [files[0].path, files[1].path],
 				edit: { field: 'channels', value: 'mono' },
 			}),
 		);
@@ -169,7 +169,7 @@ describe('Solid input workbench', () => {
 		await waitFor(() =>
 			expect(engine.sessionIntents).toContainEqual({
 				kind: 'setTitleAudio',
-				titleIds: [files[2]!.path],
+				titleIds: [files[2].path],
 				edit: { field: 'intent', value: 'encode' },
 			}),
 		);
@@ -249,7 +249,7 @@ describe('Solid input workbench', () => {
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
 		engine.seedGroup(files);
 		engine.change((state) => {
-			state.titles.companions = { [files[1]!.inputId!]: ['Guide.pdf'] };
+			state.titles.companions = { [files[1].inputId!]: ['Guide.pdf'] };
 		});
 		await waitFor(() => {
 			const row = screen.getByRole('option', { name: 'part1.m4b' });
@@ -269,8 +269,8 @@ describe('Solid input workbench', () => {
 			paths: files.map((file) => file.path),
 		});
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
-		engine.seedTitleAudio(files[0]!.path, mp3AudioRequest());
-		engine.seedGroup([files[0]!, files[1]!], { choiceRequired: true });
+		engine.seedTitleAudio(files[0].path, mp3AudioRequest());
+		engine.seedGroup([files[0], files[1]], { choiceRequired: true });
 		engine.respond = (intent) => {
 			if (intent.kind !== 'applyDefaultAudio') return undefined;
 			engine.change((state) => {
@@ -278,7 +278,7 @@ describe('Solid input workbench', () => {
 			});
 			return { kind: 'applied' };
 		};
-		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0]!)).toBe(true));
+		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0])).toBe(true));
 		const indicator = screen.getByRole('button', { name: 'Audio plan for part1.mp3' });
 		await user.hover(indicator);
 		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
@@ -286,17 +286,17 @@ describe('Solid input workbench', () => {
 		expect(popup.parentElement).toBe(document.body);
 		await user.click(indicator);
 		await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
-		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0]!)).toBe(false));
+		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0])).toBe(false));
 		expect(engine.sessionIntents).toContainEqual({
 			kind: 'applyDefaultAudio',
-			titleIds: [files[0]!.path],
+			titleIds: [files[0].path],
 		});
 		expect(within(popup).queryByRole('option', { name: /App default/ })).not.toBeInTheDocument();
 		await user.selectOptions(within(popup).getByLabelText('Output'), 'm4aOpus');
 		await waitFor(() =>
 			expect(engine.sessionIntents).toContainEqual({
 				kind: 'setTitleAudio',
-				titleIds: [files[0]!.path],
+				titleIds: [files[0].path],
 				edit: { field: 'format', value: 'm4aOpus' },
 			}),
 		);
@@ -320,15 +320,15 @@ describe('Solid input workbench', () => {
 		await waitFor(() => {
 			expect(within(listbox).getAllByRole('option')).toHaveLength(2);
 		});
-		await fireEvent.keyDown(listbox, { key: 'ArrowDown' });
+		fireEvent.keyDown(listbox, { key: 'ArrowDown' });
 		await waitFor(() => {
 			expect(runtime?.input.view().selectedIndices).toEqual([0]);
 		});
 
-		await fireEvent.keyDown(document.body, { key: 'ArrowDown' });
+		fireEvent.keyDown(document.body, { key: 'ArrowDown' });
 		expect(runtime.input.view().selectedIndices).toEqual([0]);
 
-		await fireEvent.keyDown(listbox, { key: 'a', ctrlKey: true });
+		fireEvent.keyDown(listbox, { key: 'a', ctrlKey: true });
 		await waitFor(() => {
 			expect(runtime?.input.view().selectedIndices).toEqual([0, 1]);
 		});
@@ -339,18 +339,17 @@ describe('Solid input workbench', () => {
 		const cover = document.createElement('div');
 		cover.id = 'cover-art-area';
 		document.body.appendChild(cover);
-		cover.getBoundingClientRect = () =>
-			({
-				left: 0,
-				right: 100,
-				top: 0,
-				bottom: 100,
-				width: 100,
-				height: 100,
-				x: 0,
-				y: 0,
-				toJSON: () => ({}),
-			}) as DOMRect;
+		cover.getBoundingClientRect = () => ({
+			left: 0,
+			right: 100,
+			top: 0,
+			bottom: 100,
+			width: 100,
+			height: 100,
+			x: 0,
+			y: 0,
+			toJSON: () => ({}),
+		});
 
 		await renderApp(runtime);
 		await waitFor(() => {
@@ -358,18 +357,17 @@ describe('Solid input workbench', () => {
 		});
 
 		const container = document.querySelector('.file-management-container') as HTMLElement;
-		container.getBoundingClientRect = () =>
-			({
-				left: 150,
-				right: 400,
-				top: 150,
-				bottom: 350,
-				width: 250,
-				height: 200,
-				x: 150,
-				y: 150,
-				toJSON: () => ({}),
-			}) as DOMRect;
+		container.getBoundingClientRect = () => ({
+			left: 150,
+			right: 400,
+			top: 150,
+			bottom: 350,
+			width: 250,
+			height: 200,
+			x: 150,
+			y: 150,
+			toJSON: () => ({}),
+		});
 
 		listeners.drop?.({ position: { x: 50, y: 50 }, paths: ['/tmp/image.png'] });
 		await waitFor(() => {

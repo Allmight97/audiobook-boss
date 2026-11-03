@@ -41,20 +41,20 @@ export type MetadataView = {
 export type MetadataOwner = {
 	readonly view: Accessor<MetadataView>;
 	readonly capability: Accessor<MetadataCapability>;
-	setFieldValue(command: { readonly inputId: string; readonly value: string }): void;
-	setFieldAction(command: {
+	setFieldValue: (command: { readonly inputId: string; readonly value: string }) => void;
+	setFieldAction: (command: {
 		readonly actionId: string;
 		readonly action: MetadataFieldAction;
-	}): void;
-	setCoverHovered(hovered: boolean): void;
-	setCoverDragOver(dragOver: boolean): void;
-	setCoverUrlInput(value: string): void;
-	clearCoverArt(): void;
-	loadCoverArtFromPicker(): Promise<void>;
-	loadCoverArtFromUrl(rawInput: string): void;
-	applyCoverArtDrop(paths: ReadonlyArray<string>): Promise<boolean>;
-	save(): void;
-	reset(): void;
+	}) => void;
+	setCoverHovered: (hovered: boolean) => void;
+	setCoverDragOver: (dragOver: boolean) => void;
+	setCoverUrlInput: (value: string) => void;
+	clearCoverArt: () => void;
+	loadCoverArtFromPicker: () => Promise<void>;
+	loadCoverArtFromUrl: (rawInput: string) => void;
+	applyCoverArtDrop: (paths: ReadonlyArray<string>) => Promise<boolean>;
+	save: () => void;
+	reset: () => void;
 };
 
 type MetadataOwnerDeps = {

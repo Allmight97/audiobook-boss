@@ -148,6 +148,7 @@ describe('ModalController', () => {
 		const modal = new ModalController();
 		// Simulate WebKit refusing focus mid-visibility-transition: the first
 		// focus() call is a no-op, later calls behave normally.
+		// oxlint-disable-next-line typescript/unbound-method -- the spy calls the native focus with its own `this`.
 		const nativeFocus = HTMLElement.prototype.focus;
 		let refusals = 1;
 		const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (

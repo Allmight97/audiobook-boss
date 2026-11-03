@@ -1,8 +1,8 @@
 export type TypingEcho<Key> = {
-	show(key: Key, value: string, send: () => Promise<unknown>): void;
-	valueOf(key: Key): string | undefined;
-	drop(key: Key): void;
-	clear(): void;
+	show: (key: Key, value: string, send: () => Promise<unknown>) => void;
+	valueOf: (key: Key) => string | undefined;
+	drop: (key: Key) => void;
+	clear: () => void;
 };
 
 type Entry = { readonly value: string; readonly typedIn: readonly unknown[] };
