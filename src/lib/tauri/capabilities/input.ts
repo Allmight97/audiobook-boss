@@ -17,12 +17,12 @@ export interface NativeDropPayload {
 export type InputUnlisten = UnlistenFn;
 
 export interface InputCapability {
-	openFiles(options?: InputOpenFileOptions): Promise<string[] | null>;
-	openDirectory(): Promise<string | null>;
-	getSupportedAudioImportMetadata(): Promise<SupportedAudioImportMetadata>;
-	listenDragDrop(handler: (payload: NativeDropPayload) => void): Promise<InputUnlisten>;
-	listenDragEnter(handler: () => void): Promise<InputUnlisten>;
-	listenDragLeave(handler: () => void): Promise<InputUnlisten>;
+	openFiles: (options?: InputOpenFileOptions) => Promise<string[] | null>;
+	openDirectory: () => Promise<string | null>;
+	getSupportedAudioImportMetadata: () => Promise<SupportedAudioImportMetadata>;
+	listenDragDrop: (handler: (payload: NativeDropPayload) => void) => Promise<InputUnlisten>;
+	listenDragEnter: (handler: () => void) => Promise<InputUnlisten>;
+	listenDragLeave: (handler: () => void) => Promise<InputUnlisten>;
 }
 
 export const liveInputCapability: InputCapability = {

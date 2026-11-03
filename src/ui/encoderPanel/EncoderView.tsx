@@ -55,7 +55,8 @@ function EncoderPanel(props: {
 
 	function bind(field: EncodingField) {
 		return (event: Event) => {
-			const select = event.currentTarget as HTMLSelectElement | HTMLInputElement;
+			const select = event.currentTarget;
+			if (!(select instanceof HTMLSelectElement || select instanceof HTMLInputElement)) return;
 			choose(field, select.value);
 			if (field === 'encoder') select.value = displayedFlavor();
 			if (field === 'bitrate') select.value = String(view().bitrate);

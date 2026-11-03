@@ -460,7 +460,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	function select(indices: number[]): void {
 		state.selection = {
 			...state.selection,
-			selectedIndices: [...indices].sort((a, b) => a - b),
+			selectedIndices: [...indices].toSorted((a, b) => a - b),
 			selectedAnchor: indices.length ? indices[indices.length - 1] : null,
 		};
 	}

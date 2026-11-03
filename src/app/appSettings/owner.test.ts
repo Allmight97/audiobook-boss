@@ -39,8 +39,8 @@ describe('settings owner', () => {
 	});
 
 	it('shows an unsaved accepted default as an error until a retry saves it', async () => {
-		const app = open((engine) => {
-			engine.settingsWriteError = { message: 'Disk full' };
+		const app = open((fake) => {
+			fake.settingsWriteError = { message: 'Disk full' };
 		});
 		await app.initialize();
 

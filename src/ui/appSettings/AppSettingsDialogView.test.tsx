@@ -39,25 +39,28 @@ describe('AppSettingsDialogView', () => {
 	it('requires a second activation before resetting all settings', async () => {
 		await renderOpenDialog();
 
-		await fireEvent.click(screen.getByTestId('app-settings-reset'));
+		fireEvent.click(screen.getByTestId('app-settings-reset'));
+		flush();
 		expect(sent('reset')).toBe(0);
 		expect(screen.getByTestId('app-settings-reset-confirm-prompt')).toBeInTheDocument();
 
-		await fireEvent.click(screen.getByTestId('app-settings-reset-confirm'));
+		fireEvent.click(screen.getByTestId('app-settings-reset-confirm'));
+		flush();
 		await vi.waitFor(() => expect(sent('reset')).toBe(1));
 	});
 
 	it('shows an automatic save failure and retries without discarding the accepted choice', async () => {
-		await renderOpenDialog((engine) => {
-			engine.settingsWriteError = { message: 'Disk full' };
+		await renderOpenDialog((fake) => {
+			fake.settingsWriteError = { message: 'Disk full' };
 		});
 		engine.change((state) => {
 			state.audio.defaults.choice.intent = 'encode';
 		});
 		flush();
-		await fireEvent.change(screen.getByTestId('encoder-select'), {
+		fireEvent.change(screen.getByTestId('encoder-select'), {
 			target: { value: 'faac' },
 		});
+		flush();
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents).toContainEqual({
 				kind: 'setDefaultAudio',
@@ -84,7 +87,8 @@ describe('AppSettingsDialogView', () => {
 		);
 		expect(screen.getByTestId('encoder-select')).toHaveValue('faac');
 		engine.settingsWriteError = undefined;
-		await fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
+		flush();
 		await vi.waitFor(() =>
 			expect(screen.queryByText("Settings haven't been saved")).not.toBeInTheDocument(),
 		);
@@ -95,8 +99,10 @@ describe('AppSettingsDialogView', () => {
 	it('returns to idle when the confirm step is cancelled', async () => {
 		await renderOpenDialog();
 
-		await fireEvent.click(screen.getByTestId('app-settings-reset'));
-		await fireEvent.click(screen.getByTestId('app-settings-reset-cancel'));
+		fireEvent.click(screen.getByTestId('app-settings-reset'));
+		flush();
+		fireEvent.click(screen.getByTestId('app-settings-reset-cancel'));
+		flush();
 
 		expect(sent('reset')).toBe(0);
 		expect(screen.queryByTestId('app-settings-reset-confirm-prompt')).not.toBeInTheDocument();
@@ -106,8 +112,10 @@ describe('AppSettingsDialogView', () => {
 	it('returns to idle when a click lands outside the reset row', async () => {
 		await renderOpenDialog();
 
-		await fireEvent.click(screen.getByTestId('app-settings-reset'));
-		await fireEvent.click(screen.getByRole('heading', { name: 'App Settings' }));
+		fireEvent.click(screen.getByTestId('app-settings-reset'));
+		flush();
+		fireEvent.click(screen.getByRole('heading', { name: 'App Settings' }));
+		flush();
 
 		expect(screen.queryByTestId('app-settings-reset-confirm-prompt')).not.toBeInTheDocument();
 	});
@@ -121,8 +129,10 @@ describe('AppSettingsDialogView', () => {
 		));
 		expect(runtime.settings.dialog().isOpen).toBe(false);
 
-		await runtime.settings.openDialog();
-		await fireEvent.keyDown(document.body, { key: 'Escape' });
+		runtime.settings.openDialog();
+		flush();
+		fireEvent.keyDown(document.body, { key: 'Escape' });
+		flush();
 
 		expect(runtime.settings.dialog().isOpen).toBe(false);
 	});
@@ -130,7 +140,8 @@ describe('AppSettingsDialogView', () => {
 	it('records the default acquisition lane when the Indexer radio is selected', async () => {
 		await renderOpenDialog();
 
-		await fireEvent.click(screen.getByTestId('app-settings-default-lane-indexer'));
+		fireEvent.click(screen.getByTestId('app-settings-default-lane-indexer'));
+		flush();
 
 		await vi.waitFor(() => expect(runtime!.settings.defaultAcquisitionLane()).toBe('indexer'));
 		expect(engine.settingsIntents).toContainEqual({
@@ -144,7 +155,8 @@ describe('AppSettingsDialogView', () => {
 
 		let awake = screen.getByTestId('app-settings-keep-awake-checkbox');
 		expect(awake).toBeChecked();
-		await fireEvent.click(awake);
+		fireEvent.click(awake);
+		flush();
 		await vi.waitFor(() => {
 			expect(awake).not.toBeChecked();
 			expect(awake).toBeEnabled();
@@ -157,7 +169,8 @@ describe('AppSettingsDialogView', () => {
 		expect(awake).not.toBeChecked();
 
 		engine.settingsWriteError = { message: 'Disk full' };
-		await fireEvent.click(awake);
+		fireEvent.click(awake);
+		flush();
 		await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Disk full'));
 		expect(awake).toBeChecked();
 	});
@@ -175,9 +188,11 @@ describe('AppSettingsDialogView', () => {
 		expect(screen.getByTestId('app-settings-indexer-category')).toHaveTextContent(
 			'Audiobooks (3030)',
 		);
-		await fireEvent.click(screen.getByTestId('app-settings-indexer-category'));
+		fireEvent.click(screen.getByTestId('app-settings-indexer-category'));
+		flush();
 		const audiobooks = screen.getByRole('checkbox', { name: 'Audiobooks (3030)' });
-		await fireEvent.click(audiobooks);
+		fireEvent.click(audiobooks);
+		flush();
 
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents).toContainEqual({
@@ -195,8 +210,8 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('recommends HTTPS while keeping an explicit HTTP connection usable', async () => {
-		const r = await renderOpenDialog((engine) =>
-			engine.change((state) => {
+		const r = await renderOpenDialog((fake) =>
+			fake.change((state) => {
 				Object.assign(state.remote.connection, {
 					baseUrl: 'http://saved:9696',
 					categoryIds: [3030],
@@ -209,9 +224,11 @@ describe('AppSettingsDialogView', () => {
 		expect(url).toHaveAttribute('placeholder', 'https://prowlarr.example.com');
 		expect(screen.getByText('HTTP is unencrypted.')).toBeInTheDocument();
 		const test = vi.spyOn(r.remoteSource, 'testIndexerConnection').mockResolvedValue();
-		await fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+		flush();
 		expect(test).toHaveBeenCalledOnce();
-		await fireEvent.input(url, { target: { value: 'https://saved.example.com' } });
+		fireEvent.input(url, { target: { value: 'https://saved.example.com' } });
+		flush();
 		expect(screen.queryByText('HTTP is unencrypted.')).not.toBeInTheDocument();
 		expect(screen.getByText('HTTPS recommended.')).toBeInTheDocument();
 	});
@@ -220,22 +237,27 @@ describe('AppSettingsDialogView', () => {
 		const r = await renderOpenDialog();
 		const help = screen.getByRole('button', { name: 'About indexer connection security' });
 		expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
-		await fireEvent.click(help);
+		fireEvent.click(help);
+		flush();
 		expect(screen.getByRole('tooltip')).toHaveTextContent('Use HTTPS when available');
-		await fireEvent.keyDown(help, { key: 'Escape' });
+		fireEvent.keyDown(help, { key: 'Escape' });
+		flush();
 		expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
 		expect(r.settings.dialog().isOpen).toBe(true);
-		await fireEvent.focusIn(help);
+		fireEvent.focusIn(help);
+		flush();
 		expect(screen.getByRole('tooltip')).toBeInTheDocument();
-		await fireEvent.focusOut(help, { relatedTarget: screen.getByLabelText('URL') });
+		fireEvent.focusOut(help, { relatedTarget: screen.getByLabelText('URL') });
+		flush();
 		expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
-		await fireEvent.keyDown(help, { key: 'Escape' });
+		fireEvent.keyDown(help, { key: 'Escape' });
+		flush();
 		expect(r.settings.dialog().isOpen).toBe(false);
 	});
 
 	it('keeps Indexer drafts when another Settings field changes', async () => {
-		const r = await renderOpenDialog((engine) =>
-			engine.change((state) => {
+		const r = await renderOpenDialog((fake) =>
+			fake.change((state) => {
 				Object.assign(state.remote.connection, {
 					baseUrl: 'http://saved:9696',
 					categoryIds: [3030],
@@ -244,10 +266,13 @@ describe('AppSettingsDialogView', () => {
 			}),
 		);
 		await vi.waitFor(() => expect(screen.getByLabelText('URL')).toHaveValue('http://saved:9696'));
-		await fireEvent.input(screen.getByLabelText('URL'), { target: { value: 'http://draft:9696' } });
-		await fireEvent.input(screen.getByLabelText('API key'), { target: { value: 'draft-secret' } });
+		fireEvent.input(screen.getByLabelText('URL'), { target: { value: 'http://draft:9696' } });
+		flush();
+		fireEvent.input(screen.getByLabelText('API key'), { target: { value: 'draft-secret' } });
+		flush();
 		engine.sessionIntents.length = 0;
-		await fireEvent.click(screen.getByTestId('app-settings-keep-awake-checkbox'));
+		fireEvent.click(screen.getByTestId('app-settings-keep-awake-checkbox'));
+		flush();
 		expect(engine.sessionIntents).not.toContainEqual({
 			kind: 'remote',
 			intent: { kind: 'loadConnection' },
@@ -258,8 +283,8 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('dispatches Test for the current connection draft without saving or clearing the password', async () => {
-		const r = await renderOpenDialog((engine) =>
-			engine.change((state) => {
+		const r = await renderOpenDialog((fake) =>
+			fake.change((state) => {
 				Object.assign(state.remote.connection, {
 					baseUrl: 'http://saved:9696',
 					categoryIds: [3030],
@@ -272,9 +297,12 @@ describe('AppSettingsDialogView', () => {
 		const save = vi.spyOn(r.remoteSource, 'saveIndexerConnectionSettings');
 		const key = screen.getByLabelText('API key');
 		expect(key).toHaveAttribute('type', 'password');
-		await fireEvent.input(screen.getByLabelText('URL'), { target: { value: 'http://draft:9696' } });
-		await fireEvent.input(key, { target: { value: 'draft-secret' } });
-		await fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+		fireEvent.input(screen.getByLabelText('URL'), { target: { value: 'http://draft:9696' } });
+		flush();
+		fireEvent.input(key, { target: { value: 'draft-secret' } });
+		flush();
+		fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+		flush();
 		expect(test).toHaveBeenCalledOnce();
 		expect(save).not.toHaveBeenCalled();
 		expect(r.remoteSource.indexerConnection()).toMatchObject({

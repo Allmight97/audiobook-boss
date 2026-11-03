@@ -18,9 +18,9 @@ export interface SubscriptionGroup {
 	 * available, it is invoked immediately instead of stored. Resolves once the
 	 * registration settles, so a caller needing subscribe-before-X ordering can await.
 	 */
-	add(registration: Promise<UnlistenFn> | UnlistenFn): Promise<void>;
+	add: (registration: Promise<UnlistenFn> | UnlistenFn) => Promise<void>;
 	/** Invoke and drop every registered unlisten exactly once; idempotent. */
-	dispose(): void;
+	dispose: () => void;
 	/** True once `dispose()` has run; further `add()`s unlisten immediately. */
 	readonly disposed: boolean;
 }

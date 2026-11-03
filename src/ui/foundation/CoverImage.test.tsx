@@ -1,3 +1,4 @@
+import { flush } from 'solid-js';
 import { createSignal } from 'solid-js';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -23,13 +24,15 @@ describe('CoverImage', () => {
 		const image = await screen.findByTestId('cover');
 		expect(image).toHaveAttribute('loading', 'lazy');
 		expect(image).toHaveAttribute('data-state', 'loading');
-		await fireEvent.load(image);
+		fireEvent.load(image);
+		flush();
 		expect(image).toHaveAttribute('data-state', 'ready');
 
 		setSrc('abb-cover://localhost/two');
 		const next = await screen.findByTestId('cover');
 		expect(next).toHaveAttribute('data-state', 'loading');
-		await fireEvent.error(next);
+		fireEvent.error(next);
+		flush();
 		expect(await screen.findByText('Preview failed')).toBeInTheDocument();
 		expect(screen.queryByTestId('cover')).toBeNull();
 	});

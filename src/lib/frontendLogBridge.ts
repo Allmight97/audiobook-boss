@@ -13,6 +13,7 @@ let sentInWindow = 0;
 let droppedInWindow = 0;
 
 export function flattenLogText(value: string): string {
+	// oxlint-disable-next-line typescript/no-misused-spread -- splitting by code point keeps a surrogate pair whole.
 	return [...value.replace(/[\r\n\t]+/g, ' ')]
 		.filter((character) => {
 			const code = character.charCodeAt(0);

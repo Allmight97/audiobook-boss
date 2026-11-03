@@ -180,9 +180,7 @@ describe('Work Center state', () => {
 		const updateUnlisten = vi.fn();
 		const listDeferred = createDeferred<WorkOperationsSnapshot>();
 		vi.spyOn(tauriClient, 'listen').mockResolvedValueOnce(updateUnlisten);
-		vi.spyOn(tauriClient, 'listWorkOperations').mockReturnValueOnce(
-			listDeferred.promise as ReturnType<typeof tauriClient.listWorkOperations>,
-		);
+		vi.spyOn(tauriClient, 'listWorkOperations').mockReturnValueOnce(listDeferred.promise);
 
 		const initPromise = session.initialize();
 		await new Promise((resolve) => setTimeout(resolve, 0));

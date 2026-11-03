@@ -180,6 +180,7 @@ export function AudioHandlingControl(props: {
 			</Show>
 			<Show when={open()}>
 				<Portal>
+					{/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the popover keeps itself open while the pointer is over it. */}
 					<div
 						ref={(el) => {
 							panel = el;
@@ -249,24 +250,24 @@ export function AudioHandlingControl(props: {
 						</p>
 						<EncoderView title={props.file} />
 						<Show when={plan()}>
-							{(resolved) => (
+							{(planned) => (
 								<dl class="audio-plan-properties">
 									<dt>Source audio</dt>
-									<dd>{resolved().handling === 'preserve' ? 'Pass-through' : 'Re-encoded'}</dd>
+									<dd>{planned().handling === 'preserve' ? 'Pass-through' : 'Re-encoded'}</dd>
 									<dt>{opus() && !kept() ? 'Opus input rate' : 'Sample rate'}</dt>
 									<dd>
-										{sources()[0]?.sampleRate !== resolved().sampleRate
+										{sources()[0]?.sampleRate !== planned().sampleRate
 											? `${(sources()[0]?.sampleRate ?? 0) / 1000} → `
 											: ''}
-										{resolved().sampleRate / 1000} kHz
+										{planned().sampleRate / 1000} kHz
 									</dd>
 									<dt>Channels</dt>
 									<dd>
-										{resolved().channels === 1
+										{planned().channels === 1
 											? 'Mono'
-											: resolved().channels === 2
+											: planned().channels === 2
 												? 'Stereo'
-												: `${resolved().channels} channels`}
+												: `${planned().channels} channels`}
 									</dd>
 								</dl>
 							)}

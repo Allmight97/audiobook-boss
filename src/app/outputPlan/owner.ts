@@ -14,15 +14,15 @@ import {
 
 export type OutputPlanOwner = {
 	readonly view: Accessor<OutputView>;
-	estimateTitleSizeText(file: AudioFile): string | null;
+	estimateTitleSizeText: (file: AudioFile) => string | null;
 	readonly collision: Accessor<CollisionView>;
-	browseDirectory(): Promise<void>;
-	selectNamingPreset(value: string): void;
-	setAbsIncludeYear(value: boolean): void;
-	editNamingTemplate(value: string): void;
-	chooseCollisionPolicy(reviewId: number, policy: CollisionPolicy): void;
-	cancelCollisionReview(reviewId: number): void;
-	reset(): void;
+	browseDirectory: () => Promise<void>;
+	selectNamingPreset: (value: string) => void;
+	setAbsIncludeYear: (value: boolean) => void;
+	editNamingTemplate: (value: string) => void;
+	chooseCollisionPolicy: (reviewId: number, policy: CollisionPolicy) => void;
+	cancelCollisionReview: (reviewId: number) => void;
+	reset: () => void;
 };
 
 export type OutputOwnerDeps = {

@@ -124,6 +124,7 @@ function IndexerConnectionHelp(props: {
 	readonly setOpen: (open: boolean) => void;
 }): JSX.Element {
 	return (
+		// oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- hover opens the help; focus inside opens it from the keyboard.
 		<fieldset
 			class="app-settings-connection-help"
 			aria-label="Connection security help"
@@ -285,7 +286,7 @@ export function AppSettingsDialogView(): JSX.Element {
 										checked={state().settings?.keepAwakeWhileWorking ?? true}
 										disabled={state().powerSaveState === 'saving'}
 										onChange={(event) =>
-											void settings.setKeepAwakeWhileWorking(Boolean(event.currentTarget.checked))
+											void settings.setKeepAwakeWhileWorking(event.currentTarget.checked)
 										}
 									/>
 									<span class="option-label">Keep computer awake while working</span>

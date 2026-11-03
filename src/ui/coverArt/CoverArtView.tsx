@@ -66,8 +66,6 @@ export function CoverArtView(): JSX.Element {
 	return (
 		<div class="cover-art">
 			<span class="cover-art-label">Cover Art</span>
-			{/* biome-ignore lint/a11y/useSemanticElements: cover drop target plus nested clear control */}
-			{/* biome-ignore lint/a11y/useFocusableInteractive: Solid 2 JSX types expose tabindex, not tabIndex */}
 			<div
 				id="cover-art-area"
 				class={[

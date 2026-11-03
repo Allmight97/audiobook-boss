@@ -31,10 +31,10 @@ function toStringValue(value: unknown, fallback: string): string {
 	if (typeof value === 'string') {
 		return value;
 	}
-	if (value == null) {
-		return fallback;
+	if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+		return String(value);
 	}
-	return String(value);
+	return fallback;
 }
 
 export function isAppErrorEnvelope(value: unknown): value is AppErrorEnvelope {
@@ -79,7 +79,7 @@ export function normalizeAppError(
 		const message = toStringValue(error.message, fallbackMessage);
 		return {
 			code: toStringValue(error.code, 'unknown_error'),
-			category: toStringValue(error.category, 'unknown') as AppErrorCategory,
+			category: toStringValue(error.category, 'unknown'),
 			message,
 			detail: typeof error.detail === 'string' ? error.detail : undefined,
 		};
@@ -101,17 +101,25 @@ function isSpectaResult(value: unknown): value is SpectaResult {
 	return value.status === 'ok' || value.status === 'error';
 }
 
-export function unwrapGeneratedResult<T>(value: unknown): T {
+export type UnwrappedResult<T> = T extends { status: 'error' }
+	? never
+	: T extends { status: 'ok'; data: infer U }
+		? U
+		: T;
+
+/* oxlint-disable typescript/no-unsafe-type-assertion -- UnwrappedResult<T> is a conditional type; isSpectaResult checks the envelope that selects its branch. */
+export function unwrapGeneratedResult<T>(value: T): UnwrappedResult<T> {
 	if (!isSpectaResult(value)) {
-		return value as T;
+		return value as UnwrappedResult<T>;
 	}
 
 	if (value.status === 'error') {
 		throw normalizeAppError(value.error);
 	}
 
-	return value.data as T;
+	return value.data as UnwrappedResult<T>;
 }
+/* oxlint-enable typescript/no-unsafe-type-assertion */
 
 /**
  * Derive a user-facing message from any thrown cause. Centralizes the

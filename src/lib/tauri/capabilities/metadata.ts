@@ -9,7 +9,7 @@ export interface MetadataOpenFileOptions {
 }
 
 export interface MetadataCapability {
-	openFile(options?: MetadataOpenFileOptions): Promise<string | null>;
+	openFile: (options?: MetadataOpenFileOptions) => Promise<string | null>;
 }
 
 export const liveMetadataCapability: MetadataCapability = {

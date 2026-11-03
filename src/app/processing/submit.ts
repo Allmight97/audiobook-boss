@@ -48,8 +48,13 @@ export function renderSubmission(
 	display: SubmissionDisplay,
 	status: SubmissionStatus | null,
 ): void {
-	// biome-ignore lint/nursery/useExhaustiveSwitchCases: Biome's inference ignores Exclude<>; tsc proves previewFinished absent, and null status renders nothing.
 	switch (status?.kind) {
+		case undefined:
+		case 'preparing':
+		case 'previewing':
+		case 'previewFinished':
+		case 'reviewRequired':
+			return;
 		case 'submitted':
 			display.setProcessingState(false);
 			display.updateStatus({

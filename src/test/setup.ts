@@ -24,7 +24,7 @@ function emitTestEvent(event: string, payload: unknown): void {
 
 function mockOrder(): string[] {
 	return [...mockOperations.values()]
-		.sort((a, b) => b.sequence - a.sequence)
+		.toSorted((a, b) => b.sequence - a.sequence)
 		.map((operation) => operation.operationId);
 }
 
@@ -237,9 +237,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);
 		}
 	}),
-	Channel: class MockChannel {
-		// Minimal placeholder required by generated tauri-specta bindings import surface.
-	},
+	// oxlint-disable-next-line typescript/no-extraneous-class -- the generated bindings import Channel; tests never construct one.
+	Channel: class MockChannel {},
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({

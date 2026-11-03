@@ -1,10 +1,4 @@
-import type {
-	AudioChoice,
-	AudioChoiceFacts,
-	AudioEdit,
-	FaacRateControl,
-	TitlePlan,
-} from '../../types/session';
+import type { AudioChoice, AudioChoiceFacts, AudioEdit, TitlePlan } from '../../types/session';
 import type {
 	AudiobookFormat,
 	AudioIntent,
@@ -258,30 +252,32 @@ export function projectView(source: EncodingSource): EncodingView {
 	};
 }
 
+function oneOf<T extends string>(options: readonly T[], value: string): value is T {
+	return (options as readonly string[]).includes(value);
+}
+
 export function editFor(field: EncodingField, value: string): AudioEdit | null {
 	const number = Number(value);
 	const whole = value.trim() !== '' && Number.isInteger(number) && number >= 0;
 	switch (field) {
 		case 'format':
-			return ['m4b', 'mp3', 'm4aOpus', 'mkaOpus'].includes(value)
-				? { field: 'format', value: value as AudiobookFormat }
+			return oneOf(['m4b', 'mp3', 'm4aOpus', 'mkaOpus'] as const, value)
+				? { field: 'format', value }
 				: null;
 		case 'intent':
-			return ['auto', 'encode', 'preserve'].includes(value)
-				? { field: 'intent', value: value as AudioIntent }
+			return oneOf(['auto', 'encode', 'preserve'] as const, value)
+				? { field: 'intent', value }
 				: null;
 		case 'encoder':
-			return ['auto', 'aac_at', 'native_aac', 'faac'].includes(value)
-				? { field: 'encoder', value: value as EncoderType }
+			return oneOf(['auto', 'aac_at', 'native_aac', 'faac'] as const, value)
+				? { field: 'encoder', value }
 				: null;
 		case 'faacProfile':
-			return ['auto', 'aac_lc', 'he_aac_v1'].includes(value)
-				? { field: 'faacProfile', value: value as FaacProfile }
+			return oneOf(['auto', 'aac_lc', 'he_aac_v1'] as const, value)
+				? { field: 'faacProfile', value }
 				: null;
 		case 'rateControl':
-			return value === 'abr' || value === 'vbr'
-				? { field: 'rateControl', value: value as FaacRateControl }
-				: null;
+			return value === 'abr' || value === 'vbr' ? { field: 'rateControl', value: value } : null;
 		case 'quality':
 			return whole ? { field: 'quality', value: number } : null;
 		case 'nativeSpeed':
@@ -292,8 +288,8 @@ export function editFor(field: EncodingField, value: string): AudioEdit | null {
 			if (value === 'auto') return { field: 'sampleRate', value: 'auto' };
 			return whole ? { field: 'sampleRate', value: { explicit: number } } : null;
 		case 'channels':
-			return ['auto', 'mono', 'stereo'].includes(value)
-				? { field: 'channels', value: value as 'auto' | 'mono' | 'stereo' }
+			return oneOf(['auto', 'mono', 'stereo'] as const, value)
+				? { field: 'channels', value }
 				: null;
 	}
 }

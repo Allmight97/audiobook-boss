@@ -12,13 +12,13 @@ export type ProcessingOwner = {
 	readonly status: Accessor<StatusView>;
 	readonly restartOffers: Accessor<readonly RestartOffer[]>;
 	readonly restartPrompt: Accessor<RestartOffer | null>;
-	restart(offer: RestartOffer): Promise<void>;
-	keepLocation(offer: RestartOffer): Promise<void>;
-	start(options?: { previewSeconds?: number }): Promise<void>;
-	cancelAll(): void;
-	isProcessing(): boolean;
-	pushTransientStatus(message: string, options?: { ttlMs?: number }): void;
-	reset(): void;
+	restart: (offer: RestartOffer) => Promise<void>;
+	keepLocation: (offer: RestartOffer) => Promise<void>;
+	start: (options?: { previewSeconds?: number }) => Promise<void>;
+	cancelAll: () => void;
+	isProcessing: () => boolean;
+	pushTransientStatus: (message: string, options?: { ttlMs?: number }) => void;
+	reset: () => void;
 };
 
 export type ProcessingOwnerDeps = {

@@ -183,14 +183,8 @@ describe('UI Workflow Smoke Test', () => {
 			await user.clear(targetBitrate);
 			await user.type(targetBitrate, '96');
 			await user.tab();
-			await user.selectOptions(
-				within(audioEditor).getByLabelText('Sample Rate') as HTMLSelectElement,
-				'44100',
-			);
-			await user.selectOptions(
-				within(audioEditor).getByLabelText('Channels') as HTMLSelectElement,
-				'mono',
-			);
+			await user.selectOptions(within(audioEditor).getByLabelText('Sample Rate'), '44100');
+			await user.selectOptions(within(audioEditor).getByLabelText('Channels'), 'mono');
 			await waitFor(() =>
 				expect(engine.sessionIntents).toContainEqual({
 					kind: 'setTitleAudio',

@@ -46,21 +46,21 @@ export type SettingsOwner = {
 	readonly durability: Accessor<SettingsDurability>;
 	/** What this launch could not keep from the saved settings; empty when nothing. */
 	readonly recoveryNotice: Accessor<string>;
-	retryPersistence(): Promise<void>;
+	retryPersistence: () => Promise<void>;
 	readonly concurrency: Accessor<ConcurrencyView>;
 	readonly defaultAcquisitionLane: Accessor<AcquisitionLane>;
 	readonly dialog: Accessor<AppSettingsDialogState>;
-	setConcurrencySelection(value: string): Promise<void>;
-	setDefaultAcquisitionLane(lane: AcquisitionLane): Promise<void>;
-	setControlsEnabled(enabled: boolean): void;
-	openDialog(): void;
-	closeDialog(): void;
-	setDialogOpen(open: boolean): void;
-	setKeepAwakeWhileWorking(enabled: boolean): Promise<void>;
-	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
-	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
-	resetAllAppSettings(): Promise<void>;
-	reset(): void;
+	setConcurrencySelection: (value: string) => Promise<void>;
+	setDefaultAcquisitionLane: (lane: AcquisitionLane) => Promise<void>;
+	setControlsEnabled: (enabled: boolean) => void;
+	openDialog: () => void;
+	closeDialog: () => void;
+	setDialogOpen: (open: boolean) => void;
+	setKeepAwakeWhileWorking: (enabled: boolean) => Promise<void>;
+	saveCurrentSettingsAsPinnedDefaults: () => Promise<void>;
+	setStartupBehavior: (behavior: StartupBehavior) => Promise<void>;
+	resetAllAppSettings: () => Promise<void>;
+	reset: () => void;
 };
 
 export type SettingsOwnerDeps = {

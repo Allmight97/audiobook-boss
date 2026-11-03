@@ -199,8 +199,7 @@ export function FileListView(props: {
 							const grouped = () => sources().length > 1;
 							const invalidSource = () => sources().find((source) => !source.isValid);
 							return (
-								// biome-ignore lint/a11y/useKeyWithClickEvents: listbox owns keyboard; rows are not tab stops
-								// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 JSX types expose tabindex, not tabIndex
+								// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the listbox owns the keyboard; rows are not tab stops.
 								<div
 									data-file-index={index()}
 									class={[

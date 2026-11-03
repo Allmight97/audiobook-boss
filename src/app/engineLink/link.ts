@@ -31,22 +31,22 @@ export type EngineLink = {
 	readonly remoteAcquisition: Accessor<RemoteAcquisitionSnapshot>;
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
-	send(intent: SessionIntent): Promise<SessionOutcome>;
-	openPreview(runId: string): Promise<SessionOutcome>;
+	send: (intent: SessionIntent) => Promise<SessionOutcome>;
+	openPreview: (runId: string) => Promise<SessionOutcome>;
 	/** Sends an intent whose outcome the caller does not need. A refusal is
 	 * kept as `refusal` until dismissed. */
-	post(intent: SessionIntent): void;
+	post: (intent: SessionIntent) => void;
 	/** Keeps a `send` caller's refusal as `refusal`, the way `post` does. */
-	refuse(intent: SessionIntent, error: unknown): void;
+	refuse: (intent: SessionIntent, error: unknown) => void;
 	/** Why the latest posted intent was refused, worded for the user. */
 	readonly refusal: Accessor<string | null>;
-	dismissRefusal(): void;
+	dismissRefusal: () => void;
 	/** `pending` until the engine's first snapshot arrives; nothing it owns
 	 * is truthful before then. */
 	readonly attachment: Accessor<Attachment>;
-	sendSettings(intent: SettingsIntent): Promise<SettingsOutcome>;
-	ready(): Promise<void>;
-	dispose(): void;
+	sendSettings: (intent: SettingsIntent) => Promise<SettingsOutcome>;
+	ready: () => Promise<void>;
+	dispose: () => void;
 };
 
 export type Attachment =
@@ -422,11 +422,11 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 			unlisten = stop;
 			return capability.attach();
 		})
-		.then((attached) => {
-			applySession(attached.session);
-			applySettings(attached.settings);
+		.then((ready) => {
+			applySession(ready.session);
+			applySettings(ready.settings);
 			setAttachment({ kind: 'ready' });
-			return attached.client;
+			return ready.client;
 		});
 	attached.catch((error: unknown) => {
 		setAttachment({

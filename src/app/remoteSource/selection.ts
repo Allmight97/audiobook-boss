@@ -53,7 +53,7 @@ export function visibleRemoteReleases(
 			)
 		: [...releases];
 
-	return visible.sort((left, right) => {
+	return visible.toSorted((left, right) => {
 		if (options.releaseSort === 'size') {
 			const sizeDelta = right.sizeBytes - left.sizeBytes;
 			if (sizeDelta !== 0) return sizeDelta;

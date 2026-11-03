@@ -37,7 +37,7 @@ export function App(): JSX.Element {
 			}
 			if ((event.metaKey || event.ctrlKey) && event.key === ',') {
 				event.preventDefault();
-				void openSettings();
+				openSettings();
 			}
 		}
 		window.addEventListener('keydown', handleGlobalKeyDown);

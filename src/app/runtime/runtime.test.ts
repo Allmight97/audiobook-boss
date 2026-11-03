@@ -46,7 +46,7 @@ describe('app runtime', () => {
 			second.dispose();
 		};
 
-		void first.settings.openDialog();
+		first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
 		first.processing.pushTransientStatus('first runtime only');
 		void first.remoteSource.open();

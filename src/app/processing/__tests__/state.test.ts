@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildStatus, isActiveEventStage, type ProcessingStatus } from '../state';
+import { buildStatus, isActiveEventStage } from '../state';
 
 describe('statusPanel state helpers', () => {
 	it('forces idle status to percentage 0 and drops active-only fields', () => {
@@ -27,6 +27,6 @@ describe('statusPanel state helpers', () => {
 		['cancelled', false],
 		['idle', false],
 	] as const)('isActiveEventStage(%s) -> %s', (stage, expected) => {
-		expect(isActiveEventStage(stage as ProcessingStatus['stage'])).toBe(expected);
+		expect(isActiveEventStage(stage)).toBe(expected);
 	});
 });

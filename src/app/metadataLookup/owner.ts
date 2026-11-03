@@ -18,13 +18,13 @@ export type MetadataLookupAction =
 
 export type MetadataLookupOwner = {
 	readonly view: Accessor<MetadataLookupState>;
-	run(action: MetadataLookupAction): Promise<void>;
-	setTitleQuery(value: string): void;
-	setAuthorQuery(value: string): void;
-	setSource(value: MetadataLookupSource): void;
-	setApplyMode(value: MetadataLookupApplyMode): void;
-	setReplaceCover(value: boolean): void;
-	reset(): void;
+	run: (action: MetadataLookupAction) => Promise<void>;
+	setTitleQuery: (value: string) => void;
+	setAuthorQuery: (value: string) => void;
+	setSource: (value: MetadataLookupSource) => void;
+	setApplyMode: (value: MetadataLookupApplyMode) => void;
+	setReplaceCover: (value: boolean) => void;
+	reset: () => void;
 };
 
 const METADATA_TITLE_INPUT_ID = 'meta-title';

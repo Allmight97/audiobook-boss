@@ -10,7 +10,7 @@ import type {
 	WorkOperationsUpdate as GeneratedWorkOperationsUpdate,
 	OperationSnapshot as GeneratedOperationSnapshot,
 } from '../generated/tauri';
-import type { PlannedOutput, ProcessCommandResult } from '../../types/audio';
+import type { ProcessCommandResult } from '../../types/audio';
 import type { SettingsReply, SettingsSnapshot } from '../../types/appSettings';
 import type { SessionReply, SessionUpdate, SubmissionStatus } from '../../types/session';
 import type { NullToOptionalDeep } from '../../types/ipc';
@@ -35,6 +35,7 @@ function isScalarArrayWithoutNullish(value: readonly unknown[]): boolean {
 	return true;
 }
 
+/* oxlint-disable typescript/no-unsafe-type-assertion -- NullToOptionalDeep<T> is a conditional type TS cannot narrow inside a generic walker; the normalizer tests pin each shape. */
 function normalizeNullish<T>(value: T): NullToOptionalDeep<T> {
 	if (value == null) {
 		return undefined as NullToOptionalDeep<T>;
@@ -43,11 +44,7 @@ function normalizeNullish<T>(value: T): NullToOptionalDeep<T> {
 		if (isScalarArrayWithoutNullish(value)) {
 			return value as NullToOptionalDeep<T>;
 		}
-		const normalized = new Array<unknown>(value.length);
-		for (const [index, entry] of value.entries()) {
-			normalized[index] = normalizeNullish(entry);
-		}
-		return normalized as NullToOptionalDeep<T>;
+		return value.map((entry) => normalizeNullish(entry)) as NullToOptionalDeep<T>;
 	}
 	if (isPlainRecord(value)) {
 		const normalized: PlainRecord = {};
@@ -59,7 +56,7 @@ function normalizeNullish<T>(value: T): NullToOptionalDeep<T> {
 		}
 		return normalized as NullToOptionalDeep<T>;
 	}
-	return value as NullToOptionalDeep<T>;
+	return value;
 }
 
 export function denormalizeNullish<T>(value: T): T {
@@ -70,11 +67,7 @@ export function denormalizeNullish<T>(value: T): T {
 		if (isScalarArrayWithoutNullish(value)) {
 			return value as T;
 		}
-		const normalized = new Array<unknown>(value.length);
-		for (const [index, entry] of value.entries()) {
-			normalized[index] = denormalizeNullish(entry);
-		}
-		return normalized as T;
+		return value.map((entry) => denormalizeNullish(entry)) as T;
 	}
 	if (isPlainRecord(value)) {
 		const normalized: PlainRecord = {};
@@ -85,6 +78,7 @@ export function denormalizeNullish<T>(value: T): T {
 	}
 	return value;
 }
+/* oxlint-enable typescript/no-unsafe-type-assertion */
 
 /**
  * Audio files and lookup results take the optional-field forms the frontend
@@ -139,7 +133,7 @@ export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionU
 					collisionReview: output.collisionReview
 						? {
 								...output.collisionReview,
-								outputs: normalizeNullish(output.collisionReview.outputs) as PlannedOutput[],
+								outputs: normalizeNullish(output.collisionReview.outputs),
 							}
 						: null,
 				}
@@ -163,7 +157,7 @@ export function normalizeSessionReply(reply: GeneratedSessionReply): SessionRepl
 }
 
 export function normalizeSettingsSnapshot(snapshot: GeneratedSettingsSnapshot): SettingsSnapshot {
-	return normalizeNullish(snapshot) as SettingsSnapshot;
+	return normalizeNullish(snapshot);
 }
 
 export function normalizeSettingsReply(reply: GeneratedSettingsReply): SettingsReply {
@@ -194,17 +188,17 @@ function normalizeProcessResult(result: GeneratedProcessCommandResult): ProcessC
 }
 
 export function normalizeOperationSnapshot(payload: GeneratedOperationSnapshot): OperationSnapshot {
-	return normalizeNullish(payload) as OperationSnapshot;
+	return normalizeNullish(payload);
 }
 
 export function normalizeWorkOperationsSnapshot(
 	payload: GeneratedWorkOperationsSnapshot,
 ): WorkOperationsSnapshot {
-	return normalizeNullish(payload) as WorkOperationsSnapshot;
+	return normalizeNullish(payload);
 }
 
 export function normalizeWorkOperationsUpdate(
 	payload: GeneratedWorkOperationsUpdate,
 ): WorkOperationsUpdate {
-	return normalizeNullish(payload) as WorkOperationsUpdate;
+	return normalizeNullish(payload);
 }

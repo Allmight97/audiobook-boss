@@ -8,7 +8,7 @@ import type { OnlineMetadataResult } from '../../types/metadata';
 import './metadataLookup.css';
 
 function formatPublicationDate(value: string | null | undefined): string {
-	return value ? value.toString() : '—';
+	return value || '—';
 }
 
 function formatDurationHours(durationSeconds: number | null | undefined): string {

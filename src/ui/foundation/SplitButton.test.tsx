@@ -1,3 +1,4 @@
+import { flush } from 'solid-js';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SplitButton } from './SplitButton';
@@ -22,20 +23,25 @@ describe('SplitButton', () => {
 				)}
 			</SplitButton>
 		));
-		await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+		flush();
 		expect(onMainClick).toHaveBeenCalledOnce();
 		const caret = screen.getByRole('button', { name: '▼' });
 		expect(caret).toHaveAttribute('aria-expanded', 'false');
 		expect(screen.queryByRole('button', { name: 'Audible' })).not.toBeInTheDocument();
-		await fireEvent.click(caret);
+		fireEvent.click(caret);
+		flush();
 		expect(caret).toHaveAttribute('aria-expanded', 'true');
 		expect(screen.getByRole('button', { name: 'Audible' })).toBeVisible();
-		await fireEvent.click(screen.getByRole('button', { name: 'Audible' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Audible' }));
+		flush();
 		expect(onSelect).toHaveBeenCalledOnce();
 		expect(caret).toHaveAttribute('aria-expanded', 'false');
 		expect(screen.queryByRole('button', { name: 'Audible' })).not.toBeInTheDocument();
-		await fireEvent.click(caret);
-		await fireEvent.click(document.body);
+		fireEvent.click(caret);
+		flush();
+		fireEvent.click(document.body);
+		flush();
 		expect(caret).toHaveAttribute('aria-expanded', 'false');
 		expect(screen.queryByRole('button', { name: 'Audible' })).not.toBeInTheDocument();
 	});

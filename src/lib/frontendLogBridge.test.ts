@@ -14,7 +14,7 @@ import {
 
 function rejectionEvent(reason: unknown): PromiseRejectionEvent {
 	return new PromiseRejectionEvent('unhandledrejection', {
-		promise: Promise.reject().catch(() => undefined) as unknown as Promise<unknown>,
+		promise: Promise.reject().catch(() => undefined),
 		reason,
 	});
 }
@@ -41,7 +41,7 @@ describe('frontend error log bridge', () => {
 
 	it('redacts arbitrary rejection values', () => {
 		window.dispatchEvent(rejectionEvent('token=sk-secret /Users/me/private/file.m4b'));
-		const entry = logFrontendMock.mock.calls[0]![0];
+		const entry = logFrontendMock.mock.calls[0][0];
 		expect(entry.message).not.toContain('sk-secret');
 		expect(entry.message).not.toContain('/Users/me');
 		expect(entry.message).toContain('String rejection value');
@@ -49,7 +49,7 @@ describe('frontend error log bridge', () => {
 
 	it('forwards a bounded error record', () => {
 		window.dispatchEvent(rejectionEvent(new Error('x'.repeat(600))));
-		const entry = logFrontendMock.mock.calls[0]![0];
+		const entry = logFrontendMock.mock.calls[0][0];
 		expect(entry.scope).toBe('window.unhandledrejection:Error');
 		expect(entry.message.length).toBe(501);
 	});
@@ -61,7 +61,7 @@ describe('frontend error log bridge', () => {
 		nowSpy.mockReturnValue(120_000);
 		window.dispatchEvent(rejectionEvent(new Error('after')));
 		expect(logFrontendMock).toHaveBeenCalledTimes(22);
-		expect(logFrontendMock.mock.calls[20]![0]).toEqual({
+		expect(logFrontendMock.mock.calls[20][0]).toEqual({
 			level: 'warn',
 			scope: 'frontendLogBridge.rateLimit',
 			message: 'Dropped 5 frontend log event(s) over the 20/60s fixed-window limit.',

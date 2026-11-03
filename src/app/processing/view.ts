@@ -34,22 +34,22 @@ const DEFAULT_USER_STATUS_LOCK_TTL_MS = 1_500;
 type StatusPublisher = (view: StatusView) => void;
 
 export type StatusViewStore = {
-	snapshot(): StatusView;
-	bindPublisher(next: StatusPublisher | null): void;
-	reset(): void;
-	setCoverArtSrc(src: string | null): void;
-	setJobItems(items: JobListItem[]): void;
-	setProgressPercentage(value: number): void;
-	setStatusText(value: string): void;
-	setStepText(value: string): void;
-	setStepColor(value: string): void;
-	setConcurrencyText(value: string): void;
-	setIsProcessing(isProcessing: boolean): void;
-	setProgressActive(active: boolean): void;
-	setCancelAllPending(isPending: boolean): void;
-	showError(message: string): void;
-	showInfo(message: string): void;
-	pushTransient(message: string, ttlMs?: number): void;
+	snapshot: () => StatusView;
+	bindPublisher: (next: StatusPublisher | null) => void;
+	reset: () => void;
+	setCoverArtSrc: (src: string | null) => void;
+	setJobItems: (items: JobListItem[]) => void;
+	setProgressPercentage: (value: number) => void;
+	setStatusText: (value: string) => void;
+	setStepText: (value: string) => void;
+	setStepColor: (value: string) => void;
+	setConcurrencyText: (value: string) => void;
+	setIsProcessing: (isProcessing: boolean) => void;
+	setProgressActive: (active: boolean) => void;
+	setCancelAllPending: (isPending: boolean) => void;
+	showError: (message: string) => void;
+	showInfo: (message: string) => void;
+	pushTransient: (message: string, ttlMs?: number) => void;
 };
 
 function normalizeStatusLockTtlMs(ttlMs: number): number {

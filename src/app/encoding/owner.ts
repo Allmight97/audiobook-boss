@@ -8,23 +8,23 @@ export type { EncodingField, EncodingView } from './project';
 
 export type EncodingOwner = {
 	/** The request processing receives for `file`, or the defaults' request. */
-	audioRequest(file?: AudioFile): TitleAudioRequest;
-	plan(file: AudioFile): TitlePlan;
-	titleView(file: AudioFile): EncodingView;
+	audioRequest: (file?: AudioFile) => TitleAudioRequest;
+	plan: (file: AudioFile) => TitlePlan;
+	titleView: (file: AudioFile) => EncodingView;
 	/** The selected titles' audio as the engine combines it; `null` with
 	 * nothing selected. */
-	selectionView(
+	selectionView: (
 		files: readonly AudioFile[],
-	): (EncodingView & { mixedFields: readonly EncodingField[] }) | null;
+	) => (EncodingView & { mixedFields: readonly EncodingField[] }) | null;
 	/** Why the latest edit of `files`' audio changed nothing, worded. */
-	refusal(files: readonly AudioFile[]): string | null;
-	selectTitles(files: readonly AudioFile[], field: EncodingField, value: string): void;
-	applyDefaultsToTitles(files: readonly AudioFile[]): void;
-	selectTitle(file: AudioFile, field: EncodingField, value: string): void;
+	refusal: (files: readonly AudioFile[]) => string | null;
+	selectTitles: (files: readonly AudioFile[], field: EncodingField, value: string) => void;
+	applyDefaultsToTitles: (files: readonly AudioFile[]) => void;
+	selectTitle: (file: AudioFile, field: EncodingField, value: string) => void;
 	/** The defaults, as the Settings panel edits them. */
 	readonly view: Accessor<EncodingView>;
-	select(field: EncodingField, value: string): void;
-	reset(): void;
+	select: (field: EncodingField, value: string) => void;
+	reset: () => void;
 };
 
 export type EncodingOwnerDeps = {

@@ -78,21 +78,21 @@ export type RemoteSourceOwner = {
 	/** Library titles left by the filter, PDF, and availability choices. */
 	readonly visibleTitles: Accessor<readonly RemoteTitle[]>;
 	readonly selectedTitleSummary: Accessor<string>;
-	isTitleSelected(titleId: string): boolean;
-	includesPdf(titleId: string): boolean;
+	isTitleSelected: (titleId: string) => boolean;
+	includesPdf: (titleId: string) => boolean;
 	readonly visibleReleases: Accessor<readonly RemoteRelease[]>;
-	isReleaseSelected(release: ReleaseIdentity): boolean;
-	releaseGrab(release: ReleaseIdentity): ReleaseGrabState | undefined;
+	isReleaseSelected: (release: ReleaseIdentity) => boolean;
+	releaseGrab: (release: ReleaseIdentity) => ReleaseGrabState | undefined;
 	/** Some selected release is not sent yet. */
 	readonly canGrabSelection: Accessor<boolean>;
 	readonly hiddenReleaseSelectionCount: Accessor<number>;
 	readonly acquisition: Accessor<AcquisitionJob | null>;
 	readonly acquisitionTitle: Accessor<RemoteTitle | undefined>;
 	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
-	open(options?: { readonly lane?: AcquisitionLane }): Promise<void>;
-	selectLane(lane: AcquisitionLane): Promise<void>;
-	close(): void;
-	editSearch(
+	open: (options?: { readonly lane?: AcquisitionLane }) => Promise<void>;
+	selectLane: (lane: AcquisitionLane) => Promise<void>;
+	close: () => void;
+	editSearch: (
 		patch: Partial<
 			Pick<
 				RemoteSourceView,
@@ -106,24 +106,24 @@ export type RemoteSourceOwner = {
 				| 'releaseSort'
 			>
 		>,
-	): void;
-	toggleTitle(titleId: string): void;
-	clearTitleSelection(): void;
-	toggleSupplementalPdf(titleId: string): void;
-	selectRelease(
+	) => void;
+	toggleTitle: (titleId: string) => void;
+	clearTitleSelection: () => void;
+	toggleSupplementalPdf: (titleId: string) => void;
+	selectRelease: (
 		release: Pick<RemoteRelease, 'guid' | 'indexerId'>,
 		options?: { multi: boolean },
-	): void;
-	runAction(action: RemoteSourceAction): Promise<void>;
-	loadIndexerConnectionSettings(): Promise<void>;
-	patchIndexerConnectionSettings(
+	) => void;
+	runAction: (action: RemoteSourceAction) => Promise<void>;
+	loadIndexerConnectionSettings: () => Promise<void>;
+	patchIndexerConnectionSettings: (
 		patch: Partial<
 			Pick<IndexerConnectionSettingsView, 'baseUrlDraft' | 'apiKeyDraft' | 'categoryIdsDraft'>
 		>,
-	): void;
-	saveIndexerConnectionSettings(): Promise<void>;
-	testIndexerConnection(): Promise<void>;
-	reset(): void;
+	) => void;
+	saveIndexerConnectionSettings: () => Promise<void>;
+	testIndexerConnection: () => Promise<void>;
+	reset: () => void;
 };
 
 export type RemoteSourceOwnerDeps = {

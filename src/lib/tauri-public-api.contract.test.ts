@@ -38,11 +38,13 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 
 describe('Tauri Runtime Boundary public API contract', () => {
 	it('pins the tauriClient public method strip', () => {
-		expect(Object.keys(tauriClient).sort()).toEqual([...EXPECTED_TAURI_CLIENT_METHODS].sort());
+		expect(Object.keys(tauriClient).toSorted()).toEqual(
+			[...EXPECTED_TAURI_CLIENT_METHODS].toSorted(),
+		);
 	});
 
 	it('pins the independent command and app-event strips', () => {
-		expect([...TAURI_COMMAND_NAMES].sort()).toEqual([...EXPECTED_COMMAND_NAMES].sort());
+		expect([...TAURI_COMMAND_NAMES].toSorted()).toEqual([...EXPECTED_COMMAND_NAMES].toSorted());
 		expect([...TAURI_APP_EVENT_NAMES]).toEqual([...EXPECTED_APP_EVENT_NAMES]);
 	});
 });

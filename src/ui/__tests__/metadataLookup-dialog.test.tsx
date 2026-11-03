@@ -116,7 +116,7 @@ describe('metadata lookup dialog', () => {
 			document.querySelector<HTMLButtonElement>('[aria-label="Add audio files"]') as HTMLElement,
 		);
 		await waitFor(() => expect(app.input.view().files.length).toBe(2));
-		await app.input.selectAll();
+		app.input.selectAll();
 		await userEvent.click(document.getElementById('metadata-lookup-btn') as HTMLElement);
 		await waitFor(() =>
 			expect(document.getElementById('metadata-lookup-modal')?.classList.contains('open')).toBe(
