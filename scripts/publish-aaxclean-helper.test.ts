@@ -7,7 +7,6 @@ import {
 	writeFileSync,
 	utimesSync,
 } from 'node:fs';
-import type { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -16,6 +15,7 @@ import {
 	aaxcleanHelperBaseName,
 	aaxcleanHelperPublishTarget,
 	aaxcleanHelperTargetTriple,
+	type CommandRunner,
 	publishAaxcleanHelper,
 	resolveAaxcleanHelperPaths,
 } from './publish-aaxclean-helper';
@@ -75,11 +75,9 @@ describe('aaxcleanHelperPublishTarget', () => {
 	});
 });
 
-function withSdk(runner: typeof spawnSync): typeof spawnSync {
-	return ((command: string, args: string[], options: unknown) =>
-		args[0] === '--version'
-			? { status: 0, stdout: '10.0.401\n' }
-			: runner(command, args, options as Parameters<typeof spawnSync>[2])) as typeof spawnSync;
+function withSdk(runner: CommandRunner): CommandRunner {
+	return (command, args, options) =>
+		args[0] === '--version' ? { status: 0, stdout: '10.0.401\n' } : runner(command, args, options);
 }
 
 describe('publishAaxcleanHelper', () => {
@@ -91,10 +89,10 @@ describe('publishAaxcleanHelper', () => {
 		mkdirSync(paths.sidecarDir, { recursive: true });
 		writeFileSync(paths.sidecarPath, 'previous sidecar');
 
-		const commandRunner = (() => ({
+		const commandRunner: CommandRunner = () => ({
 			status: null,
 			signal: 'SIGTERM',
-		})) as typeof spawnSync;
+		});
 
 		expect(() =>
 			publishAaxcleanHelper(repoRoot, { commandRunner: withSdk(commandRunner), force: true }),
@@ -109,7 +107,7 @@ describe('publishAaxcleanHelper', () => {
 		mkdirSync(paths.publishDir, { recursive: true });
 		writeFileSync(paths.publishedExecutablePath, 'old leftover helper');
 
-		const commandRunner = ((command: string, args: string[]) => {
+		const commandRunner: CommandRunner = (command: string, args: string[]) => {
 			expect(command).toContain('dotnet');
 			expect(args).toEqual([
 				'publish',
@@ -126,7 +124,7 @@ describe('publishAaxcleanHelper', () => {
 			expect(existsSync(paths.publishedExecutablePath)).toBe(false);
 			writeFileSync(paths.publishedExecutablePath, 'fresh helper');
 			return { status: 0 };
-		}) as typeof spawnSync;
+		};
 
 		expect(
 			publishAaxcleanHelper(repoRoot, { commandRunner: withSdk(commandRunner), force: true }),
@@ -143,12 +141,12 @@ describe('publishAaxcleanHelper', () => {
 		mkdirSync(paths.sidecarDir, { recursive: true });
 		writeFileSync(paths.sidecarPath, '#!/usr/bin/env sh\nexit 0\n');
 
-		const commandRunner = ((_command: string, args: string[]) => {
-			const outputDir = args[args.indexOf('-o') + 1] as string;
+		const commandRunner: CommandRunner = (_command: string, args: string[]) => {
+			const outputDir = args[args.indexOf('-o') + 1];
 			mkdirSync(outputDir, { recursive: true });
 			writeFileSync(path.join(outputDir, aaxcleanHelperBaseName), 'real helper');
 			return { status: 0 };
-		}) as typeof spawnSync;
+		};
 
 		expect(publishAaxcleanHelper(repoRoot, { commandRunner: withSdk(commandRunner) })).toBe(
 			paths.sidecarPath,
@@ -161,14 +159,14 @@ it('rebuilds changed helper content even when source timestamps are preserved', 
 	const root = createHelperRepoFixture();
 	let publishes = 0;
 	let sdk = '10.0.401';
-	const runner = ((_command: string, args: string[]) => {
+	const runner: CommandRunner = (_command: string, args: string[]) => {
 		if (args[0] === '--version') return { status: 0, stdout: `${sdk}\n` };
 		publishes++;
 		const out = args[args.indexOf('-o') + 1];
 		mkdirSync(out, { recursive: true });
 		writeFileSync(path.join(out, aaxcleanHelperBaseName), Buffer.alloc(1_000_001, publishes));
 		return { status: 0 };
-	}) as typeof spawnSync;
+	};
 	publishAaxcleanHelper(root, { commandRunner: runner });
 	const source = path.join(root, 'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/Program.cs');
 	writeFileSync(source, '// changed content with restored timestamps');

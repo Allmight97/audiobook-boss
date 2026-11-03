@@ -215,11 +215,11 @@ describe('pruneLocalInstallArtifacts', () => {
 		writeFileSync(path.join(paths.bundleDir, 'rw.123.AudioBook Boss_1.0.23_aarch64.dmg'), '');
 		writeFileSync(path.join(paths.bundleDir, 'AudioBook Boss_1.0.23_aarch64.dmg'), '');
 
-		expect(pruneLocalInstallArtifacts(paths).sort()).toEqual(
+		expect(pruneLocalInstallArtifacts(paths).toSorted()).toEqual(
 			[
 				paths.canonicalAppPath,
 				path.join(paths.bundleDir, 'rw.123.AudioBook Boss_1.0.23_aarch64.dmg'),
-			].sort(),
+			].toSorted(),
 		);
 		expect(existsSync(paths.canonicalAppPath)).toBe(false);
 		expect(existsSync(path.join(paths.bundleDir, 'rw.123.AudioBook Boss_1.0.23_aarch64.dmg'))).toBe(
@@ -360,7 +360,7 @@ describe('buildTauriApp', () => {
 			if (args[0] === '--version') return { status: 0, stdout: '10.0.401\n' };
 			calls.push({ command, args, env: options?.env, stdio: options?.stdio });
 			if (args[0] === 'publish') {
-				const outputDir = args[args.indexOf('-o') + 1] as string;
+				const outputDir = args[args.indexOf('-o') + 1];
 				mkdirSync(outputDir, { recursive: true });
 				writeFileSync(path.join(outputDir, 'abb-aaxclean-helper'), 'helper');
 			}
@@ -405,7 +405,7 @@ describe('buildTauriApp', () => {
 			if (args[0] === '--version') return { status: 0, stdout: '10.0.401\n' };
 			calls.push({ env: options?.env });
 			if (args[0] === 'publish') {
-				const outputDir = args[args.indexOf('-o') + 1] as string;
+				const outputDir = args[args.indexOf('-o') + 1];
 				mkdirSync(outputDir, { recursive: true });
 				writeFileSync(path.join(outputDir, 'abb-aaxclean-helper'), 'helper');
 			}

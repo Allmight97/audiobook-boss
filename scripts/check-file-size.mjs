@@ -242,7 +242,7 @@ if (values.all) {
 	const over = sources(git(['ls-files', '-z']).split('\0').filter(Boolean))
 		.map((filePath) => ({ path: filePath, bytes: blobBytes(`:${filePath}`) }))
 		.filter(({ bytes }) => bytes > maxBytes)
-		.sort((a, b) => b.bytes - a.bytes);
+		.toSorted((a, b) => b.bytes - a.bytes);
 	const opted = over.filter(({ path: filePath }) => ignored(`:${filePath}`));
 	const listed = over.filter((file) => !opted.includes(file));
 	for (const { path: filePath, bytes } of listed) {

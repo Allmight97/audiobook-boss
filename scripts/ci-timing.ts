@@ -250,7 +250,7 @@ export function parseRustLog(log: string): RustLogReport {
 }
 
 function median(values: number[]): number {
-	const sorted = [...values].sort((a, b) => a - b);
+	const sorted = [...values].toSorted((a, b) => a - b);
 	const middle = Math.floor(sorted.length / 2);
 	const upper = sorted[middle] ?? 0;
 	const lower = sorted[middle - 1] ?? upper;
@@ -285,7 +285,7 @@ export function summarize(runs: RunReport[]): SummaryRow[] {
 				miss: count('miss'),
 			};
 		})
-		.sort((a, b) => a.kind.localeCompare(b.kind) || a.os.localeCompare(b.os));
+		.toSorted((a, b) => a.kind.localeCompare(b.kind) || a.os.localeCompare(b.os));
 }
 
 export function buildRunReport(fetcher: Fetcher, runId: number): RunReport {

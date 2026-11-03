@@ -89,7 +89,7 @@ function jobRecord(jobs: unknown): Record<string, Job> {
 
 function runsAgentReview(jobs: Record<string, Job>): boolean {
 	return Object.values(jobs).some((job) =>
-		stepsOf(job).some((step) => AGENT_REVIEW_ACTION.test(String(step.uses ?? ''))),
+		stepsOf(job).some((step) => AGENT_REVIEW_ACTION.test(step.uses ?? '')),
 	);
 }
 
@@ -213,8 +213,10 @@ function prTriggerFindings(file: string, text: string, name: string, raw: unknow
 	return findings;
 }
 
-function checksPullRequests(triggers: Record<string, unknown> | null): boolean {
-	return Boolean(triggers && PR_TRIGGERS.some((name) => name in triggers));
+function checksPullRequests(
+	triggers: Record<string, unknown> | null,
+): triggers is Record<string, unknown> {
+	return triggers !== null && PR_TRIGGERS.some((name) => name in triggers);
 }
 
 function concurrencyFindings(
@@ -512,7 +514,7 @@ function workflowPaths(repoRoot: string): string[] {
 	return readdirSync(directory)
 		.filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
 		.map((name) => path.join('.github/workflows', name))
-		.sort();
+		.toSorted();
 }
 
 function main(): number {
