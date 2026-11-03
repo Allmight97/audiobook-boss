@@ -257,10 +257,15 @@ fn native_build_identity(sysroot: Option<&str>) -> io::Result<String> {
             "--version"
         })
         .output()?;
+    let compiler_env: Vec<_> = compiler.get_envs().collect();
     writeln!(
         identity,
-        "compiler={compiler:?}\nversion={:?}\n{:?}",
-        version.stdout, version.stderr
+        "compiler={:?}\nwrapper={:?}\nargs={:?}\nenv={compiler_env:?}\nversion={:?}\n{:?}",
+        compiler.path(),
+        compiler.cc_env(),
+        compiler.args(),
+        version.stdout,
+        version.stderr
     )
     .unwrap();
     Ok(identity)

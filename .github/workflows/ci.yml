@@ -162,22 +162,28 @@ jobs:
         if: matrix.native
         with:
           path: target/abb-ffmpeg-cache
-          key: ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'vendor/opus/**') }}
-          restore-keys: ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-
+          key: ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'vendor/opus/**') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'vendor/opus/**') }}-
+            ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-
       - env:
           LANES: ${{ join(matrix.lanes, ' ') }}
         run: |
           read -r -a lanes <<< "$LANES"
           bash scripts/verify.sh "${lanes[@]}"
-      # A fallback restore brings back trees for older build identities; save only the trees this job built or reused.
-      - if: always() && matrix.native
+      # A cache key cannot be overwritten, so every restore is a prefix match and a job that compiled a tree saves under its own run key.
+      - id: ffmpeg-trees
+        if: always() && matrix.native
         run: |
           for tree in target/abb-ffmpeg-cache/*/; do
             [ -d "$tree" ] || continue
             [ "$tree/abb-last-used" -nt "$RUNNER_TEMP/ffmpeg-job-start" ] || rm -rf "$tree"
           done
+          compiled=$(find target/abb-ffmpeg-cache -path '*/dist/abb-build-inputs' -newer "$RUNNER_TEMP/ffmpeg-job-start" 2>/dev/null | wc -l | tr -d " ")
+          echo "abb-ffmpeg-cache: compiled $compiled tree(s)"
+          echo "compiled=$compiled" >> "$GITHUB_OUTPUT"
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: always() && matrix.native && steps.ffmpeg.outputs.cache-hit != 'true' && steps.ffmpeg.outputs.cache-primary-key != '' && hashFiles('target/abb-ffmpeg-cache/**/abb-build-inputs') != ''
+        if: always() && matrix.native && steps.ffmpeg-trees.outputs.compiled != '0' && steps.ffmpeg-trees.outputs.compiled != '' && steps.ffmpeg.outputs.cache-primary-key != ''
         with:
           path: target/abb-ffmpeg-cache
           key: ${{ steps.ffmpeg.outputs.cache-primary-key }}

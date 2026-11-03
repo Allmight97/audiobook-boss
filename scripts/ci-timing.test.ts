@@ -141,13 +141,18 @@ describe('parseRustLog', () => {
 			cacheKey: 'v0-rust-rust-Darwin-arm64-b1372a82-bbb68f93',
 			rustVersions: ['1.99.1 aarch64-apple-darwin 58cf8f9c35b355199727627d07ae34a4e2846d67'],
 			saveRefused: true,
-			ffmpegCache: 'hit',
+			ffmpegCache: 'restored',
+			ffmpegCompiled: null,
 		});
 	});
 
 	it('reads an exact hit with no refused save', () => {
 		const report = parseRustLog(logFixture('rust-macos-exact'));
-		expect(report).toMatchObject({ rustCache: 'exact', saveRefused: false, ffmpegCache: 'hit' });
+		expect(report).toMatchObject({
+			rustCache: 'exact',
+			saveRefused: false,
+			ffmpegCache: 'restored',
+		});
 		expect(report.cacheKey).toMatch(/^v0-rust-rust-Darwin-arm64-/);
 	});
 
@@ -160,16 +165,31 @@ describe('parseRustLog', () => {
 		]);
 	});
 
-	it('reports unknown cache results and an ffmpeg miss for a log without them', () => {
+	it('reports unknown cache results and no FFmpeg restore for a log without them', () => {
 		const report = parseRustLog('2026-11-01T00:00:00.0000000Z Set up job\n');
 		expect(report).toEqual({
 			rustCache: 'unknown',
 			cacheKey: null,
 			rustVersions: [],
 			saveRefused: false,
-			ffmpegCache: 'miss',
+			ffmpegCache: 'none',
+			ffmpegCompiled: null,
 			lanes: [],
 		});
+	});
+
+	it('counts the FFmpeg trees the job compiled, not the shell line that prints them', () => {
+		const log = [
+			'2026-11-02T16:37:39.4797000Z \u001b[36;1mecho "abb-ffmpeg-cache: compiled $compiled tree(s)"\u001b[0m',
+			'2026-11-02T16:37:39.5000000Z abb-ffmpeg-cache: compiled 1 tree(s)',
+		].join('\n');
+		expect(parseRustLog(log).ffmpegCompiled).toBe(1);
+	});
+
+	it('counts a prefix restore of the FFmpeg trees as restored', () => {
+		const log =
+			'2026-11-02T16:31:24.8135282Z Cache hit for restore-key: ffmpeg-portable-Linux-3ed1535a3c0645a7-7c5ff428';
+		expect(parseRustLog(log).ffmpegCache).toBe('restored');
 	});
 
 	it('strips the byte-order mark and terminal escapes before matching', () => {
@@ -277,7 +297,7 @@ describe('buildReport', () => {
 		const text = renderReport(buildReport(fixtureFetcher(), [postMergeRun]));
 		expect(text).toContain('## Run 41360600256: closed');
 		expect(text).toContain(
-			'| Rust (macos-latest) | 3s | 2m20s | 12m06s | 28s | 14m54s | rust miss, ffmpeg hit, save refused | `v0-rust-rust-Darwin-arm64-b1372a82-bbb68f93` |',
+			'| Rust (macos-latest) | 3s | 2m20s | 12m06s | 28s | 14m54s | rust miss, ffmpeg restored, save refused | `v0-rust-rust-Darwin-arm64-b1372a82-bbb68f93` |',
 		);
 		expect(text).toContain('- Rust (macos-latest) lanes: core 25s, engine 4m53s');
 		expect(text).toContain('## Summary: Rust job totals by run kind and OS');
