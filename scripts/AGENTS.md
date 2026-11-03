@@ -112,10 +112,11 @@ A change to CI or validation speed quotes before and after numbers from
   `scripts/lint-rules.test.ts` proves each configured rule fails its fixture
   and passes its twin through that command; a new rule or override adds its
   pair there.
-- A rule turned off, an option, or an override in `.oxlintrc.json` carries a
-  one-line reason beside it; an inline suppression names the rule and its
-  reason after `--`. Each `no-restricted-imports` message names its owning
-  `AGENTS.md`.
+- A tuned rule or an override in `.oxlintrc.json` carries a one-line reason
+  on the line before it (`lint-rules.test.ts` checks), and an inline
+  suppression names the rule and its reason after `--`
+  (`check-known-mistakes.ts` checks). Each `no-restricted-imports` message
+  names its owning `AGENTS.md`.
 - `bun.lock` is the only Bun pin. `scripts/locked-bun-version.sh` prints it
   for CI and agent setup. Dependabot updates the `bun` devDependency under the
   10-day cooldown. Setup installs that version or exits. Update `bun.lock` in
@@ -125,7 +126,8 @@ A change to CI or validation speed quotes before and after numbers from
 ## Dependencies
 
 - `Cargo.lock` and `bun.lock` are resolution truth; CI and verification
-  installs run frozen or locked. Manifest ranges stay compatible. Exact pins
+  installs run frozen or locked (`verification.test.ts` checks each cargo
+  command in `verify.sh`). Manifest ranges stay compatible. Exact pins
   are for prerelease families (Solid and its companions; Specta),
   cross-version type boundaries, synchronized families, and vendored or
   provenance-sensitive dependencies. `linguist-languages` is pinned exactly:
@@ -135,7 +137,7 @@ A change to CI or validation speed quotes before and after numbers from
   compromises. Cargo has no release-age gate, so review a manual `cargo update`
   for that risk. A security fix may skip the wait with focused proof.
   Python tools run through `uvx --exclude-newer "10 days"`, the same wait
-  without a version pin; an owner-approved early release goes in
+  without a version pin (`check-known-mistakes.ts` rejects a bare `uvx`); an owner-approved early release goes in
   `--exclude-newer-package` with a removal date.
   `bun run update:rc` updates the prerelease families listed in `bunfig.toml`.
   An early-release exemption in `bunfig.toml` names each new transitive and
@@ -144,8 +146,8 @@ A change to CI or validation speed quotes before and after numbers from
   `scripts/early-install.test.ts` fails once that date passes. Why: Bun
   silently drops an age-blocked optional package from `bun.lock`.
 - `package.json` `overrides` keeps one `@tauri-apps/api` version across the app
-  and its plugins, at the same minor version as the Rust `tauri` crate. Move
-  them together.
+  and its plugins, at the Rust `tauri` crate's minor
+  (`scripts/tauri-contract.test.ts` checks). Move them together.
 - Update direct dependencies that have a concrete trigger in the touched
   owner; leave unrelated lockfile churn out.
 - Every exact pin, `package.json` override, and `bunfig.toml` exclusion carries

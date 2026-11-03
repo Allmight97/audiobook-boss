@@ -21,8 +21,9 @@
   `session-update` and `settings-update` events carry engine changes between
   replies. Auth-start replies supply the one-time URL the host opens in a
   browser.
-- A `tauriClient` method that calls a plugin API needs its permission in
-  `src-tauri/capabilities/default.json`; jsdom mocks cannot catch a missing one.
+- A plugin or event function needs its permission in
+  `src-tauri/capabilities/default.json`; `scripts/tauri-contract.test.ts`
+  derives each one from the imports, since jsdom mocks cannot catch a gap.
 
 ## Private To This Folder
 

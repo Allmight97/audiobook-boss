@@ -67,8 +67,8 @@
   `TERMINAL_OPERATIONS_CAP` (20) terminal operations, pruned oldest-first by
   terminalization order (a just-finished long-running operation must survive
   its own prune). Running and accepted operations are never pruned.
-- Reach processing through `processing::run`; do not import
-  `remote_source::materializer`.
+- Reach processing through `processing::run` (`check-known-mistakes.ts`
+  rejects `remote_source::materializer` here).
 - `WorkProgressStage` is a work_runtime-owned display vocabulary.
 
 `mod.rs` is routing only.

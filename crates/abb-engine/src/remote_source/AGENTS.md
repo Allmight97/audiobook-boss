@@ -14,7 +14,8 @@ session files, Supplemental Assets, and staging cleanup.
   `RemoteAcquisitionSnapshot` are separate revisioned session parts; the
   runtime itself is crate-private.
 - Processing, audio, metadata, output artifact, and frontend code consume
-  provider-neutral facts only. No provider secrets, license blobs, raw provider
+  provider-neutral facts only (`check-known-mistakes.ts` rejects
+  `crate::remote_source` in the four engine owners). No provider secrets, license blobs, raw provider
   responses, or protected intermediates cross the strip or the generated
   TypeScript boundary.
 - Supplemental Assets cross only as provider-neutral, validated asset facts.

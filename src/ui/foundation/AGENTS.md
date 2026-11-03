@@ -8,7 +8,8 @@ language.
 
 ## Rules
 
-- `CoverImage` is the one way a cover is shown.
+- `CoverImage` is the one way a cover is shown (`check-known-mistakes.ts`
+  rejects `<img>` elsewhere).
 - Views read the public semantic tokens on `:root` in `internal/tokens.css`.
   Only `src/styles.css` imports `internal/foundation.css`. Callers use the
   primitives' props, never their private class names. Owner layout stays in the
