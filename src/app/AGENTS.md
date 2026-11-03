@@ -44,7 +44,7 @@ second copy of owner state.
 
 ## Owner Interface
 
-- Each owner's `index.ts` is its Public API Strip (Biome enforces root
+- Each owner's `index.ts` is its Public API Strip (Oxlint enforces root
   imports). Cross-owner coordination uses the other owner's strip, injected
   when App Runtime composes the owners.
 - Expose a small `view()` or accessor surface plus semantic intents. A fact

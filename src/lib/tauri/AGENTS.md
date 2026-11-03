@@ -6,7 +6,7 @@
   `src/lib/tauri-public-api.contract.test.ts`).
 - Regenerate bindings with `bun run bindings:generate`.
   `check-tauri-runtime-boundary.ts` keeps generated imports in `commands.ts`
-  and `client.ts`; Biome `noRestrictedImports` keeps plugin and event imports
+  and `client.ts`; Oxlint `no-restricted-imports` keeps plugin and event imports
   in `src/lib/tauri`.
 - Native-dialog methods select files and folders only. Session questions render
   identified snapshots; a native question cannot be dismissed on frontend
@@ -26,8 +26,8 @@
 
 ## Private To This Folder
 
-- `commands.ts` and `normalizers.ts` are private to this folder (Biome
-  `noRestrictedImports`).
+- `commands.ts` and `normalizers.ts` are private to this folder (Oxlint
+  `no-restricted-imports`).
 - `normalizers.ts` turns `null` into an absent field for the snapshot families
   it names (for example title files, remote account and acquisition, settings)
   and passes every other field through unchanged, so a meaningful null (a

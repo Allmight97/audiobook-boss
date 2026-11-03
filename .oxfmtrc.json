@@ -1,0 +1,38 @@
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"useTabs": true,
+	"tabWidth": 2,
+	"printWidth": 100,
+	"singleQuote": true,
+	"jsxSingleQuote": false,
+	"quoteProps": "as-needed",
+	"trailingComma": "all",
+	"semi": true,
+	"arrowParens": "always",
+	"bracketSameLine": false,
+	"bracketSpacing": true,
+	"ignorePatterns": [
+		"src/lib/generated/**",
+		"src-tauri/**",
+		"target/**",
+		"dist/**",
+		"coverage/**",
+		"site/**",
+		"vendor/**",
+		"docs/**/*.html",
+		"**/*.md",
+		"**/*.yml",
+		"**/*.yaml",
+		"**/*.toml"
+	],
+	"endOfLine": "lf",
+	"sortPackageJson": false,
+	"overrides": [
+		{
+			"files": ["**/*.css"],
+			"options": {
+				"singleQuote": false
+			}
+		}
+	]
+}

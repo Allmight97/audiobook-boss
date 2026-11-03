@@ -4,7 +4,7 @@ Each view under `src/ui/<view>/` renders its owner from `useAppRuntime()` and
 dispatches intents. It keeps screen-local state only: disclosure, focus, and
 typed input. Owner rules: `src/app/AGENTS.md`.
 
-A view folder's `index.ts` is its Public API Strip (Biome enforces folder
+A view folder's `index.ts` is its Public API Strip (Oxlint enforces folder
 imports). Files in one folder import each other relatively.
 
 ## Composition

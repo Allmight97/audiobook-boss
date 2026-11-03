@@ -94,11 +94,11 @@ field once. That setting is not in the repo.
 - When merging code paths, name what each old path relied on (reads it
   skipped, state it left alone, ordering); keep each reliance or say which one
   the change drops.
-- A new or reshaped function holds one nameable responsibility. Biome's
-  complexity limit (`biome.json`) and the Rust check
+- A new or reshaped function holds one nameable responsibility. Oxlint's
+  cyclomatic limit of 20 (`.oxlintrc.json`) and the Rust check
   (`scripts/check-rust-complexity.sh`) flag one that grows past it: split it,
   or name the reason at the code (a flat dispatch `match`, a format parser, a
-  sequential `?` setup). A file in `biome.json`'s hotspot
+  sequential `?` setup). A file in `.oxlintrc.json`'s hotspot
   exemptions, or a function in the Rust allowlist
   (`scripts/rust-complexity-allowlist.txt`), gets one disposition when next
   changed (Proof-first, Reduce, Preserve, or Observe) with evidence and its

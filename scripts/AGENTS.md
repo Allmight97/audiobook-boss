@@ -101,12 +101,21 @@ A change to CI or validation speed quotes before and after numbers from
 - A new script enforces a live repo invariant or simplifies a build or release
   workflow, and has a package script or a usage header.
 - The runtime-boundary scanner stays a text scan until TypeScript 7 ships a
-  programmatic API (Biome bans importing `typescript`).
-- Biome formats code and JSON only; its Markdown and YAML formatters are off
-  because they would rewrite `vendor/` sources and hand-wrapped guidance.
-- Lint fails on warnings, so a Biome rule is an error or off. Biome rejects
-  comments in `biome.json`, so each `noRestrictedImports` message names its
-  owning `AGENTS.md`.
+  programmatic API (Oxlint bans importing `typescript`).
+- Oxfmt formats JS, TS, JSON, and CSS. Markdown, YAML, and TOML stay
+  unformatted: a formatter would rewrite `vendor/` sources and hand-wrapped
+  guidance.
+- Oxlint lints JS and TS with type information; Biome lints only CSS and JSON,
+  which Oxlint does not read. `bun run lint:check` runs both, plus
+  `check-known-mistakes.ts` (which rejects destructured Solid props), and
+  fails on warnings, so each rule is an error or off.
+  `scripts/lint-rules.test.ts` proves each configured rule fails its fixture
+  and passes its twin through that command; a new rule or override adds its
+  pair there.
+- A rule turned off, an option, or an override in `.oxlintrc.json` carries a
+  one-line reason beside it; an inline suppression names the rule and its
+  reason after `--`. Each `no-restricted-imports` message names its owning
+  `AGENTS.md`.
 - `bun.lock` is the only Bun pin. `scripts/locked-bun-version.sh` prints it
   for CI and agent setup. Dependabot updates the `bun` devDependency under the
   10-day cooldown. Setup installs that version or exits. Update `bun.lock` in
