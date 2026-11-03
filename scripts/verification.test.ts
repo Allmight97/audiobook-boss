@@ -117,6 +117,17 @@ describe('core lane setup', () => {
 	});
 });
 
+describe('locked builds', () => {
+	it('runs every cargo build, test, and lint in verify.sh with --locked', () => {
+		const verify = readFileSync(path.join(import.meta.dirname, 'verify.sh'), 'utf8');
+		const unlocked = verify
+			.split('\n')
+			.filter((line) => /^\s*(?:if !\s+)?cargo (?:test|clippy|build|run|tree|check)\b/.test(line))
+			.filter((line) => !line.includes('--locked') && !/cargo \w+ (?:-V|--version)\b/.test(line));
+		expect(unlocked).toEqual([]);
+	});
+});
+
 describe('requiredLanes', () => {
 	it('rejects an unmapped file instead of reporting that no proof is needed', () => {
 		expect(() => requiredLanes(map, lanes, ['future/worker.rs'])).toThrow(/future\/worker.rs/);

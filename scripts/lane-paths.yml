@@ -76,6 +76,12 @@ supply-chain:
   - .github/workflows/ci.yml
 tooling:
   - crates/**
+  - package.json
+  - Cargo.lock
+  - .oxlintrc.json
+  - biome.json
+  - tsconfig.json
+  - scripts/tsconfig.json
   - src/**
   - scripts/rust-complexity-allowlist.txt
   - src-tauri/**
