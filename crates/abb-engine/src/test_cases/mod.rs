@@ -2,6 +2,8 @@
 pub(crate) mod integration_media_execution_tests;
 #[path = "integration_reqwest_resolver_tests.rs"]
 mod integration_reqwest_resolver_tests;
+#[path = "integration_session_desk.rs"]
+mod integration_session_desk;
 #[path = "integration_session_tests.rs"]
 mod integration_session_tests;
 #[path = "unit_audio_command_result_schema_tests.rs"]

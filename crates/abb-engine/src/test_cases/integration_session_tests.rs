@@ -3,16 +3,18 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use abb_engine::audio::{AudioIntent, AudiobookFormat, EncoderType};
+use abb_engine::audio::AudiobookFormat;
 use abb_engine::session::{
-    AudioEdit, CollisionReview, MetadataField, MetadataSnapshot, MetadataStatus, OutputEdits,
-    SessionIntent, SessionOutcome, SubmissionStatus, SubmitRefusal, TitlePlan,
+    AudioEdit, CollisionReview, MetadataField, MetadataStatus, OutputEdits, SessionIntent,
+    SessionOutcome, SubmissionStatus, SubmitRefusal, TitlePlan,
 };
 use abb_engine::work_runtime::WorkOperationStatus;
-use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig, ShutdownOutcome};
+use abb_engine::{read_metadata, Engine, EngineConfig, ShutdownOutcome};
 use tempfile::TempDir;
 
-use super::integration_media_execution_tests::MediaLane;
+use super::integration_session_desk::{
+    collision_review, finished, genre_on_disk, submission, Desk,
+};
 
 #[tokio::test]
 async fn shutdown_finishes_an_accepted_save_without_a_host_waiting_for_its_reply() {
@@ -124,178 +126,6 @@ async fn a_second_abb_on_the_same_folders_refuses_to_start_and_leaves_live_work_
     drop(first);
     let third = Engine::start(config()).expect("ABB starts after the first one quit");
     assert_eq!(third.shutdown().await, ShutdownOutcome::Settled);
-}
-
-struct Desk {
-    root: TempDir,
-    engine: Engine,
-}
-
-impl Desk {
-    fn new() -> Self {
-        let root = TempDir::new().expect("engine root");
-        let engine = Engine::start(EngineConfig {
-            cache_dir: root.path().join("cache"),
-            config_dir: root.path().join("config"),
-            app_identifier: "com.audiobook-boss.test".to_string(),
-            events: Arc::new(abb_engine::DiscardEvents),
-            aaxclean_helper: None,
-        })
-        .expect("start headless engine");
-        Self { root, engine }
-    }
-
-    async fn audiobook(&self, destination: &Path, seconds: f64) -> PathBuf {
-        let lane = MediaLane::with_fixtures(&[seconds]);
-        let built = lane
-            .process(Some(AudiobookMetadata {
-                title: Some("Alpha".to_string()),
-                album: Some("Alpha".to_string()),
-                artist: Some("Source Author".to_string()),
-                genre: Some("Fantasy".to_string()),
-                ..Default::default()
-            }))
-            .await;
-        fs::create_dir_all(destination.parent().expect("parent")).expect("create folder");
-        fs::copy(built, destination).expect("place audiobook");
-        destination.to_path_buf()
-    }
-
-    async fn send(&self, intent: SessionIntent) -> SessionOutcome {
-        self.engine.session_dispatch(intent).await.outcome
-    }
-
-    async fn import(&self, path: &Path) {
-        let outcome = self
-            .send(SessionIntent::Import {
-                paths: vec![path.to_string_lossy().into_owned()],
-            })
-            .await;
-        assert_eq!(outcome, SessionOutcome::Applied);
-    }
-
-    async fn edit_genre_and_save(&self) -> MetadataSnapshot {
-        self.send(SessionIntent::SetField {
-            field: MetadataField::Genre,
-            value: "Mystery".to_string(),
-        })
-        .await;
-        assert_eq!(
-            self.send(SessionIntent::Save).await,
-            SessionOutcome::Applied
-        );
-        self.metadata()
-    }
-
-    fn metadata(&self) -> MetadataSnapshot {
-        self.engine
-            .session_snapshot()
-            .metadata
-            .expect("metadata part")
-    }
-
-    fn shown(&self, field: MetadataField) -> String {
-        self.metadata()
-            .form
-            .fields
-            .into_iter()
-            .find(|snapshot| snapshot.field == field)
-            .expect("field")
-            .value
-    }
-
-    async fn export(&self) -> abb_engine::work_runtime::OperationId {
-        let output = self.root.path().join("exports");
-        fs::create_dir_all(&output).expect("create export folder");
-        self.send(SessionIntent::SetOutputDirectory {
-            directory: output.to_string_lossy().into_owned(),
-        })
-        .await;
-        let title_ids = self
-            .engine
-            .session_snapshot()
-            .titles
-            .expect("titles")
-            .files
-            .into_iter()
-            .map(|file| file.input_id)
-            .collect::<Vec<_>>();
-        for edit in [
-            AudioEdit::Intent(AudioIntent::Encode),
-            AudioEdit::Encoder(EncoderType::NativeAac),
-        ] {
-            self.send(SessionIntent::SetTitleAudio {
-                title_ids: title_ids.clone(),
-                edit,
-            })
-            .await;
-        }
-        self.send(SessionIntent::Submit).await;
-        match submission(self) {
-            Some(SubmissionStatus::Submitted { operation_id, .. }) => operation_id,
-            other => panic!("export not accepted: {other:?}"),
-        }
-    }
-
-    fn export_status(
-        &self,
-        operation: &abb_engine::work_runtime::OperationId,
-    ) -> WorkOperationStatus {
-        self.engine
-            .list_work_operations()
-            .expect("operations")
-            .operations
-            .into_iter()
-            .find(|snapshot| &snapshot.operation_id == operation)
-            .expect("export is listed")
-            .status
-    }
-
-    fn output_of(&self, operation: &abb_engine::work_runtime::OperationId) -> PathBuf {
-        let operations = self.engine.list_work_operations().expect("operations");
-        let export = operations
-            .operations
-            .into_iter()
-            .find(|snapshot| &snapshot.operation_id == operation)
-            .expect("export is listed");
-        PathBuf::from(
-            export.children[0]
-                .output_path
-                .clone()
-                .expect("the title published"),
-        )
-    }
-
-    fn plan(&self) -> TitlePlan {
-        let audio = self.engine.session_snapshot().audio.expect("audio part");
-        audio.titles.values().next().expect("a title").plan.clone()
-    }
-
-    async fn wait_until(&self, what: &str, done: impl Fn(&Self) -> bool) {
-        for _ in 0..600 {
-            if done(self) {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(25)).await;
-        }
-        panic!("timed out waiting until {what}");
-    }
-}
-
-fn genre_on_disk(path: &Path) -> Option<String> {
-    read_metadata(path.to_string_lossy().as_ref())
-        .expect("read tags back")
-        .genre
-}
-
-fn finished(status: WorkOperationStatus) -> bool {
-    matches!(
-        status,
-        WorkOperationStatus::Completed
-            | WorkOperationStatus::Failed
-            | WorkOperationStatus::Cancelled
-            | WorkOperationStatus::Mixed
-    )
 }
 
 #[tokio::test]
@@ -788,23 +618,6 @@ async fn quit_consent_names_work_not_counts_and_follows_an_export_from_review_to
         .close_for_quit(&asked_for_second.consent)
         .expect("the reviewed export is the same work once it runs");
     assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
-}
-
-fn submission(desk: &Desk) -> Option<abb_engine::session::SubmissionStatus> {
-    desk.engine
-        .session_snapshot()
-        .output
-        .expect("output part")
-        .submission
-}
-
-fn collision_review(desk: &Desk) -> abb_engine::session::CollisionReview {
-    desk.engine
-        .session_snapshot()
-        .output
-        .expect("output part")
-        .collision_review
-        .expect("held collision review")
 }
 
 #[tokio::test]
