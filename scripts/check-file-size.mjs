@@ -28,7 +28,8 @@
  * ABB runs this copy with bun. `--against <rev>` ratchets HEAD against the
  * merge-base of that rev and HEAD. A pull-request checkout makes the index and
  * HEAD the same commit, so the staged comparison alone cannot gate the PR.
- * Staged checks are unchanged.
+ * Staged checks compare with the merge-base of origin/main and HEAD when one
+ * exists, else with HEAD, so a split commit makes room for the next commit.
  */
 import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
@@ -44,8 +45,10 @@ const usage = `Usage:
       List every tracked source file over the budget, largest first.
   check-file-size.mjs [--max-tokens N] <path>...
       Ratchet the staged versions of <path>: a file over the budget fails
-      unless HEAD already had it over the budget and it did not grow. A
-      staged rename is measured against the file it came from.
+      unless it was already over the budget and is not larger than at the
+      merge-base of origin/main and HEAD (HEAD when there is no merge-base).
+      A split commit on a branch so makes room for the next commit. A staged
+      rename is measured against the file it came from.
   check-file-size.mjs --against <rev> [--max-tokens N] [path...]
       Ratchet HEAD against the merge-base of <rev> and HEAD. With no paths,
       every file changed since that merge-base is checked. A missing <rev>
@@ -76,6 +79,7 @@ const splitRules = `Split a file before adding to it:
     already import it.
   - Move tests beside the code they test, grouped the way the code is.
   - Commit the split on its own, before the change that needed the room. A
+    file may grow back up to its size at the merge-base with origin/main. A
     split must not change behaviour; prove it with the checks the repository
     already uses for that.`;
 
@@ -285,7 +289,16 @@ if (values.against !== undefined) {
 	);
 }
 
+const stagedBase = gitOk(['merge-base', '--', 'origin/main', 'HEAD'])?.trim();
 const staged = parseNameStatus(git(['diff', '--cached', '--find-renames', '--name-status']));
 process.exit(
-	reportFailures(collectFailures(positionals.map(inRepo), staged.origin, ':', 'HEAD:'), ''),
+	reportFailures(
+		collectFailures(
+			positionals.map(inRepo),
+			staged.origin,
+			':',
+			stagedBase ? `${stagedBase}:` : 'HEAD:',
+		),
+		stagedBase ? `Compared with ${stagedBase} (merge-base of origin/main and HEAD).` : '',
+	),
 );
