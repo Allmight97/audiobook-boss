@@ -139,9 +139,14 @@ pub(super) fn remux_into(
         }
     }
 
-    stage("metadata_copy_packets", temp_path, || {
+    let delivered = stage("metadata_copy_packets", temp_path, || {
         stream_copy_packets(&mut ictx, &mut octx, &stream_mapping)
     })?;
+    if ictx.format().name().contains("mp4") && octx.format().name() == "mp4" {
+        stage("metadata_copy_hidden_units", temp_path, || {
+            copy_hidden_trailing_units(input_path, &mut octx, &stream_mapping, delivered)
+        })?;
+    }
     stage("metadata_write_trailer", temp_path, || {
         octx.write_trailer().map_err(AppError::Ffmpeg)
     })?;
@@ -292,25 +297,38 @@ fn copy_container_metadata(
     octx: &mut ff::format::context::Output,
     metadata: Option<&MetadataWritePlan>,
 ) -> Result<()> {
-    if let Some(plan) = metadata {
-        let merged_dict =
-            super::ffmpeg_dict::merge_metadata_with_plan(ictx.metadata().to_owned(), plan)?;
-        octx.set_metadata(merged_dict);
-    } else {
-        octx.set_metadata(ictx.metadata().to_owned());
+    let mut dict = match metadata {
+        Some(plan) => {
+            super::ffmpeg_dict::merge_metadata_with_plan(ictx.metadata().to_owned(), plan)?
+        }
+        None => ictx.metadata().to_owned(),
+    };
+    if octx.format().name() == "mp4" {
+        if let Some(tool) = ictx.metadata().get("encoder") {
+            dict.set("encoding_tool", tool);
+        }
     }
-
+    octx.set_metadata(dict);
     Ok(())
+}
+
+/// The last audio access unit the edit-aware read delivered for a stream: its
+/// byte position and the timestamp after it, in the input time base.
+#[derive(Clone, Copy)]
+struct LastUnit {
+    position: isize,
+    end: i64,
 }
 
 fn stream_copy_packets(
     ictx: &mut ff::format::context::Input,
     octx: &mut ff::format::context::Output,
     stream_mapping: &[isize],
-) -> Result<()> {
+) -> Result<Vec<Option<LastUnit>>> {
     let exact_opus_clock =
         ictx.format().name().contains("matroska") && octx.format().name() == "mp4";
     let mut opus_positions = vec![None; ictx.streams().len()];
+    let mut delivered = vec![None; ictx.streams().len()];
     loop {
         let mut packet = ff::Packet::empty();
         match packet.read(ictx) {
@@ -359,11 +377,74 @@ fn stream_copy_packets(
             *position += duration;
             packet.rescale_ts((1, 48_000), out_tb);
         } else {
+            if input_stream.parameters().medium() == ff::media::Type::Audio
+                && packet.position() >= 0
+            {
+                delivered[in_index] = packet.pts().map(|pts| LastUnit {
+                    position: packet.position(),
+                    end: pts + packet.duration(),
+                });
+            }
             packet.rescale_ts(input_stream.time_base(), out_tb);
         }
         packet.write_interleaved(octx).map_err(AppError::Ffmpeg)?;
     }
 
+    Ok(delivered)
+}
+
+/// An MP4 edit list can end before the last access units, and the edit-aware
+/// read drops them. They are copied after the delivered units, flagged
+/// discard, so the new edit list keeps the playable length and a decoder
+/// that reads every unit still finds them.
+fn copy_hidden_trailing_units(
+    input_path: &std::path::Path,
+    octx: &mut ff::format::context::Output,
+    stream_mapping: &[isize],
+    mut delivered: Vec<Option<LastUnit>>,
+) -> Result<()> {
+    let mut options = ff::Dictionary::new();
+    options.set("ignore_editlist", "1");
+    let mut raw =
+        ff::format::input_with_dictionary(input_path, options).map_err(AppError::Ffmpeg)?;
+    let discard = ff::packet::Flags::from_bits_retain(ff::sys::AV_PKT_FLAG_DISCARD);
+    let mut restored = 0_u32;
+    loop {
+        let mut packet = ff::Packet::empty();
+        match packet.read(&mut raw) {
+            Ok(()) => {}
+            Err(ff::Error::Eof) => break,
+            Err(error) => return Err(AppError::Ffmpeg(error)),
+        }
+        let in_index = packet.stream();
+        let Some(Some(last)) = delivered.get_mut(in_index) else {
+            continue;
+        };
+        if packet.position() <= last.position {
+            continue;
+        }
+        let out_index = stream_mapping[in_index] as usize;
+        let in_tb = raw
+            .stream(in_index)
+            .ok_or_else(|| AppError::General("Remux input stream is missing.".into()))?
+            .time_base();
+        let out_tb = octx
+            .stream(out_index)
+            .ok_or_else(|| AppError::General("Remux audio stream is missing.".into()))?
+            .time_base();
+        packet.set_pts(Some(last.end));
+        packet.set_dts(Some(last.end));
+        last.end += packet.duration();
+        last.position = packet.position();
+        packet.set_flags(packet.flags() | discard);
+        packet.set_stream(out_index);
+        packet.rescale_ts(in_tb, out_tb);
+        packet.write_interleaved(octx).map_err(AppError::Ffmpeg)?;
+        restored += 1;
+    }
+    if restored > 0 {
+        log::info!("metadata_remux hidden_trailing_units={restored}");
+    }
     Ok(())
 }
 

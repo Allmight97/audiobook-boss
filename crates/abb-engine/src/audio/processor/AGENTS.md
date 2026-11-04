@@ -84,7 +84,8 @@ execution pipeline. Final artifact commit policy lives in `output_artifact/`.
   list can drop the final unit that holds the delayed tail. The window trims
   at source sample rate before preview, resampling, or concatenation, through
   packet skip metadata that replaces what FFmpeg derived from iTunSMPB.
-  Encoder selection does not change the source's playable audio.
+  Encoder selection does not change the source's playable audio. A metadata
+  remux (Preserve with repaired chapters) keeps the tag and that final unit.
 - Packet-copy joins refuse ABB's FAAC HE files by tag (`is_abb_faac_he`).
   Other files go through the normal packet checks, which refuse a packet that
   carries trim metadata (a third-party file with iTunSMPB).
