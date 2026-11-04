@@ -1,7 +1,7 @@
 use super::*;
 use crate::audio::{
-    AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
-    FaacProfile, SampleRateConfig,
+    AacDecoder, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings,
+    EncoderType, FaacProfile, SampleRateConfig,
 };
 use crate::output_artifact::{NamingPreset, OutputNamingConfig};
 use std::path::Path;
@@ -14,6 +14,7 @@ fn chosen_settings() -> AppSettings {
         keep_awake_while_working: false,
         max_concurrent_jobs: ConcurrencyPreference::Fixed(2),
         default_acquisition_lane: AcquisitionLane::Indexer,
+        aac_decoder: AacDecoder::Faad,
         encoder_defaults: EncoderDefaults {
             format: AudiobookFormat::Mp3,
             intent: AudioIntent::Encode,
@@ -85,6 +86,7 @@ fn remember_last_state_settings() -> AppSettings {
         keep_awake_while_working: true,
         max_concurrent_jobs: ConcurrencyPreference::Auto,
         default_acquisition_lane: AcquisitionLane::Audible,
+        aac_decoder: AacDecoder::Auto,
         encoder_defaults: encoder(
             AudiobookFormat::M4b,
             AudioIntent::Encode,
@@ -112,6 +114,7 @@ fn apple_aac_and_opus_settings() -> AppSettings {
         keep_awake_while_working: true,
         max_concurrent_jobs: ConcurrencyPreference::Fixed(4),
         default_acquisition_lane: AcquisitionLane::Audible,
+        aac_decoder: AacDecoder::Auto,
         encoder_defaults: encoder(
             AudiobookFormat::M4b,
             AudioIntent::Encode,
@@ -155,6 +158,7 @@ fn native_aac_settings() -> AppSettings {
         keep_awake_while_working: false,
         max_concurrent_jobs: ConcurrencyPreference::Fixed(1),
         default_acquisition_lane: AcquisitionLane::Indexer,
+        aac_decoder: AacDecoder::Auto,
         encoder_defaults: encoder(
             AudiobookFormat::M4b,
             AudioIntent::Auto,
@@ -197,9 +201,17 @@ fn native_aac_settings() -> AppSettings {
 fn every_sample_settings_file_loads_every_choice_it_holds() {
     let samples = [
         (
-            "settings.toml",
-            include_str!("samples/settings.toml"),
+            "settings-aac-decoder.toml",
+            include_str!("samples/settings-aac-decoder.toml"),
             chosen_settings(),
+        ),
+        (
+            "settings.toml (saved before the AAC decoder setting)",
+            include_str!("samples/settings.toml"),
+            AppSettings {
+                aac_decoder: AacDecoder::Auto,
+                ..chosen_settings()
+            },
         ),
         (
             "remember-last-state.toml",
@@ -244,7 +256,7 @@ fn no_file_loads_as_defaults() {
 }
 
 fn sample_edited(from: &str, to: &str) -> String {
-    let sample = include_str!("samples/settings.toml");
+    let sample = include_str!("samples/settings-aac-decoder.toml");
     assert!(sample.contains(from), "the sample holds {from}");
     sample.replace(from, to)
 }
@@ -277,6 +289,19 @@ fn a_job_limit_this_release_refuses_resets_only_the_job_limit() {
         loaded.settings,
         AppSettings {
             max_concurrent_jobs: ConcurrencyPreference::Auto,
+            ..chosen_settings()
+        }
+    );
+}
+
+#[test]
+fn an_unknown_aac_decoder_resets_only_the_decoder_choice() {
+    let loaded = load_sample_edited("aac_decoder = \"faad\"", "aac_decoder = \"retired\"");
+    assert_eq!(loaded.reset, vec![SettingsUnit::AacDecoder]);
+    assert_eq!(
+        loaded.settings,
+        AppSettings {
+            aac_decoder: crate::audio::AacDecoder::Auto,
             ..chosen_settings()
         }
     );

@@ -5,6 +5,7 @@ mod session;
 mod write;
 
 pub(crate) use context::setup_encoder;
+pub(crate) use faac::library_version as faac_library_version;
 pub(crate) use session::EncoderSession;
 
 /// Preflight uses the same library resolution/readback as the encoding session.

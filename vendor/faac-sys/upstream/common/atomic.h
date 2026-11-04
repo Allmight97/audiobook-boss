@@ -16,7 +16,7 @@
 #ifndef FAAC_ATOMIC_H
 #define FAAC_ATOMIC_H
 
-/* One-shot initialization shared by every encoder handle in the process.
+/* One-shot initialization shared by every handle in the process.
  * State runs 0 (untouched), 1 (init in flight), 2 (published). The first
  * caller to claim the state runs init and publishes with release; everyone
  * else observes with acquire, spinning only while init is in flight. */
@@ -44,8 +44,7 @@ typedef long faac_once_t;
 #define faac_once_publish(p) _InterlockedExchange((p), 2)
 #define faac_once_claim(p)   (_InterlockedCompareExchange((p), 1, 0) == 0)
 #else
-/* No atomics on this toolchain: concurrent opens need caller serialization,
- * as they always did. */
+/* No atomics on this toolchain: concurrent opens need caller serialization. */
 typedef int faac_once_t;
 #define FAAC_ONCE_INIT 0
 #define faac_once_load(p)    (*(p))

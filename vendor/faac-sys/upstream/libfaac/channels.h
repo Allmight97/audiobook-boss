@@ -102,12 +102,36 @@ typedef struct {
 
 /**
  * Maps channel count to ISO/IEC 14496-3 Table 1.19 channelConfiguration value.
- * Returns 1..6 for 1..6 channels, 7 for 8 channels (7.1 surround), or 0 if unsupported.
+ * Returns 1..6 for 1..6 channels, 7 for 8 channels, or 0 if unsupported.
+ * Eight channels remain valid here, but signaling uses a PCE instead of 7.
  */
 static inline int GetChannelConfig(int numChannels)
 {
     return (numChannels >= 1 && numChannels <= 6) ? numChannels : (numChannels == 8 ? 7 : 0);
 }
+
+/* Configuration 7 declares 7.1 wide; a PCE states the side/back layout. */
+#if MAX_CHANNELS >= 8
+static inline bool HasPCE(int channels) { return channels == 8; }
+#endif
+
+static inline int SignaledChannelConfig(int channels)
+{
+    return (channels >= 1 && channels <= 6) ? channels : 0;
+}
+
+#if MAX_CHANNELS >= 8
+enum {
+    /* Periodic ADTS layout recovery for decoders joining after frame 0. */
+    PCE_REPEAT_FRAMES = 32,
+    PCE_BODY_BITS = 58,
+    PCE_ADTS_BYTES = (LEN_SE_ID + PCE_BODY_BITS + 7) / 8 + 1,
+    PCE_ASC_BYTES = (16 + PCE_BODY_BITS + 7) / 8 + 1,
+    PCE_HE_ASC_BYTES = (PCE_ASC_BYTES * 8 + 21 + 7) / 8
+};
+
+void BuildPCE(uint8_t pce[PCE_ADTS_BYTES], int sampleRateIdx);
+#endif
 
 int InitElements(AACElement * __restrict elements, int *numElements, int numChannels, bool useLfe);
 

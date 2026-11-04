@@ -88,11 +88,13 @@ fn resolve_output_kind(preview_seconds: Option<f64>) -> OutputKind {
 fn build_plan_signature(
     preview_seconds: Option<f64>,
     collision_policy: CollisionPolicy,
+    aac_decoder: Option<crate::audio::AacDecoder>,
     jobs: &[PlannedProcessingJob],
 ) -> String {
     let mut lines = vec![
         format!("preview_seconds={preview_seconds:?}"),
         format!("collision_policy={collision_policy:?}"),
+        format!("aac_decoder={aac_decoder:?}"),
     ];
 
     for job in jobs {
@@ -196,7 +198,12 @@ fn build_processing_plan(
         file_info,
     )?;
 
-    let plan_signature = build_plan_signature(inputs.preview_seconds, collision_policy, &jobs);
+    let plan_signature = build_plan_signature(
+        inputs.preview_seconds,
+        collision_policy,
+        payload.aac_decoder,
+        &jobs,
+    );
 
     Ok(ResolvedProcessingPlan {
         preview_seconds: inputs.preview_seconds,
@@ -285,8 +292,12 @@ pub(crate) fn prepare_inspected_execution(
         job.output = ledger.refresh(&job.output, plan.collision_policy, &sources)?;
         check_companion_pdf_name(payload, job.input_index, &job.output)?;
     }
-    plan.plan_signature =
-        build_plan_signature(plan.preview_seconds, plan.collision_policy, &plan.jobs);
+    plan.plan_signature = build_plan_signature(
+        plan.preview_seconds,
+        plan.collision_policy,
+        payload.aac_decoder,
+        &plan.jobs,
+    );
     log_output_plan("process", payload, &plan);
     enforce_output_plan_review(
         OutputPlanReview {

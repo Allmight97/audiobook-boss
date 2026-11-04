@@ -1,21 +1,25 @@
-# ABB bundled FAAC
+# ABB bundled FAAC and FAAD3
 
-AudioBook Boss statically links FAAC 2.2 from
+AudioBook Boss statically links the FAAC encoder (libfaac) and the FAAD3
+decoder (libfaad3) from
 [FreewareAdvancedAudio/faac](https://github.com/FreewareAdvancedAudio/faac),
-release tag `faac-2.2`, commit `6acbe23ac9318d8f731ef38e0a56365f70af4797`.
+`master` at commit `9e268a310aa62279348513210de555393c5f2a54`, which declares
+version 3.0.0 and is not yet a tagged release.
 
-`upstream/` holds that release's portable library sources listed in
-`libfaac/meson.build`, their headers, the public `include/faac.h`, and the
-license, unmodified. The command-line frontend, SIMD sources, and upstream
-build files are omitted. `build.rs` compiles these sources with
-`MAX_CHANNELS=2`, `FAAC_SBR_DECIMATION=1`, and `PACKAGE_VERSION` set to the
-release version.
+`upstream/` holds that commit's portable library sources listed in
+`libfaac/meson.build`, `libfaad/meson.build`, and `common/meson.build`, their
+headers, the public `include/faac.h` and `include/faad3.h`, and the license,
+unmodified. The command-line tools, SIMD sources, tests, and upstream build
+files are omitted. `build.rs` compiles these sources with HE-AAC (SBR) and
+dynamic range control support in both libraries, parametric stereo in the
+decoder only, the encoder limited to two channels and the decoder to eight,
+and `PACKAGE_VERSION` set to 3.0.0.
 
 ## License and source
 
-FAAC is licensed under LGPL-2.1-or-later; see `upstream/COPYING`. Each ABB
-release's source archive on
+FAAC and FAAD3 are licensed under LGPL-2.1-or-later; see `upstream/COPYING`.
+Each ABB release's source archive on
 [GitHub Releases](https://github.com/Allmight97/audiobook-boss/releases)
-contains this FAAC source and ABB's build scripts. To use a modified FAAC,
+contains this source and ABB's build scripts. To use a modified FAAC or FAAD3,
 edit `vendor/faac-sys/upstream/` in that source and rebuild ABB as its README
 describes.

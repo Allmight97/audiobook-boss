@@ -20,6 +20,7 @@
 
 #include "sbr.h"
 #include "sbr_tables.h"
+#include "sbr_huff_tables.h"
 #include "util.h"
 #include "sbr_analysis.h"
 #include "resample.h"
@@ -46,35 +47,9 @@ static int compute_kx(int sampleRate, int bs_start_freq)
 static int cmp_int16(const void *a, const void *b) { return (int)(*(const short *)a) - (int)(*(const short *)b); }
 static int cmp_int(const void *a, const void *b) { return *(const int *)a - *(const int *)b; }
 
-/* SBR stop frequency (k2), ISO 14496-3 §4.6.18.3.2.1. Decoders derive it
- * from bs_stop_freq alone, so it can't be adjusted here. */
-static int compute_k2(int sampleRate, int bs_stop_freq)
-{
-    if (bs_stop_freq == 14 || bs_stop_freq == 15) return 64;
-    int temp = (sampleRate < 32000) ? 3000 : (sampleRate < 64000) ? 4000 : 5000;
-    int stop_min = ((temp << 8) + (sampleRate >> 1)) / sampleRate;
-    int k2;
-    if (bs_stop_freq < 14) {
-        short stop_dk[13];
-        float prod = (float)stop_min;
-        int prev = stop_min;
-        float base = powf(64.0f / (float)stop_min, (float)(1.0f / 13.0f));
-        for (int i = 0; i < 12; i++) {
-            prod *= base;
-            int present = (int)lrintf(prod);
-            stop_dk[i] = (short)(present - prev);
-            prev = present;
-        }
-        stop_dk[12] = (short)(64 - prev);
-        qsort(stop_dk, 13, sizeof(short), cmp_int16);
-        k2 = stop_min;
-        for (int i = 0; i < bs_stop_freq; i++) k2 += stop_dk[i];
-    } else {
-        k2 = 64;
-    }
-
-    return k2;
-}
+/* Fewest QMF bands between kx and k2 that still yield an envelope band at
+ * every freq_scale; above 64 kHz the 20 kHz target can fall below kx. */
+#define SBR_MIN_SPAN 4
 
 /* Widest k2 - kx decoders accept (§4.6.18.3.2.1). */
 static int max_sbr_span(int sampleRate)
@@ -83,65 +58,102 @@ static int max_sbr_span(int sampleRate)
 }
 
 /* Smallest stop-frequency index reaching targetHz, or the widest one decoders
- * accept. Searched rather than tabulated: the index-to-frequency mapping
- * shifts with sample rate, so a fixed table would overshoot at some rates. */
-static int pick_stop_freq(int sampleRate, int kx, int targetHz)
+ * accept; *k2_out receives its QMF band. Searched rather than tabulated: the
+ * index-to-frequency mapping shifts with sample rate, so a fixed table would
+ * overshoot at some rates. Decoders derive k2 from bs_stop_freq alone (ISO
+ * 14496-3 §4.6.18.3.2.1), so the table is rebuilt as the spec defines it:
+ * stop_min plus the sf narrowest of 13 geometric steps. */
+static int pick_stop_freq(int sampleRate, int kx, int targetHz, int *k2_out)
 {
-    int best = SBR_STOP_FREQ_MIN;
-    for (int sf = SBR_STOP_FREQ_MIN; sf <= SBR_STOP_FREQ_MAX; sf++) {
-        int k2 = compute_k2(sampleRate, sf);
-        if (k2 - kx > max_sbr_span(sampleRate)) break;
-        best = sf;
-        if ((long)k2 * sampleRate / (2 * SBR_QMF_BANDS_64) >= targetHz) break;
+    int temp = (sampleRate < 32000) ? 3000 : (sampleRate < 64000) ? 4000 : 5000;
+    int stop_min = ((temp << 8) + (sampleRate >> 1)) / sampleRate;
+    short stop_dk[13];
+    float prod = (float)stop_min;
+    int prev = stop_min;
+    float base = powf(64.0f / (float)stop_min, (float)(1.0f / 13.0f));
+    for (int i = 0; i < 12; i++) {
+        prod *= base;
+        int present = (int)lrintf(prod);
+        stop_dk[i] = (short)(present - prev);
+        prev = present;
     }
+    stop_dk[12] = (short)(64 - prev);
+    qsort(stop_dk, 13, sizeof(short), cmp_int16);
+
+    int two_region = sampleRate >= SBR_TWO_REGION_MIN_RATE && sampleRate <= SBR_TWO_REGION_MAX_RATE;
+    int best = SBR_STOP_FREQ_MIN, best_k2 = stop_min, k2 = stop_min;
+    for (int sf = SBR_STOP_FREQ_MIN; sf <= SBR_STOP_FREQ_MAX; sf++) {
+        if (sf > 0) k2 += stop_dk[sf - 1];
+        if ((!two_region && k2 * SBR_ONE_REGION_DEN > SBR_ONE_REGION_NUM * kx) || k2 - kx > max_sbr_span(sampleRate)) break;
+        best = sf;
+        best_k2 = k2;
+        if (k2 - kx >= SBR_MIN_SPAN && (long)k2 * sampleRate / (2 * SBR_QMF_BANDS_64) >= targetHz) break;
+    }
+    *k2_out = best_k2;
     return best;
 }
 
-/* Master table (ISO 14496-3 §4.6.18.3.2.1). bs_freq_scale 0: uniform
- * dk-spacing, residual bands merged into the first/last pairs. 1/2/3:
+static int sbr_round_f(float v) { return (int)floorf(v + 0.5f); }
+
+static int build_log_band_widths(int k_start, int k_end, int bands_per_octave, float warp, int *vdk)
+{
+    int nb = 2 * sbr_round_f(bands_per_octave * log2f((float)k_end / (float)k_start) / (2.0f * warp));
+    nb = clamp_int(nb, 1, SBR_MAX_BANDS);
+    int prev = k_start;
+    int i = 0;
+    do {
+        int cur = sbr_round_f(k_start * powf((float)k_end / (float)k_start, (float)(i + 1) / (float)nb));
+        vdk[i] = cur - prev;
+        prev = cur;
+    } while (++i < nb);
+    qsort(vdk, nb, sizeof(int), cmp_int);
+    return nb;
+}
+
+/* Master table (ISO 14496-3 §4.6.18.3.2.1). bs_freq_scale 1/2/3:
  * log-spaced with 12/10/8 bands per octave, widths of a geometric series
- * rounded and sorted so the narrow bands sit at the bottom. Only the
- * one-region case exists here: at bs_start_freq 15 kx is at least 30 at
- * every sample rate and k2 at most 64, so k2/kx never reaches the 2.2449
- * split. */
-static int build_freq_table(SBRInfo *sbr)
+ * rounded and sorted so the narrow bands sit at the bottom. When k2/kx
+ * exceeds 2.2449, the table splits at k1 = 2*kx into lower and upper regions,
+ * warped by bs_alter_scale and re-sorted. */
+int build_freq_table(SBRInfo *sbr)
 {
     int kx = sbr->kx, k2 = sbr->k2;
     int *edges = sbr->bandEdges;
-    int n_master;
-
-    int prev = kx;
     int bands_per_octave = 14 - 2 * sbr->bs_freq_scale; /* 12, 10, 8 for bs_freq_scale 1, 2, 3 */
-    n_master = 2 * (int)(bands_per_octave * log2f((float)k2 / (float)kx) / 2.0f + 0.5f);
-    n_master = clamp_int(n_master, 1, SBR_MAX_BANDS);
-    for (int k = 0; k < n_master; k++) {
-        int edge = (int)(kx * powf((float)k2 / (float)kx, (float)(k + 1) / (float)n_master) + 0.5f);
-        edges[1 + k] = edge - prev;
-        prev = edge;
-    }
-    qsort(edges + 1, n_master, sizeof(int), cmp_int);
-    edges[0] = kx;
-    for (int k = 1; k <= n_master; k++) edges[k] += edges[k - 1];
-    sbr->numBands = n_master;
+    int two_region = (float)k2 / (float)kx > SBR_TWO_REGION_RATIO;
+    int k1 = two_region ? 2 * kx : k2;
+    int widths[2 * SBR_MAX_BANDS];
+    int n_master = build_log_band_widths(kx, k1, bands_per_octave, 1.0f, widths);
 
-    /* Low-res table (ISO 14496-3 §4.6.18.3.2.2): every other high-res edge,
-     * parity chosen by n_master. */
-    int n_low = (n_master + 1) >> 1;
-    sbr->numBandsLow = n_low;
-    int odd = n_master & 1;
-    sbr->bandEdgesLow[0] = edges[0];
-    for (int b = 1; b <= n_low; b++)
-        sbr->bandEdgesLow[b] = edges[2 * b - odd];
+    if (two_region) {
+        int *upper = widths + n_master;
+        float warp = sbr->bs_alter_scale ? SBR_UPPER_REGION_WARP : 1.0f;
+        int nb1 = build_log_band_widths(k1, k2, bands_per_octave, warp, upper);
+        if (upper[0] < widths[n_master - 1]) {
+            int change = widths[n_master - 1] - upper[0];
+            int half = (upper[nb1 - 1] - upper[0]) / 2;
+            if (change > half) change = half;
+            upper[0] += change;
+            upper[nb1 - 1] -= change;
+            qsort(upper, nb1, sizeof(int), cmp_int);
+        }
+        n_master += nb1;
+    }
+
+    edges[0] = kx;
+    for (int i = 0; i < n_master; i++) edges[i + 1] = edges[i] + widths[i];
+
+    sbr->numBands = n_master;
 
     return n_master;
 }
 
 SBRInfo *SbrInit(int channels, int sampleRate, unsigned long bitRate)
 {
-    SBRInfo *sbr = (SBRInfo *)AllocMemory(sizeof(SBRInfo));
+    size_t size = sizeof(SBRInfo) + channels * sizeof(SBRChannel);
+    SBRInfo *sbr = (SBRInfo *)AllocMemory(size);
     if (!sbr) return NULL;
-    SetMemory(sbr, 0, sizeof(SBRInfo));
-    sbr->sbrPresent = 1;
+    memset(sbr, 0, size);
     sbr->numChannels = channels;
     sbr->sampleRate = sampleRate;
 
@@ -164,25 +176,25 @@ void SbrUpdate(SBRInfo *sbr, unsigned long bitRate)
 {
     int sampleRate = sbr->sampleRate;
     unsigned long rate_per_ch = bitRate / sbr->numChannels;
-    sbr->numEnvFixFix = (rate_per_ch >= SBR_TWO_ENV_BITRATE_BPS) ? 2 : 1;
-    /* Target crossover near the core ceiling (~11.6 kHz) maximizes MOS.
-     * Higher-order parametric reconstruction below 10 kHz is audible and
-     * generally inferior to the bit-starved LC core. */
-    sbr->bs_start_freq = 15;
+    sbr->numEnvFixFix = (rate_per_ch >= SBR_FOUR_ENV_BITRATE_BPS) ? 4 : 1;
+    sbr->rich = rate_per_ch >= SBR_RICH_BPS;
+    /* A crossover near the core ceiling (~11.6 kHz) maximizes MOS while the
+     * core is bit-starved: parametric reconstruction below 10 kHz is audible
+     * and generally inferior to that core. A rich core can afford SBR from
+     * about 8 kHz (SBR_RICH_BPS). */
+    sbr->bs_start_freq = sbr->rich ? SBR_START_FREQ_RICH : SBR_START_FREQ_DEFAULT;
     /* Log-spaced envelope bands, fewer per octave while bits are scarce:
      * what they save, rate control hands to the core. */
-    sbr->bs_freq_scale = (rate_per_ch >= SBR_FREQ_SCALE_FINE_BPS) ? 1
-                       : (rate_per_ch >= SBR_FREQ_SCALE_COARSE_BPS) ? 3 : 2;
+    sbr->bs_freq_scale = (rate_per_ch >= SBR_FREQ_SCALE_COARSE_BPS) ? 3 : 2;
     sbr->bs_alter_scale = 0; /* only warps a two-region table; see build_freq_table */
-    sbr->bs_freq_res = 1; /* HIGH resolution */
-    sbr->bs_xover_band = 0; /* every master band is an SBR band; no low-res split */
     sbr->kx = compute_kx(sampleRate, sbr->bs_start_freq);
 
     /* Where the reconstruction stops. Aim at hearing rather than k2's ceiling:
      * bands above the target cost the same envelope bits as the ones below, so
      * there's no reason to stop short of what's audible. */
-    sbr->bs_stop_freq = pick_stop_freq(sampleRate, sbr->kx, SBR_STOP_FREQ_TARGET_HZ);
-    sbr->k2 = compute_k2(sampleRate, sbr->bs_stop_freq);
+    sbr->bs_stop_freq = pick_stop_freq(sampleRate, sbr->kx,
+                                       (rate_per_ch < SBR_NARROW_STOP_BPS && sampleRate > SBR_NARROW_STOP_MIN_RATE) ? SBR_STOP_FREQ_TARGET_NARROW_HZ : SBR_STOP_FREQ_TARGET_HZ,
+                                       &sbr->k2);
 
     build_freq_table(sbr);
 }
@@ -193,34 +205,38 @@ void SbrEnd(SBRInfo *sbr)
     FreeMemory(sbr);
 }
 
-/* What analysing a silent frame yields. Needed because zeroed memory is not a
+/* What analyzing a silent frame yields. Needed because zeroed memory is not a
  * legal payload: numEnvelopes == 0 encodes no grid at all. */
-static void sbr_frame_silence(SbrFrameData *fd)
+static void sbr_frame_silence(SbrFrameData *fd, int channels)
 {
-    SetMemory(fd, 0, sizeof(*fd));
+    memset(fd, 0, sizeof(*fd) + channels * sizeof(fd->ch[0]));
     fd->numEnvelopes = 1;
     fd->eff_amp_res  = 0;
     fd->frameClass   = SBR_FRAME_CLASS_FIXFIX;
     fd->tEnv[0]      = 0;
     fd->tEnv[1]      = SBR_NUM_TIME_SLOTS;
-    fd->bsPointer    = 0;
-    fd->freqRes      = 1;
 }
 
 SBRContext *SbrContextInit(int channels)
 {
-    SBRContext *sbrCtx = (SBRContext *)AllocMemory(sizeof(SBRContext));
+    size_t frameSize = sizeof(SbrFrameData) + channels * sizeof(((SbrFrameData *)0)->ch[0]);
+    SBRContext *sbrCtx = (SBRContext *)AllocMemory(sizeof(SBRContext) + SBR_FRAME_FIFO * frameSize);
     if (sbrCtx) {
-        SetMemory(sbrCtx, 0, sizeof(SBRContext));
+        memset(sbrCtx, 0, sizeof(SBRContext));
         sbrCtx->resampler = ResampleInit(channels);
-        if (!sbrCtx->resampler) {
-            FreeMemory(sbrCtx);
+        size_t size = sizeof(SignalAnalysis) + channels * sizeof(SignalAnalysisChannel);
+        sbrCtx->signalAnalysis = AllocMemory(size);
+        if (!sbrCtx->resampler || !sbrCtx->signalAnalysis) {
+            SbrContextEnd(sbrCtx);
             return NULL;
         }
+        memset(sbrCtx->signalAnalysis, 0, size);
         /* The first access units carry the core's silent lead-in, so the ring
          * has to start full of payloads that describe silence. */
-        for (int i = 0; i < SBR_FRAME_FIFO; i++)
-            sbr_frame_silence(&sbrCtx->frameFIFO[i]);
+        for (int i = 0; i < SBR_FRAME_FIFO; i++) {
+            sbrCtx->frameFIFO[i] = (SbrFrameData *)(sbrCtx->frameData + i * frameSize);
+            sbr_frame_silence(sbrCtx->frameFIFO[i], channels);
+        }
     }
     return sbrCtx;
 }
@@ -234,47 +250,21 @@ void SbrContextEnd(SBRContext *sbrCtx)
     if (sbrCtx->resampler) {
         ResampleEnd(sbrCtx->resampler);
     }
+    FreeMemory(sbrCtx->signalAnalysis);
     FreeMemory(sbrCtx);
 }
 
-int SbrContextGetASC(SBRContext *sbrCtx, int coreSRIdx, int channels, unsigned char** ppBuffer, unsigned long* pSize)
+unsigned int SbrContextGetFullRateIdx(SBRContext *sCtx)
 {
-    /* Explicit-hierarchy ASC: AAC-LC core wrapped with an SBR extension
-     * (sync 0x2b7, type 5) carrying the full output rate. The core rate is
-     * Fs/2 (dual-rate SBR); the extension declares the full output rate.
-     *
-     * A mono core also carries the PS sync extension with psPresentFlag = 0:
-     * without it a decoder may assume parametric stereo is implied and return
-     * two channels. */
-    const int signalPS = (channels == 1);
-    const unsigned long size = signalPS ? 7 : 5;
-
-    unsigned char *buf = (unsigned char *)malloc(size);
-    if (buf == NULL) return -3;
-
-    BitStream bs;
-    InitBitStream(&bs, buf, (uint32_t)size); /* zeroes the buffer, so the trailing pad bits need no write */
-
-    BitAccumulator a;
-    AccumBegin(&a, &bs);
-    AccumPutBits(&a, LOW,       5); /* core object type */
-    AccumPutBits(&a, coreSRIdx, 4); /* core rate (Fs/2, dual-rate) */
-    AccumPutBits(&a, GetChannelConfig(channels), 4);
-    AccumPutBits(&a, 0,         3); /* frameLengthFlag, dependsOnCoreCoder, extensionFlag */
-    AccumPutBits(&a, 0x2b7,    11); /* syncExtensionType */
-    AccumPutBits(&a, HE_V1,     5); /* extObjectType = SBR */
-    AccumPutBits(&a, 1,         1); /* sbrPresentFlag */
-    AccumPutBits(&a, sbrCtx->fullSampleRateIdx, 4); /* SBR output rate (2*core) */
-    if (signalPS) {
-        AccumPutBits(&a, 0x548, 11); /* syncExtensionType = PS */
-        AccumPutBits(&a, 0,      1); /* psPresentFlag */
-    }
-    AccumEnd(&a);
-
-    *ppBuffer = buf;
-    *pSize = size;
-    return 0;
+    return sCtx->fullSampleRateIdx;
 }
+
+#if FAAC_ENCODER_DRC
+unsigned long SbrContextGetFullRate(SBRContext *sCtx, unsigned long defaultRate)
+{
+    return (sCtx && sCtx->fullSampleRate) ? sCtx->fullSampleRate : defaultRate;
+}
+#endif
 
 unsigned int SbrContextGetXOverBandwidth(SBRContext *sbrCtx)
 {
@@ -285,13 +275,12 @@ unsigned int SbrContextGetXOverBandwidth(SBRContext *sbrCtx)
                            (2 * SBR_QMF_BANDS_64));
 }
 
-void SbrContextUpdateConfig(SBRContext *sCtx, int channels, unsigned long bitrate)
+int SbrContextUpdateConfig(SBRContext *sCtx, int channels, unsigned long bitrate, int aacObjectType, int rateLimited)
 {
-    if (!sCtx) return;
-    if (!sCtx->sbrInfo)
-        sCtx->sbrInfo = SbrInit(channels, sCtx->fullSampleRate, bitrate);
-    else
-        SbrUpdate(sCtx->sbrInfo, bitrate);
+    sCtx->sbrInfo = SbrInit(channels, sCtx->fullSampleRate, bitrate);
+    if (!sCtx->sbrInfo) return 0;
+    PsConfigure(sCtx->sbrInfo, IsPS(aacObjectType), bitrate, rateLimited);
+    return 1;
 }
 
 void SbrContextProcessFrame(SBRContext *sCtx, int numChannels, const bool *isLfe, int realPerCh, int flushTick, float *inputFifo[MAX_CHANNELS], float *heHalfRate[MAX_CHANNELS])
@@ -303,24 +292,24 @@ void SbrContextProcessFrame(SBRContext *sCtx, int numChannels, const bool *isLfe
     /* SbrEncode quantizes into the new head; SbrWrite (via SbrContextGetBits)
      * emits the oldest slot, which is the payload for this frame's core audio. */
     sCtx->frameHead = (sCtx->frameHead + 1) % SBR_FRAME_FIFO;
-    SbrFrameData *fd = &sCtx->frameFIFO[sCtx->frameHead];
+    SbrFrameData *fd = sCtx->frameFIFO[sCtx->frameHead];
     sCtx->sbrInfo->headerDecided = 0;
 
     /* Tick 1 still has real signal in the QMF overlap and the decimation FIR;
      * by tick 2 both are zero, so the rest of the drain is known silence. */
     if (realPerCh == 0 && flushTick > 1) {
         for (channel = 0; channel < (unsigned int)numChannels; channel++) {
+            rs->halfRate[channel] = inputFifo[channel];
             memset(rs->halfRate[channel], 0, FRAME_LEN * sizeof(float));
             heHalfRate[channel] = rs->halfRate[channel];
-            sCtx->signalAnalysis.ch[channel].transientStrength = 0.0f;
         }
-        sbr_frame_silence(fd);
+        sbr_frame_silence(fd, numChannels);
     } else {
         for (channel = 0; channel < (unsigned int)numChannels; channel++) {
-            float *fullRate = rs->fullRate[channel];
+            /* SBR finishes before the FIR overwrites the consumed FIFO front. */
+            float *fullRate = inputFifo[channel];
+            rs->fullRate[channel] = rs->halfRate[channel] = fullRate;
             fullPtrs[channel] = fullRate;
-            if (realPerCh)
-                memcpy(fullRate, inputFifo[channel], realPerCh * sizeof(float));
             /* Final partial frame: silence-pad the unfilled full-rate tail to
              * prevent the resampler from consuming stale data. */
             if (realPerCh < 2 * FRAME_LEN)
@@ -329,29 +318,16 @@ void SbrContextProcessFrame(SBRContext *sCtx, int numChannels, const bool *isLfe
         }
 
         /* Always the full padded frame, never [0, realPerCh): the grid unconditionally
-         * claims SBR_NUM_TIME_SLOTS, so normalising a short frame over fewer slots
+         * claims SBR_NUM_TIME_SLOTS, so normalizing a short frame over fewer slots
          * would inflate its levels, and the QMF-overlap save below reads the last
          * SBR_QMF_OVL_LEN_64 samples -- behind the buffer for a short frame. */
-        SbrAnalyze(&sCtx->signalAnalysis, fullPtrs, numChannels, isLfe, 2 * FRAME_LEN, sCtx->sbrInfo);
-        SbrEncode(sCtx->sbrInfo, fullPtrs, numChannels, isLfe, 2 * FRAME_LEN, &sCtx->signalAnalysis, fd);
+        if (PsIsActive(sCtx->sbrInfo)) PsPrepareCarrier(sCtx, fullPtrs);
+        SbrAnalyze(sCtx->signalAnalysis, fullPtrs, numChannels, isLfe, 2 * FRAME_LEN, sCtx->sbrInfo);
+        SbrEncode(sCtx->sbrInfo, fullPtrs, numChannels, isLfe, 2 * FRAME_LEN, sCtx->signalAnalysis, fd);
         /* Dual-rate decimation: produces the halved-rate core signal. */
+        if (PsIsActive(sCtx->sbrInfo)) PsCommitCarrier(sCtx, rs->fullRate[0]);
         Resample(rs, 2 * FRAME_LEN);
     }
-}
-
-void SbrContextRestoreRate(SBRContext *sCtx, unsigned long *sampleRate, unsigned int *sampleRateIdx, SR_INFO **srInfoPtr)
-{
-    if (sCtx && sCtx->fullSampleRate > 0) {
-        *sampleRate    = sCtx->fullSampleRate;
-        *sampleRateIdx = sCtx->fullSampleRateIdx;
-        *srInfoPtr     = &srInfo[*sampleRateIdx];
-        sCtx->fullSampleRate = 0;
-    }
-}
-
-unsigned long SbrContextGetFullRate(SBRContext *sCtx, unsigned long defaultRate)
-{
-    return (sCtx && sCtx->fullSampleRate) ? sCtx->fullSampleRate : defaultRate;
 }
 
 /* Dual-rate SBR: the AAC core encodes at Fs/2 while SBR reconstructs the top
@@ -387,75 +363,105 @@ static inline float fast_log2(float x)
     return (float)(exp - 127) + (float)(m * (FAST_LOG2_A - FAST_LOG2_B * m));
 }
 
-/* 64-band subband energy analysis using a 64-point complex FFT.
+/* 64-band subband analysis using a 64-point complex FFT.
  * Leverages conjugate symmetry to extract two 64-point real-subsequence
  * DFTs from one complex transform, reducing FLOPs by ~50% compared to
- * a standard 128-point implementation. Phase info is discarded as the
- * SBR bitstream only transmits envelope magnitudes. */
-void SbrQmfAnalysis(SBRInfo *sbr, const float * restrict ovl_pos, float * restrict energy, int kx, int k2)
+ * a standard 128-point implementation. y receives the FFT spectrum. */
+static inline void qmf_transform(const SBRInfo *sbr, const float *ovl_pos, float *y)
 {
-    float x[128], y[128];
+    float x[128];
     float * restrict xr = x, * restrict xi = x + 64;
-    const float * restrict yr = y, * restrict yi = y + 64;
-    const sbrfloat * restrict p0 = qmf_c;
+    /* The filter is symmetric except at offsets 128/512 and 256/384.
+     * Compute the contiguous polyphase outputs before the complex rotation,
+     * using the FFT output buffer as workspace. */
+    for (int n = 0; n < 128; n++) {
+        y[n] = qmf_c[n] * ovl_pos[639 - n]
+             + qmf_c[128 + n] * ovl_pos[511 - n]
+             + qmf_c[256 + n] * ovl_pos[383 - n]
+             + qmf_c[256 - n] * ovl_pos[255 - n]
+             + qmf_c[128 - n] * ovl_pos[127 - n];
+    }
+    /* Tap zero uses the two sign exceptions to the mirror rule. */
+    y[0] = qmf_c[0] * ovl_pos[639]
+         + qmf_c[128] * ovl_pos[511]
+         + qmf_c[256] * ovl_pos[383]
+         + (-qmf_c[256]) * ovl_pos[255]
+         + (-qmf_c[128]) * ovl_pos[127];
     for (int m = 0; m < 64; m++) {
-        int n0 = 2 * m;
-        float a = p0[0]   * ovl_pos[639 - n0]
-                    + p0[128] * ovl_pos[511 - n0]
-                    + p0[256] * ovl_pos[383 - n0]
-                    + p0[384] * ovl_pos[255 - n0]
-                    + p0[512] * ovl_pos[127 - n0];
-        float b = p0[1]   * ovl_pos[638 - n0]
-                    + p0[129] * ovl_pos[510 - n0]
-                    + p0[257] * ovl_pos[382 - n0]
-                    + p0[385] * ovl_pos[254 - n0]
-                    + p0[513] * ovl_pos[126 - n0];
-        /* c[m] = (a + j*b) * exp(-j*pi*m/64) */
+        float a = y[2 * m], b = y[2 * m + 1];
         xr[m] = a * sbr->twidCos[m] - b * sbr->twidSin[m];
         xi[m] = -(a * sbr->twidSin[m] + b * sbr->twidCos[m]);
-        p0 += 2;
     }
     fft(x, y, FFT_LOGM_SHORT);
+}
+
+/* Band k of the complex QMF output. */
+static inline void qmf_band(const SBRInfo *sbr, const float *y, int k, float *re, float *im)
+{
+    const float * restrict yr = y, * restrict yi = y + 64;
+    int kr = 63 - k;
+    /* Separate the two real-subsequence DFTs by conjugate symmetry. */
+    float Ar = 0.5f * (yr[k] + yr[kr]);
+    float Ai = 0.5f * (yi[kr] - yi[k]);
+    float Br = -0.5f * (yi[k] + yi[kr]);
+    float Bi = 0.5f * (yr[kr] - yr[k]);
+    /* Sr = Ar + w_k_real * Br - w_k_imag * Bi
+     * Si = Ai + w_k_real * Bi + w_k_imag * Br */
+    float wr = sbr->oddCos[k];
+    float wi = sbr->oddSin[k];
+    float Sr = Ar + wr * Br - wi * Bi;
+    float Si = Ai + wr * Bi + wi * Br;
+    *re = Sr;
+    *im = Si;
+}
+
+#if FAAC_ENCODER_PS
+void SbrQmfAnalysisComplex(SBRInfo *sbr, const float *ovl_pos, float *real, float *imag, int kx, int k2)
+{
+    float y[128];
+    qmf_transform(sbr, ovl_pos, y);
+    for (int k = kx; k < k2; k++) qmf_band(sbr, y, k, &real[k], &imag[k]);
+}
+#endif
+
+/* The SBR bitstream only transmits envelope magnitudes, so the energy path
+ * discards phase. */
+void SbrQmfAnalysis(SBRInfo *sbr, const float * restrict ovl_pos, float * restrict energy, int kx, int k2)
+{
+    float y[128];
+    qmf_transform(sbr, ovl_pos, y);
     for (int k = kx; k < k2; k++) {
-        int kr = 63 - k;
-        /* Separate the two real-subsequence DFTs by conjugate symmetry. */
-        float Ar = 0.5f * (yr[k] + yr[kr]);
-        float Ai = 0.5f * (yi[kr] - yi[k]);
-        float Br = -0.5f * (yi[k] + yi[kr]);
-        float Bi = 0.5f * (yr[kr] - yr[k]);
-        /* Sr = Ar + w_k_real * Br - w_k_imag * Bi
-         * Si = Ai + w_k_real * Bi + w_k_imag * Br */
-        float wr = sbr->oddCos[k];
-        float wi = sbr->oddSin[k];
-        float Sr = Ar + wr * Br - wi * Bi;
-        float Si = Ai + wr * Bi + wi * Br;
+        float Sr, Si;
+        qmf_band(sbr, y, k, &Sr, &Si);
         energy[k] += Sr * Sr + Si * Si;
     }
 }
 
-
-static void sbr_adopt_envelope_grid(const SBRInfo *sbr, const struct SignalAnalysis *sa, SbrFrameData *fd)
+static void sbr_adopt_envelope_grid(const struct SignalAnalysis *sa, SbrFrameData *fd)
 {
     fd->numEnvelopes = sa->numEnvelopes;
     fd->frameClass   = sa->frameClass;
-    fd->bsPointer    = sa->bsPointer;
     for (int i = 0; i <= sa->numEnvelopes; i++) fd->tEnv[i] = sa->tEnv[i];
     fd->eff_amp_res = (fd->numEnvelopes == 1) ? 0 : SBR_AMP_RES;
-    fd->freqRes = sbr->bs_freq_res;
 }
 
 static void sbr_quantize_envelopes(const SBRInfo *sbr, int nch, const bool *isLfe,
                                    const struct SignalAnalysis *sa, SbrFrameData *fd)
 {
+#if MAX_CHANNELS < 6
+    (void)isLfe;
+#endif
     int n_env = fd->numEnvelopes;
     /* Must match write_sbr_envelope's table, or the decoder desyncs. */
-    int nb = sbr_env_bands(sbr, fd);
-    const int *edges = sbr_env_edges(sbr, fd);
+    int nb = sbr->numBands;
+    const int *edges = sbr->bandEdges;
 
     for (int ch = 0; ch < nch; ch++) {
+#if MAX_CHANNELS >= 6
         if (isLfe[ch]) continue;
+#endif
         /* Read-only alias; the quantizer never writes back through it. */
-        const float (* restrict bandE)[SBR_QMF_BANDS_64] = sa->bandE[ch];
+        const float (* restrict bandE)[SBR_QMF_BANDS_64] = sa->ch[ch].bandE;
         int dlav = fd->eff_amp_res ? SBR_ENV_DELTA_LIMIT_HIRES : SBR_ENV_DELTA_LIMIT_LORES;
         for (int e = 0; e < n_env; e++) {
             int prevLevel = -1;
@@ -471,15 +477,12 @@ static void sbr_quantize_envelopes(const SBRInfo *sbr, int nch, const bool *isLf
                 float factor = fd->eff_amp_res ? 1.0f : 2.0f;
                 int level = lrintf(factor * (fast_log2(E + SBR_LOG_ENERGY_FLOOR) - SBR_ENV_LEVEL_LOG2_OFFSET));
                 int raw_level = clamp_int(level, 0, 127);
-                if (prevLevel < 0) {
+                /* Clamped so the frequency-delta chain stays codable. */
+                if (prevLevel < 0)
                     raw_level = clamp_int(raw_level, 0, fd->eff_amp_res ? 63 : 127);
-                    fd->ch[ch].envData[e][b] = raw_level;
-                    prevLevel = raw_level;
-                } else {
-                    int delta = clamp_int(raw_level - prevLevel, -dlav, dlav);
-                    fd->ch[ch].envData[e][b] = delta;
-                    prevLevel += delta;
-                }
+                else
+                    raw_level = clamp_int(raw_level, prevLevel - dlav, prevLevel + dlav);
+                fd->ch[ch].envData[e][b] = prevLevel = raw_level;
             }
         }
     }
@@ -487,12 +490,22 @@ static void sbr_quantize_envelopes(const SBRInfo *sbr, int nch, const bool *isLf
 
 void SbrEncode(SBRInfo *sbr, float *timeDomain[MAX_CHANNELS], int numChannels, const bool *isLfe, int numSamples, struct SignalAnalysis *sa, SbrFrameData *fd)
 {
+#if MAX_CHANNELS < 6
+    (void)isLfe;
+#endif
     for (int ch = 0; ch < numChannels; ch++)
+#if MAX_CHANNELS >= 6
         if (!isLfe[ch])
+#endif
             memcpy(sbr->ch[ch].qmfOvl64, timeDomain[ch] + numSamples - SBR_QMF_HIST_LEN, SBR_QMF_HIST_LEN * sizeof(float));
 
-    sbr_adopt_envelope_grid(sbr, sa, fd);
-    sbr_quantize_envelopes(sbr, numChannels, isLfe, sa, fd);
+    sbr_adopt_envelope_grid(sa, fd);
+    int coreChannels = numChannels;
+    if (PsIsActive(sbr)) {
+        PsAnalyze(sbr, sa, fd);
+        coreChannels = 1;
+    }
+    sbr_quantize_envelopes(sbr, coreChannels, isLfe, sa, fd);
 
 #ifdef FAAC_STATS
     g_faacStats.sbrFrames++;
@@ -500,8 +513,10 @@ void SbrEncode(SBRInfo *sbr, float *timeDomain[MAX_CHANNELS], int numChannels, c
         g_faacStats.sbrTransientFrames++;
     }
     for (int ch = 0; ch < numChannels; ch++) {
+#if MAX_CHANNELS >= 6
         if (isLfe[ch]) continue;
-        g_faacStats.sbrInvfSum += SBR_INVF_MODE;
+#endif
+        g_faacStats.sbrInvfSum += sbr->rich ? SBR_INVF_MODE_RICH : SBR_INVF_MODE;
         g_faacStats.sbrInvfCount++;
     }
 #endif
@@ -510,4 +525,3 @@ void SbrEncode(SBRInfo *sbr, float *timeDomain[MAX_CHANNELS], int numChannels, c
 /* SBR bitstream writer. Emits the SBR fill element payload into the bitstream.
  * Replays the write sequence into a counting sink during rate control to
  * ensure accurate bit budget allocation. */
-

@@ -14,6 +14,7 @@ mod path_validation;
 mod processor;
 mod settings;
 mod settings_capabilities;
+mod settings_decoder;
 mod settings_encoder;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -114,7 +115,8 @@ pub(crate) use imports::{discover_audio_import_paths, supported_audio_import_met
 pub use imports::{SkippedImportPath, SupportedAudioImportFormat, SupportedAudioImportMetadata};
 pub(crate) use path_validation::{validate_input_audio_path, validate_input_image_path};
 pub(crate) use processor::{
-    execute_audio_engine, probe_builtin_audio_decoder, AudioExecutionRequest, AudioRunOutcome,
+    codec_library_versions, execute_audio_engine, probe_builtin_audio_decoder,
+    AudioExecutionRequest, AudioRunOutcome,
 };
 pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
 pub(crate) use settings::{
@@ -135,6 +137,7 @@ pub use settings_capabilities::{
     EncoderAvailability, EncoderConfigurationCapability, EncoderSettingsCapabilities,
     FaacProfileCapability,
 };
+pub use settings_decoder::AacDecoder;
 pub(crate) use settings_encoder::{validate_encoder_settings, DEFAULT_FAAC_QUALITY};
 pub use settings_encoder::{
     BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, FaacProfile,

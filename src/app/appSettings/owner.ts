@@ -1,5 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type {
+	AacDecoder,
 	AcquisitionLane,
 	AppSettings,
 	ConcurrencyPreference,
@@ -36,6 +37,8 @@ export type AppSettingsDialogState = {
 	saveError: string;
 	powerSaveState: SettingsSaveState;
 	powerSaveError: string;
+	decoderSaveState: SettingsSaveState;
+	decoderSaveError: string;
 	startupSaveState: SettingsSaveState;
 	startupSaveError: string;
 	laneSaveState: SettingsSaveState;
@@ -57,6 +60,7 @@ export type SettingsOwner = {
 	closeDialog: () => void;
 	setDialogOpen: (open: boolean) => void;
 	setKeepAwakeWhileWorking: (enabled: boolean) => Promise<void>;
+	setAacDecoder: (decoder: AacDecoder) => Promise<void>;
 	saveCurrentSettingsAsPinnedDefaults: () => Promise<void>;
 	setStartupBehavior: (behavior: StartupBehavior) => Promise<void>;
 	resetAllAppSettings: () => Promise<void>;
@@ -68,7 +72,7 @@ export type SettingsOwnerDeps = {
 };
 
 type DialogProgress = Omit<AppSettingsDialogState, 'settings'>;
-type ProgressKey = 'save' | 'powerSave' | 'startupSave' | 'laneSave';
+type ProgressKey = 'save' | 'powerSave' | 'decoderSave' | 'startupSave' | 'laneSave';
 
 function idleDialog(): DialogProgress {
 	return {
@@ -77,6 +81,8 @@ function idleDialog(): DialogProgress {
 		saveError: '',
 		powerSaveState: 'idle',
 		powerSaveError: '',
+		decoderSaveState: 'idle',
+		decoderSaveError: '',
 		startupSaveState: 'idle',
 		startupSaveError: '',
 		laneSaveState: 'idle',
@@ -92,6 +98,7 @@ const UNIT_LABELS: Record<SettingsUnit, string> = {
 	keepAwake: 'keep computer awake while working',
 	jobLimit: 'number of jobs',
 	acquisitionLane: 'default import source',
+	aacDecoder: 'AAC decoder',
 	encoderDefaults: 'audio defaults',
 	outputDefaults: 'output folder and naming',
 	startupBehavior: 'startup settings',
@@ -231,6 +238,10 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		async setKeepAwakeWhileWorking(enabled) {
 			if (dialog.powerSaveState === 'saving') return;
 			await runDialogAction('powerSave', { kind: 'setKeepAwake', enabled });
+		},
+		async setAacDecoder(decoder) {
+			if (dialog.decoderSaveState === 'saving') return;
+			await runDialogAction('decoderSave', { kind: 'setAacDecoder', decoder });
 		},
 		async saveCurrentSettingsAsPinnedDefaults() {
 			await runDialogAction('startupSave', { kind: 'pinCurrentDefaults' });

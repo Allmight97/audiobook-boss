@@ -38,9 +38,10 @@ static const resfloat hb_even[RESAMPLE_FILTER_LEN / 2 + 1] = {
 
 Resampler *ResampleInit(int channels)
 {
-    Resampler *r = (Resampler *)AllocMemory(sizeof(Resampler));
+    size_t size = sizeof(Resampler) + channels * sizeof(float[RESAMPLE_FILTER_LEN]);
+    Resampler *r = (Resampler *)AllocMemory(size);
     if (!r) return NULL;
-    SetMemory(r, 0, sizeof(Resampler));
+    memset(r, 0, size);
     r->channels = channels;
     return r;
 }
@@ -50,7 +51,7 @@ void ResampleEnd(Resampler *r)
     FreeMemory(r);
 }
 
-/* The symmetric-fold gather below defeats autovectorization. */
+/* Contiguous phases let SIMD lanes retain each output's summation order. */
 int Resample(Resampler *r, int input_len)
 {
     int output_len = input_len / 2;
@@ -59,31 +60,54 @@ int Resample(Resampler *r, int input_len)
     int ch, i, j;
 
     for (ch = 0; ch < r->channels; ch++) {
-        float * __restrict in  = r->fullRate[ch];
-        float * __restrict out = r->halfRate[ch];
+        float *in = r->fullRate[ch];
+        float *out = r->halfRate[ch];
         float * __restrict hist = r->buf[ch];
 
         /* Fixed-size buffers to avoid VLA (MSVC portability): history + one
          * full-rate HE frame (2 * FRAME_LEN input samples). */
-        float combined[RESAMPLE_FILTER_LEN - 1 + 2 * FRAME_LEN];
+        float even[FRAME_LEN + RESAMPLE_FILTER_LEN / 2];
+        float odd[FRAME_LEN + RESAMPLE_FILTER_LEN / 2];
+        float next_hist[RESAMPLE_FILTER_LEN - 1];
+        int save_hist = input_len - H < output_len;
 
-        memcpy(combined,     hist, H         * sizeof(float));
-        memcpy(combined + H, in,   input_len * sizeof(float));
-
-        /* Exploit FIR symmetry to fold the tap-delay line before multiplication. */
+        /* De-interleave before any aliased output write, so adjacent outputs
+         * use unit-stride loads without a full-frame stack copy. */
+        for (i = 0; i < HALF; i++) {
+            even[i] = hist[2 * i];
+            odd[i] = hist[2 * i + 1];
+        }
         for (i = 0; i < output_len; i++) {
-            const float * __restrict c = combined + 2 * i;
-            float a0 = 0, a1 = 0, a2 = 0, a3 = 0;
-            for (j = 0; j < 16; j += 4) {
-                a0 += hb_even[j + 0] * (c[2 * (j + 0)] + c[2 * (31 - j - 0)]);
-                a1 += hb_even[j + 1] * (c[2 * (j + 1)] + c[2 * (31 - j - 1)]);
-                a2 += hb_even[j + 2] * (c[2 * (j + 2)] + c[2 * (31 - j - 2)]);
-                a3 += hb_even[j + 3] * (c[2 * (j + 3)] + c[2 * (31 - j - 3)]);
-            }
-            *out++ = (a0 + a1) + (a2 + a3) + HB_CENTER * combined[2 * i + HALF];
+            even[HALF + i] = in[2 * i];
+            odd[HALF + i] = in[2 * i + 1];
         }
 
-        memcpy(hist, combined + input_len, H * sizeof(float));
+        /* Full HE frames leave the history tail beyond the output. Short
+         * inputs can overlap it or retain old history, so save that tail now. */
+        if (save_hist) {
+            if (input_len < H) {
+                memcpy(next_hist, hist + input_len, (H - input_len) * sizeof(float));
+                memcpy(next_hist + H - input_len, in, input_len * sizeof(float));
+            } else {
+                memcpy(next_hist, in + input_len - H, H * sizeof(float));
+            }
+        }
+
+        /* Fold symmetric taps, preserving the four scalar accumulation chains
+         * and final grouping for bit-exact results in each SIMD lane. */
+        for (i = 0; i < output_len; i++) {
+            const float * __restrict c = even + i;
+            float a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+            for (j = 0; j < 16; j += 4) {
+                a0 += hb_even[j + 0] * (c[j + 0] + c[31 - j - 0]);
+                a1 += hb_even[j + 1] * (c[j + 1] + c[31 - j - 1]);
+                a2 += hb_even[j + 2] * (c[j + 2] + c[31 - j - 2]);
+                a3 += hb_even[j + 3] * (c[j + 3] + c[31 - j - 3]);
+            }
+            *out++ = (a0 + a1) + (a2 + a3) + HB_CENTER * odd[i + HALF / 2];
+        }
+
+        memcpy(hist, save_hist ? next_hist : in + input_len - H, H * sizeof(float));
     }
 
     return output_len;

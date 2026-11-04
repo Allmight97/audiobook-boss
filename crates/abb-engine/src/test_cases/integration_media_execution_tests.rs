@@ -19,9 +19,10 @@
 //! Runtime budget: the module must stay under ~10s wall clock.
 //! If it grows past that, shrink fixtures before widening the budget.
 
+use super::integration_faac_execution_tests::faac_encoder_settings;
 use abb_engine::audio::{
-    execute_audio_engine, get_file_list_info, AudioExecutionRequest, BitrateMode, ChannelConfig,
-    EncoderSettings, EncoderType, SampleRateConfig,
+    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
+    ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
 };
 use abb_engine::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
 use abb_engine::processing::{CancellationChecker, JobRegistry};
@@ -41,7 +42,7 @@ use tempfile::TempDir;
 /// External-reader tag truth: ffprobe's view of the container's format tags.
 /// Requires an `ffprobe` binary on PATH (or via `ABB_FFPROBE`); the media lane
 /// environments provide one (`scripts/AGENTS.md`).
-fn ffprobe_format_tags(path: &Path) -> serde_json::Map<String, serde_json::Value> {
+pub(crate) fn ffprobe_format_tags(path: &Path) -> serde_json::Map<String, serde_json::Value> {
     let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
     let output = Command::new(&binary)
         .args(["-v", "quiet", "-print_format", "json", "-show_format"])
@@ -76,7 +77,7 @@ fn ffprobe_tag_ci(tags: &serde_json::Map<String, serde_json::Value>, key: &str) 
         .and_then(|(_, value)| value.as_str().map(str::to_string))
 }
 
-fn assert_ffprobe_tag(
+pub(crate) fn assert_ffprobe_tag(
     tags: &serde_json::Map<String, serde_json::Value>,
     key: &str,
     expected: &str,
@@ -89,7 +90,7 @@ fn assert_ffprobe_tag(
     );
 }
 
-const SAMPLE_RATE: u32 = 44_100;
+pub(crate) const SAMPLE_RATE: u32 = 44_100;
 
 fn test_engine() -> &'static abb_engine::Engine {
     static ENGINE: std::sync::OnceLock<(TempDir, abb_engine::Engine)> = std::sync::OnceLock::new();
@@ -109,7 +110,7 @@ fn test_engine() -> &'static abb_engine::Engine {
         .1
 }
 
-fn preflight_processing_plan(
+pub(crate) fn preflight_processing_plan(
     payload: abb_engine::processing::ProcessPayload,
     metadata: Option<std::collections::HashMap<String, MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
@@ -269,7 +270,7 @@ async fn fast_path_and_resampler_route_produce_the_same_audio() {
     );
 }
 
-fn decode_pcm_f32(path: &Path) -> Vec<f32> {
+pub(crate) fn decode_pcm_f32(path: &Path) -> Vec<f32> {
     let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
     let decoded = Command::new(binary)
         .args(["-v", "error", "-xerror", "-i"])
@@ -347,7 +348,7 @@ async fn truncated_audio_fails_without_publishing_a_shortened_book() {
         .set_len(end)
         .expect("fixture value");
     let broken_lane = MediaLane::for_inputs(vec![broken]);
-    let info = get_file_list_info(&broken_lane.inputs).expect("fixture value");
+    let info = get_file_list_info(&broken_lane.inputs, AacDecoder::Auto).expect("fixture value");
     assert_eq!(
         info.invalid_count, 1,
         "declared packets extend past the end of this MP4"
@@ -395,7 +396,7 @@ async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() 
         metadata.composer.as_deref(),
         Some("First Narrator;Second Narrator")
     );
-    let imported = get_file_list_info(&[&output]).expect("fixture value");
+    let imported = get_file_list_info(&[&output], AacDecoder::Auto).expect("fixture value");
     assert_eq!(imported.files[0].tag_artist, metadata.artist);
 
     save_metadata_intent(
@@ -477,10 +478,11 @@ pub(crate) fn native_encoder_settings() -> EncoderSettings {
 }
 
 pub(crate) struct MediaLane {
-    tmp: TempDir,
-    inputs: Vec<PathBuf>,
+    pub(crate) tmp: TempDir,
+    pub(crate) inputs: Vec<PathBuf>,
     encoder_settings: EncoderSettings,
     sample_rate: SampleRateConfig,
+    aac_decoder: AacDecoder,
 }
 
 impl MediaLane {
@@ -500,60 +502,70 @@ impl MediaLane {
             inputs,
             encoder_settings: native_encoder_settings(),
             sample_rate: SampleRateConfig::Auto,
+            aac_decoder: AacDecoder::Auto,
         }
     }
 
-    fn for_inputs(inputs: Vec<PathBuf>) -> Self {
+    pub(crate) fn for_inputs(inputs: Vec<PathBuf>) -> Self {
         let tmp = TempDir::new().expect("create media lane tempdir");
         Self {
             tmp,
             inputs,
             encoder_settings: native_encoder_settings(),
             sample_rate: SampleRateConfig::Auto,
+            aac_decoder: AacDecoder::Auto,
         }
     }
 
-    fn with_encoder(mut self, encoder_settings: EncoderSettings) -> Self {
+    pub(crate) fn with_aac_decoder(mut self, aac_decoder: AacDecoder) -> Self {
+        self.aac_decoder = aac_decoder;
+        self
+    }
+
+    pub(crate) fn with_encoder(mut self, encoder_settings: EncoderSettings) -> Self {
         self.encoder_settings = encoder_settings;
         self
     }
 
-    fn with_sample_rate(mut self, sample_rate: SampleRateConfig) -> Self {
+    pub(crate) fn with_sample_rate(mut self, sample_rate: SampleRateConfig) -> Self {
         self.sample_rate = sample_rate;
         self
     }
 
-    fn output_path(&self) -> PathBuf {
+    pub(crate) fn output_path(&self) -> PathBuf {
         self.tmp.path().join("out").join("lane-output.m4b")
     }
 
-    fn workspace_root(&self) -> PathBuf {
+    pub(crate) fn workspace_root(&self) -> PathBuf {
         self.tmp.path().join("workspace")
     }
 
-    fn handling(&self) -> AudioHandling {
+    pub(crate) fn handling(&self) -> AudioHandling {
         AudioHandling::Encode {
             settings: self.encoder_settings.clone(),
         }
     }
 
-    fn context(&self, session: ProcessingSession) -> ProcessingContext {
+    pub(crate) fn context(&self, session: ProcessingSession) -> ProcessingContext {
         let output_dir = self.output_path();
         fs::create_dir_all(output_dir.parent().expect("output parent")).expect("create output dir");
-        ProcessingContext::new_headless_with_workspace_root(
+        let mut context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(session),
             self.sample_rate,
             OutputConfig::new(self.output_path()),
             self.workspace_root(),
-        )
+        );
+        context.aac_decoder = self.aac_decoder;
+        context
     }
 
-    fn execution_request(
+    pub(crate) fn execution_request(
         &self,
         session: ProcessingSession,
         metadata: Option<AudiobookMetadata>,
     ) -> AudioExecutionRequest {
-        let file_info = get_file_list_info(&self.inputs).expect("probe WAV fixtures");
+        let file_info =
+            get_file_list_info(&self.inputs, self.aac_decoder).expect("probe WAV fixtures");
         assert_eq!(
             file_info.invalid_count, 0,
             "generated fixtures must probe as valid audio"
@@ -574,7 +586,7 @@ impl MediaLane {
         self.output_path()
     }
 
-    fn residual_workspace_dirs(&self) -> Vec<PathBuf> {
+    pub(crate) fn residual_workspace_dirs(&self) -> Vec<PathBuf> {
         let root = self.workspace_root();
         if !root.exists() {
             return Vec::new();
@@ -603,7 +615,7 @@ async fn import_configure_process_produces_decodable_m4b_with_truthful_duration(
         "engine success message names the committed final path, got: {result}"
     );
 
-    let probe = get_file_list_info(&[&output]).expect("re-probe committed M4B");
+    let probe = get_file_list_info(&[&output], AacDecoder::Auto).expect("re-probe committed M4B");
     assert_eq!(probe.valid_count, 1, "output M4B probes as valid audio");
     let drift = (probe.total_duration - expected_duration).abs();
     assert!(
@@ -623,7 +635,7 @@ async fn analysis_exposes_embedded_chapters_from_real_m4b() {
     let lane = MediaLane::with_fixtures(&[1.0, 1.5]);
     let output = lane.process(None).await;
 
-    let probe = get_file_list_info(&[&output]).expect("analyze chaptered M4B");
+    let probe = get_file_list_info(&[&output], AacDecoder::Auto).expect("analyze chaptered M4B");
     let chapters = &probe.files[0].chapters;
     assert_eq!(chapters.len(), 2, "analysis returns both embedded chapters");
     assert_eq!(chapters[0].title.as_deref(), Some("fixture-0"));
@@ -694,7 +706,8 @@ async fn analysis_populates_display_tags_from_an_existing_tagged_fixture() {
     };
     save_metadata_intent(&output, &patch).expect("tag fixture through metadata boundary");
 
-    let analyzed = get_file_list_info(&[&output]).expect("analyze tagged fixture");
+    let analyzed =
+        get_file_list_info(&[&output], AacDecoder::Auto).expect("analyze tagged fixture");
     let file = analyzed.files.first().expect("one analyzed fixture");
     assert_eq!(file.tag_title.as_deref(), Some("Analyzed Fixture Title"));
     assert_eq!(file.tag_artist.as_deref(), Some("Analyzed Fixture Artist"));
@@ -1085,7 +1098,7 @@ fn a_save_without_cover_intent_keeps_every_attached_picture() {
     assert_eq!(fs::read(&opus).expect("reread opus"), before);
 }
 
-fn minimal_jpg_bytes() -> Vec<u8> {
+pub(crate) fn minimal_jpg_bytes() -> Vec<u8> {
     fs::read(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/support/minimal.jpg"
@@ -1093,7 +1106,7 @@ fn minimal_jpg_bytes() -> Vec<u8> {
     .expect("read minimal.jpg support fixture")
 }
 
-fn chapters_of(path: &Path) -> Vec<(Option<String>, i64, i64)> {
+pub(crate) fn chapters_of(path: &Path) -> Vec<(Option<String>, i64, i64)> {
     let passthrough = extract_passthrough_metadata(&[PassthroughSource {
         chapters: None,
         path: path.to_path_buf(),
@@ -1243,7 +1256,7 @@ async fn m4b_input_processes_with_metadata_intact_and_cover_passthrough() {
     second_pass.title = Some("Second Pass".to_string());
     let output = m4b_lane.process(Some(second_pass)).await;
 
-    let probe = get_file_list_info(&[&output]).expect("re-probe reprocessed M4B");
+    let probe = get_file_list_info(&[&output], AacDecoder::Auto).expect("re-probe reprocessed M4B");
     assert_eq!(
         probe.valid_count, 1,
         "reprocessed M4B probes as valid audio"
@@ -1379,7 +1392,7 @@ async fn qt_chapter_track_times_span_the_book_when_cover_art_is_muxed() {
     );
 }
 
-fn write_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
+pub(crate) fn write_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
     write_sine_mp3_with(path, seconds, freq_hz, &["-b:a", "64k"]);
 }
 
@@ -1572,7 +1585,8 @@ async fn mp3_input_processes_with_metadata_intact() {
 
     let output = lane.process(Some(metadata)).await;
 
-    let probe = get_file_list_info(&[&output]).expect("re-probe M4B produced from MP3");
+    let probe =
+        get_file_list_info(&[&output], AacDecoder::Auto).expect("re-probe M4B produced from MP3");
     assert_eq!(probe.valid_count, 1, "output probes as valid audio");
     let drift = (probe.total_duration - 1.5).abs();
     assert!(
@@ -1598,7 +1612,8 @@ async fn preserve_copies_supported_m4b_and_mp3_without_mutating_source_bytes() {
         let lane = MediaLane::for_inputs(vec![source.clone()]);
         let destination = lane.tmp.path().join(format!("preserved.{extension}"));
         let source_bytes = fs::read(&source).expect("read preserve source");
-        let info = get_file_list_info(std::slice::from_ref(&source)).expect("probe source");
+        let info = get_file_list_info(std::slice::from_ref(&source), AacDecoder::Auto)
+            .expect("probe source");
         assert!(
             info.files[0]
                 .preservation
@@ -1650,7 +1665,8 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
         cover_art: Some(PatchOp::Set(minimal_jpg_bytes())),
         ..Default::default()
     };
-    let info = get_file_list_info(std::slice::from_ref(&source)).expect("probe source");
+    let info =
+        get_file_list_info(std::slice::from_ref(&source), AacDecoder::Auto).expect("probe source");
     assert!(info.files[0].bitrate.expect("fixture value") > 72_000);
     let plan = abb_engine::audio::resolve_title_audio(
         &title_audio_request(
@@ -1710,7 +1726,8 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
     );
     let mp3_lane = MediaLane::for_inputs(vec![mp3_source.clone()]);
     let mp3_destination = mp3_lane.tmp.path().join("retagged.mp3");
-    let mp3_info = get_file_list_info(std::slice::from_ref(&mp3_source)).expect("probe MP3");
+    let mp3_info =
+        get_file_list_info(std::slice::from_ref(&mp3_source), AacDecoder::Auto).expect("probe MP3");
     let mp3_context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
         SampleRateConfig::Auto,
@@ -1768,7 +1785,8 @@ async fn cancelled_preserve_does_not_publish_or_leave_staging_residue() {
         std::sync::atomic::AtomicBool::new(true),
     )));
     let session = ProcessingSession::with_cancellation(job_id.0, checker);
-    let info = get_file_list_info(std::slice::from_ref(&source)).expect("probe source");
+    let info =
+        get_file_list_info(std::slice::from_ref(&source), AacDecoder::Auto).expect("probe source");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(session),
         SampleRateConfig::Auto,
@@ -1835,6 +1853,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
         collision_policy: None,
         preflight_signature: None,
         supplemental_assets_by_input_id: None,
+        aac_decoder: Some(AacDecoder::Auto),
     };
     let metadata: std::collections::HashMap<_, _> = paths
         .iter()
@@ -1920,7 +1939,7 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
 
     let output = lane.process(Some(metadata)).await;
 
-    let probe = get_file_list_info(&[&output]).expect("re-probe aac_at output");
+    let probe = get_file_list_info(&[&output], AacDecoder::Auto).expect("re-probe aac_at output");
     assert_eq!(probe.valid_count, 1, "aac_at output probes as valid audio");
     let drift = (probe.total_duration - 1.5).abs();
     assert!(
@@ -1933,7 +1952,7 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
     assert_eq!(reread.title.as_deref(), Some("Apple AAC Route"));
 }
 
-fn write_stereo_sine_wav(path: &Path, seconds: f64, left_hz: f64, right_hz: f64) {
+pub(crate) fn write_stereo_sine_wav(path: &Path, seconds: f64, left_hz: f64, right_hz: f64) {
     let total_samples = (seconds * f64::from(SAMPLE_RATE)) as u32;
     let data_len = total_samples * 4;
     let mut bytes = Vec::with_capacity(44 + data_len as usize);
@@ -1971,7 +1990,8 @@ async fn rate_converted_merge_keeps_truthful_duration_and_rate() {
         .expect("rate-converted native processing succeeds");
 
     let output = lane.output_path();
-    let probe = get_file_list_info(&[&output]).expect("re-probe rate-converted M4B");
+    let probe =
+        get_file_list_info(&[&output], AacDecoder::Auto).expect("re-probe rate-converted M4B");
     assert_eq!(probe.valid_count, 1, "output M4B probes as valid audio");
     assert_eq!(
         probe.files[0].sample_rate,
@@ -2002,7 +2022,7 @@ async fn apple_auto_merge_preserves_distinct_stereo_in_either_input_order() {
     .await;
 }
 
-async fn assert_auto_merge_stereo(settings: EncoderSettings) {
+pub(crate) async fn assert_auto_merge_stereo(settings: EncoderSettings) {
     let fixtures = TempDir::new().expect("mixed channel fixtures");
     let mono = fixtures.path().join("mono.wav");
     let stereo = fixtures.path().join("stereo.wav");
@@ -2017,7 +2037,8 @@ async fn assert_auto_merge_stereo(settings: EncoderSettings) {
             ..settings.clone()
         });
         let output = lane.process(None).await;
-        let probe = get_file_list_info(&[&output]).expect("re-probe mixed-channel M4B");
+        let probe =
+            get_file_list_info(&[&output], AacDecoder::Auto).expect("re-probe mixed-channel M4B");
         assert_eq!(probe.files[0].channels, Some(2), "Auto preserves stereo");
         let samples = decode_pcm_f32(&output);
         let frames = samples.as_chunks::<2>().0;
@@ -2115,8 +2136,10 @@ async fn cue_chapters_survive_mp3_encoding_and_finalization() {
     assert!(lane.residual_workspace_dirs().is_empty());
 }
 
-fn accepted_chapters(path: &Path) -> Vec<(Option<String>, i64, i64)> {
-    get_file_list_info(&[path]).expect("import fixture").files[0]
+pub(crate) fn accepted_chapters(path: &Path) -> Vec<(Option<String>, i64, i64)> {
+    get_file_list_info(&[path], AacDecoder::Auto)
+        .expect("import fixture")
+        .files[0]
         .chapter_plan
         .as_ref()
         .expect("accepted chapter plan")
@@ -2127,7 +2150,7 @@ fn accepted_chapters(path: &Path) -> Vec<(Option<String>, i64, i64)> {
 }
 
 fn duration_ms(path: &Path) -> i64 {
-    let info = get_file_list_info(&[path]).expect("probe fixture length");
+    let info = get_file_list_info(&[path], AacDecoder::Auto).expect("probe fixture length");
     (info.files[0].duration.expect("fixture length") * 1000.0).round() as i64
 }
 
@@ -2188,7 +2211,7 @@ fn single_title_payload(
 ) -> abb_engine::processing::ProcessPayload {
     fs::create_dir_all(output_dir).expect("output folder");
     serde_json::from_value(serde_json::json!({
-        "inputFiles": [source], "audioRequests": [request], "outputDir": output_dir
+        "inputFiles": [source], "audioRequests": [request], "outputDir": output_dir, "aacDecoder": "auto"
     }))
     .expect("single-title request")
 }
@@ -2243,7 +2266,8 @@ async fn drifting_embedded_chapters_convert_on_every_route() {
             ],
             &source,
         );
-        let imported = get_file_list_info(&[&source]).expect("drifting chapters import");
+        let imported =
+            get_file_list_info(&[&source], AacDecoder::Auto).expect("drifting chapters import");
         let file = &imported.files[0];
         let plan = &file
             .chapter_plan
@@ -2314,7 +2338,7 @@ fn a_joined_mp3_imports_with_its_chapters_and_saves_its_tags() {
     let mut bytes = fs::read(&chaptered).expect("read first part");
     bytes.extend(fs::read(&second).expect("read second part"));
     fs::write(&joined, bytes).expect("join parts");
-    let imported = get_file_list_info(&[&joined]).expect("probe joined MP3");
+    let imported = get_file_list_info(&[&joined], AacDecoder::Auto).expect("probe joined MP3");
     let file = &imported.files[0];
     assert!(file.is_valid, "{:?}", file.error);
     let estimated = file.duration.expect("joined length");
@@ -2423,7 +2447,9 @@ async fn preserving_an_m4b_whose_chapters_end_short_keeps_its_freeform_tags() {
     let end = duration_ms(&audio);
     let source = tmp.path().join("book.m4b");
     mux_chapters(&audio, &[("One", 0, 400), ("Two", 400, end - 60)], &source);
-    let accepted = get_file_list_info(&[&source]).expect("import M4B").files[0]
+    let accepted = get_file_list_info(&[&source], AacDecoder::Auto)
+        .expect("import M4B")
+        .files[0]
         .chapter_plan
         .clone()
         .expect("accepted chapter plan")
@@ -2529,7 +2555,8 @@ async fn joined_title_drops_an_unpreparable_source_cover_but_not_a_chosen_one() 
                 intent: AudioIntent::Preserve,
                 sample_rate: SampleRateConfig::Auto,
             }],
-            "outputDir": output_dir
+            "outputDir": output_dir,
+            "aacDecoder": "auto"
         }))
         .expect("joined title request")
     };
@@ -2673,347 +2700,6 @@ async fn prepending_chapterless_audio_preserves_later_embedded_chapter_positions
     assert!(lane.residual_workspace_dirs().is_empty());
 }
 
-fn faac_encoder_settings() -> EncoderSettings {
-    EncoderSettings {
-        encoder_type: EncoderType::Faac,
-        faac_profile: abb_engine::audio::FaacProfile::HeAacV1,
-        bitrate_mode: BitrateMode::Abr,
-        ..native_encoder_settings()
-    }
-}
-
-#[tokio::test]
-async fn faac_he_merge_preserves_metadata_chapters_and_resampled_channels() {
-    for (sample_rate, source_rate, expected_rate) in [
-        (SampleRateConfig::Explicit(32000), 44100_u32, 32000),
-        (SampleRateConfig::Explicit(44100), 44100, 44100),
-        (SampleRateConfig::Explicit(48000), 44100, 48000),
-        (SampleRateConfig::Auto, 22050, 32000),
-    ] {
-        let lane = MediaLane::with_fixtures(&[0.13, 0.17])
-            .with_encoder(faac_encoder_settings())
-            .with_sample_rate(sample_rate);
-        if source_rate != SAMPLE_RATE {
-            for path in &lane.inputs {
-                let mut bytes = fs::read(path).expect("fixture value");
-                bytes[24..28].copy_from_slice(&source_rate.to_le_bytes());
-                bytes[28..32].copy_from_slice(&(source_rate * 2).to_le_bytes());
-                fs::write(path, bytes).expect("fixture value");
-            }
-            let plan = abb_engine::audio::resolve_title_audio(
-                &title_audio_request(
-                    abb_engine::audio::AudioIntent::Encode,
-                    faac_encoder_settings(),
-                ),
-                &get_file_list_info(&lane.inputs).expect("fixture value"),
-                false,
-            )
-            .expect("FAAC HE Auto plans its required source-rate conversion");
-            assert_eq!(plan.sample_rate, expected_rate);
-        }
-        let mut metadata = AudiobookMetadata::new();
-        metadata.title = Some("FAAC Merge".into());
-        let output = lane.process(Some(metadata)).await;
-        let probe = get_file_list_info(&[&output]).expect("fixture value");
-        assert_eq!(probe.valid_count, 1);
-        assert_eq!(probe.files[0].sample_rate, Some(expected_rate));
-        assert_eq!(
-            probe.files[0].channels,
-            Some(1),
-            "mono HE must not be inferred as PS stereo"
-        );
-        assert!(
-            (probe.total_duration - 0.3 * f64::from(SAMPLE_RATE) / f64::from(source_rate)).abs()
-                < 0.002
-        );
-        let tags = read_metadata(&output).expect("fixture value");
-        assert_eq!(tags.title.as_deref(), Some("FAAC Merge"));
-        assert_eq!(probe.files[0].chapters.len(), 2);
-        assert!(lane.residual_workspace_dirs().is_empty());
-    }
-}
-
-#[tokio::test]
-async fn faac_auto_merge_preserves_distinct_stereo_in_either_input_order() {
-    assert_auto_merge_stereo(faac_encoder_settings()).await;
-}
-
-#[tokio::test]
-async fn faac_preview_omits_chapters_and_rejects_unsupported_rate_without_residue() {
-    let lane = MediaLane::with_fixtures(&[6.0, 6.0]).with_encoder(faac_encoder_settings());
-    let mut context = lane.context(ProcessingSession::new());
-    context.preview = Some(abb_engine::processing::PreviewConfig::new(10.0));
-    let info = get_file_list_info(&lane.inputs).expect("fixture value");
-    execute_audio_engine(AudioExecutionRequest::new(
-        context,
-        info,
-        None,
-        CoverArtPassthroughPolicy::Preserve,
-        lane.handling(),
-    ))
-    .await
-    .expect("fixture value");
-    let probe = get_file_list_info(&[lane.output_path()]).expect("fixture value");
-    assert!(
-        (probe.total_duration - 10.0).abs() < 0.1,
-        "preview duration {}",
-        probe.total_duration
-    );
-    assert!(probe.files[0].chapters.is_empty());
-    assert!(lane.residual_workspace_dirs().is_empty());
-
-    let invalid = MediaLane::with_fixtures(&[0.1])
-        .with_encoder(faac_encoder_settings())
-        .with_sample_rate(SampleRateConfig::Explicit(22050));
-    assert!(
-        execute_audio_engine(invalid.execution_request(ProcessingSession::new(), None))
-            .await
-            .is_err()
-    );
-    assert!(!invalid.output_path().exists());
-    assert!(invalid.residual_workspace_dirs().is_empty());
-}
-
-#[cfg(target_os = "macos")]
-#[tokio::test]
-async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
-    for profile in [
-        abb_engine::audio::FaacProfile::HeAacV1,
-        abb_engine::audio::FaacProfile::AacLc,
-    ] {
-        for samples in [257, 4096, 12117] {
-            let lane = MediaLane::with_fixtures(&[f64::from(samples) / f64::from(SAMPLE_RATE)])
-                .with_encoder(EncoderSettings {
-                    faac_profile: profile,
-                    ..faac_encoder_settings()
-                });
-            let source = decode_pcm_f32(&lane.inputs[0]);
-            let output = lane.process(None).await;
-            let decoded_path = lane.tmp.path().join("apple.wav");
-            let converted = Command::new("afconvert")
-                .args(["-f", "WAVE", "-d", "LEF32"])
-                .arg(&output)
-                .arg(&decoded_path)
-                .output()
-                .expect("fixture value");
-            assert!(
-                converted.status.success(),
-                "{}",
-                String::from_utf8_lossy(&converted.stderr)
-            );
-            let decoded = decode_pcm_f32(&decoded_path);
-            // HE's half-rate timeline cannot express an odd full-rate duration.
-            // Even HE durations and LC must retain an exact sample count.
-            let tolerance =
-                usize::from(profile == abb_engine::audio::FaacProfile::HeAacV1 && samples % 2 != 0);
-            assert!(
-                decoded.len().abs_diff(source.len()) <= tolerance,
-                "Apple playable sample count: source={} decoded={}",
-                source.len(),
-                decoded.len()
-            );
-            let tail = &decoded[decoded.len() - 32..];
-            let rms = (tail
-                .iter()
-                .map(|value| f64::from(*value).powi(2))
-                .sum::<f64>()
-                / 32.0)
-                .sqrt();
-            assert!(rms > 0.05, "missing final audio tail: {rms}");
-        }
-    }
-}
-
-#[tokio::test]
-async fn faac_reimport_preserves_audio_alignment_and_tail() {
-    assert_faac_reimport(
-        faac_encoder_settings(),
-        "AudioBook Boss FAAC HE-AAC timing-2",
-        native_encoder_settings(),
-        &[
-            (32000, 4096),
-            (44100, 12117),
-            (48000, 22050),
-            (44100, 22050),
-        ],
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn faac_lc_and_auto_vbr_reimport_preserve_audio_interval() {
-    use abb_engine::audio::FaacProfile;
-    for (profile, mode, tool) in [
-        (
-            FaacProfile::AacLc,
-            BitrateMode::Abr,
-            "AudioBook Boss FAAC AAC-LC",
-        ),
-        (
-            FaacProfile::Auto,
-            BitrateMode::Vbr(100),
-            "AudioBook Boss FAAC AAC-LC",
-        ),
-        (
-            FaacProfile::Auto,
-            BitrateMode::Vbr(50),
-            "AudioBook Boss FAAC HE-AAC timing-2",
-        ),
-        (
-            FaacProfile::HeAacV1,
-            BitrateMode::Vbr(100),
-            "AudioBook Boss FAAC HE-AAC timing-2",
-        ),
-    ] {
-        let input = EncoderSettings {
-            faac_profile: profile,
-            bitrate_mode: mode,
-            ..faac_encoder_settings()
-        };
-        let cases: &[(u32, u32)] = if profile == FaacProfile::AacLc {
-            &[(22050, 8192), (44100, 12117)]
-        } else if profile == FaacProfile::HeAacV1 {
-            &[(44100, 12117), (48000, 22050)]
-        } else {
-            &[(44100, 12117), (48000, 22050), (96000, 32768)]
-        };
-        assert_faac_reimport(input, tool, native_encoder_settings(), cases).await;
-    }
-}
-
-fn fill_with_filtered_noise(pcm16: &mut [u8]) {
-    let mut state = 42u32;
-    let mut filtered = 0.0_f64;
-    for sample in pcm16.as_chunks_mut::<2>().0 {
-        state = state.wrapping_mul(1664525).wrapping_add(1013904223);
-        let noise = f64::from(state) / f64::from(u32::MAX) - 0.5;
-        filtered = filtered * 0.85 + noise * 0.15;
-        sample.copy_from_slice(&((filtered * 50000.0) as i16).to_le_bytes());
-    }
-}
-
-/// Apple's HE-AAC declares iTunSMPB priming without the HE decoder's SBR
-/// delay, as upstream FAAC's frontend does.
-#[cfg(target_os = "macos")]
-#[tokio::test]
-async fn apple_he_aac_with_itunsmpb_reimports_aligned_and_full_length() {
-    let lane = MediaLane::with_fixtures(&[2.0]);
-    let mut wav = fs::read(&lane.inputs[0]).expect("fixture value");
-    fill_with_filtered_noise(&mut wav[44..]);
-    fs::write(&lane.inputs[0], wav).expect("fixture value");
-    let source = decode_pcm_f32(&lane.inputs[0]);
-    let he = lane.tmp.path().join("apple-he.m4a");
-    let encoded = Command::new("afconvert")
-        .args(["-f", "m4af", "-d", "aach", "-b", "32000"])
-        .arg(&lane.inputs[0])
-        .arg(&he)
-        .output()
-        .expect("fixture value");
-    assert!(
-        encoded.status.success(),
-        "{}",
-        String::from_utf8_lossy(&encoded.stderr)
-    );
-    // Bound so its temp dir, which holds the export, outlives the readback.
-    let reimport = MediaLane::for_inputs(vec![he]);
-    let output = reimport.process(None).await;
-    let decoded = decode_pcm_f32(&output);
-    assert_eq!(decoded.len(), source.len(), "playable sample count");
-    let lag = best_signal_lag(&source, &decoded, 1200);
-    assert!(
-        lag.abs() <= 2,
-        "audio shifted by {lag} samples (962 is the untrimmed SBR delay)"
-    );
-}
-
-async fn assert_faac_reimport(
-    input_settings: EncoderSettings,
-    expected_tool: &str,
-    output_settings: EncoderSettings,
-    cases: &[(u32, u32)],
-) {
-    for &(rate, samples) in cases {
-        let lane = MediaLane::with_fixtures(&[f64::from(samples) / f64::from(SAMPLE_RATE)])
-            .with_encoder(input_settings.clone());
-        let mut wav = fs::read(&lane.inputs[0]).expect("fixture value");
-        wav[24..28].copy_from_slice(&rate.to_le_bytes());
-        wav[28..32].copy_from_slice(&(rate * 2).to_le_bytes());
-        fill_with_filtered_noise(&mut wav[44..]);
-        fs::write(&lane.inputs[0], wav).expect("fixture value");
-        let source = decode_pcm_f32(&lane.inputs[0]);
-        let faac_output = lane.process(None).await;
-        if rate == 44100 && samples == 22050 {
-            save_metadata_intent(
-                &faac_output,
-                &MetadataIntentPatch {
-                    title: Some(PatchOp::Set("Edited FAAC book".into())),
-                    ..Default::default()
-                },
-            )
-            .expect("unrelated metadata edit preserves timing provenance");
-        }
-        assert_ffprobe_tag(&ffprobe_format_tags(&faac_output), "encoder", expected_tool);
-        let reimport =
-            MediaLane::for_inputs(vec![faac_output]).with_encoder(output_settings.clone());
-        let second_output = reimport.process(None).await;
-        let expected_channels = if output_settings.channels == ChannelConfig::Stereo {
-            2
-        } else {
-            1
-        };
-        let inspected =
-            get_file_list_info(std::slice::from_ref(&second_output)).expect("fixture value");
-        assert_eq!(
-            inspected.files[0].channels,
-            Some(expected_channels),
-            "declared output channels"
-        );
-        let decoded = decode_pcm_f32(&second_output);
-        let decoded = if output_settings.channels == ChannelConfig::Stereo {
-            decoded
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|frame| frame[0])
-                .collect::<Vec<_>>()
-        } else {
-            decoded
-        };
-        assert_eq!(
-            decoded.len(),
-            source.len(),
-            "playable count at {rate} Hz / {samples} samples"
-        );
-        let lag = best_signal_lag(&source, &decoded, 1200);
-        assert!(
-            lag.abs() <= 2,
-            "audio shifted by {lag} samples at {rate} Hz"
-        );
-        let tail = &decoded[decoded.len() - 512..];
-        let energy = tail.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>() / tail.len() as f64;
-        assert!(
-            energy.sqrt() > 0.03,
-            "missing tail at {rate} Hz / {samples} samples: rms={}",
-            energy.sqrt()
-        );
-    }
-}
-
-fn best_signal_lag(reference: &[f32], decoded: &[f32], radius: i32) -> i32 {
-    let start = radius as usize;
-    let end = reference.len().min(decoded.len()) - radius as usize;
-    (-radius..=radius)
-        .map(|lag| {
-            let score = (start..end)
-                .map(|i| f64::from(reference[i]) * f64::from(decoded[(i as i32 + lag) as usize]))
-                .sum::<f64>();
-            (lag, score)
-        })
-        .max_by(|left, right| left.1.total_cmp(&right.1))
-        .expect("fixture value")
-        .0
-}
-
 fn write_complete_frame_aac(path: &Path, frequency: u32) {
     let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
     let raw = path.with_extension("aac");
@@ -3073,7 +2759,7 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
     fs::create_dir(&output_dir).expect("fixture value");
     let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
         "inputFiles": [one], "titleSources": {one.to_str().expect("fixture value"): [{"path": two}, {"path": one}]},
-        "outputDir": output_dir, "audioRequests": [title_audio_request(
+        "outputDir": output_dir, "aacDecoder": "auto", "audioRequests": [title_audio_request(
  abb_engine::audio::AudioIntent::Preserve, native_encoder_settings())]
     })).expect("fixture value");
     let metadata = std::collections::HashMap::from([(
@@ -3109,7 +2795,7 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
         OutputConfig::new(&destination),
         workspace.clone(),
     );
-    let info = get_file_list_info(&paths).expect("fixture value");
+    let info = get_file_list_info(&paths, AacDecoder::Auto).expect("fixture value");
     let title_metadata = AudiobookMetadata {
         title: Some("One grouped title".into()),
         cover_art: Some(minimal_jpg_bytes()),
@@ -3157,7 +2843,7 @@ async fn preserved_title_rejects_interior_priming_without_publishing() {
     fs::copy(&source, &copy).expect("fixture value");
     let destination = tmp.path().join("must-not-exist.m4b");
     let workspace = tmp.path().join("workspace");
-    let info = get_file_list_info(&[source, copy]).expect("fixture value");
+    let info = get_file_list_info(&[source, copy], AacDecoder::Auto).expect("fixture value");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
         SampleRateConfig::Auto,
@@ -3200,7 +2886,7 @@ fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
     let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
         "inputFiles": [first],
         "titleSources": {first.to_str().expect("fixture value"): [{"path": second}, {"path": first}]},
-        "outputDir": output_dir,
+        "outputDir": output_dir, "aacDecoder": "auto",
         "audioRequests": [title_audio_request(
  abb_engine::audio::AudioIntent::Encode, native_encoder_settings())]
     }))
@@ -3275,7 +2961,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         };
         let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
             "inputFiles": [&anchor], "titleSources": {&anchor: paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
-            "audioRequests": [request], "outputDir": out
+            "audioRequests": [request], "outputDir": out, "aacDecoder": "auto"
         })).expect("fixture value");
         let metadata = AudiobookMetadata {
             title: Some("Opus title".into()),
@@ -3293,7 +2979,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
             destination.extension().expect("fixture value"),
             format.extension()
         );
-        let info = get_file_list_info(&paths).expect("fixture value");
+        let info = get_file_list_info(&paths, AacDecoder::Auto).expect("fixture value");
         let duration = info.total_duration;
         let context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(ProcessingSession::new()),
@@ -3310,7 +2996,8 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         ))
         .await
         .expect("Opus title output");
-        let audio = get_file_list_info(std::slice::from_ref(&destination)).expect("fixture value");
+        let audio = get_file_list_info(std::slice::from_ref(&destination), AacDecoder::Auto)
+            .expect("fixture value");
         assert!(audio.files[0]
             .codec_label
             .as_deref()
@@ -3354,7 +3041,8 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         } else {
             AudiobookFormat::M4aOpus
         };
-        let info = get_file_list_info(std::slice::from_ref(&destination)).expect("fixture value");
+        let info = get_file_list_info(std::slice::from_ref(&destination), AacDecoder::Auto)
+            .expect("fixture value");
         let copy_plan = abb_engine::audio::resolve_title_audio(
             &TitleAudioRequest {
                 output: abb_engine::audio::OutputAudio::new(
@@ -3512,7 +3200,8 @@ async fn opus_remux_keeps_variable_frame_timing_and_trim() {
             String::from_utf8_lossy(&created.stderr)
         );
         let source_samples = decode_pcm_f32(&source).len();
-        let info = get_file_list_info(std::slice::from_ref(&source)).expect("fixture value");
+        let info = get_file_list_info(std::slice::from_ref(&source), AacDecoder::Auto)
+            .expect("fixture value");
         let context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(ProcessingSession::new()),
             SampleRateConfig::Auto,
@@ -3539,7 +3228,7 @@ async fn opus_remux_keeps_variable_frame_timing_and_trim() {
     }
 }
 
-fn title_audio_request(
+pub(crate) fn title_audio_request(
     intent: abb_engine::audio::AudioIntent,
     settings: EncoderSettings,
 ) -> abb_engine::audio::TitleAudioRequest {
@@ -3589,7 +3278,7 @@ async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
     };
     let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
         "inputFiles": [anchor], "titleSources": {anchor.to_str().expect("fixture value"): paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
-        "audioRequests": [request], "outputDir": tmp.path()
+        "audioRequests": [request], "outputDir": tmp.path(), "aacDecoder": "auto"
     })).expect("fixture value");
     let plan = preflight_processing_plan(payload, None, None).expect("fixture value");
     assert_eq!(plan.audio_plans[0].handling, AudioHandling::Preserve);
@@ -3609,7 +3298,7 @@ async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
     };
     execute_audio_engine(AudioExecutionRequest::new(
         context,
-        get_file_list_info(&paths).expect("fixture value"),
+        get_file_list_info(&paths, AacDecoder::Auto).expect("fixture value"),
         Some(metadata),
         CoverArtPassthroughPolicy::Preserve,
         plan.audio_plans[0].handling.clone(),
@@ -3645,7 +3334,7 @@ async fn default_audio_plan_reduces_large_aac_but_explicit_keep_never_encodes() 
             ..native_encoder_settings()
         });
         let source = lane.process(None).await;
-        let info = get_file_list_info(&[&source]).expect("fixture value");
+        let info = get_file_list_info(&[&source], AacDecoder::Auto).expect("fixture value");
         let bitrate = info.files[0].bitrate.expect("fixture value");
         assert_eq!(bitrate <= 72_000, kept_unchanged);
         let mut request = title_audio_request(

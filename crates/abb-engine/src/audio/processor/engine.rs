@@ -57,12 +57,17 @@ pub(crate) fn process_input_file(
 
     log::info!("Setting up decoder and resampler for: {}", input_label);
     let (mut ictx, mut decoder, mut resampler, stream_index, decode_window) =
-        crate::audio::processor::streams::setup_decoder_and_resampler(input_path, encoder)?;
+        crate::audio::processor::streams::setup_decoder_and_resampler(
+            input_path,
+            encoder,
+            ctx.context.aac_decoder,
+        )?;
     if let Some(input_facts) = input_facts {
         input_facts.push(format!(
-            "file={} codec={:?} rate={} channels={}",
+            "file={} codec={:?} decoder={} rate={} channels={}",
             sanitize_path_for_display(input_path),
             decoder.id(),
+            decoder.name(),
             decoder.rate(),
             decoder.channels()
         ));
@@ -267,7 +272,8 @@ fn probe_first_sample_rate(plan: &MediaProcessingPlan) -> Result<u32> {
         .input_file_paths
         .first()
         .ok_or_else(|| AppError::InvalidInput("No input files provided".to_string()))?;
-    let inspection = crate::audio::processor::streams::inspect_audio_decoder(first)?;
+    let inspection =
+        crate::audio::processor::streams::inspect_audio_decoder(first, plan.aac_decoder)?;
     log::info!(
         "probe_first_input path={} selected_decoder={} rate={} channels={}",
         sanitize_path_for_display(first),

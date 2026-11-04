@@ -33,9 +33,14 @@ _Static_assert(TNS_MAX_ORDER <= (1 << LEN_TNS_ORDERL) - 1,
  */
 int InitElements(AACElement * __restrict elements, int *numElements, int numChannels, bool useLfe)
 {
+#if MAX_CHANNELS < 6
+    (void)useLfe;
+#endif
     uint8_t sceTag = 0;
     uint8_t cpeTag = 0;
+#if MAX_CHANNELS >= 6
     uint8_t lfeTag = 0;
+#endif
 
     int currentElem = 0;
     int currentCh = 0;
@@ -67,13 +72,17 @@ int InitElements(AACElement * __restrict elements, int *numElements, int numChan
 
     // Residual SCE or LFE
     if (channelsRemaining == 1) {
+#if MAX_CHANNELS >= 6
         if (useLfe) {
             elements[currentElem].type = ID_LFE;
             elements[currentElem].tag = lfeTag++;
         } else {
+#endif
             elements[currentElem].type = ID_SCE;
             elements[currentElem].tag = sceTag++;
+#if MAX_CHANNELS >= 6
         }
+#endif
         elements[currentElem].channels[0] = currentCh++;
         elements[currentElem].channels[1] = -1;
 
@@ -88,7 +97,7 @@ static int WriteICSInfo(BitStream *bs, CoderInfo *coder)
 {
     PutBit(bs, 0, LEN_ICS_RESERV);
     PutBit(bs, coder->block_type, LEN_WIN_SEQ);
-    PutBit(bs, 0, LEN_WIN_SH); /* window_shape: sine */
+    PutBit(bs, coder->window_shape, LEN_WIN_SH);
     int bits = LEN_ICS_RESERV + LEN_WIN_SEQ + LEN_WIN_SH;
 
     if (coder->block_type == ONLY_SHORT_WINDOW) {
@@ -174,9 +183,10 @@ static int WriteICS(BitStream *bs, CoderInfo *coder, bool commonWindow)
     BitAccumulator acc = {0};
     AccumBegin(&acc, bs);
     for (int i = 0; i < coder->datacnt; i++) {
-        if (coder->s[i].len > 0) {
-            AccumPutBits(&acc, (uint32_t)coder->s[i].data, coder->s[i].len);
-            bits += coder->s[i].len;
+        int len = coder->s[i] >> 24;
+        if (len > 0) {
+            AccumPutBits(&acc, coder->s[i] & 0xffffff, len);
+            bits += len;
         }
     }
     AccumEnd(&acc);
@@ -192,7 +202,9 @@ int WriteElement(BitStream *bs, AACElement *elem, CoderInfo *coder)
 
     switch (elem->type) {
         case ID_SCE:
+#if MAX_CHANNELS >= 6
         case ID_LFE:
+#endif
             bits += WriteICS(bs, &coder[elem->channels[0]], false);
             break;
 
@@ -202,14 +214,18 @@ int WriteElement(BitStream *bs, AACElement *elem, CoderInfo *coder)
 
             if (elem->common_window) {
                 bits += WriteICSInfo(bs, &coder[elem->channels[0]]);
-                PutBit(bs, elem->msInfo.is_present, LEN_MASK_PRES);
-                if (elem->msInfo.is_present == 1) {
-                    int n = coder[elem->channels[0]].groups.n * coder[elem->channels[0]].sfbn;
-                    for (int i = 0; i < n; i++) PutBit(bs, elem->msInfo.ms_used[i], LEN_MASK);
-                }
+                /* The quantizer can revert M/S bands (e.g. to PNS) after the
+                 * stereo decision, so signal the mask only if a band still uses it. */
+                int n = coder[elem->channels[0]].groups.n * coder[elem->channels[0]].sfbn;
+                int first = 0;
+                while (first < n && !elem->msInfo.ms_used[first]) first++;
+                bool msPresent = first < n;
+                PutBit(bs, msPresent, LEN_MASK_PRES);
                 bits += LEN_MASK_PRES;
-                if (elem->msInfo.is_present == 1)
-                    bits += coder[elem->channels[0]].groups.n * coder[elem->channels[0]].sfbn * LEN_MASK;
+                if (msPresent) {
+                    for (int i = 0; i < n; i++) PutBit(bs, elem->msInfo.ms_used[i], LEN_MASK);
+                    bits += n * LEN_MASK;
+                }
             }
             bits += WriteICS(bs, &coder[elem->channels[0]], elem->common_window);
             bits += WriteICS(bs, &coder[elem->channels[1]], elem->common_window);
@@ -219,25 +235,21 @@ int WriteElement(BitStream *bs, AACElement *elem, CoderInfo *coder)
     return bits;
 }
 
-static int WriteADTSHeader(struct faacEncStruct *hEncoder, BitStream *bs)
+#if MAX_CHANNELS >= 8
+/* The in-band PCE: element id, body, byte alignment and an empty comment.
+ * Two back CPEs match fdkaac's rear-surround convention: the first carries
+ * sides, the second rears. Configuration 7 would instead declare 7.1 wide.
+ * Only the sampling frequency index varies, so it is patched into byte 1 of
+ * an otherwise constant image. */
+void BuildPCE(uint8_t pce[PCE_ADTS_BYTES], int sampleRateIdx)
 {
-    int channelConfig = GetChannelConfig((int)hEncoder->numChannels);
-    PutBit(bs, 0xFFF,                        LEN_ADTS_SYNC);
-    PutBit(bs, hEncoder->config.mpegVersion, LEN_ADTS_ID);
-    PutBit(bs, 0,                            LEN_ADTS_LAYER);
-    PutBit(bs, 1,                            LEN_ADTS_ABSENT);
-    /* profile: always LC. HE-AAC's core is LC too; SBR is implicit via fill element. */
-    PutBit(bs, LOW - 1,                      LEN_ADTS_PROFILE);
-    PutBit(bs, hEncoder->sampleRateIdx,       LEN_ADTS_FREQ);
-    PutBit(bs, 0,                            LEN_ADTS_PRIV);
-    PutBit(bs, channelConfig,                LEN_ADTS_CH_CFG);
-    PutBit(bs, 0,                            LEN_ADTS_ORIG + LEN_ADTS_HOME);
-    PutBit(bs, 0,                            LEN_ADTS_COPY_ID + LEN_ADTS_COPY_ST);
-    PutBit(bs, hEncoder->usedBytes,          LEN_ADTS_FRAME);
-    PutBit(bs, 0x7FF,                        LEN_ADTS_FULL);
-    PutBit(bs, 0,                            LEN_ADTS_BLOCKS);
-    return 56;
+    static const uint8_t image[PCE_ADTS_BYTES] = {
+        0xa0, 0x81, 0x01, 0x20, 0x00, 0x21, 0x19, 0x00, 0x00
+    };
+    memcpy(pce, image, sizeof(image));
+    pce[1] |= (uint8_t)(sampleRateIdx << 3);
 }
+#endif
 
 static int WriteAACFillBits(BitStream *bs, int numBits)
 {
@@ -263,7 +275,30 @@ static int WriteAACFillBits(BitStream *bs, int numBits)
 static int BuildFrame(struct faacEncStruct *hEncoder, CoderInfo *coder, AACElement *elems, int nElems, BitStream *bs)
 {
     int bits = 0;
-    if (hEncoder->config.outputFormat == 1) bits += WriteADTSHeader(hEncoder, bs);
+    if (hEncoder->config.outputFormat == 1) {
+        /* Reserve the header; PatchADTSHeader fills it once the size is known. */
+        bits = ADTS_HEADER_SIZE * 8;
+        bs->currentBit += bits;
+    }
+#if MAX_CHANNELS >= 8
+    /* The PCE must open the raw_data_block while the bitstream is still byte
+     * aligned. The DRC fill element is 31 bits, so writing it first would
+     * misalign the memcpy below and corrupt the PCE on 8-channel streams. */
+    if (hEncoder->config.outputFormat == 1 && HasPCE((int)hEncoder->numChannels)
+        && ((hEncoder->frameNum - LOOKAHEAD_DEPTH - 1) & (PCE_REPEAT_FRAMES - 1)) == 0) {
+        if (bs->data)
+            memcpy(bs->data + (bs->currentBit >> 3), hEncoder->pce, sizeof(hEncoder->pce));
+        bs->currentBit += sizeof(hEncoder->pce) * 8;
+        bits += sizeof(hEncoder->pce) * 8;
+    }
+#endif
+#if FAAC_ENCODER_DRC
+    /* DRC fill element is emitted once per frame before the channel elements. */
+    if (hEncoder->drcInfo.enabled) {
+        int drcBits = DrcGetBits(&hEncoder->drcInfo, bs);
+        bits += drcBits;
+    }
+#endif
     /* SBR follows each SCE/CPE in a fill element; rate control charges only
      * the core, so its total is kept aside. */
     int sbrBits = 0;
@@ -298,15 +333,15 @@ static int BuildFrame(struct faacEncStruct *hEncoder, CoderInfo *coder, AACEleme
     return bits + pad;
 }
 
-/* Frame length and buffer_fullness are known only once the frame is written;
- * patching the 7 fixed-layout bytes keeps BuildFrame to one pass. Must match
- * WriteADTSHeader apart from those two fields. buffer_fullness is the reservoir
+/* Fill the seven reserved ADTS bytes once the frame length is known.
+ * The profile is LC, including for HE-AAC's core; SBR is in its fill elements.
+ * buffer_fullness is the reservoir
  * after this frame in 32-bit words (ISO/IEC 13818-7 6.2.2); 0x7FF = none. */
 static void PatchADTSHeader(struct faacEncStruct *hEncoder, BitStream *bs, int frameBytes)
 {
     if (hEncoder->config.outputFormat == 1 && bs->data) {
         int fullness = 0x7FF;
-        int channelConfig = GetChannelConfig((int)hEncoder->numChannels);
+        int channelConfig = SignaledChannelConfig(CoreChannels(hEncoder->config.aacObjectType, (int)hEncoder->numChannels));
         if (hEncoder->rc.resMean)
             fullness = RateControlReservoirAfter(&hEncoder->rc, (frameBytes - ADTS_HEADER_SIZE) * 8) >> 5;
         bs->data[0] = 0xFF;
@@ -321,8 +356,6 @@ static void PatchADTSHeader(struct faacEncStruct *hEncoder, BitStream *bs, int f
 
 int WriteBitstream(struct faacEncStruct *hEncoder, CoderInfo *coder, AACElement *elems, int nElems, BitStream *bs)
 {
-    /* Zero so the header's own length field is written as zero, then patched. */
-    hEncoder->usedBytes = 0;
     bs->currentBit = 0;
     int bits = BuildFrame(hEncoder, coder, elems, nElems, bs);
     if (bits < 0) return -1;

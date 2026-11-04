@@ -2,6 +2,7 @@ mod audio;
 mod audio_choice;
 mod exports;
 mod import_order;
+mod intent;
 mod lookup;
 mod metadata_form;
 mod output;
@@ -20,6 +21,7 @@ pub use audio::{
 };
 pub use audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, EncoderOption, FaacRateControl};
 pub use exports::{OutputEdits, RestartOffer};
+pub use intent::{SessionIntent, SessionOutcome, SessionReply};
 pub use lookup::{
     LookupApplyMode, LookupQueuePosition, LookupSnapshot, LookupSource, LookupStatus, QueueStep,
 };
@@ -29,8 +31,8 @@ pub use metadata_form::{
 };
 pub use output::{OutputPreview, OutputSnapshot};
 pub use plans::{SizeEstimate, TitlePlan};
+pub use runtime::SessionRun;
 pub(crate) use runtime::{Session, SessionDeps};
-pub use runtime::{SessionIntent, SessionOutcome, SessionReply, SessionRun};
 pub use state::{
     CoverNotice, CoverSnapshot, MetadataSnapshot, MetadataStatus, SessionUpdate, TagPreview,
 };

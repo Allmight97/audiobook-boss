@@ -150,6 +150,19 @@ describe('AppSettingsDialogView', () => {
 		});
 	});
 
+	it('sends the AAC decoder choice and shows the decoder the engine holds', async () => {
+		await renderOpenDialog();
+
+		expect(screen.getByTestId('app-settings-aac-decoder-auto')).toBeChecked();
+		fireEvent.click(screen.getByTestId('app-settings-aac-decoder-faad'));
+		flush();
+
+		await vi.waitFor(() => {
+			expect(screen.getByTestId('app-settings-aac-decoder-faad')).toBeChecked();
+		});
+		expect(engine.settingsIntents).toContainEqual({ kind: 'setAacDecoder', decoder: 'faad' });
+	});
+
 	it('shows the awake preference the engine holds and keeps a choice that could not be saved', async () => {
 		await renderOpenDialog();
 

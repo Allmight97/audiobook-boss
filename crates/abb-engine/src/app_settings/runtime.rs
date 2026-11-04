@@ -8,6 +8,7 @@ use super::{
     EncoderDefaults, OutputDefaults, PinnedDefaults, SettingsRecovery, SettingsUnit,
     StartupBehavior,
 };
+use crate::audio::AacDecoder;
 use crate::errors::{AppError, AppErrorEnvelope};
 use crate::power::PowerManager;
 use crate::processing::{JobRegistry, MaxConcurrentJobsCapabilities};
@@ -30,6 +31,11 @@ pub enum SettingsIntent {
     },
     SetKeepAwake {
         enabled: bool,
+    },
+    /// Chooses the decoder for AAC sources in imports, previews, and exports
+    /// accepted from now on.
+    SetAacDecoder {
+        decoder: AacDecoder,
     },
     SetStartupBehavior {
         behavior: StartupBehavior,
@@ -109,6 +115,7 @@ struct Inner {
     config_dir: PathBuf,
     jobs: ManagedJobRegistry,
     power: PowerManager,
+    aac_decoder: Mutex<AacDecoder>,
     state: tokio::sync::Mutex<State>,
     /// Completion of the last accepted intent, independent of host waits.
     turn: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
@@ -198,17 +205,28 @@ impl SettingsRuntime {
         }
         state.recovery =
             (!recovery.reset.is_empty() || recovery.set_aside_as.is_some()).then_some(recovery);
+        let aac_decoder = Mutex::new(accepted.aac_decoder);
         state.accepted = accepted;
         let runtime = Self {
             inner: Arc::new(Inner {
                 config_dir,
                 jobs: Arc::clone(&jobs),
                 power,
+                aac_decoder,
                 state: tokio::sync::Mutex::new(state),
                 turn: Mutex::default(),
             }),
         };
         (runtime, jobs, startup)
+    }
+
+    /// The AAC decoder in effect, for an import or a submission accepted now.
+    pub(crate) fn aac_decoder(&self) -> AacDecoder {
+        *self
+            .inner
+            .aac_decoder
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     pub(crate) async fn snapshot(&self) -> SettingsSnapshot {
@@ -350,6 +368,16 @@ impl SettingsRuntime {
                 )
                 .await
             }
+            SettingsIntent::SetAacDecoder { decoder } => {
+                self.accept(
+                    state,
+                    AppSettingsPatch {
+                        aac_decoder: Some(decoder),
+                        ..Default::default()
+                    },
+                )
+                .await
+            }
             SettingsIntent::SetStartupBehavior { behavior } => {
                 self.accept(
                     state,
@@ -426,6 +454,11 @@ impl SettingsRuntime {
         self.inner
             .power
             .set_enabled(state.accepted.keep_awake_while_working);
+        *self
+            .inner
+            .aac_decoder
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = state.accepted.aac_decoder;
     }
 
     /// Asks the scheduler to accept the change before recording it. A fixed

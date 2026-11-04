@@ -13,11 +13,16 @@
  * Lesser General Public License for more details.
  */
 
+#include "common_symbols.h"
+
 #ifndef _FFT_H_
 #define _FFT_H_
 
 typedef float fftfloat;
 
+#ifndef FAAD_DISABLE_DAB
+#define FFT_LOGM_5     5  /* 32-sample FFT for 480 PFA */
+#endif
 #define FFT_LOGM_SHORT 6  /* 256-sample short block MDCT, SBR QMF */
 #define FFT_LOGM_LONG  9  /* 2048-sample long block MDCT */
 
@@ -25,11 +30,21 @@ typedef float fftfloat;
 #define FFT_TBL_OFFSET(logm) ((logm) == FFT_LOGM_SHORT ? 0 : (1 << FFT_LOGM_SHORT))
 #define FFT_TBL_LEN ((1 << FFT_LOGM_SHORT) + (1 << FFT_LOGM_LONG))
 
+#ifndef FAAD_DISABLE_DAB
+#define COMMON_fft60 COMMON_CAT(COMMON_PREFIX, fft60)
+#define COMMON_fft480 COMMON_CAT(COMMON_PREFIX, fft480)
+#define fft60 COMMON_fft60
+#define fft480 COMMON_fft480
+#endif
+
 /* Builds the process-wide twiddle tables; the caller runs it exactly once. */
 void fft_init(void);
 
-/* Complex FFT of x into y, natural order; each holds the real half then the
- * imaginary half, 2 << logm floats. x is used as scratch and destroyed. */
+/* Complex FFT of x into y, natural order; x is used as scratch. */
 void fft(float * restrict x, float * restrict y, int logm);
+#ifndef FAAD_DISABLE_DAB
+void fft60(float * restrict x, float * restrict y);
+void fft480(float * restrict x, float * restrict y);
+#endif
 
 #endif

@@ -432,6 +432,24 @@ async fn a_choice_that_cannot_be_saved_stays_in_effect_and_saves_on_retry() {
 }
 
 #[tokio::test]
+async fn the_aac_decoder_choice_takes_effect_saves_and_resets_to_auto() {
+    let rig = start();
+
+    let chosen = rig
+        .send(SettingsIntent::SetAacDecoder {
+            decoder: crate::audio::AacDecoder::Faad,
+        })
+        .await;
+
+    assert_eq!(chosen.outcome, SettingsOutcome::Applied);
+    assert_eq!(rig.settings.aac_decoder(), crate::audio::AacDecoder::Faad);
+    assert_eq!(rig.on_disk().aac_decoder, crate::audio::AacDecoder::Faad);
+
+    rig.send(SettingsIntent::Reset).await;
+    assert_eq!(rig.settings.aac_decoder(), crate::audio::AacDecoder::Auto);
+}
+
+#[tokio::test]
 async fn pinning_captures_the_current_defaults() {
     let rig = start();
     rig.send(remember_output("/current")).await;

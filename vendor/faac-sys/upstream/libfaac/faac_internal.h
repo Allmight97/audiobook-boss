@@ -33,7 +33,28 @@ enum { MPEG4 = 0, MPEG2 = 1 };
 /* AAC object types this build implements, numbered per the MPEG-4 AOT
  * registry (mirrors the public FAAC_OBJ_* enum in <faac.h>). AUTO defers the
  * choice between LOW and HE_V1 to faacEncApplyConfig. */
-enum { AUTO = 0, LOW = 2, HE_V1 = 5 };
+enum { AUTO = 0, LOW = 2, HE_V1 = 5, HE_V2 = 29 };
+
+static inline int IsPS(unsigned int obj)
+{
+#if FAAC_ENCODER_PS
+    return obj == HE_V2;
+#else
+    (void)obj;
+    return 0;
+#endif
+}
+static inline int IsSBR(unsigned int obj) { return obj == HE_V1 || IsPS(obj); }
+
+/* PS codes one mono core channel carrying both input channels' budget. */
+static inline unsigned int CoreChannels(unsigned int obj, unsigned int n)
+{
+    return IsPS(obj) ? 1 : n;
+}
+static inline unsigned long CoreBitrate(unsigned int obj, unsigned long perChannel)
+{
+    return IsPS(obj) ? 2 * perChannel : perChannel;
+}
 
 /* Perceptual noise substitution aggressiveness (see assign_band_codebooks). */
 enum { PNSLEVEL_NARROWBAND_MONO = 2, PNSLEVEL_DEFAULT = 4 };
@@ -50,6 +71,9 @@ enum stream_format { RAW_STREAM = 0, ADTS_STREAM = 1 };
 
 /* Mirrors enum faac_rate_control; faac.c asserts the values agree. */
 enum rate_control_mode { RATE_AUTO = 0, RATE_VBR, RATE_ABR, RATE_CBR };
+
+/* 0 is off; the other values are enum faac_drc_profile. */
+#define DRC_OFF 0
 
 typedef enum { JOINT_NONE = 0, JOINT_MS, JOINT_IS, JOINT_MIXED } JointMode;
 
@@ -69,14 +93,17 @@ typedef struct faacEncConfiguration
     unsigned int inputFormat;
     int shortctl;
     int channel_map[64];             /* MAX_CHANNELS entries; identity by default */
-    unsigned int rateControl;        /* enum rate_control_mode; AUTO resolves on apply */
+    unsigned int rateControl;        /* enum rate_control_mode; AUTO resolved by facade */
+#if FAAC_ENCODER_DRC
+    unsigned int drcProfile;         /* enum faac_drc_profile */
+    float drcRefLevel;               /* LUFS program reference level */
+#endif
 } faacEncConfiguration, *faacEncConfigurationPtr;
 
 typedef void *faacEncHandle;
 
 int  faacEncGetVersion(char **id, char **copyright);
-int  faacEncGetDecoderSpecificInfo(faacEncHandle hEncoder, unsigned char **ppBuffer,
-                                   unsigned long *pSizeOfDecoderSpecificInfo);
+int  faacEncGetDecoderSpecificInfo(faacEncHandle hEncoder, unsigned char *buf);
 faacEncHandle faacEncOpen(unsigned long sampleRate, unsigned int numChannels,
                           unsigned long *inputSamples, unsigned long *maxOutputBytes);
 int  faacEncEncode(faacEncHandle hEncoder, int32_t *inputBuffer, unsigned int samplesInput,
