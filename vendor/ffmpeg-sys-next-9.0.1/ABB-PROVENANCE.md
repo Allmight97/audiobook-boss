@@ -6,35 +6,45 @@ The upstream manifest declares WTFPL. 9.0.1 adds `-fno-builtin` to bindgen so
 the generated bindings do not declare libc runtime symbols, and it parses
 `libavutil/spherical.h`.
 
-`ffmpeg-revision` selects the immutable FFmpeg development source required by
-Native AAC's NMR coder. The Rust build consumes this file and verifies the
-fetched commit. ABB retains the CoreAudio framework link.
+`ffmpeg-revision` holds the one FFmpeg commit ABB builds: a `master` commit,
+because Native AAC's NMR coder is not in a release. The Rust build and
+`scripts/setup.sh` read that file and verify the fetched commit; no other file
+repeats the hash. ABB retains the CoreAudio framework link.
 
-The October 18, 2026 selection is
-`7045cc9b8020ebaae156f4947baa752625056f90`, verified as master HEAD at both
-`git.ffmpeg.org` and its GitHub mirror. Compared with ABB's October 14 pin
-`2ec8998c3daf6aa31a4afec963bff9b5ecbfdee7`, it includes:
+What ABB relies on in that source:
 
-- [Short-window spread-energy indexing fix](https://github.com/FFmpeg/FFmpeg/commit/89d34d66a638b52d56023d547e785291f67efb2f)
-  in AAC psychoacoustic hole avoidance. Upstream reports bit-identical output
-  on its tested music and transient samples; this is not a listening-quality claim.
-- [Intensity-stereo loop optimization](https://github.com/FFmpeg/FFmpeg/commit/b60ab6c9a4583cd4bbdc010b412d598945919da8),
-  with no intended output change.
-- MOV sample-rate validation (`3be6c2d943`) and float-cast overflow prevention
-  (`c705686a33`), ADTS packet keyframe marking (`a58779b2e7`), and Vorbis seek
-  timestamp correction (`b863390a8d`).
+- NMR rate control, speed levels, and the public enum mappings. ABB selects
+  NMR, CBR, target bitrate, and speed, and inherits automatic M/S and cutoff
+  plus enabled intensity stereo, PNS, and TNS. ABR and quality-based VBR are
+  not enabled.
+- No FFmpeg seek call: every input decodes from its first packet, so priming
+  arrives as first-packet skip-samples side data.
+- The native HE-AAC decoder outputs its SBR delay untrimmed; ABB's HE window
+  trims it.
+- `discard_samples()` in `libavcodec/decode.c`, which the FAAD3 adapter
+  mirrors (`faad_decoder_tests.rs` holds upstream's `api-skip-samples` table).
+- `patches/mov-chapter-start.patch` (below).
 
-NMR rate control, speed levels, public enum mappings, and swresample are unchanged
-from the previous pin. ABB explicitly selects NMR, CBR, target bitrate, and speed;
-it inherits automatic M/S and cutoff plus enabled intensity stereo, PNS, and TNS.
-The existing ABR and quality-based VBR options change the bitrate contract and
-are not enabled by this update. No additional NMR tuning option was introduced
-in this interval.
+## Moving the pin
+
+1. Write the new commit to `ffmpeg-revision` and run `bash scripts/setup.sh rust`
+   to fetch it.
+2. Build with `--features bundled-ffmpeg`. A new upstream enum value fails the
+   build in `../ffmpeg-next-9.0.0`; map it there and list it in that crate's
+   provenance. The chapter patch must still apply.
+3. Recheck each item in the list above against the upstream diff, and update
+   the FAAD3 trim table if `api-skip-samples` changed.
+4. Encode one fixed fixture with Native AAC at the old and the new pin, decode
+   both with the same FFmpeg CLI, and compare `ffmpeg -i out.m4b -map 0:a -f md5 -`.
+   Packet bytes can change while the decoded audio stays identical. A decoded
+   difference needs the real-media probe in `crates/abb-engine/src/audio/AGENTS.md`.
+5. Run `bash scripts/verify.sh engine media`.
 
 FFmpeg is configured with `--disable-autodetect`; its enabled external codec
 library is static libopus, with AudioToolbox supplied by the Apple SDK on macOS.
-The October 18 verification used Opus 1.6.1 and wrappers sys 9.0.1 / next
-9.0.0. Resolved Rust dependency versions live in `Cargo.lock`.
+ABB uses libavcodec, libavformat, and libswresample, so the build disables
+libavdevice, libavfilter, and libswscale. Resolved Rust dependency versions
+live in `Cargo.lock`.
 
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,
