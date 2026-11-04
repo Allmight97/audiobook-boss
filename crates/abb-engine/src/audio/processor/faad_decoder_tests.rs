@@ -1,4 +1,5 @@
-use super::{PacketTrim, Trimmer};
+use super::{speaker_layout, FaadFormat, PacketTrim, Trimmer};
+use ffmpeg_next as ff;
 
 fn trim(frames: usize, skip: u32, padding: u32, discard: bool) -> PacketTrim {
     PacketTrim {
@@ -40,4 +41,36 @@ fn trailing_padding_applies_only_when_it_fits_the_kept_frame() {
         Some((600, 1024))
     );
     assert_eq!(trimmer.counts.padding_samples, 300 + 1024);
+}
+
+fn format(channels: u32, channel_mask: u32) -> FaadFormat {
+    FaadFormat {
+        rate: 44_100,
+        channels,
+        channel_mask,
+        object_type: 2,
+        decoder_delay: 0,
+        frame_samples: 1024,
+    }
+}
+
+#[test]
+fn speaker_mask_names_the_center_channel_not_lfe() {
+    let layout = speaker_layout(&format(3, 0x7)).expect("FL FR FC");
+    assert_eq!(layout.channels(), 3);
+    assert_eq!(layout.bits(), ff::sys::AV_CH_LAYOUT_SURROUND);
+    assert_ne!(
+        layout,
+        ff::ChannelLayout::default(3),
+        "count-based 3 channels is 2.1"
+    );
+}
+
+#[test]
+fn a_stream_without_a_speaker_mask_is_refused() {
+    assert!(speaker_layout(&format(4, 0)).is_err());
+    assert!(
+        speaker_layout(&format(2, 0x7)).is_err(),
+        "mask and count disagree"
+    );
 }

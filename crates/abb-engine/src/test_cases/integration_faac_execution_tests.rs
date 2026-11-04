@@ -366,3 +366,49 @@ fn best_signal_lag(reference: &[f32], decoded: &[f32], radius: i32) -> i32 {
         .expect("fixture value")
         .0
 }
+
+fn write_center_only_surround_aac(path: &std::path::Path) {
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
+    let output = Command::new(&binary)
+        .args(["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i"])
+        .arg(format!(
+            "aevalsrc=0|0|0.3*sin(2*PI*440*t):c=3.0:s={SAMPLE_RATE}:d=1"
+        ))
+        .args(["-c:a", "aac", "-b:a", "192k", "-y"])
+        .arg(path)
+        .output()
+        .expect("spawn ffmpeg for the surround fixture");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[tokio::test]
+async fn faad_keeps_center_dialogue_when_a_surround_source_is_downmixed_to_stereo() {
+    let fixtures = tempfile::tempdir().expect("fixture directory");
+    let source = fixtures.path().join("center.m4a");
+    write_center_only_surround_aac(&source);
+    let stereo = EncoderSettings {
+        channels: ChannelConfig::Stereo,
+        ..native_encoder_settings()
+    };
+    for aac_decoder in [AacDecoder::Auto, AacDecoder::Faad] {
+        let lane = MediaLane::for_inputs(vec![source.clone()])
+            .with_encoder(stereo.clone())
+            .with_aac_decoder(aac_decoder);
+        let decoded = decode_pcm_f32(&lane.process(None).await);
+        for channel in 0..2 {
+            let samples: Vec<f32> = decoded.iter().skip(channel).step_by(2).copied().collect();
+            let steady = &samples[samples.len() / 4..samples.len() * 3 / 4];
+            let rms = (steady.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>()
+                / steady.len() as f64)
+                .sqrt();
+            assert!(
+                rms > 0.05,
+                "{aac_decoder:?}: channel {channel} lost the center dialogue (rms {rms})"
+            );
+        }
+    }
+}

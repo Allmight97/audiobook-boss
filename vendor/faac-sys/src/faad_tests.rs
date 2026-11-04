@@ -247,7 +247,7 @@ fn library_info_reports_version_and_build_options() {
         unsafe { CStr::from_ptr(info.version) }.to_str(),
         Ok("3.0.0")
     );
-    assert_eq!(info.max_channels, 2);
+    assert_eq!(info.max_channels, 8);
     assert_eq!(
         info.flags & (FAAD_LIB_SBR | FAAD_LIB_PS),
         FAAD_LIB_SBR | FAAD_LIB_PS

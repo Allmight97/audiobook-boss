@@ -1,6 +1,12 @@
 use std::{env, fs, path::PathBuf};
 
-fn compile_slice(name: &str, sources: &[&str], prefix: &str, out: &std::path::Path) {
+fn compile_slice(
+    name: &str,
+    sources: &[&str],
+    prefix: &str,
+    max_channels: u32,
+    out: &std::path::Path,
+) {
     let mut build = cc::Build::new();
     build
         .include("upstream")
@@ -8,6 +14,7 @@ fn compile_slice(name: &str, sources: &[&str], prefix: &str, out: &std::path::Pa
         .include("upstream/common")
         .include(out)
         .define("COMMON_PREFIX", prefix)
+        .define("MAX_CHANNELS", max_channels.to_string().as_str())
         .flag(
             if env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
                 "/FI"
@@ -32,7 +39,6 @@ fn main() {
         format!(
             "#define PACKAGE \"faac\"\n\
              #define PACKAGE_VERSION \"{version}\"\n\
-             #define MAX_CHANNELS 2\n\
              #define FAAC_SBR_DECIMATION 1\n\
              #define FAAC_ENCODER_SBR 1\n\
              #define FAAC_ENCODER_PS 0\n\
@@ -42,9 +48,10 @@ fn main() {
     .expect("write FAAC build configuration");
 
     // Portable scalar lists from upstream meson.build for ABB's options:
-    // max-channels 2, encoder-sbr on, encoder-ps off, encoder-drc on, decoder
-    // SBR, PS, DRC and DAB on. `common/` is compiled once per library under
-    // that library's symbol prefix, as upstream does.
+    // encoder-sbr on, encoder-ps off, encoder-drc on, decoder SBR, PS, DRC and
+    // DAB on. The encoder writes mono or stereo; the decoder reads up to eight
+    // channels so surround sources reach ABB's downmix. `common/` is compiled
+    // once per library under that library's symbol prefix, as upstream does.
     let faac_sources = [
         "libfaac/bitstream.c",
         "libfaac/blockswitch.c",
@@ -84,12 +91,13 @@ fn main() {
         "libfaad/sbr.c",
         "libfaad/ps.c",
         "libfaad/sbr_dec_tables.c",
+        "libfaad/coupling.c",
         "common/fft.c",
         "common/sbr_tables.c",
         "common/sfb_tables.c",
     ];
-    compile_slice("faac", &faac_sources, "faac_", &out);
-    compile_slice("faad3", &faad_sources, "faad_", &out);
+    compile_slice("faac", &faac_sources, "faac_", 2, &out);
+    compile_slice("faad3", &faad_sources, "faad_", 8, &out);
     if env::var("CARGO_CFG_TARGET_FAMILY").as_deref() == Ok("unix") {
         println!("cargo:rustc-link-lib=m");
     }

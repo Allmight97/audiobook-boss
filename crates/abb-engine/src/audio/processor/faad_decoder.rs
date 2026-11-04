@@ -20,6 +20,7 @@ const SAMPLE_BYTES: usize = std::mem::size_of::<f32>();
 pub(super) struct FaadFormat {
     pub rate: u32,
     pub channels: u32,
+    pub channel_mask: u32,
     pub object_type: u32,
     pub decoder_delay: u32,
     pub frame_samples: u32,
@@ -217,10 +218,29 @@ fn decode_unit(handle: &Handle, data: &[u8], output: &mut [u8]) -> Result<Decode
     })
 }
 
+fn speaker_layout(format: &FaadFormat) -> Result<ff::ChannelLayout> {
+    // SAFETY: a zeroed AVChannelLayout is the unset layout that
+    // av_channel_layout_from_mask fills; a mask layout owns no allocation.
+    let (status, layout) = unsafe {
+        let mut layout = std::mem::zeroed::<ff::sys::AVChannelLayout>();
+        let status =
+            ff::sys::av_channel_layout_from_mask(&mut layout, u64::from(format.channel_mask));
+        (status, layout)
+    };
+    if format.channel_mask == 0 || status < 0 || layout.nb_channels as u32 != format.channels {
+        return Err(AppError::General(format!(
+            "FAAD3 reports no speaker layout for this {}-channel stream (mask {:#x}). Choose Auto decoding for this file.",
+            format.channels, format.channel_mask
+        )));
+    }
+    Ok(ff::ChannelLayout(layout))
+}
+
 fn format_from(info: &faad::faad_stream_info) -> FaadFormat {
     FaadFormat {
         rate: info.sample_rate,
         channels: info.channels,
+        channel_mask: info.channel_mask,
         object_type: info.object_type,
         decoder_delay: info.decoder_delay,
         frame_samples: info.frame_samples,
@@ -275,7 +295,7 @@ impl FaadDecoder {
         Ok(Self {
             handle,
             format,
-            layout: ff::ChannelLayout::default(format.channels as i32),
+            layout: speaker_layout(&format)?,
             output: vec![0; max_output_bytes],
             delay_left: format.decoder_delay as usize,
             shifted: VecDeque::new(),
