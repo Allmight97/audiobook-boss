@@ -5,15 +5,15 @@ Base: the unmodified crates.io `ffmpeg-next` 9.0.0 archive, SHA-256
 The original license and source remain included. Registry bookkeeping, upstream
 CI configuration, and the crate-local lockfile are omitted.
 
-This patch adds exact Rust variants and bidirectional mappings for the selected
-FFmpeg source `7045cc9b8020ebaae156f4947baa752625056f90`:
+This patch adds exact Rust variants and bidirectional mappings for the FFmpeg
+source named in `../ffmpeg-sys-next-9.0.1/ffmpeg-revision`:
 
 - `AV_SAMPLE_FMT_DSD`
 - `AV_PIX_FMT_CUARRAY`, `AV_PIX_FMT_XYZP12LE`, and `AV_PIX_FMT_XYZP12BE`
 - `AV_FRAME_DATA_DOWNMIX_MATRIX` and `AV_FRAME_DATA_GAIN_MAP_PARAMS`
 - `AV_CODEC_ID_PCM_DVDA`, `AV_CODEC_ID_ITUT_T35`, `AV_CODEC_ID_ASTC`,
-  `AV_CODEC_ID_RW2`, `AV_CODEC_ID_ADPCM_RHETOREX`, and
-  `AV_CODEC_ID_ADPCM_IMA_CITRIX`
+  `AV_CODEC_ID_RW2`, `AV_CODEC_ID_ADPCM_RHETOREX`,
+  `AV_CODEC_ID_ADPCM_IMA_CITRIX`, and `AV_CODEC_ID_IMM6`
 - `AV_PKT_DATA_GAIN_MAP_PARAMS`
 
 No fallback mapping or unknown-enum panic is introduced. The vendor is tied to

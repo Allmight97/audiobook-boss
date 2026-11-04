@@ -727,6 +727,7 @@ pub enum Id {
     RW2,
     ADPCM_RHETOREX,
     ADPCM_IMA_CITRIX,
+    IMM6,
 }
 
 impl Id {
@@ -1460,6 +1461,7 @@ impl From<AVCodecID> for Id {
             AV_CODEC_ID_RW2 => Id::RW2,
             AV_CODEC_ID_ADPCM_RHETOREX => Id::ADPCM_RHETOREX,
             AV_CODEC_ID_ADPCM_IMA_CITRIX => Id::ADPCM_IMA_CITRIX,
+            AV_CODEC_ID_IMM6 => Id::IMM6,
 
             #[cfg(feature = "non-exhaustive-enums")]
             _ => unimplemented!(),
@@ -2188,6 +2190,7 @@ impl From<Id> for AVCodecID {
             Id::RW2 => AV_CODEC_ID_RW2,
             Id::ADPCM_RHETOREX => AV_CODEC_ID_ADPCM_RHETOREX,
             Id::ADPCM_IMA_CITRIX => AV_CODEC_ID_ADPCM_IMA_CITRIX,
+            Id::IMM6 => AV_CODEC_ID_IMM6,
         }
     }
 }
