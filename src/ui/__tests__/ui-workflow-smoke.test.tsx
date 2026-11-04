@@ -82,6 +82,7 @@ function appSettings(): AppSettings {
 		startupBehavior: 'rememberLastState',
 		keepAwakeWhileWorking: true,
 		defaultAcquisitionLane: 'audible',
+		aacDecoder: 'auto',
 	};
 }
 

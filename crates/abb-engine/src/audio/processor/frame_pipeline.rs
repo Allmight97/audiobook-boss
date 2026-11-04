@@ -262,7 +262,7 @@ pub(crate) fn flush_accumulator_tail(
 }
 
 pub(crate) fn process_decoded_frames(
-    decoder: &mut ff::codec::decoder::Audio,
+    decoder: &mut super::decoder::AudioDecoder,
     encoder: &mut super::encoder::EncoderSession,
     resampler: &mut ff::software::resampling::Context,
     ctx: &mut FramePipelineCtx,
@@ -339,7 +339,7 @@ pub(crate) fn process_decoded_frames(
 
 pub(crate) fn process_input_packets(
     ictx: &mut ff::format::context::Input,
-    decoder: &mut ff::codec::decoder::Audio,
+    decoder: &mut super::decoder::AudioDecoder,
     encoder: &mut super::encoder::EncoderSession,
     resampler: &mut ff::software::resampling::Context,
     decode_window: Option<super::he_timing::HeDecodeWindow>,
@@ -435,7 +435,7 @@ pub(crate) fn process_input_packets(
 }
 
 fn send_packet_to_decoder(
-    decoder: &mut ff::codec::decoder::Audio,
+    decoder: &mut super::decoder::AudioDecoder,
     packet: &ff::Packet,
     packet_count: usize,
 ) -> Result<()> {
@@ -460,7 +460,7 @@ fn send_packet_to_decoder(
 }
 
 fn process_packet_frames(
-    decoder: &mut ff::codec::decoder::Audio,
+    decoder: &mut super::decoder::AudioDecoder,
     encoder: &mut super::encoder::EncoderSession,
     resampler: &mut ff::software::resampling::Context,
     ctx: &mut FramePipelineCtx,

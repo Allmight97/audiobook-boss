@@ -59,6 +59,7 @@ impl OutputConfig {
 pub struct ProcessingContext {
     pub session: Arc<ProcessingSession>,
     pub sample_rate: SampleRateConfig,
+    pub aac_decoder: crate::audio::AacDecoder,
     pub output: OutputConfig,
     workspace_root: PathBuf,
     pub preview: Option<PreviewConfig>,
@@ -77,6 +78,7 @@ impl std::fmt::Debug for ProcessingContext {
         f.debug_struct("ProcessingContext")
             .field("session", &self.session)
             .field("sample_rate", &self.sample_rate)
+            .field("aac_decoder", &self.aac_decoder)
             .field("output", &self.output)
             .field("workspace_root", &self.workspace_root)
             .field("preview", &self.preview)
@@ -93,12 +95,14 @@ impl ProcessingContext {
     pub(crate) fn new_with_workspace_root(
         session: Arc<ProcessingSession>,
         sample_rate: SampleRateConfig,
+        aac_decoder: crate::audio::AacDecoder,
         output: OutputConfig,
         workspace_root: PathBuf,
     ) -> Self {
         Self {
             session,
             sample_rate,
+            aac_decoder,
             output,
             workspace_root,
             preview: None,
@@ -132,7 +136,13 @@ impl ProcessingContext {
         output: OutputConfig,
         workspace_root: PathBuf,
     ) -> Self {
-        Self::new_with_workspace_root(session, sample_rate, output, workspace_root)
+        Self::new_with_workspace_root(
+            session,
+            sample_rate,
+            crate::audio::AacDecoder::Auto,
+            output,
+            workspace_root,
+        )
     }
 
     pub fn is_cancelled(&self) -> bool {

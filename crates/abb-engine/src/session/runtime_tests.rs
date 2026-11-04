@@ -13,7 +13,10 @@ use crate::metadata_lookup::{
 use crate::output_artifact::NamingPreset;
 use crate::power::PowerManager;
 use crate::processing::JobRegistry;
+use crate::session::audio_choice::AudioEdit;
 use crate::session::lookup::LookupSnapshot;
+use crate::session::lookup::LookupSource;
+use crate::session::metadata_form::MetadataField;
 use crate::session::state::MetadataSnapshot;
 
 type SearchReply = Result<MetadataLookupResponse>;
@@ -1294,153 +1297,6 @@ fn audio(rig: &Rig) -> crate::session::AudioSnapshot {
 }
 
 #[tokio::test]
-async fn a_new_title_starts_from_the_default_audio_choice() {
-    let rig = rig();
-    rig.send(SessionIntent::SetDefaultAudio {
-        edit: AudioEdit::Format(AudiobookFormat::MkaOpus),
-    })
-    .await;
-    rig.load(&["alpha"]);
-
-    let title = &audio(&rig).titles["alpha"];
-    assert_eq!(title.choice.format, AudiobookFormat::MkaOpus);
-}
-
-#[tokio::test]
-async fn a_default_audio_edit_is_recorded_in_the_settings_and_announced() {
-    let rig = rig();
-    rig.send(SessionIntent::SetDefaultAudio {
-        edit: AudioEdit::Bitrate(96),
-    })
-    .await;
-
-    let settings = rig.session.inner.deps.settings.snapshot().await;
-    let saved = settings.settings.encoder_defaults;
-    assert_eq!(saved.settings.bitrate_kbps, 96);
-    assert_eq!(saved.intent, AudioIntent::Encode);
-    let announced = rig.events.1.lock().expect("events").last().cloned();
-    assert_eq!(
-        announced.map(|snapshot| snapshot.revision),
-        Some(settings.revision)
-    );
-
-    let before = rig.events.1.lock().expect("events").len();
-    rig.send(SessionIntent::SetDefaultAudio {
-        edit: AudioEdit::Bitrate(96),
-    })
-    .await;
-    assert_eq!(rig.events.1.lock().expect("events").len(), before);
-}
-
-#[tokio::test]
-async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
-    let rig = rig();
-    rig.load(&["alpha", "beta"]);
-
-    rig.send(SessionIntent::SetTitleAudio {
-        title_ids: vec!["alpha".to_string()],
-        edit: AudioEdit::Format(AudiobookFormat::Mp3),
-    })
-    .await;
-    let titles = audio(&rig).titles;
-    assert_eq!(titles["alpha"].choice.intent, AudioIntent::Preserve);
-    assert_eq!(titles["beta"].choice.format, AudiobookFormat::M4b);
-
-    rig.lock_order(true);
-    rig.send(SessionIntent::ApplyDefaultAudio {
-        title_ids: vec!["alpha".to_string()],
-    })
-    .await;
-    assert_eq!(
-        audio(&rig).titles["alpha"].choice.format,
-        AudiobookFormat::Mp3
-    );
-
-    rig.lock_order(false);
-    rig.send(SessionIntent::ApplyDefaultAudio {
-        title_ids: vec!["alpha".to_string()],
-    })
-    .await;
-    assert_eq!(
-        audio(&rig).titles["alpha"].choice.format,
-        AudiobookFormat::M4b
-    );
-    assert_eq!(audio(&rig).defaults.choice.format, AudiobookFormat::M4b);
-}
-
-#[tokio::test]
-async fn a_batch_audio_edit_applies_to_every_title_or_none() {
-    use crate::audio::{EncoderType, FaacProfile, SampleRateConfig};
-    use crate::session::{AudioField, AudioRefusal};
-
-    let rig = rig();
-    rig.load(&["alpha", "beta"]);
-    let both = vec!["alpha".to_string(), "beta".to_string()];
-    let set = |title_ids: Vec<String>, edit| SessionIntent::SetTitleAudio { title_ids, edit };
-    rig.send(set(both.clone(), AudioEdit::Encoder(EncoderType::Faac)))
-        .await;
-    rig.send(set(
-        vec!["alpha".to_string()],
-        AudioEdit::FaacProfile(FaacProfile::HeAacV1),
-    ))
-    .await;
-    rig.send(set(
-        vec!["beta".to_string()],
-        AudioEdit::FaacProfile(FaacProfile::AacLc),
-    ))
-    .await;
-    let titles = audio(&rig).titles;
-    let only_lc = titles["beta"]
-        .facts
-        .allowed_sample_rates
-        .iter()
-        .copied()
-        .find(|rate| !titles["alpha"].facts.allowed_sample_rates.contains(rate))
-        .expect("a rate only AAC-LC accepts");
-    let beta_rate = titles["beta"].choice.sample_rate;
-
-    rig.send(set(
-        both.clone(),
-        AudioEdit::SampleRate(SampleRateConfig::Explicit(only_lc)),
-    ))
-    .await;
-    let after = audio(&rig);
-    assert_eq!(
-        after.titles["beta"].choice.sample_rate, beta_rate,
-        "nothing changed"
-    );
-    assert_eq!(
-        after.refusal,
-        Some(AudioRefusal::NotAccepted {
-            title_ids: vec!["alpha".to_string()],
-            labels: vec!["alpha.m4b".to_string()],
-        })
-    );
-
-    rig.select(&[0, 1]).await;
-    let selection = audio(&rig).selection.expect("selection audio");
-    assert_eq!(selection.title_ids, both);
-    assert!(!selection.facts.allowed_sample_rates.contains(&only_lc));
-    assert!(selection.facts.allowed_sample_rates.contains(&44_100));
-    assert!(selection.mixed.contains(&AudioField::FaacProfile));
-
-    rig.send(set(both.clone(), AudioEdit::Encoder(EncoderType::Faac)))
-        .await;
-    assert_eq!(
-        audio(&rig).refusal,
-        None,
-        "a value already set is not a refusal"
-    );
-
-    rig.lock_order(true);
-    rig.send(SessionIntent::ApplyDefaultAudio { title_ids: both })
-        .await;
-    assert_eq!(audio(&rig).refusal, Some(AudioRefusal::Locked));
-    rig.lock_order(false);
-    assert_eq!(audio(&rig).refusal, None, "unlocking answers the refusal");
-}
-
-#[tokio::test]
 async fn covers_are_served_only_for_what_the_session_shows() {
     let rig = rig();
     let folder = tempfile::TempDir::new().expect("temp dir");
@@ -2210,3 +2066,6 @@ async fn accepted_auth_work_survives_a_dropped_host_reply_and_reattachment_keeps
     .await
     .expect("accepted completion reports failure without host wait");
 }
+
+#[path = "runtime_audio_tests.rs"]
+mod audio;

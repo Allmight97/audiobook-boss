@@ -9,8 +9,8 @@ use crate::app_settings::{
     PinnedDefaults, SettingsUnit, StartupBehavior,
 };
 use crate::audio::{
-    AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
-    FaacProfile, SampleRateConfig,
+    AacDecoder, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings,
+    EncoderType, FaacProfile, SampleRateConfig,
 };
 use crate::errors::{AppError, Result};
 use crate::output_artifact::{NamingPreset, OutputNamingConfig};
@@ -66,6 +66,12 @@ fn recover(table: &toml::Table) -> Loaded {
             read(table, &["general", "default_acquisition_lane"], Ok),
         )
         .unwrap_or(defaults.default_acquisition_lane),
+        aac_decoder: pick(
+            &mut reset,
+            SettingsUnit::AacDecoder,
+            read(table, &["general", "aac_decoder"], Ok),
+        )
+        .unwrap_or(defaults.aac_decoder),
         encoder_defaults: pick(
             &mut reset,
             SettingsUnit::EncoderDefaults,
@@ -181,6 +187,9 @@ struct General {
     keep_awake_while_working: bool,
     max_concurrent_jobs: AutoOr<usize>,
     default_acquisition_lane: AcquisitionLane,
+    /// Added after the first saved shape; files without it load as Auto.
+    #[serde(default)]
+    aac_decoder: AacDecoder,
 }
 
 #[derive(Serialize)]
@@ -315,6 +324,7 @@ impl From<&AppSettings> for SavedSettings {
                 keep_awake_while_working: settings.keep_awake_while_working,
                 max_concurrent_jobs: settings.max_concurrent_jobs.into(),
                 default_acquisition_lane: settings.default_acquisition_lane,
+                aac_decoder: settings.aac_decoder,
             },
             audio: Audio::from(&settings.encoder_defaults),
             output: Output::from(&settings.output_defaults),

@@ -32,6 +32,7 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) audio_reason: Option<String>,
     pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
     pub(crate) sample_rate: audio::SampleRateConfig,
+    pub(crate) aac_decoder: audio::AacDecoder,
     pub(crate) input_index: usize,
     pub(crate) operation_kind: OperationKind,
     pub(crate) operation_id: Option<String>,
@@ -74,6 +75,7 @@ pub(crate) async fn run_processing_job(
         cancellation_checker,
         job_id,
         sample_rate: request.sample_rate,
+        aac_decoder: request.aac_decoder,
         input_index: Some(request.input_index),
         operation_kind: request.operation_kind,
         operation_id,
@@ -354,6 +356,7 @@ struct ProcessingContextRequest {
     cancellation_checker: crate::processing::job_registry::CancellationChecker,
     job_id: crate::processing::job_registry::JobId,
     sample_rate: audio::SampleRateConfig,
+    aac_decoder: audio::AacDecoder,
     input_index: Option<usize>,
     operation_kind: OperationKind,
     operation_id: Option<String>,
@@ -370,6 +373,7 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
     let mut context = ProcessingContext::new_with_workspace_root(
         std::sync::Arc::new(session),
         request.sample_rate,
+        request.aac_decoder,
         OutputConfig::from_plan(request.output_plan),
         request.workspace_root,
     );

@@ -1,8 +1,8 @@
 use super::{
     aac_audio_object_type_label, aac_object_type_from_parameters, build_aac_decoder_candidates,
     build_aac_decoder_candidates_for_object_type, build_decoder_candidates_from_parameters,
-    detect_aac_decoder_availability, format_decoder_selection_failure,
-    friendly_codec_label_from_id, parse_aac_audio_object_type, AacDecoderAvailability,
+    detect_aac_decoder_availability, faad_decodes, format_decoder_selection_failure,
+    friendly_codec_label_from_id, parse_aac_audio_object_type, AacDecoder, AacDecoderAvailability,
     DecoderCandidate,
 };
 use ffmpeg_next as ff;
@@ -97,9 +97,33 @@ fn non_aac_inputs_keep_default_decoder_only() {
     unsafe {
         (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_MP3;
     }
-    let candidates = build_decoder_candidates_from_parameters(&params);
+    for preference in [AacDecoder::Auto, AacDecoder::Faad] {
+        let candidates = build_decoder_candidates_from_parameters(&params, preference);
+        assert_eq!(candidates, vec![DecoderCandidate::Default]);
+    }
+}
 
-    assert_eq!(candidates, vec![DecoderCandidate::Default]);
+#[test]
+fn faad_takes_lc_he_and_he_v2_and_leaves_other_profiles_to_auto() {
+    for object_type in [None, Some(2), Some(5), Some(29)] {
+        assert!(faad_decodes(object_type), "{object_type:?}");
+    }
+    for object_type in [Some(1), Some(23), Some(39), Some(42)] {
+        assert!(!faad_decodes(object_type), "{object_type:?}");
+    }
+}
+
+#[test]
+fn forced_faad_is_the_only_aac_candidate() {
+    let mut params = ff::codec::Parameters::new();
+    // SAFETY: `params` owns a freshly allocated `AVCodecParameters`, so the pointer is non-null and valid
+    // for this write.
+    unsafe {
+        (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_AAC;
+    }
+    let candidates = build_decoder_candidates_from_parameters(&params, AacDecoder::Faad);
+
+    assert_eq!(candidates, vec![DecoderCandidate::Faad]);
 }
 
 #[test]

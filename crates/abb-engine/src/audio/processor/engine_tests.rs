@@ -18,6 +18,7 @@ fn in_process_run_record_sanitizes_paths_and_names_the_encoder() {
         SampleRateConfig::Explicit(44_100),
         vec![PathBuf::from("/private/input/Book One.m4b")],
         12.5,
+        crate::audio::AacDecoder::Auto,
     );
     let context = ProcessingContext::new_headless(
         Arc::new(ProcessingSession::new()),

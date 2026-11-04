@@ -57,6 +57,7 @@ fn process_payload(overrides: impl FnOnce(&mut ProcessPayload)) -> ProcessPayloa
         collision_policy: None,
         preflight_signature: None,
         supplemental_assets_by_input_id: None,
+        aac_decoder: Some(crate::audio::AacDecoder::Auto),
     };
     overrides(&mut payload);
     payload

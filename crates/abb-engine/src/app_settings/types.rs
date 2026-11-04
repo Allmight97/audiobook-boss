@@ -1,6 +1,6 @@
 use crate::audio::{
-    validate_encoder_settings, validate_sample_rate_config, AudioIntent, AudiobookFormat,
-    EncoderSettings, EncoderType, SampleRateConfig,
+    validate_encoder_settings, validate_sample_rate_config, AacDecoder, AudioIntent,
+    AudiobookFormat, EncoderSettings, EncoderType, SampleRateConfig,
 };
 use crate::errors::{AppError, Result};
 use crate::output_artifact::OutputNamingConfig;
@@ -25,6 +25,7 @@ pub struct AppSettings {
     pub startup_behavior: StartupBehavior,
     pub pinned_defaults: Option<PinnedDefaults>,
     pub default_acquisition_lane: AcquisitionLane,
+    pub aac_decoder: AacDecoder,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
@@ -39,6 +40,7 @@ pub struct AppSettingsPatch {
     /// back to `RememberLastState`, never unpinning.
     pub pinned_defaults: Option<PinnedDefaults>,
     pub default_acquisition_lane: Option<AcquisitionLane>,
+    pub aac_decoder: Option<AacDecoder>,
 }
 
 /// A setting that loading recovers on its own: a saved value this release
@@ -49,6 +51,7 @@ pub enum SettingsUnit {
     KeepAwake,
     JobLimit,
     AcquisitionLane,
+    AacDecoder,
     EncoderDefaults,
     OutputDefaults,
     StartupBehavior,
@@ -126,6 +129,7 @@ impl Default for AppSettings {
             startup_behavior: StartupBehavior::default(),
             pinned_defaults: None,
             default_acquisition_lane: AcquisitionLane::default(),
+            aac_decoder: AacDecoder::default(),
         }
     }
 }
@@ -163,6 +167,9 @@ impl AppSettings {
         }
         if let Some(enabled) = patch.keep_awake_while_working {
             self.keep_awake_while_working = enabled;
+        }
+        if let Some(aac_decoder) = patch.aac_decoder {
+            self.aac_decoder = aac_decoder;
         }
         self.validate()?;
         Ok(self)

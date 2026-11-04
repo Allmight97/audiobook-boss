@@ -76,6 +76,7 @@ export function defaultAppSettings(): AppSettings {
 		},
 		startupBehavior: 'rememberLastState',
 		defaultAcquisitionLane: 'audible',
+		aacDecoder: 'auto',
 	};
 }
 
@@ -688,6 +689,8 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				return write({ maxConcurrentJobs: intent.preference });
 			case 'setKeepAwake':
 				return write({ keepAwakeWhileWorking: intent.enabled });
+			case 'setAacDecoder':
+				return write({ aacDecoder: intent.decoder });
 			case 'setStartupBehavior':
 				return write({ startupBehavior: intent.behavior });
 			case 'pinCurrentDefaults':

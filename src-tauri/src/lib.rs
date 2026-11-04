@@ -337,7 +337,7 @@ pub fn run() {
                 env!("CARGO_PKG_VERSION"),
                 std::process::id(),
                 std::env::var("ABB_RUN_ID").unwrap_or_else(|_| "unscoped".into()),
-                abb_engine::ffmpeg_build_identity()
+                abb_engine::media_build_identity()
             );
             app.manage(Quit::default());
             app.manage(commands::FrontendLink::default());
