@@ -11,7 +11,9 @@ use super::super::he_timing::CORE_PRIMING;
 pub(super) struct FaacEncoder {
     handle: *mut faac::faac_encoder,
     pub info: faac::faac_encoder_info,
+    pub rate: u32,
     pub channels: u32,
+    rate_control: faac::faac_rate_control,
     asc: Vec<u8>,
     pcm: Vec<f32>,
     output: Vec<u8>,
@@ -51,7 +53,9 @@ impl FaacEncoder {
         let params = Self::requested_params(rate, channels as u32, settings)?;
         let mut encoder = Self {
             handle: ptr::null_mut(),
+            rate,
             channels: channels as u32,
+            rate_control: params.rate_control,
             info: faac::faac_encoder_info {
                 struct_size: size_of::<faac::faac_encoder_info>() as u32,
                 ..Default::default()
@@ -84,26 +88,26 @@ impl FaacEncoder {
             "initialize",
         )?;
         params.sample_rate = rate;
-        params.num_channels = channels;
+        params.channels = channels;
         params.object_type = match settings.faac_profile {
             FaacProfile::Auto => faac::FAAC_OBJ_AUTO,
-            FaacProfile::AacLc => faac::FAAC_OBJ_LOW,
+            FaacProfile::AacLc => faac::FAAC_OBJ_LC,
             FaacProfile::HeAacV1 => faac::FAAC_OBJ_HE_AAC_V1,
         };
         match settings.bitrate_mode {
             BitrateMode::Abr => {
-                params.bit_rate = u32::from(settings.bitrate_kbps) * 1000 / channels;
+                params.bit_rate = u32::from(settings.bitrate_kbps) * 1000;
                 params.rate_control = faac::FAAC_RC_ABR;
             }
             BitrateMode::Vbr(quality) => {
                 params.bit_rate = 0;
-                params.quant_quality = u32::from(quality);
+                params.quality = u32::from(quality);
                 params.rate_control = faac::FAAC_RC_VBR;
             }
             _ => return Err(AppError::InvalidInput("FAAC supports ABR or VBR.".into())),
         }
         params.input_format = faac::FAAC_INPUT_FLOAT;
-        params.output_format = faac::FAAC_STREAM_RAW;
+        params.stream_format = faac::FAAC_STREAM_RAW;
         Ok(params)
     }
 
@@ -115,7 +119,7 @@ impl FaacEncoder {
             "read configuration",
         )?;
         let (frame_samples, delay) = match self.info.object_type {
-            faac::FAAC_OBJ_LOW => (1024, 1024),
+            faac::FAAC_OBJ_LC => (1024, 1024),
             // FAAC reports HE priming without the SBR decoder delay; the MP4
             // timing ABB writes (`he_timing`) must match it exactly.
             faac::FAAC_OBJ_HE_AAC_V1 => (2048, CORE_PRIMING),
@@ -127,13 +131,11 @@ impl FaacEncoder {
         };
         if (params.object_type != faac::FAAC_OBJ_AUTO
             && self.info.object_type != params.object_type)
-            || self.info.sample_rate != params.sample_rate
+            || self.info.stream_format != params.stream_format
             || self.info.max_output_bytes == 0
             || self.info.frame_samples != frame_samples
             || self.info.bit_rate != params.bit_rate
-            || self.info.rate_control != params.rate_control
-            || (params.rate_control == faac::FAAC_RC_VBR
-                && self.info.quant_quality != params.quant_quality)
+            || (params.rate_control == faac::FAAC_RC_VBR && self.info.quality != params.quality)
             || i64::from(self.info.encoder_delay) != delay
         {
             return Err(AppError::InvalidInput("FAAC cannot honor the requested profile, rate, bitrate or quality. Choose a supported output configuration.".into()));
@@ -154,7 +156,7 @@ impl FaacEncoder {
         // SAFETY: The success status and the checks above give a non-null `asc` with at least two bytes, and
         // `length` is its byte count. The handle is still open, and the bytes are copied into `self.asc` here.
         self.asc = unsafe { std::slice::from_raw_parts(asc, length as usize) }.to_vec();
-        if (self.asc[1] >> 3) & 15 != params.num_channels as u8 {
+        if (self.asc[1] >> 3) & 15 != params.channels as u8 {
             return Err(AppError::General(
                 "FAAC did not declare the requested output channels.".into(),
             ));
@@ -175,6 +177,10 @@ impl FaacEncoder {
         } else {
             "AAC-LC"
         }
+    }
+
+    pub fn is_vbr(&self) -> bool {
+        self.rate_control == faac::FAAC_RC_VBR
     }
 
     pub fn priming(&self) -> i64 {
@@ -202,9 +208,9 @@ impl FaacEncoder {
             } else {
                 ff::sys::AV_PROFILE_AAC_LOW
             };
-            p.sample_rate = self.info.sample_rate as i32;
+            p.sample_rate = self.rate as i32;
             ff::sys::av_channel_layout_default(&mut p.ch_layout, self.channels as i32);
-            p.bit_rate = i64::from(self.info.bit_rate) * i64::from(self.channels);
+            p.bit_rate = i64::from(self.info.bit_rate);
             p.frame_size = self.info.frame_samples as i32;
             p.initial_padding = self.priming() as i32;
             p.extradata = ff::sys::av_mallocz(
@@ -226,7 +232,7 @@ impl FaacEncoder {
         self.pcm.clear();
         if let Some(frame) = frame {
             if frame.format() != ff::format::Sample::F32(ff::format::sample::Type::Planar)
-                || frame.rate() != self.info.sample_rate
+                || frame.rate() != self.rate
                 || u32::from(frame.channels()) != self.channels
                 || frame.samples() > self.info.frame_samples as usize
             {
@@ -234,10 +240,9 @@ impl FaacEncoder {
                     "FAAC input does not match its opened PCM configuration.".into(),
                 ));
             }
-            // FAAC FLOAT uses signed-16 scale; ABB's accumulator supplies normalized planes.
             for sample in 0..frame.samples() {
                 for channel in 0..self.channels as usize {
-                    self.pcm.push(frame.plane::<f32>(channel)[sample] * 32768.0);
+                    self.pcm.push(frame.plane::<f32>(channel)[sample]);
                 }
             }
         }

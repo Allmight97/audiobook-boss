@@ -18,7 +18,7 @@ impl Backend {
     pub fn rate(&self) -> u32 {
         match self {
             Self::Ffmpeg(e) => e.rate(),
-            Self::Faac(e) => e.info.sample_rate,
+            Self::Faac(e) => e.rate,
         }
     }
     pub fn format(&self) -> ff::format::Sample {
@@ -147,7 +147,7 @@ impl EncoderSession {
                         &mut self.output,
                         self.stream_index,
                         self.time_base,
-                        ff::Rational(1, encoder.info.sample_rate as i32),
+                        ff::Rational(1, encoder.rate as i32),
                         self.submitted_samples,
                         encoder.is_he(),
                         &mut self.stats,
@@ -169,7 +169,7 @@ impl EncoderSession {
                 &mut self.stats,
             )?,
             Backend::Faac(encoder) => {
-                let rate = encoder.info.sample_rate;
+                let rate = encoder.rate;
                 while let Some(packet) = encoder.encode(None)? {
                     write::write_packet(
                         packet,
@@ -196,8 +196,8 @@ impl EncoderSession {
         let ffmpeg_version =
             unsafe { CStr::from_ptr(ff::sys::av_version_info()) }.to_string_lossy();
         let codec = match &self.backend {
-            Backend::Faac(e) => format!("faac_version={} profile={} rate_control={} target_bitrate_bps={} quant_quality={} bandwidth={} mpeg_version={} core_priming_samples={} reported_encoder_delay_samples={}",
-                faac::library_version(), e.profile_name(), if e.info.rate_control == faac_sys::FAAC_RC_VBR { "VBR" } else { "ABR" }, e.info.bit_rate * e.channels, e.info.quant_quality, e.info.bandwidth, e.info.mpeg_version, e.priming(), e.info.encoder_delay),
+            Backend::Faac(e) => format!("faac_version={} profile={} rate_control={} target_bitrate_bps={} quality={} bandwidth={} core_priming_samples={} reported_encoder_delay_samples={}",
+                faac::library_version(), e.profile_name(), if e.is_vbr() { "VBR" } else { "ABR" }, e.info.bit_rate, e.info.quality, e.info.bandwidth, e.priming(), e.info.encoder_delay),
             Backend::Ffmpeg(_) if self.resolved == EncoderType::NativeAac => "profile=AAC-LC aac_coder=nmr aac_rc=cbr options_verified=true".into(),
             Backend::Ffmpeg(_) if self.resolved == EncoderType::Opus => "codec=Opus encoder=libopus rate_control=VBR".into(),
             Backend::Ffmpeg(_) => "profile=AAC-LC encoder=AudioToolbox".into(),
