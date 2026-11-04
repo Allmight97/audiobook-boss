@@ -2,20 +2,21 @@
 //! profile resolution, and re-import alignment against external decoders.
 
 use super::integration_media_execution_tests::{
-    assert_auto_merge_stereo, assert_ffprobe_tag, decode_pcm_f32, ffprobe_format_tags,
+    assert_auto_merge_stereo, assert_ffprobe_tag, chapters_of, decode_pcm_f32, ffprobe_format_tags,
     native_encoder_settings, title_audio_request, MediaLane, SAMPLE_RATE,
 };
 use abb_engine::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
     ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
 };
-use abb_engine::processing::ProcessingSession;
+use abb_engine::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
 use abb_engine::{
     read_metadata, save_metadata_intent, AudiobookMetadata, CoverArtPassthroughPolicy,
     MetadataIntentPatch, PatchOp,
 };
 use std::fs;
 use std::process::Command;
+use std::sync::Arc;
 
 pub(crate) fn faac_encoder_settings() -> EncoderSettings {
     EncoderSettings {
@@ -302,54 +303,135 @@ async fn assert_faac_reimport(
             .expect("unrelated metadata edit preserves timing provenance");
         }
         assert_ffprobe_tag(&ffprobe_format_tags(&faac_output), "encoder", expected_tool);
-        for aac_decoder in [AacDecoder::Auto, AacDecoder::Faad] {
-            let reimport = MediaLane::for_inputs(vec![faac_output.clone()])
-                .with_encoder(output_settings.clone())
-                .with_aac_decoder(aac_decoder);
-            let second_output = reimport.process(None).await;
-            let expected_channels = if output_settings.channels == ChannelConfig::Stereo {
-                2
-            } else {
-                1
-            };
-            let inspected = get_file_list_info(std::slice::from_ref(&second_output), aac_decoder)
-                .expect("fixture value");
-            assert_eq!(
-                inspected.files[0].channels,
-                Some(expected_channels),
-                "declared output channels"
-            );
-            let decoded = decode_pcm_f32(&second_output);
-            let decoded = if output_settings.channels == ChannelConfig::Stereo {
-                decoded
-                    .as_chunks::<2>()
-                    .0
-                    .iter()
-                    .map(|frame| frame[0])
-                    .collect::<Vec<_>>()
-            } else {
-                decoded
-            };
-            assert_eq!(
-                decoded.len(),
-                source.len(),
-                "{aac_decoder:?}: playable count at {rate} Hz / {samples} samples"
-            );
-            let lag = best_signal_lag(&source, &decoded, 1200);
-            assert!(
-                lag.abs() <= 2,
-                "{aac_decoder:?}: audio shifted by {lag} samples at {rate} Hz"
-            );
-            let tail = &decoded[decoded.len() - 512..];
-            let energy =
-                tail.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>() / tail.len() as f64;
-            assert!(
-                energy.sqrt() > 0.03,
-                "{aac_decoder:?}: missing tail at {rate} Hz / {samples} samples: rms={}",
-                energy.sqrt()
-            );
-        }
+        assert_reimport_matches_source(&source, &faac_output, &output_settings, rate).await;
     }
+}
+
+async fn assert_reimport_matches_source(
+    source: &[f32],
+    faac_output: &std::path::Path,
+    output_settings: &EncoderSettings,
+    rate: u32,
+) {
+    let samples = source.len();
+    for aac_decoder in [AacDecoder::Auto, AacDecoder::Faad] {
+        let reimport = MediaLane::for_inputs(vec![faac_output.to_path_buf()])
+            .with_encoder(output_settings.clone())
+            .with_aac_decoder(aac_decoder);
+        let second_output = reimport.process(None).await;
+        let expected_channels = if output_settings.channels == ChannelConfig::Stereo {
+            2
+        } else {
+            1
+        };
+        let inspected = get_file_list_info(std::slice::from_ref(&second_output), aac_decoder)
+            .expect("fixture value");
+        assert_eq!(
+            inspected.files[0].channels,
+            Some(expected_channels),
+            "declared output channels"
+        );
+        let decoded = decode_pcm_f32(&second_output);
+        let decoded = if output_settings.channels == ChannelConfig::Stereo {
+            decoded
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|frame| frame[0])
+                .collect::<Vec<_>>()
+        } else {
+            decoded
+        };
+        assert_eq!(
+            decoded.len(),
+            samples,
+            "{aac_decoder:?}: playable count at {rate} Hz / {samples} samples"
+        );
+        let lag = best_signal_lag(source, &decoded, 1200);
+        assert!(
+            lag.abs() <= 2,
+            "{aac_decoder:?}: audio shifted by {lag} samples at {rate} Hz"
+        );
+        let tail = &decoded[decoded.len() - 512..];
+        let energy = tail.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>() / tail.len() as f64;
+        assert!(
+            energy.sqrt() > 0.03,
+            "{aac_decoder:?}: missing tail at {rate} Hz / {samples} samples: rms={}",
+            energy.sqrt()
+        );
+    }
+}
+
+/// Preserve remuxes an MP4 only when its accepted chapters differ from the
+/// file's. The remux must keep what reimport needs to decode ABB's FAAC HE
+/// audio: the encoding-tool tag and every access unit.
+#[tokio::test]
+async fn faac_he_preserve_with_repaired_chapters_keeps_reimport_timing() {
+    let samples = 22050_u32;
+    let lane = MediaLane::with_fixtures(&[f64::from(samples) / f64::from(SAMPLE_RATE)])
+        .with_encoder(faac_encoder_settings());
+    let mut wav = fs::read(&lane.inputs[0]).expect("fixture value");
+    fill_with_filtered_noise(&mut wav[44..]);
+    fs::write(&lane.inputs[0], wav).expect("fixture value");
+    let source = decode_pcm_f32(&lane.inputs[0]);
+    let faac_output = lane.process(None).await;
+    let tool = "AudioBook Boss FAAC HE-AAC timing-2";
+    assert_ffprobe_tag(&ffprobe_format_tags(&faac_output), "encoder", tool);
+
+    let mut tag = mp4ameta::Tag::read_from_path(&faac_output).expect("read FAAC tags");
+    *tag.chapter_list_mut() = vec![
+        mp4ameta::Chapter::new(std::time::Duration::ZERO, "One"),
+        mp4ameta::Chapter::new(std::time::Duration::from_millis(200), "Marker"),
+        mp4ameta::Chapter::new(std::time::Duration::from_millis(200), "Two"),
+    ];
+    tag.write_with_path(
+        &faac_output,
+        &mp4ameta::WriteConfig {
+            write_chapter_list: true,
+            ..mp4ameta::WriteConfig::NONE
+        },
+    )
+    .expect("write drifting chapters");
+    assert_eq!(
+        chapters_of(&faac_output).len(),
+        3,
+        "fixture premise: the zero-length marker is in the file"
+    );
+    let info = get_file_list_info(std::slice::from_ref(&faac_output), AacDecoder::Auto)
+        .expect("import FAAC HE book");
+    assert_eq!(
+        info.files[0]
+            .chapter_plan
+            .as_ref()
+            .expect("accepted chapter plan")
+            .chapters
+            .len(),
+        2,
+        "fixture premise: repair drops the marker"
+    );
+
+    let preserved = lane.tmp.path().join("preserved.m4b");
+    execute_audio_engine(AudioExecutionRequest::new(
+        ProcessingContext::new_headless_with_workspace_root(
+            Arc::new(ProcessingSession::new()),
+            SampleRateConfig::Auto,
+            OutputConfig::new(&preserved),
+            lane.workspace_root(),
+        ),
+        info,
+        None,
+        CoverArtPassthroughPolicy::Preserve,
+        AudioHandling::Preserve,
+    ))
+    .await
+    .expect("preserve with repaired chapters");
+    assert_eq!(
+        chapters_of(&preserved).len(),
+        2,
+        "repaired chapters written"
+    );
+    assert_ffprobe_tag(&ffprobe_format_tags(&preserved), "encoder", tool);
+    assert_reimport_matches_source(&source, &preserved, &native_encoder_settings(), 44100).await;
 }
 
 fn best_signal_lag(reference: &[f32], decoded: &[f32], radius: i32) -> i32 {

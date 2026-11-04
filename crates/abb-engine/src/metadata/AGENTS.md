@@ -38,6 +38,12 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - The remux read loop ends only at end of file; any other read error, one
   corrupt packet included, fails the write. Why: skipping or stopping early
   would save a shorter book.
+- An MP4 remux keeps the source's `encoder` tag (the mov muxer writes it from
+  `encoding_tool`) and every audio access unit: units an edit list hides at
+  the end are read again with `ignore_editlist` and written flagged discard,
+  so the edit list keeps its length. Why: Audio decodes ABB's FAAC HE files by
+  that tag and needs the hidden last unit for the delayed tail
+  (`audio/processor/AGENTS.md`, FAAC and HE-AAC file timing).
 - A remux with no cover intent copies every source picture unchanged; an
   explicit or passthrough cover replaces them. Matroska pictures are written
   back as attachments (its muxer drops attached-picture streams), and PNG
