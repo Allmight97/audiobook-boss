@@ -247,7 +247,7 @@ pub(crate) fn build_draft(
             collision_policy: None,
             preflight_signature: None,
             supplemental_assets_by_input_id: inputs.supplemental_assets,
-            // Recorded when the runtime accepts the draft (`Session::record_acceptance`).
+            // Recorded when the runtime accepts the draft (`Session::capture_decoder`).
             aac_decoder: None,
         },
         metadata: (!metadata.is_empty()).then_some(metadata),

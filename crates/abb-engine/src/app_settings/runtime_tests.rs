@@ -442,17 +442,11 @@ async fn the_aac_decoder_choice_takes_effect_saves_and_resets_to_auto() {
         .await;
 
     assert_eq!(chosen.outcome, SettingsOutcome::Applied);
-    assert_eq!(
-        rig.settings.aac_decoder().await,
-        crate::audio::AacDecoder::Faad
-    );
+    assert_eq!(rig.settings.aac_decoder(), crate::audio::AacDecoder::Faad);
     assert_eq!(rig.on_disk().aac_decoder, crate::audio::AacDecoder::Faad);
 
     rig.send(SettingsIntent::Reset).await;
-    assert_eq!(
-        rig.settings.aac_decoder().await,
-        crate::audio::AacDecoder::Auto
-    );
+    assert_eq!(rig.settings.aac_decoder(), crate::audio::AacDecoder::Auto);
 }
 
 #[tokio::test]

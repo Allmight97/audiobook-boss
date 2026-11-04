@@ -278,11 +278,7 @@ impl Session {
                     _ => SessionOutcome::Applied,
                 }
             }
-            Rest::Submit { draft, resets } => {
-                session
-                    .submit(session.record_acceptance(*draft).await, resets)
-                    .await
-            }
+            Rest::Submit { draft, resets } => session.submit(*draft, resets).await,
             Rest::Reviewed {
                 mut draft,
                 policy,
@@ -296,11 +292,7 @@ impl Session {
                 draft,
                 link,
                 resets,
-            } => {
-                session
-                    .restart(session.record_acceptance(*draft).await, *link, resets)
-                    .await
-            }
+            } => session.restart(*draft, *link, resets).await,
             Rest::KeepLocation {
                 title_id,
                 revision,
@@ -916,7 +908,7 @@ impl Session {
                 InputNotice::SkippedPaths { skipped }
             });
         }
-        let aac_decoder = self.inner.deps.settings.aac_decoder().await;
+        let aac_decoder = self.inner.deps.settings.aac_decoder();
         let analyzed =
             match blocking(move || audio::get_file_list_info(&discovered, aac_decoder)).await {
                 Ok(analyzed) => analyzed,
@@ -1003,7 +995,7 @@ impl Session {
             .iter()
             .map(|file| file.path.clone())
             .collect();
-        let aac_decoder = self.inner.deps.settings.aac_decoder().await;
+        let aac_decoder = self.inner.deps.settings.aac_decoder();
         let analyzed = blocking(move || {
             let discovery = audio::discover_audio_import_paths(&paths);
             if let Some((_, error)) = discovery.skipped.into_iter().next() {
@@ -1083,15 +1075,15 @@ impl Session {
         let draft = self.transition(|state| state.begin_submission(preview_seconds));
         match draft {
             Some(draft) => Rest::Submit {
-                draft: Box::new(draft),
+                draft: Box::new(self.capture_decoder(draft)),
                 resets: self.inner.resets.load(Ordering::SeqCst),
             },
             None => Rest::Done(SessionOutcome::Applied),
         }
     }
 
-    async fn record_acceptance(&self, mut draft: Draft) -> Draft {
-        draft.payload.aac_decoder = Some(self.inner.deps.settings.aac_decoder().await);
+    fn capture_decoder(&self, mut draft: Draft) -> Draft {
+        draft.payload.aac_decoder = Some(self.inner.deps.settings.aac_decoder());
         draft
     }
 
@@ -1606,7 +1598,7 @@ impl Session {
         let started = self.transition(|state| state.begin_restart(title_id, revision));
         match started {
             Some((draft, link)) => Rest::Restart {
-                draft: Box::new(draft),
+                draft: Box::new(self.capture_decoder(draft)),
                 link: Box::new(link),
                 resets: self.inner.resets.load(Ordering::SeqCst),
             },

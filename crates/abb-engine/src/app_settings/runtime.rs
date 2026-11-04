@@ -115,6 +115,7 @@ struct Inner {
     config_dir: PathBuf,
     jobs: ManagedJobRegistry,
     power: PowerManager,
+    aac_decoder: Mutex<AacDecoder>,
     state: tokio::sync::Mutex<State>,
     /// Completion of the last accepted intent, independent of host waits.
     turn: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
@@ -204,12 +205,14 @@ impl SettingsRuntime {
         }
         state.recovery =
             (!recovery.reset.is_empty() || recovery.set_aside_as.is_some()).then_some(recovery);
+        let aac_decoder = Mutex::new(accepted.aac_decoder);
         state.accepted = accepted;
         let runtime = Self {
             inner: Arc::new(Inner {
                 config_dir,
                 jobs: Arc::clone(&jobs),
                 power,
+                aac_decoder,
                 state: tokio::sync::Mutex::new(state),
                 turn: Mutex::default(),
             }),
@@ -218,8 +221,12 @@ impl SettingsRuntime {
     }
 
     /// The AAC decoder in effect, for an import or a submission accepted now.
-    pub(crate) async fn aac_decoder(&self) -> AacDecoder {
-        self.inner.state.lock().await.accepted.aac_decoder
+    pub(crate) fn aac_decoder(&self) -> AacDecoder {
+        *self
+            .inner
+            .aac_decoder
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     pub(crate) async fn snapshot(&self) -> SettingsSnapshot {
@@ -447,6 +454,11 @@ impl SettingsRuntime {
         self.inner
             .power
             .set_enabled(state.accepted.keep_awake_while_working);
+        *self
+            .inner
+            .aac_decoder
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = state.accepted.aac_decoder;
     }
 
     /// Asks the scheduler to accept the change before recording it. A fixed

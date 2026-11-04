@@ -328,3 +328,57 @@ fn walk(dir: &Path) -> Vec<PathBuf> {
     files.sort();
     files
 }
+
+#[tokio::test]
+async fn a_decoder_change_after_submit_is_accepted_does_not_change_that_export() {
+    use super::integration_media_execution_tests::decode_pcm_f32;
+    use abb_engine::app_settings::SettingsIntent;
+    use abb_engine::audio::AacDecoder;
+
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    desk.import(&book).await;
+    let title_ids = desk
+        .engine
+        .session_snapshot()
+        .titles
+        .expect("titles part")
+        .files
+        .into_iter()
+        .map(|file| file.input_id)
+        .collect();
+    desk.send(SessionIntent::SetTitleAudio {
+        title_ids,
+        edit: AudioEdit::Intent(abb_engine::audio::AudioIntent::Encode),
+    })
+    .await;
+    let set_decoder = |decoder| {
+        desk.engine
+            .settings_dispatch(SettingsIntent::SetAacDecoder { decoder })
+    };
+    let ffmpeg = export_into(&desk, &desk.root.path().join("ffmpeg")).await;
+    set_decoder(AacDecoder::Faad).await;
+    let faad = export_into(&desk, &desk.root.path().join("faad")).await;
+    assert!(
+        decode_pcm_f32(&ffmpeg[0]) != decode_pcm_f32(&faad[0]),
+        "the decoders must leave distinguishable exports"
+    );
+
+    let raced = desk.root.path().join("raced");
+    fs::create_dir_all(&raced).expect("create output folder");
+    desk.send(SessionIntent::SetOutputDirectory {
+        directory: raced.to_string_lossy().into_owned(),
+    })
+    .await;
+    let accepted = desk.engine.session_begin(SessionIntent::Submit);
+    set_decoder(AacDecoder::Auto).await;
+    accepted.finish().await;
+    finish_export(&desk).await;
+
+    assert!(
+        decode_pcm_f32(&walk(&raced)[0]) == decode_pcm_f32(&faad[0]),
+        "the export must decode with FAAD3, the setting it was accepted under"
+    );
+}
