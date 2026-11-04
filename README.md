@@ -35,7 +35,8 @@ Apple AAC uses a numeric target. Bundled FAAC offers Auto, AAC-LC, and HE-AAC v1
 profiles with ABR or VBR. FAAC defaults to profile Auto and ABR; the shared
 target defaults to 65 kbps, and sample rate/channels retain their Auto behavior.
 FAAC chooses Auto’s profile from the requested output settings when encoding
-opens. VBR offers Smaller (50), Standard (100), and Higher (200); size varies
+opens: HE-AAC v1 when the bitrate per channel suits HE at the output rate (for
+example 64 kbps stereo at 32, 44.1, or 48 kHz), otherwise AAC-LC. VBR offers Smaller (50), Standard (100), and Higher (200); size varies
 with the audio, so use ABR for a bitrate target. Explicit HE supports 32, 44.1,
 and 48 kHz; Auto and LC also support the other available output rates. Saved
 HE/ABR preferences retain that intent.
