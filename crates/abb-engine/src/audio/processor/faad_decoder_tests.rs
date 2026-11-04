@@ -28,19 +28,34 @@ fn discard_flag_drops_the_frame_and_consumes_leading_skip() {
     assert_eq!(trimmer.counts.discarded_packets, 1);
 }
 
+/// FFmpeg's `tests/ref/fate/api-skip-samples` at the pinned source:
+/// (skip, padding, samples kept) for one 1000-sample frame.
+const UPSTREAM_SKIP_SAMPLES: [(u32, u32, usize); 7] = [
+    (0, 0, 1000),
+    (300, 0, 700),
+    (0, 400, 600),
+    (300, 400, 300),
+    (300, 700, 0),
+    (300, 800, 0),
+    (300, 1100, 700),
+];
+
 #[test]
-fn trailing_padding_applies_only_when_it_fits_the_kept_frame() {
+fn skip_and_padding_keep_what_libavcodec_keeps() {
+    for (skip, padding, kept) in UPSTREAM_SKIP_SAMPLES {
+        let range = Trimmer::default().range(&trim(1000, skip, padding, false));
+        let samples = range.map_or(0, |(start, end)| end - start);
+        assert_eq!(samples, kept, "skip {skip} padding {padding}");
+    }
+}
+
+#[test]
+fn padding_counts_only_the_samples_it_removes() {
     let mut trimmer = Trimmer::default();
-    assert_eq!(trimmer.range(&trim(1024, 0, 300, false)), Some((0, 724)));
-    assert_eq!(trimmer.range(&trim(1024, 0, 1024, false)), None);
-    // libavcodec ignores padding longer than the frame.
-    assert_eq!(trimmer.range(&trim(1024, 0, 2000, false)), Some((0, 1024)));
-    // Padding compares against the samples left after the leading skip.
-    assert_eq!(
-        trimmer.range(&trim(1024, 600, 500, false)),
-        Some((600, 1024))
-    );
-    assert_eq!(trimmer.counts.padding_samples, 300 + 1024);
+    trimmer.range(&trim(1000, 0, 400, false));
+    trimmer.range(&trim(1000, 300, 800, false));
+    trimmer.range(&trim(1000, 0, 1100, false));
+    assert_eq!(trimmer.counts.padding_samples, 400 + 700);
 }
 
 fn format(channels: u32, channel_mask: u32) -> FaadFormat {

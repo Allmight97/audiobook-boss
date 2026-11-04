@@ -86,9 +86,10 @@ impl Trimmer {
             self.counts.skipped_samples += start as u64;
             self.skip_samples = 0;
         }
-        let padding = trim.padding as usize;
         let remaining = trim.frames - start;
-        if padding > 0 && padding <= remaining {
+        let padding = trim.padding as usize;
+        if padding > 0 && padding <= trim.frames {
+            let padding = padding.min(remaining);
             self.counts.padding_samples += padding as u64;
             return (padding < remaining).then_some((start, trim.frames - padding));
         }
