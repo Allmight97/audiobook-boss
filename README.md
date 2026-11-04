@@ -42,13 +42,12 @@ HE/ABR preferences retain that intent.
 
 Settings → Decoding chooses the AAC input decoder independently of the output
 encoder. Auto selects a compatible FFmpeg decoder per file, including Apple's
-`aac_at` on macOS. FAAD3 selects the bundled decoder for mono/stereo AAC-LC,
-HE-AAC v1/v2, and ADTS; other AAC profiles, including xHE-AAC, keep Auto.
-The choice is saved between launches. FAAD3 currently uses unreleased source
-from the open upstream stack ending at
-[pull request 39](https://github.com/FreewareAdvancedAudio/faac/pull/39)
-(`333fe311d0eb`) for evaluation. Some Audible M4Bs are rejected by FAAD3; use Auto for those
-files. A failed FAAD3 decode is reported without switching decoders.
+`aac_at` on macOS. FAAD3 selects the bundled decoder for AAC-LC, HE-AAC v1/v2,
+and ADTS with up to eight channels, which the output setting then downmixes;
+other AAC profiles, including xHE-AAC, keep Auto. The choice is saved between
+launches. The bundled FAAC encoder and FAAD3 decoder currently come from
+unreleased upstream source (`master` at `9e268a31`) for evaluation. A failed
+FAAD3 decode is reported without switching decoders.
 
 All processing runs in the in-process Audio engine. Bundled source revisions
 and wrapper changes are recorded under `vendor/`. ABB-produced FAAC HE files

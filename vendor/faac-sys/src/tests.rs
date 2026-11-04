@@ -205,6 +205,10 @@ fn library_info_reports_the_bundled_configuration() {
     assert_eq!(unsafe { faac_get_library_info(&mut info) }, FAAC_OK);
     assert_eq!(info.max_channels, 2);
     assert_eq!(info.sbr_decimation, 1);
+    assert_eq!(
+        info.flags & (FAAC_LIB_SBR | FAAC_LIB_PS | FAAC_LIB_DRC),
+        FAAC_LIB_SBR | FAAC_LIB_DRC
+    );
     assert!(!info.version.is_null());
 }
 
