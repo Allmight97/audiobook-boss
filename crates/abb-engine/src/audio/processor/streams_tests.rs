@@ -127,6 +127,23 @@ fn forced_faad_is_the_only_aac_candidate() {
 }
 
 #[test]
+fn an_adts_main_profile_without_extradata_keeps_auto() {
+    let mut params = ff::codec::Parameters::new();
+    // SAFETY: `params` owns a freshly allocated `AVCodecParameters`, so the pointer is non-null and valid
+    // for these writes.
+    unsafe {
+        (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_AAC;
+        (*params.as_mut_ptr()).profile = ff::sys::AV_PROFILE_AAC_MAIN;
+    }
+    let candidates = build_decoder_candidates_from_parameters(&params, AacDecoder::Faad);
+
+    assert!(
+        !candidates.contains(&DecoderCandidate::Faad),
+        "{candidates:?}"
+    );
+}
+
+#[test]
 fn non_aac_extradata_is_not_read_as_an_aac_object_type() {
     let mut params = ff::codec::Parameters::new();
     // SAFETY: `params` owns a fresh `AVCodecParameters`; the extradata buffer

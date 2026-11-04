@@ -355,7 +355,23 @@ fn aac_object_type_from_parameters(params: &ff::codec::Parameters) -> Option<u32
     match profile {
         ff::sys::AV_PROFILE_AAC_HE => Some(5),
         ff::sys::AV_PROFILE_AAC_HE_V2 => Some(29),
-        _ => read_codec_extradata(params).and_then(|data| parse_aac_audio_object_type(&data)),
+        _ => read_codec_extradata(params)
+            .and_then(|data| parse_aac_audio_object_type(&data))
+            .or_else(|| aac_object_type_from_profile(profile)),
+    }
+}
+
+fn aac_object_type_from_profile(profile: i32) -> Option<u32> {
+    use ff::sys::{
+        AV_PROFILE_AAC_ELD, AV_PROFILE_AAC_LD, AV_PROFILE_AAC_LOW, AV_PROFILE_AAC_LTP,
+        AV_PROFILE_AAC_MAIN, AV_PROFILE_AAC_SSR, AV_PROFILE_AAC_USAC,
+    };
+    match profile {
+        AV_PROFILE_AAC_MAIN | AV_PROFILE_AAC_LOW | AV_PROFILE_AAC_SSR | AV_PROFILE_AAC_LTP
+        | AV_PROFILE_AAC_LD | AV_PROFILE_AAC_ELD | AV_PROFILE_AAC_USAC => {
+            u32::try_from(profile + 1).ok()
+        }
+        _ => None,
     }
 }
 
