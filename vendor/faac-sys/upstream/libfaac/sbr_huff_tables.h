@@ -13,11 +13,11 @@
  * Lesser General Public License for more details.
  */
 
-/* SBR tables: QMF prototype filter, frequency-band offsets, Huffman tables.
+/* SBR envelope Huffman tables.
  * All values are normative data from ISO/IEC 14496-3:2005. */
 
-#ifndef SBR_TABLES_H
-#define SBR_TABLES_H
+#ifndef SBR_HUFF_TABLES_H
+#define SBR_HUFF_TABLES_H
 
 #include <stdint.h>
 
@@ -25,25 +25,19 @@
 extern "C" {
 #endif
 
-typedef float sbrfloat;
+/* Time-delta envelope codes, central entries only: a wider jump always costs
+ * less as frequency deltas, so the encoder never needs the rest. */
+#define T_HUFF_ENV_LAV    6
 
-typedef struct {
-    uint32_t code : 24;
-    uint32_t len  : 8;
-} SBRHuffEntry;
+/* Envelope and balance delta codes at both resolutions: 121 + 63 + 49 + 25
+ * frequency-delta entries, each book followed by its 13 time-delta ones. */
+#define SBR_ENV_CODES_LEN (121 + 63 + 49 + 25 + 4 * (2 * T_HUFF_ENV_LAV + 1))
 
-#define F_HUFF_ENV_1_5DB_OFFSET  60
-#define F_HUFF_ENV_1_5DB_NSYMS   121
-#define F_HUFF_ENV_3_0DB_OFFSET  31
-#define F_HUFF_ENV_3_0DB_NSYMS   63
-
-extern const sbrfloat qmf_c[640];
-extern const int8_t sbr_offset[6][16];
-extern const SBRHuffEntry f_huff_env_1_5dB[F_HUFF_ENV_1_5DB_NSYMS];
-extern const SBRHuffEntry f_huff_env_3_0dB[F_HUFF_ENV_3_0DB_NSYMS];
+/* Packed low six code bits and five length bits; see SBR_CODE. */
+extern const uint16_t sbr_env_codes[SBR_ENV_CODES_LEN];
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* SBR_TABLES_H */
+#endif /* SBR_HUFF_TABLES_H */

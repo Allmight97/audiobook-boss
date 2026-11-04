@@ -49,7 +49,9 @@ void InitBitStream(BitStream *bs, uint8_t *buffer, uint32_t size)
 /* Packs the low `numBits` bits of `data` into `bs`, MSB-first. Returns 0,
  * or -1 if the write would run past the buffer. Most fields fit in a
  * single byte, so that case short-circuits the general fill-from-the-end
- * loop below rather than paying its per-iteration bookkeeping. */
+ * loop below rather than paying its per-iteration bookkeeping. When
+ * bs->data is NULL, PutBit operates as a bounded counter: capacity checks
+ * and cursor updates stay identical, but no memory is written. */
 int PutBit(BitStream *bs, uint32_t data, int numBits)
 {
     if (numBits <= 0)
@@ -62,6 +64,8 @@ int PutBit(BitStream *bs, uint32_t data, int numBits)
         return -1;
 
     bs->currentBit = end;
+    if (!bs->data)
+        return 0;
 
     if (numBits < 32)
         data &= (1U << numBits) - 1;

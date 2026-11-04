@@ -12,7 +12,7 @@ impl Drop for Handle {
 
 #[test]
 fn float_raw_encoder_opens_drains_short_input_and_closes() {
-    for profile in [FAAC_OBJ_LOW, FAAC_OBJ_HE_AAC_V1] {
+    for profile in [FAAC_OBJ_LC, FAAC_OBJ_HE_AAC_V1] {
         for rate in [22_050, 32_000, 44_100, 48_000] {
             for channels in [1, 2] {
                 smoke_encode(profile, rate, channels);
@@ -54,16 +54,16 @@ fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) -> Vec<Vec<
 #[test]
 fn auto_profile_uses_output_rate_channels_and_quality() {
     for (rate, channels, quality, expected) in [
-        // 64 kbps total: HE at 32 kbps per channel once HE's rate floor allows it.
-        (22050, 2, 0, FAAC_OBJ_LOW),
-        (32000, 2, 0, FAAC_OBJ_LOW),
+        // 64 kbps for the whole stream.
+        (22050, 2, 0, FAAC_OBJ_LC),
+        (32000, 2, 0, FAAC_OBJ_HE_AAC_V1),
         (44100, 2, 0, FAAC_OBJ_HE_AAC_V1),
         (48000, 2, 0, FAAC_OBJ_HE_AAC_V1),
         (96000, 2, 0, FAAC_OBJ_HE_AAC_V1),
-        (48000, 1, 0, FAAC_OBJ_LOW),
+        (48000, 1, 0, FAAC_OBJ_LC),
         (48000, 2, 50, FAAC_OBJ_HE_AAC_V1),
-        (48000, 2, 100, FAAC_OBJ_LOW),
-        (44100, 2, 200, FAAC_OBJ_LOW),
+        (48000, 2, 100, FAAC_OBJ_LC),
+        (44100, 2, 200, FAAC_OBJ_LC),
     ] {
         encode_configuration(FAAC_OBJ_AUTO, rate, channels, quality, expected);
     }
@@ -82,11 +82,16 @@ fn encode_configuration(
         FAAC_OK
     );
     params.sample_rate = rate;
-    params.num_channels = channels;
+    params.channels = channels;
     params.object_type = profile;
-    params.bit_rate = if quality == 0 { 64_000 / channels } else { 0 };
-    params.quant_quality = quality;
-    params.output_format = FAAC_STREAM_RAW;
+    params.bit_rate = if quality == 0 { 64_000 } else { 0 };
+    params.rate_control = if quality == 0 {
+        FAAC_RC_ABR
+    } else {
+        FAAC_RC_VBR
+    };
+    params.quality = quality;
+    params.stream_format = FAAC_STREAM_RAW;
     params.input_format = FAAC_INPUT_FLOAT;
     let mut handle = Handle(ptr::null_mut());
     let status = unsafe { faac_encoder_open(&params, &mut handle.0) };
@@ -109,23 +114,18 @@ fn encode_configuration(
         unsafe { faac_encoder_get_info(handle.0, &mut info) },
         FAAC_OK
     );
-    assert_eq!(info.object_type, expected);
-    assert_eq!(info.sample_rate, rate);
     assert_eq!(
-        info.rate_control,
-        if quality == 0 {
-            FAAC_RC_ABR
-        } else {
-            FAAC_RC_VBR
-        }
+        info.object_type, expected,
+        "rate={rate} channels={channels} quality={quality}"
     );
+    assert_eq!(info.bit_rate == 0, quality != 0);
     assert_eq!(
         info.encoder_delay,
-        if expected == FAAC_OBJ_LOW { 1024 } else { 2080 }
+        if expected == FAAC_OBJ_LC { 1024 } else { 2080 }
     );
     assert_eq!(
         info.frame_samples,
-        if expected == FAAC_OBJ_LOW { 1024 } else { 2048 }
+        if expected == FAAC_OBJ_LC { 1024 } else { 2048 }
     );
     assert!(info.max_output_bytes > 0);
 
@@ -140,10 +140,10 @@ fn encode_configuration(
     let asc_copy = unsafe { std::slice::from_raw_parts(asc, asc_len as usize) }.to_vec();
     assert_eq!((asc_copy[1] >> 3) & 15, channels as u8);
 
-    // FLOAT takes signed-16-scaled samples. A sub-frame source exercises the
-    // public flush-until-zero contract that formerly lost short recordings.
+    // A sub-frame source exercises the public flush-until-zero contract that
+    // formerly lost short recordings.
     let input: Vec<f32> = (0..257 * channels)
-        .map(|index| (index as f32 * 0.07).sin() * 8000.0)
+        .map(|index| (index as f32 * 0.07).sin() * 0.25)
         .collect();
     let mut output = vec![0; info.max_output_bytes as usize];
     let mut written = 0;
@@ -206,4 +206,79 @@ fn library_info_reports_the_bundled_configuration() {
     assert_eq!(info.max_channels, 2);
     assert_eq!(info.sbr_decimation, 1);
     assert!(!info.version.is_null());
+}
+
+#[test]
+fn abr_bit_rate_is_the_whole_stream_rate() {
+    const RATE: u32 = 44_100;
+    const SECONDS: u32 = 5;
+    let mut params = faac_params::default();
+    assert_eq!(
+        unsafe { faac_params_init(&mut params, size_of::<faac_params>() as u32) },
+        FAAC_OK
+    );
+    params.sample_rate = RATE;
+    params.channels = 2;
+    params.object_type = FAAC_OBJ_LC;
+    params.bit_rate = 128_000;
+    params.rate_control = FAAC_RC_ABR;
+    params.stream_format = FAAC_STREAM_RAW;
+    params.input_format = FAAC_INPUT_FLOAT;
+    let mut handle = Handle(ptr::null_mut());
+    assert_eq!(
+        unsafe { faac_encoder_open(&params, &mut handle.0) },
+        FAAC_OK
+    );
+    let mut info = faac_encoder_info {
+        struct_size: size_of::<faac_encoder_info>() as u32,
+        ..Default::default()
+    };
+    assert_eq!(
+        unsafe { faac_encoder_get_info(handle.0, &mut info) },
+        FAAC_OK
+    );
+    assert_eq!(info.bit_rate, 128_000);
+
+    let mut seed = 0x2545_f491_u32;
+    let input: Vec<f32> = (0..RATE * SECONDS * 2)
+        .map(|_| {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (seed >> 8) as f32 / (1u32 << 24) as f32 * 0.5 - 0.25
+        })
+        .collect();
+    let mut output = vec![0; info.max_output_bytes as usize];
+    let mut total = 0u64;
+    let chunk = (info.frame_samples * 2) as usize;
+    let mut feed = |samples: &[f32]| {
+        let mut written = 0;
+        let data = if samples.is_empty() {
+            ptr::null()
+        } else {
+            samples.as_ptr().cast()
+        };
+        assert_eq!(
+            unsafe {
+                faac_encoder_encode(
+                    handle.0,
+                    data,
+                    samples.len() as u32,
+                    output.as_mut_ptr(),
+                    info.max_output_bytes,
+                    &mut written,
+                )
+            },
+            FAAC_OK
+        );
+        total += u64::from(written);
+        written
+    };
+    for block in input.chunks(chunk) {
+        feed(block);
+    }
+    while feed(&[]) > 0 {}
+    let measured = total * 8 / u64::from(SECONDS);
+    assert!(
+        (110_000..=146_000).contains(&measured),
+        "measured {measured} bit/s for a 128000 bit/s stereo stream"
+    );
 }

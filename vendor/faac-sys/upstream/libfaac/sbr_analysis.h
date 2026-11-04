@@ -27,34 +27,28 @@ extern "C" {
 #endif
 
 #ifndef SBR_MAX_ENVELOPES
-#define SBR_MAX_ENVELOPES 2
+#define SBR_MAX_ENVELOPES 4
 #endif
 
 struct SBRInfo;
 
 typedef struct SignalAnalysisChannel {
-    int       transientSlot;
-    float transientStrength;
+    /* Each channel owns its envelope energy over the shared grid. */
+    float bandE[SBR_MAX_ENVELOPES][SBR_QMF_BANDS_64];
 } SignalAnalysisChannel;
 
 typedef struct SignalAnalysis {
-    int numSlots;
-    int sampled;
-
     /* Frame envelope grid configuration. Synchronized across all channels. */
     SbrFrameClass frameClass;
     int numEnvelopes;
     int tEnv[SBR_MAX_ENVELOPES + 1];
-    int bsPointer;
     int envSampled[SBR_MAX_ENVELOPES];
 
-    /* Block switching needs a decision for every core channel, so pass 1 runs
-       full width. */
-    SignalAnalysisChannel ch[MAX_CHANNELS];
-
-    /* Per-envelope QMF band energy, binned over the grid above; only the first
-       numEnvelopes rows are written. */
-    float bandE[MAX_CHANNELS][SBR_MAX_ENVELOPES][SBR_QMF_BANDS_64];
+#if FAAC_ENCODER_PS
+    float psE[2][4][64], psCross[4][64], psCrossIm[4][64];
+    float psLow[2][3][44][2];
+#endif
+    SignalAnalysisChannel ch[];
 } SignalAnalysis;
 
 void SbrAnalyze(SignalAnalysis *sa, float *fullPtrs[], int nch, const bool *isLfe, int numSamples, struct SBRInfo *sbr);

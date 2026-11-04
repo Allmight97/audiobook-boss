@@ -15,6 +15,7 @@
  */
 
 #include <math.h>
+#include <stdint.h>
 
 #include "ratecontrol.h"
 #include "coder.h"
@@ -48,7 +49,8 @@
 void RateControlReset(RateControl *rc, unsigned int numChannels,
                       unsigned long bitRate, unsigned long sampleRate, int cbr)
 {
-    rc->frameBudget = numChannels * (bitRate * FRAME_LEN) / sampleRate;
+    /* unsigned long is 32 bits on Windows: widen before multiplying. */
+    rc->frameBudget = (int)((uint64_t)numChannels * bitRate * FRAME_LEN / sampleRate);
 
     /* A signed account opens square at zero: any nonzero start is credit the
        stream never earned, which `lend` then spends. */
@@ -204,7 +206,7 @@ float RateControlUpdate(RateControl *rc, int payloadBits,
             fix = 1.0f;
     }
 
-    /* Stiffer damping when the account is far off centre. Removing this
+    /* Stiffer damping when the account is far off center. Removing this
        and the deadband below costs 16 kHz speech MOS under ABR. */
     float damping = RC_DAMPING_FACTOR;
     float fillRatio = 0.5f + 0.5f * (float)rc->balance / (float)bound;

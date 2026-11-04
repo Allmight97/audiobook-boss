@@ -42,6 +42,8 @@ extern "C" {
 #include "stats.h"
 #include "ratecontrol.h"
 #include "stereo.h"
+#include "drc.h"
+#include "drc_analyzer.h"
 
 typedef struct faacEncStruct {
     /* number of channels in AAC file */
@@ -68,9 +70,6 @@ typedef struct faacEncStruct {
 
     /* Filterbank buffers */
     float *freqBuff[MAX_CHANNELS];
-
-    /* Channel and Coder data for all channels */
-    CoderInfo coderInfo[MAX_CHANNELS];
 
     /* Element-centric configuration */
     AACElement elements[MAX_CHANNELS];
@@ -99,33 +98,43 @@ typedef struct faacEncStruct {
     unsigned int  inputFifoFill;     /* samples per channel currently buffered */
     unsigned int  inputFifoCap;      /* per-channel capacity in samples */
 
-    /* faac_* API: AudioSpecificConfig cached on first request and owned by the
-     * handle (freed at close), so faac_encoder_asc() can hand back a pointer
-     * the caller never frees. NULL until first built. */
-    unsigned char *ascCache;
-    unsigned long  ascCacheLen;
+    /* Built once after configuration at open. Inline storage keeps the ASC
+     * pointer stable until close without a separate allocation. */
+    uint8_t asc[14];
+#if MAX_CHANNELS >= 8
+    uint8_t pce[9];
+#endif
+    uint32_t ascLen;
 
     /* HE-AAC / SBR state */
     struct SBRContext *sbrContext;   /* SBR analysis state and bitstream data */
 
     /* Peak-limiter retry scratch: one buffer per channel holding book[] at
-     * [0] and sf[] at [MAX_SCFAC_BANDS]. */
-    int *peakSnap[MAX_CHANNELS];
+     * [0] and sf[] at [MAX_SCFAC_BANDS] bytes. */
+    unsigned char *peakSnap[MAX_CHANNELS];
 
     RateControl rc;
+
+#if FAAC_ENCODER_DRC
+    DrcAnalyzer *drcAnalyzer;
+    DRCInfo drcInfo;
+#endif
+
+    /* Keep frame controls before the large coder state, sized at open to
+       omit unused channels. */
+    CoderInfo coderInfo[];
 } faacEncStruct;
 
-/* Configuration worker behind faac_encoder_open(): validates the config,
- * resolves AUTO/HE-AAC, and (re)initializes the encoder. Returns 1 on success,
- * 0 on failure. */
-int faacEncApplyConfig(faacEncStruct* hEncoder,
-                       faacEncConfigurationPtr config);
+/* One-time configuration worker behind faac_encoder_open(): resolves the
+ * profile and initializes a fresh, facade-validated handle. Returns 1 on
+ * success, 0 for an unsupported core rate, -1 on allocation failure. */
+int faacEncApplyConfig(faacEncStruct* hEncoder);
 
 /* Samples/channel per full frame: HE-AAC's core runs dual-rate at Fs/2, so it
  * needs two FRAME_LENs of input to emit one frame at the full rate; LC needs one. */
 static inline unsigned int faacFrameSamples(const faacEncStruct *hEncoder)
 {
-    return (hEncoder->config.aacObjectType == HE_V1) ? 2 * FRAME_LEN : FRAME_LEN;
+    return (IsSBR(hEncoder->config.aacObjectType)) ? 2 * FRAME_LEN : FRAME_LEN;
 }
 
 #ifdef __cplusplus

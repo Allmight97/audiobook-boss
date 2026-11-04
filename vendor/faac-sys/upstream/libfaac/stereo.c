@@ -14,6 +14,7 @@
  */
 
 #define _USE_MATH_DEFINES
+#include <float.h>
 #include <math.h>
 #include "stereo.h"
 #include "huff2.h"
@@ -21,13 +22,6 @@
 #include "faac_internal.h"
 #include "stats.h"
 
-/* Intensity stereo crossover scales with core bandwidth (3.5-7 kHz) to save low-band phase bits at low rates. */
-#define IS_BW_RATIO              0.35f
-#define IS_START_FREQ_MIN        3500
-#define IS_START_FREQ_MAX        7000
-/* Upper bound on crossover (0.35*Fs) so IS stays well inside coded spectrum. */
-#define IS_FREQ_CAP_NUM  7
-#define IS_FREQ_CAP_DEN  20
 /* Pan, in SF_STEP_ENRG steps, beyond which the quieter channel is inaudible
  * and is dropped to HCB_ZERO rather than intensity-coded. */
 #define IS_PAN_LIMIT     30
@@ -37,15 +31,23 @@
  * configured rate like PSY_SHORT_ONLY_BITRATE; the running quality gates
  * fewer frames and gains less. */
 #define IS_ONLY_BITRATE  40000
-/* From this rate (bps per channel) a short window keeps L/R below the
- * intensity crossover like a long one; below it the bits that full-band
- * intensity stereo saves still buy more quality than the image they cost. */
-#define IS_SHORT_CROSSOVER_BITRATE  80000
+/* From this rate (bps per channel) a short window takes M/S on every band
+ * like a long one. Below it, down to the starved rates, it takes M/S below
+ * MS_SPLIT_HZ and intensity stereo above: wider M/S cost quality on tonal
+ * clips that go short, while intensity stereo from the lowest band collapsed
+ * the image. */
+#define MS_SHORT_BITRATE  80000
+/* From this rate (bps per channel) a two-channel LC band takes M/S somewhat
+ * more readily than the plain mid*side < left*right test: the side channel
+ * then costs fewer bits than the L/R image it replaces. Beyond 1.5 times
+ * that test the extra M/S bands lose quality. */
+#define MS_BIAS_BITRATE  64000
+#define MS_BIAS          1.5f
 /* Starved rates (bps per channel) from which long windows take real M/S
  * instead of intensity stereo; below them the side channel's bits cost more
  * quality than the image gains. Between the HE tiers only the low band takes
- * it. Short windows take it below MS_SPLIT_HZ only: across a group's shared
- * scalefactors the side channel's noise spreads ahead of the attack. */
+ * it. Short windows take it below MS_SPLIT_HZ only, as above MS_SHORT_BITRATE
+ * explains. */
 #define MS_SPLIT_HE_LOW_BITRATE   20000
 #define MS_SPLIT_HE_LOW_HZ        1000
 #define MS_SPLIT_HE_HIGH_BITRATE  24000
@@ -59,15 +61,11 @@ static int band_at(const int *sfbOffset, int sfbn, int hz, int n2, int sampleRat
     return sfb;
 }
 
-void StereoConfigure(StereoConfig *cfg, JointMode mode, int sampleRate, unsigned int bandWidth,
-                     unsigned long bitRatePerCh, int sbr, const int *sfbOffset[2], const int sfbn[2])
+void StereoConfigure(StereoConfig *cfg, JointMode mode, int sampleRate, unsigned long bitRatePerCh, unsigned int channels, int sbr, const int *sfbOffset[2], const int sfbn[2])
 {
     int starved = bitRatePerCh && bitRatePerCh < IS_ONLY_BITRATE;
-
-    /* Scale IS crossover with bandwidth (0.35 * bw, 3.5-7 kHz) to save phase bits. */
-    int cap = (sampleRate * IS_FREQ_CAP_NUM) / IS_FREQ_CAP_DEN;
-    int max_freq = min(IS_START_FREQ_MAX, cap);
-    int ifreq = (max_freq < IS_START_FREQ_MIN) ? max_freq : clamp_int((int)((float)bandWidth * IS_BW_RATIO), IS_START_FREQ_MIN, max_freq);
+    /* The M/S bias was measured on two-channel LC only. */
+    int plainStereo = channels == 2 && !sbr;
 
     /* Highest M/S frequency per window type (0 long, 1 short); sampleRate
      * means every band. */
@@ -75,8 +73,16 @@ void StereoConfigure(StereoConfig *cfg, JointMode mode, int sampleRate, unsigned
     if (mode == JOINT_MS) {
         msHz[0] = msHz[1] = sampleRate;
     } else if (mode == JOINT_MIXED) {
-        if (!starved)
+        if (!starved) {
             msHz[0] = sampleRate;
+            if (bitRatePerCh >= MS_SHORT_BITRATE)
+                msHz[1] = sampleRate;
+            /* Without a per-channel rate (VBR) an HE stream keeps intensity
+             * stereo on short windows: at a fixed quality the side channel's
+             * bits cost more rate than the image returns. LC gains from M/S. */
+            else if (bitRatePerCh || !sbr)
+                msHz[1] = MS_SPLIT_HZ;
+        }
         else if (sbr ? bitRatePerCh >= MS_SPLIT_HE_HIGH_BITRATE : bitRatePerCh >= MS_SPLIT_LC_BITRATE)
             msHz[0] = sampleRate, msHz[1] = MS_SPLIT_HZ;
         else if (sbr && bitRatePerCh >= MS_SPLIT_HE_LOW_BITRATE)
@@ -84,16 +90,15 @@ void StereoConfigure(StereoConfig *cfg, JointMode mode, int sampleRate, unsigned
     }
 
     /* Each window type takes M/S below msEnd, intensity from isStart and plain
-     * L/R between. Without M/S, intensity covers every band past the lowest
-     * except on short windows from IS_SHORT_CROSSOVER_BITRATE, which keep L/R
-     * below the crossover. */
+     * L/R between. A window type without M/S takes intensity on every band past
+     * the lowest. */
     cfg->mode = mode;
+    cfg->msTestFactor = 4.0f * ((mode == JOINT_MIXED && plainStereo &&
+                           bitRatePerCh >= MS_BIAS_BITRATE) ? MS_BIAS : 1.0f);
     for (int w = 0; w < 2; w++) {
         int n = sfbn[w], n2 = 2 * (w ? BLOCK_LEN_SHORT : BLOCK_LEN_LONG);
         int ms = band_at(sfbOffset[w], n, msHz[w], n2, sampleRate);
         int is = ms ? ms : w ? 1 : 8;
-        if (!ms && w && mode == JOINT_MIXED && bitRatePerCh >= IS_SHORT_CROSSOVER_BITRATE)
-            is = band_at(sfbOffset[w], n, ifreq, n2, sampleRate);
         cfg->msEnd[w] = ms;
         cfg->isStart[w] = is;
     }
@@ -186,7 +191,7 @@ static inline int process_cpe(CoderInfo * restrict cl, CoderInfo * restrict cr,
                                AACElement * restrict element,
                                float * restrict sl0, float * restrict sr0,
                                int * restrict sfcnt, int g, int wstart, int wend,
-                               float inv_isthr, int is_start, int ms_end)
+                               float inv_isthr, int is_start, int ms_end, float ms_test_factor)
 {
     int sfb, msused = 0;
     const int * restrict sfb_offset = cl->sfb_offset;
@@ -214,7 +219,7 @@ static inline int process_cpe(CoderInfo * restrict cl, CoderInfo * restrict cr,
 
         if (sfb < ms_end) {
             /* es and ed are 4x the mid and side energies. */
-            if (es * ed < 4.0f * el * er) {
+            if (es * ed < ms_test_factor * el * er) {
                 apply_ms_full(sl0, sr0, start, len, wstart, wend);
                 element->msInfo.ms_used[band] = 1;
                 cl->msEl[band] = el;
@@ -231,7 +236,9 @@ static inline int process_cpe(CoderInfo * restrict cl, CoderInfo * restrict cr,
              * to save a square root. */
             float th = (el + er + 2.0f * sqrtf(el * er)) * inv_isthr;
             int hcb = (es >= th) ? HCB_INTENSITY : (ed >= th ? HCB_INTENSITY2 : HCB_NONE);
-            if (hcb != HCB_NONE) {
+            /* A subnormal etot overflows inv_etot to inf, and lrintf of the
+             * resulting log10f is undefined. */
+            if (hcb != HCB_NONE && etot >= FLT_MIN) {
                 float inv_etot = 1.0f / etot;
                 int sf  = lrintf(log10f(el * inv_etot) * SF_STEP_ENRG);
                 int pan = lrintf(log10f(er * inv_etot) * SF_STEP_ENRG) - sf;
@@ -296,16 +303,10 @@ void AACstereo(CoderInfo *coder, AACElement *elements, int numElements, float *s
         elem->common_window = false;
         elem->msInfo.is_present = false;
 
-        if (coder[lch].block_type != coder[rch].block_type || coder[lch].groups.n != coder[rch].groups.n)
+        /* frame.c assigns one group to non-short blocks and copies the
+         * left short grouping to its CPE partner in BlocGroup. */
+        if (coder[lch].block_type != coder[rch].block_type)
             continue;
-
-        int ok = 1;
-        for (int g = 0; g < coder[lch].groups.n; g++) {
-            if (coder[lch].groups.len[g] != coder[rch].groups.len[g]) {
-                ok = 0; break;
-            }
-        }
-        if (!ok) continue;
 
         int shortwin = coder[lch].block_type == ONLY_SHORT_WINDOW;
         int ms_end = cfg->msEnd[shortwin];
@@ -321,7 +322,7 @@ void AACstereo(CoderInfo *coder, AACElement *elements, int numElements, float *s
         for (int g = 0; g < coder[lch].groups.n; g++) {
             int end = start + coder[lch].groups.len[g];
             msused |= process_cpe(coder+lch, coder+rch, elem, s[lch], s[rch],
-                                  &sfcnt, g, start, end, inv_isthr, is_start, ms_end);
+                                  &sfcnt, g, start, end, inv_isthr, is_start, ms_end, cfg->msTestFactor);
             start = end;
         }
         elem->msInfo.is_present = msused;

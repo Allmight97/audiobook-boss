@@ -43,6 +43,13 @@ typedef struct faacEncStats {
     unsigned long sbrInvfSum;
     unsigned long sbrInvfCount;
 
+    unsigned int psFrames;
+    unsigned int psLowBandFrames;
+    unsigned int psOneEnvelopeFrames;
+    unsigned int psIccFrames;
+    unsigned int psPhaseFrames;
+    unsigned long psPayloadBits;
+
     double totalAttack;
     float maxAttack;
     unsigned long attackCount;
