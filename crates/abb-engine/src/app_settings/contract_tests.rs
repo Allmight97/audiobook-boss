@@ -295,6 +295,19 @@ fn a_job_limit_this_release_refuses_resets_only_the_job_limit() {
 }
 
 #[test]
+fn an_unknown_aac_decoder_resets_only_the_decoder_choice() {
+    let loaded = load_sample_edited("aac_decoder = \"faad\"", "aac_decoder = \"retired\"");
+    assert_eq!(loaded.reset, vec![SettingsUnit::AacDecoder]);
+    assert_eq!(
+        loaded.settings,
+        AppSettings {
+            aac_decoder: crate::audio::AacDecoder::Auto,
+            ..chosen_settings()
+        }
+    );
+}
+
+#[test]
 fn a_retired_encoder_resets_only_the_encoder_defaults() {
     let loaded = load_sample_edited("type = \"faac\"", "type = \"retired\"");
     assert_eq!(loaded.reset, vec![SettingsUnit::EncoderDefaults]);
