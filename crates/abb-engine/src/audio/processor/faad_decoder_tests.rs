@@ -74,3 +74,62 @@ fn a_stream_without_a_speaker_mask_is_refused() {
         "mask and count disagree"
     );
 }
+
+#[test]
+fn packets_of_other_streams_do_not_use_up_format_discovery() {
+    let dir = tempfile::tempdir().expect("fixture directory");
+    let subtitles = dir.path().join("cues.srt");
+    let cues: String = (0..150)
+        .map(|cue| {
+            let ms = cue * 6;
+            format!(
+                "{}\n00:00:00,{ms:03} --> 00:00:00,{:03}\ncue\n\n",
+                cue + 1,
+                ms + 5
+            )
+        })
+        .collect();
+    std::fs::write(&subtitles, cues).expect("write cues");
+    let fixture = dir.path().join("late-audio.mkv");
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
+    let output = std::process::Command::new(&binary)
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-itsoffset",
+            "1",
+            "-f",
+            "lavfi",
+        ])
+        .args([
+            "-i",
+            "sine=frequency=440:sample_rate=44100:duration=1",
+            "-i",
+        ])
+        .arg(&subtitles)
+        .args([
+            "-map", "0:a", "-map", "1:s", "-c:a", "aac", "-c:s", "srt", "-y",
+        ])
+        .arg(&fixture)
+        .output()
+        .expect("spawn ffmpeg for the delayed-audio fixture");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let input = ff::format::input(&fixture).expect("open fixture");
+    let audio = input
+        .streams()
+        .best(ff::media::Type::Audio)
+        .expect("audio stream");
+    // SAFETY: the parameters belong to `input`, which outlives this copy of the extradata.
+    let asc = unsafe {
+        let raw = &*audio.parameters().as_ptr();
+        std::slice::from_raw_parts(raw.extradata, raw.extradata_size as usize).to_vec()
+    };
+    let format = super::discover_format(&fixture, audio.index(), Some(&asc)).expect("discovers");
+    assert_eq!((format.rate, format.channels), (44_100, 1));
+}

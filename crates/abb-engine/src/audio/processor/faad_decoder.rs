@@ -45,7 +45,7 @@ impl Drop for Handle {
     }
 }
 
-// SAFETY: one FAAD handle is owned by one thread at a time (faad.h); the
+// SAFETY: one FAAD handle is owned by one thread at a time (faad3.h); the
 // adapter never shares the pointer.
 unsafe impl Send for Handle {}
 
@@ -254,8 +254,12 @@ fn discover_format(path: &Path, stream_index: usize, asc: Option<&[u8]>) -> Resu
     let mut output = vec![0u8; stream_info(&handle)?.max_output_bytes as usize];
     let mut input = ff::format::input(path)
         .map_err(|error| AppError::General(format!("FAAD3 cannot reopen input: {error}")))?;
-    for (stream, packet) in input.packets().take(FORMAT_DISCOVERY_PACKET_LIMIT) {
-        let Some(data) = packet.data().filter(|_| stream.index() == stream_index) else {
+    let audio = input
+        .packets()
+        .filter(|(stream, _)| stream.index() == stream_index)
+        .take(FORMAT_DISCOVERY_PACKET_LIMIT);
+    for (_, packet) in audio {
+        let Some(data) = packet.data() else {
             continue;
         };
         if decode_unit(&handle, data, &mut output)?.written > 0 {
@@ -263,7 +267,7 @@ fn discover_format(path: &Path, stream_index: usize, asc: Option<&[u8]>) -> Resu
         }
     }
     Err(AppError::General(format!(
-        "FAAD3 emitted no audio within {FORMAT_DISCOVERY_PACKET_LIMIT} packets of '{}'",
+        "FAAD3 emitted no audio within {FORMAT_DISCOVERY_PACKET_LIMIT} audio packets of '{}'",
         sanitize_path_for_display(path)
     )))
 }
