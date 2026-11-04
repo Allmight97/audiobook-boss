@@ -223,6 +223,26 @@ describe('check-file-size staged', () => {
 			expect(grew.stderr).toContain('may not grow');
 		});
 	});
+
+	it('lets a split commit make room for growth, but not past the merge-base size', () => {
+		withRepo((root) => {
+			writeBytes(root, 'god.rs', over + 4000);
+			commitAll(root, 'over on main');
+			git(root, ['update-ref', 'refs/remotes/origin/main', 'HEAD']);
+			git(root, ['checkout', '-q', '-b', 'feature']);
+			writeBytes(root, 'god.rs', over + 1000);
+			commitAll(root, 'split');
+			writeBytes(root, 'god.rs', over + 1500);
+			git(root, ['add', 'god.rs']);
+			const regrown = run(root, ['god.rs']);
+			expect(regrown.status, regrown.stderr).toBe(0);
+			writeBytes(root, 'god.rs', over + 4001);
+			git(root, ['add', 'god.rs']);
+			const past = run(root, ['god.rs']);
+			expect(past.status, past.stderr).toBe(1);
+			expect(past.stderr).toContain('merge-base of origin/main and HEAD');
+		});
+	});
 });
 
 describe('file-size ratchet selection', () => {

@@ -46,7 +46,9 @@ Other harnesses use the same verifier and evidence files.
   or points at a missing path. `scripts/check-known-mistakes.ts` fails on
   code shapes behind repeated past failures; each error names the fix and
   any allow marker. `scripts/check-file-size.mjs` ratchets source file
-  size. `bun scripts/check-file-size.mjs --help` prints how a file that fails it is split.
+  size: a staged file over the budget may grow back to its size at the
+  merge-base with `origin/main` (HEAD when none), so a split commit makes room for the
+  next one. `bun scripts/check-file-size.mjs --help` prints how a file that fails it is split.
 - JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
   on dependency or policy changes and daily advisory refreshes; `--changed`
   selects it for those paths. Accepted
