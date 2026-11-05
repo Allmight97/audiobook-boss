@@ -8,8 +8,8 @@ const PROGRESS_EMIT_INTERVAL_MS: u64 = 1000;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreviewAction {
     Continue,
-    NextFile,
-    StopAll,
+    /// This file's preview excerpt is complete; read no more of it.
+    ExcerptFull,
 }
 
 pub(crate) struct FramePipelineCtx<'a> {
@@ -24,8 +24,7 @@ pub(crate) struct FramePipelineCtx<'a> {
     pub(crate) current_file_index: usize,
     pub(crate) current_stream_index: usize,
     pub(crate) current_file_name: String,
-    pub(crate) early_stop: &'a mut bool,
-    /// Adaptive preview state (None when not in preview mode or using single-file preview)
+    /// Preview excerpt state; None outside a preview.
     pub(crate) preview_state: Option<&'a mut PreviewState>,
 }
 
@@ -67,56 +66,19 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
 
 #[inline]
 fn check_per_file_preview_stop(ctx: &mut FramePipelineCtx) -> PreviewAction {
-    let Some(preview_state) = ctx.preview_state.as_mut() else {
+    if !ctx
+        .preview_state
+        .as_ref()
+        .is_some_and(|preview| preview.excerpt_complete())
+    {
         return PreviewAction::Continue;
-    };
-
-    let elapsed_seconds =
-        preview_state.current_file_elapsed_samples as f64 / ctx.target_sample_rate as f64;
-
-    if elapsed_seconds >= preview_state.per_file_seconds {
-        if preview_state.all_files_complete() {
-            log::info!(
-                "adaptive preview complete: {} file excerpts, total_pts={}",
-                preview_state.file_count,
-                *ctx.running_pts
-            );
-            *ctx.early_stop = true;
-            return PreviewAction::StopAll;
-        }
-
-        log::info!(
-            "adaptive preview: file {} complete ({:.3}s), moving to next",
-            preview_state.current_file_index + 1,
-            elapsed_seconds
-        );
-        return PreviewAction::NextFile;
     }
-
-    PreviewAction::Continue
-}
-
-/// Single-file preview early-stop check (used when preview_state is None).
-/// Communicates purely through the `ctx.early_stop` side effect.
-#[inline]
-fn check_and_mark_preview_early_stop(ctx: &mut FramePipelineCtx) {
-    if ctx.preview_state.is_some() {
-        return;
-    }
-
-    if let Some(preview) = ctx.context.preview.as_ref() {
-        let elapsed_seconds = *ctx.running_pts as f64 / ctx.target_sample_rate as f64;
-        if elapsed_seconds >= preview.total_seconds {
-            if log::log_enabled!(log::Level::Info) {
-                log::info!(
-                    "preview early-stop reached elapsed={:.3}s target={:.3}s",
-                    elapsed_seconds,
-                    preview.total_seconds
-                );
-            }
-            *ctx.early_stop = true;
-        }
-    }
+    log::info!(
+        "preview: file {} excerpt complete at total_pts={}",
+        ctx.current_file_index + 1,
+        *ctx.running_pts
+    );
+    PreviewAction::ExcerptFull
 }
 
 fn process_and_encode_frame(
@@ -125,26 +87,19 @@ fn process_and_encode_frame(
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
 ) -> Result<PreviewAction> {
-    let samples_count = frame.samples() as u64;
+    let samples = match ctx.preview_state.as_mut() {
+        Some(preview) => preview.take(frame.samples()),
+        None => frame.samples(),
+    };
 
-    if let Some(ref mut ps) = ctx.preview_state {
-        ps.current_file_elapsed_samples += samples_count;
-    }
-
-    for mut full in accumulator.push_frame(frame) {
+    for mut full in accumulator.push_frame(frame, samples) {
         full.set_pts(Some(*ctx.running_pts));
         *ctx.running_pts += full.samples() as i64;
         encoder.submit(&full)?;
     }
 
     emit_progress_update(ctx);
-    let action = check_per_file_preview_stop(ctx);
-    if action != PreviewAction::Continue {
-        return Ok(action);
-    }
-
-    check_and_mark_preview_early_stop(ctx);
-    Ok(PreviewAction::Continue)
+    Ok(check_per_file_preview_stop(ctx))
 }
 
 const RESAMPLER_FLUSH_CHUNK_SAMPLES: usize = 1024;
@@ -234,18 +189,6 @@ fn flush_resampler_tail(
     Ok(())
 }
 
-fn should_drain_decoder_after_input(ctx: &FramePipelineCtx, action: PreviewAction) -> bool {
-    if action != PreviewAction::Continue {
-        return false;
-    }
-
-    if *ctx.early_stop {
-        return false;
-    }
-
-    true
-}
-
 pub(crate) fn flush_accumulator_tail(
     encoder: &mut super::encoder::EncoderSession,
     ctx: &mut FramePipelineCtx,
@@ -274,8 +217,7 @@ pub(crate) fn process_decoded_frames(
     let disable_fastpath = std::env::var("ABB_DISABLE_FASTPATH")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
-    // Preview runs prioritize deterministic excerpt boundaries over the decoder-format fast path.
-    let fastpath_enabled = !disable_fastpath && ctx.context.preview.is_none();
+    let fastpath_enabled = !disable_fastpath;
     let encoder_format = encoder.format();
     let encoder_channel_layout = encoder.channel_layout();
     let encoder_sample_rate = encoder.rate();
@@ -302,7 +244,7 @@ pub(crate) fn process_decoded_frames(
                         continue;
                     }
                     action = process_and_encode_frame(&frame, encoder, ctx, accumulator)?;
-                    if action != PreviewAction::Continue || *ctx.early_stop {
+                    if action != PreviewAction::Continue {
                         break;
                     }
                     continue;
@@ -323,7 +265,7 @@ pub(crate) fn process_decoded_frames(
                 }
 
                 action = process_and_encode_frame(&out, encoder, ctx, accumulator)?;
-                if action != PreviewAction::Continue || *ctx.early_stop {
+                if action != PreviewAction::Continue {
                     break;
                 }
             }
@@ -402,17 +344,9 @@ pub(crate) fn process_input_packets(
         if final_action != PreviewAction::Continue {
             break;
         }
-
-        if *ctx.early_stop {
-            if log::log_enabled!(log::Level::Info) {
-                log::info!("Preview early-stop marked; exiting packet loop");
-            }
-            break;
-        }
     }
 
-    let should_drain = should_drain_decoder_after_input(ctx, final_action);
-    if should_drain {
+    if final_action == PreviewAction::Continue {
         log::debug!("Sending decoder EOF after packet processing");
         decoder
             .send_eof()
@@ -421,7 +355,7 @@ pub(crate) fn process_input_packets(
         let drain_action = process_decoded_frames(decoder, encoder, resampler, ctx, accumulator)?;
         if drain_action != PreviewAction::Continue {
             final_action = drain_action;
-        } else if !*ctx.early_stop {
+        } else {
             // End of this file's real audio: recover the resampler's
             // held-back tail before moving to the next input.
             flush_resampler_tail(resampler, encoder, ctx, accumulator)?;

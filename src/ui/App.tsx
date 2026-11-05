@@ -106,7 +106,7 @@ export function App(): JSX.Element {
 								>
 									<div class="output-and-tags-block-header tags-header">
 										<h3>Tags Preview</h3>
-										<PreviewAudioControls variant="compact" />
+										<PreviewAudioControls />
 									</div>
 									<TagPreviewView variant="workbench" />
 								</div>

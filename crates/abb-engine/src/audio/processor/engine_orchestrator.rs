@@ -1,7 +1,5 @@
 use crate::audio::buffer::SampleAccumulator;
-use crate::audio::processor::frame_pipeline::{
-    flush_accumulator_tail, FramePipelineCtx, PreviewAction,
-};
+use crate::audio::processor::frame_pipeline::{flush_accumulator_tail, FramePipelineCtx};
 use crate::audio::processor::plan::MediaProcessingPlan;
 use crate::audio::processor::preview_state::PreviewState;
 use crate::errors::{sanitize_path_for_display, Result};
@@ -23,23 +21,15 @@ pub(crate) fn process_input_files(
     let mut running_pts: i64 = 0;
     let mut last_emit = std::time::Instant::now();
     let mut eta_estimator = crate::processing::EtaEstimator::new();
-    let mut preview_early_stop = false;
     let file_count = plan.input_file_paths.len();
-    let mut preview_state_storage =
-        context
-            .preview
-            .as_ref()
-            .filter(|_| file_count > 1)
-            .map(|cfg| {
-                let per_file_sec = cfg.per_file_seconds(file_count);
-                log::info!(
-                    "Adaptive preview: {} files × {:.3}s/file = {:.3}s total",
-                    file_count,
-                    per_file_sec,
-                    per_file_sec * file_count as f64
-                );
-                PreviewState::new(file_count, per_file_sec)
-            });
+    let mut preview_state_storage = context.preview.as_ref().map(|cfg| {
+        let per_file_samples = cfg.per_file_samples(file_count, io.enc_ctx.rate());
+        log::info!(
+            "preview: {file_count} file(s) × {per_file_samples} samples at {} Hz",
+            io.enc_ctx.rate()
+        );
+        PreviewState::new(per_file_samples)
+    });
 
     let mut ctx = FramePipelineCtx {
         context,
@@ -53,7 +43,6 @@ pub(crate) fn process_input_files(
         current_file_index: 0,
         current_stream_index: 0,
         current_file_name: String::new(),
-        early_stop: &mut preview_early_stop,
         preview_state: preview_state_storage.as_mut(),
     };
 
@@ -78,7 +67,7 @@ pub(crate) fn process_input_files(
         ctx.current_file_name = file_label.to_string();
         let path = sanitize_path_for_display(in_path);
         log::info!("Processing input file {}/{}: {}", idx + 1, file_count, path);
-        let action = engine::process_input_file(
+        engine::process_input_file(
             in_path,
             io.enc_ctx,
             idx,
@@ -91,31 +80,6 @@ pub(crate) fn process_input_files(
             idx + 1,
             file_count
         );
-
-        if *ctx.early_stop {
-            log::info!(
-                "Preview boundary reached after file {}; stopping further input processing",
-                idx + 1
-            );
-            break;
-        }
-
-        match action {
-            PreviewAction::StopAll => {
-                log::info!(
-                    "Adaptive preview complete after file {}; stopping further input processing",
-                    idx + 1
-                );
-                break;
-            }
-            PreviewAction::NextFile => {
-                log::info!(
-                    "Adaptive preview: file {} excerpt complete, continuing to next file",
-                    idx + 1
-                );
-            }
-            PreviewAction::Continue => {}
-        }
     }
 
     log::info!("✓ All input files processed successfully");

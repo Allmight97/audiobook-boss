@@ -465,9 +465,7 @@ impl Session {
         let since = self.lock().revision();
         let submission = matches!(
             &intent,
-            SessionIntent::Submit
-                | SessionIntent::Preview { .. }
-                | SessionIntent::RestartTitle { .. }
+            SessionIntent::Submit | SessionIntent::Preview | SessionIntent::RestartTitle { .. }
         );
         let reply = self
             .inner
@@ -701,8 +699,8 @@ impl Session {
                 Rest::Done(SessionOutcome::Applied)
             }
             I::Save => self.begin_save(),
-            I::Submit => self.begin_submission(None),
-            I::Preview { seconds } => self.begin_submission(Some(seconds)),
+            I::Submit => self.begin_submission(false),
+            I::Preview => self.begin_submission(true),
             I::CancelPreview {
                 run_id,
                 child_job_id,
@@ -1071,8 +1069,8 @@ impl Session {
         })
     }
 
-    fn begin_submission(&self, preview_seconds: Option<f64>) -> Rest {
-        let draft = self.transition(|state| state.begin_submission(preview_seconds));
+    fn begin_submission(&self, preview: bool) -> Rest {
+        let draft = self.transition(|state| state.begin_submission(preview));
         match draft {
             Some(draft) => Rest::Submit {
                 draft: Box::new(self.capture_decoder(draft)),
@@ -1094,7 +1092,7 @@ impl Session {
             inspect_processing_plan(
                 &checking.payload,
                 checking.metadata.as_ref(),
-                checking.preview_seconds,
+                checking.preview,
             )
         })
         .await;
@@ -1174,7 +1172,7 @@ impl Session {
         inspected: crate::processing::plan::InspectedProcessingPlan,
     ) -> SessionOutcome {
         let deps = &self.inner.deps;
-        if draft.preview_seconds.is_some() {
+        if draft.preview {
             return self.run_preview(draft, inspected).await;
         }
         let submitted = deps

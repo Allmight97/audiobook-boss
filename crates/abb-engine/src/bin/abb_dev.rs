@@ -47,7 +47,7 @@ Options:
   --template <template>   Name exports with a custom template, such as
                           '{author}/{title}'.
   --export                Export every valid title and wait for it to finish.
-  --preview <seconds>     Render the first seconds of each title instead.
+  --preview               Render each title's preview instead.
   --on-collision <policy> What to do when an export already exists: rename,
                           replace, or skip. Without it, a collision stops.
   --cancel-title <n>      Cancel the nth title (from 1) while queued or running.
@@ -68,7 +68,7 @@ struct Options {
     out: Option<String>,
     template: Option<String>,
     export: bool,
-    preview: Option<f64>,
+    preview: bool,
     on_collision: Option<CollisionPolicy>,
     cancel_title: Option<usize>,
     json: bool,
@@ -133,13 +133,7 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
             }
             "--out" => options.out = Some(value(&mut args, "--out")?),
             "--template" => options.template = Some(value(&mut args, "--template")?),
-            "--preview" => {
-                let seconds = value(&mut args, "--preview")?;
-                let seconds = seconds
-                    .parse()
-                    .map_err(|_| format!("bad preview length '{seconds}'"))?;
-                options.preview = Some(seconds);
-            }
+            "--preview" => options.preview = true,
             "--on-collision" => {
                 options.on_collision =
                     Some(collision_policy(&value(&mut args, "--on-collision")?)?);
@@ -310,9 +304,10 @@ async fn plan(engine: &Engine, options: &Options) -> Result<(), String> {
 }
 
 async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, String> {
-    let intent = match options.preview {
-        Some(seconds) => SessionIntent::Preview { seconds },
-        None => SessionIntent::Submit,
+    let intent = if options.preview {
+        SessionIntent::Preview
+    } else {
+        SessionIntent::Submit
     };
     send(engine, intent).await?;
     let status = submission(engine).ok_or("the engine did not answer the submission")?;
@@ -495,7 +490,7 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, Strin
         send(&engine, SessionIntent::Save).await?;
     }
     plan(&engine, &options).await?;
-    if options.export || options.preview.is_some() {
+    if options.export || options.preview {
         if let Err(message) = produce(&engine, &options).await {
             shut_down(&engine).await;
             return Err(message);

@@ -40,7 +40,7 @@ describe('submission snapshot adapter', () => {
 		runtimes.push(app);
 		await app.initialize();
 		await app.processing.start();
-		await app.processing.start({ previewSeconds: 30 });
+		await app.processing.preview();
 		await app.processing.restart({
 			titleId: 'alpha',
 			operationId: 'op-1',
@@ -50,7 +50,7 @@ describe('submission snapshot adapter', () => {
 		});
 		expect(engine.sessionIntents).toEqual([
 			{ kind: 'submit' },
-			{ kind: 'preview', seconds: 30 },
+			{ kind: 'preview' },
 			{ kind: 'restartTitle', titleId: 'alpha', revision: 3 },
 		]);
 	});

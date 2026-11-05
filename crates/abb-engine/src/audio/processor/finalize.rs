@@ -97,9 +97,7 @@ pub(crate) fn finalize_processing(
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
 ) -> Result<String> {
     let ui = context.new_emitter();
-    let chapters = passthrough
-        .filter(|_| context.preview.is_none())
-        .map(|value| value.chapters.as_slice());
+    let chapters = passthrough.map(|value| value.chapters.as_slice());
     let rewrote =
         crate::metadata::finish_artifact_tags(&merged_output, metadata.as_ref(), chapters, || {
             ui.emit_metadata_start("Writing metadata...")

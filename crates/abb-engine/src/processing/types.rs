@@ -131,7 +131,7 @@ pub type ProcessResultSummary = OperationResultSummary;
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessingPreflightPlan {
-    pub preview_seconds: Option<f64>,
+    pub preview: bool,
     pub collision_policy: CollisionPolicy,
     pub plan_signature: String,
     pub outputs: Vec<PlannedOutput>,
@@ -148,7 +148,6 @@ pub struct ProcessResultEntry {
     /// Published artifact of a successful title: the audiobook for final
     /// processing, the excerpt for a preview.
     pub output_path: Option<String>,
-    pub preview_actual_seconds: Option<f64>,
     pub job_id: Option<String>,
     /// Set on a successful title whose audiobook was published but whose
     /// requested companion files (PDFs) were not. Its acquired sources stay

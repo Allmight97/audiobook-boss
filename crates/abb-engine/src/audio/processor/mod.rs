@@ -301,8 +301,14 @@ fn process_audiobook_with_context(
     let passthrough_metadata = cover_art_passthrough
         .apply_to_passthrough(extract_passthrough_metadata(&passthrough_sources).into_option());
 
-    let (effective_metadata, passthrough_metadata, cover_warning) =
+    let (effective_metadata, mut passthrough_metadata, cover_warning) =
         prepare_output_cover_art(metadata, passthrough_metadata, cover_art_passthrough)?;
+    if let Some(passthrough) = passthrough_metadata
+        .as_mut()
+        .filter(|_| context.preview.is_some())
+    {
+        passthrough.chapters.clear();
+    }
 
     let merged_output = execute::execute_processing(
         &context,

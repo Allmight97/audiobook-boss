@@ -1451,7 +1451,7 @@ async fn ending_a_submission_wakes_a_save_waiting_on_its_sources() {
         .session
         .transition(|state| {
             state.output.set_directory("/library".to_string());
-            state.begin_submission(None)
+            state.begin_submission(false)
         })
         .expect("the submission is prepared");
     rig.send(SessionIntent::SetField {
@@ -1739,7 +1739,7 @@ async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_u
         .session
         .transition(|state| {
             state.output.set_directory("/library".to_string());
-            state.begin_submission(None)
+            state.begin_submission(false)
         })
         .expect("a submission locks the list");
 
@@ -1860,7 +1860,7 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
     let jobs = &rig.session.inner.deps.jobs;
     let (first, first_permit) = jobs.register_job().await.expect("hold first slot");
     let (second, second_permit) = jobs.register_job().await.expect("hold second slot");
-    let run = rig.session.begin(SessionIntent::Preview { seconds: 0.1 });
+    let run = rig.session.begin(SessionIntent::Preview);
     drop(run);
     let id = output(&rig)
         .preview_run

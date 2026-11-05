@@ -113,12 +113,10 @@ fn test_engine() -> &'static abb_engine::Engine {
 pub(crate) fn preflight_processing_plan(
     payload: abb_engine::processing::ProcessPayload,
     metadata: Option<std::collections::HashMap<String, MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
+    preview: bool,
 ) -> Result<abb_engine::processing::ProcessingPreflightPlan, abb_engine::AppErrorEnvelope> {
     Ok(abb_engine::processing::preflight_payload(
-        payload,
-        metadata,
-        preview_seconds,
+        payload, metadata, preview,
     )?)
 }
 
@@ -1868,7 +1866,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
             )
         })
         .collect();
-    let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), None)
+    let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), false)
         .expect("fixture value");
     assert_eq!(plan.outputs.len(), 5);
     for (index, extension) in ["m4b", "m4b", "m4b", "m4b", "m4b"].iter().enumerate() {
@@ -1885,10 +1883,10 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
     let mut encode_low_rate = payload.clone();
     encode_low_rate.audio_requests[0].intent = abb_engine::audio::AudioIntent::Encode;
     assert!(
-        preflight_processing_plan(encode_low_rate.clone(), Some(metadata.clone()), None).is_ok()
+        preflight_processing_plan(encode_low_rate.clone(), Some(metadata.clone()), false).is_ok()
     );
     encode_low_rate.audio_requests[0].sample_rate = SampleRateConfig::Explicit(22_050);
-    assert!(preflight_processing_plan(encode_low_rate, Some(metadata.clone()), None).is_err());
+    assert!(preflight_processing_plan(encode_low_rate, Some(metadata.clone()), false).is_err());
     let mut all_preserve = payload.clone();
     all_preserve.input_files.truncate(3);
     all_preserve.audio_requests.truncate(3);
@@ -1896,14 +1894,12 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
         request.sample_rate = SampleRateConfig::Explicit(1); // irrelevant while passing through
     }
     let original_plan =
-        preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), None)
+        preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), false)
             .expect("fixture value");
-    assert!(
-        preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), Some(1.0)).is_err()
-    );
+    assert!(preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), true).is_err());
     let mut changed_mode = all_preserve.clone();
     changed_mode.audio_requests = vec![title_audio_request(Encode, native_encoder_settings()); 3];
-    let encode_plan = preflight_processing_plan(changed_mode, Some(metadata.clone()), None)
+    let encode_plan = preflight_processing_plan(changed_mode, Some(metadata.clone()), false)
         .expect("fixture value");
     assert_ne!(original_plan.plan_signature, encode_plan.plan_signature);
     assert_eq!(
@@ -1913,7 +1909,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
     );
     let mut misaligned = all_preserve;
     misaligned.audio_requests.truncate(1);
-    assert!(preflight_processing_plan(misaligned, Some(metadata), None)
+    assert!(preflight_processing_plan(misaligned, Some(metadata), false)
         .expect_err("fixture must reject")
         .message
         .contains("align"));
@@ -2160,7 +2156,7 @@ async fn run_planned_title(
     workspace: &Path,
 ) -> Result<(PathBuf, abb_engine::audio::AudioRunOutcome), AppError> {
     let inspected =
-        crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), None)?;
+        crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), false)?;
     let job = inspected.plan.jobs.into_iter().next().expect("one title");
     let files: Vec<_> = job
         .source_paths
@@ -2769,7 +2765,7 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
             ..Default::default()
         },
     )]);
-    let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), None)
+    let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), false)
         .expect("compatible grouped preflight");
     assert_eq!(plan.outputs.len(), 1);
     assert!(plan.outputs[0].resolved_path.ends_with(".m4b"));
@@ -2782,7 +2778,7 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
         .expect("fixture value")
         .reverse();
     let reordered =
-        preflight_processing_plan(reversed, Some(metadata), None).expect("fixture value");
+        preflight_processing_plan(reversed, Some(metadata), false).expect("fixture value");
     assert_ne!(
         plan.plan_signature, reordered.plan_signature,
         "review pins source order"
@@ -2891,14 +2887,14 @@ fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
  abb_engine::audio::AudioIntent::Encode, native_encoder_settings())]
     }))
     .expect("MP3 stack request");
-    let plan =
-        preflight_processing_plan(payload.clone(), None, None).expect("encoding accepts MP3 stack");
+    let plan = preflight_processing_plan(payload.clone(), None, false)
+        .expect("encoding accepts MP3 stack");
     assert_eq!(plan.outputs.len(), 1);
     assert!(plan.outputs[0].resolved_path.ends_with(".m4b"));
     let mut preserved = payload;
     preserved.audio_requests[0].output = abb_engine::audio::OutputAudio::Mp3;
     preserved.audio_requests[0].intent = abb_engine::audio::AudioIntent::Auto;
-    let error = preflight_processing_plan(preserved, None, None)
+    let error = preflight_processing_plan(preserved, None, false)
         .expect_err("interior MP3 priming requires encoding");
     assert!(
         error.message.contains("priming") || error.message.contains("shifted"),
@@ -2969,7 +2965,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
             cover_art: Some(minimal_jpg_bytes()),
             ..Default::default()
         };
-        let plan = preflight_processing_plan(payload, None, None).expect("Opus preflight");
+        let plan = preflight_processing_plan(payload, None, false).expect("Opus preflight");
         let audio_plan = &plan.audio_plans[0];
         assert_eq!(audio_plan.sample_rate, input_rate);
         assert_eq!(audio_plan.channels, channels);
@@ -3280,7 +3276,7 @@ async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
         "inputFiles": [anchor], "titleSources": {anchor.to_str().expect("fixture value"): paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
         "audioRequests": [request], "outputDir": tmp.path(), "aacDecoder": "auto"
     })).expect("fixture value");
-    let plan = preflight_processing_plan(payload, None, None).expect("fixture value");
+    let plan = preflight_processing_plan(payload, None, false).expect("fixture value");
     assert_eq!(plan.audio_plans[0].handling, AudioHandling::Preserve);
     let destination = PathBuf::from(&plan.outputs[0].resolved_path);
     fs::create_dir_all(destination.parent().expect("fixture value")).expect("fixture value");

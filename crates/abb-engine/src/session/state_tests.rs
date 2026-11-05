@@ -1016,7 +1016,7 @@ fn a_save_while_a_submission_is_prepared_waits_for_its_sources() {
     desk.state.output.set_directory("/library".to_string());
     let draft = desk
         .state
-        .begin_submission(None)
+        .begin_submission(false)
         .expect("the submission starts");
     assert!(desk.state.working_set.order_locked());
 
@@ -1520,7 +1520,7 @@ fn a_download_waits_for_the_export_and_the_submission_reading_it() {
         .staged
         .finish_export(&exported(&[("alpha", ChildJobStatus::Completed, false)]));
     desk.state.output.set_directory("/library".to_string());
-    let draft = desk.state.begin_submission(None).expect("submission");
+    let draft = desk.state.begin_submission(false).expect("submission");
     assert!(desk
         .state
         .begin_staged_removal(&HashSet::new(), Instant::now())
@@ -1559,7 +1559,7 @@ fn a_download_being_removed_is_neither_written_nor_submitted() {
         "the file is held"
     );
     desk.state.output.set_directory("/library".to_string());
-    assert!(desk.state.begin_submission(None).is_none());
+    assert!(desk.state.begin_submission(false).is_none());
     assert_eq!(
         desk.state.output_snapshot(0).submission,
         Some(SubmissionStatus::Refused {
@@ -1584,7 +1584,7 @@ fn a_download_being_removed_is_neither_written_nor_submitted() {
     desk.bind();
     let draft = desk
         .state
-        .begin_submission(None)
+        .begin_submission(false)
         .expect("the next batch excludes removed files");
     assert_eq!(
         draft.payload.input_files,
@@ -1654,7 +1654,7 @@ fn a_save_still_writing_after_a_reset_keeps_its_file_busy() {
     desk.import(&[("alpha", Some(alpha_tags()))]);
     desk.select(&[0]).expect("select");
     desk.state.output.set_directory("/library".to_string());
-    assert!(desk.state.begin_submission(None).is_none());
+    assert!(desk.state.begin_submission(false).is_none());
     assert_eq!(
         desk.state.output_snapshot(0).submission,
         Some(SubmissionStatus::Refused {
@@ -1668,13 +1668,13 @@ fn a_save_still_writing_after_a_reset_keeps_its_file_busy() {
         &plan.immediate,
         MetadataStatus::SaveCancelled,
     );
-    assert!(desk.state.begin_submission(None).is_some());
+    assert!(desk.state.begin_submission(false).is_some());
 }
 
 #[test]
 fn an_export_needs_a_title_from_its_tag_or_the_form() {
     let missing = |desk: &mut Desk| {
-        assert!(desk.state.begin_submission(None).is_none());
+        assert!(desk.state.begin_submission(false).is_none());
         assert_eq!(
             desk.state.output_snapshot(0).submission,
             Some(SubmissionStatus::Refused {
@@ -1689,12 +1689,12 @@ fn an_export_needs_a_title_from_its_tag_or_the_form() {
     untagged.state.output.set_directory("/library".to_string());
     missing(&mut untagged);
     untagged.type_into(MetadataField::Title, "Typed");
-    assert!(untagged.state.begin_submission(None).is_some());
+    assert!(untagged.state.begin_submission(false).is_some());
 
     let mut blanked = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     blanked.state.output.set_directory("/library".to_string());
     blanked.act(MetadataField::Title, FieldAction::Blank);
-    assert!(blanked.state.begin_submission(None).is_none());
+    assert!(blanked.state.begin_submission(false).is_none());
     assert!(matches!(
         blanked.state.output_snapshot(0).submission,
         Some(SubmissionStatus::Refused {
@@ -1702,36 +1702,19 @@ fn an_export_needs_a_title_from_its_tag_or_the_form() {
         })
     ));
     assert!(
-        blanked.state.begin_submission(Some(30.0)).is_some(),
+        blanked.state.begin_submission(true).is_some(),
         "a preview needs no title"
     );
-}
-
-#[test]
-fn a_preview_with_no_usable_length_is_refused_and_holds_nothing() {
-    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
-    desk.state.output.set_directory("/library".to_string());
-    for seconds in [0.0, -5.0, f64::NAN, f64::INFINITY] {
-        assert!(
-            desk.state.begin_submission(Some(seconds)).is_none(),
-            "{seconds}"
-        );
-        assert_eq!(
-            desk.state.output_snapshot(0).submission,
-            Some(SubmissionStatus::Refused {
-                reason: SubmitRefusal::InvalidPreviewLength
-            })
-        );
-        assert!(!desk.state.working_set.order_locked());
-    }
-    assert!(desk.state.begin_submission(Some(30.0)).is_some());
 }
 
 #[test]
 fn a_refused_second_submission_does_not_let_a_third_through() {
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     desk.state.output.set_directory("/library".to_string());
-    let first = desk.state.begin_submission(None).expect("first submission");
+    let first = desk
+        .state
+        .begin_submission(false)
+        .expect("first submission");
     desk.state.await_review(first, Vec::new());
     let review = desk
         .state
@@ -1740,7 +1723,7 @@ fn a_refused_second_submission_does_not_let_a_third_through() {
         .expect("held question");
 
     for _ in 0..2 {
-        assert!(desk.state.begin_submission(None).is_none());
+        assert!(desk.state.begin_submission(false).is_none());
         assert_eq!(
             desk.state.output_snapshot(0).submission,
             Some(SubmissionStatus::Refused {
@@ -1754,14 +1737,14 @@ fn a_refused_second_submission_does_not_let_a_third_through() {
     assert!(snapshot.submission_in_progress);
     assert!(desk.state.cancel_review_named(review.review_id));
     assert!(!desk.state.working_set.order_locked());
-    assert!(desk.state.begin_submission(None).is_some());
+    assert!(desk.state.begin_submission(false).is_some());
 }
 
 #[test]
 fn collision_answers_are_scoped_to_the_question_even_after_rereview_and_reset() {
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     desk.state.output.set_directory("/library".into());
-    let draft = desk.state.begin_submission(None).expect("submission");
+    let draft = desk.state.begin_submission(false).expect("submission");
     desk.state.await_review(draft, Vec::new());
     let old = desk
         .state
@@ -1796,7 +1779,7 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_and_reset() 
     );
     let draft = desk
         .state
-        .begin_submission(None)
+        .begin_submission(false)
         .expect("new session submission");
     desk.state.await_review(draft, Vec::new());
     let current = desk

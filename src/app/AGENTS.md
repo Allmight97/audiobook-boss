@@ -113,9 +113,10 @@ without a bullet has none. Engine paths name the owner of the truth.
   from the run's `coverSrc` address. A finished preview opens through
   `link.openPreview(runId)`, even when the requesting frontend is disposed
   before the reply (host side: `src-tauri/AGENTS.md`). Submit and Cancel
-  availability follow the engine preview state, including for a frontend that attaches to an active run. Preview
-  duration is screen-local state in `PreviewAudioControls`. Each owner instance
-  owns its status store and publisher.
+  availability follow the engine preview state, including for a frontend that
+  attaches to an active run. `preview()` sends no length: the engine owns the
+  preview length and content. Each owner instance owns its status store and
+  publisher.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and
   `selectLane` send only the lane intent. Connection editing sends write-only
   key, URL, and category intents; keys never come back from the engine, and

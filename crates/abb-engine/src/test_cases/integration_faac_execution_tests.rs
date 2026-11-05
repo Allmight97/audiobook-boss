@@ -84,28 +84,46 @@ async fn faac_auto_merge_preserves_distinct_stereo_in_either_input_order() {
 }
 
 #[tokio::test]
-async fn faac_preview_omits_chapters_and_rejects_unsupported_rate_without_residue() {
-    let lane = MediaLane::with_fixtures(&[6.0, 6.0]).with_encoder(faac_encoder_settings());
-    let mut context = lane.context(ProcessingSession::new());
-    context.preview = Some(abb_engine::processing::PreviewConfig::new(10.0));
-    let info = get_file_list_info(&lane.inputs, AacDecoder::Auto).expect("fixture value");
-    execute_audio_engine(AudioExecutionRequest::new(
-        context,
-        info,
-        None,
-        CoverArtPassthroughPolicy::Preserve,
-        lane.handling(),
-    ))
-    .await
-    .expect("fixture value");
-    let probe = get_file_list_info(&[lane.output_path()], AacDecoder::Auto).expect("fixture value");
-    assert!(
-        (probe.total_duration - 10.0).abs() < 0.1,
-        "preview duration {}",
-        probe.total_duration
-    );
-    assert!(probe.files[0].chapters.is_empty());
-    assert!(lane.residual_workspace_dirs().is_empty());
+async fn faac_preview_cuts_excerpts_exactly_without_chapters_and_rejects_unsupported_rate() {
+    let resampled_to_faac_he_rate = 22_050;
+    for (durations, source_rate) in [
+        ([8.0, 3.0, 8.0], SAMPLE_RATE),
+        ([4.0, 1.5, 4.0], resampled_to_faac_he_rate),
+    ] {
+        let lane = MediaLane::with_fixtures(&durations).with_encoder(faac_encoder_settings());
+        if source_rate != SAMPLE_RATE {
+            for path in &lane.inputs {
+                let mut bytes = fs::read(path).expect("fixture value");
+                bytes[24..28].copy_from_slice(&source_rate.to_le_bytes());
+                bytes[28..32].copy_from_slice(&(source_rate * 2).to_le_bytes());
+                fs::write(path, bytes).expect("fixture value");
+            }
+        }
+        let mut context = lane.context(ProcessingSession::new());
+        context.preview = Some(abb_engine::processing::PreviewConfig::new(15.0));
+        let info = get_file_list_info(&lane.inputs, AacDecoder::Auto).expect("fixture value");
+        execute_audio_engine(AudioExecutionRequest::new(
+            context,
+            info,
+            None,
+            CoverArtPassthroughPolicy::Preserve,
+            lane.handling(),
+        ))
+        .await
+        .expect("fixture value");
+        let probe =
+            get_file_list_info(&[lane.output_path()], AacDecoder::Auto).expect("fixture value");
+        assert!(
+            (probe.total_duration - 13.0).abs() < 0.01,
+            "{source_rate} Hz: 5 s + the whole 3 s file + 5 s, cut exactly: {}",
+            probe.total_duration
+        );
+        assert!(
+            chapters_of(&lane.output_path()).is_empty(),
+            "{source_rate} Hz"
+        );
+        assert!(lane.residual_workspace_dirs().is_empty());
+    }
 
     let invalid = MediaLane::with_fixtures(&[0.1])
         .with_encoder(faac_encoder_settings())

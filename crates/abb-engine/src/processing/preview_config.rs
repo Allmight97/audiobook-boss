@@ -1,29 +1,25 @@
-pub const PREVIEW_MIN_SEGMENT_SECONDS: f64 = 5.0;
+/// The preview length the Preview Audio action renders for each title.
+pub const PREVIEW_SECONDS: f64 = 90.0;
+const PREVIEW_MIN_SEGMENT_SECONDS: f64 = 5.0;
 
-pub(crate) fn is_valid_preview_length(seconds: f64) -> bool {
-    seconds.is_finite() && seconds > 0.0
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone)]
 pub struct PreviewConfig {
     pub total_seconds: f64,
-    pub min_segment_seconds: f64,
 }
 
 impl PreviewConfig {
     pub fn new(total_seconds: f64) -> Self {
-        Self {
-            total_seconds,
-            min_segment_seconds: PREVIEW_MIN_SEGMENT_SECONDS,
-        }
+        Self { total_seconds }
     }
 
     pub fn per_file_seconds(&self, file_count: usize) -> f64 {
-        if file_count == 0 {
-            return self.total_seconds;
-        }
-        let calculated = self.total_seconds / file_count as f64;
-        calculated.max(self.min_segment_seconds)
+        (self.total_seconds / file_count as f64).max(PREVIEW_MIN_SEGMENT_SECONDS)
+    }
+
+    /// Each file's excerpt length at the output rate; the frame pipeline cuts
+    /// every excerpt at exactly this sample.
+    pub fn per_file_samples(&self, file_count: usize, rate: u32) -> u64 {
+        (self.per_file_seconds(file_count) * f64::from(rate)).round() as u64
     }
 }
 

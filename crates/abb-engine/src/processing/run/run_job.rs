@@ -41,7 +41,7 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) file_info: FileListInfo,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
-    pub(crate) preview_seconds: Option<f64>,
+    pub(crate) preview: bool,
     pub(crate) supplemental_assets: Vec<SupplementalProcessingAsset>,
     pub(crate) progress_listener: Option<ProgressEventListener>,
     pub(crate) title_output: Option<Arc<crate::processing::TitleOutput>>,
@@ -71,7 +71,7 @@ pub(crate) async fn run_processing_job(
     log_audio_decision(&request, job_id);
     let _active_work = request.host.begin_active_work();
 
-    let (context, preview_seconds_resolved) = build_processing_context(ProcessingContextRequest {
+    let context = build_processing_context(ProcessingContextRequest {
         cancellation_checker,
         job_id,
         sample_rate: request.sample_rate,
@@ -83,7 +83,7 @@ pub(crate) async fn run_processing_job(
         title_output: request.title_output.clone(),
         output_plan: request.output_plan.clone(),
         workspace_root: request.workspace_root,
-        preview_seconds: request.preview_seconds,
+        preview: request.preview,
     });
     context
         .new_emitter()
@@ -100,19 +100,14 @@ pub(crate) async fn run_processing_job(
         .with_metadata_intent(request.metadata_intent),
     )
     .await;
-    let result = title_outcome(
-        audio_result,
-        output_path,
-        preview_seconds_resolved,
-        async move || {
-            commit_supplemental_assets(
-                request.output_plan.kind,
-                request.supplemental_assets,
-                request.output_plan.resolved_path,
-            )
-            .await
-        },
-    )
+    let result = title_outcome(audio_result, output_path, async move || {
+        commit_supplemental_assets(
+            request.output_plan.kind,
+            request.supplemental_assets,
+            request.output_plan.resolved_path,
+        )
+        .await
+    })
     .await;
 
     settle_job(
@@ -136,7 +131,6 @@ async fn settle_job(
         ProcessingJobTerminalOutcome::Success {
             message,
             output_path,
-            preview_actual_seconds,
             supplemental_warning,
             warnings,
         } => {
@@ -148,7 +142,6 @@ async fn settle_job(
                 message,
                 error: None,
                 output_path,
-                preview_actual_seconds,
                 job_id: Some(job_id.to_string()),
                 supplemental_warning,
                 warnings,
@@ -177,9 +170,7 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
         .as_deref()
         .unwrap_or(match request.audio_handling {
             AudioHandling::Preserve => "Source audio can be copied into the selected output.",
-            AudioHandling::Encode { .. } if request.preview_seconds.is_some() => {
-                "Preview requires encoding."
-            }
+            AudioHandling::Encode { .. } if request.preview => "Preview requires encoding.",
             AudioHandling::Encode { .. } => "Encoding settings were explicitly selected.",
         });
     log::info!(
@@ -271,7 +262,6 @@ pub(crate) async fn commit_supplemental_assets(
 pub(crate) async fn title_outcome(
     audio: Result<crate::audio::AudioRunOutcome>,
     output_path: Option<String>,
-    preview_actual_seconds: Option<f64>,
     publish_companions: impl AsyncFnOnce() -> Result<()>,
 ) -> ProcessingJobTerminalOutcome {
     let audio = match audio {
@@ -285,7 +275,6 @@ pub(crate) async fn title_outcome(
     ProcessingJobTerminalOutcome::Success {
         message: audio.message,
         output_path,
-        preview_actual_seconds,
         supplemental_warning,
         warnings: audio.warnings,
     }
@@ -364,10 +353,10 @@ struct ProcessingContextRequest {
     title_output: Option<Arc<crate::processing::TitleOutput>>,
     output_plan: ResolvedOutputPlan,
     workspace_root: PathBuf,
-    preview_seconds: Option<f64>,
+    preview: bool,
 }
 
-fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingContext, Option<f64>) {
+fn build_processing_context(request: ProcessingContextRequest) -> ProcessingContext {
     let session =
         ProcessingSession::with_cancellation(request.job_id.0, request.cancellation_checker);
     let mut context = ProcessingContext::new_with_workspace_root(
@@ -384,13 +373,15 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
     context.progress_listener = request.progress_listener;
     context.title_output = request.title_output;
 
-    let preview_seconds_resolved = request.preview_seconds;
-    if let Some(seconds) = preview_seconds_resolved {
-        context.preview = Some(PreviewConfig::new(seconds));
-        log::info!("Preview requested: total_seconds={:.3}", seconds);
+    if request.preview {
+        context.preview = Some(PreviewConfig::new(crate::processing::PREVIEW_SECONDS));
+        log::info!(
+            "Preview requested: total_seconds={:.3}",
+            crate::processing::PREVIEW_SECONDS
+        );
     }
 
-    (context, preview_seconds_resolved)
+    context
 }
 
 pub(crate) struct ProcessingJobLogIdentity {

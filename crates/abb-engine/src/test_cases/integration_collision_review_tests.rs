@@ -64,7 +64,7 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
         submission(&desk)
     );
 
-    desk.send(SessionIntent::Preview { seconds: 1.0 }).await;
+    desk.send(SessionIntent::Preview).await;
     let preview = desk
         .engine
         .session_snapshot()

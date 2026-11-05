@@ -27,7 +27,8 @@ pub(crate) use context::{OutputConfig, ProcessingContext};
 pub use job_registry::MaxConcurrentJobsCapabilities;
 pub(crate) use lifecycle::operation_kind_log_label;
 pub use lifecycle::{OperationKind, OperationResultSummary};
-pub(crate) use preview_config::{is_valid_preview_length, PreviewConfig};
+pub(crate) use preview_config::PreviewConfig;
+pub(crate) use preview_config::PREVIEW_SECONDS;
 pub use progress::{EventStage, ProgressEvent};
 pub(crate) use session::ProcessingSession;
 pub(crate) use title_output::TitleOutput;
@@ -45,9 +46,9 @@ pub(crate) use progress::{
 pub(crate) fn preflight_payload(
     payload: ProcessPayload,
     metadata: Option<std::collections::HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
+    preview: bool,
 ) -> crate::Result<ProcessingPreflightPlan> {
-    run::inspect_processing_plan(&payload, metadata.as_ref(), preview_seconds)
+    run::inspect_processing_plan(&payload, metadata.as_ref(), preview)
         .map(|inspected| inspected.plan.to_public())
 }
 

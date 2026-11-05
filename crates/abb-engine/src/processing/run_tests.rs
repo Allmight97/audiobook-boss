@@ -1,9 +1,9 @@
 fn preflight_payload(
     payload: crate::processing::ProcessPayload,
     metadata: Option<std::collections::HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
+    preview: bool,
 ) -> crate::Result<crate::processing::ProcessingPreflightPlan> {
-    super::inspect_processing_plan(&payload, metadata.as_ref(), preview_seconds)
+    super::inspect_processing_plan(&payload, metadata.as_ref(), preview)
         .map(|inspected| inspected.plan.to_public())
 }
 
@@ -83,7 +83,7 @@ fn preflight_rejects_symlink_before_metadata_projection() {
         payload.output_dir = temp_dir.path().to_string_lossy().to_string();
     });
 
-    let err = preflight_payload(payload, None, None)
+    let err = preflight_payload(payload, None, false)
         .expect_err("symlink should be rejected before metadata projection");
 
     assert!(
@@ -102,7 +102,7 @@ fn execution_inspection_rejects_a_source_replaced_after_preflight() {
         payload.output_dir = temp_dir.path().to_string_lossy().to_string();
     });
 
-    preflight_payload(payload.clone(), None, None)
+    preflight_payload(payload.clone(), None, false)
         .expect("valid source should be accepted during preflight");
 
     let original = temp_dir.path().join("source-original.wav");
@@ -147,7 +147,7 @@ fn native_target_ceiling_is_checked_before_output_planning() {
             request_settings(&mut payload.audio_requests[0]).channels = channels;
             payload.audio_requests[0].sample_rate = rate;
         });
-        let result = preflight_payload(payload, None, None);
+        let result = preflight_payload(payload, None, false);
         if accepted {
             result.expect("target within resolved ceiling should pass");
         } else {
@@ -198,7 +198,7 @@ fn native_target_ceiling_uses_each_separate_title_but_combined_grouped_channels(
             settings.bitrate_mode = BitrateMode::Cbr;
             settings.bitrate_kbps = 300;
         });
-        let result = preflight_payload(payload, None, None);
+        let result = preflight_payload(payload, None, false);
         if grouped {
             result.expect("combined stereo output permits 300 kbps");
         } else {
@@ -226,7 +226,7 @@ fn execution_rejected_by_review_does_not_create_the_output_root() {
             .expect("inspect source");
 
     let Err(error) =
-        crate::processing::plan::prepare_execution_plan(&payload, None, None, inspected)
+        crate::processing::plan::prepare_execution_plan(&payload, None, false, inspected)
     else {
         panic!("a stale review must reject execution");
     };
@@ -295,14 +295,18 @@ fn stacked_title_plan_keeps_source_order_metadata_and_separate_outputs() {
         ),
     ]);
     let reviewed =
-        preflight_payload(payload.clone(), Some(metadata.clone()), None).expect("review titles");
+        preflight_payload(payload.clone(), Some(metadata.clone()), false).expect("review titles");
     payload.preflight_signature = Some(reviewed.plan_signature);
     let inspected =
         super::run_validation::inspect_and_validate_external_processing_contract(&payload)
             .expect("inspect all title sources");
-    let execution =
-        crate::processing::plan::prepare_execution_plan(&payload, Some(&metadata), None, inspected)
-            .expect("prepare reviewed execution");
+    let execution = crate::processing::plan::prepare_execution_plan(
+        &payload,
+        Some(&metadata),
+        false,
+        inspected,
+    )
+    .expect("prepare reviewed execution");
     let jobs = execution.plan.jobs;
     assert_eq!(jobs.len(), 2);
     assert_eq!(jobs[0].input_path, paths[0]);
@@ -347,14 +351,14 @@ async fn execute_reviewed_metadata_batch(
 ) -> Vec<std::path::PathBuf> {
     use crate::audio::{execute_audio_engine, AudioExecutionRequest, SampleRateConfig};
     use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
-    let reviewed = preflight_payload(payload.clone(), Some(metadata.clone()), None)
+    let reviewed = preflight_payload(payload.clone(), Some(metadata.clone()), false)
         .expect("review metadata batch");
     payload.preflight_signature = Some(reviewed.plan_signature);
     let inspected =
         super::run_validation::inspect_and_validate_external_processing_contract(&payload)
             .expect("inspect metadata batch");
     let execution =
-        crate::processing::plan::prepare_execution_plan(&payload, Some(metadata), None, inspected)
+        crate::processing::plan::prepare_execution_plan(&payload, Some(metadata), false, inspected)
             .expect("plan metadata batch");
     let mut outputs = Vec::new();
     for job in execution.plan.jobs {
@@ -718,9 +722,9 @@ fn preflight_refuses_a_too_long_companion_pdf_name_only_when_the_title_has_one()
         )],
     )]));
 
-    preflight_payload(without_pdf, Some(metadata.clone()), None)
+    preflight_payload(without_pdf, Some(metadata.clone()), false)
         .expect("a long name without a PDF plans");
-    let error = preflight_payload(with_pdf, Some(metadata), None)
+    let error = preflight_payload(with_pdf, Some(metadata), false)
         .expect_err("the companion PDF name would be too long");
 
     assert!(error.to_string().contains("Supplemental PDF"), "{error}");
@@ -771,7 +775,7 @@ async fn supplemental_commit_failure_keeps_published_title_successful_with_warni
         message: "Exported Book.m4b".to_string(),
         warnings: Vec::new(),
     };
-    let outcome = title_outcome(Ok(audio), None, None, async || {
+    let outcome = title_outcome(Ok(audio), None, async || {
         commit_supplemental_assets(OutputKind::Final, vec![asset], final_audio.clone()).await
     })
     .await;
@@ -803,7 +807,6 @@ async fn failed_audio_never_publishes_companions() {
         Err(crate::errors::AppError::FileValidation(
             "encode failed".into(),
         )),
-        None,
         None,
         async || -> crate::errors::Result<()> {
             panic!("companions must not publish without an audiobook")

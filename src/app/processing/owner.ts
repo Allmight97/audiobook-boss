@@ -14,7 +14,8 @@ export type ProcessingOwner = {
 	readonly restartPrompt: Accessor<RestartOffer | null>;
 	restart: (offer: RestartOffer) => Promise<void>;
 	keepLocation: (offer: RestartOffer) => Promise<void>;
-	start: (options?: { previewSeconds?: number }) => Promise<void>;
+	start: () => Promise<void>;
+	preview: () => Promise<void>;
 	cancelAll: () => void;
 	isProcessing: () => boolean;
 	pushTransientStatus: (message: string, options?: { ttlMs?: number }) => void;
@@ -122,12 +123,11 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			rev();
 			return status;
 		},
-		start(options) {
-			return send(
-				options?.previewSeconds != null
-					? { kind: 'preview', seconds: options.previewSeconds }
-					: { kind: 'submit' },
-			);
+		start() {
+			return send({ kind: 'submit' });
+		},
+		preview() {
+			return send({ kind: 'preview' });
 		},
 		cancelAll() {
 			cancelPreview();

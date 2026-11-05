@@ -67,10 +67,10 @@ pub enum SessionIntent {
 
     /// Exports every valid title.
     Submit,
-    /// Renders the first `seconds` of each valid title, in the foreground.
-    Preview {
-        seconds: f64,
-    },
+    /// Renders a preview of each valid title, in the foreground: the start of
+    /// each file, `processing::PREVIEW_SECONDS` split across the files with a
+    /// 5 s minimum each, with the export's metadata and no chapters.
+    Preview,
     /// Continues a submission held for review with the user's choice.
     #[serde(rename_all = "camelCase")]
     ChooseCollisionPolicy {

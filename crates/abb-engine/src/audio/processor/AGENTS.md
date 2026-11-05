@@ -35,8 +35,12 @@ execution pipeline. Final artifact commit policy lives in `output_artifact/`.
 - Every route uses the shared final artifact commit handoff. Route-specific code
   stages media locally; final commit and success wording stay centralized.
   MP4-family tag truth: `metadata/AGENTS.md`.
-- Preview artifacts omit chapters until a product decision wires real chapter
-  emission and proves it against actual artifact metadata.
+- A preview carries the export's metadata without chapters. Why: the owner
+  previews to hear the encode and check the metadata; chapter layout is not a
+  preview's job.
+- A preview takes the start of each file, cut at an exact sample
+  (`PreviewState::take`). Why: one stop rule for single and merged titles, and
+  a preview length that tests can assert exactly.
 - Drop probe/inspection contexts before reopening the same path for decoder
   trials, processing, replacement, or another library.
 - Register newly created workspaces with cleanup before observing cancellation.

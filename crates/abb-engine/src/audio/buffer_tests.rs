@@ -43,7 +43,7 @@ fn accumulator(
 fn missing_planar_channel_is_padded_with_silence() {
     let mut stereo = accumulator(2, PLANAR, 4);
 
-    let ready = stereo.push_frame(&planar_frame(1, &[0.1, 0.2, 0.3, 0.4]));
+    let ready = stereo.push_frame(&planar_frame(1, &[0.1, 0.2, 0.3, 0.4]), 4);
 
     assert_eq!(ready.len(), 1);
     assert_eq!(ready[0].plane::<f32>(0), &[0.1, 0.2, 0.3, 0.4]);
@@ -54,10 +54,10 @@ fn missing_planar_channel_is_padded_with_silence() {
 fn planar_samples_clamp_finite_overshoot_and_zero_non_finite_values() {
     let mut mono = accumulator(1, PLANAR, 5);
 
-    let ready = mono.push_frame(&planar_frame(
-        1,
-        &[1.5, -2.0, 0.5, f32::NAN, f32::NEG_INFINITY],
-    ));
+    let ready = mono.push_frame(
+        &planar_frame(1, &[1.5, -2.0, 0.5, f32::NAN, f32::NEG_INFINITY]),
+        5,
+    );
 
     assert_eq!(ready[0].plane::<f32>(0), &[1.0, -1.0, 0.5, 0.0, 0.0]);
 }
@@ -66,13 +66,10 @@ fn planar_samples_clamp_finite_overshoot_and_zero_non_finite_values() {
 fn packed_float_samples_clamp_finite_overshoot_and_zero_non_finite_values() {
     let mut mono = accumulator(1, PACKED, 5);
 
-    let ready = mono.push_frame(&packed_mono_frame(&[
-        1.5,
-        -2.0,
-        0.5,
-        f32::INFINITY,
-        f32::NAN,
-    ]));
+    let ready = mono.push_frame(
+        &packed_mono_frame(&[1.5, -2.0, 0.5, f32::INFINITY, f32::NAN]),
+        5,
+    );
 
     let values: Vec<f32> = ready[0].data(0)[..20]
         .as_chunks::<4>()
@@ -97,4 +94,23 @@ fn sanitize_log_level_warns_only_for_non_finite_samples_or_large_clipping() {
     assert_eq!(level(&[1.05, -1.1]), Some(log::Level::Debug));
     assert_eq!(level(&[1.5]), Some(log::Level::Warn));
     assert_eq!(level(&[0.2, f32::NAN]), Some(log::Level::Warn));
+}
+
+#[test]
+fn only_the_requested_samples_are_buffered() {
+    let mut planar = accumulator(1, PLANAR, 2);
+    let ready = planar.push_frame(&planar_frame(1, &[0.1, 0.2, 0.3, 0.4, 0.5]), 3);
+    assert_eq!(ready.len(), 1);
+    assert_eq!(ready[0].plane::<f32>(0), &[0.1, 0.2]);
+    let tail = planar.flush_tail().expect("one buffered sample");
+    assert_eq!(tail.plane::<f32>(0), &[0.3]);
+
+    let mut packed = accumulator(1, PACKED, 2);
+    assert!(packed
+        .push_frame(&packed_mono_frame(&[0.1, 0.2, 0.3]), 1)
+        .is_empty());
+    assert_eq!(
+        packed.flush_tail().expect("one buffered sample").samples(),
+        1
+    );
 }

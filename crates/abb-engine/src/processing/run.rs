@@ -63,10 +63,10 @@ pub(crate) async fn process_inspected_with_options(
 pub(crate) fn inspect_processing_plan(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
+    preview: bool,
 ) -> Result<InspectedProcessingPlan> {
     let file_info = inspect_and_validate_external_processing_contract(payload)?;
-    let plan = resolve_processing_plan(payload, metadata, preview_seconds, &file_info)?;
+    let plan = resolve_processing_plan(payload, metadata, preview, &file_info)?;
     Ok(InspectedProcessingPlan { plan, file_info })
 }
 

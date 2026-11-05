@@ -526,26 +526,22 @@ impl SessionState {
         )
     }
 
-    pub(crate) fn begin_submission(&mut self, preview_seconds: Option<f64>) -> Option<Draft> {
-        self.begin_submission_of(preview_seconds, None)
+    pub(crate) fn begin_submission(&mut self, preview: bool) -> Option<Draft> {
+        self.begin_submission_of(preview, None)
     }
 
-    fn begin_submission_of(
-        &mut self,
-        preview_seconds: Option<f64>,
-        only: Option<&str>,
-    ) -> Option<Draft> {
-        match self.prepare_submission(preview_seconds, only) {
+    fn begin_submission_of(&mut self, preview: bool, only: Option<&str>) -> Option<Draft> {
+        match self.prepare_submission(preview, only) {
             Ok(draft) => {
                 self.preview.begin(&draft);
                 self.submitting = Some(Submitting {
                     operation_id: draft.operation_id.clone(),
-                    preview: draft.preview(),
+                    preview: draft.preview,
                 });
                 self.reserved.extend(draft.sources.iter().cloned());
                 self.working_set.set_order_locked(true);
                 self.submission = Some(SubmissionStatus::Preparing {
-                    preview: draft.preview(),
+                    preview: draft.preview,
                 });
                 Some(draft)
             }
@@ -558,16 +554,11 @@ impl SessionState {
 
     fn prepare_submission(
         &mut self,
-        preview_seconds: Option<f64>,
+        preview: bool,
         only: Option<&str>,
     ) -> Result<Draft, SubmitRefusal> {
         if self.submitting.is_some() {
             return Err(SubmitRefusal::Busy);
-        }
-        if preview_seconds
-            .is_some_and(|seconds| !crate::processing::is_valid_preview_length(seconds))
-        {
-            return Err(SubmitRefusal::InvalidPreviewLength);
         }
         let writing = !self.writing.is_empty()
             || self
@@ -616,7 +607,7 @@ impl SessionState {
                 output_directory: self.output.naming_directory(),
                 naming: self.output.naming(),
                 supplemental_assets,
-                preview_seconds,
+                preview,
             },
             |paths| {
                 let paths: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
@@ -708,7 +699,7 @@ impl SessionState {
             }
         };
         self.exports.acknowledge_prompt(title_id, revision);
-        let draft = self.begin_submission_of(None, Some(title_id))?;
+        let draft = self.begin_submission_of(false, Some(title_id))?;
         self.exports.consume_offer(title_id);
         Some((draft, link))
     }
@@ -827,7 +818,7 @@ impl SessionState {
         if self
             .pending_review
             .as_ref()
-            .is_some_and(|review| review.draft.preview())
+            .is_some_and(|review| review.draft.preview)
         {
             self.cancel_review();
         }
@@ -839,7 +830,7 @@ impl SessionState {
         }
         let draft = self.pending_review.take()?.draft;
         self.submission = Some(SubmissionStatus::Preparing {
-            preview: draft.preview(),
+            preview: draft.preview,
         });
         Some(draft)
     }
