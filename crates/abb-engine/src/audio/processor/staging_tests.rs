@@ -63,19 +63,6 @@ fn cleanup_refuses_out_of_root_session() {
     assert!(session.exists(), "outside session must not be removed");
 }
 
-#[test]
-fn cleanup_abandoned_processing_sessions_removes_owned_children_only() {
-    let root = TempDir::new().expect("root");
-    let session = root.path().join(".abb-processing-session");
-    std::fs::create_dir_all(&session).expect("session");
-    std::fs::write(session.join("worker-output.m4b"), b"audio").expect("worker output");
-
-    cleanup_abandoned_processing_sessions(root.path()).expect("cleanup");
-
-    assert!(root.path().exists(), "workspace root should remain");
-    assert!(!session.exists(), "owned session should be removed");
-}
-
 #[cfg(unix)]
 #[test]
 fn cleanup_refuses_symlink_session() {

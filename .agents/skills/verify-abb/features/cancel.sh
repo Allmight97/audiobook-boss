@@ -11,3 +11,6 @@ abb_dev cancel --json --template '{title}' --out "${out}" --export --cancel-titl
 	"${INPUTS}/cancel-a.m4b" "${INPUTS}/cancel-b.m4b" >"${EVIDENCE}/cancel.json"
 exports=("${out}"/*.m4b)
 [[ "${#exports[@]}" -eq 1 ]] || fail "expected 1 published export, found ${#exports[@]}"
+[[ -z "$(find "${STATE}/cancel/cache/processing/sessions" -mindepth 1)" ]] ||
+	fail "a cancelled export left work files"
+[[ -z "$(find "${out}" -name '.abb_*')" ]] || fail "a cancelled export left a temporary file"
