@@ -13,16 +13,16 @@ fn planar_frame(channels: i32, samples: &[f32]) -> ff::frame::Audio {
     frame
 }
 
-fn packed_mono_frame(samples: &[f32]) -> ff::frame::Audio {
-    let layout = ff::ChannelLayout::default(1);
-    let mut frame = ff::frame::Audio::new(PACKED, samples.len(), layout);
+fn packed_frame(channels: i32, interleaved: &[f32]) -> ff::frame::Audio {
+    let layout = ff::ChannelLayout::default(channels);
+    let mut frame = ff::frame::Audio::new(PACKED, interleaved.len() / channels as usize, layout);
     frame.set_rate(44_100);
     for (bytes, value) in frame
         .data_mut(0)
         .as_chunks_mut::<4>()
         .0
         .iter_mut()
-        .zip(samples)
+        .zip(interleaved)
     {
         bytes.copy_from_slice(&value.to_ne_bytes());
     }
@@ -43,7 +43,7 @@ fn accumulator(
 fn missing_planar_channel_is_padded_with_silence() {
     let mut stereo = accumulator(2, PLANAR, 4);
 
-    let ready = stereo.push_frame(&planar_frame(1, &[0.1, 0.2, 0.3, 0.4]));
+    let ready = stereo.push_frame(&planar_frame(1, &[0.1, 0.2, 0.3, 0.4]), 4);
 
     assert_eq!(ready.len(), 1);
     assert_eq!(ready[0].plane::<f32>(0), &[0.1, 0.2, 0.3, 0.4]);
@@ -54,10 +54,10 @@ fn missing_planar_channel_is_padded_with_silence() {
 fn planar_samples_clamp_finite_overshoot_and_zero_non_finite_values() {
     let mut mono = accumulator(1, PLANAR, 5);
 
-    let ready = mono.push_frame(&planar_frame(
-        1,
-        &[1.5, -2.0, 0.5, f32::NAN, f32::NEG_INFINITY],
-    ));
+    let ready = mono.push_frame(
+        &planar_frame(1, &[1.5, -2.0, 0.5, f32::NAN, f32::NEG_INFINITY]),
+        5,
+    );
 
     assert_eq!(ready[0].plane::<f32>(0), &[1.0, -1.0, 0.5, 0.0, 0.0]);
 }
@@ -66,13 +66,10 @@ fn planar_samples_clamp_finite_overshoot_and_zero_non_finite_values() {
 fn packed_float_samples_clamp_finite_overshoot_and_zero_non_finite_values() {
     let mut mono = accumulator(1, PACKED, 5);
 
-    let ready = mono.push_frame(&packed_mono_frame(&[
-        1.5,
-        -2.0,
-        0.5,
-        f32::INFINITY,
-        f32::NAN,
-    ]));
+    let ready = mono.push_frame(
+        &packed_frame(1, &[1.5, -2.0, 0.5, f32::INFINITY, f32::NAN]),
+        5,
+    );
 
     let values: Vec<f32> = ready[0].data(0)[..20]
         .as_chunks::<4>()
@@ -97,4 +94,34 @@ fn sanitize_log_level_warns_only_for_non_finite_samples_or_large_clipping() {
     assert_eq!(level(&[1.05, -1.1]), Some(log::Level::Debug));
     assert_eq!(level(&[1.5]), Some(log::Level::Warn));
     assert_eq!(level(&[0.2, f32::NAN]), Some(log::Level::Warn));
+}
+
+#[test]
+fn only_the_requested_samples_are_buffered() {
+    let mut planar = accumulator(2, PLANAR, 2);
+    let mut stereo = planar_frame(2, &[0.1, 0.2, 0.3, 0.4, 0.5]);
+    stereo
+        .plane_mut::<f32>(1)
+        .copy_from_slice(&[0.6, 0.7, 0.8, 0.9, 1.0]);
+    let ready = planar.push_frame(&stereo, 3);
+    assert_eq!(ready.len(), 1);
+    assert_eq!(ready[0].plane::<f32>(0), &[0.1, 0.2]);
+    assert_eq!(ready[0].plane::<f32>(1), &[0.6, 0.7]);
+    let tail = planar.flush_tail().expect("one buffered sample");
+    assert_eq!(tail.plane::<f32>(0), &[0.3]);
+    assert_eq!(tail.plane::<f32>(1), &[0.8]);
+
+    let mut packed = accumulator(2, PACKED, 2);
+    assert!(packed
+        .push_frame(&packed_frame(2, &[0.1, 0.6, 0.2, 0.7, 0.3, 0.8]), 1)
+        .is_empty());
+    let tail = packed.flush_tail().expect("one buffered sample");
+    assert_eq!(tail.samples(), 1);
+    let values: Vec<f32> = tail.data(0)[..8]
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|bytes| f32::from_ne_bytes(*bytes))
+        .collect();
+    assert_eq!(values, [0.1, 0.6]);
 }

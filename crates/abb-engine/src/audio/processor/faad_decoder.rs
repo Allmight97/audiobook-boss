@@ -273,7 +273,7 @@ fn discover_format(path: &Path, stream_index: usize, asc: Option<&[u8]>) -> Resu
     )))
 }
 
-fn packet_trim(packet: &ff::Packet) -> (u32, u32, bool) {
+pub(super) fn packet_trim(packet: &ff::Packet) -> (u32, u32, bool) {
     let (skip, padding) = packet
         .side_data()
         .find(|side| side.kind() == ff::codec::packet::side_data::Type::SkipSamples)

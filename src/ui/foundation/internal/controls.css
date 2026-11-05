@@ -54,24 +54,10 @@
 	display: inline-flex;
 }
 
-.abb-split-button-compact {
-	flex-shrink: 0;
-	max-width: 100%;
-}
-
 .abb-split-main {
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
 	border-right: none;
-}
-
-.abb-split-button-compact .abb-split-main {
-	min-width: 0;
-	padding: 0.35rem 0.6rem;
-	overflow: hidden;
-	font-size: 0.7rem;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .abb-split-caret {
@@ -79,10 +65,6 @@
 	border-top-left-radius: 0;
 	border-bottom-left-radius: 0;
 	font-size: 0.6rem;
-}
-
-.abb-split-button-compact .abb-split-caret {
-	padding: 0.2rem 0.275rem;
 }
 
 .abb-split-dropdown {

@@ -35,7 +35,7 @@ fn inputs() -> DraftInputs {
             custom_template: None,
         },
         supplemental_assets: None,
-        preview_seconds: None,
+        preview: false,
     }
 }
 

@@ -36,7 +36,6 @@ const ALLOWED_INTEGER_FIELDS: readonly AllowedIntegerField[] = [
 		field: 'revision',
 		reason: 'lookup part revision the host rendered; a mismatch changes nothing.',
 	},
-	{ variant: 'Preview', field: 'seconds', reason: 'preview duration, not a title position.' },
 	{
 		variant: 'ChooseCollisionPolicy',
 		field: 'reviewId',

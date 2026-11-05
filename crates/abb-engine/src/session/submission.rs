@@ -36,8 +36,6 @@ pub enum SubmitRefusal {
     SaveInProgress,
     /// Another submission or a preview is still running.
     Busy,
-    /// A preview length that is not a positive number of seconds.
-    InvalidPreviewLength,
     /// This title has no title tag and none was typed; its output would
     /// carry no title. `label` is what the title list shows for it.
     #[serde(rename_all = "camelCase")]
@@ -115,7 +113,7 @@ pub enum SubmissionStatus {
 pub(crate) struct Draft {
     pub(crate) payload: ProcessPayload,
     pub(crate) metadata: Option<HashMap<String, MetadataIntentPatch>>,
-    pub(crate) preview_seconds: Option<f64>,
+    pub(crate) preview: bool,
     pub(crate) operation_id: OperationId,
     pub(crate) title: String,
     pub(crate) sources: Vec<PathBuf>,
@@ -123,12 +121,8 @@ pub(crate) struct Draft {
 }
 
 impl Draft {
-    pub(crate) fn preview(&self) -> bool {
-        self.preview_seconds.is_some()
-    }
-
     pub(crate) fn preview_id(&self) -> Option<&OperationId> {
-        self.preview().then_some(&self.operation_id)
+        self.preview.then_some(&self.operation_id)
     }
 
     pub(crate) fn approved(mut self, policy: CollisionPolicy, signature: String) -> Self {
@@ -150,7 +144,7 @@ pub(crate) struct DraftInputs {
     pub(crate) output_directory: Option<String>,
     pub(crate) naming: OutputNamingConfig,
     pub(crate) supplemental_assets: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
-    pub(crate) preview_seconds: Option<f64>,
+    pub(crate) preview: bool,
 }
 
 /// Builds the payload for the valid titles. Invalid standalone titles are
@@ -182,9 +176,7 @@ pub(crate) fn build_draft(
         return Err(SubmitRefusal::AudioChoiceRequired);
     }
     // A preview is a listening check, not the export; only an export needs one.
-    let untitled = inputs
-        .preview_seconds
-        .is_none()
+    let untitled = (!inputs.preview)
         .then(|| valid.iter().find(|title| !title.has_title))
         .flatten();
     if let Some(untitled) = untitled {
@@ -252,7 +244,7 @@ pub(crate) fn build_draft(
         },
         metadata: (!metadata.is_empty()).then_some(metadata),
         operation_id: OperationId::new(),
-        preview_seconds: inputs.preview_seconds,
+        preview: inputs.preview,
         title,
         sources,
         reviewed: None,

@@ -110,6 +110,14 @@ read (dropped path, subfolder, entry, or file that fails
 walk continues. Unsupported extensions and nested symlinks are left out
 silently. The session decides what a skip means for the user.
 
+A file's duration is the length the selected decoder yields. When FFmpeg
+only estimates it from a bitrate (`length_is_estimated`: an MP3 without a
+length header, joined MP3 parts, raw ADTS, Matroska without a Duration),
+analysis measures it (`processor::measured_length_seconds`): packet durations
+less trimmed samples where FFmpeg decodes and the time base counts whole
+samples, otherwise a full decode. A read error fails the file. Why: a merge
+starts each later chapter at the earlier files' durations.
+
 ## Chapter Intake
 
 Analysis gives each valid file a source-fingerprinted chapter plan from its

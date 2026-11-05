@@ -268,7 +268,7 @@ describe('tauriClient nullish adapters', () => {
 		});
 
 		const { tauriClient } = await import('./client');
-		const reply = await tauriClient.sessionDispatch(7, 0, { kind: 'preview', seconds: 30 });
+		const reply = await tauriClient.sessionDispatch(7, 0, { kind: 'preview' });
 
 		const submission = reply.update.output?.submission;
 		expect(submission?.kind).toBe('previewFinished');

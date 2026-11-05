@@ -1,42 +1,22 @@
-import { createSignal } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import { useAppRuntime } from '../../app/runtime';
-import { SplitButton } from '../foundation';
+import { Button } from '../foundation';
+import './previewAudio.css';
 
-const PREVIEW_DURATIONS = [15, 30, 45, 60] as const;
-
-export function PreviewAudioControls(props: {
-	readonly variant?: 'default' | 'compact';
-}): JSX.Element {
+export function PreviewAudioControls(): JSX.Element {
 	const processing = useAppRuntime().processing;
-	const startProcessing = processing.start;
-	const [previewDuration, setPreviewDuration] = createSignal(30);
 
 	return (
-		<SplitButton
+		<Button
+			id="preview-button"
+			tone="primary"
+			class="preview-audio-button"
+			data-testid="preview-audio-controls"
+			title="Encode a 90-second sample of each title, split across its files, with its current audio settings and metadata, so you can listen before exporting."
 			disabled={processing.isProcessing()}
-			variant={props.variant}
-			testId="preview-audio-controls"
-			mainId="preview-button"
-			caretId="preview-dropdown-toggle"
-			dropdownId="preview-dropdown"
-			mainLabel="Preview Audio"
-			onMainClick={() => void startProcessing({ previewSeconds: previewDuration() })}
+			onClick={() => void processing.preview()}
 		>
-			{({ close }) =>
-				PREVIEW_DURATIONS.map((duration) => (
-					<SplitButton.Option
-						data-duration={String(duration)}
-						onClick={() => {
-							setPreviewDuration(duration);
-							close();
-							void startProcessing({ previewSeconds: duration });
-						}}
-					>
-						{duration} seconds
-					</SplitButton.Option>
-				))
-			}
-		</SplitButton>
+			Preview Audio
+		</Button>
 	);
 }

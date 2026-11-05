@@ -1,32 +1,21 @@
 use super::PreviewState;
 
 #[test]
-fn preview_state_new_initializes_correctly() {
-    let state = PreviewState::new(5, 10.0);
-    assert_eq!(state.file_count, 5);
-    assert!((state.per_file_seconds - 10.0).abs() < 0.001);
-    assert_eq!(state.current_file_index, 0);
-    assert_eq!(state.current_file_elapsed_samples, 0);
+fn an_excerpt_takes_exactly_its_budget_across_frames() {
+    let mut state = PreviewState::new(2500);
+    assert_eq!(state.take(1024), 1024);
+    assert_eq!(state.take(1024), 1024);
+    assert!(!state.excerpt_complete());
+    assert_eq!(state.take(1024), 452);
+    assert!(state.excerpt_complete());
+    assert_eq!(state.take(1024), 0);
 }
 
 #[test]
-fn preview_state_start_new_file_resets_counters() {
-    let mut state = PreviewState::new(5, 10.0);
-    state.current_file_elapsed_samples = 48_000;
-    state.start_new_file(2);
-
-    assert_eq!(state.current_file_index, 2);
-    assert_eq!(state.current_file_elapsed_samples, 0);
-}
-
-#[test]
-fn preview_state_all_files_complete() {
-    let mut state = PreviewState::new(3, 10.0);
-    assert!(!state.all_files_complete());
-
-    state.current_file_index = 1;
-    assert!(!state.all_files_complete());
-
-    state.current_file_index = 2;
-    assert!(state.all_files_complete());
+fn a_new_file_starts_a_fresh_excerpt() {
+    let mut state = PreviewState::new(100);
+    state.take(100);
+    state.start_new_file();
+    assert!(!state.excerpt_complete());
+    assert_eq!(state.take(150), 100);
 }

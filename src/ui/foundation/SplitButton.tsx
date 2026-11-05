@@ -4,7 +4,6 @@ import { Button, type ButtonTone } from './Button';
 
 export type SplitButtonProps = {
 	readonly disabled?: boolean;
-	readonly variant?: 'default' | 'compact';
 	readonly tone?: ButtonTone;
 	readonly mainId?: string;
 	readonly caretId?: string;
@@ -31,7 +30,6 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 	let dropdown: HTMLDivElement | undefined;
 	let toggle: HTMLButtonElement | undefined;
 	const tone = () => props.tone ?? 'primary';
-	const variant = () => props.variant ?? 'default';
 
 	onSettled(() => {
 		function handleWindowClick(event: MouseEvent): void {
@@ -50,10 +48,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 	}
 
 	return (
-		<div
-			class={`abb-split-button${variant() === 'compact' ? ' abb-split-button-compact' : ''}`}
-			data-testid={props.testId}
-		>
+		<div class="abb-split-button" data-testid={props.testId}>
 			<Button
 				id={props.mainId}
 				disabled={props.disabled}

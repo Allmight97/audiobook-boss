@@ -191,15 +191,15 @@ export type AudioFile = {
 	 *  Whether this source can be copied without re-encoding and whether the
 	 *  source meets the automatic low-bitrate recommendation.
 	 */
-	preservation?: AudioPreservation | null,
+	preservation: AudioPreservation | null,
 	/**  Friendly selected decoder label for display only (None if unavailable) */
 	selectedDecoder: string | null,
 	tagTitle: string | null,
 	tagArtist: string | null,
 	/**  Chapters embedded in this individual source file, normalized to milliseconds. */
-	chapters?: ChapterSpec[],
-	chapterPlan?: ChapterPlan | null,
-	cueSource?: CueSource | null,
+	chapters: ChapterSpec[],
+	chapterPlan: ChapterPlan | null,
+	cueSource: CueSource | null,
 	isValid: boolean,
 	error: string | null,
 };
@@ -815,7 +815,6 @@ export type ProcessResultEntry = {
 	 *  processing, the excerpt for a preview.
 	 */
 	outputPath: string | null,
-	previewActualSeconds: number | null,
 	jobId: string | null,
 	/**
 	 *  Set on a successful title whose audiobook was published but whose
@@ -1055,8 +1054,12 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 { kind: "moveFile"; titleId: string; direction: MoveDirection } | { kind: "reorderFiles"; titleId: string; to: number } | { kind: "toggleSort" } | { kind: "restoreImportOrder" } | { kind: "groupSelected" } | { kind: "ungroup"; titleId: string } | { kind: "reorderSources"; titleId: string; from: number; to: number } | { kind: "chooseCue"; inputId: string; choice: CueChoice } | { kind: "reset" } |
 /**  Exports every valid title. */
 { kind: "submit" } |
-/**  Renders the first `seconds` of each valid title, in the foreground. */
-{ kind: "preview"; seconds: number | null } |
+/**
+ *  Renders a preview of each valid title, in the foreground: the start of
+ *  each file, `processing::PREVIEW_SECONDS` split across the files with a
+ *  5 s minimum each, with the export's metadata and no chapters.
+ */
+{ kind: "preview" } |
 /**  Continues a submission held for review with the user's choice. */
 { kind: "chooseCollisionPolicy"; reviewId: number; policy: CollisionPolicy } | { kind: "cancelCollisionReview"; reviewId: number } |
 /**
@@ -1241,8 +1244,6 @@ export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | {
 { kind: "noTarget" } | { kind: "saveInProgress" } |
 /**  Another submission or a preview is still running. */
 { kind: "busy" } |
-/**  A preview length that is not a positive number of seconds. */
-{ kind: "invalidPreviewLength" } |
 /**
  *  This title has no title tag and none was typed; its output would
  *  carry no title. `label` is what the title list shows for it.

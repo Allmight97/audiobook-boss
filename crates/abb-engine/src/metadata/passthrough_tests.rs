@@ -29,39 +29,6 @@ fn into_option_returns_none_for_empty_passthrough() {
 }
 
 #[test]
-fn cover_art_only_drops_chapters_and_keeps_cover_art() {
-    let passthrough = PassthroughMetadata {
-        chapters: vec![ChapterSpec {
-            title: Some("Chapter 1".to_string()),
-            start_ms: 0,
-            end_ms: 1_000,
-        }],
-        cover_art: Some(vec![1, 2, 3]),
-    };
-
-    let cover_only = passthrough.cover_art_only().expect("cover art passthrough");
-    assert!(
-        cover_only.chapters.is_empty(),
-        "preview should not preserve chapters"
-    );
-    assert_eq!(cover_only.cover_art, Some(vec![1, 2, 3]));
-}
-
-#[test]
-fn cover_art_only_returns_none_when_passthrough_only_has_chapters() {
-    let passthrough = PassthroughMetadata {
-        chapters: vec![ChapterSpec {
-            title: Some("Chapter 1".to_string()),
-            start_ms: 0,
-            end_ms: 1_000,
-        }],
-        cover_art: None,
-    };
-
-    assert!(passthrough.cover_art_only().is_none());
-}
-
-#[test]
 fn without_cover_art_preserves_chapters_and_drops_cover_art() {
     let passthrough = PassthroughMetadata {
         chapters: vec![ChapterSpec {

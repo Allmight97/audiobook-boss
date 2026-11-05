@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 struct ProcessingInputs {
     output_naming: OutputNamingConfig,
     base_output_dir: PathBuf,
-    preview_seconds: Option<f64>,
+    preview: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -36,7 +36,7 @@ pub(crate) struct PlannedProcessingJob {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ResolvedProcessingPlan {
-    pub(crate) preview_seconds: Option<f64>,
+    pub(crate) preview: bool,
     pub(crate) collision_policy: CollisionPolicy,
     pub(crate) plan_signature: String,
     pub(crate) jobs: Vec<PlannedProcessingJob>,
@@ -77,8 +77,8 @@ fn resolve_collision_policy(payload: &ProcessPayload) -> CollisionPolicy {
     payload.collision_policy.unwrap_or(CollisionPolicy::Fail)
 }
 
-fn resolve_output_kind(preview_seconds: Option<f64>) -> OutputKind {
-    if preview_seconds.is_some() {
+fn resolve_output_kind(preview: bool) -> OutputKind {
+    if preview {
         OutputKind::Preview
     } else {
         OutputKind::Final
@@ -86,13 +86,13 @@ fn resolve_output_kind(preview_seconds: Option<f64>) -> OutputKind {
 }
 
 fn build_plan_signature(
-    preview_seconds: Option<f64>,
+    preview: bool,
     collision_policy: CollisionPolicy,
     aac_decoder: Option<crate::audio::AacDecoder>,
     jobs: &[PlannedProcessingJob],
 ) -> String {
     let mut lines = vec![
-        format!("preview_seconds={preview_seconds:?}"),
+        format!("preview={preview}"),
         format!("collision_policy={collision_policy:?}"),
         format!("aac_decoder={aac_decoder:?}"),
     ];
@@ -159,22 +159,12 @@ fn build_requested_output_path(
 fn build_processing_inputs(
     payload: &ProcessPayload,
     allow_missing_output_dir: bool,
-    preview_seconds: Option<f64>,
+    preview: bool,
 ) -> Result<ProcessingInputs> {
     Ok(ProcessingInputs {
         output_naming: payload.output_naming.clone().unwrap_or_default(),
         base_output_dir: resolve_output_dir(&payload.output_dir, allow_missing_output_dir)?,
-        preview_seconds: preview_seconds
-            .map(|seconds| {
-                if super::is_valid_preview_length(seconds) {
-                    Ok(seconds)
-                } else {
-                    Err(AppError::InvalidInput(
-                        "A preview needs a positive length.".into(),
-                    ))
-                }
-            })
-            .transpose()?,
+        preview,
     })
 }
 
@@ -198,15 +188,11 @@ fn build_processing_plan(
         file_info,
     )?;
 
-    let plan_signature = build_plan_signature(
-        inputs.preview_seconds,
-        collision_policy,
-        payload.aac_decoder,
-        &jobs,
-    );
+    let plan_signature =
+        build_plan_signature(inputs.preview, collision_policy, payload.aac_decoder, &jobs);
 
     Ok(ResolvedProcessingPlan {
-        preview_seconds: inputs.preview_seconds,
+        preview: inputs.preview,
         collision_policy,
         plan_signature,
         jobs,
@@ -250,10 +236,10 @@ fn log_output_plan(phase: &str, payload: &ProcessPayload, plan: &ResolvedProcess
 pub(crate) fn resolve_processing_plan(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
+    preview: bool,
     file_info: &FileListInfo,
 ) -> Result<ResolvedProcessingPlan> {
-    let inputs = build_processing_inputs(payload, false, preview_seconds)?;
+    let inputs = build_processing_inputs(payload, false, preview)?;
     let plan = build_processing_plan(payload, metadata, &inputs, file_info)?;
     log_output_plan("preflight", payload, &plan);
     Ok(plan)
@@ -263,10 +249,10 @@ pub(crate) fn resolve_processing_plan(
 pub(crate) fn prepare_execution_plan(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
+    preview: bool,
     file_info: FileListInfo,
 ) -> Result<ExecutionProcessingPlan> {
-    let inputs = build_processing_inputs(payload, true, preview_seconds)?;
+    let inputs = build_processing_inputs(payload, true, preview)?;
     let plan = build_processing_plan(payload, metadata, &inputs, &file_info)?;
     prepare_inspected_execution(payload, InspectedProcessingPlan { plan, file_info })
 }
@@ -279,7 +265,7 @@ pub(crate) fn prepare_inspected_execution(
         mut plan,
         file_info,
     } = inspected;
-    let inputs = build_processing_inputs(payload, true, plan.preview_seconds)?;
+    let inputs = build_processing_inputs(payload, true, plan.preview)?;
     // Collision facts may change after review; refresh them without replacing
     // the source inspection or resolving the audio and metadata a second time.
     let sources = file_info
@@ -293,7 +279,7 @@ pub(crate) fn prepare_inspected_execution(
         check_companion_pdf_name(payload, job.input_index, &job.output)?;
     }
     plan.plan_signature = build_plan_signature(
-        plan.preview_seconds,
+        plan.preview,
         plan.collision_policy,
         payload.aac_decoder,
         &plan.jobs,
@@ -361,12 +347,12 @@ fn build_title_processing_jobs(
         let audio_plan = crate::audio::resolve_title_audio(
             &payload.audio_requests[index],
             &info,
-            inputs.preview_seconds.is_some(),
+            inputs.preview,
         )?;
         let requested_output = requested_output.with_extension(audio_plan.format.extension());
         let output = output_ledger.resolve(
             &requested_output,
-            resolve_output_kind(inputs.preview_seconds),
+            resolve_output_kind(inputs.preview),
             collision_policy,
             &validated_input_paths,
         )?;
@@ -434,7 +420,7 @@ impl ResolvedProcessingPlan {
             .map(|job| job.output.to_public(job.input_index, &job.input_path))
             .collect();
         ProcessingPreflightPlan {
-            preview_seconds: self.preview_seconds,
+            preview: self.preview,
             collision_policy: self.collision_policy,
             plan_signature: self.plan_signature.clone(),
             outputs,

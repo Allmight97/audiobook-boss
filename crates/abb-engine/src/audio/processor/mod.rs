@@ -19,6 +19,7 @@ mod faad_decoder;
 mod finalize;
 mod frame_pipeline;
 mod he_timing;
+mod measured_length;
 mod plan;
 mod prepare;
 mod preserve;
@@ -40,6 +41,7 @@ mod staging;
 mod streams;
 
 pub(crate) use decoder::codec_library_versions;
+pub(in crate::audio) use measured_length::measured_length_seconds;
 pub(crate) use streams::assess_preservation;
 pub(in crate::audio) use streams::inspect_audio_decoder;
 pub(crate) use streams::probe_builtin_audio_decoder;
@@ -301,8 +303,14 @@ fn process_audiobook_with_context(
     let passthrough_metadata = cover_art_passthrough
         .apply_to_passthrough(extract_passthrough_metadata(&passthrough_sources).into_option());
 
-    let (effective_metadata, passthrough_metadata, cover_warning) =
+    let (effective_metadata, mut passthrough_metadata, cover_warning) =
         prepare_output_cover_art(metadata, passthrough_metadata, cover_art_passthrough)?;
+    if let Some(passthrough) = passthrough_metadata
+        .as_mut()
+        .filter(|_| context.preview.is_some())
+    {
+        passthrough.chapters.clear();
+    }
 
     let merged_output = execute::execute_processing(
         &context,

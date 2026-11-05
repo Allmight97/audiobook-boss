@@ -105,9 +105,14 @@ impl SampleAccumulator {
             consumed_samples: 0,
         })
     }
-    pub fn push_frame(&mut self, frame: &ff::frame::Audio) -> Vec<ff::frame::Audio> {
+    /// Buffers the first `samples` of `frame` and returns every full encoder frame.
+    pub fn push_frame(
+        &mut self,
+        frame: &ff::frame::Audio,
+        samples: usize,
+    ) -> Vec<ff::frame::Audio> {
         let mut ready = Vec::new();
-        let in_samples = frame.samples();
+        let in_samples = frame.samples().min(samples);
         if in_samples == 0 {
             return ready;
         }

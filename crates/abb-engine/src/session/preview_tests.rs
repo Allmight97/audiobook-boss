@@ -12,7 +12,6 @@ fn result(entries: &[(ProcessResultStatus, &str)]) -> ProcessCommandResult {
                 message: String::new(),
                 error: None,
                 output_path: (!path.is_empty()).then(|| path.to_string()),
-                preview_actual_seconds: None,
                 supplemental_warning: None,
                 warnings: Vec::new(),
                 job_id: None,

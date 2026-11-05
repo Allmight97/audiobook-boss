@@ -4,7 +4,7 @@ use ffmpeg_next as ff;
 use std::fs;
 use std::path::Path;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FileListInfo {
     pub files: Vec<AudioFile>,
@@ -184,14 +184,24 @@ fn validate_audio_format(
             })
             .collect();
         let display_tags = crate::metadata::display_tags_from_ffmpeg_dict(&ictx.metadata());
+        let container_name = ictx.format().name().to_string();
+        let length_estimated = crate::metadata::length_is_estimated(&ictx);
         (
             duration,
-            crate::metadata::length_is_estimated(&ictx),
+            length_estimated,
             chapters,
             display_tags,
-            ictx.format().name().to_string(),
+            container_name,
         )
     };
+
+    let measured = if length_estimated {
+        crate::audio::processor::measured_length_seconds(path, aac_decoder)?
+    } else {
+        None
+    };
+    let (duration, length_estimated) =
+        measured.map_or((duration, length_estimated), |seconds| (seconds, false));
 
     if duration <= 0.0 {
         return Err(AppError::InvalidInput(

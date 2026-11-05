@@ -113,12 +113,10 @@ fn test_engine() -> &'static abb_engine::Engine {
 pub(crate) fn preflight_processing_plan(
     payload: abb_engine::processing::ProcessPayload,
     metadata: Option<std::collections::HashMap<String, MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
+    preview: bool,
 ) -> Result<abb_engine::processing::ProcessingPreflightPlan, abb_engine::AppErrorEnvelope> {
     Ok(abb_engine::processing::preflight_payload(
-        payload,
-        metadata,
-        preview_seconds,
+        payload, metadata, preview,
     )?)
 }
 
@@ -205,7 +203,7 @@ async fn assert_reprocessing_sample_count(settings: EncoderSettings) {
 
 /// Stream `duration_ts` of the first audio stream: playable length including
 /// any padding the encoder or muxer declared.
-fn audio_duration_ts(path: &Path) -> u64 {
+pub(crate) fn audio_duration_ts(path: &Path) -> u64 {
     let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
     let probe = Command::new(binary)
         .args([
@@ -228,26 +226,54 @@ fn audio_duration_ts(path: &Path) -> u64 {
         .expect("audio duration_ts")
 }
 
-/// A mono 44.1 kHz AAC M4B decodes to float planar mono at 44.1 kHz, which is
-/// exactly what the Native AAC encoder takes, so reprocessing it uses the
-/// decoder-format fast path. `ABB_DISABLE_FASTPATH` forces the same input
-/// through the resampler. Both routes must hand the encoder the same audio.
-/// Tests share one process, so media tests running alongside may take the
-/// resampler route while it is set, which this test proves is equivalent.
-/// It is cleared first so an inherited value cannot turn both runs into the
-/// resampler route.
+const MAX_ROUTE_DIFFERENCE: f32 = 1e-3;
+const AAC_FRAME_SAMPLES: u64 = 1_024;
+const PREVIEW_REFUSAL: &str = "Encoding previews are available with M4B or Opus output";
+
+fn stereo_native_encoder_settings() -> EncoderSettings {
+    EncoderSettings {
+        channels: ChannelConfig::Stereo,
+        bitrate_kbps: 320,
+        ..native_encoder_settings()
+    }
+}
+
+fn decode_to_packed_float_wav(source: &Path, wav: &Path) {
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
+    let decoded = Command::new(binary)
+        .args(["-v", "error", "-xerror", "-i"])
+        .arg(source)
+        .args(["-map", "0:a:0", "-c:a", "pcm_f32le", "-y"])
+        .arg(wav)
+        .output()
+        .expect("decode source to packed float WAV");
+    assert!(
+        decoded.status.success(),
+        "{}",
+        String::from_utf8_lossy(&decoded.stderr)
+    );
+}
+
+/// A stereo 44.1 kHz AAC M4B decodes to float planar stereo, which is exactly
+/// what the Native AAC encoder takes, so reprocessing it uses the
+/// decoder-format fast path. The same audio as a packed-float WAV differs in
+/// sample format, so it goes through the resampler. Both routes must hand the
+/// encoder the same audio, left and right channel included.
 #[tokio::test]
 async fn fast_path_and_resampler_route_produce_the_same_audio() {
-    std::env::remove_var("ABB_DISABLE_FASTPATH");
-    let source = MediaLane::with_fixtures(&[1.5]);
+    let tmp = TempDir::new().expect("stereo fixture tempdir");
+    let wav = tmp.path().join("stereo.wav");
+    write_stereo_sine_wav(&wav, 1.5, 440.0, 660.0);
+    let source = MediaLane::for_inputs(vec![wav]).with_encoder(stereo_native_encoder_settings());
     let m4b = source.process(None).await;
+    let packed_float = tmp.path().join("packed-float.wav");
+    decode_to_packed_float_wav(&m4b, &packed_float);
 
-    let fast = MediaLane::for_inputs(vec![m4b.clone()]);
+    let fast = MediaLane::for_inputs(vec![m4b]).with_encoder(stereo_native_encoder_settings());
     let fast_output = fast.process(None).await;
-    std::env::set_var("ABB_DISABLE_FASTPATH", "1");
-    let resampled = MediaLane::for_inputs(vec![m4b]);
+    let resampled = MediaLane::for_inputs(vec![packed_float.clone()])
+        .with_encoder(stereo_native_encoder_settings());
     let resampled_output = resampled.process(None).await;
-    std::env::remove_var("ABB_DISABLE_FASTPATH");
 
     assert_eq!(
         audio_duration_ts(&fast_output),
@@ -257,15 +283,13 @@ async fn fast_path_and_resampler_route_produce_the_same_audio() {
     let fast_samples = decode_pcm_f32(&fast_output);
     let resampled_samples = decode_pcm_f32(&resampled_output);
     assert_eq!(fast_samples.len(), resampled_samples.len());
-    // Identity resampling is exact for float planar input; allow only
-    // float rounding in case swresample touches the samples.
     let max_difference = fast_samples
         .iter()
         .zip(&resampled_samples)
         .map(|(fast, resampled)| (fast - resampled).abs())
         .fold(0.0_f32, f32::max);
     assert!(
-        max_difference < 1e-4,
+        max_difference < MAX_ROUTE_DIFFERENCE,
         "fast path diverged from the resampler route by {max_difference}"
     );
 }
@@ -598,50 +622,116 @@ impl MediaLane {
     }
 }
 
+const MERGED_SAMPLES: u64 = 110_250;
+const SECOND_CHAPTER_START_MS: i64 = 1_500;
+const MERGED_END_MS: i64 = 2_500;
+const CHAPTER_TOLERANCE_MS: i64 = 2;
+
+fn assert_chapters_at_the_real_joins(chapters: &[(Option<String>, i64, i64)], generation: &str) {
+    let expected = [
+        ("fixture-0", 0, SECOND_CHAPTER_START_MS),
+        ("fixture-1", SECOND_CHAPTER_START_MS, MERGED_END_MS),
+    ];
+    assert_eq!(chapters.len(), expected.len(), "{generation} chapter count");
+    for ((title, start_ms, end_ms), (name, expected_start, expected_end)) in
+        chapters.iter().zip(expected)
+    {
+        assert_eq!(title.as_deref(), Some(name), "{generation} chapter title");
+        assert!(
+            (start_ms - expected_start).abs() <= CHAPTER_TOLERANCE_MS
+                && (end_ms - expected_end).abs() <= CHAPTER_TOLERANCE_MS,
+            "{generation} chapter {name} spans {start_ms}..{end_ms} ms, expected {expected_start}..{expected_end} ms"
+        );
+    }
+}
+
+/// Cover art is a second output stream. If its time_base stays 0/0, FFmpeg's
+/// ipod muxer defaults it to 1/90000, LCMs with audio 1/44100 into movie
+/// timescale 4410000, and the QuickTime chapter packets overflow. Apple Books
+/// reads that broken timed-text track; Nero `chpl` stays correct.
+fn assert_quicktime_chapter_track_spans_the_book(path: &Path, generation: &str) {
+    let (duration_secs, text_timescale, audio_timescale) = timed_text_chapter_track(path);
+    assert_eq!(
+        text_timescale, audio_timescale,
+        "{generation} timed-text timescale must match audio"
+    );
+    let one_aac_frame_secs = AAC_FRAME_SAMPLES as f64 / f64::from(SAMPLE_RATE);
+    assert!(
+        (duration_secs - MERGED_END_MS as f64 / 1_000.0).abs() <= one_aac_frame_secs,
+        "{generation} timed-text track lasts {duration_secs}s, expected the whole book"
+    );
+}
+
+fn assert_merged_book(output: &Path, title: &str, cover: &[u8], generation: &str) {
+    assert_eq!(
+        audio_duration_ts(output),
+        MERGED_SAMPLES,
+        "{generation} declared length"
+    );
+    assert_eq!(
+        decode_pcm_f32(output).len() as u64,
+        MERGED_SAMPLES,
+        "{generation} decoded length"
+    );
+
+    let analysis = get_file_list_info(&[output], AacDecoder::Auto).expect("analyze the M4B");
+    assert_eq!(analysis.valid_count, 1, "{generation} output probes valid");
+    assert!((analysis.total_duration - MERGED_END_MS as f64 / 1_000.0).abs() < 0.001);
+    let analyzed: Vec<_> = analysis.files[0]
+        .chapters
+        .iter()
+        .map(|chapter| (chapter.title.clone(), chapter.start_ms, chapter.end_ms))
+        .collect();
+    assert_chapters_at_the_real_joins(&analyzed, &format!("{generation} analysis"));
+    assert_chapters_at_the_real_joins(&chapters_of(output), &format!("{generation} chpl"));
+    assert_quicktime_chapter_track_spans_the_book(output, generation);
+
+    let tags = read_metadata(output).expect("re-read tags from the artifact");
+    assert_eq!(tags.title.as_deref(), Some(title), "{generation} title");
+    assert_eq!(
+        tags.cover_art.as_deref(),
+        Some(cover),
+        "{generation} cover bytes"
+    );
+}
+
 #[tokio::test]
-async fn import_configure_process_produces_decodable_m4b_with_truthful_duration() {
+async fn merged_title_keeps_every_sample_chapter_and_cover_through_reprocessing() {
     let lane = MediaLane::with_fixtures(&[1.5, 1.0]);
-    let expected_duration = 2.5;
+    let cover = minimal_jpg_bytes();
+    let mut metadata = AudiobookMetadata::new();
+    metadata.title = Some("Golden Book".to_string());
+    metadata.artist = Some("Lane Narrator".to_string());
+    metadata.cover_art = Some(cover.clone());
 
-    let result = execute_audio_engine(lane.execution_request(ProcessingSession::new(), None))
-        .await
-        .expect("native processing of generated WAV fixtures succeeds")
-        .message;
+    let message =
+        execute_audio_engine(lane.execution_request(ProcessingSession::new(), Some(metadata)))
+            .await
+            .expect("native processing of generated WAV fixtures succeeds")
+            .message;
 
-    let output = lane.output_path();
-    assert!(output.exists(), "final artifact exists at planned path");
+    let merged = lane.output_path();
     assert!(
-        result.ends_with(output.to_str().expect("utf8 temp path")),
-        "engine success message names the committed final path, got: {result}"
+        message.ends_with(merged.to_str().expect("utf8 temp path")),
+        "engine success message names the committed final path, got: {message}"
     );
+    assert_merged_book(&merged, "Golden Book", &cover, "merged");
+    assert_eq!(
+        read_metadata(&merged)
+            .expect("re-read tags")
+            .artist
+            .as_deref(),
+        Some("Lane Narrator")
+    );
+    assert!(lane.residual_workspace_dirs().is_empty());
 
-    let probe = get_file_list_info(&[&output], AacDecoder::Auto).expect("re-probe committed M4B");
-    assert_eq!(probe.valid_count, 1, "output M4B probes as valid audio");
-    let drift = (probe.total_duration - expected_duration).abs();
-    assert!(
-        drift < 0.5,
-        "merged duration {} differs from source total {expected_duration} by {drift}",
-        probe.total_duration
-    );
-
-    assert!(
-        lane.residual_workspace_dirs().is_empty(),
-        "successful run leaves no staging residue in the workspace root"
-    );
+    let reprocess_lane = MediaLane::for_inputs(vec![merged]);
+    let mut retitle = AudiobookMetadata::new();
+    retitle.title = Some("Second Pass".to_string());
+    let reprocessed = reprocess_lane.process(Some(retitle)).await;
+    assert_merged_book(&reprocessed, "Second Pass", &cover, "reprocessed");
+    assert!(reprocess_lane.residual_workspace_dirs().is_empty());
 }
-
-#[tokio::test]
-async fn analysis_exposes_embedded_chapters_from_real_m4b() {
-    let lane = MediaLane::with_fixtures(&[1.0, 1.5]);
-    let output = lane.process(None).await;
-
-    let probe = get_file_list_info(&[&output], AacDecoder::Auto).expect("analyze chaptered M4B");
-    let chapters = &probe.files[0].chapters;
-    assert_eq!(chapters.len(), 2, "analysis returns both embedded chapters");
-    assert_eq!(chapters[0].title.as_deref(), Some("fixture-0"));
-    assert_eq!(chapters[1].title.as_deref(), Some("fixture-1"));
-}
-
 #[tokio::test]
 async fn metadata_saved_during_processing_rereads_from_output_artifact() {
     let lane = MediaLane::with_fixtures(&[1.0]);
@@ -1243,58 +1333,6 @@ fn parse_mdhd(bytes: &[u8], start: usize, end: usize) -> (u32, u64) {
 }
 
 #[tokio::test]
-async fn m4b_input_processes_with_metadata_intact_and_cover_passthrough() {
-    let wav_lane = MediaLane::with_fixtures(&[1.5]);
-    let mut first_pass = AudiobookMetadata::new();
-    first_pass.title = Some("First Pass".to_string());
-    first_pass.artist = Some("Lane Narrator".to_string());
-    first_pass.cover_art = Some(minimal_jpg_bytes());
-    let m4b_input = wav_lane.process(Some(first_pass)).await;
-
-    let m4b_lane = MediaLane::for_inputs(vec![m4b_input]);
-    let mut second_pass = AudiobookMetadata::new();
-    second_pass.title = Some("Second Pass".to_string());
-    let output = m4b_lane.process(Some(second_pass)).await;
-
-    let probe = get_file_list_info(&[&output], AacDecoder::Auto).expect("re-probe reprocessed M4B");
-    assert_eq!(
-        probe.valid_count, 1,
-        "reprocessed M4B probes as valid audio"
-    );
-    let drift = (probe.total_duration - 1.5).abs();
-    assert!(
-        drift < 0.5,
-        "reprocessed duration {} drifted from source 1.5 by {drift}",
-        probe.total_duration
-    );
-
-    let reread = read_metadata(&output).expect("re-read tags from reprocessed artifact");
-    assert_eq!(reread.title.as_deref(), Some("Second Pass"));
-    let cover = reread
-        .cover_art
-        .expect("source M4B cover art passes through to the reprocessed artifact");
-    assert!(!cover.is_empty(), "passed-through cover art has bytes");
-}
-
-#[tokio::test]
-async fn cover_art_saved_during_processing_rereads_from_output_artifact() {
-    let lane = MediaLane::with_fixtures(&[1.0]);
-    let jpg = minimal_jpg_bytes();
-    let mut metadata = AudiobookMetadata::new();
-    metadata.title = Some("Covered Book".to_string());
-    metadata.cover_art = Some(jpg.clone());
-
-    let output = lane.process(Some(metadata)).await;
-
-    let reread = read_metadata(&output).expect("re-read committed artifact");
-    let cover = reread.cover_art.expect("cover art embedded in output");
-    assert_eq!(
-        cover, jpg,
-        "cover art bytes round-trip unchanged through processing"
-    );
-}
-
-#[tokio::test]
 async fn embedded_cover_thumbnail_is_bounded_jpeg_and_coverless_artifact_returns_none() {
     let covered_lane = MediaLane::with_fixtures(&[1.0]);
     let mut metadata = AudiobookMetadata::new();
@@ -1323,80 +1361,11 @@ async fn embedded_cover_thumbnail_is_bounded_jpeg_and_coverless_artifact_returns
     );
 }
 
-#[tokio::test]
-async fn chapters_synthesize_on_merge_and_survive_reprocessing() {
-    let merge_lane = MediaLane::with_fixtures(&[1.5, 1.0]);
-    let merged = merge_lane.process(None).await;
-
-    let synthesized = chapters_of(&merged);
-    assert_eq!(
-        synthesized.len(),
-        2,
-        "merge without source chapters synthesizes one chapter per input"
-    );
-    assert_eq!(synthesized[0].1, 0, "first chapter starts at zero");
-    let boundary = synthesized[1].1;
-    assert!(
-        (boundary - 1_500).abs() < 500,
-        "second chapter boundary {boundary}ms should sit near the first fixture's 1500ms"
-    );
-
-    let reprocess_lane = MediaLane::for_inputs(vec![merged]);
-    let reprocessed = reprocess_lane.process(None).await;
-
-    let preserved = chapters_of(&reprocessed);
-    assert_eq!(
-        preserved.len(),
-        2,
-        "embedded chapters survive single-input reprocessing"
-    );
-    assert_eq!(
-        preserved.iter().map(|c| c.0.clone()).collect::<Vec<_>>(),
-        synthesized.iter().map(|c| c.0.clone()).collect::<Vec<_>>(),
-        "chapter titles are preserved"
-    );
-    let preserved_boundary = preserved[1].1;
-    assert!(
-        (preserved_boundary - boundary).abs() < 200,
-        "preserved chapter boundary {preserved_boundary}ms should match the source's {boundary}ms"
-    );
-}
-
-/// Cover art is a second output stream. If its time_base stays 0/0, FFmpeg's
-/// ipod muxer defaults it to 1/90000, LCMs with audio 1/44100 into movie
-/// timescale 4410000, and the QuickTime chapter packets overflow. Apple Books
-/// reads that broken timed-text track; Nero `chpl` stays correct. Cover art is
-/// the reproducing trigger, not a decoration.
-#[tokio::test]
-async fn qt_chapter_track_times_span_the_book_when_cover_art_is_muxed() {
-    let lane = MediaLane::with_fixtures(&[1.5, 1.0]);
-    let mut metadata = AudiobookMetadata::new();
-    metadata.cover_art = Some(minimal_jpg_bytes());
-    let output = lane.process(Some(metadata)).await;
-
-    let chpl = chapters_of(&output);
-    assert_eq!(
-        chpl.len(),
-        2,
-        "Nero chpl still synthesizes one chapter per input"
-    );
-
-    let (qt_duration, text_timescale, audio_timescale) = timed_text_chapter_track(&output);
-    assert_eq!(
-        text_timescale, audio_timescale,
-        "timed-text timescale {text_timescale} must match audio {audio_timescale}; 4410000 is the 44100×90000 LCM from an unset cover-art time_base"
-    );
-    assert!(
-        (qt_duration - 2.5).abs() < 0.75,
-        "timed-text track duration {qt_duration}s must span the whole book (~2.5s), not only the last chapter"
-    );
-}
-
 pub(crate) fn write_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
     write_sine_mp3_with(path, seconds, freq_hz, &["-b:a", "64k"]);
 }
 
-fn write_sine_mp3_with(path: &Path, seconds: f64, freq_hz: f64, encoder_args: &[&str]) {
+pub(crate) fn write_sine_mp3_with(path: &Path, seconds: f64, freq_hz: f64, encoder_args: &[&str]) {
     let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
     let source = format!("sine=frequency={freq_hz}:sample_rate={SAMPLE_RATE}");
     let duration = seconds.to_string();
@@ -1439,7 +1408,7 @@ fn write_chaptered_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
     mux_chapters(&audio, &[("Opening", 0, 450), ("Closing", 450, 900)], path);
 }
 
-fn mux_chapters(audio: &Path, chapters: &[(&str, i64, i64)], path: &Path) {
+pub(crate) fn mux_chapters(audio: &Path, chapters: &[(&str, i64, i64)], path: &Path) {
     let metadata = path.with_extension("ffmetadata");
     let mut text = ";FFMETADATA1\n".to_string();
     for (title, start, end) in chapters {
@@ -1578,7 +1547,7 @@ async fn mp3_input_processes_with_metadata_intact() {
     let mp3_path = tmp.path().join("fixture.mp3");
     write_sine_mp3(&mp3_path, 1.5, 440.0);
 
-    let lane = MediaLane::for_inputs(vec![mp3_path]);
+    let lane = MediaLane::for_inputs(vec![mp3_path.clone()]);
     let mut metadata = AudiobookMetadata::new();
     metadata.title = Some("MP3 Origin".to_string());
     metadata.artist = Some("Lane Narrator".to_string());
@@ -1588,11 +1557,16 @@ async fn mp3_input_processes_with_metadata_intact() {
     let probe =
         get_file_list_info(&[&output], AacDecoder::Auto).expect("re-probe M4B produced from MP3");
     assert_eq!(probe.valid_count, 1, "output probes as valid audio");
-    let drift = (probe.total_duration - 1.5).abs();
-    assert!(
-        drift < 0.5,
-        "duration {} drifted from MP3 source 1.5 by {drift}",
-        probe.total_duration
+    let source_samples = decode_pcm_f32(&mp3_path).len() as u64;
+    assert_eq!(
+        audio_duration_ts(&output),
+        source_samples,
+        "declared length"
+    );
+    assert_eq!(
+        decode_pcm_f32(&output).len() as u64,
+        source_samples,
+        "decoded length"
     );
 
     let reread = read_metadata(&output).expect("re-read tags from artifact");
@@ -1868,7 +1842,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
             )
         })
         .collect();
-    let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), None)
+    let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), false)
         .expect("fixture value");
     assert_eq!(plan.outputs.len(), 5);
     for (index, extension) in ["m4b", "m4b", "m4b", "m4b", "m4b"].iter().enumerate() {
@@ -1885,10 +1859,10 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
     let mut encode_low_rate = payload.clone();
     encode_low_rate.audio_requests[0].intent = abb_engine::audio::AudioIntent::Encode;
     assert!(
-        preflight_processing_plan(encode_low_rate.clone(), Some(metadata.clone()), None).is_ok()
+        preflight_processing_plan(encode_low_rate.clone(), Some(metadata.clone()), false).is_ok()
     );
     encode_low_rate.audio_requests[0].sample_rate = SampleRateConfig::Explicit(22_050);
-    assert!(preflight_processing_plan(encode_low_rate, Some(metadata.clone()), None).is_err());
+    assert!(preflight_processing_plan(encode_low_rate, Some(metadata.clone()), false).is_err());
     let mut all_preserve = payload.clone();
     all_preserve.input_files.truncate(3);
     all_preserve.audio_requests.truncate(3);
@@ -1896,14 +1870,14 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
         request.sample_rate = SampleRateConfig::Explicit(1); // irrelevant while passing through
     }
     let original_plan =
-        preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), None)
+        preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), false)
             .expect("fixture value");
-    assert!(
-        preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), Some(1.0)).is_err()
-    );
+    let refusal = preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), true)
+        .expect_err("a preview never copies audio");
+    assert!(refusal.message.contains(PREVIEW_REFUSAL));
     let mut changed_mode = all_preserve.clone();
     changed_mode.audio_requests = vec![title_audio_request(Encode, native_encoder_settings()); 3];
-    let encode_plan = preflight_processing_plan(changed_mode, Some(metadata.clone()), None)
+    let encode_plan = preflight_processing_plan(changed_mode, Some(metadata.clone()), false)
         .expect("fixture value");
     assert_ne!(original_plan.plan_signature, encode_plan.plan_signature);
     assert_eq!(
@@ -1913,7 +1887,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
     );
     let mut misaligned = all_preserve;
     misaligned.audio_requests.truncate(1);
-    assert!(preflight_processing_plan(misaligned, Some(metadata), None)
+    assert!(preflight_processing_plan(misaligned, Some(metadata), false)
         .expect_err("fixture must reject")
         .message
         .contains("align"));
@@ -1941,11 +1915,16 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
 
     let probe = get_file_list_info(&[&output], AacDecoder::Auto).expect("re-probe aac_at output");
     assert_eq!(probe.valid_count, 1, "aac_at output probes as valid audio");
-    let drift = (probe.total_duration - 1.5).abs();
-    assert!(
-        drift < 0.5,
-        "aac_at duration {} drifted from source 1.5 by {drift}",
-        probe.total_duration
+    let source_samples = (1.5 * f64::from(SAMPLE_RATE)) as u64;
+    assert_eq!(
+        audio_duration_ts(&output),
+        source_samples,
+        "declared length"
+    );
+    assert_eq!(
+        decode_pcm_f32(&output).len() as u64,
+        source_samples,
+        "decoded length"
     );
 
     let reread = read_metadata(&output).expect("re-read tags from aac_at artifact");
@@ -1983,7 +1962,7 @@ pub(crate) fn write_stereo_sine_wav(path: &Path, seconds: f64, left_hz: f64, rig
 async fn rate_converted_merge_keeps_truthful_duration_and_rate() {
     let lane =
         MediaLane::with_fixtures(&[1.5, 1.0]).with_sample_rate(SampleRateConfig::Explicit(22_050));
-    let expected_duration = 2.5;
+    let converted_samples = 55_125;
 
     execute_audio_engine(lane.execution_request(ProcessingSession::new(), None))
         .await
@@ -1998,11 +1977,15 @@ async fn rate_converted_merge_keeps_truthful_duration_and_rate() {
         Some(22_050),
         "output carries the requested explicit sample rate"
     );
-    let drift = (probe.total_duration - expected_duration).abs();
-    assert!(
-        drift < 0.2,
-        "rate-converted duration {} differs from source total {expected_duration} by {drift}",
-        probe.total_duration
+    assert_eq!(
+        audio_duration_ts(&output),
+        converted_samples,
+        "declared length"
+    );
+    assert_eq!(
+        decode_pcm_f32(&output).len() as u64,
+        converted_samples,
+        "decoded length"
     );
 }
 
@@ -2160,7 +2143,7 @@ async fn run_planned_title(
     workspace: &Path,
 ) -> Result<(PathBuf, abb_engine::audio::AudioRunOutcome), AppError> {
     let inspected =
-        crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), None)?;
+        crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), false)?;
     let job = inspected.plan.jobs.into_iter().next().expect("one title");
     let files: Vec<_> = job
         .source_paths
@@ -2300,83 +2283,6 @@ async fn drifting_embedded_chapters_convert_on_every_route() {
         .unwrap_or_else(|error| panic!("{name}: {error}"));
         assert_eq!(chapters_of(&output), expected, "{name}");
     }
-}
-
-/// A first part with its length header followed by raw MPEG audio is what
-/// joining tools leave. FFmpeg reads that file's length from a bitrate (the
-/// header no longer fits the file), while a Save's remuxed copy carries a
-/// measured length, so the two numbers differ with no audio lost. Neither the
-/// chapter intake nor the Save check may treat that estimate as the audio end.
-#[test]
-fn a_joined_mp3_imports_with_its_chapters_and_saves_its_tags() {
-    let tmp = TempDir::new().expect("joined MP3 workspace");
-    let first = tmp.path().join("part-1.mp3");
-    let second = tmp.path().join("part-2.mp3");
-    write_sine_mp3_with(&first, 1.0, 440.0, &["-ar", "44100", "-b:a", "32k"]);
-    write_sine_mp3_with(
-        &second,
-        2.0,
-        660.0,
-        &[
-            "-ar",
-            "44100",
-            "-b:a",
-            "160k",
-            "-write_xing",
-            "0",
-            "-id3v2_version",
-            "0",
-        ],
-    );
-    let chaptered = tmp.path().join("part-1-chapters.mp3");
-    mux_chapters(
-        &first,
-        &[("Opening", 0, 1_000), ("Closing", 1_000, 3_000)],
-        &chaptered,
-    );
-    let joined = tmp.path().join("joined.mp3");
-    let mut bytes = fs::read(&chaptered).expect("read first part");
-    bytes.extend(fs::read(&second).expect("read second part"));
-    fs::write(&joined, bytes).expect("join parts");
-    let imported = get_file_list_info(&[&joined], AacDecoder::Auto).expect("probe joined MP3");
-    let file = &imported.files[0];
-    assert!(file.is_valid, "{:?}", file.error);
-    let estimated = file.duration.expect("joined length");
-    assert!(
-        (estimated - 3.0).abs() > 1.0,
-        "fixture premise: FFmpeg misreads the joined length ({estimated} s)"
-    );
-    let accepted: Vec<_> = file
-        .chapter_plan
-        .as_ref()
-        .expect("accepted chapter plan")
-        .chapters
-        .iter()
-        .map(|chapter| (chapter.title.clone(), chapter.start_ms, chapter.end_ms))
-        .collect();
-    assert_eq!(
-        accepted,
-        vec![
-            (Some("Opening".to_string()), 0, 1_000),
-            (Some("Closing".to_string()), 1_000, 3_000),
-        ]
-    );
-
-    save_metadata_intent(
-        &joined,
-        &MetadataIntentPatch {
-            title: Some(PatchOp::Set("Joined".into())),
-            ..Default::default()
-        },
-    )
-    .expect("joined MP3 save");
-    assert_eq!(
-        read_metadata(&joined)
-            .expect("read saved MP3")
-            .title
-            .as_deref(),
-        Some("Joined")
-    );
 }
 
 #[tokio::test]
@@ -2769,7 +2675,7 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
             ..Default::default()
         },
     )]);
-    let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), None)
+    let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), false)
         .expect("compatible grouped preflight");
     assert_eq!(plan.outputs.len(), 1);
     assert!(plan.outputs[0].resolved_path.ends_with(".m4b"));
@@ -2782,7 +2688,7 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
         .expect("fixture value")
         .reverse();
     let reordered =
-        preflight_processing_plan(reversed, Some(metadata), None).expect("fixture value");
+        preflight_processing_plan(reversed, Some(metadata), false).expect("fixture value");
     assert_ne!(
         plan.plan_signature, reordered.plan_signature,
         "review pins source order"
@@ -2891,14 +2797,14 @@ fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
  abb_engine::audio::AudioIntent::Encode, native_encoder_settings())]
     }))
     .expect("MP3 stack request");
-    let plan =
-        preflight_processing_plan(payload.clone(), None, None).expect("encoding accepts MP3 stack");
+    let plan = preflight_processing_plan(payload.clone(), None, false)
+        .expect("encoding accepts MP3 stack");
     assert_eq!(plan.outputs.len(), 1);
     assert!(plan.outputs[0].resolved_path.ends_with(".m4b"));
     let mut preserved = payload;
     preserved.audio_requests[0].output = abb_engine::audio::OutputAudio::Mp3;
     preserved.audio_requests[0].intent = abb_engine::audio::AudioIntent::Auto;
-    let error = preflight_processing_plan(preserved, None, None)
+    let error = preflight_processing_plan(preserved, None, false)
         .expect_err("interior MP3 priming requires encoding");
     assert!(
         error.message.contains("priming") || error.message.contains("shifted"),
@@ -2969,7 +2875,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
             cover_art: Some(minimal_jpg_bytes()),
             ..Default::default()
         };
-        let plan = preflight_processing_plan(payload, None, None).expect("Opus preflight");
+        let plan = preflight_processing_plan(payload, None, false).expect("Opus preflight");
         let audio_plan = &plan.audio_plans[0];
         assert_eq!(audio_plan.sample_rate, input_rate);
         assert_eq!(audio_plan.channels, channels);
@@ -3280,7 +3186,7 @@ async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
         "inputFiles": [anchor], "titleSources": {anchor.to_str().expect("fixture value"): paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
         "audioRequests": [request], "outputDir": tmp.path(), "aacDecoder": "auto"
     })).expect("fixture value");
-    let plan = preflight_processing_plan(payload, None, None).expect("fixture value");
+    let plan = preflight_processing_plan(payload, None, false).expect("fixture value");
     assert_eq!(plan.audio_plans[0].handling, AudioHandling::Preserve);
     let destination = PathBuf::from(&plan.outputs[0].resolved_path);
     fs::create_dir_all(destination.parent().expect("fixture value")).expect("fixture value");
@@ -3379,7 +3285,9 @@ async fn default_audio_plan_reduces_large_aac_but_explicit_keep_never_encodes() 
             .expect_err("fixture must reject")
             .to_string()
             .contains("MP3 source audio"));
-        assert!(resolve_title_audio(&request, &info, true).is_err());
+        let refusal =
+            resolve_title_audio(&request, &info, true).expect_err("a preview never copies audio");
+        assert!(refusal.to_string().contains(PREVIEW_REFUSAL));
     }
 }
 

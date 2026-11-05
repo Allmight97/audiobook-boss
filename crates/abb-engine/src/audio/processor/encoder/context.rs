@@ -104,8 +104,7 @@ pub(crate) fn create_audio_encoder(
 /// Sets up the output encoder context and stream with metadata support.
 /// The returned session owns the codec, output handle, and sample timeline.
 ///
-/// When `skip_chapter_passthrough` is false and input files have chapters, they are copied
-/// to the output context before the header is written (#66).
+/// Accepted chapters are written to the output context before the header (#66).
 #[expect(
     clippy::too_many_lines,
     reason = "Sequential codec/container/cover/chapter setup with fallible handoffs"
@@ -113,7 +112,6 @@ pub(crate) fn create_audio_encoder(
 pub(crate) fn setup_encoder(
     plan: &crate::audio::processor::plan::MediaProcessingPlan,
     metadata: Option<&crate::metadata::AudiobookMetadata>,
-    skip_chapter_passthrough: bool,
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
 ) -> Result<EncoderSession> {
     let (target_sample_rate, target_channels) =
@@ -221,13 +219,9 @@ pub(crate) fn setup_encoder(
         }
     };
 
-    if !skip_chapter_passthrough {
-        if let Some(p) = passthrough {
-            let count = crate::metadata::add_chapters_to_output(&mut octx, &p.chapters)?;
-            log::debug!("Copied {count} accepted chapters");
-        }
-    } else {
-        log::debug!("Chapter passthrough skipped (preview mode)");
+    if let Some(p) = passthrough {
+        let count = crate::metadata::add_chapters_to_output(&mut octx, &p.chapters)?;
+        log::debug!("Copied {count} accepted chapters");
     }
 
     octx.write_header()

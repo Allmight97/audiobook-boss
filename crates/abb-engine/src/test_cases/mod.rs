@@ -1,9 +1,13 @@
 #[path = "integration_collision_review_tests.rs"]
 mod integration_collision_review_tests;
+#[path = "integration_estimated_length_tests.rs"]
+mod integration_estimated_length_tests;
 #[path = "integration_faac_execution_tests.rs"]
 mod integration_faac_execution_tests;
 #[path = "integration_media_execution_tests.rs"]
 pub(crate) mod integration_media_execution_tests;
+#[path = "integration_preview_tests.rs"]
+mod integration_preview_tests;
 #[path = "integration_reqwest_resolver_tests.rs"]
 mod integration_reqwest_resolver_tests;
 #[path = "integration_session_desk.rs"]

@@ -58,26 +58,13 @@ pub(crate) fn prepare_workspace(
 }
 
 pub(crate) fn progress_total_duration(files: &[AudioFile], preview: Option<&PreviewConfig>) -> f64 {
-    if let Some(preview) = preview {
-        // Attainable preview output, not the requested budget: each file can
-        // contribute at most its own duration toward its per-file excerpt.
-        // Unknown durations fall back to the full per-file budget.
-        let valid_count = files.iter().filter(|file| file.is_valid).count();
-        let per_file_budget = preview.per_file_seconds(valid_count);
-        return files
-            .iter()
-            .filter(|file| file.is_valid)
-            .map(|file| match file.duration {
-                Some(duration) => duration.min(per_file_budget),
-                None => per_file_budget,
-            })
-            .sum();
-    }
-
+    let share = preview.map(|preview| preview.per_file_seconds(files.len()));
     files
         .iter()
-        .filter(|file| file.is_valid)
-        .map(|file| file.duration.unwrap_or(0.0))
+        .map(|file| {
+            let duration = file.duration.unwrap_or_default();
+            share.map_or(duration, |share| duration.min(share))
+        })
         .sum()
 }
 

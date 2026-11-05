@@ -8,7 +8,6 @@ use super::run_diagnostics::{
     write_run_identity,
 };
 use crate::audio::cleanup::CleanupGuard;
-use crate::audio::processor::frame_pipeline::PreviewAction;
 use crate::audio::processor::plan::MediaProcessingPlan;
 use crate::audio::SampleRateConfig;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
@@ -30,7 +29,7 @@ pub(crate) fn process_input_file(
     ctx: &mut crate::audio::processor::frame_pipeline::FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
     input_facts: Option<&mut Vec<String>>,
-) -> Result<PreviewAction> {
+) -> Result<()> {
     use crate::errors::AppError;
 
     let input_label = sanitize_path_for_display(input_path);
@@ -46,9 +45,9 @@ pub(crate) fn process_input_file(
     }
 
     if let Some(ref mut ps) = ctx.preview_state {
-        ps.start_new_file(file_index);
+        ps.start_new_file();
         log::info!(
-            "Adaptive preview: starting file {} '{}' at pts={}",
+            "Preview: starting file {} '{}' at pts={}",
             file_index + 1,
             input_label,
             *ctx.running_pts
@@ -86,7 +85,7 @@ pub(crate) fn process_input_file(
     );
 
     log::info!("Processing input packets from: {}", input_label);
-    let action = crate::audio::processor::frame_pipeline::process_input_packets(
+    crate::audio::processor::frame_pipeline::process_input_packets(
         &mut ictx,
         &mut decoder,
         encoder,
@@ -95,13 +94,10 @@ pub(crate) fn process_input_file(
         ctx,
         accumulator,
     )?;
-    log::info!(
-        "✓ Input packets processed successfully (action={:?})",
-        action
-    );
+    log::info!("✓ Input packets processed successfully");
 
     log::info!("✅ Completed processing file: {}", input_label);
-    Ok(action)
+    Ok(())
 }
 
 pub(crate) fn execute(
@@ -137,16 +133,10 @@ fn execute_pipeline(
         let _ = ff::init();
     });
 
-    let skip_chapter_passthrough = context.preview.is_some();
     // The session drops its codec/output handles before cleanup removes the path.
     let mut cleanup_guard = CleanupGuard::new(context.session.id());
     cleanup_guard.add_path(&plan.output_path);
-    let mut enc_ctx = crate::audio::processor::encoder::setup_encoder(
-        plan,
-        metadata,
-        skip_chapter_passthrough,
-        passthrough,
-    )?;
+    let mut enc_ctx = crate::audio::processor::encoder::setup_encoder(plan, metadata, passthrough)?;
 
     if let Some(diagnostics) = diagnostics.as_deref_mut() {
         diagnostics.opened_encoder = Some(enc_ctx.name().to_owned());

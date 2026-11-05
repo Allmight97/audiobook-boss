@@ -73,6 +73,7 @@ pub(super) struct PacketStats {
     pub trailing_padding: i64,
     pub first_pts: Option<i64>,
     pub last_pts: Option<i64>,
+    pub written_end: Option<i64>,
 }
 
 pub(crate) struct EncoderSession {

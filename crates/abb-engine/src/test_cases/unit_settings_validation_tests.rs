@@ -52,14 +52,3 @@ fn output_path_validation_rejects_file_parent() {
     let err = validate_output_path(&output_path).expect_err("expected not directory error");
     assert!(err.to_string().contains("not a directory"));
 }
-
-#[test]
-fn sample_rate_config_helper_methods() {
-    let auto_config = SampleRateConfig::Auto;
-    assert!(auto_config.requires_detection());
-    assert_eq!(auto_config.explicit_rate(), None);
-
-    let explicit_config = SampleRateConfig::Explicit(44100);
-    assert!(!explicit_config.requires_detection());
-    assert_eq!(explicit_config.explicit_rate(), Some(44100));
-}
