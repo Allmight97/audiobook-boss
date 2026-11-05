@@ -92,12 +92,6 @@ impl Session {
         })
     }
 
-    #[cfg(test)]
-    pub(crate) fn cover_art(&self) -> Option<Vec<u8>> {
-        let revision = self.snapshot().metadata?.cover.image_revision;
-        self.lock().displayed_cover_at(revision)
-    }
-
     async fn serve_cover(&self, request: &CoverRequest) -> Result<Option<Cover>> {
         let covers = &self.inner.network.covers;
         match request {
