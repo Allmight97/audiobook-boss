@@ -4,6 +4,36 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-11-05
+
+### Added
+
+- Settings → Decoding offers the FAAD3 AAC decoder beside Auto. It reads
+  Audible books and surround AAC, downmixed with its center channel.
+
+### Changed
+
+- Preview Audio is one button. Each title's preview is 90 seconds with the
+  export's metadata and no chapters. A merged title plays the start of each
+  file in order, at least 5 seconds each, so you hear every join.
+- The bundled FAAC encoder is FAAC 3. With profile Auto, 64 kbps stereo at
+  32 kHz now encodes HE-AAC v1 instead of AAC-LC.
+- Bundled FFmpeg is refreshed to November 4 upstream, with AAC, MP3 chapter,
+  Opus, and MP4 fixes. Native AAC output sounds the same.
+
+### Fixed
+
+- A merged title's chapters start where each file starts, also after a
+  variable-bitrate MP3 without a length header or MP3 parts joined into one
+  file. Before, every later chapter could start seconds early.
+- Apple AAC exports end at their last sample instead of playing 14 ms past it.
+- A FAAC HE-AAC book kept with Preserve after a chapter repair keeps its full
+  length and timing when ABB imports it again.
+
+### Removed
+
+- The 15, 30, 45, and 60 second preview lengths.
+
 ## [1.16.0] - 2026-10-26
 
 ### Added
