@@ -411,11 +411,11 @@ async fn restarting_a_title_moves_its_unfinished_export_to_the_new_location() {
         other => panic!("restart not submitted: {other:?}"),
     };
     assert_ne!(second, first);
+    assert!(!old_folder.exists(), "the old empty folders are gone");
     desk.wait_until("the stopped export records its cancellation", |desk| {
         desk.export_status(&first) == WorkOperationStatus::Cancelled
     })
     .await;
-    assert!(!old_folder.exists(), "the old empty folders are gone");
     desk.wait_until("the restarted export finishes", |desk| {
         finished(desk.export_status(&second))
     })

@@ -50,7 +50,11 @@ impl<'a> BatchScheduler<'a> {
         Self { registry }
     }
 
-    pub async fn run_batch<R, Fut>(&self, futures: Vec<Fut>) -> Vec<Result<R>>
+    pub async fn run_batch<R, Fut>(
+        &self,
+        futures: Vec<Fut>,
+        cancelled: impl Fn(usize) -> bool,
+    ) -> Vec<Result<R>>
     where
         R: Send + 'static,
         Fut: Future<Output = Result<R>> + Send + 'static,
@@ -75,7 +79,20 @@ impl<'a> BatchScheduler<'a> {
             }
         }
 
-        while let Some(joined) = join_set.join_next_with_id().await {
+        while !join_set.is_empty() {
+            let joined = tokio::select! {
+                joined = join_set.join_next_with_id() => joined.expect("join set is not empty"),
+                () = tokio::time::sleep(permit::PERMIT_CANCEL_POLL_INTERVAL), if !pending.is_empty() => {
+                    let (now, later): (VecDeque<_>, VecDeque<_>) = pending
+                        .drain(..)
+                        .partition(|(index, _)| cancelled(*index));
+                    pending = later;
+                    for (index, future) in now {
+                        spawn_indexed_task(&mut join_set, &mut task_indices, index, future);
+                    }
+                    continue;
+                }
+            };
             match joined {
                 Ok((task_id, outcome)) => {
                     let Some(index) = task_indices.remove(&task_id) else {
@@ -109,7 +126,10 @@ impl<'a> BatchScheduler<'a> {
                 }
             }
 
-            if let Some((next_index, next_future)) = pending.pop_front() {
+            while join_set.len() < max_in_flight {
+                let Some((next_index, next_future)) = pending.pop_front() else {
+                    break;
+                };
                 spawn_indexed_task(&mut join_set, &mut task_indices, next_index, next_future);
             }
         }

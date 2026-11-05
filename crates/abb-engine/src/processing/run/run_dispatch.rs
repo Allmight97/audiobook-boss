@@ -75,6 +75,7 @@ async fn dispatch_batch_plan(
     let mut scheduled_jobs: Vec<Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>> =
         Vec::new();
     let preview = plan.preview;
+    let mut queue_cancels = Vec::new();
     for planned_job in plan.jobs {
         if let Some(skipped_entry) =
             no_write_skipped_result(planned_job.input_index, None, &planned_job.output)
@@ -93,6 +94,7 @@ async fn dispatch_batch_plan(
                 title.end();
             }
             scheduled_jobs.push(Box::pin(async move { Ok(skipped_entry) }));
+            queue_cancels.push(None);
             continue;
         }
 
@@ -123,10 +125,18 @@ async fn dispatch_batch_plan(
             progress_listener: options.progress_listener.clone(),
             title_output: options.title_outputs.get(input_index).cloned(),
         };
+        queue_cancels.push(options.title_cancels.get(input_index).cloned());
         scheduled_jobs.push(Box::pin(run_title_job(request, Arc::clone(&folders))));
     }
 
-    let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
+    let outcomes = registry
+        .scheduler()
+        .run_batch(scheduled_jobs, |position| {
+            queue_cancels[position].as_ref().is_some_and(
+                |flag: &Arc<std::sync::atomic::AtomicBool>| flag.load(Ordering::Acquire),
+            )
+        })
+        .await;
     let finalized_results = finalize_batch_results(outcomes, options.progress_listener.as_ref())?;
 
     Ok(ProcessCommandResult::new(finalized_results))

@@ -129,7 +129,7 @@ async fn test_scheduler_respects_max_in_flight() {
         });
     }
 
-    let results = registry.scheduler().run_batch(futures).await;
+    let results = registry.scheduler().run_batch(futures, |_| false).await;
 
     assert_eq!(results.len(), 12);
     assert!(results.into_iter().all(|item| item.is_ok()));
@@ -153,7 +153,7 @@ async fn test_scheduler_preserves_input_order() {
         });
     }
 
-    let results = registry.scheduler().run_batch(futures).await;
+    let results = registry.scheduler().run_batch(futures, |_| false).await;
 
     let ordered: Vec<usize> = results
         .into_iter()
@@ -187,7 +187,7 @@ async fn test_scheduler_continues_scheduling_after_error_and_preserves_order() {
         });
     }
 
-    let outcomes = registry.scheduler().run_batch(futures).await;
+    let outcomes = registry.scheduler().run_batch(futures, |_| false).await;
     assert_eq!(outcomes.len(), 6);
     assert_eq!(
         started.load(Ordering::SeqCst),
@@ -231,7 +231,7 @@ async fn test_scheduler_preserves_index_for_panicking_tasks() {
         });
     }
 
-    let outcomes = registry.scheduler().run_batch(futures).await;
+    let outcomes = registry.scheduler().run_batch(futures, |_| false).await;
 
     assert_eq!(outcomes.len(), 4);
     assert_eq!(
@@ -258,4 +258,46 @@ async fn concurrency_cannot_change_while_a_run_is_held_even_between_its_jobs() {
 
     drop(run);
     assert_eq!(registry.update_max_concurrent(1).await.expect("idle"), 1);
+}
+
+#[tokio::test]
+async fn a_cancelled_queued_job_starts_without_waiting_for_the_job_ahead() {
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::atomic::AtomicBool;
+    use std::time::Duration;
+    use tokio::sync::oneshot;
+
+    type Job = Pin<Box<dyn Future<Output = crate::errors::Result<u8>> + Send>>;
+
+    let registry = JobRegistry::new(1);
+    let (release, blocked) = oneshot::channel::<()>();
+    let (started, ran) = oneshot::channel::<()>();
+    let ahead: Job = Box::pin(async move {
+        let _ = blocked.await;
+        Ok(0)
+    });
+    let queued: Job = Box::pin(async move {
+        let _ = started.send(());
+        Ok(1)
+    });
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&cancelled);
+    let scheduler = registry.scheduler();
+    let batch = scheduler.run_batch(vec![ahead, queued], move |index| {
+        index == 1 && flag.load(Ordering::Acquire)
+    });
+    let cancel_and_wait = async move {
+        cancelled.store(true, Ordering::Release);
+        tokio::time::timeout(Duration::from_secs(2), ran)
+            .await
+            .expect("the cancelled job starts while the job ahead is blocked")
+            .expect("the cancelled job ran");
+        let _ = release.send(());
+    };
+
+    let (results, ()) = tokio::join!(batch, cancel_and_wait);
+
+    let results: Vec<u8> = results.into_iter().map(|r| r.expect("ok")).collect();
+    assert_eq!(results, [0, 1]);
 }

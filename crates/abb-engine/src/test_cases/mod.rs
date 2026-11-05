@@ -12,6 +12,8 @@ mod integration_library_readback_tests;
 pub(crate) mod integration_media_execution_tests;
 #[path = "integration_media_route_parity_tests.rs"]
 mod integration_media_route_parity_tests;
+#[path = "integration_output_safety_tests.rs"]
+mod integration_output_safety_tests;
 #[path = "integration_preview_tests.rs"]
 mod integration_preview_tests;
 #[path = "integration_session_desk.rs"]

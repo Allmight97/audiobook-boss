@@ -79,7 +79,8 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   starts. It records the job and acquires its
   permit before execution. `BatchScheduler` keeps result order deterministic,
   keeps issuing queued work after per-task errors, and gives every scheduled
-  index a terminal result.
+  index a terminal result. A queued title whose cancel flag is set starts out
+  of turn, so it ends within the cancel poll and never behind the titles ahead.
 - Presence in the registry map is the job's only lifecycle state: tracked from
   the moment it waits for a permit; `complete_job` and `fail_job` remove it on
   every terminal path; a failed, cancelled, or dropped admission removes

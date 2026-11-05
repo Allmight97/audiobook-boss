@@ -220,9 +220,7 @@ impl WorkRuntime {
     }
 
     /// Cancels the title at `index` and waits until it has published or
-    /// ended without an output, its own empty folders removed. A title still
-    /// queued ends at once: it cannot publish with its cancel flag set, so
-    /// a restart need not wait for the titles ahead of it. Returns whether
+    /// ended without an output, its own empty folders removed. Returns whether
     /// it published.
     pub(crate) async fn stop_title(
         &self,
@@ -235,17 +233,8 @@ impl WorkRuntime {
             .ok()
             .and_then(|state| state.child_job_id(operation_id, index));
         if let Some(child) = child {
-            match self.cancel_operation(host, operation_id.clone(), Some(child.clone())) {
-                Ok(snapshot) => {
-                    let queued = snapshot.children.iter().any(|candidate| {
-                        candidate.child_job_id == child
-                            && candidate.status == super::ChildJobStatus::Queued
-                    });
-                    if queued {
-                        title.end();
-                    }
-                }
-                Err(error) => log::warn!("Failed to cancel a title for restart: {error}"),
+            if let Err(error) = self.cancel_operation(host, operation_id.clone(), Some(child)) {
+                log::warn!("Failed to cancel a title for restart: {error}");
             }
         }
         title.settled().await
