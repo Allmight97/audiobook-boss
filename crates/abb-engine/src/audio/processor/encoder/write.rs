@@ -182,11 +182,14 @@ pub(super) fn write_packet(
             trailing_padding = padding;
         }
     } else {
-        if pts >= audio_end_pts {
+        // aac_at flushes one packet from an empty frame queue, stamped inside
+        // audio already written and carrying no samples.
+        if pts >= audio_end_pts || stats.written_end.is_some_and(|end| pts < end) {
             return Ok(());
         }
         trailing_padding = (pts + packet.duration() - audio_end_pts).max(0);
         packet.set_duration(packet.duration().min(audio_end_pts - pts));
+        stats.written_end = Some(pts + packet.duration());
     }
     let bytes = packet.size() as u64;
     packet.set_stream(output_stream_index);

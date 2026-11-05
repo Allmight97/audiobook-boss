@@ -1921,9 +1921,10 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
         source_samples,
         "declared length"
     );
-    assert!(
-        decode_pcm_f32(&output).len() as u64 - source_samples < AAC_FRAME_SAMPLES,
-        "decoded length exceeds the source by a whole frame"
+    assert_eq!(
+        decode_pcm_f32(&output).len() as u64,
+        source_samples,
+        "decoded length"
     );
 
     let reread = read_metadata(&output).expect("re-read tags from aac_at artifact");

@@ -124,8 +124,26 @@ async fn a_second_abb_on_the_same_folders_refuses_to_start_and_leaves_live_work_
 
     assert_eq!(first.shutdown().await, ShutdownOutcome::Settled);
     drop(first);
-    let third = Engine::start(config()).expect("ABB starts after the first one quit");
+    let third = start_once_the_lock_frees(config);
     assert_eq!(third.shutdown().await, ShutdownOutcome::Settled);
+}
+
+/// A child process another test thread spawns copies this process's
+/// descriptor table, so it holds the folder's flock until its exec, about a
+/// millisecond.
+fn start_once_the_lock_frees(config: impl Fn() -> EngineConfig) -> Engine {
+    let deadline = std::time::Instant::now() + Duration::from_secs(1);
+    loop {
+        match Engine::start(config()) {
+            Ok(engine) => return engine,
+            Err(abb_engine::AppError::AlreadyRunning(_))
+                if std::time::Instant::now() < deadline =>
+            {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            Err(error) => panic!("ABB starts after the first one quit: {error}"),
+        }
+    }
 }
 
 #[tokio::test]
