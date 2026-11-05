@@ -48,11 +48,11 @@ struct AacDecoderAvailability {
     aac_at: bool,
 }
 
-struct OpenedAudioInput {
-    input: ff::format::context::Input,
-    decoder: AudioDecoder,
-    stream_index: usize,
-    selected_decoder: DecoderSelection,
+pub(super) struct OpenedAudioInput {
+    pub(super) input: ff::format::context::Input,
+    pub(super) decoder: AudioDecoder,
+    pub(super) stream_index: usize,
+    pub(super) selected_decoder: DecoderSelection,
     codec_label: Option<String>,
     codec_id: ff::codec::Id,
     decode_window: Option<super::he_timing::HeDecodeWindow>,
@@ -545,7 +545,10 @@ fn select_decoder_candidate(
     )))
 }
 
-fn open_best_audio_decoder(path: &Path, aac_decoder: AacDecoder) -> Result<OpenedAudioInput> {
+pub(super) fn open_best_audio_decoder(
+    path: &Path,
+    aac_decoder: AacDecoder,
+) -> Result<OpenedAudioInput> {
     log::debug!("Opening FFmpeg input context...");
     let inspect_ctx = open_input_context(path)?;
     let params = {

@@ -150,10 +150,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   start, zero-length markers dropped, each end moved to the next start and the
   last to the audio end. A chapter that starts outside the audio, or an end
   that would move more than 1 s, refuses that file. Why: real rips drift by a
-  few ms, and a larger move would guess at the book's structure. A length
-  FFmpeg estimated from a bitrate (`length_is_estimated`: no length header, or
-  a joined MP3) is no audio end: the last chapter keeps its own end and no
-  start is refused against it.
+  few ms, and a larger move would guess at the book's structure. Import
+  measures a length FFmpeg only estimated (audio `AGENTS.md`); one it still
+  could not measure (`length_estimated`) is no audio end: the last chapter
+  keeps its own end and no start is refused against it.
 - `ChapterPlan`, `CueSource`, and `CueStatus` carry intake facts. Audio consumes
   crate-local `inspect_chapter_source`, `validate_chapter_plan`, and
   `validate_source_fingerprint`; the last compares metadata from an already-open

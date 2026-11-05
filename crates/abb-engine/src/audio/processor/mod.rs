@@ -19,6 +19,7 @@ mod faad_decoder;
 mod finalize;
 mod frame_pipeline;
 mod he_timing;
+mod measured_length;
 mod plan;
 mod prepare;
 mod preserve;
@@ -40,6 +41,7 @@ mod staging;
 mod streams;
 
 pub(crate) use decoder::codec_library_versions;
+pub(in crate::audio) use measured_length::measured_length_seconds;
 pub(crate) use streams::assess_preservation;
 pub(in crate::audio) use streams::inspect_audio_decoder;
 pub(crate) use streams::probe_builtin_audio_decoder;

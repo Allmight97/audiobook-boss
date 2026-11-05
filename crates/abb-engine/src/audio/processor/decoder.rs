@@ -160,6 +160,10 @@ impl AudioDecoder {
         self.time_base
     }
 
+    pub(super) fn is_ffmpeg(&self) -> bool {
+        matches!(self.backend, Backend::Ffmpeg(_))
+    }
+
     pub(crate) fn send_packet(&mut self, packet: &ff::Packet) -> Result<()> {
         let started = Instant::now();
         self.stats.packets += 1;
