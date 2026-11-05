@@ -431,12 +431,11 @@ impl WorkingSet {
                 }
             })
             .collect();
-        if self
-            .selected_anchor
-            .is_some_and(|anchor| anchor >= self.files.len())
-        {
-            self.selected_anchor = None;
-        }
+        self.selected_anchor = match self.selected_anchor {
+            Some(anchor) if anchor > index => Some(anchor - 1),
+            Some(anchor) if anchor == index => None,
+            other => other,
+        };
         self.reanchor();
         sources
     }

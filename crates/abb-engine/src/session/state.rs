@@ -1297,11 +1297,6 @@ impl SessionState {
             .map(|file| file.path.clone())
     }
 
-    #[cfg(test)]
-    pub(crate) fn displayed_cover(&self) -> Option<Vec<u8>> {
-        self.cover.displayed.clone()
-    }
-
     pub(crate) fn displayed_cover_at(&self, revision: u64) -> Option<Vec<u8>> {
         (self.cover.image_revision == revision)
             .then(|| self.cover.displayed.clone())

@@ -561,11 +561,6 @@ impl Session {
         snapshot
     }
 
-    #[cfg(test)]
-    pub(crate) fn cover_art(&self) -> Option<Vec<u8>> {
-        self.lock().displayed_cover()
-    }
-
     pub(crate) fn export_in_preparation(&self) -> Option<crate::work_runtime::OperationId> {
         self.lock().export_in_preparation().cloned()
     }

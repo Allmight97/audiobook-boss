@@ -94,7 +94,7 @@ fn a_plan_is_resolved_again_only_when_its_request_or_sources_change() {
         }
     );
     assert!(plans.refresh([]).is_empty());
-    assert!(plans.all().is_empty());
+    assert_eq!(plans.plan("alpha"), TitlePlan::Pending);
 }
 
 #[test]
