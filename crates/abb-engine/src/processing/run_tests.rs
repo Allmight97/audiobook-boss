@@ -7,7 +7,7 @@ use crate::output_artifact::OutputKind;
 use crate::processing::terminal_outcomes::ProcessingJobTerminalOutcome;
 use crate::processing::OperationKind;
 use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
-use crate::test_cases::media_fixtures::preflight_processing_plan as preflight_payload;
+use crate::test_cases::media_fixtures::preflight_payload;
 use std::collections::HashMap;
 use tempfile::TempDir;
 
@@ -435,11 +435,7 @@ async fn metadata_two_pass_workflow(intent: crate::audio::AudioIntent) {
     let temp = TempDir::new().expect("metadata workflow workspace");
     let workspace = temp.path().join("workspace");
     let seeds = metadata_source_fixtures(temp.path(), &workspace).await;
-    let cover = std::fs::read(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/minimal.jpg"
-    ))
-    .expect("existing JPEG fixture");
+    let cover = crate::test_cases::media_fixtures::minimal_jpg_bytes();
     let mut edits: HashMap<_, _> = seeds
         .iter()
         .map(|source| {

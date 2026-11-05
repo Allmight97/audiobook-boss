@@ -26,6 +26,7 @@ use super::{
 use crate::errors::AppError;
 use crate::remote_source::materializer::{AaxcleanLane, AaxcleanSecret, MaterializationRequest};
 use crate::remote_source::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
+use crate::test_cases::media_fixtures::{audio_packet_bytes, ffprobe_tag_ci};
 
 const AAXC_KEY_HEX: &str = "000102030405060708090a0b0c0d0e0f";
 const AAXC_IV_HEX: &str = "f0e0d0c0b0a090807060504030201000";
@@ -573,20 +574,6 @@ fn write_u32(buf: &mut [u8], pos: usize, value: u32) {
     buf[pos..pos + 4].copy_from_slice(&value.to_be_bytes());
 }
 
-fn audio_packet_bytes(path: &Path) -> Vec<Vec<u8>> {
-    let mut input = ffmpeg_next::format::input(path).expect("open for packets");
-    let index = input
-        .streams()
-        .best(ffmpeg_next::media::Type::Audio)
-        .expect("audio stream")
-        .index();
-    input
-        .packets()
-        .filter(|(stream, _)| stream.index() == index)
-        .map(|(_, packet)| packet.data().expect("packet data").to_vec())
-        .collect()
-}
-
 fn ffprobe_json(path: &Path, extra: &[&str]) -> serde_json::Value {
     let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
     let output = Command::new(&binary)
@@ -604,12 +591,6 @@ fn ffprobe_json(path: &Path, extra: &[&str]) -> serde_json::Value {
         String::from_utf8_lossy(&output.stderr)
     );
     serde_json::from_slice(&output.stdout).expect("ffprobe json")
-}
-
-fn tag_ci(tags: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<String> {
-    tags.iter()
-        .find(|(tag_key, _)| tag_key.eq_ignore_ascii_case(key))
-        .and_then(|(_, value)| value.as_str().map(str::to_string))
 }
 
 fn assert_matches_source(output: &Path, source: &Path) {
@@ -645,7 +626,11 @@ fn assert_matches_source(output: &Path, source: &Path) {
         .cloned()
         .unwrap_or_default();
     for key in ["title", "artist", "album", "genre"] {
-        assert_eq!(tag_ci(&out_tags, key), tag_ci(&src_tags, key), "tag {key}");
+        assert_eq!(
+            ffprobe_tag_ci(&out_tags, key),
+            ffprobe_tag_ci(&src_tags, key),
+            "tag {key}"
+        );
     }
 
     let out_chapters = out_format["chapters"].as_array().expect("output chapters");
@@ -653,13 +638,13 @@ fn assert_matches_source(output: &Path, source: &Path) {
     assert_eq!(out_chapters.len(), src_chapters.len(), "chapter count");
     for (out_chapter, src_chapter) in out_chapters.iter().zip(src_chapters) {
         assert_eq!(
-            tag_ci(
+            ffprobe_tag_ci(
                 out_chapter["tags"]
                     .as_object()
                     .unwrap_or(&serde_json::Map::new()),
                 "title"
             ),
-            tag_ci(
+            ffprobe_tag_ci(
                 src_chapter["tags"]
                     .as_object()
                     .unwrap_or(&serde_json::Map::new()),

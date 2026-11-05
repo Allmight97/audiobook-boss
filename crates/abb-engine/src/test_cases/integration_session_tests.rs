@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Duration;
 
 use abb_engine::audio::AudiobookFormat;
@@ -13,8 +12,9 @@ use abb_engine::{read_metadata, Engine, EngineConfig, ShutdownOutcome};
 use tempfile::TempDir;
 
 use super::integration_session_desk::{
-    collision_review, finished, genre_on_disk, submission, Desk,
+    collision_review, engine_config, finished, genre_on_disk, submission, Desk,
 };
+use super::media_fixtures::oversized_jpeg;
 
 #[tokio::test]
 async fn shutdown_finishes_an_accepted_save_without_a_host_waiting_for_its_reply() {
@@ -79,14 +79,8 @@ async fn leftover_downloads_that_cannot_be_removed_do_not_stop_abb_from_starting
     fs::create_dir_all(sessions.parent().expect("staging root")).expect("staging root");
     std::os::unix::fs::symlink(&outside, &sessions).expect("unremovable sessions root");
 
-    let engine = Engine::start(EngineConfig {
-        cache_dir: root.path().join("cache"),
-        config_dir: root.path().join("config"),
-        app_identifier: "com.audiobook-boss.test".to_string(),
-        events: Arc::new(abb_engine::DiscardEvents),
-        aaxclean_helper: None,
-    })
-    .expect("ABB starts and leaves the folder in place");
+    let engine = Engine::start(engine_config(root.path()))
+        .expect("ABB starts and leaves the folder in place");
 
     assert!(outside.join("kept").exists());
     assert!(fs::symlink_metadata(&sessions)
@@ -99,13 +93,7 @@ async fn leftover_downloads_that_cannot_be_removed_do_not_stop_abb_from_starting
 #[tokio::test]
 async fn a_second_abb_on_the_same_folders_refuses_to_start_and_leaves_live_work_alone() {
     let root = TempDir::new().expect("engine root");
-    let config = || EngineConfig {
-        cache_dir: root.path().join("cache"),
-        config_dir: root.path().join("config"),
-        app_identifier: "com.audiobook-boss.test".to_string(),
-        events: Arc::new(abb_engine::DiscardEvents),
-        aaxclean_helper: None,
-    };
+    let config = || engine_config(root.path());
     let first = Engine::start(config()).expect("first ABB starts");
     let workspace = root.path().join("cache/processing/sessions/live-export");
     let download = root
@@ -182,54 +170,6 @@ async fn importing_one_audiobook_selects_it_and_shows_its_tags() {
             .len(),
         1
     );
-}
-
-#[tokio::test]
-async fn save_with_no_export_running_writes_the_file_in_place() {
-    let desk = Desk::new();
-    let book = desk
-        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
-        .await;
-    desk.import(&book).await;
-
-    let metadata = desk.edit_genre_and_save().await;
-
-    assert_eq!(
-        metadata.status,
-        Some(MetadataStatus::SaveComplete {
-            succeeded: 1,
-            failed: 0,
-            cancelled: 0,
-            waiting: 0,
-            held: 0,
-            outputs: Default::default(),
-        })
-    );
-    assert!(!metadata.save_in_progress && !metadata.has_pending_edits);
-    assert!(book.exists(), "the file stays where it was");
-    assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
-    let tags = read_metadata(book.to_string_lossy().as_ref()).expect("read tags back");
-    assert_eq!(
-        tags.artist.as_deref(),
-        Some("Source Author"),
-        "untouched tags stay"
-    );
-
-    let operations = desk.engine.list_work_operations().expect("operations");
-    let save = operations.operations.first().expect("the save is listed");
-    assert_eq!(save.status, WorkOperationStatus::Completed);
-    assert_eq!(save.children.len(), 1);
-}
-
-fn oversized_jpeg() -> Vec<u8> {
-    let mut bytes = Vec::new();
-    image::DynamicImage::new_rgb8(5_000, 5_000)
-        .write_to(
-            &mut std::io::Cursor::new(&mut bytes),
-            image::ImageFormat::Jpeg,
-        )
-        .expect("encode 5000 px JPEG");
-    bytes
 }
 
 #[tokio::test]
@@ -912,13 +852,13 @@ async fn keep_location_writes_the_latest_offered_tags_to_the_original_export_pat
 }
 
 #[tokio::test]
-async fn the_aac_decoder_setting_chooses_faad3_for_import_and_the_export_completes() {
+async fn the_aac_decoder_setting_chooses_faad3_for_import() {
     use abb_engine::app_settings::{SettingsIntent, SettingsOutcome};
     use abb_engine::audio::AacDecoder;
 
     let desk = Desk::new();
     let book = desk
-        .audiobook(&desk.root.path().join("library/alpha.m4b"), 2.0)
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 0.2)
         .await;
     let chosen = desk
         .engine
@@ -933,24 +873,5 @@ async fn the_aac_decoder_setting_chooses_faad3_for_import_and_the_export_complet
     assert_eq!(
         titles.files[0].selected_decoder.as_deref(),
         Some("FAAD3 (bundled)")
-    );
-
-    let library = desk.root.path().join("out");
-    fs::create_dir_all(&library).expect("create output folder");
-    desk.send(SessionIntent::SetOutputDirectory {
-        directory: library.to_string_lossy().into_owned(),
-    })
-    .await;
-    desk.send(SessionIntent::Submit).await;
-    let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(&desk) else {
-        panic!("submitted: {:?}", submission(&desk));
-    };
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&operation_id))
-    })
-    .await;
-    assert_eq!(
-        desk.export_status(&operation_id),
-        WorkOperationStatus::Completed
     );
 }

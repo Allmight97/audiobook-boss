@@ -1,6 +1,5 @@
 //! Shared synthesized-media helpers for the real-media proofs. Holds no tests.
 
-use super::integration_media_execution_tests::minimal_jpg_bytes;
 use abb_engine::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, SampleRateConfig,
 };
@@ -13,12 +12,19 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 
+pub(crate) const MINIMAL_JPG: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/support/minimal.jpg");
+
+pub(crate) fn minimal_jpg_bytes() -> Vec<u8> {
+    fs::read(MINIMAL_JPG).expect("read minimal.jpg support fixture")
+}
+
 /// Synthesizes one second of audio carrying a JPEG and a PNG picture
 /// (attached pictures in MP3, FLAC and M4B, attachments in Matroska), or for
 /// Opus one JPEG METADATA_BLOCK_PICTURE comment.
 pub(crate) fn write_two_picture_fixture(dir: &Path, extension: &str) -> PathBuf {
     let path = dir.join(format!("two-pictures.{extension}"));
-    let jpeg = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/support/minimal.jpg");
+    let jpeg = MINIMAL_JPG;
     let png = dir.join("back.png");
     let mut png_bytes = Vec::new();
     image::DynamicImage::new_rgb8(4, 4)
@@ -86,6 +92,26 @@ pub(crate) fn flac_picture_block_base64() -> String {
     block.extend_from_slice(&(jpeg.len() as u32).to_be_bytes());
     block.extend_from_slice(&jpeg);
     base64::engine::general_purpose::STANDARD.encode(block)
+}
+
+pub(crate) fn oversized_jpeg() -> Vec<u8> {
+    let mut bytes = Vec::new();
+    image::DynamicImage::new_rgb8(4_097, 1)
+        .write_to(&mut std::io::Cursor::new(&mut bytes), ImageFormat::Jpeg)
+        .expect("encode a JPEG one pixel wider than the 4096 px cover limit");
+    bytes
+}
+
+/// Case-insensitive tag lookup: MP4 freeform atom families differing only in
+/// name case collapse into one ffprobe dict entry whose case follows atom
+/// order, so exact-case assertions would be brittle.
+pub(crate) fn ffprobe_tag_ci(
+    tags: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Option<String> {
+    tags.iter()
+        .find(|(tag_key, _)| tag_key.eq_ignore_ascii_case(key))
+        .and_then(|(_, value)| value.as_str().map(str::to_string))
 }
 
 pub(crate) fn picture_codecs(path: &Path) -> Vec<ffmpeg_next::codec::Id> {
@@ -208,7 +234,7 @@ pub(crate) fn audio_packet_bytes(path: &Path) -> Vec<Vec<u8>> {
         .collect()
 }
 
-pub(crate) fn preflight_processing_plan(
+pub(crate) fn preflight_payload(
     payload: abb_engine::processing::ProcessPayload,
     metadata: Option<HashMap<String, MetadataIntentPatch>>,
     preview: bool,

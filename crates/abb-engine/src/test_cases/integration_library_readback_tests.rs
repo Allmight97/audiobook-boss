@@ -9,11 +9,11 @@ use abb_engine::work_runtime::WorkOperationStatus;
 use abb_engine::{AudiobookMetadata, MetadataIntentPatch, PatchOp, ShutdownOutcome};
 
 use super::integration_media_execution_tests::{
-    assert_ffprobe_tag, chapters_of, decode_pcm_f32, ffprobe_format_tags, minimal_jpg_bytes,
-    write_sine_mp3, SAMPLE_RATE,
+    assert_ffprobe_tag, chapters_of, decode_pcm_f32, ffprobe_format_tags, write_sine_mp3,
+    SAMPLE_RATE,
 };
 use super::integration_session_desk::{finished, submission, Desk};
-use super::media_fixtures::picture_codecs;
+use super::media_fixtures::{minimal_jpg_bytes, picture_codecs};
 
 fn encode_m4b() -> [AudioEdit; 3] {
     [
@@ -309,9 +309,25 @@ async fn ignoring_a_cue_sheet_keeps_its_chapters_out_of_the_export() {
         .input_id
         .clone();
     ignored
+        .send(SessionIntent::SetTitleAudio {
+            title_ids: vec![input_id.clone()],
+            edit: AudioEdit::Format(AudiobookFormat::Mp3),
+        })
+        .await;
+    ignored
+        .wait_until("an accepted CUE refuses MP3 output", |desk| {
+            matches!(desk.plan(), TitlePlan::Failed { .. })
+        })
+        .await;
+    ignored
         .send(SessionIntent::ChooseCue {
             input_id,
             choice: CueChoice::Ignore,
+        })
+        .await;
+    ignored
+        .wait_until("ignoring the CUE permits MP3 pass-through", |desk| {
+            matches!(desk.plan(), TitlePlan::Resolved { ref plan } if plan.handling.preserves())
         })
         .await;
     let out = export_to(&ignored, "ignored", &encode_m4b()).await;

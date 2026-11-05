@@ -153,8 +153,7 @@ fn audio_shape(path: &std::path::Path) -> Result<(i64, bool, usize)> {
 /// chosen by actual container classification. The FFmpeg mov muxer silently
 /// drops dictionary keys outside its known-atom table (series, series-part,
 /// sort_album), so MP4-family artifacts must not rely
-/// on the remux for tag truth. Re-exported at the crate root for the
-/// media-execution lane's artifact-finalize proof.
+/// on the remux for tag truth.
 pub fn finalize_artifact_metadata(
     path: &std::path::Path,
     metadata: Option<&AudiobookMetadata>,

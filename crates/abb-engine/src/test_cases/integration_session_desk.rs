@@ -19,17 +19,20 @@ pub(super) struct Desk {
     pub(super) engine: Engine,
 }
 
+pub(super) fn engine_config(root: &Path) -> EngineConfig {
+    EngineConfig {
+        cache_dir: root.join("cache"),
+        config_dir: root.join("config"),
+        app_identifier: "com.audiobook-boss.test".to_string(),
+        events: Arc::new(abb_engine::DiscardEvents),
+        aaxclean_helper: None,
+    }
+}
+
 impl Desk {
     pub(super) fn new() -> Self {
         let root = TempDir::new().expect("engine root");
-        let engine = Engine::start(EngineConfig {
-            cache_dir: root.path().join("cache"),
-            config_dir: root.path().join("config"),
-            app_identifier: "com.audiobook-boss.test".to_string(),
-            events: Arc::new(abb_engine::DiscardEvents),
-            aaxclean_helper: None,
-        })
-        .expect("start headless engine");
+        let engine = Engine::start(engine_config(root.path())).expect("start headless engine");
         Self { root, engine }
     }
 

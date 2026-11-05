@@ -6,8 +6,9 @@ use super::integration_media_execution_tests::{
     mux_chapters, native_encoder_settings,
 };
 use super::media_fixtures::{
-    audio_packet_bytes, duration_ms, picture_codecs, preflight_processing_plan, run_planned_title,
-    single_title_payload, write_complete_frame_aac, write_two_picture_fixture,
+    audio_packet_bytes, duration_ms, minimal_jpg_bytes, picture_codecs, preflight_payload,
+    run_planned_title, single_title_payload, write_complete_frame_aac, write_two_picture_fixture,
+    MINIMAL_JPG,
 };
 use abb_engine::audio::{
     get_file_list_info, AacDecoder, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig,
@@ -150,6 +151,20 @@ fn short_m4b_source(dir: &Path) -> PathBuf {
     .expect("plant ASIN");
     seed(&source);
     assert_eq!(planted_asin(&source), ASIN, "ASIN premise");
+    let accepted_end = get_file_list_info(&[&source], AacDecoder::Auto)
+        .expect("import short M4B")
+        .files[0]
+        .chapter_plan
+        .clone()
+        .expect("accepted chapter plan")
+        .chapters
+        .last()
+        .map(|chapter| chapter.end_ms);
+    assert_ne!(
+        chapters_of(&source).last().map(|(_, _, end)| *end),
+        accepted_end,
+        "repair premise: the accepted plan moves only the last chapter end"
+    );
     source
 }
 
@@ -184,7 +199,6 @@ fn opus_source(dir: &Path) -> PathBuf {
     let chaptered = dir.join("chaptered.mka");
     drift_chapters(&audio, &chaptered);
     let source = dir.join("cover.mka");
-    let jpeg = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/support/minimal.jpg");
     run_ffmpeg(
         &[
             "-i",
@@ -196,7 +210,7 @@ fn opus_source(dir: &Path) -> PathBuf {
             "-c",
             "copy",
             "-attach",
-            jpeg,
+            MINIMAL_JPG,
             "-metadata:s:t:0",
             "mimetype=image/jpeg",
             "-metadata:s:t:0",
@@ -380,7 +394,7 @@ async fn check_route(route: &Route, work: &Path) -> PathBuf {
             ..Default::default()
         },
     )]);
-    let plan = preflight_processing_plan(payload.clone(), Some(intent.clone()), false)
+    let plan = preflight_payload(payload.clone(), Some(intent.clone()), false)
         .unwrap_or_else(|error| panic!("{name}: preflight: {error:?}"));
     assert_eq!(
         plan.audio_plans[0].handling.preserves(),
@@ -543,5 +557,107 @@ async fn every_preserve_merge_route_writes_the_planned_tags_and_joined_audio() {
     };
     for row in [merge_aac, merge_mp3] {
         check_route(&row, tmp.path()).await;
+    }
+}
+
+#[tokio::test]
+async fn a_preserved_merge_follows_the_users_order_and_takes_the_chosen_cover() {
+    let tmp = TempDir::new().expect("ordered merge workspace");
+    for (name, sources, output, intent, extension) in [
+        (
+            "aac",
+            aac_stack(&tmp.path().join("aac-stack")),
+            OutputAudio::M4b {
+                settings: native_encoder_settings(),
+            },
+            AudioIntent::Preserve,
+            "m4b",
+        ),
+        (
+            "mp3",
+            mp3_stack(&tmp.path().join("mp3-stack")),
+            OutputAudio::Mp3,
+            AudioIntent::Auto,
+            "mp3",
+        ),
+    ] {
+        let anchor = sources[0].clone();
+        let title_sources = |order: &[&PathBuf]| -> abb_engine::processing::ProcessPayload {
+            let output_dir = tmp.path().join(format!("out-{name}"));
+            fs::create_dir_all(&output_dir).expect("output folder");
+            serde_json::from_value(serde_json::json!({
+                "inputFiles": [&anchor],
+                "titleSources": {anchor.to_str().expect("utf8 path"): order.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
+                "audioRequests": [TitleAudioRequest {
+                    output: output.clone(),
+                    intent,
+                    sample_rate: SampleRateConfig::Auto,
+                }],
+                "outputDir": output_dir, "aacDecoder": "auto"
+            }))
+            .expect("grouped title request")
+        };
+        let payload = title_sources(&[&sources[1], &sources[0]]);
+        let natural = title_sources(&[&sources[0], &sources[1]]);
+        let chosen = HashMap::from([(
+            anchor.to_string_lossy().into_owned(),
+            MetadataIntentPatch {
+                title: Some(PatchOp::Set("Joined".into())),
+                cover_art: Some(PatchOp::Set(minimal_jpg_bytes())),
+                ..Default::default()
+            },
+        )]);
+        let plan = preflight_payload(payload.clone(), Some(chosen.clone()), false)
+            .unwrap_or_else(|error| panic!("{name}: preflight: {error:?}"));
+        assert!(plan.audio_plans[0].handling.preserves(), "{name}");
+        let natural_plan = preflight_payload(natural, Some(chosen.clone()), false)
+            .unwrap_or_else(|error| panic!("{name}: natural preflight: {error:?}"));
+        assert_ne!(
+            plan.plan_signature, natural_plan.plan_signature,
+            "{name}: review pins source order"
+        );
+        let originals: Vec<_> = sources
+            .iter()
+            .map(|source| fs::read(source).expect("read source"))
+            .collect();
+        let work = tmp.path().join(format!("work-{name}"));
+        let (joined, _) = run_planned_title(payload, Some(chosen), &work)
+            .await
+            .unwrap_or_else(|error| panic!("{name}: {error}"));
+
+        assert_eq!(joined.extension().and_then(|e| e.to_str()), Some(extension));
+        let packets: Vec<_> = [&sources[1], &sources[0]]
+            .into_iter()
+            .flat_map(|source| audio_packet_bytes(source))
+            .collect();
+        assert_eq!(audio_packet_bytes(&joined), packets, "{name}: packets");
+        let samples: usize = sources
+            .iter()
+            .map(|source| decode_pcm_f32(source).len())
+            .sum();
+        assert_eq!(decode_pcm_f32(&joined).len(), samples, "{name}: samples");
+        let tags = read_metadata(&joined).expect("read joined tags");
+        assert_eq!(tags.title.as_deref(), Some("Joined"), "{name}");
+        assert_eq!(tags.cover_art, Some(minimal_jpg_bytes()), "{name}");
+        assert_eq!(picture_codecs(&joined), [Id::MJPEG], "{name}: pictures");
+        let chapters = chapters_of(&joined);
+        let titles: Vec<_> = chapters.iter().map(|c| c.0.as_deref()).collect();
+        assert_eq!(titles, [Some("second"), Some("first")], "{name}");
+        assert!(
+            (chapters[1].2 as f64 - samples as f64 / 44.1).abs() <= 2.0,
+            "{name}: last chapter end {}",
+            chapters[1].2
+        );
+        for (source, original) in sources.iter().zip(originals) {
+            assert_eq!(
+                fs::read(source).expect("reread source"),
+                original,
+                "{name}: source untouched"
+            );
+        }
+        assert!(
+            !work.exists() || fs::read_dir(&work).expect("workspace").next().is_none(),
+            "{name}: no staging residue"
+        );
     }
 }
