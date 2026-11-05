@@ -189,4 +189,5 @@ one host attachment.
 
 - Rules: `state_tests.rs`, including its property test. Add a new sequence law
   there as an assertion.
-- Real files through `Engine`: `crates/abb-engine/src/test_cases/integration_session_tests.rs`.
+- Real files through `Engine`: `crates/abb-engine/src/test_cases/integration_session_tests.rs`
+  and `integration_library_readback_tests.rs` (what a library reads from the export).
