@@ -63,8 +63,8 @@ export function defaultAppSettings(): AppSettings {
 			intent: 'auto',
 			sampleRate: 'auto',
 			settings: {
-				encoderType: 'auto',
-				bitrateKbps: 64,
+				encoderType: 'native_aac',
+				bitrateKbps: 65,
 				bitrateMode: { mode: 'cbr' },
 				channels: 'auto',
 				nativeAacSpeed: 0,

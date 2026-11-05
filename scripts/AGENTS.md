@@ -71,6 +71,9 @@ Traps:
   `bun run bindings:generate` (`bundled-ffmpeg`).
 - `bun run bindings:check` generates into temporary output and leaves the
   candidate untouched. `bun run bindings:generate` intentionally updates it.
+  Both also cover `src/lib/generated/fixtures/settings-fresh.json`, a fresh
+  engine's settings. After a Rust settings default changes, regenerate it;
+  `recordedSettings.contract.test.ts` then fails until `fakeEngine.ts` matches.
 - Each git worktree holds its own `target/`. Remove finished worktrees.
 - `bun run build` may still print the known DEP0205 and Vite plugin-timing
   warnings.

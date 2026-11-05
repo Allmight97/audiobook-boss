@@ -1,3 +1,5 @@
+import type { AppErrorCategory as WireErrorCategory } from '../generated/tauri';
+
 type PlainRecord = Record<string, unknown>;
 
 const APP_ERROR_CATEGORIES = [
@@ -140,7 +142,7 @@ export function toUserMessage(
 }
 
 export function isCancellation(cause: unknown): boolean {
-	return normalizeAppError(cause).category === 'cancellation';
+	return normalizeAppError(cause).category === ('cancellation' satisfies WireErrorCategory);
 }
 
 /**

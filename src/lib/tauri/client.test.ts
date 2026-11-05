@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AppErrorEnvelope } from '../generated/tauri';
 import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 import mainWindowCapability from '../../../src-tauri/capabilities/default.json';
 
@@ -287,18 +288,18 @@ describe('tauriClient nullish adapters', () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockRejectedValueOnce({
-			code: 'cancelled',
+			code: 'processing_cancelled',
 			category: 'cancellation',
-			message: 'Processing was cancelled.',
+			message: 'Processing was cancelled',
 			detail: 'user requested stop',
-		});
+		} satisfies AppErrorEnvelope);
 
 		const { tauriClient } = await import('./client');
 
 		await expect(tauriClient.cancelWorkOperation('mock-operation-1')).rejects.toMatchObject({
-			code: 'cancelled',
+			code: 'processing_cancelled',
 			category: 'cancellation',
-			message: 'Processing was cancelled.',
+			message: 'Processing was cancelled',
 			detail: 'user requested stop',
 		});
 	});

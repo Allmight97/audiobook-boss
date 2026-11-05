@@ -22,4 +22,13 @@ if ! cmp -s "${bindings_file}" "${temporary}/tauri.ts"; then
  diff -u "${bindings_file}" "${temporary}/tauri.ts" || [[ $? -eq 1 ]]
  exit 1
 fi
+settings_fixture="src/lib/generated/fixtures/settings-fresh.json"
+if [[ ! -f "${settings_fixture}" ]]; then
+ printf 'Missing contract fixture: run bun run bindings:generate\n' >&2
+ exit 1
+fi
+if ! diff -u "${settings_fixture}" "${temporary}/fixtures/settings-fresh.json"; then
+ printf 'Contract fixture is stale: run bun run bindings:generate\n' >&2
+ exit 1
+fi
 printf 'Bindings are up to date.\n'

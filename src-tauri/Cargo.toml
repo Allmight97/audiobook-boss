@@ -37,6 +37,7 @@ tauri = { version = "2.12.5", features = [] }
 tauri-plugin-opener = "2.7.2"
 tauri-plugin-dialog = "2.8.3"
 serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.154", optional = true }
 log = "0.4.29"
 env_logger = "0.11.10"
 tokio = { version = "1.53.3", features = ["sync", "time"] }
@@ -54,7 +55,7 @@ tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "sync", "
 custom-protocol = ["tauri/custom-protocol"]
 
 default = []
-binding-export = []
+binding-export = ["dep:serde_json"]
 bundled-ffmpeg = ["abb-engine/bundled-ffmpeg"]
 
 [lints]
