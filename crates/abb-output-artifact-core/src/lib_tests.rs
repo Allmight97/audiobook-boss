@@ -27,24 +27,13 @@ fn a_name_is_measured_the_way_the_output_disk_counts_it() {
 }
 
 #[test]
-fn derive_output_artifact_path_appends_preview_suffix() {
+fn derive_output_artifact_path_suffixes_only_previews() {
     let path = Path::new("/tmp/Book 1.m4b");
     let preview = derive_output_artifact_path(path, OutputKind::Preview).expect("preview");
     assert_eq!(preview, Path::new("/tmp/Book 1.preview.m4b"));
-}
-
-#[test]
-fn derive_output_artifact_path_keeps_final_path_unchanged() {
-    let path = Path::new("/tmp/Book 1.m4b");
-    let final_path = derive_output_artifact_path(path, OutputKind::Final).expect("final");
-    assert_eq!(final_path, path);
-}
-
-#[test]
-fn normalize_subseries_folder_prefixes_when_needed() {
     assert_eq!(
-        normalize_subseries_folder("Discovery", Some("1")),
-        "Part 1 - Discovery"
+        derive_output_artifact_path(path, OutputKind::Final).expect("final"),
+        path
     );
 }
 

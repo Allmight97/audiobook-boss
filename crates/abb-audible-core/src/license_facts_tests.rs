@@ -30,6 +30,29 @@ fn audio_url_priority_survives_competing_branches_and_empty_candidates() {
 }
 
 #[test]
+fn content_url_extension_without_drm_picks_import_ready_or_protocol_failure() {
+    let ready = license_facts_from_value(&json!({
+        "content_url": "https://cdn.example.test/book.m4a?Signature=x"
+    }));
+    assert_eq!(
+        choose_acquisition_strategy(&ready),
+        AcquisitionStrategy::DownloadImportReady
+    );
+
+    for url in [
+        "https://cdn.example.test/book.pdf",
+        "https://cdn.example.test/book.bin",
+    ] {
+        let facts = license_facts_from_value(&json!({ "content_url": url }));
+        assert_eq!(
+            choose_acquisition_strategy(&facts),
+            AcquisitionStrategy::ProviderProtocolFailed,
+            "{url}"
+        );
+    }
+}
+
+#[test]
 fn license_response_facts_classify_content_protection_and_voucher() {
     let response = json!({
         "content_license": {

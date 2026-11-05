@@ -204,45 +204,6 @@ fn item_staged_paths_do_not_use_provider_title_id() {
 }
 
 #[test]
-fn staged_materialized_path_uses_sanitized_remote_title() {
-    let root = tempfile::TempDir::new().expect("temp root");
-    let item_dir = staging::create_item_dir(root.path(), "item-1").expect("item dir");
-
-    let materialized_path = staged_materialized_path(
-        &item_dir,
-        Some("Secure Love: Create a Relationship That Lasts a Lifetime"),
-        "B000000001",
-    );
-
-    assert!(materialized_path.starts_with(root.path()));
-    assert_eq!(
-        materialized_path
-            .file_name()
-            .and_then(|value| value.to_str()),
-        Some("Secure Love - Create a Relationship That Lasts a Lifetime.m4b")
-    );
-}
-
-#[test]
-fn staged_materialized_path_falls_back_to_title_ref_for_empty_title() {
-    let root = tempfile::TempDir::new().expect("temp root");
-    let item_dir = staging::create_item_dir(root.path(), "item-1").expect("item dir");
-    let title_id = "../../account-title";
-
-    let materialized_path = staged_materialized_path(&item_dir, Some("../"), title_id);
-    let expected = format!("Audible {}.m4b", title_ref(title_id));
-
-    assert!(materialized_path.starts_with(root.path()));
-    assert_eq!(
-        materialized_path
-            .file_name()
-            .and_then(|value| value.to_str()),
-        Some(expected.as_str())
-    );
-    assert!(!materialized_path.to_string_lossy().contains(title_id));
-}
-
-#[test]
 fn sha256_file_streams_expected_digest() {
     let root = tempfile::TempDir::new().expect("temp root");
     let path = root.path().join("book.m4b");

@@ -101,9 +101,10 @@ fn inspect_supplemental_pdf_source(source_path: &Path) -> Result<u64> {
         ));
     }
     if metadata.len() > MAX_SUPPLEMENTAL_PDF_BYTES {
-        return Err(AppError::FileValidation(
-            "Supplemental PDF source exceeds the 100 MiB size limit.".to_string(),
-        ));
+        return Err(AppError::FileValidation(format!(
+            "Supplemental PDF source exceeds the {} MiB size limit.",
+            MAX_SUPPLEMENTAL_PDF_BYTES / (1024 * 1024)
+        )));
     }
     Ok(metadata.len())
 }

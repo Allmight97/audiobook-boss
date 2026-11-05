@@ -445,28 +445,6 @@ fn normalize_publication_date_accepts_year_month_and_full_date_prefix() {
 }
 
 #[test]
-fn metadata_intent_validation_reports_field_errors_as_data() {
-    let patch = MetadataIntentPatch {
-        date: Some(PatchOp::Set("not a date".to_string())),
-        series_part: Some(PatchOp::Set("1/2".to_string())),
-        ..Default::default()
-    };
-
-    let result = validate_metadata_intent_patch(&patch);
-
-    assert!(!result.is_valid);
-    assert_eq!(result.field_errors.len(), 2);
-    assert!(result
-        .field_errors
-        .iter()
-        .any(|error| error.message.contains("Publication date")));
-    assert!(result
-        .field_errors
-        .iter()
-        .any(|error| error.message.contains("Series sequence")));
-}
-
-#[test]
 fn validation_reply_carries_only_requested_fields() {
     let result = validate_metadata_intent_patch(&MetadataIntentPatch {
         title: Some(PatchOp::Set("NMR 64k".to_string())),
@@ -474,29 +452,14 @@ fn validation_reply_carries_only_requested_fields() {
         ..Default::default()
     });
 
+    assert!(result.is_valid);
+    assert!(result.field_errors.is_empty());
     assert_eq!(
         serde_json::to_value(&result).expect("serializes")["metadataPatch"],
         serde_json::json!({
             "title": { "op": "set", "value": "NMR 64k" },
             "date": { "op": "set", "value": "2024-07" },
         })
-    );
-}
-
-#[test]
-fn metadata_intent_validation_normalizes_valid_publication_date() {
-    let patch = MetadataIntentPatch {
-        date: Some(PatchOp::Set("2024-07-15T12:00:00Z".to_string())),
-        ..Default::default()
-    };
-
-    let result = validate_metadata_intent_patch(&patch);
-
-    assert!(result.is_valid);
-    assert!(result.field_errors.is_empty());
-    assert_eq!(
-        result.metadata_patch.date,
-        Some(PatchOp::Set("2024-07".to_string()))
     );
 }
 
@@ -516,6 +479,7 @@ fn metadata_intent_validation_reports_structured_field_codes() {
     assert!(result.field_errors.iter().any(|error| {
         error.field == MetadataIntentValidationField::Date
             && error.code == MetadataIntentValidationCode::PublicationDateSyntax
+            && error.message.contains("Publication date")
     }));
     assert!(result.field_errors.iter().any(|error| {
         error.field == MetadataIntentValidationField::SeriesPart
@@ -527,21 +491,6 @@ fn metadata_intent_validation_reports_structured_field_codes() {
             && error.code == MetadataIntentValidationCode::SubseriesPartContainsSlash
             && error.message.contains("Sub-series sequence")
     }));
-}
-
-#[test]
-fn metadata_intent_validation_preserves_invalid_date_for_validation() {
-    let patch = MetadataIntentPatch {
-        date: Some(PatchOp::Set("not a date".to_string())),
-        ..Default::default()
-    };
-
-    let result = validate_metadata_intent_patch(&patch);
-    assert!(!result.is_valid);
-    assert_eq!(
-        result.field_errors.first().map(|error| error.field),
-        Some(MetadataIntentValidationField::Date)
-    );
 }
 
 #[test]
