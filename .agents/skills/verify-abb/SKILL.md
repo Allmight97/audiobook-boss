@@ -6,7 +6,7 @@ description: Drive abb-dev headlessly through golden-path features, keep JSON pl
 # Verify ABB
 
 Prove the golden path without a window: import, metadata save, export,
-collisions, cancel, chapters, and a killed export. Each feature is a script in
+collisions, cancel, chapters, output layout, and a killed export. Each feature is a script in
 `features/` whose exit code is its verdict; `run.sh` runs them and keeps
 evidence. The `media` lane in `scripts/verify.sh` runs the same scripts, so CI
 proves them.

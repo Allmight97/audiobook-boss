@@ -8,6 +8,8 @@ mod integration_faac_execution_tests;
 mod integration_indexer_connection_tests;
 #[path = "integration_library_readback_tests.rs"]
 mod integration_library_readback_tests;
+#[path = "integration_media_encoding_choice_tests.rs"]
+mod integration_media_encoding_choice_tests;
 #[path = "integration_media_execution_tests.rs"]
 pub(crate) mod integration_media_execution_tests;
 #[path = "integration_media_route_parity_tests.rs"]

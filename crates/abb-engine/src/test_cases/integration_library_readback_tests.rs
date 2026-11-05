@@ -339,3 +339,39 @@ async fn ignoring_a_cue_sheet_keeps_its_chapters_out_of_the_export() {
     let out = export_to(&ignored, "ignored", &encode_m4b()).await;
     assert!(chapters_of(&out).is_empty());
 }
+
+#[tokio::test]
+async fn an_m4b_with_only_uppercase_series_atoms_reads_and_exports_its_series() {
+    use mp4ameta::{Data, FreeformIdent, Tag};
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    let mut tag = Tag::read_from_path(&book).expect("read atoms");
+    tag.set_data(
+        FreeformIdent::new_static("com.apple.iTunes", "SERIES"),
+        Data::Utf8("Dune".to_string()),
+    );
+    tag.set_data(
+        FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART"),
+        Data::Utf8("2".to_string()),
+    );
+    tag.write_to_path(&book).expect("write atoms");
+    desk.import(&book).await;
+    assert_eq!(desk.shown(MetadataField::Series), "Dune");
+    assert_eq!(desk.shown(MetadataField::SeriesPart), "2");
+    assert_eq!(tags(&book).series.as_deref(), Some("Dune"));
+    assert_eq!(tags(&book).series_part.as_deref(), Some("2"));
+
+    let output = export_to(&desk, "uppercase", &encode_m4b()).await;
+    let written = Tag::read_from_path(&output).expect("read output atoms");
+    for (name, value) in [
+        ("series", "Dune"),
+        ("SERIES", "Dune"),
+        ("series-part", "2"),
+        ("SERIES-PART", "2"),
+    ] {
+        let ident = FreeformIdent::new_static("com.apple.iTunes", name);
+        assert_eq!(written.strings_of(&ident).next(), Some(value), "{name}");
+    }
+}
