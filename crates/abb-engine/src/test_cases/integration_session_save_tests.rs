@@ -1,0 +1,214 @@
+use std::fs;
+use std::path::Path;
+
+use abb_engine::session::{
+    FieldAction, MetadataField, MetadataStatus, OutputEdits, SelectionModifiers, SessionIntent,
+    SessionOutcome,
+};
+use abb_engine::work_runtime::WorkOperationStatus;
+use abb_engine::{read_metadata, AudiobookMetadata, ShutdownOutcome};
+
+use super::integration_session_desk::{finished, Desk};
+
+fn id_of(desk: &Desk, name: &str) -> String {
+    desk.engine
+        .session_snapshot()
+        .titles
+        .expect("titles")
+        .files
+        .into_iter()
+        .find(|file| file.path.file_name().is_some_and(|found| found == name))
+        .unwrap_or_else(|| panic!("{name} is listed"))
+        .input_id
+}
+
+async fn only(desk: &Desk, name: &str) {
+    let outcome = desk
+        .send(SessionIntent::SelectFile {
+            title_id: id_of(desk, name),
+            modifiers: SelectionModifiers::default(),
+        })
+        .await;
+    assert_eq!(outcome, SessionOutcome::Applied);
+}
+
+fn covers_revision(desk: &Desk) -> u64 {
+    desk.engine
+        .session_snapshot()
+        .titles
+        .expect("titles")
+        .covers_revision
+}
+
+fn tags(path: &Path) -> AudiobookMetadata {
+    read_metadata(path.to_string_lossy().as_ref()).expect("read tags")
+}
+
+#[tokio::test]
+async fn one_save_blanks_author_on_two_titles_and_writes_each_titles_own_edit() {
+    let desk = Desk::new();
+    let alpha = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 0.2)
+        .await;
+    let beta = desk.root.path().join("library/beta.m4b");
+    fs::copy(&alpha, &beta).expect("copy second book");
+    desk.import(&alpha).await;
+    desk.import(&beta).await;
+
+    only(&desk, "alpha.m4b").await;
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Genre,
+        value: "Mystery".to_string(),
+    })
+    .await;
+    only(&desk, "beta.m4b").await;
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Title,
+        value: "New".to_string(),
+    })
+    .await;
+    desk.send(SessionIntent::SelectAll).await;
+    desk.send(SessionIntent::SetFieldAction {
+        field: MetadataField::Author,
+        action: FieldAction::Blank,
+    })
+    .await;
+
+    assert_eq!(
+        desk.send(SessionIntent::Save).await,
+        SessionOutcome::Applied
+    );
+
+    let (alpha_tags, beta_tags) = (tags(&alpha), tags(&beta));
+    assert_eq!(alpha_tags.artist, None, "alpha author is blanked");
+    assert_eq!(beta_tags.artist, None, "beta author is blanked");
+    assert_eq!(alpha_tags.genre.as_deref(), Some("Mystery"));
+    assert_eq!(
+        beta_tags.genre.as_deref(),
+        Some("Fantasy"),
+        "alpha's genre edit stays on alpha"
+    );
+    assert_eq!(beta_tags.title.as_deref(), Some("New"));
+    assert_eq!(beta_tags.album.as_deref(), Some("New"));
+    assert_eq!(alpha_tags.title.as_deref(), Some("Alpha"));
+
+    let metadata = desk.metadata();
+    assert_eq!(
+        metadata.status,
+        Some(MetadataStatus::SaveComplete {
+            succeeded: 2,
+            failed: 0,
+            cancelled: 0,
+            waiting: 0,
+            held: 0,
+            outputs: Default::default(),
+        })
+    );
+    assert!(!metadata.save_in_progress && !metadata.has_pending_edits);
+    assert!(alpha.exists() && beta.exists(), "both files stay in place");
+
+    let operations = desk.engine.list_work_operations().expect("operations");
+    let save = operations.operations.first().expect("the save is listed");
+    assert_eq!(save.status, WorkOperationStatus::Completed);
+    assert_eq!(save.children.len(), 2, "the save reports each title");
+}
+
+#[tokio::test]
+async fn a_second_save_on_a_finished_output_keeps_the_first_saves_tag() {
+    let desk = Desk::new();
+    let source = desk
+        .audiobook(&desk.root.path().join("source.m4b"), 0.2)
+        .await;
+    desk.import(&source).await;
+    let export = desk.export().await;
+    desk.wait_until("the export finishes", |desk| {
+        finished(desk.export_status(&export))
+    })
+    .await;
+    assert_eq!(desk.export_status(&export), WorkOperationStatus::Completed);
+    let output = desk.output_of(&export);
+
+    desk.edit_genre_and_save().await;
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Narrator,
+        value: "Reader".to_string(),
+    })
+    .await;
+    assert_eq!(
+        desk.send(SessionIntent::Save).await,
+        SessionOutcome::Applied
+    );
+
+    let output_tags = tags(&output);
+    assert_eq!(
+        output_tags.genre.as_deref(),
+        Some("Mystery"),
+        "the second save keeps the first save's genre"
+    );
+    assert_eq!(output_tags.composer.as_deref(), Some("Reader"));
+    assert_eq!(output_tags.artist.as_deref(), Some("Source Author"));
+    assert!(matches!(
+        desk.metadata().status,
+        Some(MetadataStatus::SaveComplete {
+            outputs: OutputEdits {
+                updated: 1,
+                failed: 0,
+                ..
+            },
+            ..
+        })
+    ));
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
+}
+
+#[tokio::test]
+async fn a_cover_loaded_and_then_cleared_through_the_session_is_on_and_then_off_the_file() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 0.2)
+        .await;
+    desk.import(&book).await;
+    assert!(tags(&book).cover_art.is_none());
+    let before_cover = covers_revision(&desk);
+
+    let custom = desk.root.path().join("custom.png");
+    image::RgbImage::from_pixel(1, 1, image::Rgb([180, 20, 90]))
+        .save(&custom)
+        .expect("custom cover");
+    assert_eq!(
+        desk.send(SessionIntent::LoadCoverFromFile {
+            path: custom.to_string_lossy().into_owned(),
+        })
+        .await,
+        SessionOutcome::Applied
+    );
+    assert!(desk.metadata().cover.custom);
+    desk.edit_genre_and_save().await;
+    assert!(
+        tags(&book).cover_art.is_some(),
+        "the chosen cover is in the file"
+    );
+    let after_cover = covers_revision(&desk);
+    assert!(
+        after_cover > before_cover,
+        "a saved cover moves the cover address"
+    );
+
+    desk.send(SessionIntent::ClearCover).await;
+    assert_eq!(
+        desk.send(SessionIntent::Save).await,
+        SessionOutcome::Applied
+    );
+
+    let cleared = tags(&book);
+    assert!(
+        cleared.cover_art.is_none(),
+        "the cleared cover is off the file"
+    );
+    assert_eq!(cleared.genre.as_deref(), Some("Mystery"));
+    assert!(!desk.metadata().cover.present);
+    assert!(
+        covers_revision(&desk) > after_cover,
+        "a cleared cover moves the cover address"
+    );
+}
