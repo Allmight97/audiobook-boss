@@ -14,8 +14,6 @@ use tokio::task::{Id, JoinSet};
 use uuid::Uuid;
 
 pub use cancel::CancellationChecker;
-#[cfg(test)]
-use types::AggregateJobStatus;
 pub use types::{JobId, MaxConcurrentJobsCapabilities};
 
 pub const MIN_CONCURRENT_JOBS: usize = 1;
@@ -226,16 +224,6 @@ impl JobRegistry {
 
     fn remove_job(&self, job_id: JobId) -> bool {
         self.admission().jobs.remove(&job_id.0)
-    }
-
-    #[cfg(test)]
-    pub async fn get_aggregate_status(&self) -> AggregateJobStatus {
-        let total = self.admission().jobs.len();
-
-        AggregateJobStatus {
-            active_jobs: total,
-            total_jobs: total,
-        }
     }
 
     pub fn max_concurrent(&self) -> usize {

@@ -16,12 +16,6 @@ pub(crate) fn create_processing_workspace_dir(
     session_id: Uuid,
     workspace_root: &Path,
 ) -> Result<PathBuf> {
-    if workspace_root.as_os_str().is_empty() {
-        return Err(AppError::TempDirectoryCreation(
-            "Processing workspace root is empty.".to_string(),
-        ));
-    }
-
     std::fs::create_dir_all(workspace_root).map_err(|error| {
         AppError::TempDirectoryCreation(format!(
             "Cannot create processing workspace '{}': {}",

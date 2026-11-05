@@ -93,7 +93,7 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 
 ## Edit Rules
 
-- `run.rs`'s `metadata_workflow` tests connect production preflight/planning to
+- `run_tests.rs`'s `metadata_workflow` tests connect production preflight/planning to
   real encode and preserve writers, then inspect output atoms. They complement
   the session's edit-retention tests and the IPC-contract proof; they do not
   exercise the Tauri window, scheduler, or UI.

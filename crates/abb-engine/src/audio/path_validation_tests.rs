@@ -72,3 +72,14 @@ fn image_symlinks_are_rejected_before_the_extension_check() {
         assert_symlink_rejected(error);
     }
 }
+
+#[test]
+fn missing_audio_input_is_a_file_validation_error() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let error = validate_input_audio_path(&dir.path().join("gone.m4b"))
+        .expect_err("a missing file is rejected");
+    assert!(
+        matches!(error, AppError::FileValidation(ref message) if message.contains("Cannot read file metadata")),
+        "unexpected error: {error}"
+    );
+}

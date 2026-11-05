@@ -19,26 +19,25 @@ pub(in crate::processing) struct FinalizedBatchResults {
 }
 
 pub(in crate::processing) fn collect_batch_results(
-    input_count: usize,
     outcomes: Vec<Result<ProcessResultEntry>>,
 ) -> Result<FinalizedBatchResults> {
-    let mut ordered_results: Vec<Option<ProcessResultEntry>> = vec![None; input_count];
     let mut failure_events = Vec::new();
     let mut classifier = RunTerminalClassifier::default();
 
-    for (index, outcome) in outcomes.into_iter().enumerate() {
-        let entry = normalize_batch_outcome(index, outcome, &mut failure_events, &mut classifier);
-        ordered_results[index] = Some(entry);
-    }
+    let results = outcomes
+        .into_iter()
+        .enumerate()
+        .map(|(index, outcome)| {
+            normalize_batch_outcome(index, outcome, &mut failure_events, &mut classifier)
+        })
+        .collect();
 
     if classifier.is_fully_cancelled() {
         return Err(AppError::cancelled());
     }
 
-    repair_missing_batch_results(&mut ordered_results, &mut failure_events);
-
     Ok(FinalizedBatchResults {
-        results: ordered_results.into_iter().flatten().collect(),
+        results,
         failure_events,
     })
 }
@@ -105,32 +104,4 @@ fn normalize_batch_error(
         message: envelope.message.clone(),
     });
     terminal_failure_result(index, None, envelope)
-}
-
-fn repair_missing_batch_results(
-    ordered_results: &mut [Option<ProcessResultEntry>],
-    failure_events: &mut Vec<TerminalFailureEvent>,
-) {
-    for (index, slot) in ordered_results.iter_mut().enumerate() {
-        if slot.is_none() {
-            let error_message = format!(
-                "Missing terminal result for queued input index {index}; marking as failed"
-            );
-            failure_events.push(TerminalFailureEvent {
-                input_index: index,
-                job_id: None,
-                message: error_message.clone(),
-            });
-            *slot = Some(terminal_failure_result(
-                index,
-                None,
-                AppErrorEnvelope::new(
-                    crate::errors::AppErrorCode::InternalError,
-                    crate::errors::AppErrorCategory::Internal,
-                    error_message,
-                    None,
-                ),
-            ));
-        }
-    }
 }

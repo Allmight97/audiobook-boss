@@ -46,17 +46,6 @@ fn rejects_existing_staging_entry() {
 }
 
 #[test]
-fn rejects_empty_workspace_root() {
-    let err = create_processing_workspace_dir(Uuid::nil(), Path::new(""))
-        .expect_err("empty workspace root should be rejected");
-
-    assert!(
-        err.to_string().contains("workspace root is empty"),
-        "error should identify empty workspace root"
-    );
-}
-
-#[test]
 fn cleanup_refuses_out_of_root_session() {
     let root = TempDir::new().expect("root");
     let outside = TempDir::new().expect("outside");

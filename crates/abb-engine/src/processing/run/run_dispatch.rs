@@ -127,8 +127,7 @@ async fn dispatch_batch_plan(
     }
 
     let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
-    let finalized_results =
-        finalize_batch_results(payload, outcomes, options.progress_listener.as_ref())?;
+    let finalized_results = finalize_batch_results(outcomes, options.progress_listener.as_ref())?;
 
     Ok(ProcessCommandResult::new(finalized_results))
 }
@@ -184,11 +183,10 @@ async fn run_title_job(
 }
 
 fn finalize_batch_results(
-    payload: &ProcessPayload,
     outcomes: Vec<Result<ProcessResultEntry>>,
     progress_listener: Option<&ProgressEventListener>,
 ) -> Result<Vec<ProcessResultEntry>> {
-    let finalized = collect_batch_results(payload.input_files.len(), outcomes)?;
+    let finalized = collect_batch_results(outcomes)?;
     for event in finalized.failure_events {
         emit_terminal_failed_event(
             progress_listener,

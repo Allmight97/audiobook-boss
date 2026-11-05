@@ -144,17 +144,6 @@ impl ProgressEmitter {
     pub fn emit_cancelled(&self, message: &str) {
         self.emit_terminal_cancelled(message);
     }
-    #[cfg(test)]
-    pub fn emit_custom(
-        &self,
-        stage: ProcessingStage,
-        percentage: f32,
-        message: &str,
-        current_file: Option<String>,
-        eta_seconds: Option<f64>,
-    ) {
-        self.emit_event(stage, percentage, message, current_file, eta_seconds);
-    }
 
     fn emit_event(
         &self,

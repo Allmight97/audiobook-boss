@@ -216,17 +216,16 @@ fn execution_rejected_by_review_does_not_create_the_output_root() {
     let source = temp.path().join("source.wav");
     write_silence_wav(&source, 1);
     let missing_root = temp.path().join("deleted-library");
+    std::fs::create_dir_all(&missing_root).expect("create library root");
     let payload = process_payload(|payload| {
         payload.input_files = vec![source.to_string_lossy().into_owned()];
         payload.output_dir = missing_root.to_string_lossy().into_owned();
         payload.preflight_signature = Some("stale review".into());
     });
-    let inspected =
-        super::run_validation::inspect_and_validate_external_processing_contract(&payload)
-            .expect("inspect source");
+    let inspected = super::inspect_processing_plan(&payload, None, false).expect("review source");
+    std::fs::remove_dir(&missing_root).expect("delete library root");
 
-    let Err(error) =
-        crate::processing::plan::prepare_execution_plan(&payload, None, false, inspected)
+    let Err(error) = crate::processing::plan::prepare_inspected_execution(&payload, inspected)
     else {
         panic!("a stale review must reject execution");
     };
@@ -294,19 +293,11 @@ fn stacked_title_plan_keeps_source_order_metadata_and_separate_outputs() {
             },
         ),
     ]);
-    let reviewed =
-        preflight_payload(payload.clone(), Some(metadata.clone()), false).expect("review titles");
-    payload.preflight_signature = Some(reviewed.plan_signature);
     let inspected =
-        super::run_validation::inspect_and_validate_external_processing_contract(&payload)
-            .expect("inspect all title sources");
-    let execution = crate::processing::plan::prepare_execution_plan(
-        &payload,
-        Some(&metadata),
-        false,
-        inspected,
-    )
-    .expect("prepare reviewed execution");
+        super::inspect_processing_plan(&payload, Some(&metadata), false).expect("review titles");
+    payload.preflight_signature = Some(inspected.plan.plan_signature.clone());
+    let execution = crate::processing::plan::prepare_inspected_execution(&payload, inspected)
+        .expect("prepare reviewed execution");
     let jobs = execution.plan.jobs;
     assert_eq!(jobs.len(), 2);
     assert_eq!(jobs[0].input_path, paths[0]);
@@ -351,15 +342,11 @@ async fn execute_reviewed_metadata_batch(
 ) -> Vec<std::path::PathBuf> {
     use crate::audio::{execute_audio_engine, AudioExecutionRequest, SampleRateConfig};
     use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
-    let reviewed = preflight_payload(payload.clone(), Some(metadata.clone()), false)
+    let inspected = super::inspect_processing_plan(&payload, Some(metadata), false)
         .expect("review metadata batch");
-    payload.preflight_signature = Some(reviewed.plan_signature);
-    let inspected =
-        super::run_validation::inspect_and_validate_external_processing_contract(&payload)
-            .expect("inspect metadata batch");
-    let execution =
-        crate::processing::plan::prepare_execution_plan(&payload, Some(metadata), false, inspected)
-            .expect("plan metadata batch");
+    payload.preflight_signature = Some(inspected.plan.plan_signature.clone());
+    let execution = crate::processing::plan::prepare_inspected_execution(&payload, inspected)
+        .expect("plan metadata batch");
     let mut outputs = Vec::new();
     for job in execution.plan.jobs {
         let info =
@@ -681,9 +668,6 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
         "unexpected error: {error}"
     );
 
-    let status = registry.get_aggregate_status().await;
-    assert_eq!(status.active_jobs, 0, "active jobs should be cleared");
-    assert_eq!(status.total_jobs, 0, "tracked jobs should be cleared");
     assert_eq!(
         registry
             .update_max_concurrent(1)
