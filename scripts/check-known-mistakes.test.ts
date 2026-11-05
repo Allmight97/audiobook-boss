@@ -1,5 +1,9 @@
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { checkFile } from './check-known-mistakes';
+import { changedSampleFindings, checkFile, frozenSampleFindings } from './check-known-mistakes';
 
 const DISABLE = ['oxlint', 'disable'].join('-');
 
@@ -233,5 +237,86 @@ describe('check-known-mistakes', () => {
 
 	it('leaves vendored code alone', () => {
 		expect(found('vendor/x/build.sh', "sed 's/a\\?//'")).toEqual([]);
+	});
+});
+
+const SAMPLES = 'crates/abb-engine/src/app_settings/samples';
+
+function sampleRepo(body: (root: string, git: (...args: string[]) => string) => void): void {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'abb-samples-'));
+	const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+	try {
+		git('init', '-q', '-b', 'main');
+		git('config', 'user.email', 'samples@example.com');
+		git('config', 'user.name', 'Samples Test');
+		git('config', 'commit.gpgsign', 'false');
+		mkdirSync(path.join(root, SAMPLES), { recursive: true });
+		writeFileSync(path.join(root, SAMPLES, 'first.toml'), '[keep_awake]\nenabled = true\n');
+		git('add', '-A');
+		git('commit', '-q', '-m', 'base', '--no-verify');
+		body(root, git);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+}
+
+describe('frozen settings samples', () => {
+	it('allows a new sample and rejects a changed, deleted, or renamed one', () => {
+		const dir = `${SAMPLES}/`;
+		expect(frozenSampleFindings(`A\t${dir}new.toml`)).toEqual([]);
+		expect(frozenSampleFindings(`M\tsrc/other.toml\nD\tcrates/x.toml`)).toEqual([]);
+		for (const [entry, verb] of [
+			[`M\t${dir}first.toml`, 'modified'],
+			[`D\t${dir}first.toml`, 'deleted'],
+			[`R100\t${dir}first.toml\t${dir}second.toml`, 'renamed'],
+		]) {
+			const [finding] = frozenSampleFindings(entry);
+			expect(finding.file).toBe(`${dir}first.toml`);
+			expect(finding.message).toContain(`was ${verb}`);
+			expect(finding.message).toContain('frozen saved-settings files from real releases');
+			expect(finding.message).toContain('add a new sample');
+		}
+	});
+
+	it('fails on a staged edit, deletion, or rename and passes on a staged new sample', () => {
+		sampleRepo((root, git) => {
+			const first = path.join(root, SAMPLES, 'first.toml');
+			writeFileSync(path.join(root, SAMPLES, 'added.toml'), '[keep_awake]\nenabled = false\n');
+			git('add', '-A');
+			expect(changedSampleFindings(root)).toEqual([]);
+			git('reset', '-q');
+
+			writeFileSync(first, '[keep_awake]\nenabled = false\n');
+			git('add', '-A');
+			expect(changedSampleFindings(root).map((finding) => finding.file)).toEqual([
+				`${SAMPLES}/first.toml`,
+			]);
+			git('reset', '-q', '--hard');
+
+			rmSync(first);
+			git('add', '-A');
+			expect(changedSampleFindings(root)[0].message).toContain('was deleted');
+			git('reset', '-q', '--hard');
+
+			renameSync(first, path.join(root, SAMPLES, 'renamed.toml'));
+			git('add', '-A');
+			expect(changedSampleFindings(root)[0].message).toContain('was renamed');
+		});
+	});
+
+	it('compares a branch with the merge base when given a base', () => {
+		sampleRepo((root, git) => {
+			git('checkout', '-q', '-b', 'work');
+			writeFileSync(path.join(root, SAMPLES, 'added.toml'), 'x = 1\n');
+			git('add', '-A');
+			git('commit', '-q', '-m', 'add', '--no-verify');
+			expect(changedSampleFindings(root, 'main')).toEqual([]);
+			writeFileSync(path.join(root, SAMPLES, 'first.toml'), 'x = 2\n');
+			git('add', '-A');
+			git('commit', '-q', '-m', 'edit', '--no-verify');
+			expect(changedSampleFindings(root, 'main').map((finding) => finding.file)).toEqual([
+				`${SAMPLES}/first.toml`,
+			]);
+		});
 	});
 });

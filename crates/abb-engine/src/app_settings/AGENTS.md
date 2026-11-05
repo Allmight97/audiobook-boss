@@ -66,7 +66,7 @@ default the session records reaches hosts as `EngineEvent::Settings`.
   loading with every choice it holds, or maps each old value in `storage.rs`,
   with the owner's approval and a one-time notice. A new saved field needs a
   default so earlier samples still load, and a new sample of the new shape.
-  Samples stay as written.
+  `scripts/check-known-mistakes.ts` rejects a changed, renamed, or deleted sample.
 - Encoder format and copy/encode validation stay Audio-owned; App Settings
   checks durable choices with the owning runtime APIs and leaves encoder and
   JobRegistry rules to them.

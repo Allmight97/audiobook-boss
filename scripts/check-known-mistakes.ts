@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 
 export interface Finding {
 	file: string;
@@ -240,14 +241,72 @@ export function checkFile(file: string, text: string): Finding[] {
 	return findings;
 }
 
+const SAMPLES_DIR = 'crates/abb-engine/src/app_settings/samples/';
+const CHANGE_VERB: Record<string, string> = {
+	M: 'modified',
+	D: 'deleted',
+	R: 'renamed',
+	T: 'changed',
+};
+
+export function frozenSampleFindings(nameStatus: string): Finding[] {
+	return nameStatus.split('\n').flatMap((entry) => {
+		const [status, file] = entry.split('\t');
+		if (!file?.startsWith(SAMPLES_DIR) || status.startsWith('A')) return [];
+		const verb = CHANGE_VERB[status[0]] ?? 'changed';
+		return [
+			{
+				file,
+				line: 1,
+				message: `was ${verb}. Samples are frozen saved-settings files from real releases. Fix: restore it and add a new sample instead (crates/abb-engine/src/app_settings/AGENTS.md, Storage).`,
+			},
+		];
+	});
+}
+
+function git(repoRoot: string, args: string[]): string {
+	return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+}
+
+export function changedSampleFindings(repoRoot: string, against?: string): Finding[] {
+	if (against === undefined) {
+		return frozenSampleFindings(
+			git(repoRoot, ['diff', '--cached', '--find-renames', '--name-status']),
+		);
+	}
+	const resolved = git(repoRoot, [
+		'rev-parse',
+		'--verify',
+		'--end-of-options',
+		`${against}^{commit}`,
+	]).trim();
+	const mergeBase = git(repoRoot, ['merge-base', '--', resolved, 'HEAD']).trim();
+	return frozenSampleFindings(
+		git(repoRoot, ['diff', '--find-renames', '--name-status', mergeBase, 'HEAD']),
+	);
+}
+
+function sampleFindings(repoRoot: string, against?: string): Finding[] {
+	try {
+		return changedSampleFindings(repoRoot, against);
+	} catch (error) {
+		throw new Error(
+			`check-known-mistakes: cannot compare with ${against ?? 'the staged index'}. Fetch the base with its ancestry; a missing base fails closed.`,
+			{ cause: error },
+		);
+	}
+}
+
 function main(): number {
+	const { values } = parseArgs({ options: { against: { type: 'string' } } });
 	const repoRoot = path.resolve(import.meta.dirname, '..');
 	const tracked = execFileSync('git', ['ls-files'], { cwd: repoRoot, encoding: 'utf8' })
 		.split('\n')
 		.filter((file) => file && (OWNED_RUST(file) || RULES.some((rule) => rule.appliesTo(file))));
-	const findings = tracked.flatMap((file) =>
-		checkFile(file, readFileSync(path.join(repoRoot, file), 'utf8')),
-	);
+	const findings = [
+		...tracked.flatMap((file) => checkFile(file, readFileSync(path.join(repoRoot, file), 'utf8'))),
+		...sampleFindings(repoRoot, values.against),
+	];
 	for (const finding of findings) {
 		console.error(`${finding.file}:${finding.line}: ${finding.message}`);
 	}
