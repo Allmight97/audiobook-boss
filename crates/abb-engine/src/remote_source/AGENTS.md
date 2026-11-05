@@ -51,19 +51,21 @@ session files, Supplemental Assets, and staging cleanup.
   entries. Release detail URLs are optional source-provided HTTP(S) links
   without embedded credentials, never inferred from a release GUID.
 - Indexer connection URLs reject embedded credentials on save and draft
-  testing. The URL and categories live in `indexer.toml` under App Settings'
-  storage rules: written crash-safe, a failed write logged and reported; a file
-  damaged outside ABB (including a URL with credentials) loads as not
-  configured and never reaches IPC or a provider. API keys stay in the
+  testing; the rule lives in App Settings' `IndexerConnection`. The URL and
+  categories are an App Settings recovery unit in `settings.toml`;
+  `remote_source` reads them from `SettingsRuntime::indexer_connection` and
+  never stores them. `indexer.toml` is never read. API keys stay in the
   credential store.
-- The private connection owner resolves URL, categories, and the host's key for
-  search/grab together; its credential-bearing result never crosses IPC.
+- The private connection owner resolves the saved URL, categories, and the
+  host's key for search/grab together; its credential-bearing result never
+  crosses IPC.
 - A search uses exactly the saved categories. An edit or save that chooses none
-  is refused (`empty_categories_refused` on the draft), and a file with none
-  loads as the default (Audio 3000, Audiobooks 3030).
+  is refused (`empty_categories_refused` on the draft), and a saved unit with
+  none resets and is named in recovery (default Audio 3000, Audiobooks 3030).
 - Indexer credentials are scoped to the normalized server URL in the vault;
-  connection JSON never holds a key. Save persists changed JSON before changing
-  that URL's key, and reports partial persistence if the vault fails. A failed
+  `settings.toml` never holds a key. Save reserves its settings turn when
+  accepted and changes that URL's key after the change applies; a vault
+  failure says the URL and categories changed but the key did not. A failed
   save never pairs one server with another server's key.
 - Connection Test accepts a draft without persisting it. An omitted draft key
   resolves only from that draft URL's vault slot; a new URL requires its own
@@ -114,8 +116,9 @@ job's size at any library size and cannot drop a crossing selection change. Snap
 ## Working Remote State
 
 - `ui.rs` owns accepted title/PDF/release choices, normalized connection drafts,
-  readback generations, and batch outcomes. Its intent match is routing; effect
-  execution stays in `RemoteUiRun`. Accepted runs execute on `EngineTasks`
+  request generations, and batch outcomes. Its intent match is routing; effect
+  execution stays in `RemoteUiRun`; `indexer_save.rs` owns the Indexer Save
+  and Reset effects on the draft. Accepted runs execute on `EngineTasks`
   through the session, whether or not a host awaits the reply.
 - SelectLane reads the selected account and, for connected Audible outside an
   acquisition/handoff, its library; repeated entry coalesces pending reads.
@@ -153,10 +156,16 @@ job's size at any library size and cannot drop a crossing selection change. Snap
   refused until it finishes, and a connection Save and a search refuse each
   other the same way. A release sent since the last search or Save is not sent
   again (the grab answers "Already sent").
-- Connection readback cannot erase newer typing or a newer Save. Old Test/Search
-  results cannot replace newer requests or changed lanes. API keys stay private;
-  snapshots report only configured/entered facts. The HTTP client initializes on
-  first use, so a session that never uses Indexer pays no network setup cost.
+- The draft starts from the saved settings; Load reads only whether a key is
+  stored for the saved URL. An applied Reset replaces the draft, clears its
+  errors, failures, and search results, and refreshes the account
+  (`saved_connection_replaced`). A Test that finishes after it changes nothing.
+  A Save that finishes after it, or whose settings turn ran after the Reset,
+  changes the draft only to show the connection now in effect, with the key
+  fact read again. Old Test/Search results cannot replace newer requests or
+  changed lanes. API keys stay private; snapshots report only
+  configured/entered facts. The HTTP client initializes on first use, so a
+  session that never uses Indexer pays no network setup cost.
 - Acquisition admission and disconnect share the remote UI guard. A late library
   reply or terminal publication cannot restore disconnected choices or jobs.
   One unsettled acquisition includes its pending Input handoff, not only

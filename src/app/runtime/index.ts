@@ -21,7 +21,10 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			disposeRoot = dispose;
 			const link = createEngineLink(capabilities.engine);
 			const input = createInputOwner({ link, capability: capabilities.input });
-			const settings = createSettingsOwner({ link });
+			const settings = createSettingsOwner({
+				link,
+				onAppliedReset: () => remoteSource.discardIndexerConnectionEdits(),
+			});
 			const metadata = createMetadataOwner({ link, capability: capabilities.metadata });
 			const encoding = createEncodingOwner({ link });
 			const output = createOutputOwner({ link });

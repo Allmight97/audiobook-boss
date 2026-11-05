@@ -43,17 +43,39 @@ pub(super) fn test_runtime_with(
     vault: Option<Box<dyn vault::SecretVault>>,
     events: Option<Arc<dyn crate::EventSink>>,
 ) -> RemoteSourceRuntime {
+    let (settings, _, _) = crate::app_settings::SettingsRuntime::start(
+        root.path().to_path_buf(),
+        crate::power::PowerManager::default(),
+    );
+    build_runtime(root, settings, vault, events)
+}
+
+pub(crate) fn test_runtime_over(
+    root: &TempDir,
+    settings: crate::app_settings::SettingsRuntime,
+) -> RemoteSourceRuntime {
+    build_runtime(root, settings, None, None)
+}
+
+fn build_runtime(
+    root: &TempDir,
+    settings: crate::app_settings::SettingsRuntime,
+    vault: Option<Box<dyn vault::SecretVault>>,
+    events: Option<Arc<dyn crate::EventSink>>,
+) -> RemoteSourceRuntime {
     let host = crate::host::Host::new(
         events.unwrap_or_else(|| Arc::new(crate::DiscardEvents)),
         crate::power::PowerManager::default(),
     );
-    let ui = Arc::new(Mutex::default());
+    let ui = Arc::new(Mutex::new(ui::UiState::seeded(
+        &settings.indexer_connection(),
+    )));
     RemoteSourceRuntime {
         inner: Arc::new(RemoteSourceRuntimeInner {
             ui: ui.clone(),
             ui_host: host.clone(),
             power: crate::power::PowerManager::default(),
-            config_dir: root.path().to_path_buf(),
+            settings,
             vault: vault.unwrap_or_else(|| Box::<MemoryVault>::default()),
             lifecycle: RemoteAcquisitionLifecycle::new(
                 RemoteSourceStaging::new(root.path().to_path_buf()),
@@ -65,7 +87,7 @@ pub(super) fn test_runtime_with(
             indexer_adapter: ReqwestProwlarrAdapter::new(),
             tasks: crate::engine::EngineTasks::default(),
             handoff: OnceLock::new(),
-            indexer_turn: tokio::sync::RwLock::new(()),
+            indexer_turn: Arc::default(),
             sent_releases: Mutex::default(),
         }),
     }
@@ -351,17 +373,15 @@ async fn a_connection_save_and_a_search_or_grab_refuse_each_other() {
     drop(saving);
 
     let searching = runtime.inner.indexer_turn.read().await;
+    let revision = runtime.inner.settings.snapshot().await.revision;
     let save = runtime
-        .update_indexer_connection(
-            serde_json::from_value(serde_json::json!({
-                "baseUrl": "https://indexer.example",
-            }))
-            .expect("update"),
-        )
+        .ui_begin(RemoteUiIntent::SaveConnection)
+        .finish()
         .await;
     assert!(
         matches!(save, Err(AppError::InvalidInput(message)) if message.contains("search or grab"))
     );
+    assert_eq!(runtime.inner.settings.snapshot().await.revision, revision);
     drop(searching);
 }
 
@@ -369,8 +389,8 @@ async fn a_connection_save_and_a_search_or_grab_refuse_each_other() {
 async fn no_credential_read_starts_once_the_engine_is_closing() {
     let root = TempDir::new().expect("temp root");
     std::fs::write(
-        root.path().join("indexer.toml"),
-        "url = \"http://indexer.test\"\ncategories = [3000]\n",
+        root.path().join("settings.toml"),
+        "[indexer]\nurl = \"http://indexer.test\"\ncategories = [3000]\n",
     )
     .expect("write connection");
     let reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));

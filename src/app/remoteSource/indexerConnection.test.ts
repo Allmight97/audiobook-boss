@@ -89,3 +89,24 @@ it('reopens from the engine draft without exposing another host’s entered key'
 		apiKeyDraft: '',
 	});
 });
+it('shows the engine draft again after an applied reset, whatever was typed before', async () => {
+	const owner = await open();
+	owner.patchIndexerConnectionSettings({ baseUrlDraft: 'https://indexer.test/' });
+	engine.change((state) => {
+		state.remote.connection.baseUrl = 'https://indexer.test';
+	});
+	await vi.waitFor(() =>
+		expect(engine.sessionIntents).toContainEqual({
+			kind: 'remote',
+			intent: expect.objectContaining({ kind: 'editConnection' }),
+		}),
+	);
+	expect(owner.indexerConnection().baseUrlDraft).toBe('https://indexer.test/');
+
+	await runtime!.settings.resetAllAppSettings();
+	engine.change((state) => {
+		state.remote.connection.baseUrl = '';
+	});
+
+	await vi.waitFor(() => expect(owner.indexerConnection().baseUrlDraft).toBe(''));
+});

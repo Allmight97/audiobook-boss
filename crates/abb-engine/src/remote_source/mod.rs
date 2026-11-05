@@ -37,7 +37,7 @@ use crate::errors::{AppError, Result};
 
 pub(crate) struct RemoteSourceConfig {
     pub(crate) cache_dir: PathBuf,
-    pub(crate) config_dir: PathBuf,
+    pub(crate) settings: crate::app_settings::SettingsRuntime,
     pub(crate) app_identifier: String,
     pub(crate) power: crate::power::PowerManager,
     pub(crate) host: crate::host::Host,
@@ -61,7 +61,7 @@ struct RemoteSourceRuntimeInner {
     ui: Arc<Mutex<ui::UiState>>,
     ui_host: crate::host::Host,
     power: crate::power::PowerManager,
-    config_dir: PathBuf,
+    settings: crate::app_settings::SettingsRuntime,
     vault: Box<dyn SecretVault>,
     lifecycle: RemoteAcquisitionLifecycle,
     pending_audible_auth: Mutex<Option<PendingAudibleAuth>>,
@@ -69,20 +69,22 @@ struct RemoteSourceRuntimeInner {
     tasks: crate::engine::EngineTasks,
     handoff: OnceLock<Handoff>,
     /// A connection save holds this exclusively; searches and grabs share it.
-    indexer_turn: tokio::sync::RwLock<()>,
+    indexer_turn: Arc<tokio::sync::RwLock<()>>,
     /// Releases sent since the last search, by `(indexer_id, guid)`.
     sent_releases: Mutex<std::collections::HashSet<(i64, String)>>,
 }
 
 impl RemoteSourceRuntime {
     pub(crate) fn new(config: RemoteSourceConfig) -> Result<Self> {
-        let ui = Arc::new(Mutex::default());
+        let ui = Arc::new(Mutex::new(ui::UiState::seeded(
+            &config.settings.indexer_connection(),
+        )));
         Ok(Self {
             inner: Arc::new(RemoteSourceRuntimeInner {
                 ui: ui.clone(),
                 ui_host: config.host.clone(),
                 power: config.power,
-                config_dir: config.config_dir,
+                settings: config.settings,
                 vault: Box::new(KeyringSecretVault::for_app_identifier(
                     &config.app_identifier,
                 )),
@@ -96,7 +98,7 @@ impl RemoteSourceRuntime {
                 indexer_adapter: ReqwestProwlarrAdapter::new(),
                 tasks: config.tasks,
                 handoff: OnceLock::new(),
-                indexer_turn: tokio::sync::RwLock::new(()),
+                indexer_turn: Arc::default(),
                 sent_releases: Mutex::default(),
             }),
         })
@@ -132,9 +134,10 @@ impl RemoteSourceRuntime {
     ) -> Result<RemoteAccountState> {
         match provider_id {
             RemoteProviderId::Audible => AudibleProvider::account_state(self.inner.vault.as_ref()),
-            RemoteProviderId::Indexer => {
-                IndexerProvider::account_state(&self.inner.config_dir, self.inner.vault.as_ref())
-            }
+            RemoteProviderId::Indexer => IndexerProvider::account_state(
+                &self.inner.settings.indexer_connection(),
+                self.inner.vault.as_ref(),
+            ),
         }
     }
 
@@ -220,9 +223,10 @@ impl RemoteSourceRuntime {
     fn disconnect_credentials(&self, provider_id: RemoteProviderId) -> Result<RemoteAccountState> {
         match provider_id {
             RemoteProviderId::Audible => AudibleProvider::logout(self.inner.vault.as_ref())?,
-            RemoteProviderId::Indexer => {
-                IndexerProvider::logout(&self.inner.config_dir, self.inner.vault.as_ref())?
-            }
+            RemoteProviderId::Indexer => IndexerProvider::logout(
+                &self.inner.settings.indexer_connection(),
+                self.inner.vault.as_ref(),
+            )?,
         }
         // Once credentials are removed, reflect disconnection even if a
         // staging cleanup fails. Only this provider's jobs are cleaned up;
@@ -253,14 +257,7 @@ impl RemoteSourceRuntime {
     ) -> Result<types::RemoteReleaseSearchResponse> {
         let _turn = self.indexer_turn()?;
         self.forget_sent_releases();
-        let connection = self
-            .vault_blocking(|runtime| {
-                IndexerProvider::configured_connection(
-                    &runtime.inner.config_dir,
-                    runtime.inner.vault.as_ref(),
-                )
-            })
-            .await?;
+        let connection = self.configured_indexer_connection().await?;
         self.inner
             .tasks
             .until_closing(IndexerProvider::search_releases(
@@ -289,14 +286,7 @@ impl RemoteSourceRuntime {
         }
         let _active_work = self.inner.power.begin();
         let response = async {
-            let connection = self
-                .vault_blocking(|runtime| {
-                    IndexerProvider::configured_connection(
-                        &runtime.inner.config_dir,
-                        runtime.inner.vault.as_ref(),
-                    )
-                })
-                .await?;
+            let connection = self.configured_indexer_connection().await?;
             self.inner
                 .tasks
                 .until_closing(IndexerProvider::grab_release(
@@ -333,6 +323,24 @@ impl RemoteSourceRuntime {
         self.sent_releases().clear();
     }
 
+    async fn configured_indexer_connection(
+        &self,
+    ) -> Result<providers::indexer::ConfiguredIndexerConnection> {
+        let connection = self.inner.settings.indexer_connection();
+        self.vault_blocking(move |runtime| {
+            IndexerProvider::configured_connection(connection, runtime.inner.vault.as_ref())
+        })
+        .await
+    }
+
+    pub(crate) async fn indexer_api_key_configured(&self) -> Result<bool> {
+        let connection = self.inner.settings.indexer_connection();
+        self.vault_blocking(move |runtime| {
+            IndexerProvider::api_key_configured(&connection, runtime.inner.vault.as_ref())
+        })
+        .await
+    }
+
     /// Runs vault reads or writes on a blocking thread and waits for them, so
     /// an OS keyring prompt blocks that thread and not the executor. Callers
     /// must not wrap this in `until_closing`: that would drop a started read.
@@ -350,45 +358,13 @@ impl RemoteSourceRuntime {
             .map_err(|error| AppError::General(error.to_string()))?
     }
 
-    pub(crate) async fn get_indexer_connection(&self) -> Result<types::RemoteIndexerConnection> {
-        self.vault_blocking(|runtime| {
-            IndexerProvider::get_connection(&runtime.inner.config_dir, runtime.inner.vault.as_ref())
-        })
-        .await
-    }
-
-    pub(crate) async fn update_indexer_connection(
-        &self,
-        update: types::RemoteIndexerConnectionUpdate,
-    ) -> Result<types::RemoteIndexerConnection> {
-        let _turn = self.inner.indexer_turn.try_write().map_err(|_| {
-            AppError::InvalidInput(
-                "Wait for the current search or grab to finish before saving the Indexer connection."
-                    .to_string(),
-            )
-        })?;
-        self.forget_sent_releases();
-        self.vault_blocking(move |runtime| {
-            IndexerProvider::update_connection(
-                &runtime.inner.config_dir,
-                runtime.inner.vault.as_ref(),
-                update,
-            )
-        })
-        .await
-    }
-
     pub(crate) async fn test_indexer_connection(
         &self,
         update: types::RemoteIndexerConnectionUpdate,
     ) -> Result<types::RemoteIndexerConnectionTestResult> {
         let (base_url, api_key) = self
             .vault_blocking(move |runtime| {
-                IndexerProvider::draft_credentials(
-                    &runtime.inner.config_dir,
-                    runtime.inner.vault.as_ref(),
-                    update,
-                )
+                IndexerProvider::draft_credentials(runtime.inner.vault.as_ref(), update)
             })
             .await?;
         self.inner

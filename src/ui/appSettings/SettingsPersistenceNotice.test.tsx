@@ -36,10 +36,23 @@ it('names the settings a launch reset until the next change', async () => {
 	);
 });
 
+it('names a reset Indexer connection and says its API key is still stored', async () => {
+	await renderNotice({ reset: ['indexerConnection'] });
+
+	const notice = screen.getByTestId('settings-recovery-notice');
+	expect(notice).toHaveTextContent('Indexer URL and categories');
+	expect(notice).toHaveTextContent(
+		'A saved Indexer API key stays stored; enter the same URL to use it.',
+	);
+});
+
 it('names the file an unreadable settings file was kept as', async () => {
 	await renderNotice({ reset: [], setAsideAs: 'settings.toml.unusable-17' });
 
 	expect(screen.getByTestId('settings-recovery-notice')).toHaveTextContent(
 		"The file was kept as settings.toml.unusable-17 in ABB's settings folder.",
+	);
+	expect(screen.getByTestId('settings-recovery-notice')).toHaveTextContent(
+		'A saved Indexer API key stays stored; enter the same URL to use it.',
 	);
 });

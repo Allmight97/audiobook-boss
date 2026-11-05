@@ -123,6 +123,8 @@ export type RemoteSourceOwner = {
 	) => void;
 	saveIndexerConnectionSettings: () => Promise<void>;
 	testIndexerConnection: () => Promise<void>;
+	/** Forgets what was typed in the Indexer form, so it shows the engine's draft. */
+	discardIndexerConnectionEdits: () => void;
 	reset: () => void;
 };
 
@@ -292,6 +294,9 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		},
 		testIndexerConnection() {
 			return indexerConnection.testConnection();
+		},
+		discardIndexerConnectionEdits() {
+			indexerConnection.reset();
 		},
 		reset() {
 			generation += 1;

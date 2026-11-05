@@ -1,21 +1,20 @@
 mod connection;
 mod prowlarr;
 
-use std::path::Path;
-
 use secrecy::SecretString;
 
+use crate::app_settings::IndexerConnection;
 use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
-    AccountRef, ProviderId, RemoteAccountStatus, RemoteIndexerConnection,
-    RemoteIndexerConnectionUpdate, RemoteRelease, RemoteReleaseGrabRequest,
-    RemoteReleaseGrabResponse, RemoteReleaseSearchRequest, RemoteReleaseSearchResponse,
-    RemoteSourceAccountState, RemoteSourceProviderCapabilities,
+    AccountRef, ProviderId, RemoteAccountStatus, RemoteIndexerConnectionUpdate, RemoteRelease,
+    RemoteReleaseGrabRequest, RemoteReleaseGrabResponse, RemoteReleaseSearchRequest,
+    RemoteReleaseSearchResponse, RemoteSourceAccountState, RemoteSourceProviderCapabilities,
 };
 use crate::remote_source::vault::{account_message, SecretVault};
 
 use connection::{
-    api_key_vault_key, configured_connection, draft_credentials, get_connection, update_connection,
+    api_key_configured, api_key_vault_key, apply_key_change, configured_connection,
+    draft_credentials,
 };
 use prowlarr::{build_search_params, ProwlarrSearchOutcome};
 
@@ -34,12 +33,11 @@ impl IndexerProvider {
     }
 
     pub(in crate::remote_source) fn account_state(
-        config_dir: &Path,
+        connection: &IndexerConnection,
         vault: &dyn SecretVault,
     ) -> Result<RemoteSourceAccountState> {
-        let connection = get_connection(config_dir, vault)?;
         let survives = vault.survives_restart();
-        if connection.base_url.is_none() || !connection.api_key_configured {
+        if !api_key_configured(connection, vault)? {
             return Ok(RemoteSourceAccountState {
                 provider_id: ProviderId::Indexer,
                 status: RemoteAccountStatus::NeedsAuth,
@@ -63,34 +61,33 @@ impl IndexerProvider {
         })
     }
 
-    pub(in crate::remote_source) fn get_connection(
-        config_dir: &Path,
+    pub(in crate::remote_source) fn api_key_configured(
+        connection: &IndexerConnection,
         vault: &dyn SecretVault,
-    ) -> Result<RemoteIndexerConnection> {
-        get_connection(config_dir, vault)
+    ) -> Result<bool> {
+        api_key_configured(connection, vault)
     }
 
-    pub(in crate::remote_source) fn update_connection(
-        config_dir: &Path,
+    pub(in crate::remote_source) fn apply_key_change(
         vault: &dyn SecretVault,
-        update: RemoteIndexerConnectionUpdate,
-    ) -> Result<RemoteIndexerConnection> {
-        update_connection(config_dir, vault, update)
+        base_url: &str,
+        key_change: Option<String>,
+    ) -> Result<bool> {
+        apply_key_change(vault, base_url, key_change)
     }
 
     pub(in crate::remote_source) fn configured_connection(
-        config_dir: &Path,
+        connection: IndexerConnection,
         vault: &dyn SecretVault,
     ) -> Result<ConfiguredIndexerConnection> {
-        configured_connection(config_dir, vault)
+        configured_connection(connection, vault)
     }
 
     pub(in crate::remote_source) fn draft_credentials(
-        config_dir: &Path,
         vault: &dyn SecretVault,
         update: RemoteIndexerConnectionUpdate,
     ) -> Result<(String, SecretString)> {
-        draft_credentials(config_dir, vault, update)
+        draft_credentials(vault, update)
     }
 
     pub(in crate::remote_source) async fn search_releases(
@@ -156,11 +153,11 @@ impl IndexerProvider {
     }
 
     pub(in crate::remote_source) fn logout(
-        config_dir: &Path,
+        connection: &IndexerConnection,
         vault: &dyn SecretVault,
     ) -> Result<()> {
-        if let Some(url) = get_connection(config_dir, vault)?.base_url {
-            vault.delete_secret(&api_key_vault_key(&url))?;
+        if let Some(url) = &connection.base_url {
+            vault.delete_secret(&api_key_vault_key(url))?;
         }
         Ok(())
     }
@@ -195,14 +192,6 @@ fn validate_grab_release(release: &RemoteRelease) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-pub(in crate::remote_source) fn default_category_ids() -> Vec<u32> {
-    connection::DEFAULT_CATEGORY_IDS.to_vec()
-}
-
-pub(in crate::remote_source) fn normalize_draft_url(url: String) -> Result<String> {
-    Ok(connection::normalize_base_url(url)?.unwrap_or_default())
 }
 
 #[cfg(test)]

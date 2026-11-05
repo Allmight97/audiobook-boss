@@ -69,6 +69,8 @@ export type SettingsOwner = {
 
 export type SettingsOwnerDeps = {
 	readonly link: EngineLink;
+	/** Called once the engine has applied a reset of every setting. */
+	readonly onAppliedReset: () => void;
 };
 
 type DialogProgress = Omit<AppSettingsDialogState, 'settings'>;
@@ -99,6 +101,7 @@ const UNIT_LABELS: Record<SettingsUnit, string> = {
 	jobLimit: 'number of jobs',
 	acquisitionLane: 'default import source',
 	aacDecoder: 'AAC decoder',
+	indexerConnection: 'Indexer URL and categories',
 	encoderDefaults: 'audio defaults',
 	outputDefaults: 'output folder and naming',
 	startupBehavior: 'startup settings',
@@ -180,6 +183,8 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 				parts.push(
 					`ABB couldn't read your settings file, so every setting is back to its default. The file was kept as ${recovery.setAsideAs} in ABB's settings folder.`,
 				);
+			if (recovery.reset.includes('indexerConnection') || recovery.setAsideAs)
+				parts.push('A saved Indexer API key stays stored; enter the same URL to use it.');
 			return parts.join(' ');
 		},
 		async retryPersistence() {
@@ -254,6 +259,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			if (!(await runDialogAction('save', { kind: 'reset' })) || started !== generation) return;
 			concurrencyError = '';
 			changed();
+			deps.onAppliedReset();
 		},
 		reset() {
 			generation += 1;

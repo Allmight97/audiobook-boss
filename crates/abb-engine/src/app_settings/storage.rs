@@ -5,8 +5,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::app_settings::{
-    AcquisitionLane, AppSettings, ConcurrencyPreference, EncoderDefaults, OutputDefaults,
-    PinnedDefaults, SettingsUnit, StartupBehavior,
+    AcquisitionLane, AppSettings, ConcurrencyPreference, EncoderDefaults, IndexerConnection,
+    OutputDefaults, PinnedDefaults, SettingsUnit, StartupBehavior,
 };
 use crate::audio::{
     AacDecoder, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings,
@@ -72,6 +72,12 @@ fn recover(table: &toml::Table) -> Loaded {
             read(table, &["general", "aac_decoder"], Ok),
         )
         .unwrap_or(defaults.aac_decoder),
+        indexer_connection: pick(
+            &mut reset,
+            SettingsUnit::IndexerConnection,
+            read::<Indexer, _>(table, &["indexer"], IndexerConnection::try_from),
+        )
+        .unwrap_or(defaults.indexer_connection),
         encoder_defaults: pick(
             &mut reset,
             SettingsUnit::EncoderDefaults,
@@ -179,7 +185,14 @@ struct SavedSettings {
     general: General,
     audio: Audio,
     output: Output,
+    indexer: Indexer,
     startup: Startup,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Indexer {
+    url: Option<String>,
+    categories: Vec<u32>,
 }
 
 #[derive(Serialize)]
@@ -328,6 +341,10 @@ impl From<&AppSettings> for SavedSettings {
             },
             audio: Audio::from(&settings.encoder_defaults),
             output: Output::from(&settings.output_defaults),
+            indexer: Indexer {
+                url: settings.indexer_connection.base_url.clone(),
+                categories: settings.indexer_connection.category_ids.clone(),
+            },
             startup: Startup {
                 behavior: settings.startup_behavior,
                 pinned: settings.pinned_defaults.as_ref().map(|pinned| Pinned {
@@ -337,6 +354,19 @@ impl From<&AppSettings> for SavedSettings {
                 }),
             },
         }
+    }
+}
+
+impl TryFrom<Indexer> for IndexerConnection {
+    type Error = String;
+
+    fn try_from(indexer: Indexer) -> std::result::Result<Self, String> {
+        let mut connection = Self {
+            base_url: indexer.url,
+            category_ids: indexer.categories,
+        };
+        connection.validate().map_err(|error| error.to_string())?;
+        Ok(connection)
     }
 }
 

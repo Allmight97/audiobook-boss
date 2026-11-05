@@ -115,7 +115,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
     let config = tempfile::TempDir::new().expect("settings folder");
     let (settings, _, _) =
         SettingsRuntime::start(config.path().to_path_buf(), PowerManager::default());
-    let remote = crate::remote_source::tests::test_runtime(&config);
+    let remote = crate::remote_source::tests::test_runtime_over(&config, settings.clone());
     let tasks = crate::engine::EngineTasks::default();
     let session = Session::with_network(
         SessionDeps {
@@ -1907,16 +1907,16 @@ async fn an_accepted_indexer_save_finishes_when_the_host_drops_its_reply() {
     })
     .await
     .expect("accepted Save finished");
-    let saved = rig
-        .session
-        .inner
-        .deps
+    let deps = &rig.session.inner.deps;
+    assert_eq!(
+        deps.settings.indexer_connection().base_url.as_deref(),
+        Some("https://proof.test")
+    );
+    assert!(deps
         .remote
-        .get_indexer_connection()
+        .indexer_api_key_configured()
         .await
-        .expect("persisted accepted connection");
-    assert_eq!(saved.base_url.as_deref(), Some("https://proof.test"));
-    assert!(saved.api_key_configured);
+        .expect("key fact for the saved URL"));
 }
 
 async fn wait_preview(

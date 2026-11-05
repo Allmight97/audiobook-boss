@@ -112,6 +112,7 @@ export type AppSettings = {
 	pinnedDefaults: PinnedDefaults | null,
 	defaultAcquisitionLane: AcquisitionLane,
 	aacDecoder: AacDecoder,
+	indexerConnection: IndexerConnection,
 };
 
 export type AudioChoice = {
@@ -453,6 +454,15 @@ export type FrontendLogLevel = "error" | "warn";
 export type HandoffRefusal = { kind: "importFailed"; error: AppErrorEnvelope } |
 /**  The files were already listed, or a reset dropped the import. */
 { kind: "nothingAdded" };
+
+/**
+ *  The Indexer server and categories a search uses. The API key lives in the
+ *  credential store, under the URL.
+ */
+export type IndexerConnection = {
+	baseUrl: string | null,
+	categoryIds: number[],
+};
 
 export type IndexerDraftSnapshot = {
 	baseUrl: string,
@@ -1192,7 +1202,7 @@ export type SettingsSnapshot = {
  *  A setting that loading recovers on its own: a saved value this release
  *  refuses resets only that setting.
  */
-export type SettingsUnit = "keepAwake" | "jobLimit" | "acquisitionLane" | "aacDecoder" | "encoderDefaults" | "outputDefaults" | "startupBehavior" | "pinnedDefaults";
+export type SettingsUnit = "keepAwake" | "jobLimit" | "acquisitionLane" | "aacDecoder" | "indexerConnection" | "encoderDefaults" | "outputDefaults" | "startupBehavior" | "pinnedDefaults";
 
 /**  The settings after a change made outside a settings intent. */
 export type SettingsUpdateEvent = SettingsSnapshot;

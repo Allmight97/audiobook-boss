@@ -40,6 +40,13 @@
         "nativeAacSpeed": 0
       }
     },
+    "indexerConnection": {
+      "baseUrl": null,
+      "categoryIds": [
+        3000,
+        3030
+      ]
+    },
     "keepAwakeWhileWorking": true,
     "maxConcurrentJobs": {
       "mode": "auto"

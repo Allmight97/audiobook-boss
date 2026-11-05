@@ -34,6 +34,13 @@ fn start_with(saved: AppSettingsPatch) -> Rig {
     start_in(root)
 }
 
+fn connection(url: &str, categories: &[u32]) -> IndexerConnection {
+    IndexerConnection {
+        base_url: Some(url.to_string()),
+        category_ids: categories.to_vec(),
+    }
+}
+
 fn mp3_defaults() -> EncoderDefaults {
     EncoderDefaults {
         format: AudiobookFormat::Mp3,
@@ -61,6 +68,13 @@ impl Rig {
     async fn send(&self, intent: SettingsIntent) -> SettingsReply {
         self.settings
             .begin(intent, &crate::engine::EngineTasks::default())
+            .finish()
+            .await
+    }
+
+    async fn send_connection(&self, connection: IndexerConnection) -> SettingsReply {
+        self.settings
+            .set_indexer_connection(connection, &crate::engine::EngineTasks::default())
             .finish()
             .await
     }
@@ -583,4 +597,94 @@ async fn accepted_settings_preserve_independent_patches_without_host_reply_order
         ConcurrencyPreference::Fixed(1)
     );
     assert_eq!(rig.on_disk().output_defaults, output_in("/chosen"));
+}
+
+#[tokio::test]
+async fn an_indexer_change_is_in_effect_at_once_and_saved() {
+    let rig = start();
+    let chosen = connection("https://indexer.test", &[3030]);
+
+    let reply = rig.send_connection(chosen.clone()).await;
+
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert_eq!(reply.snapshot.settings.indexer_connection, chosen);
+    assert_eq!(rig.settings.indexer_connection(), chosen);
+    assert!(reply.snapshot.save_error.is_none());
+    assert_eq!(rig.on_disk().indexer_connection, chosen);
+}
+
+#[tokio::test]
+async fn an_indexer_change_that_cannot_be_saved_stays_in_effect_and_is_written_by_flush_and_retry()
+{
+    let rig = start();
+    rig.set_writable(false);
+    let chosen = connection("https://indexer.test", &[3030]);
+
+    let reply = rig.send_connection(chosen.clone()).await;
+
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert!(reply.snapshot.save_error.is_some());
+    assert_eq!(rig.settings.indexer_connection(), chosen);
+    assert!(rig.settings.flush().await.is_some());
+
+    rig.set_writable(true);
+    let reply = rig.send(SettingsIntent::Retry).await;
+
+    assert!(reply.snapshot.save_error.is_none());
+    assert_eq!(rig.on_disk().indexer_connection, chosen);
+}
+
+#[tokio::test]
+async fn an_indexer_change_the_rules_refuse_changes_nothing() {
+    let rig = start();
+    let before = rig.settings.snapshot().await;
+
+    let reply = rig
+        .send_connection(connection("https://user:secret@indexer.test", &[3030]))
+        .await;
+
+    assert!(matches!(reply.outcome, SettingsOutcome::Rejected { .. }));
+    assert_eq!(reply.snapshot.settings, before.settings);
+    assert_eq!(
+        rig.settings.indexer_connection(),
+        IndexerConnection::default()
+    );
+}
+
+#[tokio::test]
+async fn a_damaged_indexer_unit_is_reported_until_the_next_accepted_change() {
+    let rig = start_from_file(
+        "[indexer]\nurl = \"https://user:secret@indexer.test\"\ncategories = [3030]\n",
+    );
+    let recovery = rig.settings.snapshot().await.recovery.expect("reported");
+    assert_eq!(recovery.reset, vec![SettingsUnit::IndexerConnection]);
+    assert_eq!(
+        rig.settings.indexer_connection(),
+        IndexerConnection::default()
+    );
+
+    let reply = rig
+        .send_connection(connection("https://indexer.test", &[3000]))
+        .await;
+
+    assert_eq!(reply.snapshot.recovery, None);
+}
+
+#[tokio::test]
+async fn reset_returns_the_indexer_connection_to_its_default() {
+    let rig = start();
+    rig.send_connection(connection("https://indexer.test", &[3030]))
+        .await;
+
+    let reply = rig.send(SettingsIntent::Reset).await;
+
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert_eq!(
+        rig.settings.indexer_connection(),
+        IndexerConnection::default()
+    );
+    assert_eq!(
+        rig.on_disk().indexer_connection,
+        IndexerConnection::default()
+    );
 }

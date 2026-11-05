@@ -205,6 +205,24 @@ describe('AppSettingsDialogView', () => {
 		expect(audiobooks).toBeChecked();
 	});
 
+	it('shows the saved Indexer URL and categories from the engine snapshot', async () => {
+		await renderOpenDialog((fake) =>
+			fake.change((state) => {
+				Object.assign(state.remote.connection, {
+					baseUrl: 'https://prowlarr.example.com',
+					categoryIds: [3030],
+				});
+			}),
+		);
+
+		await vi.waitFor(() =>
+			expect(screen.getByLabelText('URL')).toHaveValue('https://prowlarr.example.com'),
+		);
+		expect(screen.getByTestId('app-settings-indexer-category')).toHaveTextContent(
+			'Audiobooks (3030)',
+		);
+	});
+
 	it('recommends HTTPS while keeping an explicit HTTP connection usable', async () => {
 		const r = await renderOpenDialog((fake) =>
 			fake.change((state) => {

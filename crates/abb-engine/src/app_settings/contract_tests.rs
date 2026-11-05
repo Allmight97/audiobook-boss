@@ -15,6 +15,10 @@ fn chosen_settings() -> AppSettings {
         max_concurrent_jobs: ConcurrencyPreference::Fixed(2),
         default_acquisition_lane: AcquisitionLane::Indexer,
         aac_decoder: AacDecoder::Faad,
+        indexer_connection: IndexerConnection {
+            base_url: Some("https://prowlarr.example.com".to_string()),
+            category_ids: vec![3030, 3040],
+        },
         encoder_defaults: EncoderDefaults {
             format: AudiobookFormat::Mp3,
             intent: AudioIntent::Encode,
@@ -87,6 +91,7 @@ fn remember_last_state_settings() -> AppSettings {
         max_concurrent_jobs: ConcurrencyPreference::Auto,
         default_acquisition_lane: AcquisitionLane::Audible,
         aac_decoder: AacDecoder::Auto,
+        indexer_connection: IndexerConnection::default(),
         encoder_defaults: encoder(
             AudiobookFormat::M4b,
             AudioIntent::Encode,
@@ -115,6 +120,7 @@ fn apple_aac_and_opus_settings() -> AppSettings {
         max_concurrent_jobs: ConcurrencyPreference::Fixed(4),
         default_acquisition_lane: AcquisitionLane::Audible,
         aac_decoder: AacDecoder::Auto,
+        indexer_connection: IndexerConnection::default(),
         encoder_defaults: encoder(
             AudiobookFormat::M4b,
             AudioIntent::Encode,
@@ -159,6 +165,7 @@ fn native_aac_settings() -> AppSettings {
         max_concurrent_jobs: ConcurrencyPreference::Fixed(1),
         default_acquisition_lane: AcquisitionLane::Indexer,
         aac_decoder: AacDecoder::Auto,
+        indexer_connection: IndexerConnection::default(),
         encoder_defaults: encoder(
             AudiobookFormat::M4b,
             AudioIntent::Auto,
@@ -201,15 +208,24 @@ fn native_aac_settings() -> AppSettings {
 fn every_sample_settings_file_loads_every_choice_it_holds() {
     let samples = [
         (
-            "settings-aac-decoder.toml",
-            include_str!("samples/settings-aac-decoder.toml"),
+            "indexer-connection.toml",
+            include_str!("samples/indexer-connection.toml"),
             chosen_settings(),
+        ),
+        (
+            "settings-aac-decoder.toml (saved before the Indexer connection)",
+            include_str!("samples/settings-aac-decoder.toml"),
+            AppSettings {
+                indexer_connection: IndexerConnection::default(),
+                ..chosen_settings()
+            },
         ),
         (
             "settings.toml (saved before the AAC decoder setting)",
             include_str!("samples/settings.toml"),
             AppSettings {
                 aac_decoder: AacDecoder::Auto,
+                indexer_connection: IndexerConnection::default(),
                 ..chosen_settings()
             },
         ),
@@ -256,7 +272,7 @@ fn no_file_loads_as_defaults() {
 }
 
 fn sample_edited(from: &str, to: &str) -> String {
-    let sample = include_str!("samples/settings-aac-decoder.toml");
+    let sample = include_str!("samples/indexer-connection.toml");
     assert!(sample.contains(from), "the sample holds {from}");
     sample.replace(from, to)
 }
@@ -315,6 +331,35 @@ fn a_retired_encoder_resets_only_the_encoder_defaults() {
         loaded.settings,
         AppSettings {
             encoder_defaults: EncoderDefaults::default(),
+            ..chosen_settings()
+        }
+    );
+}
+
+#[test]
+fn an_indexer_url_with_credentials_resets_only_the_indexer_connection() {
+    let loaded = load_sample_edited(
+        "https://prowlarr.example.com",
+        "https://user:secret@prowlarr.example.com",
+    );
+    assert_eq!(loaded.reset, vec![SettingsUnit::IndexerConnection]);
+    assert_eq!(
+        loaded.settings,
+        AppSettings {
+            indexer_connection: IndexerConnection::default(),
+            ..chosen_settings()
+        }
+    );
+}
+
+#[test]
+fn an_indexer_without_categories_resets_only_the_indexer_connection() {
+    let loaded = load_sample_edited("categories = [3030, 3040]", "categories = []");
+    assert_eq!(loaded.reset, vec![SettingsUnit::IndexerConnection]);
+    assert_eq!(
+        loaded.settings,
+        AppSettings {
+            indexer_connection: IndexerConnection::default(),
             ..chosen_settings()
         }
     );
@@ -501,4 +546,53 @@ fn a_blank_output_folder_means_no_folder() {
         })
         .expect("blank folder accepted");
     assert_eq!(settings.output_defaults.output_directory, None);
+}
+
+fn indexer_patch(base_url: Option<&str>, category_ids: &[u32]) -> AppSettingsPatch {
+    AppSettingsPatch {
+        indexer_connection: Some(IndexerConnection {
+            base_url: base_url.map(str::to_string),
+            category_ids: category_ids.to_vec(),
+        }),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn an_indexer_url_is_kept_in_one_form_and_one_with_credentials_is_refused() {
+    let settings = AppSettings::default()
+        .merge(indexer_patch(Some(" http://one.test/proxy/ "), &[3030]))
+        .expect("url accepted");
+    assert_eq!(
+        settings.indexer_connection.base_url.as_deref(),
+        Some("http://one.test/proxy")
+    );
+    let blank = AppSettings::default()
+        .merge(indexer_patch(Some("  "), &[3030]))
+        .expect("a blank url means none");
+    assert_eq!(blank.indexer_connection.base_url, None);
+
+    for url in [
+        "https://user:password@indexer.test",
+        "http://user@indexer.test:9696",
+        "https://:password@indexer.test",
+    ] {
+        let message = rejection(indexer_patch(Some(url), &[3030]));
+        assert!(message.contains("must not contain credentials"));
+        assert!(!message.contains(url));
+    }
+    assert!(
+        rejection(indexer_patch(Some("ftp://indexer.test"), &[3030])).contains("http or https")
+    );
+}
+
+#[test]
+fn indexer_categories_are_sorted_without_repeats_and_never_empty() {
+    let settings = AppSettings::default()
+        .merge(indexer_patch(None, &[3040, 3030, 3030, 0]))
+        .expect("categories accepted");
+    assert_eq!(settings.indexer_connection.category_ids, [3030, 3040]);
+
+    assert!(rejection(indexer_patch(None, &[])).contains("at least one Indexer category"));
+    assert!(rejection(indexer_patch(None, &[0])).contains("at least one Indexer category"));
 }

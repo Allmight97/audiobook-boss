@@ -77,6 +77,7 @@ export function defaultAppSettings(): AppSettings {
 		startupBehavior: 'rememberLastState',
 		defaultAcquisitionLane: 'audible',
 		aacDecoder: 'auto',
+		indexerConnection: { categoryIds: [3000, 3030] },
 	};
 }
 

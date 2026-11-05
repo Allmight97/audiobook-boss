@@ -8,7 +8,10 @@ default the session records reaches hosts as `EngineEvent::Settings`.
 ## Public API Strip
 
 - The strip is the `pub use` list in `mod.rs`: intent and snapshot types plus
-  the setting types.
+  the setting types. Crate-visible beyond it: `normalize_base_url`,
+  `IndexerConnection::validate`, and `SettingsRuntime::indexer_connection`
+  and `set_indexer_connection`, so `remote_source` applies the saved rules to
+  the typed Indexer draft and Saves through one settings turn.
 - `SettingsRuntime` is engine-internal. Load and save are private to this
   module, so every write goes through the runtime.
 
@@ -40,6 +43,12 @@ default the session records reaches hosts as `EngineEvent::Settings`.
 - `aac_decoder` takes effect for imports and submissions accepted after it;
   the session reads it at those points (`SettingsRuntime::aac_decoder`). It is
   not part of pinned defaults.
+- The Indexer URL and categories (`indexer_connection`) are one unit read
+  synchronously at use (`SettingsRuntime::indexer_connection`) and not part of
+  pinned defaults. Only the remote UI's Save changes them
+  (`SettingsRuntime::set_indexer_connection`, no `SettingsIntent`), because the
+  same Save moves the API key. Reset returns them to their defaults; the key
+  stays in the credential store under the old URL.
 
 ## Storage
 

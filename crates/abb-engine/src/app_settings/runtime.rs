@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     storage, AcquisitionLane, AppSettings, AppSettingsPatch, ConcurrencyPreference,
-    EncoderDefaults, OutputDefaults, PinnedDefaults, SettingsRecovery, SettingsUnit,
-    StartupBehavior,
+    EncoderDefaults, IndexerConnection, OutputDefaults, PinnedDefaults, SettingsRecovery,
+    SettingsUnit, StartupBehavior,
 };
 use crate::audio::AacDecoder;
 use crate::errors::{AppError, AppErrorEnvelope};
@@ -116,9 +116,15 @@ struct Inner {
     jobs: ManagedJobRegistry,
     power: PowerManager,
     aac_decoder: Mutex<AacDecoder>,
+    indexer_connection: Mutex<IndexerConnection>,
     state: tokio::sync::Mutex<State>,
     /// Completion of the last accepted intent, independent of host waits.
     turn: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
+}
+
+enum Change {
+    Intent(SettingsIntent),
+    IndexerConnection(IndexerConnection),
 }
 
 #[derive(Default)]
@@ -206,6 +212,7 @@ impl SettingsRuntime {
         state.recovery =
             (!recovery.reset.is_empty() || recovery.set_aside_as.is_some()).then_some(recovery);
         let aac_decoder = Mutex::new(accepted.aac_decoder);
+        let indexer_connection = Mutex::new(accepted.indexer_connection.clone());
         state.accepted = accepted;
         let runtime = Self {
             inner: Arc::new(Inner {
@@ -213,6 +220,7 @@ impl SettingsRuntime {
                 jobs: Arc::clone(&jobs),
                 power,
                 aac_decoder,
+                indexer_connection,
                 state: tokio::sync::Mutex::new(state),
                 turn: Mutex::default(),
             }),
@@ -227,6 +235,15 @@ impl SettingsRuntime {
             .aac_decoder
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The Indexer server and categories in effect now.
+    pub(crate) fn indexer_connection(&self) -> IndexerConnection {
+        self.inner
+            .indexer_connection
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     pub(crate) async fn snapshot(&self) -> SettingsSnapshot {
@@ -254,7 +271,17 @@ impl SettingsRuntime {
         intent: SettingsIntent,
         tasks: &crate::engine::EngineTasks,
     ) -> SettingsRun {
-        self.enqueue(intent, None, tasks)
+        self.enqueue(Change::Intent(intent), None, tasks)
+    }
+
+    /// Reserves the turn for an Indexer Save. It is not a `SettingsIntent`:
+    /// only the Save that also moves the API key may change the connection.
+    pub(crate) fn set_indexer_connection(
+        &self,
+        connection: IndexerConnection,
+        tasks: &crate::engine::EngineTasks,
+    ) -> SettingsRun {
+        self.enqueue(Change::IndexerConnection(connection), None, tasks)
     }
 
     pub(crate) fn remember_output_after_pause(
@@ -265,11 +292,11 @@ impl SettingsRuntime {
     ) -> SettingsRun {
         let revision = latest.load(std::sync::atomic::Ordering::SeqCst);
         self.enqueue(
-            SettingsIntent::Remember {
+            Change::Intent(SettingsIntent::Remember {
                 encoder_defaults: None,
                 output_defaults: Some(output),
                 default_acquisition_lane: None,
-            },
+            }),
             Some((
                 latest,
                 revision,
@@ -281,7 +308,7 @@ impl SettingsRuntime {
 
     fn enqueue(
         &self,
-        intent: SettingsIntent,
+        change: Change,
         pause: Option<(Arc<std::sync::atomic::AtomicU64>, u64, tokio::time::Instant)>,
         tasks: &crate::engine::EngineTasks,
     ) -> SettingsRun {
@@ -309,7 +336,7 @@ impl SettingsRuntime {
                     snapshot: settings.snapshot().await,
                 }
             } else {
-                settings.apply_ordered(intent).await
+                settings.apply_ordered(change).await
             };
             let _ = done.send(());
             reply
@@ -320,9 +347,21 @@ impl SettingsRuntime {
         }
     }
 
-    async fn apply_ordered(&self, intent: SettingsIntent) -> SettingsReply {
+    async fn apply_ordered(&self, change: Change) -> SettingsReply {
         let mut state = self.inner.state.lock().await;
-        let outcome = self.apply(&mut state, intent).await;
+        let outcome = match change {
+            Change::Intent(intent) => self.apply(&mut state, intent).await,
+            Change::IndexerConnection(connection) => {
+                self.accept(
+                    &mut state,
+                    AppSettingsPatch {
+                        indexer_connection: Some(connection),
+                        ..Default::default()
+                    },
+                )
+                .await
+            }
+        };
         state.revision += 1;
         SettingsReply {
             outcome,
@@ -452,6 +491,11 @@ impl SettingsRuntime {
             .aac_decoder
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = state.accepted.aac_decoder;
+        *self
+            .inner
+            .indexer_connection
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = state.accepted.indexer_connection.clone();
     }
 
     /// Asks the scheduler to accept the change before recording it. A fixed
