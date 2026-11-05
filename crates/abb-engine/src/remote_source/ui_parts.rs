@@ -179,23 +179,6 @@ impl RemoteSourceRuntime {
         }
     }
     #[cfg(test)]
-    pub(crate) fn ui_parts(
-        &self,
-        since: Option<RemoteRevisions>,
-    ) -> (
-        Option<RemoteUiSnapshot>,
-        Option<RemoteLibrarySnapshot>,
-        Option<RemoteAcquisitionSnapshot>,
-    ) {
-        let mut update = crate::session::SessionUpdate::default();
-        self.add_ui_parts(&mut update, since);
-        (
-            update.remote,
-            update.remote_library,
-            update.remote_acquisition,
-        )
-    }
-    #[cfg(test)]
     pub(crate) fn ui_snapshot(&self) -> RemoteUiSnapshot {
         self.ui().snapshot()
     }

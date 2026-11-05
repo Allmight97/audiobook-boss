@@ -678,7 +678,6 @@ async fn helper_accepts(
 ) -> Result<(), AppError> {
     let root = TempDir::new().expect("materialize root");
     let output = root.path().join("book.m4b");
-    let partial = root.path().join("book.m4b.partial");
     let materializer = AaxcleanMaterializer::new_for_helper(None);
     materializer
         .materialize(
@@ -687,7 +686,6 @@ async fn helper_accepts(
                 operation_id: "decrypt-op".into(),
                 lane,
                 input_path: input,
-                output_temp_path: partial,
                 output_path: output,
                 secret,
             },
@@ -934,7 +932,6 @@ async fn cancel_kills_the_helper_and_leaves_no_output() {
                 operation_id: "decrypt-cancel-op".into(),
                 lane: AaxcleanLane::Aaxc,
                 input_path: books.aaxc.clone(),
-                output_temp_path: partial.clone(),
                 output_path: output.clone(),
                 secret: aaxc_secret(),
             },

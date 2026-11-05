@@ -18,25 +18,9 @@ pub(crate) struct ProvisionalCommittedFile {
 impl StagedTempFile {
     pub(crate) fn new(final_path: impl Into<PathBuf>) -> Self {
         let final_path = final_path.into();
-        let partial_path = partial_sibling(&final_path);
-        Self::from_paths(final_path, partial_path)
-    }
-
-    pub(crate) fn with_partial(
-        final_path: impl Into<PathBuf>,
-        partial_path: impl Into<PathBuf>,
-    ) -> Self {
-        Self::from_paths(final_path.into(), partial_path.into())
-    }
-
-    fn from_paths(final_path: PathBuf, partial_path: PathBuf) -> Self {
-        debug_assert_ne!(
-            final_path, partial_path,
-            "StagedTempFile final and partial paths must be distinct"
-        );
         Self {
+            partial_path: partial_sibling(&final_path),
             final_path,
-            partial_path,
             prepared: false,
         }
     }
@@ -59,7 +43,6 @@ impl StagedTempFile {
         if is_cancelled() {
             return Err(AppError::cancelled());
         }
-        ensure_same_parent(&self.partial_path, &self.final_path)?;
         if !tokio::fs::try_exists(&self.partial_path)
             .await
             .map_err(|error| {
@@ -106,9 +89,7 @@ impl ProvisionalCommittedFile {
 
 impl Drop for StagedTempFile {
     fn drop(&mut self) {
-        if self.partial_path != self.final_path {
-            let _ = remove_if_present(&self.partial_path);
-        }
+        let _ = remove_if_present(&self.partial_path);
     }
 }
 
@@ -139,21 +120,6 @@ pub(crate) fn remove_if_present(path: &Path) -> std::io::Result<()> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),
     }
-}
-
-fn ensure_same_parent(partial: &Path, final_path: &Path) -> Result<()> {
-    let partial_parent = partial.parent().ok_or_else(|| {
-        AppError::General("Staged partial path has no parent directory.".to_string())
-    })?;
-    let final_parent = final_path.parent().ok_or_else(|| {
-        AppError::General("Staged final path has no parent directory.".to_string())
-    })?;
-    if partial_parent != final_parent {
-        return Err(AppError::General(
-            "Staged partial and final paths must share the same parent directory.".to_string(),
-        ));
-    }
-    Ok(())
 }
 
 #[cfg(test)]

@@ -1,5 +1,16 @@
 use super::*;
 
+#[derive(Default)]
+struct Updates(std::sync::Mutex<Vec<crate::session::SessionUpdate>>);
+
+impl crate::EventSink for Updates {
+    fn emit(&self, event: crate::EngineEvent) {
+        if let crate::EngineEvent::Session(update) = event {
+            self.0.lock().expect("updates").push(update);
+        }
+    }
+}
+
 #[test]
 fn acquisition_choices_enforce_availability_and_preserve_explicit_pdf_choice_on_refresh() {
     let mut ui = UiState::default();
@@ -46,15 +57,6 @@ fn acquisition_choices_enforce_availability_and_preserve_explicit_pdf_choice_on_
 
 #[test]
 fn attaching_during_an_accepted_acquisition_retains_library_without_resending_it_on_progress() {
-    #[derive(Default)]
-    struct Updates(std::sync::Mutex<Vec<crate::session::SessionUpdate>>);
-    impl crate::EventSink for Updates {
-        fn emit(&self, event: crate::EngineEvent) {
-            if let crate::EngineEvent::Session(update) = event {
-                self.0.lock().expect("events").push(update);
-            }
-        }
-    }
     let root = tempfile::TempDir::new().expect("temp dir");
     let updates = std::sync::Arc::new(Updates::default());
     let runtime =
@@ -73,7 +75,13 @@ fn attaching_during_an_accepted_acquisition_retains_library_without_resending_it
         .ui()
         .begin(RemoteUiIntent::AcquireSelected)
         .expect("accept acquisition");
-    let (remote, library, acquisition) = runtime.ui_parts(None);
+    let mut attached = crate::session::SessionUpdate::default();
+    runtime.add_ui_parts(&mut attached, None);
+    let (remote, library, acquisition) = (
+        attached.remote,
+        attached.remote_library,
+        attached.remote_acquisition,
+    );
     assert!(remote.is_some());
     assert!(acquisition.expect("attached acquisition").acquiring);
     assert_eq!(
@@ -92,12 +100,17 @@ fn attaching_during_an_accepted_acquisition_retains_library_without_resending_it
     );
     updates.0.lock().expect("events").clear();
     let since = runtime.ui_revisions();
-    runtime.inner.lifecycle.mark_job_failed(
-        "progress-job",
-        ProviderId::Audible,
-        "fixture failure".into(),
+    runtime
+        .inner
+        .lifecycle
+        .mark_job_failed("progress-job", "fixture failure".into());
+    let mut changed = crate::session::SessionUpdate::default();
+    runtime.add_ui_parts(&mut changed, Some(since));
+    let (remote, library, acquisition) = (
+        changed.remote,
+        changed.remote_library,
+        changed.remote_acquisition,
     );
-    let (remote, library, acquisition) = runtime.ui_parts(Some(since));
     assert!(remote.is_none());
     assert!(library.is_none());
     assert!(acquisition.expect("changed acquisition").job.is_some());
@@ -169,15 +182,6 @@ fn a_title_level_license_failure_leaves_the_account_connected() {
 /// Bytes of each session update a download sends, for a library of `count` titles.
 fn download_update_bytes(count: usize) -> Vec<(bool, bool, bool, usize)> {
     use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
-    #[derive(Default)]
-    struct Updates(std::sync::Mutex<Vec<crate::session::SessionUpdate>>);
-    impl crate::EventSink for Updates {
-        fn emit(&self, event: crate::EngineEvent) {
-            if let crate::EngineEvent::Session(update) = event {
-                self.0.lock().expect("updates").push(update);
-            }
-        }
-    }
     let root = tempfile::TempDir::new().expect("temp dir");
     let updates = std::sync::Arc::new(Updates::default());
     let runtime =

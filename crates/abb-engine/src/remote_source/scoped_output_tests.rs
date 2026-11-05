@@ -16,18 +16,6 @@ fn drop_removes_the_partial() {
 }
 
 #[test]
-fn with_partial_uses_explicit_temp_path() {
-    let root = TempDir::new().expect("temp root");
-    let final_path = root.path().join("out.m4b");
-    let temp_path = root.path().join("out.m4b.partial");
-    std::fs::write(&temp_path, b"temp").expect("write temp");
-    {
-        let _staged = StagedTempFile::with_partial(&final_path, &temp_path);
-    }
-    assert!(!temp_path.exists());
-}
-
-#[test]
 fn no_extension_partial_is_named_partial() {
     let staged = StagedTempFile::new(Path::new("/tmp/source"));
     assert_eq!(staged.partial_path(), Path::new("/tmp/source.partial"));
@@ -102,33 +90,6 @@ async fn rename_and_commit_errors_when_partial_missing_before_commit() {
     );
 }
 
-#[tokio::test]
-async fn rename_and_commit_rejects_cross_parent_partial_and_final() {
-    let root = TempDir::new().expect("temp root");
-    let final_dir = root.path().join("final");
-    let partial_dir = root.path().join("staging");
-    std::fs::create_dir_all(&final_dir).expect("final dir");
-    std::fs::create_dir_all(&partial_dir).expect("partial dir");
-    let final_path = final_dir.join("book.m4b");
-    let partial_path = partial_dir.join("book.m4b.partial");
-
-    let staged = StagedTempFile::with_partial(&final_path, &partial_path);
-    let error = staged
-        .rename_and_commit(|| false)
-        .await
-        .expect_err("a cross-parent staged write must be rejected");
-
-    assert!(
-        matches!(&error, AppError::General(message)
-            if message == "Staged partial and final paths must share the same parent directory."),
-        "unexpected error: {error:?}"
-    );
-    assert!(
-        !final_path.exists(),
-        "no final file may appear on a rejected commit"
-    );
-}
-
 #[test]
 fn provisional_committed_file_drops_unless_permanent() {
     let root = TempDir::new().expect("temp root");
@@ -146,16 +107,6 @@ fn provisional_committed_file_drops_unless_permanent() {
         guard.permanent();
     }
     assert!(path.exists());
-}
-
-#[cfg(debug_assertions)]
-#[test]
-#[should_panic(expected = "StagedTempFile final and partial paths must be distinct")]
-fn with_partial_rejects_matching_paths_in_debug() {
-    let root = TempDir::new().expect("temp root");
-    let final_path = root.path().join("out.m4b");
-
-    let _staged = StagedTempFile::with_partial(&final_path, &final_path);
 }
 
 #[cfg(unix)]

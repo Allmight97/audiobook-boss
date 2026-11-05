@@ -1,43 +1,7 @@
 use super::*;
-use secrecy::SecretString;
-use tempfile::TempDir;
-
+use crate::remote_source::tests::MemoryVault;
 use secrecy::ExposeSecret;
-use std::collections::HashMap;
-use std::sync::Mutex;
-
-#[derive(Default)]
-struct TestVault {
-    secrets: Mutex<HashMap<String, SecretString>>,
-    reads: Mutex<usize>,
-    fail_writes: bool,
-}
-
-impl SecretVault for TestVault {
-    fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
-        *self.reads.lock().expect("read counter lock") += 1;
-        Ok(self
-            .secrets
-            .lock()
-            .expect("test vault lock")
-            .get(key)
-            .cloned())
-    }
-    fn set_secret(&self, key: &str, value: SecretString) -> Result<()> {
-        if self.fail_writes {
-            return Err(AppError::General("vault unavailable".to_string()));
-        }
-        self.secrets
-            .lock()
-            .expect("test vault lock")
-            .insert(key.to_string(), value);
-        Ok(())
-    }
-    fn delete_secret(&self, key: &str) -> Result<()> {
-        self.secrets.lock().expect("test vault lock").remove(key);
-        Ok(())
-    }
-}
+use tempfile::TempDir;
 
 fn update(url: Option<&str>, key: Option<&str>) -> RemoteIndexerConnectionUpdate {
     RemoteIndexerConnectionUpdate {
@@ -49,21 +13,9 @@ fn update(url: Option<&str>, key: Option<&str>) -> RemoteIndexerConnectionUpdate
 }
 
 #[test]
-fn missing_connection_file_returns_defaults() {
-    let temp = TempDir::new().expect("temp dir");
-    let vault = TestVault::default();
-
-    let connection = get_connection(temp.path(), &vault).expect("connection");
-
-    assert_eq!(connection.base_url, None);
-    assert_eq!(connection.category_ids, vec![3000, 3030]);
-    assert!(!connection.api_key_configured);
-}
-
-#[test]
 fn rejects_url_credentials_before_saving_or_testing() {
     let temp = TempDir::new().expect("temp dir");
-    let vault = TestVault::default();
+    let vault = MemoryVault::default();
     let saved = update_connection(
         temp.path(),
         &vault,
@@ -95,26 +47,26 @@ fn rejects_url_credentials_before_saving_or_testing() {
 #[test]
 fn configured_request_resolves_the_saved_host_key_once() {
     let temp = TempDir::new().expect("temp dir");
-    let vault = TestVault::default();
+    let vault = MemoryVault::default();
     update_connection(
         temp.path(),
         &vault,
         update(Some("https://indexer.test/proxy/"), Some("saved-key")),
     )
     .expect("save connection");
-    *vault.reads.lock().expect("read counter lock") = 0;
+    vault.reads.store(0, std::sync::atomic::Ordering::SeqCst);
 
     let connection = configured_connection(temp.path(), &vault).expect("resolve connection");
     assert_eq!(connection.base_url, "https://indexer.test/proxy");
     assert_eq!(connection.category_ids, [3000, 3030]);
     assert_eq!(connection.api_key.expose_secret(), "saved-key");
-    assert_eq!(*vault.reads.lock().expect("read counter lock"), 1);
+    assert_eq!(vault.reads.load(std::sync::atomic::Ordering::SeqCst), 1);
 }
 
 #[test]
 fn a_stored_url_with_credentials_is_never_exposed_or_used() {
     let temp = TempDir::new().expect("temp dir");
-    let vault = TestVault::default();
+    let vault = MemoryVault::default();
     std::fs::write(
         connection_path(temp.path()),
         "url = \"https://user:old-password@indexer.test\"\ncategories = [3030]\n",
@@ -125,21 +77,19 @@ fn a_stored_url_with_credentials_is_never_exposed_or_used() {
     assert_eq!(connection.base_url, None);
     assert!(draft_credentials(temp.path(), &vault, update(None, Some("api-key"))).is_err());
     assert!(configured_connection(temp.path(), &vault).is_err());
-    assert_eq!(*vault.reads.lock().expect("read counter lock"), 0);
+    assert_eq!(vault.reads.load(std::sync::atomic::Ordering::SeqCst), 0);
 }
 
 #[test]
 fn saves_exactly_the_chosen_categories_and_refuses_none() {
     let temp = TempDir::new().expect("temp dir");
-    let vault = TestVault::default();
-    assert_eq!(
-        get_connection(temp.path(), &vault)
-            .expect("defaults")
-            .category_ids,
-        [3000, 3030]
-    );
+    let vault = MemoryVault::default();
+    let defaults = get_connection(temp.path(), &vault).expect("defaults");
+    assert_eq!(defaults.category_ids, [3000, 3030]);
+    assert_eq!(defaults.base_url, None);
+    assert!(!defaults.api_key_configured);
     let mut change = update(None, None);
-    change.category_ids = Some(vec![3030]);
+    change.category_ids = Some(vec![3040, 3030, 3030]);
     update_connection(temp.path(), &vault, change).expect("save categories");
     let mut empty = update(None, None);
     empty.category_ids = Some(Vec::new());
@@ -148,35 +98,23 @@ fn saves_exactly_the_chosen_categories_and_refuses_none() {
         get_connection(temp.path(), &vault)
             .expect("reload")
             .category_ids,
-        [3030]
+        [3030, 3040]
     );
-}
 
-#[test]
-fn persists_multiple_category_ids() {
-    let temp = TempDir::new().expect("temp dir");
-    let vault = TestVault::default();
-
-    update_connection(
-        temp.path(),
-        &vault,
-        RemoteIndexerConnectionUpdate {
-            base_url: Some("http://192.0.2.20:9696".to_string()),
-            category_ids: Some(vec![3000, 3030, 3030]),
-            api_key: None,
-            clear_api_key: None,
-        },
+    std::fs::write(
+        connection_path(temp.path()),
+        "url = \"http://indexer.test\"\ncategories = []\n",
     )
-    .expect("update");
-
-    let connection = get_connection(temp.path(), &vault).expect("connection");
-    assert_eq!(connection.category_ids, vec![3000, 3030]);
+    .expect("write connection");
+    let reloaded = get_connection(temp.path(), &vault).expect("reload");
+    assert_eq!(reloaded.category_ids, [3000, 3030]);
+    assert_eq!(reloaded.base_url.as_deref(), Some("http://indexer.test"));
 }
 
 #[test]
 fn keys_are_write_only_host_scoped_and_clearable() {
     let temp = TempDir::new().expect("temporary config directory");
-    let vault = TestVault::default();
+    let vault = MemoryVault::default();
     let saved = update_connection(
         temp.path(),
         &vault,
@@ -213,7 +151,7 @@ fn keys_are_write_only_host_scoped_and_clearable() {
 #[test]
 fn draft_test_uses_current_host_key_without_writes() {
     let temp = TempDir::new().expect("temporary config directory");
-    let vault = TestVault::default();
+    let vault = MemoryVault::default();
     update_connection(
         temp.path(),
         &vault,
@@ -248,7 +186,7 @@ fn draft_test_uses_current_host_key_without_writes() {
 #[test]
 fn failed_settings_save_does_not_change_any_host_key() {
     let temp = TempDir::new().expect("temporary config directory");
-    let vault = TestVault::default();
+    let vault = MemoryVault::default();
     update_connection(
         temp.path(),
         &vault,
@@ -296,14 +234,14 @@ fn failed_settings_save_does_not_change_any_host_key() {
 #[test]
 fn vault_failure_reports_partial_settings_save_without_cross_host_key() {
     let temp = TempDir::new().expect("temporary config directory");
-    let vault = TestVault::default();
+    let vault = MemoryVault::default();
     update_connection(
         temp.path(),
         &vault,
         update(Some("http://old.test"), Some("old-key")),
     )
     .expect("save baseline connection");
-    let vault = TestVault {
+    let vault = MemoryVault {
         fail_writes: true,
         ..vault
     };

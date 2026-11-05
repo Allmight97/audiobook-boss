@@ -30,7 +30,6 @@ pub(in crate::remote_source) struct MaterializationRequest {
     pub operation_id: String,
     pub lane: AaxcleanLane,
     pub input_path: PathBuf,
-    pub output_temp_path: PathBuf,
     pub output_path: PathBuf,
     pub secret: AaxcleanSecret,
 }
@@ -81,11 +80,6 @@ impl AaxcleanMaterializer {
         Self::new(helper_path.unwrap_or_else(resolve_helper_path))
     }
 
-    #[cfg(test)]
-    pub(in crate::remote_source) fn for_tests() -> Self {
-        Self::new(PathBuf::from(HELPER_NAME))
-    }
-
     fn new(helper_path: PathBuf) -> Self {
         Self {
             helper_path: Arc::new(helper_path),
@@ -109,10 +103,7 @@ impl AaxcleanMaterializer {
     ) -> Result<PathBuf> {
         ensure_not_cancelled(&is_cancelled)?;
         ensure_helper_available(&self.helper_path)?;
-        let mut outputs = StagedTempFile::with_partial(
-            request.output_path.clone(),
-            request.output_temp_path.clone(),
-        );
+        let mut outputs = StagedTempFile::new(request.output_path.clone());
         outputs.prepare()?;
         log::info!(
             "remote_source materializer stage=materializer_start job_id={} operation_id={} lane={}",
@@ -140,7 +131,7 @@ impl AaxcleanMaterializer {
             .stdin
             .take()
             .ok_or_else(|| materializer_failure("helper stdin"))?;
-        let request_json = helper_request_json(&request)?;
+        let request_json = helper_request_json(&request, outputs.partial_path())?;
         stdin
             .write_all(request_json.as_bytes())
             .await
@@ -384,54 +375,15 @@ fn push_dev_sidecar_candidates(base: &Path, candidates: &mut Vec<PathBuf>) {
 }
 
 #[cfg(test)]
-fn make_executable(path: &Path) {
-    std::fs::write(path, b"helper").expect("write executable fixture");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut permissions = std::fs::metadata(path)
-            .expect("executable metadata")
-            .permissions();
-        permissions.set_mode(0o755);
-        std::fs::set_permissions(path, permissions).expect("chmod executable fixture");
-    }
-}
-
-#[cfg(test)]
-fn repo_sidecar_path(root: &Path) -> PathBuf {
-    root.join("src-tauri")
-        .join("binaries")
-        .join(HELPER_SIDECAR_FILE)
-}
-
-#[cfg(test)]
-fn target_debug_exe_path(root: &Path) -> PathBuf {
-    root.join("target").join("debug").join("audiobook-boss")
-}
-
-#[cfg(test)]
-fn packaged_exe_path(root: &Path) -> PathBuf {
-    root.join("AudioBook Boss.app")
-        .join("Contents")
-        .join("MacOS")
-        .join("audiobook-boss")
-}
-
-#[cfg(test)]
-fn packaged_helper_path(root: &Path) -> PathBuf {
-    root.join("AudioBook Boss.app")
-        .join("Contents")
-        .join("MacOS")
-        .join(HELPER_NAME)
-}
-
-#[cfg(test)]
 #[path = "materializer_helper_path_tests.rs"]
 mod helper_path_tests;
 
-fn helper_request_json(request: &MaterializationRequest) -> Result<String> {
+fn helper_request_json(
+    request: &MaterializationRequest,
+    output_temp_path: &Path,
+) -> Result<String> {
     let input_path = path_to_helper_string(&request.input_path)?;
-    let output_temp_path = path_to_helper_string(&request.output_temp_path)?;
+    let output_temp_path = path_to_helper_string(output_temp_path)?;
     let lane = match request.lane {
         AaxcleanLane::Aax => "aax",
         AaxcleanLane::Aaxc => "aaxc",

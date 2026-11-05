@@ -201,7 +201,6 @@ pub struct AcquisitionSelection {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AcquisitionPlan {
-    pub provider_id: ProviderId,
     pub selections: Vec<AcquisitionSelection>,
 }
 

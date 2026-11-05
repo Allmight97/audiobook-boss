@@ -89,6 +89,10 @@ async fn leftover_downloads_that_cannot_be_removed_do_not_stop_abb_from_starting
     .expect("ABB starts and leaves the folder in place");
 
     assert!(outside.join("kept").exists());
+    assert!(fs::symlink_metadata(&sessions)
+        .expect("sessions root")
+        .file_type()
+        .is_symlink());
     assert_eq!(engine.shutdown().await, ShutdownOutcome::Settled);
 }
 

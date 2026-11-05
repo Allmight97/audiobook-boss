@@ -689,7 +689,6 @@ impl UiState {
         }
         self.set_acquisition(|acquisition| acquisition.acquiring = true);
         Ok(UiAction::Acquire(AcquisitionPlan {
-            provider_id: ProviderId::Audible,
             selections: self
                 .snapshot
                 .selected_title_ids

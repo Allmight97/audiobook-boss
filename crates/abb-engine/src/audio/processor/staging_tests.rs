@@ -94,3 +94,23 @@ fn cleanup_refuses_symlink_session() {
     );
     assert!(target.exists(), "target must not be removed");
 }
+
+#[cfg(unix)]
+#[test]
+fn startup_refuses_a_symlinked_workspace_root() {
+    let cache = TempDir::new().expect("cache");
+    let target = cache.path().join("elsewhere");
+    let workspace_root = cache.path().join("sessions");
+    std::fs::create_dir_all(target.join("kept")).expect("target");
+    std::os::unix::fs::symlink(&target, &workspace_root).expect("symlink");
+
+    let error =
+        cleanup_abandoned_processing_sessions(&workspace_root).expect_err("symlinked root refused");
+
+    assert!(error.to_string().contains("symlink"), "{error}");
+    assert!(target.join("kept").exists());
+    assert!(std::fs::symlink_metadata(&workspace_root)
+        .expect("workspace root")
+        .file_type()
+        .is_symlink());
+}

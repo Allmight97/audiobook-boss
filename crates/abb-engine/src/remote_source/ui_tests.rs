@@ -101,73 +101,46 @@ fn connection_readback_and_old_tests_cannot_erase_newer_drafts_or_expose_the_key
     assert!(!json.contains("secret"));
     assert!(!format!("{:?}", edit(Some("secret"))).contains("secret"));
 }
-#[test]
-fn batch_captures_both_indexer_identities_refuses_save_and_retains_retryable_failures() {
-    let mut ui = UiState::default();
-    ui.begin(RemoteUiIntent::SelectLane {
-        lane: ProviderId::Indexer,
-    })
-    .expect("indexer");
-    ui.searched(
-        ui.search_request,
-        &Ok(RemoteReleaseSearchResponse {
-            provider_id: ProviderId::Indexer,
-            releases: vec![release(1), release(2)],
-            diagnostics: vec![],
-        }),
-    );
-    for indexer_id in [1, 2] {
-        ui.begin(RemoteUiIntent::SelectRelease {
-            indexer_id,
-            guid: "shared-guid".into(),
-            multi: true,
-        })
-        .expect("select");
-    }
-    let UiAction::Grab(releases) = ui.begin(RemoteUiIntent::GrabSelected).expect("batch") else {
-        panic!("grab action")
-    };
-    assert_eq!(
-        releases
-            .iter()
-            .map(|release| release.indexer_id)
-            .collect::<Vec<_>>(),
-        [1, 2]
-    );
-    assert!(ui.begin(RemoteUiIntent::SaveConnection).is_err());
-    assert!(ui
-        .begin(RemoteUiIntent::SelectLane {
-            lane: ProviderId::Audible
-        })
-        .is_err());
-    ui.snapshot.indexer.grabbing = false;
-    ui.snapshot.indexer.release_grabs.insert(
-        release_key(1, "shared-guid"),
-        ReleaseGrabSnapshot {
-            status: ReleaseGrabStatus::Sent,
-            message: "Sent".into(),
-        },
-    );
-    ui.snapshot.indexer.release_grabs.insert(
-        release_key(2, "shared-guid"),
-        ReleaseGrabSnapshot {
-            status: ReleaseGrabStatus::Error,
-            message: "Failed".into(),
-        },
-    );
-    let UiAction::Grab(retry) = ui
-        .begin(RemoteUiIntent::GrabSelected)
-        .expect("retry failed")
-    else {
-        panic!("grab action")
-    };
-    assert_eq!(retry, vec![release(2)]);
-}
 #[tokio::test]
 async fn connection_save_persists_the_accepted_draft_and_invalidates_old_release_selection() {
     let root = tempfile::TempDir::new().expect("temporary config");
     let runtime = super::super::tests::test_runtime(&root);
     runtime.ui_begin(edit(None)).finish().await.expect("edit");
+    runtime
+        .ui_begin(RemoteUiIntent::SelectLane {
+            lane: ProviderId::Indexer,
+        })
+        .finish()
+        .await
+        .expect("indexer lane");
+    {
+        let mut ui = runtime.ui();
+        let request = ui.search_request;
+        ui.searched(
+            request,
+            &Ok(RemoteReleaseSearchResponse {
+                provider_id: ProviderId::Indexer,
+                releases: vec![release(1)],
+                diagnostics: vec![],
+            }),
+        );
+    }
+    runtime
+        .ui_begin(RemoteUiIntent::SelectRelease {
+            indexer_id: 1,
+            guid: "shared-guid".into(),
+            multi: false,
+        })
+        .finish()
+        .await
+        .expect("select release");
+    runtime.ui().snapshot.indexer.release_grabs.insert(
+        release_key(1, "shared-guid"),
+        ReleaseGrabSnapshot {
+            status: ReleaseGrabStatus::Error,
+            message: "Failed".into(),
+        },
+    );
     let save = runtime.ui_begin(RemoteUiIntent::SaveConnection);
     runtime
         .ui_begin(RemoteUiIntent::EditConnection {
@@ -188,15 +161,16 @@ async fn connection_save_persists_the_accepted_draft_and_invalidates_old_release
             .as_deref(),
         Some("https://indexer.test")
     );
-    assert_eq!(
-        runtime.ui_snapshot().connection.base_url,
-        "https://next.test"
-    );
+    let snapshot = runtime.ui_snapshot();
+    assert_eq!(snapshot.connection.base_url, "https://next.test");
+    assert!(snapshot.indexer.releases.is_empty());
+    assert!(snapshot.indexer.selected_release_keys.is_empty());
+    assert!(snapshot.indexer.release_grabs.is_empty());
     assert!(runtime
-        .ui_snapshot()
-        .indexer
-        .selected_release_keys
-        .is_empty());
+        .ui_begin(RemoteUiIntent::GrabSelected)
+        .finish()
+        .await
+        .is_err());
 }
 
 #[test]
@@ -383,6 +357,13 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
     assert!(runtime
         .ui_begin(RemoteUiIntent::Disconnect {
             provider: ProviderId::Indexer
+        })
+        .finish()
+        .await
+        .is_err());
+    assert!(runtime
+        .ui_begin(RemoteUiIntent::SelectLane {
+            lane: ProviderId::Audible
         })
         .finish()
         .await
@@ -814,7 +795,9 @@ async fn accepted_disconnect_blocks_acquisition_and_shutdown_waits_for_credentia
     release.send(()).expect("release credential deletion");
     runtime.inner.tasks.wait().await;
     assert!(disconnect.await.expect("tracked disconnect").is_ok());
-    let (remote, library, _) = runtime.ui_parts(None);
+    let mut update = crate::session::SessionUpdate::default();
+    runtime.add_ui_parts(&mut update, None);
+    let (remote, library) = (update.remote, update.remote_library);
     assert_eq!(
         remote
             .expect("remote")
@@ -854,7 +837,9 @@ async fn failed_credential_deletion_preserves_library_choices_and_reports_failur
         .finish()
         .await
         .is_err());
-    let (remote, library, _) = runtime.ui_parts(None);
+    let mut update = crate::session::SessionUpdate::default();
+    runtime.add_ui_parts(&mut update, None);
+    let (remote, library) = (update.remote, update.remote_library);
     let remote = remote.expect("remote");
     assert!(matches!(
         remote.account_status,

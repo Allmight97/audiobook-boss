@@ -66,7 +66,6 @@ pub(super) async fn materialize_protected_download(
                 operation_id: item_id.to_string(),
                 lane: helper_lane,
                 input_path: downloaded_path.to_path_buf(),
-                output_temp_path: output_temp_path.clone(),
                 output_path: output_path.clone(),
                 secret,
             },

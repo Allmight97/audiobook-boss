@@ -405,12 +405,6 @@ impl RemoteSourceRuntime {
         &self,
         plan: RemoteAcquisitionPlan,
     ) -> Result<RemoteAcquisitionJob> {
-        if plan.provider_id == RemoteProviderId::Indexer {
-            return Err(AppError::InvalidInput(
-                "Indexer grabs do not create acquisition jobs. Use grab release instead."
-                    .to_string(),
-            ));
-        }
         self.inner
             .lifecycle
             .start_acquisition(self.clone(), plan)

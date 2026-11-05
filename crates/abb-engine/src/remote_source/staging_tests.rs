@@ -83,4 +83,8 @@ fn startup_refuses_a_symlinked_sessions_root() {
 
     assert!(error.to_string().contains("symlink"), "{error}");
     assert!(target.exists());
+    assert!(std::fs::symlink_metadata(staging.session_root())
+        .expect("sessions root")
+        .file_type()
+        .is_symlink());
 }

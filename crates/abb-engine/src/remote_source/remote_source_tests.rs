@@ -5,20 +5,31 @@ use std::collections::HashMap;
 use tempfile::TempDir;
 
 #[derive(Default)]
-struct TestSecretVault(Mutex<HashMap<String, SecretString>>);
+pub(crate) struct MemoryVault {
+    pub(crate) secrets: Mutex<HashMap<String, SecretString>>,
+    pub(crate) reads: Arc<std::sync::atomic::AtomicUsize>,
+    pub(crate) fail_writes: bool,
+}
 
-impl vault::SecretVault for TestSecretVault {
+impl vault::SecretVault for MemoryVault {
     fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
-        Ok(self.0.lock().expect("test vault").get(key).cloned())
+        self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(self.secrets.lock().expect("test vault").get(key).cloned())
     }
 
     fn set_secret(&self, key: &str, value: SecretString) -> Result<()> {
-        self.0.lock().expect("test vault").insert(key.into(), value);
+        if self.fail_writes {
+            return Err(AppError::General("vault unavailable".to_string()));
+        }
+        self.secrets
+            .lock()
+            .expect("test vault")
+            .insert(key.into(), value);
         Ok(())
     }
 
     fn delete_secret(&self, key: &str) -> Result<()> {
-        self.0.lock().expect("test vault").remove(key);
+        self.secrets.lock().expect("test vault").remove(key);
         Ok(())
     }
 }
@@ -43,10 +54,10 @@ pub(super) fn test_runtime_with(
             ui_host: host.clone(),
             power: crate::power::PowerManager::default(),
             config_dir: root.path().to_path_buf(),
-            vault: vault.unwrap_or_else(|| Box::<TestSecretVault>::default()),
+            vault: vault.unwrap_or_else(|| Box::<MemoryVault>::default()),
             lifecycle: RemoteAcquisitionLifecycle::new(
                 RemoteSourceStaging::new(root.path().to_path_buf()),
-                AaxcleanMaterializer::for_tests(),
+                AaxcleanMaterializer::new_for_helper(Some(PathBuf::from("abb-aaxclean-helper"))),
                 host,
                 ui,
             ),
@@ -60,6 +71,16 @@ pub(super) fn test_runtime_with(
     }
 }
 
+fn published_job(runtime: &RemoteSourceRuntime) -> AcquisitionSnapshot {
+    let mut update = crate::session::SessionUpdate::default();
+    runtime.add_ui_parts(&mut update, None);
+    *update
+        .remote_acquisition
+        .expect("acquisition part")
+        .job
+        .expect("published job")
+}
+
 fn acquisition_job(job_id: &str, status: types::RemoteAcquisitionStatus) -> RemoteAcquisitionJob {
     RemoteAcquisitionJob {
         job_id: job_id.to_string(),
@@ -71,29 +92,6 @@ fn acquisition_job(job_id: &str, status: types::RemoteAcquisitionStatus) -> Remo
         diagnostics: Vec::new(),
         handoff: None,
     }
-}
-
-#[tokio::test]
-async fn indexer_grab_lane_cannot_create_acquisition_jobs() {
-    let root = TempDir::new().expect("temp root");
-    let runtime = test_runtime(&root);
-    let result = runtime
-        .start_acquisition(RemoteAcquisitionPlan {
-            provider_id: RemoteProviderId::Indexer,
-            selections: Vec::new(),
-        })
-        .await;
-    assert!(result
-        .expect_err("Indexer acquisition must be rejected")
-        .to_string()
-        .contains("Indexer grabs do not create acquisition jobs"));
-    assert!(runtime
-        .inner
-        .lifecycle
-        .jobs
-        .lock()
-        .expect("jobs lock")
-        .is_empty());
 }
 
 #[test]
@@ -159,11 +157,10 @@ async fn a_download_counts_as_running_until_its_job_ends() {
         );
     assert_eq!(runtime.running_acquisitions().len(), 1);
 
-    runtime.inner.lifecycle.mark_job_failed(
-        job_id,
-        RemoteProviderId::Audible,
-        "failed at once".to_string(),
-    );
+    runtime
+        .inner
+        .lifecycle
+        .mark_job_failed(job_id, "failed at once".to_string());
     assert!(runtime.running_acquisitions().is_empty());
 }
 
@@ -172,6 +169,13 @@ fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
     let root = TempDir::new().expect("temp root");
     let runtime = test_runtime(&root);
     let job_id = "remote-job-1";
+    let job_dir = runtime
+        .inner
+        .lifecycle
+        .staging
+        .create_job_dir(job_id)
+        .expect("job dir");
+    std::fs::write(job_dir.join("download.m4b"), b"payload").expect("write staged file");
     runtime
         .inner
         .lifecycle
@@ -197,13 +201,13 @@ fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
             job_id,
             types::RemoteAcquisitionStatus::Validated,
         ));
-    runtime.inner.lifecycle.mark_job_failed(
-        job_id,
-        RemoteProviderId::Audible,
-        "late provider failure".to_string(),
-    );
+    runtime
+        .inner
+        .lifecycle
+        .mark_job_failed(job_id, "late provider failure".to_string());
 
-    let job = runtime.acquisition_status(job_id).expect("job status");
+    let job = published_job(&runtime);
+    assert!(!job_dir.exists());
     assert_eq!(job.status, types::RemoteAcquisitionStatus::Cancelled);
     assert_eq!(job.progress.stage, AcquisitionStage::Cancelled);
     assert!(job.materialized_files.is_empty());
@@ -235,20 +239,14 @@ fn cancelling_a_finished_acquisition_keeps_its_files_for_the_session() {
         size_bytes: 24,
         sha256: "def456".to_string(),
     });
-    runtime
-        .inner
-        .lifecycle
-        .jobs
-        .lock()
-        .expect("jobs lock")
-        .insert(job_id.to_string(), job);
+    runtime.inner.lifecycle.replace_job_if_active(job);
 
     let answered = runtime
         .cancel_acquisition(job_id)
         .expect("cancel acquisition");
 
     assert_eq!(answered.status, types::RemoteAcquisitionStatus::Validated);
-    let stored = runtime.acquisition_status(job_id).expect("job status");
+    let stored = published_job(&runtime);
     assert_eq!(stored.materialized_files.len(), 1);
     assert_eq!(stored.supplemental_assets.len(), 1);
 }
@@ -292,7 +290,7 @@ async fn a_finished_job_records_its_handoff() {
 
         runtime.inner.lifecycle.hand_off(&runtime, job).await;
 
-        let stored = runtime.acquisition_status(job_id).expect("job status");
+        let stored = published_job(&runtime);
         assert_eq!(stored.handoff, Some(answer));
         assert!(audio.exists());
         assert_eq!(stored.materialized_files.is_empty(), !kept);
@@ -367,23 +365,6 @@ async fn a_connection_save_and_a_search_or_grab_refuse_each_other() {
     drop(searching);
 }
 
-struct ReadCountingVault(Arc<std::sync::atomic::AtomicUsize>);
-
-impl vault::SecretVault for ReadCountingVault {
-    fn get_secret(&self, _key: &str) -> Result<Option<SecretString>> {
-        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Ok(None)
-    }
-
-    fn set_secret(&self, _key: &str, _value: SecretString) -> Result<()> {
-        Ok(())
-    }
-
-    fn delete_secret(&self, _key: &str) -> Result<()> {
-        Ok(())
-    }
-}
-
 #[tokio::test]
 async fn no_credential_read_starts_once_the_engine_is_closing() {
     let root = TempDir::new().expect("temp root");
@@ -395,7 +376,10 @@ async fn no_credential_read_starts_once_the_engine_is_closing() {
     let reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let runtime = test_runtime_with(
         &root,
-        Some(Box::new(ReadCountingVault(reads.clone()))),
+        Some(Box::new(MemoryVault {
+            reads: reads.clone(),
+            ..Default::default()
+        })),
         None,
     );
     runtime.inner.tasks.close();
@@ -410,44 +394,6 @@ async fn no_credential_read_starts_once_the_engine_is_closing() {
 
     assert!(matches!(result, Err(AppError::Closing)));
     assert_eq!(reads.load(std::sync::atomic::Ordering::SeqCst), 0);
-}
-
-#[test]
-fn cancelled_job_cleanup_removes_session_files_without_removing_status() {
-    let root = TempDir::new().expect("temp root");
-    let runtime = test_runtime(&root);
-    let job_id = "remote-job-2";
-    let job_dir = runtime
-        .inner
-        .lifecycle
-        .staging
-        .create_job_dir(job_id)
-        .expect("job dir");
-    std::fs::write(job_dir.join("download.m4b"), b"payload").expect("write staged file");
-    runtime
-        .inner
-        .lifecycle
-        .jobs
-        .lock()
-        .expect("jobs lock")
-        .insert(
-            job_id.to_string(),
-            acquisition_job(job_id, types::RemoteAcquisitionStatus::Cancelled),
-        );
-
-    runtime
-        .inner
-        .lifecycle
-        .cleanup_cancelled_job_session(job_id);
-
-    assert!(!job_dir.exists());
-    assert_eq!(
-        runtime
-            .acquisition_status(job_id)
-            .expect("job status")
-            .status,
-        types::RemoteAcquisitionStatus::Cancelled
-    );
 }
 
 #[test]
@@ -477,7 +423,13 @@ fn disconnecting_the_indexer_leaves_audible_downloads_and_records() {
         .expect("indexer disconnect");
 
     assert!(job_dir.exists());
-    assert!(runtime.acquisition_status(job_id).is_ok());
+    assert!(runtime
+        .inner
+        .lifecycle
+        .jobs
+        .lock()
+        .expect("jobs lock")
+        .contains_key(job_id));
 }
 
 #[test]
@@ -505,7 +457,13 @@ fn releasing_a_download_forgets_its_job() {
     runtime.purge_session(job_id).expect("download removed");
 
     assert!(!job_dir.exists());
-    assert!(runtime.acquisition_status(job_id).is_err());
+    assert!(!runtime
+        .inner
+        .lifecycle
+        .jobs
+        .lock()
+        .expect("jobs lock")
+        .contains_key(job_id));
 }
 
 #[tokio::test]
