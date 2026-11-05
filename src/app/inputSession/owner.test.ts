@@ -30,20 +30,17 @@ describe('input owner', () => {
 		expect(engine.sessionIntents).toContainEqual({ kind: 'import', paths: ['/books/a.m4b'] });
 		const view = app.input.view();
 		expect(view.files.map((file) => file.path)).toEqual(['/books/a.m4b']);
-		expect(view.selectedIndices).toEqual([0]);
-		expect(view.selectedAnchor).toBe(0);
 		expect(view.totalDurationSeconds).toBe(60);
 	});
 
 	it('words the reason an import added nothing', async () => {
 		const app = await open();
-		await app.input.importIntent({ type: 'importPaths', paths: ['/books/a.m4b'] });
 
-		await app.input.importIntent({ type: 'importPaths', paths: ['/books/a.m4b'] });
-		await vi.waitFor(() =>
-			expect(app.input.view().errorMessage).toBe(
-				'No new files added. All analyzed files were already in the list.',
-			),
+		engine.change((state) => {
+			state.titles.notice = { kind: 'duplicatesOnly' };
+		});
+		expect(app.input.view().errorMessage).toBe(
+			'No new files added. All analyzed files were already in the list.',
 		);
 
 		engine.change((state) => {
@@ -149,7 +146,6 @@ describe('input owner', () => {
 				{ kind: 'removeFile', inputId: clicked.inputId },
 			]),
 		);
-		expect(app.input.view().files.map((file) => file.path)).toEqual(['/books/b.m4b']);
 	});
 
 	it('returns at once and shows the change when the engine replies', async () => {

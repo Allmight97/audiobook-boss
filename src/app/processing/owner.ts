@@ -18,7 +18,6 @@ export type ProcessingOwner = {
 	preview: () => Promise<void>;
 	cancelAll: () => void;
 	isProcessing: () => boolean;
-	pushTransientStatus: (message: string, options?: { ttlMs?: number }) => void;
 	reset: () => void;
 };
 
@@ -134,9 +133,6 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 		},
 		isProcessing() {
 			return deps.link.output().submissionInProgress;
-		},
-		pushTransientStatus(message, options) {
-			statusView.pushTransient(message, options?.ttlMs);
 		},
 		reset() {
 			disposed = true;

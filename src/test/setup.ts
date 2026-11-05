@@ -1,18 +1,10 @@
 import '@testing-library/jest-dom/vitest';
-import { pathBasename } from '../lib/path/basename';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { audioFile, fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
-import type {
-	OperationSnapshot,
-	SupportedAudioImportMetadata,
-	WorkOperationsSnapshot,
-} from '../lib/generated/tauri';
+import type { SupportedAudioImportMetadata, WorkOperationsSnapshot } from '../lib/generated/tauri';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
 const eventListeners = new Map<string, Set<TestEventHandler>>();
-let mockJobCounter = 0;
-let mockRevision = 0;
-const mockOperations = new Map<string, OperationSnapshot>();
 
 function emitTestEvent(event: string, payload: unknown): void {
 	const handlers = eventListeners.get(event);
@@ -20,132 +12,6 @@ function emitTestEvent(event: string, payload: unknown): void {
 	for (const handler of handlers) {
 		handler({ event, id: Date.now(), payload });
 	}
-}
-
-function mockOrder(): string[] {
-	return [...mockOperations.values()]
-		.toSorted((a, b) => b.sequence - a.sequence)
-		.map((operation) => operation.operationId);
-}
-
-function mockOperationList(): WorkOperationsSnapshot {
-	return {
-		revision: mockRevision,
-		order: mockOrder(),
-		operations: mockOrder().map((id) => mockOperations.get(id)!),
-	};
-}
-
-function publishMockOperation(snapshot: OperationSnapshot): void {
-	mockOperations.set(snapshot.operationId, snapshot);
-	emitTestEvent('work-operations-update', {
-		revision: ++mockRevision,
-		order: mockOrder(),
-		changed: snapshot,
-	});
-}
-
-function mockOperationSnapshot(operationId: string, inputFiles: string[]): OperationSnapshot {
-	return {
-		operationId,
-		sequence: mockJobCounter,
-		revision: 1,
-		kind: 'metadataSave',
-		status: 'accepted' as const,
-		title: `Metadata save (${inputFiles.length} files)`,
-		createdAtMs: Date.now(),
-		startedAtMs: null,
-		finishedAtMs: null,
-		cancellable: true,
-		cancelRequested: false,
-		lanes: ['metadataWrite'],
-		sourceInputIds: [],
-		progress: {
-			stage: 'pending' as const,
-			percentage: 0,
-			message: 'Accepted.',
-			currentItemIndex: null,
-			totalItems: inputFiles.length,
-			bytesDownloaded: null,
-			bytesTotal: null,
-			etaSeconds: null,
-		},
-		children: inputFiles.map((path, index) => ({
-			childJobId: `metadata-${index}`,
-			operationId,
-			label: pathBasename(path, { fallback: 'path' }),
-			status: 'queued' as const,
-			startedAtMs: null,
-			finishedAtMs: null,
-			lane: 'metadataWrite',
-			progress: {
-				stage: 'pending' as const,
-				percentage: 0,
-				message: 'Queued.',
-				currentItemIndex: null,
-				totalItems: inputFiles.length,
-				bytesDownloaded: null,
-				bytesTotal: null,
-				etaSeconds: null,
-			},
-			sourcePath: path,
-			inputIndex: index,
-			inputId: null,
-			sourceInputIds: [],
-			jobId: null,
-			cancellable: false,
-			cancelRequested: false,
-			message: null,
-			outputPath: null,
-			supplementalWarning: null,
-			warnings: [],
-			outputUpdate: null,
-		})),
-		terminalSummary: null,
-		errors: [],
-		logTail: [],
-	};
-}
-
-export function publishMockMetadataSave(filePaths: string[]): void {
-	mockJobCounter += 1;
-	const operationId = `mock-metadata-operation-${mockJobCounter}`;
-	const baseSnapshot = mockOperationSnapshot(operationId, filePaths);
-	publishMockOperation(baseSnapshot);
-	publishMockOperation({
-		...baseSnapshot,
-		revision: baseSnapshot.revision + 1,
-		status: 'running',
-		startedAtMs: Date.now(),
-	});
-	publishMockOperation({
-		...baseSnapshot,
-		revision: baseSnapshot.revision + 2,
-		status: 'completed' as const,
-		startedAtMs: Date.now(),
-		finishedAtMs: Date.now(),
-		cancellable: false,
-		progress: {
-			...baseSnapshot.progress,
-			stage: 'complete' as const,
-			percentage: 100,
-			message: `Completed ${filePaths.length} item(s).`,
-		},
-		children: baseSnapshot.children.map((child) => ({
-			...child,
-			status: 'completed' as const,
-			progress: { ...child.progress, stage: 'complete' as const, percentage: 100 },
-			message: 'Metadata saved',
-		})),
-		terminalSummary: {
-			total: filePaths.length,
-			succeeded: filePaths.length,
-			skipped: 0,
-			cancelled: 0,
-			failed: 0,
-			message: `Completed ${filePaths.length} item(s).`,
-		},
-	});
 }
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -188,7 +54,11 @@ vi.mock('@tauri-apps/api/core', () => ({
 					supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
 				} satisfies SupportedAudioImportMetadata);
 			case 'list_work_operations':
-				return Promise.resolve(mockOperationList());
+				return Promise.resolve({
+					revision: 0,
+					order: [],
+					operations: [],
+				} satisfies WorkOperationsSnapshot);
 			default:
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);
 		}
@@ -257,15 +127,9 @@ startFakeEngine();
 
 beforeEach(() => {
 	eventListeners.clear();
-	mockJobCounter = 0;
-	mockRevision = 0;
-	mockOperations.clear();
 	startFakeEngine();
 });
 
 afterEach(() => {
 	eventListeners.clear();
-	mockJobCounter = 0;
-	mockRevision = 0;
-	mockOperations.clear();
 });

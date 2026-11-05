@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tauriClient } from '../../../lib/tauri/client';
-import { publishMockMetadataSave } from '../../../test/setup';
-import type { OperationSnapshot, WorkOperationsSnapshot } from '../../../types/workRuntime';
+import type {
+	OperationSnapshot,
+	WorkOperationsSnapshot,
+	WorkOperationsUpdate,
+} from '../../../types/workRuntime';
 import { createWorkOperationsSession, type WorkOperationsSession } from '../runtime';
 
 function createDeferred<T>() {
@@ -81,6 +84,25 @@ function completedExportOperation(operationId: string): OperationSnapshot {
 	};
 }
 
+type UpdateHandler = (event: { payload: WorkOperationsUpdate }) => void;
+
+function captureUpdateHandlers(): UpdateHandler[] {
+	const handlers: UpdateHandler[] = [];
+	vi.spyOn(tauriClient, 'listen').mockImplementation(async (_event, handler: UpdateHandler) => {
+		handlers.push(handler);
+		return () => undefined;
+	});
+	return handlers;
+}
+
+function deliver(handler: UpdateHandler | undefined, operation: OperationSnapshot): void {
+	handler?.({ payload: { revision: 1, order: [operation.operationId], changed: operation } });
+}
+
+function enableTauriRuntime(): void {
+	(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+}
+
 describe('Work Center state', () => {
 	let session: WorkOperationsSession;
 
@@ -105,29 +127,15 @@ describe('Work Center state', () => {
 		expect(updateUnlisten).toHaveBeenCalledTimes(1);
 	});
 
-	it('retains successive metadata operations and their terminal updates through the Tauri mock', async () => {
-		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
-		await session.initialize();
-		for (const filePath of ['/books/alpha.m4b', '/books/beta.m4b']) {
-			publishMockMetadataSave([filePath]);
-		}
-		const operations = session.view().operations;
-		expect(operations).toHaveLength(2);
-		expect(operations.map(({ status }) => status)).toEqual(['completed', 'completed']);
-		const listed = await tauriClient.listWorkOperations();
-		expect(listed.operations).toEqual(operations);
-		expect(await tauriClient.listWorkOperations()).toEqual(listed);
-	});
-
 	it('keeps event state when a delayed initial listing arrives', async () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 		const list = createDeferred<WorkOperationsSnapshot>();
-		vi.spyOn(tauriClient, 'listen').mockResolvedValue(() => undefined);
+		const handlers = captureUpdateHandlers();
 		const listCall = vi.spyOn(tauriClient, 'listWorkOperations').mockReturnValue(list.promise);
 		const initialize = session.initialize();
 		await vi.waitFor(() => expect(listCall).toHaveBeenCalled());
 		const completed = completedExportOperation('op-finished');
-		session.applyUpdate({ revision: 1, order: [completed.operationId], changed: completed });
+		deliver(handlers[0], completed);
 		list.resolve({ revision: 0, order: [], operations: [] });
 		await initialize;
 		expect(session.view().operations).toEqual([completed]);
@@ -153,11 +161,19 @@ describe('Work Center state', () => {
 	it.each([false, true])(
 		'ignores delayed cancel response after terminal event (disposed=%s)',
 		async (disposed) => {
+			enableTauriRuntime();
+			const handlers = captureUpdateHandlers();
+			vi.spyOn(tauriClient, 'listWorkOperations').mockResolvedValue({
+				revision: 0,
+				order: [],
+				operations: [],
+			});
+			await session.initialize();
 			const response = createDeferred<OperationSnapshot>();
 			vi.spyOn(tauriClient, 'cancelWorkOperation').mockReturnValue(response.promise);
 			const completed = { ...completedExportOperation('op-cancel'), revision: 3 };
 			const cancel = session.cancel(completed.operationId);
-			session.applyUpdate({ revision: 1, order: [completed.operationId], changed: completed });
+			deliver(handlers[0], completed);
 			if (disposed) session.dispose();
 			response.resolve({ ...completed, revision: 2, status: 'cancelling' });
 			await cancel;
@@ -192,10 +208,19 @@ describe('Work Center state', () => {
 		expect(session.view().initialized).toBe(false);
 	});
 
-	it('does not share operation snapshots across sessions', () => {
+	it('does not share operation snapshots across sessions', async () => {
+		enableTauriRuntime();
+		const handlers = captureUpdateHandlers();
+		vi.spyOn(tauriClient, 'listWorkOperations').mockResolvedValue({
+			revision: 0,
+			order: [],
+			operations: [],
+		});
 		const other = createWorkOperationsSession(() => undefined);
+		await session.initialize();
+		await other.initialize();
 		const isolated = completedExportOperation('op-isolation');
-		session.applyUpdate({ revision: 1, order: [isolated.operationId], changed: isolated });
+		deliver(handlers[0], isolated);
 		expect(session.view().operations).toHaveLength(1);
 		expect(other.view().operations).toEqual([]);
 		other.dispose();

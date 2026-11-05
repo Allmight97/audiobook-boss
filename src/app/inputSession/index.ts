@@ -9,11 +9,7 @@ export {
 	toInputView,
 } from './display';
 export type { ImportIntent, InputView, SelectionModifiers } from './types';
-export {
-	fileListNavigationCommandFromKey,
-	interpretFileListKeyDown,
-	resolveFileListNavigationTarget,
-} from './keyboardNavigation';
+export { interpretFileListKeyDown } from './keyboardNavigation';
 export { nativeDropTargetAtPoint } from './nativeIngress';
 export { toInspectorViewFromInput } from './inspector';
 export type { InspectorView } from './inspector';

@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-	fileListNavigationCommandFromKey,
-	interpretFileListKeyDown,
-	resolveFileListNavigationTarget,
-} from '.';
+import { interpretFileListKeyDown } from '.';
 
 function keyEvent(
 	key: string,
@@ -24,36 +20,46 @@ function keyEvent(
 
 describe('file list keyboard navigation', () => {
 	it.each([
-		['ArrowUp', 'previous'],
-		['ArrowDown', 'next'],
-		['Home', 'first'],
-		['End', 'last'],
-		['PageUp', 'pagePrevious'],
-		['PageDown', 'pageNext'],
-	] as const)('maps %s to %s', (key, command) => {
-		expect(fileListNavigationCommandFromKey(keyEvent(key))).toBe(command);
+		['ArrowUp', 11],
+		['ArrowDown', 13],
+		['Home', 0],
+		['End', 24],
+		['PageUp', 2],
+		['PageDown', 22],
+	] as const)('maps %s to a move to file %i', (key, index) => {
+		expect(interpretFileListKeyDown(keyEvent(key), { fileCount: 25, selectedAnchor: 12 })).toEqual({
+			type: 'navigate',
+			index,
+		});
 	});
 
 	it('ignores modified navigation keys', () => {
-		expect(fileListNavigationCommandFromKey(keyEvent('ArrowDown', { shiftKey: true }))).toBeNull();
-		expect(fileListNavigationCommandFromKey(keyEvent('End', { metaKey: true }))).toBeNull();
+		const list = { fileCount: 25, selectedAnchor: 12 };
+		expect(interpretFileListKeyDown(keyEvent('ArrowDown', { shiftKey: true }), list)).toBeNull();
+		expect(interpretFileListKeyDown(keyEvent('End', { metaKey: true }), list)).toBeNull();
 	});
 
 	it('moves one file at a time and stays put at a list edge', () => {
 		const list = { fileCount: 5 };
-		expect(resolveFileListNavigationTarget({ ...list, command: 'next', selectedIndex: 2 })).toBe(3);
-		expect(
-			resolveFileListNavigationTarget({ ...list, command: 'previous', selectedIndex: 0 }),
-		).toBe(0);
 		expect(interpretFileListKeyDown(keyEvent('ArrowDown'), { ...list, selectedAnchor: 4 })).toEqual(
 			{ type: 'navigate', index: 4 },
 		);
+		expect(interpretFileListKeyDown(keyEvent('ArrowUp'), { ...list, selectedAnchor: 0 })).toEqual({
+			type: 'navigate',
+			index: 0,
+		});
 	});
 
 	it('jumps by a bounded page step', () => {
-		const list = { fileCount: 25, selectedIndex: 4, pageStep: 10 };
-		expect(resolveFileListNavigationTarget({ ...list, command: 'pageNext' })).toBe(14);
-		expect(resolveFileListNavigationTarget({ ...list, command: 'pagePrevious' })).toBe(0);
+		const list = { fileCount: 25, selectedAnchor: 4 };
+		expect(interpretFileListKeyDown(keyEvent('PageDown'), list)).toEqual({
+			type: 'navigate',
+			index: 14,
+		});
+		expect(interpretFileListKeyDown(keyEvent('PageUp'), list)).toEqual({
+			type: 'navigate',
+			index: 0,
+		});
 	});
 
 	it('selects an edge when no file is selected', () => {

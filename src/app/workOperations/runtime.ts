@@ -50,7 +50,6 @@ export type WorkOperationsSession = {
 	readonly view: () => WorkOperationsView;
 	initialize: () => Promise<void>;
 	dispose: () => void;
-	applyUpdate: (update: WorkOperationsUpdate) => void;
 	cancel: (operationId: OperationId, childJobId?: string) => Promise<void>;
 	revealOutput: (child: { outputPath?: string | null }) => Promise<void>;
 };
@@ -164,7 +163,6 @@ export function createWorkOperationsSession(
 			state.errorMessage = null;
 			commit();
 		},
-		applyUpdate,
 		async cancel(operationId, childJobId) {
 			if (childJobId !== undefined) {
 				await sendCancel(operationId, childJobId);

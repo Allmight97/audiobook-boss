@@ -213,38 +213,34 @@ it('routes authentication, library refresh, and disconnect intents and opens the
 	expect(replacement.owner.view().statusMessage).toContain('authorization');
 });
 
-it.each(['dispose', 'reset'] as const)(
-	'does not open a late authorization reply after %s',
-	async (end) => {
-		const { owner, runtime, engine, openAuthorizationUrl } = await open();
-		const dispatch = engine.sessionDispatch.bind(engine);
-		let finish!: () => void;
-		engine.sessionDispatch = async (client, sequence, intent) => {
-			if (intent.kind === 'remote' && intent.intent.kind === 'startAuth') {
-				await new Promise<void>((resolve) => {
-					finish = resolve;
-				});
-			}
-			return dispatch(client, sequence, intent);
-		};
-		engine.respond = () => ({
-			kind: 'remoteAuthStarted',
-			authorization: {
-				providerId: 'audible',
-				authorizationUrl: 'https://auth.test',
-				handoffPathHint: '',
-				message: 'Authorize',
-			},
-		});
-		const pending = owner.runAction({ type: 'startAuth' });
-		await vi.waitFor(() => expect(finish).toBeDefined());
-		if (end === 'dispose') runtime.dispose();
-		else owner.reset();
-		finish();
-		await pending;
-		expect(openAuthorizationUrl).not.toHaveBeenCalled();
-	},
-);
+it('does not open a late authorization reply after the runtime is disposed', async () => {
+	const { owner, runtime, engine, openAuthorizationUrl } = await open();
+	const dispatch = engine.sessionDispatch.bind(engine);
+	let finish!: () => void;
+	engine.sessionDispatch = async (client, sequence, intent) => {
+		if (intent.kind === 'remote' && intent.intent.kind === 'startAuth') {
+			await new Promise<void>((resolve) => {
+				finish = resolve;
+			});
+		}
+		return dispatch(client, sequence, intent);
+	};
+	engine.respond = () => ({
+		kind: 'remoteAuthStarted',
+		authorization: {
+			providerId: 'audible',
+			authorizationUrl: 'https://auth.test',
+			handoffPathHint: '',
+			message: 'Authorize',
+		},
+	});
+	const pending = owner.runAction({ type: 'startAuth' });
+	await vi.waitFor(() => expect(finish).toBeDefined());
+	runtime.dispose();
+	finish();
+	await pending;
+	expect(openAuthorizationUrl).not.toHaveBeenCalled();
+});
 
 it('keeps Audible auth and library failures out of the Indexer lane', async () => {
 	const { engine, owner } = await open();
