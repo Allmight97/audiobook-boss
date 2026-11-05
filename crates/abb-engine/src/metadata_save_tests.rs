@@ -95,7 +95,7 @@ async fn a_save_cancelled_while_waiting_for_a_job_slot_reports_each_file_cancell
         std::sync::Arc::new(crate::DiscardEvents),
         crate::power::PowerManager::default(),
     );
-    let runtime = WorkRuntime::default();
+    let runtime = WorkRuntime::new(crate::engine::EngineTasks::default());
     let registry: crate::ManagedJobRegistry =
         std::sync::Arc::new(crate::processing::JobRegistry::new(1));
     let (_held_job, held_slot) = registry.register_job().await.expect("hold the only slot");

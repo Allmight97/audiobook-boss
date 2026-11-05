@@ -38,12 +38,6 @@ struct WorkRuntimeInner {
     sequence: AtomicU64,
 }
 
-impl Default for WorkRuntime {
-    fn default() -> Self {
-        Self::new(crate::engine::EngineTasks::default())
-    }
-}
-
 impl WorkRuntime {
     pub(crate) fn new(tasks: crate::engine::EngineTasks) -> Self {
         Self {

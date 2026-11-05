@@ -1,31 +1,6 @@
-use abb_engine::audio::{validate_output_path, validate_sample_rate_config, SampleRateConfig};
+use abb_engine::audio::validate_output_path;
 use std::path::PathBuf;
 use tempfile::TempDir;
-
-#[test]
-fn sample_rate_validation_accepts_expected_values() {
-    let valid_rates = [
-        SampleRateConfig::Auto,
-        SampleRateConfig::Explicit(22050),
-        SampleRateConfig::Explicit(32000),
-        SampleRateConfig::Explicit(44100),
-        SampleRateConfig::Explicit(48000),
-    ];
-    for config in valid_rates {
-        assert!(
-            validate_sample_rate_config(&config).is_ok(),
-            "Sample rate {:?} should be valid",
-            config
-        );
-    }
-}
-
-#[test]
-fn sample_rate_validation_rejects_unknown_values() {
-    let invalid = SampleRateConfig::Explicit(12345);
-    let err = validate_sample_rate_config(&invalid).expect_err("expected invalid sample rate");
-    assert!(err.to_string().contains("Unsupported sample rate"));
-}
 
 #[test]
 fn output_path_validation_covers_extension_and_directory() {

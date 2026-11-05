@@ -1,4 +1,8 @@
-use abb_engine::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
+use abb_engine::{
+    sanitize_path_for_display, sanitize_path_str_for_display, AppError, AppErrorCategory,
+    AppErrorCode, AppErrorEnvelope,
+};
+use std::path::Path;
 
 #[test]
 fn cancelled_error_maps_to_dedicated_envelope_and_wire_payload() {
@@ -29,4 +33,23 @@ fn wrapped_io_error_keeps_diagnostic_detail() {
     assert_eq!(envelope.category, AppErrorCategory::Io);
     assert!(envelope.message.contains("IO operation failed"));
     assert_eq!(envelope.detail.as_deref(), Some("disk full"));
+}
+
+#[test]
+fn user_facing_paths_show_only_their_last_name() {
+    for (input, expected) in [
+        (
+            "/Users/example/Documents/private/library/book.mp3",
+            "book.mp3",
+        ),
+        ("/Users/example/Documents/private/library", "library"),
+        ("", "[path]"),
+    ] {
+        assert_eq!(
+            sanitize_path_for_display(Path::new(input)),
+            expected,
+            "{input:?}"
+        );
+        assert_eq!(sanitize_path_str_for_display(input), expected, "{input:?}");
+    }
 }

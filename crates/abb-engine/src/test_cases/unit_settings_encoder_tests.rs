@@ -14,29 +14,27 @@ fn base_settings() -> EncoderSettings {
 }
 
 #[test]
-fn target_bitrate_accepts_typed_values_and_rejects_invalid_bounds() {
-    let mut settings = base_settings();
-    for bitrate in [1, 33, 192, 1152] {
-        settings.bitrate_kbps = bitrate;
-        assert!(validate_encoder_settings(&settings).is_ok());
-    }
-    for bitrate in [0, 1153] {
-        settings.bitrate_kbps = bitrate;
-        assert!(validate_encoder_settings(&settings).is_err());
-    }
-}
-
-#[test]
-fn opus_target_bitrate_uses_its_own_bounds() {
-    let mut settings = base_settings();
-    settings.encoder_type = EncoderType::Opus;
-    settings.bitrate_mode = BitrateMode::VbrTarget;
-    for (bitrate, valid) in [(5, false), (6, true), (510, true), (511, false)] {
-        settings.bitrate_kbps = bitrate;
+fn target_bitrate_uses_each_encoders_bounds() {
+    for (encoder_type, bitrate_mode, kbps, valid) in [
+        (EncoderType::NativeAac, BitrateMode::Cbr, 0, false),
+        (EncoderType::NativeAac, BitrateMode::Cbr, 1, true),
+        (EncoderType::NativeAac, BitrateMode::Cbr, 1152, true),
+        (EncoderType::NativeAac, BitrateMode::Cbr, 1153, false),
+        (EncoderType::Opus, BitrateMode::VbrTarget, 5, false),
+        (EncoderType::Opus, BitrateMode::VbrTarget, 6, true),
+        (EncoderType::Opus, BitrateMode::VbrTarget, 510, true),
+        (EncoderType::Opus, BitrateMode::VbrTarget, 511, false),
+    ] {
+        let settings = EncoderSettings {
+            encoder_type,
+            bitrate_mode,
+            bitrate_kbps: kbps,
+            ..base_settings()
+        };
         assert_eq!(
             validate_encoder_settings(&settings).is_ok(),
             valid,
-            "{bitrate} kbps"
+            "{encoder_type:?} {kbps} kbps"
         );
     }
 }

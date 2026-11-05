@@ -116,14 +116,6 @@ impl WorkRuntimeState {
         self.operations.get(operation_id)
     }
 
-    #[cfg(test)]
-    pub(crate) fn get(&self, operation_id: &OperationId) -> Result<OperationSnapshot> {
-        self.operations
-            .get(operation_id.as_str())
-            .cloned()
-            .ok_or_else(|| AppError::InvalidInput("Work operation was not found.".to_string()))
-    }
-
     pub(crate) fn mark_running(
         &mut self,
         operation_id: &OperationId,
@@ -173,7 +165,7 @@ impl WorkRuntimeState {
         let mut matched_child_job_id: Option<String> = None;
 
         for child in &mut snapshot.children {
-            if !progress_matches_child(child, event, child_count) {
+            if !progress_matches_child(child, event) {
                 continue;
             }
             matched_child = true;
@@ -571,22 +563,16 @@ fn apply_operation_terminal(
     snapshot.terminal_summary = Some(terminal_summary);
 }
 
-fn progress_matches_child(
-    child: &super::types::ChildJobSnapshot,
-    event: &ProgressEvent,
-    child_count: usize,
-) -> bool {
+fn progress_matches_child(child: &super::types::ChildJobSnapshot, event: &ProgressEvent) -> bool {
     if let Some(job_id) = event.job_id.as_deref() {
         if let Some(existing_job_id) = child.job_id.as_deref() {
             return Some(job_id) == Some(existing_job_id);
         }
     }
 
-    if let Some(input_index) = event.input_index {
-        return child.input_index == Some(input_index);
-    }
-
-    child_count == 1
+    event
+        .input_index
+        .is_some_and(|input_index| child.input_index == Some(input_index))
 }
 
 fn aggregate_child_progress(children: &[super::types::ChildJobSnapshot]) -> f32 {

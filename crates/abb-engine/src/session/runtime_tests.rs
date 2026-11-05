@@ -116,6 +116,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
     let (settings, _, _) =
         SettingsRuntime::start(config.path().to_path_buf(), PowerManager::default());
     let remote = crate::remote_source::tests::test_runtime(&config);
+    let tasks = crate::engine::EngineTasks::default();
     let session = Session::with_network(
         SessionDeps {
             remote,
@@ -123,10 +124,10 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
                 Arc::clone(&events) as Arc<dyn EventSink>,
                 PowerManager::default(),
             ),
-            work: WorkRuntime::default(),
+            work: WorkRuntime::new(tasks.clone()),
             jobs: Arc::new(JobRegistry::new(2)),
             temporary_root: PathBuf::from("/staged"),
-            tasks: crate::engine::EngineTasks::default(),
+            tasks,
             workspace_root: std::env::temp_dir().join("abb-session-tests"),
             settings,
             remove_staged: {

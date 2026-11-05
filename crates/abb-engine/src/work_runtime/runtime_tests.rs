@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn sources_in_use_still_reports_queued_sources_after_the_state_lock_is_poisoned() {
-    let runtime = WorkRuntime::default();
+    let runtime = WorkRuntime::new(crate::engine::EngineTasks::default());
     let source = PathBuf::from("/library/book.m4b");
     let operation_id = OperationId("operation-1".to_string());
     let snapshot = new_processing_snapshot(
