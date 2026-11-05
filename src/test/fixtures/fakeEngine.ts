@@ -504,11 +504,9 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 
 	function apply(intent: SessionIntent): SessionOutcome {
 		const { titles } = state;
-		const locked = titles.orderLocked;
 		switch (intent.kind) {
 			case 'import':
-				if (locked) titles.notice = { kind: 'orderLocked' };
-				else appendFiles(engine.analyze(intent.paths));
+				appendFiles(engine.analyze(intent.paths));
 				break;
 			case 'selectFile':
 				selectNamed(intent.titleId, intent.modifiers);
@@ -520,7 +518,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				select([]);
 				break;
 			case 'removeFile': {
-				if (locked) break;
 				const removedIndex = titles.files.findIndex((file) => file.inputId === intent.inputId);
 				if (removedIndex < 0) break;
 				titles.files = titles.files.filter((_, index) => index !== removedIndex);
@@ -530,7 +527,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				break;
 			}
 			case 'clearAll':
-				if (locked) break;
 				titles.files = [];
 				titles.titleSourcesByIdentity = {};
 				state.audio.titles = {};

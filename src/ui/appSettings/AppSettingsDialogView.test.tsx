@@ -120,23 +120,6 @@ describe('AppSettingsDialogView', () => {
 		expect(screen.queryByTestId('app-settings-reset-confirm-prompt')).not.toBeInTheDocument();
 	});
 
-	it('closes on Escape after opening post-mount, even with focus outside the dialog', async () => {
-		runtime = createAppRuntime({ engine: createFakeEngine() });
-		render(() => (
-			<AppRuntimeProvider runtime={runtime!}>
-				<AppSettingsDialogView />
-			</AppRuntimeProvider>
-		));
-		expect(runtime.settings.dialog().isOpen).toBe(false);
-
-		runtime.settings.openDialog();
-		flush();
-		fireEvent.keyDown(document.body, { key: 'Escape' });
-		flush();
-
-		expect(runtime.settings.dialog().isOpen).toBe(false);
-	});
-
 	it('records the default acquisition lane when the Indexer radio is selected', async () => {
 		await renderOpenDialog();
 

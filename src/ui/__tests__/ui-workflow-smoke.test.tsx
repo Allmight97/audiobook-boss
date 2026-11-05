@@ -4,8 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
 
 import type { AudioFile } from '../../types/audio';
-import type { AppSettings } from '../../types/appSettings';
-import { createFakeEngine } from '../../test/fixtures/fakeEngine';
+import { createFakeEngine, defaultAppSettings } from '../../test/fixtures/fakeEngine';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import { App } from '../App';
 
@@ -62,35 +61,10 @@ function lookupResult(): OnlineMetadataResult {
 	};
 }
 
-function appSettings(): AppSettings {
-	return {
-		maxConcurrentJobs: { mode: 'auto' },
-		encoderDefaults: {
-			format: 'm4b',
-			intent: 'auto',
-			settings: {
-				encoderType: 'auto',
-				bitrateKbps: 64,
-				bitrateMode: { mode: 'vbr', value: 3 },
-				channels: 'auto',
-			},
-			sampleRate: 'auto',
-		},
-		outputDefaults: {
-			outputNaming: { preset: 'absDefault', includeYear: false },
-		},
-		startupBehavior: 'rememberLastState',
-		keepAwakeWhileWorking: true,
-		defaultAcquisitionLane: 'audible',
-		aacDecoder: 'auto',
-	};
-}
-
-describe('UI Workflow Smoke Test', () => {
+describe('UI workflow intents', () => {
 	afterEach(() => cleanup());
 
-	it('carries lookup metadata, cover art, output, and encoder choices into a submission', async () => {
-		const settings = appSettings();
+	it('sends the lookup, cover, audio, and output choices the user made, then submits', async () => {
 		native.openFiles.mockResolvedValue([INPUT_PATH]);
 		native.openDirectory.mockResolvedValue(OUTPUT_DIRECTORY);
 		native.getSupportedAudioImportMetadata.mockResolvedValue({
@@ -102,7 +76,7 @@ describe('UI Workflow Smoke Test', () => {
 		native.listen.mockResolvedValue(() => undefined);
 		native.listWorkOperations.mockResolvedValue({ revision: 0, order: [], operations: [] });
 
-		const engine = createFakeEngine(settings);
+		const engine = createFakeEngine();
 		engine.analyze = () => [importedFile()];
 		engine.tags.set(INPUT_PATH, {
 			title: 'Dune (old tags)',
@@ -167,13 +141,14 @@ describe('UI Workflow Smoke Test', () => {
 			});
 
 			await user.click(screen.getByTestId('metadata-lookup-close'));
+			await waitFor(() => expect(runtime.lookup.view().isOpen).toBe(false));
 			await user.click(screen.getByRole('button', { name: /Audio plan for/ }));
 			const audioEditor = screen.getByRole('dialog', { name: 'Audio plan' });
 			await user.selectOptions(within(audioEditor).getByLabelText('Audio handling'), 'encode');
 			engine.seedTitleAudio('input-dune', {
 				format: 'm4b',
 				intent: 'encode',
-				settings: settings.encoderDefaults.settings,
+				settings: defaultAppSettings().encoderDefaults.settings,
 				sampleRate: 'auto',
 			});
 			await user.click(await within(audioEditor).findByText(/Encoding settings/));

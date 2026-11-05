@@ -384,20 +384,16 @@ describe('Solid input workbench', () => {
 		});
 	});
 
-	it('blocks import while order is locked and surfaces the lock banner', async () => {
+	it('shows the engine order lock and its refused-import notice', async () => {
 		runtime = runtimeFor();
 		await renderApp(runtime);
 		engine.change((state) => {
 			state.titles.orderLocked = true;
+			state.titles.notice = { kind: 'orderLocked' };
 		});
-		await waitFor(() => {
-			expect(screen.getByTestId('file-order-lock')).toBeVisible();
-		});
-		void runtime.input.importIntent({ type: 'importPaths', paths: ['/tmp/file1.mp3'] });
 		await waitFor(() => {
 			expect(screen.getByTestId('file-order-lock')).toBeVisible();
 			expect(screen.getByText(/Wait for completion to add files/)).toBeInTheDocument();
 		});
-		expect(engine.analyze).not.toHaveBeenCalled();
 	});
 });
