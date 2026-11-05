@@ -1,20 +1,10 @@
-use super::{plan_metadata_outcome, MetadataOutcomeRequest};
+use super::{plan_metadata_outcome, plan_metadata_outcome_from, MetadataOutcomeRequest};
 use crate::metadata::{
     AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
 };
 use crate::output_artifact::build_output_path_preview;
 use crate::output_artifact::OutputNamingConfig;
 use std::path::Path;
-
-fn sample_source_metadata() -> AudiobookMetadata {
-    AudiobookMetadata {
-        title: Some("A Change of Plans".to_string()),
-        artist: Some("Dennis E. Taylor".to_string()),
-        album: Some("A Change of Plans".to_string()),
-        series: Some("Checking".to_string()),
-        ..AudiobookMetadata::new()
-    }
-}
 
 #[test]
 fn effective_processing_metadata_no_patch_reads_source_or_errors() {
@@ -27,23 +17,6 @@ fn effective_processing_metadata_no_patch_reads_source_or_errors() {
         outcome.is_err(),
         "missing input should fail read, not return empty metadata"
     );
-}
-
-#[test]
-fn effective_processing_metadata_partial_set_and_clear_patch() {
-    let patch = MetadataIntentPatch {
-        series: Some(PatchOp::Set("once again".to_string())),
-        artist: Some(PatchOp::Clear),
-        ..Default::default()
-    };
-
-    let merged = patch
-        .apply_to_metadata(sample_source_metadata())
-        .expect("patch applies");
-
-    assert_eq!(merged.artist, None);
-    assert_eq!(merged.title.as_deref(), Some("A Change of Plans"));
-    assert_eq!(merged.series.as_deref(), Some("once again"));
 }
 
 #[test]
@@ -154,33 +127,8 @@ fn effective_processing_metadata_rejects_invalid_patch_values() {
 }
 
 #[test]
-fn resolved_metadata_drives_naming_and_encoding_metadata_coherently() {
-    let base = sample_source_metadata();
-    let patch = MetadataIntentPatch {
-        title: Some(PatchOp::Set("Renamed Title".to_string())),
-        ..Default::default()
-    };
-    let effective = patch
-        .apply_to_metadata(base)
-        .expect("metadata should resolve");
-    let output_path = build_output_path_preview(
-        Path::new("/tmp"),
-        Some(&crate::metadata::NamingMetadata::from_metadata(&effective)),
-        OutputNamingConfig::default(),
-        None,
-    )
-    .expect("output path should build");
-
-    assert!(
-        output_path.to_string_lossy().contains("Renamed Title"),
-        "output naming should use resolved metadata"
-    );
-    assert_eq!(effective.title.as_deref(), Some("Renamed Title"));
-}
-
-#[test]
-fn naming_metadata_scrubs_legacy_series_parts_for_untouched_source() {
-    let metadata = AudiobookMetadata {
+fn a_source_with_legacy_series_parts_names_its_output_without_them() {
+    let source = AudiobookMetadata {
         title: Some("Legacy Source".to_string()),
         series: Some("Series".to_string()),
         series_part: Some("7/8".to_string()),
@@ -188,43 +136,46 @@ fn naming_metadata_scrubs_legacy_series_parts_for_untouched_source() {
         subseries_part: Some("2/3".to_string()),
         ..Default::default()
     };
+    let input_path = Path::new("/tmp/source.m4b");
 
-    let naming = plan_metadata_outcome(MetadataOutcomeRequest {
-        input_path: None,
-        intent_patch: None,
-    })
-    .expect("empty request resolves");
-    assert!(
-        naming.naming_metadata.is_none(),
-        "empty request should not invent naming metadata"
-    );
-    let naming =
-        super::resolve_naming_metadata(Some(&metadata), Some(Path::new("/tmp/source.m4b")), None)
-            .expect("naming metadata should exist");
+    let outcome = plan_metadata_outcome_from(
+        Some(source),
+        MetadataOutcomeRequest {
+            input_path: Some(input_path),
+            intent_patch: None,
+        },
+    )
+    .expect("source resolves");
+    let naming = outcome.naming_metadata.expect("naming metadata");
 
     assert_eq!(naming.title(), Some("Legacy Source"));
     assert_eq!(naming.series(), Some("Series"));
     assert_eq!(naming.series_part(), None);
     assert_eq!(naming.subseries(), Some("Subseries"));
     assert_eq!(naming.subseries_part(), None);
-
     let output_path = build_output_path_preview(
         Path::new("/tmp"),
         Some(&naming),
         OutputNamingConfig::default(),
-        Some(Path::new("/tmp/source.m4b")),
+        Some(input_path),
     )
     .expect("legacy source naming should no longer fail");
+    assert!(output_path.to_string_lossy().contains("Legacy Source"));
 
+    let empty = plan_metadata_outcome(MetadataOutcomeRequest {
+        input_path: None,
+        intent_patch: None,
+    })
+    .expect("empty request resolves");
     assert!(
-        output_path.to_string_lossy().contains("Legacy Source"),
-        "output naming should still use source metadata title"
+        empty.naming_metadata.is_none(),
+        "empty request should not invent naming metadata"
     );
 }
 
 #[test]
-fn naming_metadata_scrubs_legacy_series_parts_for_non_series_patch() {
-    let metadata = AudiobookMetadata {
+fn a_title_edit_names_the_output_by_the_new_title_without_legacy_parts() {
+    let source = AudiobookMetadata {
         title: Some("Patched Source".to_string()),
         series: Some("Series".to_string()),
         series_part: Some("7/8".to_string()),
@@ -234,33 +185,36 @@ fn naming_metadata_scrubs_legacy_series_parts_for_non_series_patch() {
         title: Some(PatchOp::Set("Renamed".to_string())),
         ..Default::default()
     };
+    let input_path = Path::new("/tmp/source.m4b");
 
-    let naming = super::resolve_naming_metadata(
-        Some(&metadata),
-        Some(Path::new("/tmp/source.m4b")),
-        Some(&patch),
+    let outcome = plan_metadata_outcome_from(
+        Some(source),
+        MetadataOutcomeRequest {
+            input_path: Some(input_path),
+            intent_patch: Some(&patch),
+        },
     )
-    .expect("naming metadata should exist");
+    .expect("title edit resolves");
+    let naming = outcome.naming_metadata.expect("naming metadata");
 
-    assert_eq!(naming.title(), Some("Patched Source"));
+    assert_eq!(naming.title(), Some("Renamed"));
     assert_eq!(naming.series_part(), None);
-
+    assert_eq!(
+        outcome.effective_metadata.and_then(|value| value.title),
+        Some("Renamed".to_string())
+    );
     let output_path = build_output_path_preview(
         Path::new("/tmp"),
         Some(&naming),
         OutputNamingConfig::default(),
-        Some(Path::new("/tmp/source.m4b")),
+        Some(input_path),
     )
-    .expect("non-series patch should not fail on inherited legacy part");
-
-    assert!(
-        output_path.to_string_lossy().contains("Patched Source"),
-        "output naming should still use source metadata"
-    );
+    .expect("a title edit should not fail on an inherited legacy part");
+    assert!(output_path.to_string_lossy().contains("Renamed"));
 }
 
 #[test]
-fn naming_metadata_keeps_series_patch_validation_strict() {
+fn a_series_edit_keeps_an_inherited_invalid_series_part_visible() {
     let metadata = AudiobookMetadata {
         title: Some("Patched Source".to_string()),
         series: Some("Series".to_string()),
@@ -272,18 +226,12 @@ fn naming_metadata_keeps_series_patch_validation_strict() {
         ..Default::default()
     };
 
-    let naming = super::resolve_naming_metadata(
-        Some(&metadata),
-        Some(Path::new("/tmp/source.m4b")),
-        Some(&patch),
-    )
-    .expect("naming metadata should exist");
-
-    let err = build_output_path_preview(
-        Path::new("/tmp"),
-        Some(&naming),
-        OutputNamingConfig::default(),
-        Some(Path::new("/tmp/source.m4b")),
+    let err = plan_metadata_outcome_from(
+        Some(metadata),
+        MetadataOutcomeRequest {
+            input_path: Some(Path::new("/tmp/source.m4b")),
+            intent_patch: Some(&patch),
+        },
     )
     .expect_err("series patch should keep inherited invalid part visible");
 

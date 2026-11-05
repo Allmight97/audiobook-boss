@@ -45,6 +45,32 @@ fn comment_edits_replace_language_aliases_and_preserve_technical_comments() {
 }
 
 #[test]
+fn clearing_author_and_date_removes_their_alias_keys() {
+    let mut source = ff::Dictionary::new();
+    for (key, value) in [
+        ("artist", "Old"),
+        ("album_artist", "Old"),
+        ("date", "2001"),
+        ("year", "2001"),
+        ("title", "Keep"),
+    ] {
+        source.set(key, value);
+    }
+    let plan = MetadataWritePlan::from_metadata(AudiobookMetadata {
+        artist: Some(String::new()),
+        date: Some(String::new()),
+        ..Default::default()
+    });
+
+    let merged = merge_metadata_with_plan(source, &plan).expect("apply clears to source tags");
+
+    for key in ["artist", "album_artist", "date", "year"] {
+        assert_eq!(merged.get(key), None, "{key}");
+    }
+    assert_eq!(merged.get("title"), Some("Keep"));
+}
+
+#[test]
 fn merge_metadata_preserves_album_sort_without_explicit_intent() {
     let plan = MetadataWritePlan {
         metadata: AudiobookMetadata {

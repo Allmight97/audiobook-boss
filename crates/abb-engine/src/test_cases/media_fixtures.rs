@@ -7,6 +7,7 @@ use abb_engine::audio::{
 use abb_engine::processing::{OutputConfig, ProcessingContext, ProcessingSession};
 use abb_engine::{AppError, MetadataIntentPatch};
 use image::ImageFormat;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -205,4 +206,13 @@ pub(crate) fn audio_packet_bytes(path: &Path) -> Vec<Vec<u8>> {
         .filter(|(stream, _)| stream.index() == index)
         .map(|(_, packet)| packet.data().expect("fixture value").to_vec())
         .collect()
+}
+
+pub(crate) fn preflight_processing_plan(
+    payload: abb_engine::processing::ProcessPayload,
+    metadata: Option<HashMap<String, MetadataIntentPatch>>,
+    preview: bool,
+) -> crate::Result<abb_engine::processing::ProcessingPreflightPlan> {
+    crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), preview)
+        .map(|inspected| inspected.plan.to_public())
 }

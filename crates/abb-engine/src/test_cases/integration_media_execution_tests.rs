@@ -21,8 +21,8 @@
 
 use super::integration_faac_execution_tests::faac_encoder_settings;
 use super::media_fixtures::{
-    audio_packet_bytes, duration_ms, picture_codecs, run_planned_title, single_title_payload,
-    write_complete_frame_aac, write_two_picture_fixture,
+    audio_packet_bytes, duration_ms, picture_codecs, preflight_processing_plan, run_planned_title,
+    single_title_payload, write_complete_frame_aac, write_two_picture_fixture,
 };
 use abb_engine::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
@@ -112,16 +112,6 @@ fn test_engine() -> &'static abb_engine::Engine {
             (root, engine)
         })
         .1
-}
-
-pub(crate) fn preflight_processing_plan(
-    payload: abb_engine::processing::ProcessPayload,
-    metadata: Option<std::collections::HashMap<String, MetadataIntentPatch>>,
-    preview: bool,
-) -> Result<abb_engine::processing::ProcessingPreflightPlan, abb_engine::AppErrorEnvelope> {
-    Ok(abb_engine::processing::preflight_payload(
-        payload, metadata, preview,
-    )?)
 }
 
 #[tokio::test]
@@ -1788,7 +1778,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
             .expect("fixture value");
     let refusal = preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), true)
         .expect_err("a preview never copies audio");
-    assert!(refusal.message.contains(PREVIEW_REFUSAL));
+    assert!(refusal.to_string().contains(PREVIEW_REFUSAL));
     let mut changed_mode = all_preserve.clone();
     changed_mode.audio_requests = vec![title_audio_request(Encode, native_encoder_settings()); 3];
     let encode_plan = preflight_processing_plan(changed_mode, Some(metadata.clone()), false)
@@ -1803,7 +1793,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
     misaligned.audio_requests.truncate(1);
     assert!(preflight_processing_plan(misaligned, Some(metadata), false)
         .expect_err("fixture must reject")
-        .message
+        .to_string()
         .contains("align"));
 }
 
@@ -2612,10 +2602,10 @@ fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
     preserved.audio_requests[0].intent = abb_engine::audio::AudioIntent::Auto;
     let error = preflight_processing_plan(preserved, None, false)
         .expect_err("interior MP3 priming requires encoding");
+    let message = error.to_string();
     assert!(
-        error.message.contains("priming") || error.message.contains("shifted"),
-        "{}",
-        error.message
+        message.contains("priming") || message.contains("shifted"),
+        "{message}"
     );
     assert_eq!(
         fs::read_dir(&output_dir)

@@ -333,15 +333,13 @@ pub(crate) struct FinalizedOutputSuccess {
     pub result_message: String,
 }
 
-fn commit_output_artifact_internal<F, C>(
+pub(crate) fn commit_output_artifact<C>(
     request: OutputCommitRequest<'_>,
     temp_output: PathBuf,
     cleanup_guard: &mut CleanupGuard,
-    after_move: F,
     is_cancelled: C,
 ) -> Result<OutputCommitOutcome>
 where
-    F: FnOnce(),
     C: FnOnce() -> bool,
 {
     let final_output =
@@ -350,7 +348,6 @@ where
 
     // Destination output is now canonical and must not be cleaned up on cancellation.
     cleanup_guard.remove_path(&final_output);
-    after_move();
 
     let cancelled = is_cancelled();
     let cleanup_warning = cleanup_guard.cleanup_now().err().map(|error| {
@@ -363,39 +360,6 @@ where
         cancelled,
         cleanup_warning,
     })
-}
-
-pub(crate) fn commit_output_artifact<C>(
-    request: OutputCommitRequest<'_>,
-    temp_output: PathBuf,
-    cleanup_guard: &mut CleanupGuard,
-    is_cancelled: C,
-) -> Result<OutputCommitOutcome>
-where
-    C: FnOnce() -> bool,
-{
-    commit_output_artifact_internal(request, temp_output, cleanup_guard, || {}, is_cancelled)
-}
-
-#[cfg(test)]
-pub(crate) fn commit_output_artifact_after_move<F, C>(
-    request: OutputCommitRequest<'_>,
-    temp_output: PathBuf,
-    cleanup_guard: &mut CleanupGuard,
-    after_move: F,
-    is_cancelled: C,
-) -> Result<OutputCommitOutcome>
-where
-    F: FnOnce(),
-    C: FnOnce() -> bool,
-{
-    commit_output_artifact_internal(
-        request,
-        temp_output,
-        cleanup_guard,
-        after_move,
-        is_cancelled,
-    )
 }
 
 pub(crate) fn finalized_output_success(

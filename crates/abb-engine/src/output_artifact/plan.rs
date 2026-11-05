@@ -61,31 +61,6 @@ impl OutputPlanLedger {
         }
         Ok(plan)
     }
-
-    #[cfg(test)]
-    fn claimed_paths(&self) -> &HashSet<PathBuf> {
-        &self.claimed
-    }
-}
-
-#[cfg(test)]
-pub(crate) fn resolve_output_plan(
-    requested_final_path: &Path,
-    kind: OutputKind,
-    policy: CollisionPolicy,
-    claimed: &HashSet<PathBuf>,
-    source_paths: &[PathBuf],
-) -> Result<ResolvedOutputPlan> {
-    let mut cache = OutputCollisionCache::default();
-    cache.cache_source_paths(source_paths);
-    resolve_output_plan_with_cache(
-        &derive_output_artifact_path(requested_final_path, kind)?,
-        kind,
-        policy,
-        claimed,
-        source_paths,
-        &mut cache,
-    )
 }
 
 fn resolve_output_plan_with_cache(

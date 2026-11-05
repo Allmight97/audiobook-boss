@@ -2,7 +2,6 @@ use super::*;
 use std::cell::Cell;
 use std::io;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use tempfile::TempDir;
 
 fn replacement_temp_named(final_path: &Path, suffix: &str) -> std::path::PathBuf {
@@ -24,22 +23,13 @@ fn commit_output_artifact_preserves_moved_output_on_post_move_cancel() {
 
     let final_output = root.path().join("final-output.m4b");
 
-    let cancelled = AtomicBool::new(false);
     let mut cleanup_guard = CleanupGuard::new("commit-test".to_string());
     cleanup_guard.add_path(&temp_dir);
     cleanup_guard.add_path(&temp_output);
 
     let request = OutputCommitRequest::new(&final_output, PlannedOutputAction::Write);
-    let outcome = commit_output_artifact_after_move(
-        request,
-        temp_output,
-        &mut cleanup_guard,
-        || {
-            cancelled.store(true, Ordering::Release);
-        },
-        || cancelled.load(Ordering::Acquire),
-    )
-    .expect("commit should succeed");
+    let outcome = commit_output_artifact(request, temp_output, &mut cleanup_guard, || true)
+        .expect("commit should succeed");
 
     assert!(outcome.cancelled, "expected cancellation after move");
     assert!(final_output.exists(), "moved output should be preserved");
@@ -59,15 +49,15 @@ fn committed_output_survives_cleanup_failure_with_visible_warning_and_retry() {
     let output = root.path().join("book.m4b");
     std::fs::write(&staged, b"complete book").expect("write test fixture");
     let mut guard = CleanupGuard::new("cleanup-warning".into());
-    let outcome = commit_output_artifact_after_move(
+    let outcome = commit_output_artifact(
         OutputCommitRequest::new(&output, PlannedOutputAction::Write),
         staged.clone(),
         &mut guard,
         || {
             crate::test_cases::move_test_file(&workspace, &backup);
             std::fs::write(&workspace, b"blocks cleanup traversal").expect("write test fixture");
+            false
         },
-        || false,
     )
     .expect("publication remains successful when staged cleanup fails");
     assert_eq!(

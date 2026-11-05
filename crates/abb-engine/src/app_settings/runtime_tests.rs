@@ -59,7 +59,10 @@ fn remember_output(directory: &str) -> SettingsIntent {
 
 impl Rig {
     async fn send(&self, intent: SettingsIntent) -> SettingsReply {
-        self.settings.dispatch(intent).await
+        self.settings
+            .begin(intent, &crate::engine::EngineTasks::default())
+            .finish()
+            .await
     }
 
     fn set_writable(&self, writable: bool) {

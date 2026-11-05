@@ -1,12 +1,3 @@
-fn preflight_payload(
-    payload: crate::processing::ProcessPayload,
-    metadata: Option<std::collections::HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview: bool,
-) -> crate::Result<crate::processing::ProcessingPreflightPlan> {
-    super::inspect_processing_plan(&payload, metadata.as_ref(), preview)
-        .map(|inspected| inspected.plan.to_public())
-}
-
 use super::run_job::{
     commit_supplemental_assets, register_job_and_validate_output, supplemental_assets_for_input,
     title_outcome, ProcessingJobLogContext,
@@ -16,6 +7,7 @@ use crate::output_artifact::OutputKind;
 use crate::processing::terminal_outcomes::ProcessingJobTerminalOutcome;
 use crate::processing::OperationKind;
 use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
+use crate::test_cases::media_fixtures::preflight_processing_plan as preflight_payload;
 use std::collections::HashMap;
 use tempfile::TempDir;
 

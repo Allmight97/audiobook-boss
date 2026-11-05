@@ -24,37 +24,14 @@ fn chapterless_sources_synthesize_one_chapter_per_file() {
 }
 
 #[test]
-fn into_option_returns_none_for_empty_passthrough() {
-    assert!(PassthroughMetadata::default().into_option().is_none());
-}
-
-#[test]
-fn without_cover_art_preserves_chapters_and_drops_cover_art() {
-    let passthrough = PassthroughMetadata {
-        chapters: vec![ChapterSpec {
-            title: Some("Chapter 1".to_string()),
-            start_ms: 0,
-            end_ms: 1_000,
-        }],
-        cover_art: Some(vec![1, 2, 3]),
-    };
-
-    let without_cover = passthrough
-        .without_cover_art()
-        .expect("chapter passthrough should remain");
-
-    assert_eq!(without_cover.chapters.len(), 1);
-    assert_eq!(without_cover.cover_art, None);
-}
-
-#[test]
-fn without_cover_art_returns_none_when_passthrough_only_has_cover_art() {
+fn dropping_the_cover_leaves_nothing_when_only_the_cover_was_passed_through() {
     let passthrough = PassthroughMetadata {
         chapters: Vec::new(),
         cover_art: Some(vec![1, 2, 3]),
     };
 
     assert!(passthrough.without_cover_art().is_none());
+    assert!(PassthroughMetadata::default().into_option().is_none());
 }
 
 #[test]
@@ -77,39 +54,37 @@ fn cover_art_passthrough_policy_drops_only_cover_art_after_explicit_clear() {
 }
 
 #[test]
-fn merge_passthrough_cover_art_fills_only_missing_cover_art() {
+fn a_source_cover_fills_only_a_missing_cover() {
     let passthrough = PassthroughMetadata {
         chapters: Vec::new(),
         cover_art: Some(vec![1, 2, 3]),
     };
-    let metadata = AudiobookMetadata {
-        title: Some("Known title".to_string()),
-        cover_art: None,
-        ..Default::default()
-    };
 
-    let merged =
-        merge_passthrough_cover_art(Some(metadata), Some(&passthrough)).expect("metadata remains");
+    let missing = merge_passthrough_cover_art(
+        Some(AudiobookMetadata {
+            title: Some("Known title".to_string()),
+            cover_art: None,
+            ..Default::default()
+        }),
+        Some(&passthrough),
+    )
+    .expect("metadata remains");
+    assert_eq!(missing.title.as_deref(), Some("Known title"));
+    assert_eq!(missing.cover_art, Some(vec![1, 2, 3]));
 
-    assert_eq!(merged.title.as_deref(), Some("Known title"));
-    assert_eq!(merged.cover_art, Some(vec![1, 2, 3]));
-}
+    let chosen = merge_passthrough_cover_art(
+        Some(AudiobookMetadata {
+            cover_art: Some(vec![9]),
+            ..Default::default()
+        }),
+        Some(&passthrough),
+    )
+    .expect("metadata remains");
+    assert_eq!(chosen.cover_art, Some(vec![9]));
 
-#[test]
-fn merge_passthrough_cover_art_keeps_explicit_cover_art() {
-    let passthrough = PassthroughMetadata {
-        chapters: Vec::new(),
-        cover_art: Some(vec![1, 2, 3]),
-    };
-    let metadata = AudiobookMetadata {
-        cover_art: Some(vec![9]),
-        ..Default::default()
-    };
-
-    let merged =
-        merge_passthrough_cover_art(Some(metadata), Some(&passthrough)).expect("metadata remains");
-
-    assert_eq!(merged.cover_art, Some(vec![9]));
+    let no_metadata =
+        merge_passthrough_cover_art(None, Some(&passthrough)).expect("cover becomes metadata");
+    assert_eq!(no_metadata.cover_art, Some(vec![1, 2, 3]));
 }
 
 #[test]

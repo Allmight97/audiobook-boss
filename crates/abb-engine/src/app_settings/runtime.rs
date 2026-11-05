@@ -248,13 +248,6 @@ impl SettingsRuntime {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) async fn dispatch(&self, intent: SettingsIntent) -> SettingsReply {
-        self.begin(intent, &crate::engine::EngineTasks::default())
-            .finish()
-            .await
-    }
-
     /// Reserves its turn synchronously, so async replies cannot reorder writes.
     pub(crate) fn begin(
         &self,

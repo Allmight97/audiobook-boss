@@ -89,9 +89,17 @@ async fn metadata_batch_cancels_remaining_items_between_writes() {
         .all(|event| event.stage == EventStage::Cancelled));
 }
 
-#[test]
-fn cancelled_metadata_save_batch_returns_per_file_cancelled_results() {
-    let result = cancelled_metadata_save_batch(vec![
+#[tokio::test]
+async fn a_save_cancelled_while_waiting_for_a_job_slot_reports_each_file_cancelled() {
+    let host = Host::new(
+        std::sync::Arc::new(crate::DiscardEvents),
+        crate::power::PowerManager::default(),
+    );
+    let runtime = WorkRuntime::default();
+    let registry: crate::ManagedJobRegistry =
+        std::sync::Arc::new(crate::processing::JobRegistry::new(1));
+    let (_held_job, held_slot) = registry.register_job().await.expect("hold the only slot");
+    let items = vec![
         MetadataSaveRequest {
             file_path: "/books/a.m4b".to_string(),
             metadata_patch: title_patch("A"),
@@ -100,8 +108,35 @@ fn cancelled_metadata_save_batch_returns_per_file_cancelled_results() {
             file_path: "/books/b.m4b".to_string(),
             metadata_patch: title_patch("B"),
         },
-    ]);
+    ];
 
+    let cancel_when_waiting = async {
+        let operation_id = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                let listed = runtime.list_operations().expect("list operations");
+                if let Some(operation) = listed.operations.first() {
+                    return operation.operation_id.clone();
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("the save registers its operation");
+        runtime
+            .cancel_operation(&host, operation_id, None)
+            .expect("cancel the waiting save");
+    };
+    let (saved, ()) = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        tokio::join!(
+            save_metadata_batch(&host, &runtime, &registry, items),
+            cancel_when_waiting
+        )
+    })
+    .await
+    .expect("the cancelled save finishes");
+    drop(held_slot);
+
+    let result = saved.expect("a cancelled save still reports its files");
     assert_eq!(result.summary.total, 2);
     assert_eq!(result.summary.succeeded, 0);
     assert_eq!(result.summary.failed, 0);
@@ -114,4 +149,9 @@ fn cancelled_metadata_save_batch_returns_per_file_cancelled_results() {
         .results
         .iter()
         .all(|entry| entry.status == MetadataSaveResultStatus::Cancelled));
+    let listed = runtime.list_operations().expect("list operations");
+    assert_eq!(
+        listed.operations[0].status,
+        crate::work_runtime::WorkOperationStatus::Cancelled
+    );
 }

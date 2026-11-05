@@ -16,7 +16,3 @@ pub const SERIES_PART_READ_KEYS: [&str; 3] = [SERIES_PART, ITUNES_SERIES_PART, E
 
 pub const SERIES_CLEAR_KEYS: [&str; 3] = SERIES_READ_KEYS;
 pub const SERIES_PART_CLEAR_KEYS: [&str; 3] = SERIES_PART_READ_KEYS;
-
-#[cfg(test)]
-#[path = "tag_registry_tests.rs"]
-mod tests;
