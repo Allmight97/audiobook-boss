@@ -36,6 +36,13 @@ impl Desk {
         Self { root, engine }
     }
 
+    pub(super) fn relaunch(self) -> Self {
+        let Self { root, engine } = self;
+        drop(engine);
+        let engine = start_once_the_lock_frees(|| engine_config(root.path()));
+        Self { root, engine }
+    }
+
     pub(super) fn residual_workspace_dirs(&self) -> Vec<PathBuf> {
         let workspace = crate::audio::processing_workspace_root(&self.root.path().join("cache"));
         if !workspace.exists() {
@@ -181,6 +188,24 @@ impl Desk {
             tokio::time::sleep(Duration::from_millis(25)).await;
         }
         panic!("timed out waiting until {what}");
+    }
+}
+
+/// A child process another test thread spawns copies this process's
+/// descriptor table, so it holds the folder's flock until its exec, about a
+/// millisecond.
+pub(super) fn start_once_the_lock_frees(config: impl Fn() -> EngineConfig) -> Engine {
+    let deadline = std::time::Instant::now() + Duration::from_secs(1);
+    loop {
+        match Engine::start(config()) {
+            Ok(engine) => return engine,
+            Err(abb_engine::AppError::AlreadyRunning(_))
+                if std::time::Instant::now() < deadline =>
+            {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            Err(error) => panic!("ABB starts after the first one quit: {error}"),
+        }
     }
 }
 

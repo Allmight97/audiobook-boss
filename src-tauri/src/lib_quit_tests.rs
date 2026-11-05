@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::{quit_prompt, settle_or_ask, SHUTDOWN_WAIT};
+use super::{quit_prompt, quit_when_saved, settle_or_ask, SHUTDOWN_WAIT};
 
 #[test]
 fn quitting_asks_first_when_it_would_stop_downloads_or_exports() {
@@ -47,4 +47,55 @@ async fn a_shutdown_that_settles_in_time_asks_nothing() {
     })
     .await;
     assert!(settled.is_some());
+}
+
+fn unsaved() -> abb_engine::ShutdownOutcome {
+    abb_engine::ShutdownOutcome::SettingsUnsaved {
+        error: abb_engine::AppErrorEnvelope::from(abb_engine::AppError::General(
+            "disk is read-only".to_string(),
+        )),
+    }
+}
+
+#[tokio::test]
+async fn quitting_retries_the_settings_save_until_it_settles() {
+    let shutdowns = AtomicUsize::new(0);
+    let reasons = std::sync::Mutex::new(Vec::new());
+    quit_when_saved(
+        || {
+            let attempt = shutdowns.fetch_add(1, Ordering::SeqCst);
+            async move {
+                if attempt == 0 {
+                    unsaved()
+                } else {
+                    abb_engine::ShutdownOutcome::Settled
+                }
+            }
+        },
+        || async { panic!("asked to keep waiting although shutdown returned") },
+        |reason| {
+            reasons.lock().expect("reasons").push(reason);
+            async { true }
+        },
+    )
+    .await;
+    assert_eq!(shutdowns.load(Ordering::SeqCst), 2);
+    let reasons = reasons.into_inner().expect("reasons");
+    assert_eq!(reasons.len(), 1);
+    assert!(reasons[0].contains("disk is read-only"), "{reasons:?}");
+}
+
+#[tokio::test]
+async fn quitting_anyway_with_unsaved_settings_shuts_down_once() {
+    let shutdowns = AtomicUsize::new(0);
+    quit_when_saved(
+        || {
+            shutdowns.fetch_add(1, Ordering::SeqCst);
+            async { unsaved() }
+        },
+        || async { panic!("asked to keep waiting although shutdown returned") },
+        |_| async { false },
+    )
+    .await;
+    assert_eq!(shutdowns.load(Ordering::SeqCst), 1);
 }

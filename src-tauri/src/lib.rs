@@ -177,6 +177,32 @@ async fn ask_to_keep_waiting(app: tauri::AppHandle) -> bool {
     answered.await.unwrap_or(false)
 }
 
+async fn quit_when_saved<S, W, R>(
+    mut shutdown: impl FnMut() -> S,
+    mut keep_waiting: impl FnMut() -> W,
+    mut retry_save: impl FnMut(String) -> R,
+) where
+    S: std::future::Future<Output = abb_engine::ShutdownOutcome>,
+    W: std::future::Future<Output = bool>,
+    R: std::future::Future<Output = bool>,
+{
+    loop {
+        match settle_or_ask(shutdown(), &mut keep_waiting).await {
+            Some(abb_engine::ShutdownOutcome::Settled) => break,
+            Some(abb_engine::ShutdownOutcome::SettingsUnsaved { error }) => {
+                if !retry_save(error.message).await {
+                    log::warn!("Quit with unsaved settings, at the user's choice");
+                    break;
+                }
+            }
+            None => {
+                log::warn!("Quit before the engine settled, at the user's choice");
+                break;
+            }
+        }
+    }
+}
+
 fn shut_down_then_exit(app: &tauri::AppHandle) {
     let quit = app.state::<Quit>();
     if quit.shutting_down.swap(true, Ordering::SeqCst) {
@@ -186,21 +212,12 @@ fn shut_down_then_exit(app: &tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         if let Some(engine) = app.try_state::<abb_engine::Engine>() {
             let engine = engine.inner().clone();
-            loop {
-                match settle_or_ask(engine.shutdown(), || ask_to_keep_waiting(app.clone())).await {
-                    Some(abb_engine::ShutdownOutcome::Settled) => break,
-                    Some(abb_engine::ShutdownOutcome::SettingsUnsaved { error }) => {
-                        if !ask_to_retry_settings_save(app.clone(), error.message).await {
-                            log::warn!("Quit with unsaved settings, at the user's choice");
-                            break;
-                        }
-                    }
-                    None => {
-                        log::warn!("Quit before the engine settled, at the user's choice");
-                        break;
-                    }
-                }
-            }
+            quit_when_saved(
+                || engine.shutdown(),
+                || ask_to_keep_waiting(app.clone()),
+                |reason| ask_to_retry_settings_save(app.clone(), reason),
+            )
+            .await;
         }
         app.state::<Quit>().done.store(true, Ordering::SeqCst);
         app.exit(0);

@@ -18,6 +18,8 @@ mod integration_session_desk;
 mod integration_session_save_tests;
 #[path = "integration_session_tests.rs"]
 mod integration_session_tests;
+#[path = "integration_settings_relaunch_tests.rs"]
+mod integration_settings_relaunch_tests;
 #[path = "media_fixtures.rs"]
 pub(crate) mod media_fixtures;
 #[path = "unit_error_envelope_tests.rs"]
