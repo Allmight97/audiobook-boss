@@ -24,12 +24,17 @@ export function requiredPermissions(source: string): string[] {
 	);
 }
 
+type Capability = { permissions: (string | { identifier: string })[] };
+
+function readCapability(): Capability {
+	return JSON.parse(read('src-tauri/capabilities/default.json')) as Capability;
+}
+
 function grantedPermissions(): Set<string> {
-	const capability = JSON.parse(read('src-tauri/capabilities/default.json')) as {
-		permissions: (string | { identifier: string })[];
-	};
 	return new Set(
-		capability.permissions.map((entry) => (typeof entry === 'string' ? entry : entry.identifier)),
+		readCapability().permissions.map((entry) =>
+			typeof entry === 'string' ? entry : entry.identifier,
+		),
 	);
 }
 
@@ -64,6 +69,26 @@ describe('Tauri contract between the frontend and src-tauri', () => {
 				.map((permission) => `${file}: ${permission}`),
 		);
 		expect(missing, 'Add each permission to src-tauri/capabilities/default.json').toEqual([]);
+	});
+
+	it('lets the window open http and https URLs and no file path', () => {
+		const { permissions } = readCapability();
+		expect(
+			permissions.find(
+				(permission) =>
+					typeof permission === 'object' && permission.identifier === 'opener:allow-open-url',
+			),
+		).toEqual({
+			identifier: 'opener:allow-open-url',
+			allow: [{ url: 'http://*' }, { url: 'https://*' }],
+		});
+		expect(
+			permissions.some(
+				(permission) =>
+					(typeof permission === 'object' ? permission.identifier : permission) ===
+					'opener:allow-open-path',
+			),
+		).toBe(false);
 	});
 
 	it('pins @tauri-apps/api to the minor of the Rust tauri crate', () => {

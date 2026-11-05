@@ -8,7 +8,6 @@ vi.mock('./tauri/client', () => ({
 
 import {
 	disposeFrontendErrorLogBridgeForTests,
-	flattenLogText,
 	initFrontendErrorLogBridge,
 } from './frontendLogBridge';
 
@@ -69,10 +68,10 @@ describe('frontend error log bridge', () => {
 		nowSpy.mockRestore();
 	});
 
-	it('flattens log-breaking controls and installs once', () => {
-		expect(flattenLogText('a\nb\rc\t')).toBe('a b c ');
+	it('flattens log-breaking controls in a forwarded record and installs once', () => {
 		initFrontendErrorLogBridge();
-		window.dispatchEvent(rejectionEvent(new Error('single')));
+		window.dispatchEvent(rejectionEvent(new Error('a\nb\rc\t\u0007d')));
 		expect(logFrontendMock).toHaveBeenCalledTimes(1);
+		expect(logFrontendMock.mock.calls[0][0].message).toBe('a b c d');
 	});
 });

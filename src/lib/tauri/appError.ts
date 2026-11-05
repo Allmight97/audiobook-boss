@@ -94,34 +94,14 @@ export function normalizeAppError(
 	};
 }
 
-type SpectaResult = { status: 'ok'; data?: unknown } | { status: 'error'; error?: unknown };
-
-function isSpectaResult(value: unknown): value is SpectaResult {
-	if (!isPlainRecord(value)) {
-		return false;
-	}
-	return value.status === 'ok' || value.status === 'error';
-}
-
-export type UnwrappedResult<T> = T extends { status: 'error' }
-	? never
-	: T extends { status: 'ok'; data: infer U }
-		? U
-		: T;
-
-/* oxlint-disable typescript/no-unsafe-type-assertion -- UnwrappedResult<T> is a conditional type; isSpectaResult checks the envelope that selects its branch. */
-export function unwrapGeneratedResult<T>(value: T): UnwrappedResult<T> {
-	if (!isSpectaResult(value)) {
-		return value as UnwrappedResult<T>;
-	}
-
+export function unwrapGeneratedResult<T>(
+	value: { status: 'ok'; data: T } | { status: 'error'; error: unknown },
+): T {
 	if (value.status === 'error') {
 		throw normalizeAppError(value.error);
 	}
-
-	return value.data as UnwrappedResult<T>;
+	return value.data;
 }
-/* oxlint-enable typescript/no-unsafe-type-assertion */
 
 /**
  * Derive a user-facing message from any thrown cause. Centralizes the
@@ -146,19 +126,11 @@ export function isCancellation(cause: unknown): boolean {
 }
 
 /**
- * Log a normalized error with a consistent `code=/category=` shape. Defaults to
- * `console.error`; pass `level: 'warn'` for non-fatal diagnostics.
+ * Log a normalized error with a consistent `code=/category=` shape. The
+ * message and detail stay out of the console line because they can carry paths
+ * or provider text.
  */
-export function logAppError(
-	scope: string,
-	cause: unknown,
-	level: 'error' | 'warn' = 'error',
-): void {
+export function logAppError(scope: string, cause: unknown): void {
 	const error = normalizeAppError(cause);
-	const line = `${scope} code=${error.code} category=${error.category}`;
-	if (level === 'warn') {
-		console.warn(line);
-	} else {
-		console.error(line);
-	}
+	console.error(`${scope} code=${error.code} category=${error.category}`);
 }

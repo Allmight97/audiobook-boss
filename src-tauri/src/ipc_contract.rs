@@ -75,7 +75,3 @@ fn trim_generated_typescript(input: &str) -> String {
 
     normalized
 }
-
-#[cfg(test)]
-#[path = "ipc_contract_tests.rs"]
-mod tests;

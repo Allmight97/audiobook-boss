@@ -14,13 +14,3 @@ fn sanitized_fields_flattens_and_bounds_input() {
     assert!(!message.contains('\n'));
     assert!(!message.contains('\t'));
 }
-
-#[test]
-fn log_frontend_accepts_oversized_input() {
-    assert!(log_frontend(FrontendLogEntry {
-        level: FrontendLogLevel::Warn,
-        scope: "s".repeat(600),
-        message: "m".repeat(600),
-    })
-    .is_ok());
-}

@@ -13,7 +13,3 @@ export function pathBasename(path: string, options: PathBasenameOptions): string
 	}
 	return fallback === 'empty' ? '' : path;
 }
-
-export function pathSegments(path: string): string[] {
-	return path.split(/[\\/]/).filter(Boolean);
-}

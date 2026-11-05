@@ -10,7 +10,7 @@ import type { AppSettings, SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { SessionIntent } from '../../types/session';
 import type { OperationId } from '../../types/workRuntime';
-import { normalizeAppError, type UnwrappedResult, unwrapGeneratedResult } from './appError';
+import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
 	denormalizeNullish,
 	normalizeFrontendAttachment,
@@ -20,18 +20,19 @@ import {
 	normalizeSettingsReply,
 } from './normalizers';
 
-async function runGeneratedCommand<T>(promise: Promise<T>): Promise<UnwrappedResult<T>>;
+type GeneratedResult<T> = { status: 'ok'; data: T } | { status: 'error'; error: unknown };
+
+async function runGeneratedCommand<T>(promise: Promise<GeneratedResult<T>>): Promise<T>;
 async function runGeneratedCommand<T, R>(
-	promise: Promise<T>,
-	transform: (value: UnwrappedResult<T>) => R,
+	promise: Promise<GeneratedResult<T>>,
+	transform: (value: T) => R,
 ): Promise<R>;
 async function runGeneratedCommand<T, R>(
-	promise: Promise<T>,
-	transform?: (value: UnwrappedResult<T>) => R,
-): Promise<UnwrappedResult<T> | R> {
+	promise: Promise<GeneratedResult<T>>,
+	transform?: (value: T) => R,
+): Promise<T | R> {
 	try {
-		const response = await promise;
-		const unwrapped = unwrapGeneratedResult(response);
+		const unwrapped = unwrapGeneratedResult(await promise);
 		return transform ? transform(unwrapped) : unwrapped;
 	} catch (error) {
 		throw normalizeAppError(error);
