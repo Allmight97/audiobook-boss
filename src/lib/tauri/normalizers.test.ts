@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { fakeRemote } from '../../test/fixtures/fakeEngine';
 import { normalizeSessionUpdate } from './normalizers';
+import { recordedFresh } from './recordedFresh';
 
 describe('session update normalization', () => {
 	it('normalizes cached library title optionals and preserves meaningful empty account/job snapshots', async () => {
-		const seed = fakeRemote();
+		const seed = recordedFresh.session.remote!;
 		const remote = {
 			...seed,
 			account: null,

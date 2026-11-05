@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupportedAudioImportMetadata } from '../../types/audio';
+import type { MetadataField } from '../../types/session';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
@@ -29,12 +30,24 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 
 function engineWithTaggedBooks({ cover = true } = {}): FakeEngine {
 	const engine = createFakeEngine();
+	const form: Partial<Record<MetadataField, string>> = {};
 	engine.analyze = (paths) =>
-		paths.map((path) => {
-			const title = path.includes('beta') ? 'Beta' : 'Alpha';
-			engine.tags.set(path, cover ? { title, cover_art: [0x89, 0x50, 0x4e, 0x47] } : { title });
-			return audioFile(path, { duration: 1, size: 1000, tagTitle: title });
-		});
+		paths.map((path) => audioFile(path, { duration: 1, size: 1000, tagTitle: 'Alpha' }));
+	engine.respond = (intent) => {
+		if (intent.kind === 'setField') {
+			form[intent.field] = intent.value;
+			engine.seedForm(form);
+		}
+		if (intent.kind !== 'import') return undefined;
+		engine.loadTitles(engine.analyze(intent.paths), [0]);
+		form.title = 'Alpha';
+		engine.seedForm(form);
+		if (cover)
+			engine.change((state) => {
+				state.metadata.cover.present = true;
+			});
+		return { kind: 'applied' };
+	};
 	return engine;
 }
 

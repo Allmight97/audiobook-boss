@@ -78,12 +78,35 @@ describe('UI workflow intents', () => {
 
 		const engine = createFakeEngine();
 		engine.analyze = () => [importedFile()];
-		engine.tags.set(INPUT_PATH, {
-			title: 'Dune (old tags)',
-			artist: 'Old Author',
-			cover_art: [1, 1, 1],
-		});
 		engine.respond = (intent) => {
+			if (intent.kind === 'import') {
+				engine.loadTitles(engine.analyze(intent.paths), [0]);
+				engine.seedForm({ title: 'Dune (old tags)', author: 'Old Author' });
+				engine.seedCover([1, 1, 1]);
+				return { kind: 'applied' };
+			}
+			if (intent.kind === 'lookupClose') {
+				engine.change((state) => {
+					state.lookup.open = false;
+				});
+				return { kind: 'applied' };
+			}
+			if (intent.kind === 'setOutputDirectory') {
+				engine.change((state) => {
+					state.output.directory = intent.directory;
+				});
+				return { kind: 'applied' };
+			}
+			if (intent.kind === 'submit') {
+				engine.change((state) => {
+					state.output.submission = {
+						kind: 'submitted',
+						operationId: 'operation-1',
+						title: 'Dune',
+					};
+				});
+				return { kind: 'applied' };
+			}
 			if (intent.kind === 'lookupOpen') {
 				engine.change((state) => {
 					state.lookup = {
@@ -98,8 +121,7 @@ describe('UI workflow intents', () => {
 				return { kind: 'applied' };
 			}
 			if (intent.kind === 'lookupApply') {
-				engine.seedField('title', 'Dune');
-				engine.seedField('author', 'Frank Herbert');
+				engine.seedForm({ title: 'Dune', author: 'Frank Herbert' });
 				engine.seedCover(COVER_BYTES);
 				engine.change((state) => {
 					state.lookup = { ...state.lookup, status: { kind: 'applied', coverFailed: false } };

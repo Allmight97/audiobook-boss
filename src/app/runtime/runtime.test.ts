@@ -40,13 +40,19 @@ describe('app runtime', () => {
 
 	it('does not share view-local state across live runtimes', async () => {
 		const engine = createFakeEngine();
-		engine.respond = (intent) =>
-			intent.kind === 'submit'
+		engine.respond = (intent) => {
+			if (intent.kind === 'lookupSetTitleQuery') {
+				engine.change((state) => {
+					state.lookup.titleQuery = intent.value;
+				});
+			}
+			return intent.kind === 'submit'
 				? {
 						kind: 'rejected',
 						error: { code: 'io_error', category: 'io', message: 'Disk full', detail: null },
 					}
 				: undefined;
+		};
 		const first = createAppRuntime({ engine });
 		await first.initialize();
 		const second = createAppRuntime();

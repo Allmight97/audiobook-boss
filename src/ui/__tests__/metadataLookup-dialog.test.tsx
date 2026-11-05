@@ -168,6 +168,7 @@ describe('metadata lookup dialog', () => {
 				results: [],
 				status: { kind: 'found', count: 0, partial: false, after: null },
 			}),
+			lookupClose: { open: false },
 		});
 		await waitFor(() => {
 			expect(document.body.textContent ?? '').toContain(

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppErrorEnvelope } from '../generated/tauri';
 import type { tauriClient as TauriClient } from './client';
-import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
+import { recordedFresh } from './recordedFresh';
 
 describe('tauriClient', () => {
 	beforeEach(() => {
@@ -20,7 +20,7 @@ describe('tauriClient', () => {
 				concurrency: {
 					preference: { mode: 'auto' },
 					effective: 4,
-					capabilities: runtimeSettingsCapabilitiesFixture().maxConcurrentJobs,
+					capabilities: recordedFresh.settings.concurrency.capabilities,
 				},
 				startupDefaults: null,
 				recovery: null,

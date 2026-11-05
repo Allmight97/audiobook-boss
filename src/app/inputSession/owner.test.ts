@@ -156,7 +156,14 @@ describe('input owner', () => {
 		engine.respond = (intent) =>
 			intent.kind === 'removeFile'
 				? new Promise<undefined>((resolve) => {
-						release = () => resolve(undefined);
+						release = () => {
+							engine.change((state) => {
+								state.titles.files = state.titles.files.filter(
+									(file) => file.inputId !== clicked.inputId,
+								);
+							});
+							resolve(undefined);
+						};
 					})
 				: undefined;
 

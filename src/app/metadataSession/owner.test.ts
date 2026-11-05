@@ -16,8 +16,8 @@ describe('metadata owner', () => {
 
 	async function open(): Promise<AppRuntime> {
 		engine = createFakeEngine();
-		engine.tags.set('/books/alpha.m4b', { title: 'Alpha', artist: 'Author' });
 		engine.loadTitles([audioFile('/books/alpha.m4b')], [0]);
+		engine.seedForm({ title: 'Alpha', author: 'Author' });
 		runtime = createAppRuntime({ engine });
 		await runtime.initialize();
 		return runtime;

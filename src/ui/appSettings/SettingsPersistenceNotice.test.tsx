@@ -2,6 +2,7 @@ import { cleanup, render, screen } from '@solidjs/testing-library';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
+import type { SettingsSnapshot } from '../../types/appSettings';
 import { SettingsPersistenceNotice } from '.';
 
 let runtime: AppRuntime | undefined;
@@ -11,9 +12,9 @@ afterEach(() => {
 	runtime = undefined;
 });
 
-async function renderNotice(recovery: FakeEngine['recovery']): Promise<FakeEngine> {
+async function renderNotice(recovery: SettingsSnapshot['recovery']): Promise<FakeEngine> {
 	const engine = createFakeEngine();
-	engine.recovery = recovery;
+	engine.seedSettings({ recovery });
 	runtime = createAppRuntime({ engine });
 	await runtime.initialize();
 	render(() => (
@@ -25,11 +26,15 @@ async function renderNotice(recovery: FakeEngine['recovery']): Promise<FakeEngin
 }
 
 it('names the settings a launch reset until the next change', async () => {
-	await renderNotice({ reset: ['jobLimit', 'pinnedDefaults'] });
+	const engine = await renderNotice({ reset: ['jobLimit', 'pinnedDefaults'] });
 
 	const notice = screen.getByTestId('settings-recovery-notice');
 	expect(notice).toHaveTextContent('number of jobs, pinned defaults');
 
+	engine.respondSettings = () => {
+		engine.seedSettings({ recovery: undefined });
+		return undefined;
+	};
 	await runtime!.settings.setKeepAwakeWhileWorking(false);
 	await vi.waitFor(() =>
 		expect(screen.queryByTestId('settings-recovery-notice')).not.toBeInTheDocument(),
