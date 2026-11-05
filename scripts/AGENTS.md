@@ -71,9 +71,16 @@ Traps:
   `bun run bindings:generate` (`bundled-ffmpeg`).
 - `bun run bindings:check` generates into temporary output and leaves the
   candidate untouched. `bun run bindings:generate` intentionally updates it.
-  Both also cover `src/lib/generated/fixtures/settings-fresh.json`, a fresh
-  engine's settings. After a Rust settings default changes, regenerate it;
-  `recordedSettings.contract.test.ts` then fails until `fakeEngine.ts` matches.
+  Both also cover every file in `src/lib/generated/fixtures/` and fail on a
+  file missing from either side. `settings-fresh.json` and
+  `session-fresh.json` record a fresh engine
+  (`src-tauri/src/bin/export_bindings/recording.rs`). The recorder pins or
+  renames each value that differs between machines, since the check runs on
+  macOS and Linux: `aac_at` availability, the temp root, title ids, source
+  fingerprints. A new platform-dependent value in a snapshot makes the other
+  OS report a stale fixture; add its line to `normalize`. After an engine
+  default changes, regenerate; `recordedFresh.contract.test.ts` then fails if
+  the engine link's first frame disagrees.
 - Each git worktree holds its own `target/`. Remove finished worktrees.
 - `bun run build` may still print the known DEP0205 and Vite plugin-timing
   warnings.

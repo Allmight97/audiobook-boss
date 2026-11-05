@@ -22,13 +22,22 @@ if ! cmp -s "${bindings_file}" "${temporary}/tauri.ts"; then
  diff -u "${bindings_file}" "${temporary}/tauri.ts" || [[ $? -eq 1 ]]
  exit 1
 fi
-settings_fixture="src/lib/generated/fixtures/settings-fresh.json"
-if [[ ! -f "${settings_fixture}" ]]; then
- printf 'Missing contract fixture: run bun run bindings:generate\n' >&2
+fixtures_dir="src/lib/generated/fixtures"
+fixture_names() {
+ (cd "$1" 2>/dev/null && ls -1 -- *.json 2>/dev/null) || true
+}
+recorded_names="$(fixture_names "${fixtures_dir}")"
+generated_names="$(fixture_names "${temporary}/fixtures")"
+if [[ "${recorded_names}" != "${generated_names}" ]]; then
+ printf 'Contract fixtures differ from the recorder: run bun run bindings:generate\n' >&2
+ diff -u <(printf '%s\n' "${recorded_names}") <(printf '%s\n' "${generated_names}") || [[ $? -eq 1 ]]
  exit 1
 fi
-if ! diff -u "${settings_fixture}" "${temporary}/fixtures/settings-fresh.json"; then
- printf 'Contract fixture is stale: run bun run bindings:generate\n' >&2
- exit 1
-fi
+while IFS= read -r name; do
+ [[ -n "${name}" ]] || continue
+ if ! diff -u "${fixtures_dir}/${name}" "${temporary}/fixtures/${name}"; then
+  printf 'Contract fixture %s is stale: run bun run bindings:generate\n' "${name}" >&2
+  exit 1
+ fi
+done <<<"${recorded_names}"
 printf 'Bindings are up to date.\n'
