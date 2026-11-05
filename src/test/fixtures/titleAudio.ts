@@ -1,8 +1,6 @@
 import type { TitleAudioRequest } from '../../types/audio';
 
-type RequestOverrides = Partial<Pick<TitleAudioRequest, 'intent' | 'sampleRate'>>;
-
-export function titleAudioRequest(overrides: RequestOverrides = {}): TitleAudioRequest {
+export function titleAudioRequest(): TitleAudioRequest {
 	return {
 		format: 'm4b',
 		intent: 'auto',
@@ -15,10 +13,9 @@ export function titleAudioRequest(overrides: RequestOverrides = {}): TitleAudioR
 			nativeAacSpeed: 0,
 			faacProfile: 'auto',
 		},
-		...overrides,
 	};
 }
 
-export function mp3AudioRequest(overrides: RequestOverrides = {}): TitleAudioRequest {
-	return { format: 'mp3', intent: 'auto', sampleRate: 'auto', ...overrides };
+export function mp3AudioRequest(): TitleAudioRequest {
+	return { format: 'mp3', intent: 'auto', sampleRate: 'auto' };
 }

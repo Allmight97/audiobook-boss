@@ -108,7 +108,6 @@ export type FakeEngine = EngineCapability & {
 	respond?: (
 		intent: SessionIntent,
 	) => SessionOutcome | Promise<SessionOutcome | undefined> | undefined;
-	answerSubmission: (intent: SessionIntent) => SubmissionStatus;
 	settingsWriteError?: Rejection;
 	concurrencyError?: Rejection;
 	recovery?: SettingsSnapshot['recovery'];
@@ -123,12 +122,6 @@ export type FakeEngine = EngineCapability & {
 	): void;
 	loadTitles(files: AudioFile[], selected?: number[]): void;
 	status(status: MetadataStatus | null): void;
-	titles(): SessionTitles;
-	selection(): SessionSelection;
-	metadata(): SessionMetadata;
-	lookup(): SessionLookup;
-	audio(): SessionAudio;
-	output(): SessionOutput;
 	settings(): SettingsSnapshot;
 	change(
 		mutate: (state: {
@@ -606,7 +599,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			case 'preview':
 			case 'chooseCollisionPolicy':
 			case 'cancelCollisionReview':
-				state.output = { ...state.output, submission: engine.answerSubmission(intent) };
+				state.output = { ...state.output, submission: defaultSubmissionAnswer(intent) };
 				break;
 			case 'lookupOpen':
 				state.lookup.open = true;
@@ -652,13 +645,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			concurrency: {
 				preference: concurrency,
 				effective: concurrency.mode === 'fixed' ? concurrency.value : 4,
-				capabilities: {
-					allowAuto: true,
-					autoEffective: 4,
-					fixedMin: 1,
-					fixedMax: 8,
-					fixedOptions: [1, 2, 3, 4, 5, 6, 7, 8],
-				},
+				capabilities: runtimeSettingsCapabilitiesFixture().maxConcurrentJobs,
 			},
 			startupDefaults: startup,
 			recovery: engine.recovery,
@@ -719,7 +706,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		openedPreviews: [],
 		tags: new Map(),
 		analyze: (paths: readonly string[]) => paths.map((path) => audioFile(path)),
-		answerSubmission: defaultSubmissionAnswer,
 		async attach() {
 			nextSessionSequence = 0;
 			nextSettingsSequence = 0;
@@ -806,15 +792,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			state.metadata.status = status;
 			publish();
 		},
-		titles: () => state.titles,
-		selection: () => state.selection,
-		metadata: () => {
-			project();
-			return state.metadata;
-		},
-		lookup: () => state.lookup,
-		audio: () => state.audio,
-		output: () => state.output,
 		seedTitleAudio(titleId, request, resolved = {}) {
 			const view = structuredClone(state.audio.titles[titleId] ?? titleFromDefaults());
 			view.request = structuredClone(request);

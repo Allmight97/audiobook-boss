@@ -10,15 +10,8 @@ type RuntimeSettingsCapabilities = {
 	maxConcurrentJobs: MaxConcurrentJobsCapabilities;
 };
 
-type RuntimeSettingsCapabilitiesFixtureOverrides = {
-	encoder?: Partial<RuntimeSettingsCapabilities['encoder']>;
-	maxConcurrentJobs?: Partial<RuntimeSettingsCapabilities['maxConcurrentJobs']>;
-};
-
-export function runtimeSettingsCapabilitiesFixture(
-	overrides: RuntimeSettingsCapabilitiesFixtureOverrides = {},
-): RuntimeSettingsCapabilities {
-	const base = {
+export function runtimeSettingsCapabilitiesFixture(): RuntimeSettingsCapabilities {
+	return {
 		encoder: {
 			availability: {
 				aacAtAvailable: true,
@@ -107,18 +100,4 @@ export function runtimeSettingsCapabilitiesFixture(
 			fixedOptions: [1, 2, 3, 4, 5, 6, 7, 8],
 		} satisfies GeneratedMaxConcurrentJobsCapabilities,
 	};
-
-	const result: RuntimeSettingsCapabilities = { ...base };
-	if (overrides.encoder?.availability) {
-		result.encoder.availability = overrides.encoder.availability;
-	}
-	if (overrides.encoder) {
-		const { availability: _, ...encoderOverrides } = overrides.encoder;
-		Object.assign(result.encoder, encoderOverrides);
-	}
-	if (overrides.maxConcurrentJobs) {
-		Object.assign(result.maxConcurrentJobs, overrides.maxConcurrentJobs);
-	}
-
-	return result;
 }
