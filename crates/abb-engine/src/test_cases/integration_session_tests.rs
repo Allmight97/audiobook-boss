@@ -14,7 +14,7 @@ use tempfile::TempDir;
 use super::integration_session_desk::{
     collision_review, engine_config, finished, genre_on_disk, submission, Desk,
 };
-use super::media_fixtures::oversized_jpeg;
+use super::media_fixtures::{ffmpeg, oversized_jpeg};
 
 #[tokio::test]
 async fn shutdown_finishes_an_accepted_save_without_a_host_waiting_for_its_reply() {
@@ -646,19 +646,15 @@ async fn save_updates_finished_outputs_in_every_supported_container() {
             .await;
         if format == AudiobookFormat::Mp3 {
             let mp3 = desk.root.path().join("source.mp3");
-            let ffmpeg = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
-            let result = std::process::Command::new(ffmpeg)
-                .args(["-v", "error", "-i"])
-                .arg(&source)
-                .args(["-c:a", "libmp3lame"])
-                .arg(&mp3)
-                .output()
-                .expect("MP3 source");
-            assert!(
-                result.status.success(),
-                "{}",
-                String::from_utf8_lossy(&result.stderr)
-            );
+            ffmpeg([
+                "-v",
+                "error",
+                "-i",
+                source.to_str().expect("utf8 path"),
+                "-c:a",
+                "libmp3lame",
+                mp3.to_str().expect("utf8 path"),
+            ]);
             source = mp3;
         }
         desk.import(&source).await;

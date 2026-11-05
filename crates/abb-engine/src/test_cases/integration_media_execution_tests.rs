@@ -6,8 +6,9 @@
 use super::integration_faac_execution_tests::faac_encoder_settings;
 use super::integration_session_desk::Desk;
 use super::media_fixtures::{
-    audio_packet_bytes, duration_ms, ffprobe_tag_ci, minimal_jpg_bytes, oversized_jpeg,
-    picture_codecs, preflight_payload, run_planned_title, write_two_picture_fixture,
+    audio_packet_bytes, duration_ms, ffmpeg, ffprobe, ffprobe_tag_ci, find_atom, minimal_jpg_bytes,
+    next_atom, oversized_jpeg, parse_mdhd, picture_codecs, preflight_payload, run_planned_title,
+    timed_text_chapter_track, write_two_picture_fixture,
 };
 use abb_engine::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
@@ -24,7 +25,6 @@ use abb_engine::{
 use image::{GenericImageView, ImageFormat};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -32,23 +32,15 @@ use tempfile::TempDir;
 /// Requires an `ffprobe` binary on PATH (or via `ABB_FFPROBE`); the media lane
 /// environments provide one (`scripts/AGENTS.md`).
 pub(crate) fn ffprobe_format_tags(path: &Path) -> serde_json::Map<String, serde_json::Value> {
-    let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
-    let output = Command::new(&binary)
-        .args(["-v", "quiet", "-print_format", "json", "-show_format"])
-        .arg(path)
-        .output()
-        .unwrap_or_else(|error| {
-            panic!("ffprobe (FFmpeg CLI) must be on PATH or set via ABB_FFPROBE for external-reader tag proof; spawning `{binary}` failed: {error}")
-        });
-    assert!(
-        output.status.success(),
-        "ffprobe failed for {}: {}",
-        path.display(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&output.stdout).expect("parse ffprobe JSON");
+    let output = ffprobe([
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_format",
+        path.to_str().expect("utf8 path"),
+    ]);
+    let parsed: serde_json::Value = serde_json::from_slice(&output).expect("parse ffprobe JSON");
     parsed
         .get("format")
         .and_then(|format| format.get("tags"))
@@ -141,28 +133,18 @@ pub(crate) fn audio_duration_ts(path: &Path) -> u64 {
 }
 
 fn audio_stream_timing(path: &Path) -> (u64, String) {
-    let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
-    let probe = Command::new(binary)
-        .args([
-            "-v",
-            "error",
-            "-select_streams",
-            "a:0",
-            "-show_entries",
-            "stream=duration_ts,time_base",
-            "-of",
-            "json",
-        ])
-        .arg(path)
-        .output()
-        .expect("ffprobe stream timing");
-    assert!(
-        probe.status.success(),
-        "ffprobe failed for {}: {}",
-        path.display(),
-        String::from_utf8_lossy(&probe.stderr)
-    );
-    let facts: serde_json::Value = serde_json::from_slice(&probe.stdout).expect("fixture value");
+    let probe = ffprobe([
+        "-v",
+        "error",
+        "-select_streams",
+        "a:0",
+        "-show_entries",
+        "stream=duration_ts,time_base",
+        "-of",
+        "json",
+        path.to_str().expect("utf8 path"),
+    ]);
+    let facts: serde_json::Value = serde_json::from_slice(&probe).expect("fixture value");
     let stream = &facts["streams"][0];
     (
         stream["duration_ts"].as_u64().expect("audio duration_ts"),
@@ -186,19 +168,19 @@ fn stereo_native_encoder_settings() -> EncoderSettings {
 }
 
 fn decode_to_packed_float_wav(source: &Path, wav: &Path) {
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let decoded = Command::new(binary)
-        .args(["-v", "error", "-xerror", "-i"])
-        .arg(source)
-        .args(["-map", "0:a:0", "-c:a", "pcm_f32le", "-y"])
-        .arg(wav)
-        .output()
-        .expect("decode source to packed float WAV");
-    assert!(
-        decoded.status.success(),
-        "{}",
-        String::from_utf8_lossy(&decoded.stderr)
-    );
+    ffmpeg([
+        "-v",
+        "error",
+        "-xerror",
+        "-i",
+        source.to_str().expect("utf8 path"),
+        "-map",
+        "0:a:0",
+        "-c:a",
+        "pcm_f32le",
+        "-y",
+        wav.to_str().expect("utf8 path"),
+    ]);
 }
 
 /// A stereo 44.1 kHz AAC M4B decodes to float planar stereo, which is exactly
@@ -242,33 +224,25 @@ async fn fast_path_and_resampler_route_produce_the_same_audio() {
 }
 
 pub(crate) fn decode_pcm_f32(path: &Path) -> Vec<f32> {
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let decoded = Command::new(binary)
-        .args(["-v", "error", "-xerror", "-i"])
-        .arg(path)
-        .args([
-            "-map",
-            "0:a:0",
-            "-f",
-            "f32le",
-            "-c:a",
-            "pcm_f32le",
-            "pipe:1",
-        ])
-        .output()
-        .expect("decode artifact PCM");
-    assert!(
-        decoded.status.success(),
-        "{}",
-        String::from_utf8_lossy(&decoded.stderr)
-    );
-    decoded
-        .stdout
-        .as_chunks::<4>()
-        .0
-        .iter()
-        .map(|bytes| f32::from_le_bytes(*bytes))
-        .collect()
+    ffmpeg([
+        "-v",
+        "error",
+        "-xerror",
+        "-i",
+        path.to_str().expect("utf8 path"),
+        "-map",
+        "0:a:0",
+        "-f",
+        "f32le",
+        "-c:a",
+        "pcm_f32le",
+        "pipe:1",
+    ])
+    .as_chunks::<4>()
+    .0
+    .iter()
+    .map(|bytes| f32::from_le_bytes(*bytes))
+    .collect()
 }
 
 #[tokio::test]
@@ -276,31 +250,30 @@ async fn truncated_audio_fails_without_publishing_a_shortened_book() {
     let lane = MediaLane::with_fixtures(&[2.0]);
     let complete = lane.process(None).await;
     let broken = lane.tmp.path().join("truncated.m4b");
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let remux = Command::new(binary)
-        .args(["-v", "error", "-i"])
-        .arg(complete)
-        .args(["-map", "0:a:0", "-c:a", "copy", "-movflags", "+faststart"])
-        .arg(&broken)
-        .output()
-        .expect("fixture value");
-    assert!(remux.status.success());
-    let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
-    let probe = Command::new(binary)
-        .args([
-            "-v",
-            "error",
-            "-select_streams",
-            "a:0",
-            "-show_packets",
-            "-of",
-            "json",
-        ])
-        .arg(&broken)
-        .output()
-        .expect("fixture value");
-    assert!(probe.status.success());
-    let facts: serde_json::Value = serde_json::from_slice(&probe.stdout).expect("fixture value");
+    ffmpeg([
+        "-v",
+        "error",
+        "-i",
+        complete.to_str().expect("utf8 path"),
+        "-map",
+        "0:a:0",
+        "-c:a",
+        "copy",
+        "-movflags",
+        "+faststart",
+        broken.to_str().expect("utf8 path"),
+    ]);
+    let probe = ffprobe([
+        "-v",
+        "error",
+        "-select_streams",
+        "a:0",
+        "-show_packets",
+        "-of",
+        "json",
+        broken.to_str().expect("utf8 path"),
+    ]);
+    let facts: serde_json::Value = serde_json::from_slice(&probe).expect("fixture value");
     let packet = &facts["packets"][30];
     let end = packet["pos"]
         .as_str()
@@ -985,128 +958,6 @@ pub(crate) fn chapters_of(path: &Path) -> Vec<(Option<String>, i64, i64)> {
         .collect()
 }
 
-/// Apple Books reads the QuickTime `text` trak, not Nero `chpl`.
-/// FFmpeg's chapter API only sees `chpl`, so a green chpl probe does not prove
-/// the player-visible track. Walk the `text` handler's `mdhd`.
-fn timed_text_chapter_track(path: &Path) -> (f64, u32, u32) {
-    let bytes = fs::read(path).expect("read artifact for timed-text atom probe");
-    let moov = find_atom(&bytes, 0, bytes.len(), *b"moov").expect("moov atom");
-    let mut offset = moov.0;
-    let end = moov.1;
-    let mut audio_timescale = None;
-    let mut text = None;
-    while offset + 8 <= end {
-        let (trak_start, trak_end, size) = match next_atom(&bytes, offset, end) {
-            Some(atom) => atom,
-            None => break,
-        };
-        offset += size;
-        if bytes[trak_start + 4..trak_start + 8] != *b"trak" {
-            continue;
-        }
-        let Some(mdia) = find_atom(&bytes, trak_start + 8, trak_end, *b"mdia") else {
-            continue;
-        };
-        let Some(hdlr) = find_atom(&bytes, mdia.0, mdia.1, *b"hdlr") else {
-            continue;
-        };
-        // hdlr payload: version/flags (4) + component type (4) + handler (4)
-        let subtype_at = hdlr.0 + 8;
-        if subtype_at + 4 > hdlr.1 {
-            continue;
-        }
-        let handler = &bytes[subtype_at..subtype_at + 4];
-        let Some(mdhd) = find_atom(&bytes, mdia.0, mdia.1, *b"mdhd") else {
-            continue;
-        };
-        let (timescale, duration) = parse_mdhd(&bytes, mdhd.0, mdhd.1);
-        if handler == b"soun" {
-            audio_timescale = Some(timescale);
-        } else if handler == b"text" {
-            assert!(timescale > 0, "text trak timescale is zero");
-            text = Some((duration as f64 / f64::from(timescale), timescale));
-        }
-    }
-    let (duration_secs, text_timescale) =
-        text.expect("QuickTime timed-text chapter trak not found");
-    (
-        duration_secs,
-        text_timescale,
-        audio_timescale.expect("audio trak timescale"),
-    )
-}
-
-fn next_atom(bytes: &[u8], start: usize, end: usize) -> Option<(usize, usize, usize)> {
-    if start + 8 > end {
-        return None;
-    }
-    let mut size = u32::from_be_bytes(bytes[start..start + 4].try_into().ok()?) as usize;
-    let mut header = 8;
-    if size == 1 {
-        if start + 16 > end {
-            return None;
-        }
-        size = u64::from_be_bytes(bytes[start + 8..start + 16].try_into().ok()?) as usize;
-        header = 16;
-    } else if size == 0 {
-        size = end - start;
-    }
-    if size < header || start + size > end {
-        return None;
-    }
-    Some((start, start + size, size))
-}
-
-fn find_atom(bytes: &[u8], start: usize, end: usize, fourcc: [u8; 4]) -> Option<(usize, usize)> {
-    let mut offset = start;
-    while offset + 8 <= end {
-        let (atom_start, atom_end, size) = next_atom(bytes, offset, end)?;
-        if bytes[atom_start + 4..atom_start + 8] == fourcc {
-            let header =
-                if u32::from_be_bytes(bytes[atom_start..atom_start + 4].try_into().ok()?) == 1 {
-                    16
-                } else {
-                    8
-                };
-            return Some((atom_start + header, atom_end));
-        }
-        offset += size;
-    }
-    None
-}
-
-fn parse_mdhd(bytes: &[u8], start: usize, end: usize) -> (u32, u64) {
-    assert!(start + 4 <= end, "mdhd too small");
-    let version = bytes[start];
-    if version == 1 {
-        assert!(start + 28 <= end, "mdhd v1 too small");
-        let timescale = u32::from_be_bytes(
-            bytes[start + 20..start + 24]
-                .try_into()
-                .expect("fixture value"),
-        );
-        let duration = u64::from_be_bytes(
-            bytes[start + 24..start + 32]
-                .try_into()
-                .expect("fixture value"),
-        );
-        (timescale, duration)
-    } else {
-        assert!(start + 20 <= end, "mdhd v0 too small");
-        let timescale = u32::from_be_bytes(
-            bytes[start + 12..start + 16]
-                .try_into()
-                .expect("fixture value"),
-        );
-        let duration = u32::from_be_bytes(
-            bytes[start + 16..start + 20]
-                .try_into()
-                .expect("fixture value"),
-        ) as u64;
-        (timescale, duration)
-    }
-}
-
 #[tokio::test]
 async fn embedded_cover_thumbnail_is_bounded_jpeg_and_coverless_artifact_returns_none() {
     let covered_lane = MediaLane::with_fixtures(&[1.0]);
@@ -1141,11 +992,10 @@ pub(crate) fn write_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
 }
 
 pub(crate) fn write_sine_mp3_with(path: &Path, seconds: f64, freq_hz: f64, encoder_args: &[&str]) {
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
     let source = format!("sine=frequency={freq_hz}:sample_rate={SAMPLE_RATE}");
     let duration = seconds.to_string();
-    let output = Command::new(&binary)
-        .args([
+    ffmpeg(
+        [
             "-hide_banner",
             "-loglevel",
             "error",
@@ -1159,21 +1009,10 @@ pub(crate) fn write_sine_mp3_with(path: &Path, seconds: f64, freq_hz: f64, encod
             "1",
             "-codec:a",
             "libmp3lame",
-        ])
-        .args(encoder_args)
-        .arg("-y")
-        .arg(path)
-        .output()
-        .unwrap_or_else(|error| {
-            panic!(
-                "ffmpeg must be on PATH or set via ABB_FFMPEG for MP3 fixture synthesis; spawning `{binary}` failed: {error}"
-            )
-        });
-    assert!(
-        output.status.success(),
-        "ffmpeg failed to synthesize {}: {}",
-        path.display(),
-        String::from_utf8_lossy(&output.stderr)
+        ]
+        .into_iter()
+        .chain(encoder_args.iter().copied())
+        .chain(["-y", path.to_str().expect("utf8 path")]),
     );
 }
 
@@ -1192,39 +1031,30 @@ pub(crate) fn mux_chapters(audio: &Path, chapters: &[(&str, i64, i64)], path: &P
         ));
     }
     fs::write(&metadata, text).expect("write chapter metadata");
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let mut command = Command::new(&binary);
-    command
-        .args(["-hide_banner", "-loglevel", "error", "-i"])
-        .arg(audio)
-        .args(["-f", "ffmetadata", "-i"])
-        .arg(&metadata)
-        .args([
-            "-map",
-            "0",
-            "-map_metadata",
-            "1",
-            "-map_chapters",
-            "1",
-            "-c",
-            "copy",
-        ]);
+    let mut args = vec![
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        audio.to_str().expect("utf8 path"),
+        "-f",
+        "ffmetadata",
+        "-i",
+        metadata.to_str().expect("utf8 path"),
+        "-map",
+        "0",
+        "-map_metadata",
+        "1",
+        "-map_chapters",
+        "1",
+        "-c",
+        "copy",
+    ];
     if path.extension().is_some_and(|ext| ext == "mp3") {
-        command.args(["-id3v2_version", "3"]);
+        args.extend(["-id3v2_version", "3"]);
     }
-    let output = command
-        .arg("-y")
-        .arg(path)
-        .output()
-        .unwrap_or_else(|error| {
-            panic!("ffmpeg must be on PATH or set via ABB_FFMPEG for chapter fixtures; spawning `{binary}` failed: {error}")
-        });
-    assert!(
-        output.status.success(),
-        "ffmpeg failed to add chapters to {}: {}",
-        path.display(),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    args.extend(["-y", path.to_str().expect("utf8 path")]);
+    ffmpeg(args);
 }
 
 #[test]
@@ -1760,18 +1590,17 @@ async fn joined_title_drops_an_unpreparable_source_cover_but_not_a_chosen_one() 
     let cover = tmp.path().join("cover.jpg");
     let cover_bytes = oversized_jpeg();
     fs::write(&cover, &cover_bytes).expect("write oversized cover");
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
     let paths = ["first.mp3", "second.mp3"].map(|name| tmp.path().join(name));
     for (index, path) in paths.iter().enumerate() {
-        let mut command = Command::new(&binary);
-        command
-            .args(["-v", "error", "-y", "-f", "lavfi", "-i"])
-            .arg(format!(
-                "sine=frequency={}:sample_rate=44100:duration=0.31",
-                440 + index * 440
-            ));
+        let source = format!(
+            "sine=frequency={}:sample_rate=44100:duration=0.31",
+            440 + index * 440
+        );
+        let mut args = vec!["-v", "error", "-y", "-f", "lavfi", "-i", &source];
         if index == 0 {
-            command.arg("-i").arg(&cover).args([
+            args.extend([
+                "-i",
+                cover.to_str().expect("utf8 path"),
                 "-map",
                 "0:a",
                 "-map",
@@ -1784,12 +1613,16 @@ async fn joined_title_drops_an_unpreparable_source_cover_but_not_a_chosen_one() 
                 "3",
             ]);
         }
-        assert!(command
-            .args(["-c:a", "libmp3lame", "-b:a", "96k", "-write_xing", "0"])
-            .arg(path)
-            .status()
-            .expect("MP3 fixture encoder")
-            .success());
+        args.extend([
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "96k",
+            "-write_xing",
+            "0",
+            path.to_str().expect("utf8 path"),
+        ]);
+        ffmpeg(args);
     }
     let payload = |output: &str| -> abb_engine::processing::ProcessPayload {
         let output_dir = tmp.path().join(output);
@@ -2268,36 +2101,25 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
 async fn opus_remux_keeps_variable_frame_timing_and_trim() {
     use abb_engine::processing::AudioHandling;
     let tmp = TempDir::new().expect("fixture value");
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
     for (frame_ms, bitrate) in [("2.5", "64k"), ("60", "12k"), ("120", "64k")] {
         let source = tmp.path().join(format!("source-{frame_ms}.mka"));
         let destination = tmp.path().join(format!("copy-{frame_ms}.m4a"));
-        let created = Command::new(&binary)
-            .args([
-                "-v",
-                "error",
-                "-y",
-                "-f",
-                "lavfi",
-                "-i",
-                "sine=frequency=440:sample_rate=48000:duration=0.413",
-            ])
-            .args([
-                "-c:a",
-                "libopus",
-                "-frame_duration",
-                frame_ms,
-                "-b:a",
-                bitrate,
-            ])
-            .arg(&source)
-            .output()
-            .expect("fixture value");
-        assert!(
-            created.status.success(),
-            "{}",
-            String::from_utf8_lossy(&created.stderr)
-        );
+        ffmpeg([
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:sample_rate=48000:duration=0.413",
+            "-c:a",
+            "libopus",
+            "-frame_duration",
+            frame_ms,
+            "-b:a",
+            bitrate,
+            source.to_str().expect("utf8 path"),
+        ]);
         let source_samples = decode_pcm_f32(&source).len();
         let info = get_file_list_info(std::slice::from_ref(&source), AacDecoder::Auto)
             .expect("fixture value");

@@ -6,9 +6,9 @@ use super::integration_media_execution_tests::{
     mux_chapters, native_encoder_settings,
 };
 use super::media_fixtures::{
-    audio_packet_bytes, duration_ms, minimal_jpg_bytes, picture_codecs, preflight_payload,
-    run_planned_title, single_title_payload, write_complete_frame_aac, write_two_picture_fixture,
-    MINIMAL_JPG,
+    audio_packet_bytes, duration_ms, ffmpeg, minimal_jpg_bytes, picture_codecs, picture_payloads,
+    preflight_payload, run_planned_title, single_title_payload, write_complete_frame_aac,
+    write_two_picture_fixture, MINIMAL_JPG,
 };
 use abb_engine::audio::{
     get_file_list_info, AacDecoder, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig,
@@ -21,7 +21,6 @@ use ffmpeg_next::codec::Id;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use tempfile::TempDir;
 
 const SEEDED_SERIES: &str = "Saga";
@@ -80,15 +79,14 @@ fn seed(path: &Path) {
     );
 }
 
-fn run_ffmpeg(args: &[&str], output: &Path) {
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
-    let status = Command::new(&binary)
-        .args(["-v", "error", "-y"])
-        .args(args)
-        .arg(output)
-        .status()
-        .expect("spawn ffmpeg");
-    assert!(status.success(), "ffmpeg failed for {}", output.display());
+fn quiet_ffmpeg(args: &[&str], output: &Path) {
+    let output = output.to_str().expect("utf8 path");
+    ffmpeg(
+        ["-v", "error", "-y"]
+            .into_iter()
+            .chain(args.iter().copied())
+            .chain([output]),
+    );
 }
 
 fn drift_chapters(audio: &Path, source: &Path) {
@@ -123,7 +121,7 @@ fn picture_source(dir: &Path, extension: &str) -> PathBuf {
 fn short_m4b_source(dir: &Path) -> PathBuf {
     fs::create_dir_all(dir).expect("source folder");
     let audio = dir.join("plain.m4a");
-    run_ffmpeg(
+    quiet_ffmpeg(
         &[
             "-f",
             "lavfi",
@@ -185,7 +183,7 @@ fn planted_asin(path: &Path) -> String {
 fn opus_source(dir: &Path) -> PathBuf {
     fs::create_dir_all(dir).expect("source folder");
     let audio = dir.join("plain.mka");
-    run_ffmpeg(
+    quiet_ffmpeg(
         &[
             "-f",
             "lavfi",
@@ -199,7 +197,7 @@ fn opus_source(dir: &Path) -> PathBuf {
     let chaptered = dir.join("chaptered.mka");
     drift_chapters(&audio, &chaptered);
     let source = dir.join("cover.mka");
-    run_ffmpeg(
+    quiet_ffmpeg(
         &[
             "-i",
             chaptered.to_str().expect("utf8 path"),
@@ -245,7 +243,7 @@ fn mp3_stack(dir: &Path) -> Vec<PathBuf> {
             "sine=frequency={}:sample_rate=44100:duration=0.31",
             440 * (index + 1)
         );
-        run_ffmpeg(
+        quiet_ffmpeg(
             &[
                 "-f",
                 "lavfi",
@@ -303,6 +301,19 @@ fn assert_planned_tags(route: &Route, output: &Path) {
     assert_ffprobe_tag(&external, "series", SEEDED_SERIES);
     assert_ffprobe_tag(&external, "series-part", SEEDED_PART);
     assert_ffprobe_tag(&external, "sort_album", &sort);
+}
+
+fn expected_pictures(route: &Route) -> Vec<(Id, Vec<u8>)> {
+    let source = picture_payloads(&route.sources[0]);
+    if route.intent == AudioIntent::Encode {
+        source
+            .into_iter()
+            .find(|(codec, _)| *codec == Id::MJPEG)
+            .into_iter()
+            .collect()
+    } else {
+        source
+    }
 }
 
 fn assert_chapters(route: &Route, output: &Path) {
@@ -407,6 +418,13 @@ async fn check_route(route: &Route, work: &Path) -> PathBuf {
 
     assert_planned_tags(route, &output);
     assert_eq!(picture_codecs(&output), route.pictures, "{name}: pictures");
+    let pictures = picture_payloads(&output);
+    assert_eq!(
+        pictures.iter().map(|(codec, _)| *codec).collect::<Vec<_>>(),
+        route.pictures,
+        "{name}: picture payloads"
+    );
+    assert_eq!(pictures, expected_pictures(route), "{name}: picture bytes");
     assert_chapters(route, &output);
     let imported = get_file_list_info(&[&output], AacDecoder::Auto).expect("reimport output");
     assert_eq!(imported.valid_count, 1, "{name}: output imports again");

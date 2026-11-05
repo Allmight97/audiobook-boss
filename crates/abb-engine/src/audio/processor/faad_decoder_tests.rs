@@ -106,34 +106,29 @@ fn packets_of_other_streams_do_not_use_up_format_discovery() {
         .collect();
     std::fs::write(&subtitles, cues).expect("write cues");
     let fixture = dir.path().join("late-audio.mkv");
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let output = std::process::Command::new(&binary)
-        .args([
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-itsoffset",
-            "1",
-            "-f",
-            "lavfi",
-        ])
-        .args([
-            "-i",
-            "sine=frequency=440:sample_rate=44100:duration=1",
-            "-i",
-        ])
-        .arg(&subtitles)
-        .args([
-            "-map", "0:a", "-map", "1:s", "-c:a", "aac", "-c:s", "srt", "-y",
-        ])
-        .arg(&fixture)
-        .output()
-        .expect("spawn ffmpeg for the delayed-audio fixture");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    crate::test_cases::media_fixtures::ffmpeg([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-itsoffset",
+        "1",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:sample_rate=44100:duration=1",
+        "-i",
+        subtitles.to_str().expect("utf8 path"),
+        "-map",
+        "0:a",
+        "-map",
+        "1:s",
+        "-c:a",
+        "aac",
+        "-c:s",
+        "srt",
+        "-y",
+        fixture.to_str().expect("utf8 path"),
+    ]);
 
     let input = ff::format::input(&fixture).expect("open fixture");
     let audio = input

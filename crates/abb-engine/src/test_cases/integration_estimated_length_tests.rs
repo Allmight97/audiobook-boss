@@ -3,6 +3,7 @@ use super::integration_media_execution_tests::{
     audio_duration_ts, chapters_of, decode_pcm_f32, mux_chapters, write_sine_mp3_with,
     write_sine_wav, MediaLane, SAMPLE_RATE,
 };
+use super::media_fixtures::ffmpeg;
 use abb_engine::audio::{execute_audio_engine, get_file_list_info, AacDecoder};
 use abb_engine::processing::ProcessingSession;
 use abb_engine::{read_metadata, save_metadata_intent, MetadataIntentPatch, PatchOp};
@@ -67,19 +68,21 @@ async fn a_merge_after_an_estimated_length_file_starts_the_next_chapter_at_the_r
 async fn write_he_adts(path: &Path) {
     let lane = MediaLane::with_fixtures(&[6.0]).with_encoder(faac_encoder_settings());
     let encoded = lane.process(None).await;
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let output = std::process::Command::new(binary)
-        .args(["-hide_banner", "-loglevel", "error", "-i"])
-        .arg(&encoded)
-        .args(["-map", "0:a:0", "-c:a", "copy", "-f", "adts", "-y"])
-        .arg(path)
-        .output()
-        .expect("remux HE-AAC to ADTS");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    ffmpeg([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        encoded.to_str().expect("utf8 path"),
+        "-map",
+        "0:a:0",
+        "-c:a",
+        "copy",
+        "-f",
+        "adts",
+        "-y",
+        path.to_str().expect("utf8 path"),
+    ]);
 }
 
 fn decoded_ms(path: &Path) -> i64 {
@@ -87,47 +90,43 @@ fn decoded_ms(path: &Path) -> i64 {
 }
 
 fn write_vbr_mp3_without_header(path: &Path) {
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let quiet_then_loud =
+    let source =
         format!("aevalsrc='if(lt(t,2),0,0.8*sin(2*PI*440*t)*random(0))':s={SAMPLE_RATE}:d=6");
-    let output = std::process::Command::new(binary)
-        .args(["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i"])
-        .arg(quiet_then_loud)
-        .args([
-            "-c:a",
-            "libmp3lame",
-            "-q:a",
-            "0",
-            "-write_xing",
-            "0",
-            "-id3v2_version",
-            "0",
-            "-y",
-        ])
-        .arg(path)
-        .output()
-        .expect("encode headerless VBR MP3");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    ffmpeg([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        source.as_str(),
+        "-c:a",
+        "libmp3lame",
+        "-q:a",
+        "0",
+        "-write_xing",
+        "0",
+        "-id3v2_version",
+        "0",
+        "-y",
+        path.to_str().expect("utf8 path"),
+    ]);
 }
 
 fn remux_without_duration(source: &Path, path: &Path) {
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let output = std::process::Command::new(binary)
-        .args(["-hide_banner", "-loglevel", "error", "-i"])
-        .arg(source)
-        .args(["-c", "copy", "-f", "matroska", "pipe:1"])
-        .output()
-        .expect("remux to streamed Matroska");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    fs::write(path, output.stdout).expect("write durationless Matroska");
+    let remuxed = ffmpeg([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        source.to_str().expect("utf8 path"),
+        "-c",
+        "copy",
+        "-f",
+        "matroska",
+        "pipe:1",
+    ]);
+    fs::write(path, remuxed).expect("write durationless Matroska");
 }
 
 /// A 1 s MP3 with its length header and a 2 s raw MP3 to append to it, which

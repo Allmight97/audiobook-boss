@@ -7,6 +7,7 @@ use abb_engine::processing::{OutputConfig, ProcessingContext, ProcessingSession}
 use abb_engine::{AppError, MetadataIntentPatch};
 use image::ImageFormat;
 use std::collections::HashMap;
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -31,9 +32,7 @@ pub(crate) fn write_two_picture_fixture(dir: &Path, extension: &str) -> PathBuf 
         .write_to(&mut std::io::Cursor::new(&mut png_bytes), ImageFormat::Png)
         .expect("encode PNG fixture");
     fs::write(&png, png_bytes).expect("write PNG fixture");
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let mut command = Command::new(&binary);
-    command.args([
+    let mut args: Vec<OsString> = [
         "-hide_banner",
         "-loglevel",
         "error",
@@ -41,41 +40,51 @@ pub(crate) fn write_two_picture_fixture(dir: &Path, extension: &str) -> PathBuf 
         "lavfi",
         "-i",
         "sine=d=1",
-    ]);
+    ]
+    .map(Into::into)
+    .to_vec();
     match extension {
         "mka" => {
-            command.args(["-c:a", "flac", "-attach", jpeg]);
-            command.args(["-metadata:s:t:0", "mimetype=image/jpeg"]);
-            command.args(["-metadata:s:t:0", "filename=cover.jpg", "-attach"]);
-            command.arg(&png);
-            command.args(["-metadata:s:t:1", "mimetype=image/png"]);
-            command.args(["-metadata:s:t:1", "filename=back.png"]);
+            args.extend(["-c:a", "flac", "-attach", jpeg].map(OsString::from));
+            args.extend(["-metadata:s:t:0", "mimetype=image/jpeg"].map(OsString::from));
+            args.extend(["-metadata:s:t:0", "filename=cover.jpg", "-attach"].map(OsString::from));
+            args.push(png.clone().into());
+            args.extend(["-metadata:s:t:1", "mimetype=image/png"].map(OsString::from));
+            args.extend(["-metadata:s:t:1", "filename=back.png"].map(OsString::from));
         }
         "opus" => {
-            command.args(["-c:a", "libopus", "-metadata"]);
-            command.arg(format!(
-                "METADATA_BLOCK_PICTURE={}",
-                flac_picture_block_base64()
-            ));
+            args.extend(["-c:a", "libopus", "-metadata"].map(OsString::from));
+            args.push(format!("METADATA_BLOCK_PICTURE={}", flac_picture_block_base64()).into());
         }
         _ => {
-            command.args(["-i", jpeg, "-i"]).arg(&png);
-            command.args(["-map", "0", "-map", "1", "-map", "2", "-c:v", "copy"]);
-            command.args(["-disposition:v", "attached_pic", "-c:a"]);
-            command.arg(match extension {
-                "mp3" => "libmp3lame",
-                "flac" => "flac",
-                _ => "aac",
-            });
+            args.extend(["-i", jpeg, "-i"].map(OsString::from));
+            args.push(png.clone().into());
+            args.extend(
+                [
+                    "-map",
+                    "0",
+                    "-map",
+                    "1",
+                    "-map",
+                    "2",
+                    "-c:v",
+                    "copy",
+                    "-disposition:v",
+                    "attached_pic",
+                    "-c:a",
+                    match extension {
+                        "mp3" => "libmp3lame",
+                        "flac" => "flac",
+                        _ => "aac",
+                    },
+                ]
+                .map(OsString::from),
+            );
         }
     }
-    let output = command.arg("-y").arg(&path).output().expect("spawn ffmpeg");
-    assert!(
-        output.status.success(),
-        "ffmpeg failed to synthesize {}: {}",
-        path.display(),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    args.push("-y".into());
+    args.push(path.clone().into());
+    ffmpeg(args);
     path
 }
 
@@ -128,6 +137,28 @@ pub(crate) fn picture_codecs(path: &Path) -> Vec<ffmpeg_next::codec::Id> {
         .collect();
     codecs.sort_by_key(|id| format!("{id:?}"));
     codecs
+}
+
+pub(crate) fn picture_payloads(path: &Path) -> Vec<(ffmpeg_next::codec::Id, Vec<u8>)> {
+    let mut input = ffmpeg_next::format::input(path).expect("probe fixture");
+    let attached: HashMap<usize, ffmpeg_next::codec::Id> = input
+        .streams()
+        .filter(|stream| {
+            stream
+                .disposition()
+                .contains(ffmpeg_next::format::stream::Disposition::ATTACHED_PIC)
+        })
+        .map(|stream| (stream.index(), stream.parameters().id()))
+        .collect();
+    let mut pictures: Vec<_> = input
+        .packets()
+        .filter_map(|(stream, packet)| {
+            let codec = attached.get(&stream.index())?;
+            Some((*codec, packet.data().expect("picture payload").to_vec()))
+        })
+        .collect();
+    pictures.sort_by_key(|(codec, payload)| (format!("{codec:?}"), payload.clone()));
+    pictures
 }
 
 pub(crate) fn duration_ms(path: &Path) -> i64 {
@@ -198,26 +229,33 @@ pub(crate) fn single_title_payload(
 }
 
 pub(crate) fn write_complete_frame_aac(path: &Path, frequency: u32) {
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
     let raw = path.with_extension("aac");
-    let status = Command::new(&binary)
-        .args(["-v", "error", "-y", "-f", "lavfi", "-i"])
-        .arg(format!(
-            "sine=frequency={frequency}:sample_rate=44100:duration=0.2"
-        ))
-        .args(["-c:a", "aac", "-f", "adts"])
-        .arg(&raw)
-        .status()
-        .expect("AAC fixture encoder");
-    assert!(status.success());
-    let status = Command::new(&binary)
-        .args(["-v", "error", "-y", "-i"])
-        .arg(&raw)
-        .args(["-c:a", "copy"])
-        .arg(path)
-        .status()
-        .expect("AAC fixture muxer");
-    assert!(status.success());
+    let raw = raw.to_str().expect("utf8 path");
+    let source = format!("sine=frequency={frequency}:sample_rate=44100:duration=0.2");
+    ffmpeg([
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        source.as_str(),
+        "-c:a",
+        "aac",
+        "-f",
+        "adts",
+        raw,
+    ]);
+    ffmpeg([
+        "-v",
+        "error",
+        "-y",
+        "-i",
+        raw,
+        "-c:a",
+        "copy",
+        path.to_str().expect("utf8 path"),
+    ]);
 }
 
 pub(crate) fn audio_packet_bytes(path: &Path) -> Vec<Vec<u8>> {
@@ -241,4 +279,174 @@ pub(crate) fn preflight_payload(
 ) -> crate::Result<abb_engine::processing::ProcessingPreflightPlan> {
     crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), preview)
         .map(|inspected| inspected.plan.to_public())
+}
+
+pub(crate) fn ffmpeg<I, S>(args: I) -> Vec<u8>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    run_tool("ABB_FFMPEG", "ffmpeg", args)
+}
+
+pub(crate) fn ffprobe<I, S>(args: I) -> Vec<u8>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    run_tool("ABB_FFPROBE", "ffprobe", args)
+}
+
+fn run_tool<I, S>(variable: &str, tool: &str, args: I) -> Vec<u8>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let args: Vec<_> = args.into_iter().collect();
+    let binary = std::env::var(variable).unwrap_or_else(|_| tool.to_string());
+    let output = Command::new(&binary)
+        .args(&args)
+        .output()
+        .unwrap_or_else(|error| {
+            panic!(
+                "{tool} must be on PATH or set via {variable}; spawning `{binary}` failed: {error}"
+            )
+        });
+    assert!(
+        output.status.success(),
+        "{tool} failed: {}\n{}",
+        args.iter()
+            .map(|arg| arg.as_ref().to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" "),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output.stdout
+}
+
+/// Apple Books reads the QuickTime `text` trak, not Nero `chpl`.
+/// FFmpeg's chapter API only sees `chpl`, so a green chpl probe does not prove
+/// the player-visible track. Walk the `text` handler's `mdhd`.
+pub(crate) fn timed_text_chapter_track(path: &Path) -> (f64, u32, u32) {
+    let bytes = fs::read(path).expect("read artifact for timed-text atom probe");
+    let moov = find_atom(&bytes, 0, bytes.len(), *b"moov").expect("moov atom");
+    let mut offset = moov.0;
+    let end = moov.1;
+    let mut audio_timescale = None;
+    let mut text = None;
+    while offset + 8 <= end {
+        let (trak_start, trak_end, size) = match next_atom(&bytes, offset, end) {
+            Some(atom) => atom,
+            None => break,
+        };
+        offset += size;
+        if bytes[trak_start + 4..trak_start + 8] != *b"trak" {
+            continue;
+        }
+        let Some(mdia) = find_atom(&bytes, trak_start + 8, trak_end, *b"mdia") else {
+            continue;
+        };
+        let Some(hdlr) = find_atom(&bytes, mdia.0, mdia.1, *b"hdlr") else {
+            continue;
+        };
+        // hdlr payload: version/flags (4) + component type (4) + handler (4)
+        let subtype_at = hdlr.0 + 8;
+        if subtype_at + 4 > hdlr.1 {
+            continue;
+        }
+        let handler = &bytes[subtype_at..subtype_at + 4];
+        let Some(mdhd) = find_atom(&bytes, mdia.0, mdia.1, *b"mdhd") else {
+            continue;
+        };
+        let (timescale, duration) = parse_mdhd(&bytes, mdhd.0, mdhd.1);
+        if handler == b"soun" {
+            audio_timescale = Some(timescale);
+        } else if handler == b"text" {
+            assert!(timescale > 0, "text trak timescale is zero");
+            text = Some((duration as f64 / f64::from(timescale), timescale));
+        }
+    }
+    let (duration_secs, text_timescale) =
+        text.expect("QuickTime timed-text chapter trak not found");
+    (
+        duration_secs,
+        text_timescale,
+        audio_timescale.expect("audio trak timescale"),
+    )
+}
+
+pub(crate) fn next_atom(bytes: &[u8], start: usize, end: usize) -> Option<(usize, usize, usize)> {
+    if start + 8 > end {
+        return None;
+    }
+    let mut size = u32::from_be_bytes(bytes[start..start + 4].try_into().ok()?) as usize;
+    let mut header = 8;
+    if size == 1 {
+        if start + 16 > end {
+            return None;
+        }
+        size = u64::from_be_bytes(bytes[start + 8..start + 16].try_into().ok()?) as usize;
+        header = 16;
+    } else if size == 0 {
+        size = end - start;
+    }
+    if size < header || start + size > end {
+        return None;
+    }
+    Some((start, start + size, size))
+}
+
+pub(crate) fn find_atom(
+    bytes: &[u8],
+    start: usize,
+    end: usize,
+    fourcc: [u8; 4],
+) -> Option<(usize, usize)> {
+    let mut offset = start;
+    while offset + 8 <= end {
+        let (atom_start, atom_end, size) = next_atom(bytes, offset, end)?;
+        if bytes[atom_start + 4..atom_start + 8] == fourcc {
+            let header =
+                if u32::from_be_bytes(bytes[atom_start..atom_start + 4].try_into().ok()?) == 1 {
+                    16
+                } else {
+                    8
+                };
+            return Some((atom_start + header, atom_end));
+        }
+        offset += size;
+    }
+    None
+}
+
+pub(crate) fn parse_mdhd(bytes: &[u8], start: usize, end: usize) -> (u32, u64) {
+    assert!(start + 4 <= end, "mdhd too small");
+    let version = bytes[start];
+    if version == 1 {
+        assert!(start + 28 <= end, "mdhd v1 too small");
+        let timescale = u32::from_be_bytes(
+            bytes[start + 20..start + 24]
+                .try_into()
+                .expect("fixture value"),
+        );
+        let duration = u64::from_be_bytes(
+            bytes[start + 24..start + 32]
+                .try_into()
+                .expect("fixture value"),
+        );
+        (timescale, duration)
+    } else {
+        assert!(start + 20 <= end, "mdhd v0 too small");
+        let timescale = u32::from_be_bytes(
+            bytes[start + 12..start + 16]
+                .try_into()
+                .expect("fixture value"),
+        );
+        let duration = u32::from_be_bytes(
+            bytes[start + 16..start + 20]
+                .try_into()
+                .expect("fixture value"),
+        ) as u64;
+        (timescale, duration)
+    }
 }

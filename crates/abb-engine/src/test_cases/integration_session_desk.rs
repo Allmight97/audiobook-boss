@@ -36,6 +36,17 @@ impl Desk {
         Self { root, engine }
     }
 
+    pub(super) fn residual_workspace_dirs(&self) -> Vec<PathBuf> {
+        let workspace = crate::audio::processing_workspace_root(&self.root.path().join("cache"));
+        if !workspace.exists() {
+            return Vec::new();
+        }
+        fs::read_dir(workspace)
+            .expect("read workspace root")
+            .map(|entry| entry.expect("workspace entry").path())
+            .collect()
+    }
+
     pub(super) async fn audiobook(&self, destination: &Path, seconds: f64) -> PathBuf {
         let lane = MediaLane::with_fixtures(&[seconds]);
         let built = lane

@@ -13,7 +13,7 @@ use super::integration_media_execution_tests::{
     SAMPLE_RATE,
 };
 use super::integration_session_desk::{finished, submission, Desk};
-use super::media_fixtures::{minimal_jpg_bytes, picture_codecs};
+use super::media_fixtures::{minimal_jpg_bytes, picture_codecs, timed_text_chapter_track};
 
 fn encode_m4b() -> [AudioEdit; 3] {
     [
@@ -298,6 +298,12 @@ async fn ignoring_a_cue_sheet_keeps_its_chapters_out_of_the_export() {
     assert_eq!(chapters[1].0.as_deref(), Some("Near end"));
     assert_eq!(chapters[1].1, 1_480);
     assert!(chapters[1].2 > 1_480, "short last chapter remains");
+    let (track_seconds, _, _) = timed_text_chapter_track(&out);
+    assert!(
+        track_seconds > 1.48 && track_seconds < 1.6,
+        "chapter track spans the audio: {track_seconds}"
+    );
+    assert!(kept.residual_workspace_dirs().is_empty());
 
     let ignored = desk_with_cue_mp3().await;
     let input_id = ignored
