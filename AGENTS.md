@@ -92,6 +92,8 @@ field once. That setting is not in the repo.
   owning layer before extracting helpers. A rule several callers must each
   remember belongs in that owner.
 - Source files stay small enough to read whole (`scripts/check-file-size.mjs`).
+  A file over that budget, or a function on a complexity list, takes no new
+  code: put it in a new sibling, and name the split it needs in the PR.
 - When merging code paths, name what each old path relied on (reads it
   skipped, state it left alone, ordering); keep each reliance or say which one
   the change drops.
