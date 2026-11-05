@@ -129,10 +129,6 @@ pub fn validate_preserved_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
 }
 
 impl SampleRateConfig {
-    pub fn requires_detection(&self) -> bool {
-        matches!(self, SampleRateConfig::Auto)
-    }
-
     pub fn explicit_rate(&self) -> Option<u32> {
         match self {
             SampleRateConfig::Explicit(rate) => Some(*rate),

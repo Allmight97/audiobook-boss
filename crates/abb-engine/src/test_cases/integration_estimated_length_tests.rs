@@ -1,6 +1,7 @@
+use super::integration_faac_execution_tests::faac_encoder_settings;
 use super::integration_media_execution_tests::{
-    chapters_of, decode_pcm_f32, mux_chapters, write_sine_mp3_with, write_sine_wav, MediaLane,
-    SAMPLE_RATE,
+    audio_duration_ts, chapters_of, decode_pcm_f32, mux_chapters, write_sine_mp3_with,
+    write_sine_wav, MediaLane, SAMPLE_RATE,
 };
 use abb_engine::audio::{execute_audio_engine, get_file_list_info, AacDecoder};
 use abb_engine::processing::ProcessingSession;
@@ -21,36 +22,64 @@ async fn a_merge_after_an_estimated_length_file_starts_the_next_chapter_at_the_r
     write_vbr_mp3_without_header(&vbr);
     let durationless = tmp.path().join("durationless.mka");
     remux_without_duration(&vbr, &durationless);
+    let he_adts = tmp.path().join("he.aac");
+    write_he_adts(&he_adts).await;
 
-    for estimated in [joined, vbr, durationless] {
-        let decoded_ms = decoded_ms(&estimated);
-        let estimate_ms = (ffmpeg_next::format::input(&estimated)
-            .expect("open estimated input")
-            .duration() as f64
-            / 1_000.0)
-            .round() as i64;
+    for (estimated, decoder) in [
+        (joined, AacDecoder::Auto),
+        (vbr, AacDecoder::Auto),
+        (durationless, AacDecoder::Auto),
+        (he_adts, AacDecoder::Faad),
+    ] {
         assert!(
-            (estimate_ms - decoded_ms).abs() > 100,
-            "fixture premise: FFmpeg misjudges {estimated:?} ({estimate_ms} vs {decoded_ms} ms)"
+            crate::metadata::length_is_estimated(
+                &ffmpeg_next::format::input(&estimated).expect("open estimated input")
+            ),
+            "fixture premise: FFmpeg only estimates {estimated:?}"
         );
         let tone = tmp.path().join("tone.wav");
         write_sine_wav(&tone, 8.0, 330.0);
-        let lane = MediaLane::for_inputs(vec![estimated.clone(), tone]);
+        let lane = MediaLane::for_inputs(vec![estimated.clone(), tone]).with_aac_decoder(decoder);
         execute_audio_engine(lane.execution_request(ProcessingSession::new(), None))
             .await
             .expect("export a merge after an estimated-length file");
 
         let chapters = chapters_of(&lane.output_path());
         assert_eq!(chapters.len(), 2, "{estimated:?}: {chapters:?}");
+        let join_ms = (audio_duration_ts(&lane.output_path()) as f64 * 1000.0
+            / f64::from(SAMPLE_RATE))
+        .round() as i64
+            - 8_000;
         assert!(
-            (chapters[1].1 - decoded_ms).abs() <= 2,
-            "{estimated:?}: chapter 2 starts at the decoded join ({decoded_ms} ms): {chapters:?}"
+            (chapters[1].1 - join_ms).abs() <= 2,
+            "{estimated:?}: chapter 2 starts where the output's audio joins ({join_ms} ms): {chapters:?}"
         );
-        assert!(
-            (chapters[1].2 - chapters[1].1 - 8_000).abs() <= 2,
-            "{estimated:?}: {chapters:?}"
-        );
+        if decoder == AacDecoder::Auto {
+            let source_ms = decoded_ms(&estimated);
+            assert!(
+                (join_ms - source_ms).abs() <= 2,
+                "{estimated:?}: the join falls after the whole source ({source_ms} ms)"
+            );
+        }
     }
+}
+
+async fn write_he_adts(path: &Path) {
+    let lane = MediaLane::with_fixtures(&[6.0]).with_encoder(faac_encoder_settings());
+    let encoded = lane.process(None).await;
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
+    let output = std::process::Command::new(binary)
+        .args(["-hide_banner", "-loglevel", "error", "-i"])
+        .arg(&encoded)
+        .args(["-map", "0:a:0", "-c:a", "copy", "-f", "adts", "-y"])
+        .arg(path)
+        .output()
+        .expect("remux HE-AAC to ADTS");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 fn decoded_ms(path: &Path) -> i64 {

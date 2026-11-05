@@ -17,7 +17,7 @@ mod settings_capabilities;
 mod settings_decoder;
 mod settings_encoder;
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioFile {
     /// Stable workbench/session identity for joins that must survive reorder/remove operations.
@@ -36,18 +36,14 @@ pub struct AudioFile {
     pub codec_label: Option<String>,
     /// Whether this source can be copied without re-encoding and whether the
     /// source meets the automatic low-bitrate recommendation.
-    #[serde(default)]
     pub preservation: Option<AudioPreservation>,
     /// Friendly selected decoder label for display only (None if unavailable)
     pub selected_decoder: Option<String>,
     pub tag_title: Option<String>,
     pub tag_artist: Option<String>,
     /// Chapters embedded in this individual source file, normalized to milliseconds.
-    #[serde(default)]
     pub chapters: Vec<AudioChapter>,
-    #[serde(default)]
     pub chapter_plan: Option<crate::metadata::ChapterPlan>,
-    #[serde(default)]
     pub cue_source: Option<crate::metadata::CueSource>,
     pub is_valid: bool,
     pub error: Option<String>,
@@ -165,6 +161,3 @@ pub use output_plan::{
 };
 
 pub(crate) use output_plan::resolve_title_audio;
-
-#[cfg(test)]
-pub(crate) use settings_encoder::resolve_encoder_name;

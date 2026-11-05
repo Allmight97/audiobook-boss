@@ -59,34 +59,24 @@ fn linked_ffmpeg_provides_required_aac_decoders() {
 }
 
 #[test]
-fn aac_candidates_try_default_before_named_decoders() {
-    let availability = AacDecoderAvailability {
+fn aac_candidates_try_default_then_each_available_named_decoder() {
+    let with_apple = build_aac_decoder_candidates(AacDecoderAvailability {
         default_aac: true,
         aac_at: true,
-    };
-
-    let candidates = build_aac_decoder_candidates(availability);
+    });
+    let without_apple = build_aac_decoder_candidates(AacDecoderAvailability {
+        default_aac: true,
+        aac_at: false,
+    });
 
     #[cfg(target_os = "macos")]
     assert_eq!(
-        candidates,
+        with_apple,
         vec![DecoderCandidate::Default, DecoderCandidate::Named("aac_at")]
     );
-
     #[cfg(not(target_os = "macos"))]
-    assert_eq!(candidates, vec![DecoderCandidate::Default]);
-}
-
-#[test]
-fn aac_candidates_skip_missing_decoders_without_failing() {
-    let availability = AacDecoderAvailability {
-        default_aac: true,
-        aac_at: false,
-    };
-
-    let candidates = build_aac_decoder_candidates(availability);
-
-    assert_eq!(candidates, vec![DecoderCandidate::Default]);
+    assert_eq!(with_apple, vec![DecoderCandidate::Default]);
+    assert_eq!(without_apple, vec![DecoderCandidate::Default]);
 }
 
 #[test]

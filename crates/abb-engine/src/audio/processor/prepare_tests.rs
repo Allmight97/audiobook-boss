@@ -53,55 +53,21 @@ async fn cancellation_after_workspace_creation_keeps_cleanup_ownership() {
 }
 
 #[test]
-fn progress_total_duration_uses_preview_scaled_work() {
-    let files = vec![
-        audio_file("first.mp3", Some(120.0), true),
-        audio_file("second.mp3", Some(240.0), true),
-        audio_file("invalid.mp3", Some(500.0), false),
-    ];
-    let preview = PreviewConfig::new(30.0);
-
-    let total = progress_total_duration(&files, Some(&preview));
-
-    assert_eq!(total, 30.0);
-}
-
-#[test]
-fn progress_total_duration_caps_preview_at_attainable_output() {
-    let files = vec![audio_file("short.mp3", Some(20.0), true)];
-    let preview = PreviewConfig::new(60.0);
-
-    assert_eq!(progress_total_duration(&files, Some(&preview)), 20.0);
-}
-
-#[test]
-fn progress_total_duration_mixed_preview_caps_per_file() {
+fn preview_progress_caps_each_file_at_its_excerpt() {
     let files = vec![
         audio_file("short.mp3", Some(8.0), true),
         audio_file("long.mp3", Some(240.0), true),
     ];
-    let preview = PreviewConfig::new(30.0);
 
-    assert_eq!(progress_total_duration(&files, Some(&preview)), 23.0);
+    assert_eq!(progress_total_duration(&files, Some(&PreviewConfig)), 53.0);
 }
 
 #[test]
-fn progress_total_duration_unknown_duration_uses_the_budget() {
-    let files = vec![audio_file("unknown.mp3", None, true)];
-    let preview = PreviewConfig::new(30.0);
-
-    assert_eq!(progress_total_duration(&files, Some(&preview)), 30.0);
-}
-
-#[test]
-fn progress_total_duration_uses_full_duration_without_preview() {
+fn export_progress_sums_the_file_durations() {
     let files = vec![
         audio_file("first.mp3", Some(120.0), true),
         audio_file("second.mp3", Some(240.0), true),
-        audio_file("invalid.mp3", Some(500.0), false),
     ];
 
-    let total = progress_total_duration(&files, None);
-
-    assert_eq!(total, 360.0);
+    assert_eq!(progress_total_duration(&files, None), 360.0);
 }

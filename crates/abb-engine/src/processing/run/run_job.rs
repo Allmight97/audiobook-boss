@@ -374,7 +374,7 @@ fn build_processing_context(request: ProcessingContextRequest) -> ProcessingCont
     context.title_output = request.title_output;
 
     if request.preview {
-        context.preview = Some(PreviewConfig::new(crate::processing::PREVIEW_SECONDS));
+        context.preview = Some(PreviewConfig);
         log::info!(
             "Preview requested: total_seconds={:.3}",
             crate::processing::PREVIEW_SECONDS

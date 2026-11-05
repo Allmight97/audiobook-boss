@@ -4,7 +4,7 @@ use ffmpeg_next as ff;
 use std::fs;
 use std::path::Path;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FileListInfo {
     pub files: Vec<AudioFile>,

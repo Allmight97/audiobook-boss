@@ -191,15 +191,15 @@ export type AudioFile = {
 	 *  Whether this source can be copied without re-encoding and whether the
 	 *  source meets the automatic low-bitrate recommendation.
 	 */
-	preservation?: AudioPreservation | null,
+	preservation: AudioPreservation | null,
 	/**  Friendly selected decoder label for display only (None if unavailable) */
 	selectedDecoder: string | null,
 	tagTitle: string | null,
 	tagArtist: string | null,
 	/**  Chapters embedded in this individual source file, normalized to milliseconds. */
-	chapters?: ChapterSpec[],
-	chapterPlan?: ChapterPlan | null,
-	cueSource?: CueSource | null,
+	chapters: ChapterSpec[],
+	chapterPlan: ChapterPlan | null,
+	cueSource: CueSource | null,
 	isValid: boolean,
 	error: string | null,
 };

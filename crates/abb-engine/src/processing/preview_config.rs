@@ -2,18 +2,14 @@
 pub const PREVIEW_SECONDS: f64 = 90.0;
 const PREVIEW_MIN_SEGMENT_SECONDS: f64 = 5.0;
 
-#[derive(Debug, Clone)]
-pub struct PreviewConfig {
-    pub total_seconds: f64,
-}
+/// A preview: the start of each file, `PREVIEW_SECONDS` split across the
+/// files, never under `PREVIEW_MIN_SEGMENT_SECONDS` each.
+#[derive(Debug, Clone, Copy)]
+pub struct PreviewConfig;
 
 impl PreviewConfig {
-    pub fn new(total_seconds: f64) -> Self {
-        Self { total_seconds }
-    }
-
     pub fn per_file_seconds(&self, file_count: usize) -> f64 {
-        (self.total_seconds / file_count as f64).max(PREVIEW_MIN_SEGMENT_SECONDS)
+        (PREVIEW_SECONDS / file_count as f64).max(PREVIEW_MIN_SEGMENT_SECONDS)
     }
 
     /// Each file's excerpt length at the output rate; the frame pipeline cuts

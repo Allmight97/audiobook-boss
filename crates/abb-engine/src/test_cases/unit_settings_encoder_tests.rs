@@ -1,6 +1,5 @@
 use abb_engine::audio::{
-    resolve_encoder_name, validate_encoder_settings, BitrateMode, ChannelConfig, EncoderSettings,
-    EncoderType,
+    validate_encoder_settings, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
 };
 
 fn base_settings() -> EncoderSettings {
@@ -108,10 +107,4 @@ fn faac_settings_wire_values_are_stable() {
     assert_eq!(value["encoderType"], "faac");
     assert_eq!(value["bitrateMode"]["mode"], "abr");
     assert_eq!(value["faacProfile"], "auto");
-}
-
-#[test]
-#[should_panic(expected = "resolved encoder type")]
-fn test_resolve_encoder_name_rejects_auto() {
-    let _ = resolve_encoder_name(EncoderType::Auto);
 }

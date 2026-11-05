@@ -6,7 +6,7 @@ use ffmpeg_next as ff;
 const PROGRESS_EMIT_INTERVAL_MS: u64 = 1000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PreviewAction {
+enum PreviewAction {
     Continue,
     /// This file's preview excerpt is complete; read no more of it.
     ExcerptFull,
@@ -134,26 +134,6 @@ fn resampler_output_frame_samples(
     scaled.max(1).min(i32::MAX as u128) as usize
 }
 
-#[cfg(test)]
-fn drain_resampler_sample_count(
-    resampler: &mut ff::software::resampling::Context,
-    chunk: usize,
-) -> std::result::Result<usize, ff::Error> {
-    let mut samples = 0usize;
-    loop {
-        let mut out = allocate_resampler_output_frame(resampler, chunk);
-        let remaining = resampler.flush(&mut out)?;
-        if out.samples() == 0 {
-            break;
-        }
-        samples += out.samples();
-        if remaining.is_none() {
-            break;
-        }
-    }
-    Ok(samples)
-}
-
 fn flush_resampler_tail(
     resampler: &mut ff::software::resampling::Context,
     encoder: &mut super::encoder::EncoderSession,
@@ -204,7 +184,7 @@ pub(crate) fn flush_accumulator_tail(
     Ok(())
 }
 
-pub(crate) fn process_decoded_frames(
+fn process_decoded_frames(
     decoder: &mut super::decoder::AudioDecoder,
     encoder: &mut super::encoder::EncoderSession,
     resampler: &mut ff::software::resampling::Context,
@@ -214,10 +194,6 @@ pub(crate) fn process_decoded_frames(
     use crate::errors::AppError;
 
     let mut action = PreviewAction::Continue;
-    let disable_fastpath = std::env::var("ABB_DISABLE_FASTPATH")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-    let fastpath_enabled = !disable_fastpath;
     let encoder_format = encoder.format();
     let encoder_channel_layout = encoder.channel_layout();
     let encoder_sample_rate = encoder.rate();
@@ -230,8 +206,7 @@ pub(crate) fn process_decoded_frames(
         let mut frame = ff::frame::Audio::empty();
         match decoder.receive_frame(&mut frame) {
             Ok(()) => {
-                let decoder_matches_encoder = fastpath_enabled
-                    && frame.format() == encoder_format
+                let decoder_matches_encoder = frame.format() == encoder_format
                     && frame.channel_layout() == encoder_channel_layout
                     && frame.rate() == encoder_sample_rate;
 
@@ -287,7 +262,7 @@ pub(crate) fn process_input_packets(
     decode_window: Option<super::he_timing::HeDecodeWindow>,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
-) -> Result<PreviewAction> {
+) -> Result<()> {
     use crate::errors::AppError;
 
     if log::log_enabled!(log::Level::Info) {
@@ -353,9 +328,7 @@ pub(crate) fn process_input_packets(
             .map_err(|error| AppError::General(format!("Decoder flush failed: {error}")))?;
         log::debug!("Draining decoder after EOF");
         let drain_action = process_decoded_frames(decoder, encoder, resampler, ctx, accumulator)?;
-        if drain_action != PreviewAction::Continue {
-            final_action = drain_action;
-        } else {
+        if drain_action == PreviewAction::Continue {
             // End of this file's real audio: recover the resampler's
             // held-back tail before moving to the next input.
             flush_resampler_tail(resampler, encoder, ctx, accumulator)?;
@@ -365,7 +338,7 @@ pub(crate) fn process_input_packets(
     }
 
     log::info!("✓ Processed {} packets total", packet_count);
-    Ok(final_action)
+    Ok(())
 }
 
 fn send_packet_to_decoder(

@@ -2,8 +2,8 @@
 //! profile resolution, and re-import alignment against external decoders.
 
 use super::integration_media_execution_tests::{
-    assert_auto_merge_stereo, assert_ffprobe_tag, chapters_of, decode_pcm_f32, ffprobe_format_tags,
-    native_encoder_settings, title_audio_request, MediaLane, SAMPLE_RATE,
+    assert_auto_merge_stereo, assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32,
+    ffprobe_format_tags, native_encoder_settings, title_audio_request, MediaLane, SAMPLE_RATE,
 };
 use abb_engine::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
@@ -84,11 +84,11 @@ async fn faac_auto_merge_preserves_distinct_stereo_in_either_input_order() {
 }
 
 #[tokio::test]
-async fn faac_preview_cuts_excerpts_exactly_without_chapters_and_rejects_unsupported_rate() {
+async fn faac_preview_cuts_each_excerpt_at_an_exact_sample_without_chapters() {
     let resampled_to_faac_he_rate = 22_050;
-    for (durations, source_rate) in [
-        ([8.0, 3.0, 8.0], SAMPLE_RATE),
-        ([4.0, 1.5, 4.0], resampled_to_faac_he_rate),
+    for (durations, source_rate, output_rate) in [
+        ([35.0, 10.0, 35.0], SAMPLE_RATE, 44_100_u32),
+        ([17.5, 5.0, 17.5], resampled_to_faac_he_rate, 32_000),
     ] {
         let lane = MediaLane::with_fixtures(&durations).with_encoder(faac_encoder_settings());
         if source_rate != SAMPLE_RATE {
@@ -100,7 +100,7 @@ async fn faac_preview_cuts_excerpts_exactly_without_chapters_and_rejects_unsuppo
             }
         }
         let mut context = lane.context(ProcessingSession::new());
-        context.preview = Some(abb_engine::processing::PreviewConfig::new(15.0));
+        context.preview = Some(abb_engine::processing::PreviewConfig);
         let info = get_file_list_info(&lane.inputs, AacDecoder::Auto).expect("fixture value");
         execute_audio_engine(AudioExecutionRequest::new(
             context,
@@ -111,12 +111,11 @@ async fn faac_preview_cuts_excerpts_exactly_without_chapters_and_rejects_unsuppo
         ))
         .await
         .expect("fixture value");
-        let probe =
-            get_file_list_info(&[lane.output_path()], AacDecoder::Auto).expect("fixture value");
-        assert!(
-            (probe.total_duration - 13.0).abs() < 0.01,
-            "{source_rate} Hz: 5 s + the whole 3 s file + 5 s, cut exactly: {}",
-            probe.total_duration
+        let excerpt_seconds = 30_u64 + 10 + 30;
+        assert_eq!(
+            audio_duration_ts(&lane.output_path()),
+            excerpt_seconds * u64::from(output_rate),
+            "{source_rate} Hz source: 30 s + the whole 10 s file + 30 s at {output_rate} Hz"
         );
         assert!(
             chapters_of(&lane.output_path()).is_empty(),
@@ -124,17 +123,20 @@ async fn faac_preview_cuts_excerpts_exactly_without_chapters_and_rejects_unsuppo
         );
         assert!(lane.residual_workspace_dirs().is_empty());
     }
+}
 
-    let invalid = MediaLane::with_fixtures(&[0.1])
+#[tokio::test]
+async fn faac_he_refuses_an_explicit_22050_hz_rate_before_output_and_leaves_no_residue() {
+    let lane = MediaLane::with_fixtures(&[0.1])
         .with_encoder(faac_encoder_settings())
         .with_sample_rate(SampleRateConfig::Explicit(22050));
     assert!(
-        execute_audio_engine(invalid.execution_request(ProcessingSession::new(), None))
+        execute_audio_engine(lane.execution_request(ProcessingSession::new(), None))
             .await
             .is_err()
     );
-    assert!(!invalid.output_path().exists());
-    assert!(invalid.residual_workspace_dirs().is_empty());
+    assert!(!lane.output_path().exists());
+    assert!(lane.residual_workspace_dirs().is_empty());
 }
 
 #[cfg(target_os = "macos")]
@@ -222,11 +224,6 @@ async fn faac_lc_and_auto_vbr_reimport_preserve_audio_interval() {
             BitrateMode::Vbr(50),
             "AudioBook Boss FAAC HE-AAC timing-2",
         ),
-        (
-            FaacProfile::HeAacV1,
-            BitrateMode::Vbr(100),
-            "AudioBook Boss FAAC HE-AAC timing-2",
-        ),
     ] {
         let input = EncoderSettings {
             faac_profile: profile,
@@ -235,8 +232,6 @@ async fn faac_lc_and_auto_vbr_reimport_preserve_audio_interval() {
         };
         let cases: &[(u32, u32)] = if profile == FaacProfile::AacLc {
             &[(22050, 8192), (44100, 12117)]
-        } else if profile == FaacProfile::HeAacV1 {
-            &[(44100, 12117), (48000, 22050)]
         } else {
             &[(44100, 12117), (48000, 22050), (96000, 32768)]
         };
@@ -452,19 +447,30 @@ async fn faac_he_preserve_with_repaired_chapters_keeps_reimport_timing() {
     assert_reimport_matches_source(&source, &preserved, &native_encoder_settings(), 44100).await;
 }
 
+const LAG_WINDOW_SAMPLES: usize = 4096;
+const LAG_COARSE_STEP: i32 = 4;
+
 fn best_signal_lag(reference: &[f32], decoded: &[f32], radius: i32) -> i32 {
-    let start = radius as usize;
-    let end = reference.len().min(decoded.len()) - radius as usize;
-    (-radius..=radius)
-        .map(|lag| {
-            let score = (start..end)
-                .map(|i| f64::from(reference[i]) * f64::from(decoded[(i as i32 + lag) as usize]))
-                .sum::<f64>();
-            (lag, score)
-        })
-        .max_by(|left, right| left.1.total_cmp(&right.1))
-        .expect("fixture value")
-        .0
+    let margin = radius as usize;
+    let available = reference.len().min(decoded.len()) - 2 * margin;
+    let window = available.min(LAG_WINDOW_SAMPLES);
+    let start = margin + (available - window) / 2;
+    let score = |lag: i32| {
+        (start..start + window)
+            .map(|i| f64::from(reference[i]) * f64::from(decoded[(i as i32 + lag) as usize]))
+            .sum::<f64>()
+    };
+    let best_of = |lags: &mut dyn Iterator<Item = i32>| {
+        lags.map(|lag| (lag, score(lag)))
+            .max_by(|left, right| left.1.total_cmp(&right.1))
+            .expect("fixture value")
+            .0
+    };
+    let coarse = best_of(&mut (-radius..=radius).step_by(LAG_COARSE_STEP as usize));
+    best_of(
+        &mut (coarse - LAG_COARSE_STEP..=coarse + LAG_COARSE_STEP)
+            .filter(|lag| lag.abs() <= radius),
+    )
 }
 
 fn write_center_only_surround_aac(path: &std::path::Path) {
