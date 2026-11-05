@@ -281,7 +281,7 @@ fn should_continue_library_pagination(page: u16, page_count: usize, new_count: u
     page == 1 || new_count > 0
 }
 
-pub(super) fn library_request_params(page: Option<u16>) -> Value {
+fn library_request_params(page: Option<u16>) -> Value {
     let mut params = json!({
         "num_results": AUDIBLE_LIBRARY_PAGE_SIZE,
         "response_groups": "product_desc,product_attrs,contributors,media,pdf_url,product_details,customer_rights,is_visible,is_playable,is_downloaded,is_finished,is_archived,is_returnable,origin_asin",
@@ -310,9 +310,6 @@ fn extract_audible_auth_code(response_url: &str) -> Result<String> {
         )
     })
 }
-
-#[cfg(test)]
-mod library_probe;
 
 #[cfg(test)]
 #[path = "probe_tests.rs"]

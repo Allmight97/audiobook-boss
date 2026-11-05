@@ -1,16 +1,6 @@
 use super::*;
 
 #[test]
-fn new_serials_are_forty_random_letters_and_digits() {
-    let first = new_device_serial();
-    let second = new_device_serial();
-
-    assert_eq!(first.len(), 40);
-    assert!(first.chars().all(|c| c.is_ascii_alphanumeric()));
-    assert_ne!(first, second);
-}
-
-#[test]
 fn registration_announces_the_current_iphone_app() {
     let body = registration_request_body("code", "verifier", "com", "S".repeat(40).as_str());
     let device = &body["registration_data"];

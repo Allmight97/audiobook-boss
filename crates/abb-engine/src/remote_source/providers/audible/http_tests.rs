@@ -179,3 +179,98 @@ async fn a_failed_second_page_loads_no_partial_library() {
     assert!(requests[0].starts_with("GET /1.0/library?"), "{requests:?}");
     assert!(requests[1].contains("page=1"), "{requests:?}");
 }
+
+fn query_of(request_line: &str) -> HashMap<String, String> {
+    let target = request_line.split_whitespace().nth(1).expect("target");
+    reqwest::Url::parse(&format!("http://stub{target}"))
+        .expect("url")
+        .query_pairs()
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .collect()
+}
+
+#[tokio::test]
+async fn a_library_request_asks_for_availability_and_pdf_fields() {
+    let (api, server) = stub_api(vec![(200, library_page(0, 3))]).await;
+
+    let titles = super::super::load_all_library_titles(&api)
+        .await
+        .expect("library");
+    let requests = server.await.expect("stub");
+
+    assert_eq!(titles.len(), 3);
+    assert_eq!(requests.len(), 1, "a short first page ends the scan");
+    let query = query_of(&requests[0]);
+    assert_eq!(
+        query["num_results"],
+        super::super::AUDIBLE_LIBRARY_PAGE_SIZE.to_string()
+    );
+    assert_eq!(query["sort_by"], "-PurchaseDate");
+    assert!(!query.contains_key("page"));
+    for group in ["is_playable", "is_visible", "is_downloaded", "pdf_url"] {
+        assert!(
+            query["response_groups"].split(',').any(|got| got == group),
+            "library request must ask Audible for {group}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_paged_library_loads_every_title_once_and_stops() {
+    const PAGE: usize = super::super::AUDIBLE_LIBRARY_PAGE_SIZE as usize;
+    let cases = [
+        (
+            "overlapping pages",
+            vec![
+                library_page(0, PAGE),
+                library_page(500, PAGE),
+                library_page(1500, 10),
+            ],
+            1510,
+        ),
+        (
+            "explicit page 1 repeating the default page",
+            vec![
+                library_page(0, PAGE),
+                library_page(0, PAGE),
+                library_page(PAGE, 5),
+            ],
+            PAGE + 5,
+        ),
+        (
+            "a full page with nothing new",
+            vec![
+                library_page(0, PAGE),
+                library_page(PAGE, PAGE),
+                library_page(PAGE, PAGE),
+            ],
+            2 * PAGE,
+        ),
+    ];
+
+    for (name, pages, expected_titles) in cases {
+        let (api, server) = stub_api(pages.into_iter().map(|page| (200, page)).collect()).await;
+
+        let titles = super::super::load_all_library_titles(&api)
+            .await
+            .expect("library");
+        let requests = server.await.expect("stub");
+
+        let ids = titles
+            .iter()
+            .map(|title| title.title_id.as_str())
+            .collect::<Vec<_>>();
+        let unique = ids.iter().collect::<std::collections::HashSet<_>>();
+        assert_eq!(unique.len(), ids.len(), "{name}: a title loaded twice");
+        assert_eq!(ids.len(), expected_titles, "{name}");
+        let pages_asked = requests
+            .iter()
+            .map(|line| query_of(line).get("page").cloned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            pages_asked,
+            [None, Some("1".to_string()), Some("2".to_string())],
+            "{name}"
+        );
+    }
+}

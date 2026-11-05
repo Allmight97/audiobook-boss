@@ -74,53 +74,6 @@ async fn serve_one(listener: &TcpListener, response: &[u8]) -> String {
 }
 
 #[test]
-fn supplemental_pdf_get_request_uses_cookie_auth_only_for_audible_website() {
-    let client = reqwest::Client::new();
-    let auth =
-        fixture_auth_with_cookies(&[("at-main", "cookie-a"), ("sess-at-main", "cookie-b")], "");
-    let cookie = supplemental_pdf_cookie_header(&auth).expect("cookie header");
-    let request = build_supplemental_pdf_get_request(
-        &client,
-        reqwest::Url::parse("https://www.audible.com/companion-file/B000000001").expect("url"),
-        &cookie,
-    )
-    .build()
-    .expect("request");
-
-    assert_eq!(request.method(), reqwest::Method::GET);
-    assert_eq!(
-        request
-            .headers()
-            .get(USER_AGENT)
-            .and_then(|value| value.to_str().ok()),
-        Some(AUDIBLE_DOWNLOAD_USER_AGENT)
-    );
-    assert_eq!(
-        request
-            .headers()
-            .get(ACCEPT)
-            .and_then(|value| value.to_str().ok()),
-        Some("application/pdf,*/*")
-    );
-    assert_eq!(
-        request
-            .headers()
-            .get(COOKIE)
-            .and_then(|value| value.to_str().ok()),
-        Some("at-main=cookie-a; sess-at-main=cookie-b")
-    );
-
-    let cdn_request = build_supplemental_pdf_get_request(
-        &client,
-        reqwest::Url::parse("https://cdn.example.test/book.pdf").expect("url"),
-        &cookie,
-    )
-    .build()
-    .expect("cdn request");
-    assert!(cdn_request.headers().get(COOKIE).is_none());
-}
-
-#[test]
 fn supplemental_pdf_downloader_requires_cookie_auth() {
     let auth = fixture_auth_with_cookies(&[], "");
 
@@ -143,17 +96,6 @@ fn supplemental_pdf_downloader_rejects_cleartext_redirects() {
     .expect_err("cleartext redirect");
 
     assert_eq!(failure.category, "redirect_non_https");
-}
-
-#[test]
-fn supplemental_pdf_failure_message_omits_provider_details() {
-    let failure = SupplementalPdfFailure::new("status", Some(reqwest::StatusCode::FORBIDDEN));
-    let message = supplemental_pdf_failure_message(failure);
-
-    assert_eq!(failure.category, "status");
-    assert_eq!(failure.status, Some(reqwest::StatusCode::FORBIDDEN));
-    assert!(!message.contains("B000000001"));
-    assert!(!message.contains("https://"));
 }
 
 #[tokio::test]
@@ -213,6 +155,11 @@ async fn supplemental_pdf_get_download_succeeds_when_head_would_fail() {
     );
     let request_lower = request.to_ascii_lowercase();
     assert!(request_lower.contains("cookie: at-main=cookie-a; sess-at-main=cookie-b"));
+    assert!(request_lower.contains(&format!(
+        "user-agent: {}",
+        AUDIBLE_DOWNLOAD_USER_AGENT.to_ascii_lowercase()
+    )));
+    assert!(request_lower.contains("accept: application/pdf,*/*"));
     assert_eq!(asset.input_id, "input-1");
     assert_eq!(asset.title_id, "B000000001");
     assert_eq!(

@@ -55,11 +55,6 @@ impl AudibleAcquisitionError {
         Self::new(RemoteAcquisitionFailureKind::Cancelled, error)
     }
 
-    #[cfg(test)]
-    pub(super) fn kind(&self) -> RemoteAcquisitionFailureKind {
-        self.kind.clone()
-    }
-
     pub(super) fn is_cancellation(&self) -> bool {
         self.kind == RemoteAcquisitionFailureKind::Cancelled
             || matches!(&self.error, AppError::Cancellation(_))

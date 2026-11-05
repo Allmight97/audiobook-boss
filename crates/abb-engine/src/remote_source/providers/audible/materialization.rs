@@ -12,7 +12,7 @@ use crate::errors::{AppError, Result};
 use crate::remote_source::materializer::{
     AaxcleanLane, AaxcleanMaterializer, AaxcleanSecret, MaterializationRequest,
 };
-use crate::remote_source::scoped_output::{partial_sibling, remove_if_present};
+use crate::remote_source::scoped_output::remove_if_present;
 use crate::remote_source::types::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
 
 pub(super) struct MaterializedProtectedSource {
@@ -54,7 +54,6 @@ pub(super) async fn materialize_protected_download(
         None,
     ));
     let output_path = staged_materialized_path(item_dir, title_name, title_id);
-    let output_temp_path = partial_sibling(&output_path);
 
     let mut materializer_progress = |progress_event: AcquisitionProgress| {
         progress(with_title_progress(progress_event, progress_context));
@@ -75,7 +74,7 @@ pub(super) async fn materialize_protected_download(
         .await;
     // AAXC exit 0 does not prove the key. Reject output the built-in decoder cannot read.
     let result = match result {
-        Ok(path) => confirm_decrypted_output(path, &output_temp_path, job_id, title_id).await,
+        Ok(path) => confirm_decrypted_output(path, job_id, title_id).await,
         Err(error) => Err(error),
     };
 
@@ -104,12 +103,7 @@ pub(super) async fn materialize_protected_download(
     }
 }
 
-async fn confirm_decrypted_output(
-    path: PathBuf,
-    output_temp_path: &Path,
-    job_id: &str,
-    title_id: &str,
-) -> Result<PathBuf> {
+async fn confirm_decrypted_output(path: PathBuf, job_id: &str, title_id: &str) -> Result<PathBuf> {
     let probed = path.clone();
     #[expect(
         clippy::disallowed_methods,
@@ -128,7 +122,6 @@ async fn confirm_decrypted_output(
             title_ref(title_id)
         );
         let _ = remove_if_present(&path);
-        let _ = remove_if_present(output_temp_path);
         return Err(undecodable_decrypt_output());
     }
     Ok(path)

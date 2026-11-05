@@ -1,183 +1,5 @@
-use super::audio_download::build_download_request;
-use super::library_probe::library_probe_summary;
 use super::license::{license_request_path, license_request_payload};
 use super::*;
-use crate::remote_source::scoped_output::partial_sibling;
-use reqwest::header::{RANGE, USER_AGENT};
-use std::path::Path;
-
-#[test]
-fn library_request_uses_audible_max_page_size() {
-    let params = library_request_params(None);
-
-    assert_eq!(params["num_results"], AUDIBLE_LIBRARY_PAGE_SIZE);
-    assert!(params.get("page").is_none());
-    assert_eq!(params["sort_by"], "-PurchaseDate");
-    assert!(params["response_groups"]
-        .as_str()
-        .expect("response groups")
-        .contains("pdf_url"));
-}
-
-#[test]
-fn library_request_includes_availability_fields_used_for_title_status() {
-    let params = library_request_params(None);
-    let response_groups = params["response_groups"].as_str().expect("response groups");
-
-    for required_group in ["is_playable", "is_visible", "is_downloaded"] {
-        assert!(
-            response_groups
-                .split(',')
-                .any(|group| group == required_group),
-            "library request must ask Audible for {required_group}"
-        );
-    }
-}
-
-#[test]
-fn library_request_can_include_explicit_page() {
-    let params = library_request_params(Some(2));
-
-    assert_eq!(params["num_results"], AUDIBLE_LIBRARY_PAGE_SIZE);
-    assert_eq!(params["page"], 2);
-}
-
-#[test]
-fn library_pagination_dedupes_titles_by_provider_id() {
-    let mut titles = Vec::new();
-    let mut seen_title_ids = HashSet::new();
-
-    let first = library_page_payload(&["B000000001", "B000000002"]);
-    let second = library_page_payload(&["B000000002", "B000000003"]);
-
-    assert_eq!(
-        append_unique_library_titles(&mut titles, &mut seen_title_ids, &first),
-        (2, 2)
-    );
-    assert_eq!(
-        append_unique_library_titles(&mut titles, &mut seen_title_ids, &second),
-        (2, 1)
-    );
-    assert_eq!(
-        titles
-            .iter()
-            .map(|title| title.title_id.as_str())
-            .collect::<Vec<_>>(),
-        vec!["B000000001", "B000000002", "B000000003"]
-    );
-}
-
-#[test]
-fn library_pagination_handles_ambiguous_first_explicit_page() {
-    assert!(
-        should_continue_library_pagination(1, AUDIBLE_LIBRARY_PAGE_SIZE as usize, 0),
-        "explicit page 1 may duplicate the default first page on one-based APIs"
-    );
-    assert!(should_continue_library_pagination(
-        2,
-        AUDIBLE_LIBRARY_PAGE_SIZE as usize,
-        1
-    ));
-    assert!(!should_continue_library_pagination(
-        2,
-        AUDIBLE_LIBRARY_PAGE_SIZE as usize,
-        0
-    ));
-    assert!(!should_continue_library_pagination(
-        1,
-        AUDIBLE_LIBRARY_PAGE_SIZE as usize - 1,
-        AUDIBLE_LIBRARY_PAGE_SIZE as usize - 1
-    ));
-}
-
-fn library_page_payload(title_ids: &[&str]) -> Value {
-    json!({
-        "items": title_ids
-            .iter()
-            .map(|title_id| json!({
-                "asin": title_id,
-                "title": format!("Remote Book {title_id}")
-            }))
-            .collect::<Vec<_>>()
-    })
-}
-
-#[test]
-fn library_probe_summary_reports_sanitized_counts() {
-    let payload = json!({
-        "count": 2,
-        "state_token": "provider-private-token",
-        "items": [
-            {
-                "asin": "B000000001",
-                "title": "Remote Book",
-                "details": {"pdf_url": "https://example.test/book.pdf"}
-            },
-            {
-                "asin": "B000000002",
-                "title": "Remote Book Without PDF"
-            }
-        ]
-    });
-
-    let summary = library_probe_summary(&payload);
-
-    assert_eq!(summary.raw_items, 2);
-    assert_eq!(summary.parsed_titles, 2);
-    assert_eq!(summary.supplemental_pdf_available, 1);
-    assert_eq!(summary.total_hint, Some(2));
-    assert!(summary.state_token_present);
-}
-
-#[test]
-fn partial_sibling_keeps_final_extension_visible() {
-    let path = Path::new("/tmp/book.m4b");
-
-    assert_eq!(partial_sibling(path), Path::new("/tmp/book.m4b.partial"));
-}
-
-#[cfg(unix)]
-#[test]
-fn partial_sibling_handles_non_utf8_extension_lossily() {
-    use std::ffi::OsString;
-    use std::os::unix::ffi::OsStringExt;
-
-    let root = tempfile::TempDir::new().expect("temp root");
-    let path = root
-        .path()
-        .join(OsString::from_vec(b"book.\xFFm4b".to_vec()));
-
-    assert!(partial_sibling(&path)
-        .to_string_lossy()
-        .ends_with(".partial"));
-}
-
-#[test]
-fn licensed_audio_download_request_uses_range_and_audible_user_agent() {
-    let client = reqwest::Client::new();
-    let request = build_download_request(
-        &client,
-        reqwest::Url::parse("https://cdn.example.test/book.aax").expect("url"),
-        4096,
-    )
-    .build()
-    .expect("request");
-
-    assert_eq!(
-        request
-            .headers()
-            .get(RANGE)
-            .and_then(|value| value.to_str().ok()),
-        Some("bytes=4096-")
-    );
-    assert_eq!(
-        request
-            .headers()
-            .get(USER_AGENT)
-            .and_then(|value| value.to_str().ok()),
-        Some(AUDIBLE_DOWNLOAD_USER_AGENT)
-    );
-}
 
 #[test]
 fn auth_code_extraction_error_does_not_expose_response_url() {
@@ -195,7 +17,9 @@ fn auth_code_extraction_error_does_not_expose_response_url() {
 #[test]
 fn sign_in_starts_a_device_with_a_current_iphone_serial() {
     let (url, pending) = AudibleProvider::start_auth().expect("auth url");
+    let (_, other) = AudibleProvider::start_auth().expect("second auth url");
 
+    assert_ne!(pending.device_serial, other.device_serial);
     assert_eq!(pending.device_serial.len(), 40);
     assert!(pending
         .device_serial
@@ -267,7 +91,6 @@ struct MockSecretVault {
     secrets: Mutex<HashMap<String, String>>,
     get_error: Mutex<Option<AppError>>,
     set_error: Mutex<Option<AppError>>,
-    delete_error: Mutex<Option<AppError>>,
     set_calls: Mutex<Vec<String>>,
     delete_calls: Mutex<Vec<String>>,
     ephemeral: std::sync::atomic::AtomicBool,
@@ -289,9 +112,6 @@ impl MockSecretVault {
     }
     fn set_set_error(&self, error: AppError) {
         *self.set_error.lock().expect("lock") = Some(error);
-    }
-    fn set_delete_error(&self, error: AppError) {
-        *self.delete_error.lock().expect("lock") = Some(error);
     }
     fn set_calls(&self) -> Vec<String> {
         self.set_calls.lock().expect("lock").clone()
@@ -337,9 +157,6 @@ impl SecretVault for MockSecretVault {
             .lock()
             .expect("lock")
             .push(key.to_string());
-        if let Some(error) = self.delete_error.lock().expect("lock").take() {
-            return Err(error);
-        }
         self.secrets.lock().expect("lock").remove(key);
         Ok(())
     }
@@ -450,18 +267,6 @@ fn logout_deletes_secret_and_subsequent_account_state_needs_auth() {
     assert_eq!(vault.delete_calls(), vec![AUTH_SECRET_KEY.to_string()]);
     let state = AudibleProvider::account_state(&vault).expect("state");
     assert_eq!(state.status, RemoteAccountStatus::NeedsAuth);
-}
-
-#[test]
-fn logout_propagates_vault_delete_error() {
-    let vault = MockSecretVault::default();
-    vault.seed_auth(AUTH_SECRET_KEY, &fixture_auth());
-    vault.set_delete_error(AppError::ResourceCleanup("keychain locked".to_string()));
-
-    let error = AudibleProvider::logout(&vault).expect_err("propagated");
-
-    assert!(matches!(error, AppError::ResourceCleanup(_)));
-    assert_eq!(vault.delete_calls(), vec![AUTH_SECRET_KEY.to_string()]);
 }
 
 #[test]

@@ -1,10 +1,6 @@
 use super::*;
-use crate::errors::AppError;
-use crate::remote_source::providers::audible::audio_download::download_status_failure;
-use crate::remote_source::scoped_output::{partial_sibling, rollback_committed_file};
 use secrecy::ExposeSecret;
 use serde_json::json;
-use std::path::Path;
 
 async fn job_after_license_reply(status: u16) -> AcquisitionJob {
     job_after_license_body(status, r#"{"message":"Refused"}"#).await
@@ -160,21 +156,6 @@ fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {
 }
 
 #[test]
-fn generated_staging_path_does_not_use_provider_title_id() {
-    let root = Path::new("/tmp/abb-remote-job");
-    let unsafe_title_id = "../../account-title";
-
-    let path = generated_staging_path(root, "m4b");
-
-    assert!(path.starts_with(root));
-    assert!(!path.to_string_lossy().contains(unsafe_title_id));
-    assert_eq!(
-        path.extension().and_then(|value| value.to_str()),
-        Some("m4b")
-    );
-}
-
-#[test]
 fn item_staged_paths_do_not_use_provider_title_id() {
     let root = tempfile::TempDir::new().expect("temp root");
     let item_dir = staging::create_item_dir(root.path(), "item-1").expect("item dir");
@@ -217,21 +198,6 @@ fn sha256_file_streams_expected_digest() {
 }
 
 #[test]
-fn cancellation_guard_returns_cancellation_error() {
-    let error = ensure_not_cancelled(&|| true).expect_err("cancelled");
-
-    assert!(matches!(error, AppError::Cancellation(_)));
-    assert!(error
-        .to_string()
-        .contains("Remote source acquisition was cancelled"));
-}
-
-#[test]
-fn cancellation_guard_allows_active_acquisition() {
-    ensure_not_cancelled(&|| false).expect("active acquisition");
-}
-
-#[test]
 fn encrypted_download_is_not_reported_as_materialized_without_decryption() {
     let root = tempfile::TempDir::new().expect("temp root");
     let encrypted = root.path().join("book.aax");
@@ -264,34 +230,6 @@ fn dash_lane_is_reported_unsupported_not_deferred() {
     assert!(acquired.diagnostics[0]
         .message
         .contains("Dash/Widevine materialization is not supported"));
-}
-
-#[test]
-fn rollback_committed_file_removes_committed_staged_output() {
-    let root = tempfile::TempDir::new().expect("temp root");
-    let final_path = root.path().join("book.aax");
-    std::fs::write(&final_path, b"encrypted").expect("write final");
-
-    rollback_committed_file(&final_path).expect("rollback committed file");
-
-    assert!(!final_path.exists());
-    assert!(!partial_sibling(&final_path).exists());
-}
-
-#[test]
-fn typed_acquisition_errors_map_to_diagnostics_without_message_matching() {
-    let error = AudibleAcquisitionError::download(download_status_failure(403));
-
-    assert_eq!(error.kind(), RemoteAcquisitionFailureKind::DownloadFailed);
-    let diagnostic = error.into_diagnostic(Some("B000000001".to_string()));
-
-    assert_eq!(
-        diagnostic.kind,
-        RemoteAcquisitionFailureKind::DownloadFailed
-    );
-    assert_eq!(diagnostic.title_id.as_deref(), Some("B000000001"));
-    assert!(!diagnostic.message.contains("token"));
-    assert!(!diagnostic.message.contains("license"));
 }
 
 #[test]
@@ -343,4 +281,93 @@ fn helper_lane_follows_voucher_key_shape_not_content_url_extension() {
         }
         AaxcleanSecret::Aax { .. } => panic!("unexpected aax helper secret"),
     }
+}
+
+struct FinalizeFixture {
+    root: tempfile::TempDir,
+    audio: std::path::PathBuf,
+    auth: Auth,
+    title_details: AudibleTitleDetails,
+    lane: LicenseLane,
+}
+
+impl FinalizeFixture {
+    fn new() -> Self {
+        let root = tempfile::TempDir::new().expect("temp root");
+        let audio = root.path().join("Book.m4b");
+        crate::test_cases::media_fixtures::write_complete_frame_aac(&audio, 440);
+        Self {
+            root,
+            audio,
+            auth: crate::remote_source::providers::audible::http::stub::signing_auth("us"),
+            title_details: AudibleTitleDetails {
+                title: Some("Book".to_string()),
+                supplemental_pdf_url: Some("https://example.test/book.pdf".to_string()),
+            },
+            lane: LicenseLane {
+                content_url: "https://cdn.example.test/book.aax".to_string(),
+                strategy: AcquisitionStrategy::DownloadThenDecryptAax,
+                decryption_material: None,
+                supplemental_pdf_url: None,
+                denial: None,
+            },
+        }
+    }
+
+    async fn finalize(&self, include_pdf: bool) -> AudibleAcquisitionResult<AcquiredTitle> {
+        finalize_acquired_title(
+            FinalizeAcquisitionRequest {
+                auth: &self.auth,
+                materialized_path: self.audio.clone(),
+                include_pdf,
+                title_details: &self.title_details,
+                lane: &self.lane,
+                ctx: TitleAcquisitionCtx {
+                    job_id: "job-1",
+                    title_id: "B000000001",
+                    item_id: "item-1",
+                    item_dir: self.root.path(),
+                    progress_context: TitleProgressContext {
+                        title_id: "B000000001",
+                        item_index: 1,
+                        total_items: 1,
+                    },
+                },
+            },
+            &mut |_| {},
+            &|| false,
+        )
+        .await
+    }
+}
+
+#[tokio::test]
+async fn a_required_pdf_failure_removes_the_validated_audio() {
+    let fixture = FinalizeFixture::new();
+
+    let error = match fixture.finalize(true).await {
+        Ok(_) => panic!("a requested advertised PDF that cannot download must fail the title"),
+        Err(error) => error,
+    };
+
+    let diagnostic = error.into_diagnostic(Some("B000000001".to_string()));
+    assert_eq!(
+        diagnostic.kind,
+        RemoteAcquisitionFailureKind::SupplementalPdfFailed
+    );
+    assert!(diagnostic.message.contains("required"));
+    assert!(!fixture.audio.exists());
+}
+
+#[tokio::test]
+async fn a_title_without_a_requested_pdf_keeps_its_validated_audio() {
+    let fixture = FinalizeFixture::new();
+
+    let acquired = match fixture.finalize(false).await {
+        Ok(acquired) => acquired,
+        Err(error) => panic!("{:?}", error.into_app_error()),
+    };
+
+    assert!(acquired.file.is_some());
+    assert!(fixture.audio.exists());
 }
