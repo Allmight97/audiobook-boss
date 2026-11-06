@@ -8,7 +8,6 @@ export function PreviewAudioControls(): JSX.Element {
 
 	return (
 		<Button
-			id="preview-button"
 			tone="primary"
 			class="preview-audio-button"
 			data-testid="preview-audio-controls"

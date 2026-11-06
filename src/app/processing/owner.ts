@@ -17,6 +17,9 @@ export type ProcessingOwner = {
 	start: () => Promise<void>;
 	preview: () => Promise<void>;
 	cancelAll: () => void;
+	cancelJob: (childJobId: string) => void;
+	/** The engine still accepts a cancel of the running preview. */
+	previewCancellable: () => boolean;
 	isProcessing: () => boolean;
 	reset: () => void;
 };
@@ -42,9 +45,8 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	});
 	const context = {
 		showError: (message: string) => statusView.showError(message),
-		updateStatus: (next: Parameters<typeof renderStatus>[1]) =>
-			renderStatus(statusView, next, false),
-		setProcessingState: (active: boolean) => statusView.setIsProcessing(active),
+		showCompleted: (message: string) =>
+			renderStatus(statusView, { stage: 'complete', percentage: 100, message }),
 		handleCancellation: () => statusView.showInfo('Preview was cancelled.'),
 		resetToIdle: () => {
 			if (!deps.link.output().previewRun) statusView.reset();
@@ -64,7 +66,7 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	createEffect(
 		() => deps.link.output().previewRun,
 		(preview) => {
-			renderPreview(statusView, preview, (child) => cancelPreview(child));
+			renderPreview(statusView, preview);
 			if (!preview) return;
 			const id = preview.operation.operationId;
 			if (artworkKey !== preview.cover) {
@@ -128,6 +130,8 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 		cancelAll() {
 			cancelPreview();
 		},
+		cancelJob: cancelPreview,
+		previewCancellable: () => deps.link.output().previewRun?.operation.cancellable ?? false,
 		isProcessing() {
 			return deps.link.output().submissionInProgress;
 		},

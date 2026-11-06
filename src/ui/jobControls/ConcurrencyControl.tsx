@@ -13,7 +13,6 @@ export function ConcurrencyControl(): JSX.Element {
 		<div class="concurrency-control" title="Concurrent Jobs">
 			<span class="concurrency-label">Number of Jobs:</span>
 			<select
-				id="max-concurrent-select"
 				class="concurrency-select"
 				value={view().selection}
 				disabled={!view().controlsEnabled}
@@ -28,12 +27,7 @@ export function ConcurrencyControl(): JSX.Element {
 					{(option) => <option value={String(option)}>{option}</option>}
 				</For>
 			</select>
-			<span
-				id="max-concurrent-effective"
-				class="sr-only"
-				aria-live="polite"
-				data-testid="max-concurrent-effective"
-			>
+			<span class="sr-only" aria-live="polite">
 				{view().effectiveLabel}
 			</span>
 		</div>

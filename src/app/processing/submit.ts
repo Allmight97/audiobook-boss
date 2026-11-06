@@ -1,10 +1,8 @@
 import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
 import type { SubmissionStatus, SubmitRefusal } from '../../types/session';
-import type { ProcessingStatus } from './state';
 
 export interface SubmissionDisplay {
-	updateStatus: (status: ProcessingStatus) => void;
-	setProcessingState: (active: boolean) => void;
+	showCompleted: (message: string) => void;
 	handleCancellation: () => void;
 	resetToIdle: () => void;
 	showError: (message: string) => void;
@@ -54,23 +52,14 @@ export function renderSubmission(
 		case 'reviewRequired':
 			return;
 		case 'submitted':
-			display.setProcessingState(false);
-			display.updateStatus({
-				stage: 'completed',
-				percentage: 100,
-				message: 'Submitted to Work Center.',
-			});
+			display.showCompleted('Submitted to Work Center.');
 			return;
 		case 'finishedBeforeRestart':
-			display.setProcessingState(false);
-			display.updateStatus({
-				stage: 'completed',
-				percentage: 100,
-				message:
-					status.outputs.failed > 0
-						? 'The title finished before it could restart, and its tags could not be updated there. Save again to retry.'
-						: 'The title finished before it could restart; its tags were updated where it is.',
-			});
+			display.showCompleted(
+				status.outputs.failed > 0
+					? 'The title finished before it could restart, and its tags could not be updated there. Save again to retry.'
+					: 'The title finished before it could restart; its tags were updated where it is.',
+			);
 			return;
 		case 'refused':
 			display.resetToIdle();

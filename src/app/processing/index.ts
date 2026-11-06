@@ -1,3 +1,3 @@
 export { createProcessingOwner } from './owner';
 export type { ProcessingOwner } from './owner';
-export type { JobListItem } from './viewTypes';
+export type { JobListItem } from './view';

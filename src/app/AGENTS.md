@@ -118,10 +118,9 @@ without a bullet has none. Engine paths name the owner of the truth.
   job id, and disposal does not cancel. The artwork shows from the run's
   `cover` address once the engine offers one. A finished preview opens through
   `link.openPreview(runId)`, even when the requesting frontend is disposed
-  before the reply (host side: `src-tauri/AGENTS.md`). Submit and Cancel
-  availability come from the status store's `isProcessing`: `renderPreview`
-  sets it from the engine preview state, including for a frontend that attaches
-  to an active run, and `submit.ts` clears it when a submission ends.
+  before the reply (host side: `src-tauri/AGENTS.md`). Submit availability comes from
+  `output.submissionInProgress`; preview Cancel availability comes from the
+  run's `cancellable`, and a title's from its child `cancellable`.
   `preview()` sends no length: the engine owns the preview length and content.
   Each owner instance owns its status store and publisher.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and

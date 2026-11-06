@@ -136,6 +136,58 @@ describe('engine preview adapter', () => {
 		await vi.waitFor(() => expect(bar()).not.toHaveAttribute('data-active'));
 	});
 
+	it.each([
+		['pending', 'Analyzing', '1 analyzing'],
+		['analyzing', 'Analyzing', '1 analyzing'],
+		['writing', 'Writing Metadata', '1 writing'],
+		['committing', 'Writing Metadata', '1 writing'],
+		['cleaning', 'Writing Metadata', '1 writing'],
+	] as const)('words the engine stage %s', async (stage, statusText, chip) => {
+		const engine = createFakeEngine();
+		const run = preview();
+		run.operation.progress = { ...run.operation.progress, stage };
+		run.operation.children[0].progress = { ...run.operation.progress };
+		engine.change((state) => {
+			state.output.previewRun = run;
+		});
+		const app = createAppRuntime({ engine });
+		runtimes.push(app);
+		await app.initialize();
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<StatusPanelView />
+			</AppRuntimeProvider>
+		));
+		expect(await screen.findByText(statusText)).toBeVisible();
+		expect(screen.getByText(chip)).toBeVisible();
+	});
+
+	it('offers Cancel only while the engine says the preview can be cancelled', async () => {
+		const engine = createFakeEngine();
+		engine.change((state) => {
+			state.output.previewRun = preview();
+		});
+		const app = createAppRuntime({ engine });
+		runtimes.push(app);
+		await app.initialize();
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<StatusPanelView />
+			</AppRuntimeProvider>
+		));
+		const cancel = () => screen.getByRole('button', { name: /^Cancel$/ });
+		await vi.waitFor(() => expect(cancel()).toBeEnabled());
+		const cancelling = preview();
+		cancelling.operation.status = 'cancelling';
+		cancelling.operation.cancellable = false;
+		cancelling.operation.cancelRequested = true;
+		engine.change((state) => {
+			state.output.previewRun = cancelling;
+		});
+		await vi.waitFor(() => expect(cancel()).toBeDisabled());
+		expect(screen.getByText('Cancelling')).toBeVisible();
+	});
+
 	it('claims a finished preview once and never claims a cancelled run', async () => {
 		const engine = createFakeEngine();
 		engine.respond = (intent) =>
