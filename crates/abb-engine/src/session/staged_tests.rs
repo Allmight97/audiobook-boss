@@ -1,4 +1,8 @@
 use super::*;
+use crate::audio::{AudioFile, AudioIntent, TitleAudioRequest};
+use crate::session::metadata_form::MetadataField;
+use crate::session::state::SessionState;
+use crate::session::working_set::SelectionModifiers;
 
 fn path(name: &str) -> PathBuf {
     PathBuf::from(format!("/staged/{name}.m4b"))
@@ -122,4 +126,112 @@ fn a_failed_removal_is_tried_again_only_after_the_retry_delay() {
     assert!(staged.removable(&free, failed).is_empty());
     assert!(staged.removable(&free, failed + RETRY_DELAY / 2).is_empty());
     assert_eq!(staged.removable(&free, failed + RETRY_DELAY), ["job-1"]);
+}
+
+fn listed(names: &[&str]) -> SessionState {
+    let mut state = SessionState::default();
+    let files = names
+        .iter()
+        .map(|name| AudioFile {
+            is_valid: true,
+            input_id: name.to_string(),
+            ..AudioFile::new(path(name))
+        })
+        .collect();
+    state
+        .working_set
+        .append_analyzed(files, &TitleAudioRequest::default_m4b(AudioIntent::Auto));
+    for index in 0..names.len() {
+        let modifiers = SelectionModifiers {
+            multi: index > 0,
+            range: false,
+        };
+        state.working_set.select_file(index, modifiers);
+    }
+    state.rebind();
+    state
+}
+
+fn remove_download(state: &mut SessionState, name: &str) {
+    state.staged.register("job", name, path(name), Vec::new());
+    state
+        .staged
+        .finish_export(&exported(&[(name, ChildJobStatus::Completed, false)]));
+    let held = HashSet::new();
+    assert_eq!(state.begin_staged_removal(&held, Instant::now()), ["job"]);
+    state.finish_staged_removal("job", true, Instant::now());
+}
+
+fn typed(state: &mut SessionState, value: &str) {
+    state.set_field(MetadataField::Genre, value.to_string());
+    state.settle();
+}
+
+fn shown_genre(state: &mut SessionState) -> String {
+    state.settle();
+    let metadata = state.update_since(None).metadata.expect("metadata part");
+    metadata
+        .form
+        .fields
+        .into_iter()
+        .find(|snapshot| snapshot.field == MetadataField::Genre)
+        .expect("genre")
+        .value
+}
+
+fn pending_genre(state: &SessionState, name: &str) -> bool {
+    state
+        .tags
+        .pending(&path(name))
+        .is_some_and(|pending| pending.patch.genre.is_some())
+}
+
+#[test]
+fn typing_on_a_title_survives_its_download_leaving_even_when_invalid() {
+    let mut state = listed(&["alpha"]);
+    state.set_field(MetadataField::Date, "soon".to_string());
+    typed(&mut state, "Mystery");
+
+    remove_download(&mut state, "alpha");
+
+    assert_eq!(shown_genre(&mut state), "Mystery");
+    let metadata = state.update_since(None).metadata.expect("metadata part");
+    let date = metadata
+        .form
+        .fields
+        .iter()
+        .find(|snapshot| snapshot.field == MetadataField::Date)
+        .expect("date");
+    assert_eq!(date.value, "soon");
+    assert!(date.dirty);
+}
+
+#[test]
+fn typing_on_a_multi_selection_survives_and_saves_to_the_local_title_too() {
+    let mut state = listed(&["alpha", "local"]);
+    typed(&mut state, "Mystery");
+
+    remove_download(&mut state, "alpha");
+    assert_eq!(shown_genre(&mut state), "Mystery");
+
+    let plan = state
+        .begin_save(&HashSet::new(), |_| false)
+        .expect("a save");
+    assert_eq!(plan.immediate.len(), 1);
+    assert_eq!(plan.immediate[0].path, path("local"));
+    assert!(pending_genre(&state, "alpha"), "kept for alpha's output");
+}
+
+#[test]
+fn typing_on_a_grouped_title_survives_its_first_source_leaving() {
+    let mut state = listed(&["alpha", "local"]);
+    assert!(state.working_set.group_selected());
+    state.rebind();
+    typed(&mut state, "Mystery");
+
+    remove_download(&mut state, "alpha");
+    assert_eq!(shown_genre(&mut state), "Mystery");
+
+    state.begin_save(&HashSet::new(), |_| false);
+    assert!(pending_genre(&state, "alpha"), "kept for the output");
 }

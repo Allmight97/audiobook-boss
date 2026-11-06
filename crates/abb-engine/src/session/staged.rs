@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use super::state::SessionState;
+use super::tag_cache::ReadTicket;
 use crate::processing::SupplementalProcessingAsset;
 use crate::work_runtime::{ChildJobSnapshot, ChildJobStatus};
 
@@ -179,6 +181,25 @@ impl StagedSources {
 
     pub(crate) fn is_empty(&self) -> bool {
         self.jobs.is_empty()
+    }
+}
+
+impl SessionState {
+    pub(crate) fn finish_staged_removal(
+        &mut self,
+        job_id: &str,
+        removed: bool,
+        now: Instant,
+    ) -> Vec<ReadTicket> {
+        let paths = self.staged.paths(job_id);
+        self.removing.retain(|path| !paths.contains(path));
+        if !removed {
+            self.staged.removal_failed(job_id, now);
+            return Vec::new();
+        }
+        self.working_set.sources_removed(&paths);
+        self.staged.removed(job_id);
+        self.rebind()
     }
 }
 

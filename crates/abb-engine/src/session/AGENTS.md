@@ -68,8 +68,8 @@ one host attachment.
 ## Rules That Are Easy To Break
 
 - **Draft gate.** Selecting, removing, clearing, grouping, and separating first
-  accept the edits on screen: validate them and stage them onto every valid
-  bound title. An invalid edit refuses the change and leaves the selection where
+  accept the edits on screen: validate them and stage them onto every bound
+  title that takes edits. An invalid edit refuses the change and leaves the selection where
   it is. Nothing changes the selection while a Save runs.
 - **Edit intent.** Only fields the user changed, or blanked, become set or clear
   operations; an untouched field stays absent and is neither rewritten nor
@@ -187,7 +187,10 @@ one host attachment.
   files. Files being removed count as busy: Save holds them and a submission
   using them is refused. Every transition that leaves a download removable
   starts the one sweep (`Session::transition`), the only path that removes
-  downloads. A failed removal stays recorded and is retried at the first change
+  downloads. Removing a download leaves the form alone: its title
+  (`AudioFile::takes_edits`) keeps its tags and any typing, valid or not, and a
+  later Save sends the edit to the title's output. A failed removal stays
+  recorded and is retried at the first change
   after `staged::RETRY_DELAY`; startup clears the rest. A download nothing was
   imported from is recorded the same way. A download with any file that
   cannot be read is not listed at all (`HandoffRefusal::ImportFailed`), so a

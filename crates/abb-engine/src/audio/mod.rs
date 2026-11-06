@@ -98,6 +98,10 @@ impl AudioFile {
             error: None,
         }
     }
+
+    pub(crate) fn takes_edits(&self) -> bool {
+        self.is_valid || self.source_removed
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]

@@ -161,7 +161,7 @@ pub(crate) enum StageOutcome {
 struct BoundTitle {
     path: PathBuf,
     input_id: String,
-    is_valid: bool,
+    editable: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -242,7 +242,7 @@ pub(crate) struct SessionState {
     keeping_locations: usize,
     reserved: Vec<PathBuf>,
     pub(crate) staged: StagedSources,
-    removing: Vec<PathBuf>,
+    pub(super) removing: Vec<PathBuf>,
     pub(crate) exports: Exports,
     form: MetadataForm,
     bound: Vec<BoundTitle>,
@@ -756,23 +756,6 @@ impl SessionState {
         jobs
     }
 
-    pub(crate) fn finish_staged_removal(
-        &mut self,
-        job_id: &str,
-        removed: bool,
-        now: Instant,
-    ) -> Vec<ReadTicket> {
-        let paths = self.staged.paths(job_id);
-        self.removing.retain(|path| !paths.contains(path));
-        if !removed {
-            self.staged.removal_failed(job_id, now);
-            return Vec::new();
-        }
-        self.working_set.sources_removed(&paths);
-        self.staged.removed(job_id);
-        self.rebind()
-    }
-
     pub(crate) fn await_review(
         &mut self,
         mut draft: Draft,
@@ -968,7 +951,7 @@ impl SessionState {
             .map(|file| BoundTitle {
                 path: file.path.clone(),
                 input_id: file.input_id.clone(),
-                is_valid: file.is_valid,
+                editable: file.takes_edits(),
             })
             .collect()
     }
@@ -978,7 +961,7 @@ impl SessionState {
         if !patch.is_actionable() {
             return StageOutcome::Staged;
         }
-        let targets: Vec<&BoundTitle> = self.bound.iter().filter(|title| title.is_valid).collect();
+        let targets: Vec<&BoundTitle> = self.bound.iter().filter(|title| title.editable).collect();
         if targets.is_empty() {
             return StageOutcome::NoTarget;
         }
@@ -1043,7 +1026,7 @@ impl SessionState {
             let paths: Vec<PathBuf> = self
                 .bound
                 .iter()
-                .filter(|title| title.is_valid)
+                .filter(|title| title.editable)
                 .map(|title| title.path.clone())
                 .collect();
             tickets.extend(paths.iter().filter_map(|path| self.tags.begin_read(path)));
@@ -1059,7 +1042,7 @@ impl SessionState {
     fn form_from_known_tags(&self) -> MetadataForm {
         let known = |title: &BoundTitle| {
             title
-                .is_valid
+                .editable
                 .then(|| self.tags.effective(&title.path))
                 .flatten()
                 .unwrap_or_default()
