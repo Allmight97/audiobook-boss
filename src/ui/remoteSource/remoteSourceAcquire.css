@@ -292,15 +292,6 @@
 	margin-left: 0.15rem;
 }
 
-@media (max-width: 720px) {
-	.remote-source-provider,
-	.remote-source-filter,
-	.remote-source-handoff,
-	.remote-source-toolbar-button {
-		flex: 1 1 100%;
-	}
-}
-
 .remote-release-details {
 	flex: 0 0 auto;
 	max-width: 12rem;
