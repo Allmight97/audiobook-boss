@@ -6,6 +6,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Opening an audio file from Finder while ABB is running no longer crashes the app.
 - A failed Indexer grab now says in one line which side is down (Prowlarr, the downloader, or
   the indexer) and names it, instead of Prowlarr's raw JSON cut off mid-word.
 - A title joined from sources that already have chapters now warns in Work Center when a

@@ -19,7 +19,10 @@ engine does not offer, add it to the engine's host interface.
   step, so a reload between them cannot hand an old frontend's intent a turn.
 - **Log file.** `log_file.rs` sends the log to stderr and to `abb.log`. Why: a
   Finder-launched app has no readable stderr. A launch appends, so a second copy
-  keeps a running copy's log.
+  keeps a running copy's log. A panic reaches the file through the hook in
+  `init_logger`.
+- **Opened files.** `RunEvent::Opened` runs on the main thread with no Tokio
+  runtime, so `Engine::open_audio_files` is async and `open_urls` blocks on it.
 - **Second copy.** When `Engine::start` fails with `AlreadyRunning`, setup
   hides the window, shows the message in a native dialog, and exits on OK
   without an engine. `Quit` and `FrontendLink` are managed before the engine

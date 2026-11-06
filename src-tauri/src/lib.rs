@@ -372,7 +372,7 @@ fn open_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
         log::warn!("Engine is unavailable; ignoring opened audio files");
         return;
     };
-    if let Err(error) = engine.open_audio_files(paths) {
+    if let Err(error) = tauri::async_runtime::block_on(engine.open_audio_files(paths)) {
         log::warn!("Opened audio files were not imported: {error}");
     }
 }

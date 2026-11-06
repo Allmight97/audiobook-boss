@@ -46,6 +46,7 @@ async fn opening_an_unsupported_file_says_no_supported_files() {
 
     engine
         .open_audio_files(vec![unsupported])
+        .await
         .expect("opened files admitted");
 
     let notice = tokio::time::timeout(std::time::Duration::from_secs(10), async {

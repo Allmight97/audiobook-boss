@@ -85,6 +85,11 @@ pub fn init_logger() {
     if let Some(error) = open_error {
         log::warn!("Log file unavailable, logging to stderr only: {error}");
     }
+    let print_panic = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic| {
+        log::error!("{panic}");
+        print_panic(panic);
+    }));
 }
 
 #[cfg(test)]

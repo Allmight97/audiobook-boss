@@ -406,7 +406,7 @@ impl Engine {
     /// to ask. Unsupported paths get the notice a normal import gives. While
     /// the list is locked the import waits and appends once it unlocks.
     /// Refused once ABB is closing.
-    pub fn open_audio_files(&self, paths: Vec<PathBuf>) -> Result<()> {
+    pub async fn open_audio_files(&self, paths: Vec<PathBuf>) -> Result<()> {
         self.inner.session.import_opened(paths)
     }
 
