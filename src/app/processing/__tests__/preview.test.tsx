@@ -254,11 +254,14 @@ describe('engine preview adapter', () => {
 
 	it('clears a finished preview from the status line once an export is prepared', async () => {
 		const { engine, app } = await afterFailedPreview();
+		const { concurrencyText } = app.processing.status();
+		expect(concurrencyText).toContain('Max jobs');
 		engine.change((state) => {
 			state.output.previewRun = null;
 			state.output.submission = { kind: 'preparing', preview: false };
 		});
 		await vi.waitFor(() => expect(app.processing.status().statusText).toBe('Idle'));
+		expect(app.processing.status().concurrencyText).toBe(concurrencyText);
 		expect(app.processing.status().progressPercentage).toBe(0);
 		expect(app.processing.status().coverArtSrc).toBeNull();
 		expect(app.processing.status().jobItems).toEqual([]);

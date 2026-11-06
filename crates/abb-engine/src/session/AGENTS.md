@@ -208,9 +208,9 @@ one host attachment.
   on screen. Output choices are recorded in the settings; template typing is
   recorded once it pauses.
 - **Preview.** `output.preview_run` owns stable identity from acceptance through
-  terminal state, and a finished run stays published until the next `Submit` or
-  `Preview`, accepted or refused; that ends its claim on the output and cover
-  too. `CancelPreview` sets actual per-title cancellation flags even
+  terminal state, and a finished run stays published until the next submission
+  begins, accepted or refused; that ends its claim on the output and cover too.
+  `CancelPreview` sets actual per-title cancellation flags even
   during preparation/review/scheduler wait; cancellation survives a dropped host
   reply and never grants an output for opening. Accepted custom cover or
   preserved source artwork is read by run identity; bytes stay outside
