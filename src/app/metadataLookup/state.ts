@@ -1,4 +1,3 @@
-import { pathBasename } from '../../lib/path/basename';
 import type { MetadataSource, OnlineMetadataResult } from '../../types/metadata';
 import type { LookupStatus, QueueStep, SessionLookup } from '../../types/session';
 
@@ -96,7 +95,7 @@ export function toLookupState(
 		statusMessage: status.message,
 		statusVariant: status.variant,
 		queueContext: position
-			? `${position.index + 1} of ${position.total} • ${pathBasename(position.path, { fallback: 'path' })}`
+			? `${position.index + 1} of ${position.total} • ${position.label}`
 			: 'No files selected.',
 		results: lookup.results,
 		isQueueMode: lookup.isQueueMode,

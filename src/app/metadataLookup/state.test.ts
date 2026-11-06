@@ -61,11 +61,13 @@ describe('lookup wording', () => {
 
 	it('names the queued title and shows query text typed before the engine confirms it', () => {
 		const state = toLookupState(
-			lookup({ queuePosition: { index: 1, total: 3, path: '/books/second.m4b' } }),
+			lookup({
+				queuePosition: { index: 1, total: 3, path: '/books/second.m4b', label: 'Second Book' },
+			}),
 			{ titleQuery: 'Dune Mess' },
 		);
 
-		expect(state.queueContext).toBe('2 of 3 • second.m4b');
+		expect(state.queueContext).toBe('2 of 3 • Second Book');
 		expect(state.titleQuery).toBe('Dune Mess');
 		expect(state.authorQuery).toBe('Herbert');
 		expect(toLookupState(lookup(), {}).queueContext).toBe('No files selected.');

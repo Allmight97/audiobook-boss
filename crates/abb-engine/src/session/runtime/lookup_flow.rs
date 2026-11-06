@@ -47,6 +47,7 @@ impl Session {
                 .map(|file| QueuedTitle {
                     title_id: file.input_id.clone(),
                     path: file.path.clone(),
+                    label: file.label.clone(),
                 })
                 .collect();
             let first = queue

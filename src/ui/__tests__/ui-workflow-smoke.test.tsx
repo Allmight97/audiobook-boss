@@ -109,7 +109,7 @@ describe('UI workflow intents', () => {
 						open: true,
 						hasSearched: true,
 						results: [lookupResult()],
-						queuePosition: { index: 0, total: 1, path: INPUT_PATH },
+						queuePosition: { index: 0, total: 1, path: INPUT_PATH, label: 'Dune (old tags)' },
 						status: { kind: 'found', count: 1, partial: false, after: null },
 					};
 				});

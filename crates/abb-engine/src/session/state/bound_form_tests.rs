@@ -372,6 +372,7 @@ fn a_lookup_result_applies_only_to_the_title_it_was_chosen_for() {
     let alpha = QueuedTitle {
         title_id: "alpha".to_string(),
         path: path("alpha"),
+        label: "alpha".to_string(),
     };
     let found = AudiobookMetadata {
         title: Some("Found".to_string()),

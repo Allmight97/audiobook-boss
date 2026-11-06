@@ -8,7 +8,7 @@ it('drops delayed query echoes when lookup advances and preserves newer typing',
 	const engine = createFakeEngine();
 	engine.change((state) => {
 		state.lookup.open = true;
-		state.lookup.queuePosition = { index: 0, total: 2, path: '/books/alpha.m4b' };
+		state.lookup.queuePosition = { index: 0, total: 2, path: '/books/alpha.m4b', label: 'Alpha' };
 		state.lookup.titleQuery = 'Alpha';
 		state.lookup.authorQuery = 'First Author';
 	});
@@ -25,7 +25,7 @@ it('drops delayed query echoes when lookup advances and preserves newer typing',
 	expect(runtime.lookup.view().titleQuery).toBe('Old title draft');
 	await vi.waitFor(() => expect(replies).toHaveLength(2));
 	engine.change((state) => {
-		state.lookup.queuePosition = { index: 1, total: 2, path: '/books/beta.m4b' };
+		state.lookup.queuePosition = { index: 1, total: 2, path: '/books/beta.m4b', label: 'Beta' };
 		state.lookup.titleQuery = 'Beta';
 		state.lookup.authorQuery = 'Second Author';
 	});

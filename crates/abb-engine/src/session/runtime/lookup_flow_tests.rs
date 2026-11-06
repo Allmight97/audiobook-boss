@@ -20,6 +20,13 @@ async fn lookup_queues_the_selected_titles_and_searches_for_the_first() {
     let rig = rig();
     rig.load(&["alpha", "beta"]);
     rig.select(&[0, 1]).await;
+    rig.session.transition(|state| {
+        let saved = crate::metadata::MetadataIntentPatch {
+            title: Some(crate::metadata::PatchOp::Set("Listed Name".to_string())),
+            ..Default::default()
+        };
+        state.working_set.note_saved_names(&path("alpha"), &saved);
+    });
     rig.answer_next_search(Ok(found(&["Found A", "Found B"])));
 
     rig.send(SessionIntent::LookupOpen).await;
@@ -37,8 +44,8 @@ async fn lookup_queues_the_selected_titles_and_searches_for_the_first() {
     assert_eq!(
         lookup
             .queue_position
-            .map(|at| (at.index, at.total, at.path)),
-        Some((0, 2, path("alpha")))
+            .map(|at| (at.index, at.total, at.path, at.label)),
+        Some((0, 2, path("alpha"), "Listed Name".to_string()))
     );
     assert_eq!(
         lookup.status,

@@ -63,6 +63,7 @@ function queued(index: number, patch: Partial<SessionLookup> = {}): Partial<Sess
 			index,
 			total: 2,
 			path: index === 0 ? '/books/alpha.m4b' : '/books/beta.m4b',
+			label: index === 0 ? 'Alpha' : 'Beta',
 		},
 		results: [lookupResult()],
 		hasSearched: true,
@@ -126,13 +127,13 @@ describe('metadata lookup dialog', () => {
 				status: { kind: 'found', count: 1, partial: false, after: 'applied' },
 			}),
 		});
-		expect(getContextText()).toContain('1 of 2 • alpha.m4b');
+		expect(getContextText()).toContain('1 of 2 • Alpha');
 
 		await userEvent.click(document.getElementById('metadata-lookup-cover-toggle') as HTMLElement);
 		await userEvent.click(await waitFor(applyButton));
 
 		await waitFor(() => expect(getStatusText()).toContain('Metadata applied.'));
-		expect(getContextText()).toContain('2 of 2 • beta.m4b');
+		expect(getContextText()).toContain('2 of 2 • Beta');
 		const sent = engine.sessionIntents.map((intent) => intent.kind);
 		expect(sent.indexOf('lookupSetReplaceCover')).toBeLessThan(sent.indexOf('lookupApply'));
 		expect(engine.sessionIntents).toContainEqual({ kind: 'lookupSetReplaceCover', replace: true });
@@ -153,7 +154,7 @@ describe('metadata lookup dialog', () => {
 		await userEvent.click(document.getElementById('metadata-lookup-skip-btn') as HTMLElement);
 
 		await waitFor(() => expect(getStatusText()).toContain('Skipped.'));
-		expect(getContextText()).toContain('beta.m4b');
+		expect(getContextText()).toContain('Beta');
 		expect(engine.sessionIntents).toContainEqual({ kind: 'lookupSkip' });
 	});
 

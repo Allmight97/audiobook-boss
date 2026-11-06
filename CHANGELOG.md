@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- The metadata lookup queue names each title as the file list does, by its title
+  tag, instead of by its file name.
 - Cancelling an export while it is being prepared no longer reports "Preview was
   cancelled."
 - After a Save, the file list shows each file's new size, and a saved title's

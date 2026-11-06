@@ -86,6 +86,7 @@ pub struct LookupQueuePosition {
     pub index: usize,
     pub total: usize,
     pub path: PathBuf,
+    pub label: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -109,6 +110,7 @@ pub struct LookupSnapshot {
 pub(crate) struct QueuedTitle {
     pub(crate) title_id: String,
     pub(crate) path: PathBuf,
+    pub(crate) label: String,
 }
 
 #[derive(Debug, Default)]
@@ -143,6 +145,7 @@ impl LookupState {
                 index: self.index,
                 total: self.queue.len(),
                 path: title.path.clone(),
+                label: title.label.clone(),
             }),
             results: self
                 .results

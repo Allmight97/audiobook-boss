@@ -515,6 +515,7 @@ export type LookupQueuePosition = {
 	index: number,
 	total: number,
 	path: string,
+	label: string,
 };
 
 export type LookupSnapshot = {
