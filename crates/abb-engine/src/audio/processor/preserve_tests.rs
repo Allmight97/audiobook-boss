@@ -20,10 +20,11 @@ fn copying_title_sources_advances_one_shared_progress_interval() {
     let fingerprint = inspect_source_fingerprint(&source);
     let observed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let events = observed.clone();
-    let mut context = ProcessingContext::new_headless(
+    let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
         crate::audio::SampleRateConfig::Auto,
         OutputConfig::new(tmp.path().join("out.m4b")),
+        tmp.path().join("workspace"),
     );
     context.progress_listener = Some(Arc::new(move |event| {
         events
@@ -73,10 +74,11 @@ fn preserve_copy_rejects_a_source_replaced_with_a_symlink_after_inspection() {
     std::fs::write(&replacement, b"replacement audio").expect("write replacement");
     std::fs::remove_file(&source).expect("remove old source");
     std::os::unix::fs::symlink(&replacement, &source).expect("replace source with symlink");
-    let context = ProcessingContext::new_headless(
+    let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
         crate::audio::SampleRateConfig::Auto,
         OutputConfig::new(tmp.path().join("final.mp3")),
+        tmp.path().join("workspace"),
     );
     let error = copy_with_cancellation(
         &inspected_path,
@@ -107,10 +109,11 @@ fn preserve_copy_rejects_a_regular_source_replaced_after_inspection() {
     std::fs::write(&replacement, b"different replacement audio").expect("write replacement");
     std::fs::remove_file(&source).expect("remove old source");
     crate::test_cases::move_test_file(&replacement, &source);
-    let context = ProcessingContext::new_headless(
+    let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
         crate::audio::SampleRateConfig::Auto,
         OutputConfig::new(tmp.path().join("final.mp3")),
+        tmp.path().join("workspace"),
     );
 
     let error = copy_with_cancellation(
@@ -141,10 +144,11 @@ async fn preserve_copy_stops_after_cancellation_during_progress() {
     let (job_id, _permit) = registry.register_job().await.expect("register copy job");
     let cancelled = Arc::new(AtomicBool::new(false));
     let checker = crate::processing::CancellationChecker::new(Some(cancelled.clone()));
-    let mut context = ProcessingContext::new_headless(
+    let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
         crate::audio::SampleRateConfig::Auto,
         OutputConfig::new(tmp.path().join("final.mp3")),
+        tmp.path().join("workspace"),
     );
     context.progress_listener = Some(Arc::new(move |_| {
         cancelled.store(true, Ordering::Release);
@@ -168,10 +172,11 @@ fn preserve_copy_rejects_source_truncated_during_copy() {
     std::fs::write(&source, vec![7_u8; 4 * 1024 * 1024]).expect("write copy source");
     let source_fingerprint = inspect_source_fingerprint(&source);
     let source_for_listener = source.clone();
-    let mut context = ProcessingContext::new_headless(
+    let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
         crate::audio::SampleRateConfig::Auto,
         OutputConfig::new(tmp.path().join("final.mp3")),
+        tmp.path().join("workspace"),
     );
     context.progress_listener = Some(Arc::new(move |_| {
         std::fs::File::create(&source_for_listener).expect("truncate source during copy");
@@ -195,10 +200,11 @@ fn preserve_copy_rejects_same_size_source_overwrite_during_copy() {
     std::fs::write(&source, vec![7_u8; 4 * 1024 * 1024]).expect("write copy source");
     let source_fingerprint = inspect_source_fingerprint(&source);
     let source_for_listener = source.clone();
-    let mut context = ProcessingContext::new_headless(
+    let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
         crate::audio::SampleRateConfig::Auto,
         OutputConfig::new(tmp.path().join("final.mp3")),
+        tmp.path().join("workspace"),
     );
     context.progress_listener = Some(Arc::new(move |_| {
         let mut source = std::fs::OpenOptions::new()

@@ -50,9 +50,7 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('shows an automatic save failure and retries without discarding the accepted choice', async () => {
-		await renderOpenDialog((fake) => {
-			fake.settingsWriteError = { message: 'Disk full' };
-		});
+		await renderOpenDialog();
 		engine.change((state) => {
 			state.audio.defaults.choice.intent = 'encode';
 		});
@@ -78,7 +76,10 @@ describe('AppSettingsDialogView', () => {
 				encoderType: 'faac' as const,
 			},
 		};
-		engine.recordSettings({ encoderDefaults: faac });
+		engine.seedAppSettings(
+			{ encoderDefaults: faac },
+			{ code: 'io_error', category: 'io', message: 'Disk full' },
+		);
 		await vi.waitFor(() =>
 			expect(screen.getByRole('button', { name: 'Retry save' })).toBeInTheDocument(),
 		);
@@ -86,14 +87,16 @@ describe('AppSettingsDialogView', () => {
 			'Your current choices still apply for this session. Disk full',
 		);
 		expect(screen.getByTestId('encoder-select')).toHaveValue('faac');
-		engine.settingsWriteError = undefined;
+		engine.respondSettings = () => {
+			engine.seedAppSettings({});
+			return undefined;
+		};
 		fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
 		flush();
 		await vi.waitFor(() =>
 			expect(screen.queryByText("Settings haven't been saved")).not.toBeInTheDocument(),
 		);
 		expect(screen.getByTestId('encoder-select')).toHaveValue('faac');
-		expect(engine.settings().settings?.encoderDefaults.settings.encoderType).toBe('faac');
 	});
 
 	it('returns to idle when the confirm step is cancelled', async () => {
@@ -120,25 +123,12 @@ describe('AppSettingsDialogView', () => {
 		expect(screen.queryByTestId('app-settings-reset-confirm-prompt')).not.toBeInTheDocument();
 	});
 
-	it('closes on Escape after opening post-mount, even with focus outside the dialog', async () => {
-		runtime = createAppRuntime({ engine: createFakeEngine() });
-		render(() => (
-			<AppRuntimeProvider runtime={runtime!}>
-				<AppSettingsDialogView />
-			</AppRuntimeProvider>
-		));
-		expect(runtime.settings.dialog().isOpen).toBe(false);
-
-		runtime.settings.openDialog();
-		flush();
-		fireEvent.keyDown(document.body, { key: 'Escape' });
-		flush();
-
-		expect(runtime.settings.dialog().isOpen).toBe(false);
-	});
-
 	it('records the default acquisition lane when the Indexer radio is selected', async () => {
 		await renderOpenDialog();
+		engine.respondSettings = () => {
+			engine.seedAppSettings({ defaultAcquisitionLane: 'indexer' });
+			return undefined;
+		};
 
 		fireEvent.click(screen.getByTestId('app-settings-default-lane-indexer'));
 		flush();
@@ -154,6 +144,10 @@ describe('AppSettingsDialogView', () => {
 		await renderOpenDialog();
 
 		expect(screen.getByTestId('app-settings-aac-decoder-auto')).toBeChecked();
+		engine.respondSettings = () => {
+			engine.seedAppSettings({ aacDecoder: 'faad' });
+			return undefined;
+		};
 		fireEvent.click(screen.getByTestId('app-settings-aac-decoder-faad'));
 		flush();
 
@@ -163,29 +157,23 @@ describe('AppSettingsDialogView', () => {
 		expect(engine.settingsIntents).toContainEqual({ kind: 'setAacDecoder', decoder: 'faad' });
 	});
 
-	it('shows the awake preference the engine holds and keeps a choice that could not be saved', async () => {
+	it('keeps a choice that could not be saved checked and reports why', async () => {
 		await renderOpenDialog();
-
-		let awake = screen.getByTestId('app-settings-keep-awake-checkbox');
+		const awake = screen.getByTestId('app-settings-keep-awake-checkbox');
 		expect(awake).toBeChecked();
+		engine.respondSettings = () => {
+			engine.seedAppSettings(
+				{ keepAwakeWhileWorking: false },
+				{ code: 'io_error', category: 'io', message: 'Disk full' },
+			);
+			return undefined;
+		};
 		fireEvent.click(awake);
 		flush();
-		await vi.waitFor(() => {
-			expect(awake).not.toBeChecked();
-			expect(awake).toBeEnabled();
-		});
-		expect(engine.settingsIntents).toContainEqual({ kind: 'setKeepAwake', enabled: false });
 
-		runtime!.settings.closeDialog();
-		runtime!.settings.openDialog();
-		awake = screen.getByTestId('app-settings-keep-awake-checkbox');
-		expect(awake).not.toBeChecked();
-
-		engine.settingsWriteError = { message: 'Disk full' };
-		fireEvent.click(awake);
-		flush();
 		await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Disk full'));
-		expect(awake).toBeChecked();
+		expect(awake).not.toBeChecked();
+		expect(engine.settingsIntents).toContainEqual({ kind: 'setKeepAwake', enabled: false });
 	});
 
 	it('sends the category choice unchanged and shows what the engine kept', async () => {
@@ -220,6 +208,24 @@ describe('AppSettingsDialogView', () => {
 			'One category is required. Audiobooks (3030) is recommended.',
 		);
 		expect(audiobooks).toBeChecked();
+	});
+
+	it('shows the saved Indexer URL and categories from the engine snapshot', async () => {
+		await renderOpenDialog((fake) =>
+			fake.change((state) => {
+				Object.assign(state.remote.connection, {
+					baseUrl: 'https://prowlarr.example.com',
+					categoryIds: [3030],
+				});
+			}),
+		);
+
+		await vi.waitFor(() =>
+			expect(screen.getByLabelText('URL')).toHaveValue('https://prowlarr.example.com'),
+		);
+		expect(screen.getByTestId('app-settings-indexer-category')).toHaveTextContent(
+			'Audiobooks (3030)',
+		);
 	});
 
 	it('recommends HTTPS while keeping an explicit HTTP connection usable', async () => {

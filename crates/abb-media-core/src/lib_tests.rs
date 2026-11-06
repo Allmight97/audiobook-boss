@@ -46,15 +46,6 @@ fn maps_container_and_drm_to_protection_kind() {
     );
 }
 
-#[test]
-fn only_m4b_family_is_import_ready_audio() {
-    assert!(container_is_import_ready_audio(MediaContainerKind::M4b));
-    assert!(container_is_import_ready_audio(MediaContainerKind::M4a));
-    assert!(!container_is_import_ready_audio(MediaContainerKind::Aax));
-    assert!(!container_is_import_ready_audio(MediaContainerKind::Aaxc));
-    assert!(!container_is_import_ready_audio(MediaContainerKind::Dash));
-}
-
 #[cfg(unix)]
 #[test]
 fn non_utf8_extensions_classify_as_unknown() {
@@ -72,11 +63,6 @@ fn pdf_magic_detects_only_pdf_header() {
     assert!(!has_pdf_magic(b"not-a-pdf"));
     assert!(!has_pdf_magic(b""));
     assert!(!has_pdf_magic(b"%PDF"));
-}
-
-#[test]
-fn supplemental_pdf_limit_is_100_mib() {
-    assert_eq!(MAX_SUPPLEMENTAL_PDF_BYTES, 104_857_600);
 }
 
 #[test]

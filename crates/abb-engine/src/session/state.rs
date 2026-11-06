@@ -119,7 +119,8 @@ pub struct TagPreview {
     pub series_part: String,
     pub subseries: String,
     pub subseries_part: String,
-    /// The album sort (TSOA) processing would write.
+    /// The album sort processing would write: the TSOA frame in MP3, the
+    /// sort-album atom in the MP4 family.
     pub album_sort: String,
     pub year: String,
     pub genre: String,
@@ -340,10 +341,9 @@ impl SessionState {
 
     pub(crate) fn settle(&mut self) {
         self.refresh_displayed_cover();
-        // A refusal answers the titles and lock it was made for.
-        if self.working_set.order_locked() != self.parts.titles.order_locked
-            || self.working_set.selected_indices() != self.parts.selection.selected_indices
-        {
+        let refusal_is_outdated = self.working_set.order_locked() != self.parts.titles.order_locked
+            || self.working_set.selected_indices() != self.parts.selection.selected_indices;
+        if refusal_is_outdated {
             self.audio_refusal = None;
         }
         let next = self.parts.revision + 1;
@@ -1295,11 +1295,6 @@ impl SessionState {
             .chain(self.working_set.files())
             .find(|file| file.is_valid)
             .map(|file| file.path.clone())
-    }
-
-    #[cfg(test)]
-    pub(crate) fn displayed_cover(&self) -> Option<Vec<u8>> {
-        self.cover.displayed.clone()
     }
 
     pub(crate) fn displayed_cover_at(&self, revision: u64) -> Option<Vec<u8>> {

@@ -4,8 +4,6 @@ use secrecy::{ExposeSecret, SecretString};
 
 use crate::errors::{AppError, Result};
 
-const PRODUCTION_SERVICE: &str = "audiobook-boss.remote-source";
-
 pub(super) trait SecretVault: Send + Sync {
     fn get_secret(&self, key: &str) -> Result<Option<SecretString>>;
     fn set_secret(&self, key: &str, value: SecretString) -> Result<()>;
@@ -44,11 +42,7 @@ pub(super) struct KeyringSecretVault {
 impl KeyringSecretVault {
     pub(super) fn for_app_identifier(identifier: &str) -> Self {
         Self {
-            service: if identifier == "com.audiobook-boss" {
-                PRODUCTION_SERVICE.to_string()
-            } else {
-                format!("{identifier}.remote-source")
-            },
+            service: format!("{identifier}.remote-source"),
         }
     }
 
@@ -59,16 +53,12 @@ impl KeyringSecretVault {
     }
 }
 
-/// Register the platform-native OS credential store as keyring-core's default,
-/// exactly once per process.
-///
-/// Replaces `keyring::use_native_store`, dropped because the `keyring` umbrella
-/// crate unconditionally pulled in its `db-keystore` fallback backend
-/// (turso + tantivy + memmap2) that ABB never selected. macOS uses the login
-/// Keychain and Windows uses Credential Manager. Linux uses the Secret Service
-/// when one answers on the session bus, and kernel keyutils otherwise. Keyutils
-/// keeps secrets only until restart, so the account view says they will not be
-/// remembered. No plaintext file, and no copy of an old keyutils secret.
+/// Registers the platform credential store as keyring-core's default, once per
+/// process. macOS uses the login Keychain and Windows uses Credential Manager.
+/// Linux uses the Secret Service when one answers on the session bus, and
+/// kernel keyutils otherwise. Keyutils keeps secrets only until restart, so the
+/// account view says they will not be remembered. No plaintext file, and no
+/// copy of an old keyutils secret.
 fn ensure_native_store() -> Result<()> {
     static REGISTERED: OnceLock<()> = OnceLock::new();
     if REGISTERED.get().is_some() {
@@ -81,8 +71,7 @@ fn ensure_native_store() -> Result<()> {
 
 /// The legacy file Keychain: the Data Protection Keychain needs Developer ID
 /// signing and a `keychain-access-groups` entitlement the unsigned build lacks.
-/// Moving stores waits for that signing; a vault error stays a typed error,
-/// never `NeedsAuth` or an empty result.
+/// A vault error stays a typed error, never `NeedsAuth` or an empty result.
 #[cfg(target_os = "macos")]
 fn register_native_store() -> Result<()> {
     let store = apple_native_keyring_store::keychain::Store::new().map_err(store_unavailable)?;

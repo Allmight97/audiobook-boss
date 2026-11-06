@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-const PERMIT_CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(50);
+pub(super) const PERMIT_CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 impl JobRegistry {
     #[cfg(test)]

@@ -245,18 +245,6 @@ pub(crate) fn resolve_processing_plan(
     Ok(plan)
 }
 
-#[cfg(test)]
-pub(crate) fn prepare_execution_plan(
-    payload: &ProcessPayload,
-    metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview: bool,
-    file_info: FileListInfo,
-) -> Result<ExecutionProcessingPlan> {
-    let inputs = build_processing_inputs(payload, true, preview)?;
-    let plan = build_processing_plan(payload, metadata, &inputs, &file_info)?;
-    prepare_inspected_execution(payload, InspectedProcessingPlan { plan, file_info })
-}
-
 pub(crate) fn prepare_inspected_execution(
     payload: &ProcessPayload,
     inspected: InspectedProcessingPlan,
@@ -266,8 +254,6 @@ pub(crate) fn prepare_inspected_execution(
         file_info,
     } = inspected;
     let inputs = build_processing_inputs(payload, true, plan.preview)?;
-    // Collision facts may change after review; refresh them without replacing
-    // the source inspection or resolving the audio and metadata a second time.
     let sources = file_info
         .files
         .iter()

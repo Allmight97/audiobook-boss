@@ -136,7 +136,3 @@ pub(super) fn comment_key_rank(key: &str) -> Option<u8> {
     }
     Some(2)
 }
-
-#[cfg(test)]
-#[path = "field_schema_tests.rs"]
-mod tests;

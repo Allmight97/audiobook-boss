@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupportedAudioImportMetadata } from '../../types/audio';
+import type { MetadataField } from '../../types/session';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
@@ -27,14 +28,26 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 	};
 }
 
-function engineWithTaggedBooks(): FakeEngine {
+function engineWithTaggedBooks({ cover = true } = {}): FakeEngine {
 	const engine = createFakeEngine();
+	const form: Partial<Record<MetadataField, string>> = {};
 	engine.analyze = (paths) =>
-		paths.map((path) => {
-			const title = path.includes('beta') ? 'Beta' : 'Alpha';
-			engine.tags.set(path, { title, cover_art: [0x89, 0x50, 0x4e, 0x47] });
-			return audioFile(path, { duration: 1, size: 1000, tagTitle: title });
-		});
+		paths.map((path) => audioFile(path, { duration: 1, size: 1000, tagTitle: 'Alpha' }));
+	engine.respond = (intent) => {
+		if (intent.kind === 'setField') {
+			form[intent.field] = intent.value;
+			engine.seedForm(form);
+		}
+		if (intent.kind !== 'import') return undefined;
+		engine.loadTitles(engine.analyze(intent.paths), [0]);
+		form.title = 'Alpha';
+		engine.seedForm(form);
+		if (cover)
+			engine.change((state) => {
+				state.metadata.cover.present = true;
+			});
+		return { kind: 'applied' };
+	};
 	return engine;
 }
 
@@ -61,34 +74,22 @@ describe('metadata workbench shell', () => {
 		runtime = undefined;
 	});
 
-	it('composes cover and form zones and keeps cover clear keyboard-reachable', async () => {
-		const engine = engineWithTaggedBooks();
+	it.each([
+		{ name: 'while a cover shows', cover: true, tabIndex: 0 },
+		{ name: 'not when no cover shows', cover: false, tabIndex: -1 },
+	])('lets Tab reach Clear cover $name', async ({ cover, tabIndex }) => {
+		const engine = engineWithTaggedBooks({ cover });
 		runtime = createAppRuntime({ input: fakeInput(), engine });
 		await renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await waitFor(() => {
-			expect(screen.getByTestId('metadata-manager')).toBeTruthy();
-		});
 		await waitFor(() => {
 			expect((document.getElementById('meta-title') as HTMLInputElement | null)?.value).toBe(
 				'Alpha',
 			);
 		});
-		expect(screen.getByTestId('cover-art-area')).toBeTruthy();
-		const loadButton = screen.getByTestId('cover-art-url-load-btn');
-		const findMetadata = screen.getByTestId('metadata-lookup-btn');
-		expect(loadButton.className.split(/\s+/)).toEqual(
-			expect.arrayContaining(['abb-button', 'abb-button-secondary', 'cover-art-url-load-btn']),
+		expect((document.getElementById('cover-art-clear-btn') as HTMLButtonElement).tabIndex).toBe(
+			tabIndex,
 		);
-		expect(findMetadata.className.split(/\s+/)).toEqual(
-			expect.arrayContaining(['abb-button', 'abb-button-secondary']),
-		);
-		expect(screen.queryByTestId('metadata-artifacts')).toBeNull();
-		const clearButton = document.getElementById('cover-art-clear-btn') as HTMLButtonElement;
-		expect(clearButton.tabIndex).toBe(0);
-		expect(getComputedStyle(clearButton).display).not.toBe('none');
-		clearButton.focus();
-		expect(document.activeElement).toBe(clearButton);
 	});
 
 	it('sends a typed title and the save to the engine in that order', async () => {

@@ -35,11 +35,10 @@ fn edit(key: Option<&str>) -> RemoteUiIntent {
         api_key: key.map(str::to_string),
     }
 }
-fn configured() -> RemoteIndexerConnection {
-    RemoteIndexerConnection {
+fn configured() -> IndexerConnection {
+    IndexerConnection {
         base_url: Some("https://indexer.test".into()),
         category_ids: vec![3030],
-        api_key_configured: true,
     }
 }
 fn release(indexer_id: i64) -> RemoteRelease {
@@ -57,26 +56,20 @@ fn release(indexer_id: i64) -> RemoteRelease {
     }
 }
 #[test]
-fn connection_readback_and_old_tests_cannot_erase_newer_drafts_or_expose_the_key() {
+fn old_tests_cannot_replace_newer_drafts_or_expose_the_key() {
     let mut ui = UiState::default();
-    let UiAction::Load { request, revision } =
-        ui.begin(RemoteUiIntent::LoadConnection).expect("load")
-    else {
+    let UiAction::Load { request } = ui.begin(RemoteUiIntent::LoadConnection).expect("load") else {
         panic!("load action")
     };
     ui.begin(edit(Some("first-secret")))
         .expect("edit while loading");
-    ui.loaded(request, revision, &Ok(configured()));
+    ui.loaded(request, &Ok(true));
     assert!(ui.snapshot.connection.api_key_entered);
-    let UiAction::Save { revision, update } =
-        ui.begin(RemoteUiIntent::SaveConnection).expect("save")
-    else {
-        panic!("save action")
-    };
-    assert_eq!(update.api_key.as_deref(), Some("first-secret"));
+    let save = ui.save_connection().expect("save");
+    assert_eq!(save.api_key.as_deref(), Some("first-secret"));
     ui.begin(edit(Some("next-secret")))
         .expect("new edit while saving");
-    ui.saved(revision, &Ok(configured()));
+    ui.saved(save.revision, &configured(), &Ok(true));
     assert_eq!(ui.api_key.as_deref(), Some("next-secret"));
     assert_eq!(ui.snapshot.connection.save, RemoteDraftStatus::Idle);
     let UiAction::Test {
@@ -85,9 +78,7 @@ fn connection_readback_and_old_tests_cannot_erase_newer_drafts_or_expose_the_key
     else {
         panic!("test action")
     };
-    let _save = ui
-        .begin(RemoteUiIntent::SaveConnection)
-        .expect("save supersedes test");
+    let _save = ui.save_connection().expect("save supersedes test");
     ui.tested(
         request,
         revision,
@@ -101,103 +92,6 @@ fn connection_readback_and_old_tests_cannot_erase_newer_drafts_or_expose_the_key
     assert!(!json.contains("secret"));
     assert!(!format!("{:?}", edit(Some("secret"))).contains("secret"));
 }
-#[test]
-fn batch_captures_both_indexer_identities_refuses_save_and_retains_retryable_failures() {
-    let mut ui = UiState::default();
-    ui.begin(RemoteUiIntent::SelectLane {
-        lane: ProviderId::Indexer,
-    })
-    .expect("indexer");
-    ui.searched(
-        ui.search_request,
-        &Ok(RemoteReleaseSearchResponse {
-            provider_id: ProviderId::Indexer,
-            releases: vec![release(1), release(2)],
-            diagnostics: vec![],
-        }),
-    );
-    for indexer_id in [1, 2] {
-        ui.begin(RemoteUiIntent::SelectRelease {
-            indexer_id,
-            guid: "shared-guid".into(),
-            multi: true,
-        })
-        .expect("select");
-    }
-    let UiAction::Grab(releases) = ui.begin(RemoteUiIntent::GrabSelected).expect("batch") else {
-        panic!("grab action")
-    };
-    assert_eq!(
-        releases
-            .iter()
-            .map(|release| release.indexer_id)
-            .collect::<Vec<_>>(),
-        [1, 2]
-    );
-    assert!(ui.begin(RemoteUiIntent::SaveConnection).is_err());
-    assert!(ui
-        .begin(RemoteUiIntent::SelectLane {
-            lane: ProviderId::Audible
-        })
-        .is_err());
-    ui.snapshot.indexer.grabbing = false;
-    ui.snapshot.indexer.release_grabs.insert(
-        release_key(1, "shared-guid"),
-        ReleaseGrabSnapshot {
-            status: ReleaseGrabStatus::Sent,
-            message: "Sent".into(),
-        },
-    );
-    ui.snapshot.indexer.release_grabs.insert(
-        release_key(2, "shared-guid"),
-        ReleaseGrabSnapshot {
-            status: ReleaseGrabStatus::Error,
-            message: "Failed".into(),
-        },
-    );
-    let UiAction::Grab(retry) = ui
-        .begin(RemoteUiIntent::GrabSelected)
-        .expect("retry failed")
-    else {
-        panic!("grab action")
-    };
-    assert_eq!(retry, vec![release(2)]);
-}
-#[tokio::test]
-async fn connection_save_persists_the_accepted_draft_and_invalidates_old_release_selection() {
-    let root = tempfile::TempDir::new().expect("temporary config");
-    let runtime = super::super::tests::test_runtime(&root);
-    runtime.ui_begin(edit(None)).finish().await.expect("edit");
-    let save = runtime.ui_begin(RemoteUiIntent::SaveConnection);
-    runtime
-        .ui_begin(RemoteUiIntent::EditConnection {
-            base_url: Some("https://next.test".into()),
-            api_key: None,
-            category_ids: None,
-        })
-        .finish()
-        .await
-        .expect("new draft");
-    save.finish().await.expect("finish accepted Save");
-    assert_eq!(
-        runtime
-            .get_indexer_connection()
-            .await
-            .expect("persisted connection")
-            .base_url
-            .as_deref(),
-        Some("https://indexer.test")
-    );
-    assert_eq!(
-        runtime.ui_snapshot().connection.base_url,
-        "https://next.test"
-    );
-    assert!(runtime
-        .ui_snapshot()
-        .indexer
-        .selected_release_keys
-        .is_empty());
-}
 
 #[test]
 fn disconnect_and_new_library_requests_expire_older_choices() {
@@ -206,7 +100,7 @@ fn disconnect_and_new_library_requests_expire_older_choices() {
     let current = ui.begin_library();
     assert!(ui.library_result(current, &Ok(library(vec![title("new", true, true)]))));
     assert!(!ui.library_result(old, &Ok(library(vec![title("old", true, true)]))));
-    ui.disconnected(ProviderId::Audible);
+    ui.disconnected();
     assert!(!ui.library_result(current, &Ok(library(vec![title("new", true, true)]))));
     assert!(ui
         .begin(RemoteUiIntent::ToggleTitle {
@@ -220,31 +114,15 @@ fn disconnect_and_new_library_requests_expire_older_choices() {
     .expect("fixture step succeeded");
     ui.begin(RemoteUiIntent::AcquireSelected)
         .expect("fixture step succeeded");
-    assert!(ui.disconnect_allowed(ProviderId::Audible).is_err());
+    assert!(ui.disconnect_allowed().is_err());
 }
 
 #[test]
-fn a_save_waits_for_the_load_and_old_test_replies_cannot_replace_a_new_test() {
+fn old_test_replies_cannot_replace_a_new_test() {
     let mut ui = UiState::default();
-    let UiAction::Load { request, revision } = ui
-        .begin(RemoteUiIntent::LoadConnection)
-        .expect("fixture step succeeded")
-    else {
-        panic!("load")
-    };
     ui.begin(edit(Some("key"))).expect("fixture step succeeded");
-    assert!(ui.begin(RemoteUiIntent::SaveConnection).is_err());
-    ui.loaded(request, revision, &Ok(configured()));
-    let UiAction::Save {
-        revision: save_revision,
-        ..
-    } = ui
-        .begin(RemoteUiIntent::SaveConnection)
-        .expect("fixture step succeeded")
-    else {
-        panic!("save")
-    };
-    ui.saved(save_revision, &Ok(configured()));
+    let save = ui.save_connection().expect("fixture step succeeded");
+    ui.saved(save.revision, &configured(), &Ok(true));
     assert!(ui.snapshot.connection.api_key_configured);
     let UiAction::Test {
         request: first,
@@ -381,8 +259,8 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
         .await
         .is_err());
     assert!(runtime
-        .ui_begin(RemoteUiIntent::Disconnect {
-            provider: ProviderId::Indexer
+        .ui_begin(RemoteUiIntent::SelectLane {
+            lane: ProviderId::Audible
         })
         .finish()
         .await
@@ -516,7 +394,7 @@ async fn shutdown_drops_an_indexer_search_waiting_on_a_silent_server() {
 }
 
 #[test]
-fn save_and_test_refuse_a_refused_draft_and_a_draft_still_loading() {
+fn save_and_test_refuse_a_refused_draft() {
     let mut ui = UiState::default();
     let refused = ui.begin(RemoteUiIntent::EditConnection {
         base_url: Some("not a url ::".into()),
@@ -525,7 +403,7 @@ fn save_and_test_refuse_a_refused_draft_and_a_draft_still_loading() {
     });
     assert!(refused.is_err());
     assert!(ui.snapshot().connection.draft_error.is_some());
-    assert!(ui.begin(RemoteUiIntent::SaveConnection).is_err());
+    assert!(ui.save_connection().is_err());
     assert!(ui.begin(RemoteUiIntent::TestConnection).is_err());
 
     ui.begin(RemoteUiIntent::EditConnection {
@@ -535,35 +413,6 @@ fn save_and_test_refuse_a_refused_draft_and_a_draft_still_loading() {
     })
     .expect("accepted edit");
     assert!(ui.snapshot().connection.draft_error.is_none());
-
-    let mut loading = UiState::default();
-    loading
-        .begin(RemoteUiIntent::LoadConnection)
-        .expect("load starts");
-    assert!(loading.begin(RemoteUiIntent::SaveConnection).is_err());
-}
-
-#[test]
-fn a_connection_that_loads_after_typing_keeps_the_typed_fields_and_fills_the_rest() {
-    let mut ui = UiState::default();
-    let Ok(UiAction::Load { request, revision }) = ui.begin(RemoteUiIntent::LoadConnection) else {
-        panic!("load starts");
-    };
-    ui.begin(RemoteUiIntent::EditConnection {
-        base_url: None,
-        category_ids: Some(vec![3000]),
-        api_key: None,
-    })
-    .expect("edit");
-
-    ui.loaded(request, revision, &Ok(configured()));
-
-    let connection = ui.snapshot().connection;
-    assert_eq!(connection.category_ids, [3000]);
-    assert_eq!(
-        connection.base_url,
-        configured().base_url.unwrap_or_default()
-    );
 }
 
 #[test]
@@ -782,13 +631,10 @@ async fn accepted_disconnect_blocks_acquisition_and_shutdown_waits_for_credentia
             title_id: "selected".into(),
         })
         .expect("select title");
-    let disconnect = runtime.inner.tasks.spawn(
-        runtime
-            .ui_begin(RemoteUiIntent::Disconnect {
-                provider: ProviderId::Audible,
-            })
-            .finish(),
-    );
+    let disconnect = runtime
+        .inner
+        .tasks
+        .spawn(runtime.ui_begin(RemoteUiIntent::Disconnect).finish());
     entered.await.expect("delete entered vault");
     assert_eq!(
         runtime.ui_snapshot().account_status,
@@ -814,7 +660,9 @@ async fn accepted_disconnect_blocks_acquisition_and_shutdown_waits_for_credentia
     release.send(()).expect("release credential deletion");
     runtime.inner.tasks.wait().await;
     assert!(disconnect.await.expect("tracked disconnect").is_ok());
-    let (remote, library, _) = runtime.ui_parts(None);
+    let mut update = crate::session::SessionUpdate::default();
+    runtime.add_ui_parts(&mut update, None);
+    let (remote, library) = (update.remote, update.remote_library);
     assert_eq!(
         remote
             .expect("remote")
@@ -848,13 +696,13 @@ async fn failed_credential_deletion_preserves_library_choices_and_reports_failur
         })
         .expect("select title");
     assert!(runtime
-        .ui_begin(RemoteUiIntent::Disconnect {
-            provider: ProviderId::Audible
-        })
+        .ui_begin(RemoteUiIntent::Disconnect)
         .finish()
         .await
         .is_err());
-    let (remote, library, _) = runtime.ui_parts(None);
+    let mut update = crate::session::SessionUpdate::default();
+    runtime.add_ui_parts(&mut update, None);
+    let (remote, library) = (update.remote, update.remote_library);
     let remote = remote.expect("remote");
     assert!(matches!(
         remote.account_status,
@@ -903,9 +751,7 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
     assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Completing);
     for intent in [
         RemoteUiIntent::StartAuth,
-        RemoteUiIntent::Disconnect {
-            provider: ProviderId::Audible,
-        },
+        RemoteUiIntent::Disconnect,
         RemoteUiIntent::RefreshLibrary,
         RemoteUiIntent::SelectLane {
             lane: ProviderId::Indexer,
@@ -946,9 +792,7 @@ async fn a_library_failure_after_lane_replacement_or_disconnect_is_superseded() 
         .expect("Audible lane");
     let stale = runtime.ui_begin(RemoteUiIntent::RefreshLibrary);
     runtime
-        .ui_begin(RemoteUiIntent::Disconnect {
-            provider: ProviderId::Audible,
-        })
+        .ui_begin(RemoteUiIntent::Disconnect)
         .finish()
         .await
         .expect("disconnect");
@@ -1000,17 +844,18 @@ async fn starting_auth_clears_previous_read_failures_and_supersedes_pending_libr
 }
 
 #[tokio::test]
-async fn disconnect_naming_another_provider_than_the_lane_is_refused() {
+async fn disconnect_is_refused_while_the_indexer_lane_is_shown() {
     let root = tempfile::TempDir::new().expect("temp dir");
     let runtime = super::super::tests::test_runtime(&root);
-    assert_eq!(runtime.ui_snapshot().lane, ProviderId::Audible);
-
-    let refused = runtime
-        .ui_begin(RemoteUiIntent::Disconnect {
-            provider: ProviderId::Indexer,
+    runtime
+        .ui_begin(RemoteUiIntent::SelectLane {
+            lane: ProviderId::Indexer,
         })
         .finish()
-        .await;
+        .await
+        .expect("fixture step succeeded");
+
+    let refused = runtime.ui_begin(RemoteUiIntent::Disconnect).finish().await;
 
     assert!(refused.is_err());
     assert!(!runtime.ui().disconnecting);
@@ -1076,7 +921,7 @@ fn signing_in_again_or_disconnecting_clears_a_refused_sign_in() {
     );
 
     refuse_library_sign_in(&mut ui);
-    ui.disconnected(ProviderId::Audible);
+    ui.disconnected();
     assert_eq!(
         reread_account(&mut ui).status,
         super::super::RemoteAccountStatus::Connected

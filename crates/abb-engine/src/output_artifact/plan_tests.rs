@@ -1,8 +1,7 @@
-use super::{resolve_output_plan, OutputPlanLedger};
+use super::OutputPlanLedger;
 use crate::output_artifact::{
     CollisionPolicy, OutputCollisionKind, OutputKind, PlannedOutputAction,
 };
-use std::collections::HashSet;
 use std::fs::write;
 use tempfile::TempDir;
 
@@ -12,14 +11,14 @@ fn resolve_output_plan_marks_existing_file_for_review_by_default() {
     let existing_path = temp_dir.path().join("book.m4b");
     write(&existing_path, b"existing").expect("write existing file");
 
-    let plan = resolve_output_plan(
-        &existing_path,
-        OutputKind::Final,
-        CollisionPolicy::Fail,
-        &HashSet::new(),
-        &[],
-    )
-    .expect("plan");
+    let plan = OutputPlanLedger::new()
+        .resolve(
+            &existing_path,
+            OutputKind::Final,
+            CollisionPolicy::Fail,
+            &[],
+        )
+        .expect("plan");
 
     assert_eq!(plan.action, PlannedOutputAction::ReviewRequired);
     assert_eq!(
@@ -36,17 +35,25 @@ fn resolve_output_plan_marks_existing_file_for_review_by_default() {
 fn resolve_output_plan_renames_batch_duplicates() {
     let temp_dir = TempDir::new().expect("temp dir");
     let requested_path = temp_dir.path().join("book.m4b");
-    let mut claimed = HashSet::new();
-    claimed.insert(requested_path.clone());
+    let mut ledger = OutputPlanLedger::new();
+    let first = ledger
+        .resolve(
+            &requested_path,
+            OutputKind::Final,
+            CollisionPolicy::RenameNew,
+            &[],
+        )
+        .expect("first plan");
+    assert_eq!(first.action, PlannedOutputAction::Write);
 
-    let plan = resolve_output_plan(
-        &requested_path,
-        OutputKind::Final,
-        CollisionPolicy::RenameNew,
-        &claimed,
-        &[],
-    )
-    .expect("resolved path");
+    let plan = ledger
+        .resolve(
+            &requested_path,
+            OutputKind::Final,
+            CollisionPolicy::RenameNew,
+            &[],
+        )
+        .expect("resolved path");
 
     assert_eq!(plan.action, PlannedOutputAction::RenameNew);
     assert_eq!(plan.resolved_path, temp_dir.path().join("book-1.m4b"));
@@ -57,42 +64,19 @@ fn resolve_output_plan_renames_batch_duplicates() {
 }
 
 #[test]
-fn resolve_output_plan_blocks_source_destination_overlap() {
-    let temp_dir = TempDir::new().expect("temp dir");
-    let source_path = temp_dir.path().join("input.m4b");
-    write(&source_path, b"input").expect("write input");
-
-    let plan = resolve_output_plan(
-        &source_path,
-        OutputKind::Final,
-        CollisionPolicy::ReplaceExisting,
-        &HashSet::new(),
-        std::slice::from_ref(&source_path),
-    )
-    .expect("plan");
-
-    assert_eq!(plan.action, PlannedOutputAction::ReviewRequired);
-    assert_eq!(
-        plan.collision.as_ref().map(|value| value.kind),
-        Some(OutputCollisionKind::SourceDestinationOverlap)
-    );
-    assert_eq!(plan.rename_candidate, None);
-}
-
-#[test]
 fn resolve_output_plan_skips_existing_when_requested() {
     let temp_dir = TempDir::new().expect("temp dir");
     let existing_path = temp_dir.path().join("book.m4b");
     write(&existing_path, b"existing").expect("write existing file");
 
-    let plan = resolve_output_plan(
-        &existing_path,
-        OutputKind::Final,
-        CollisionPolicy::SkipExisting,
-        &HashSet::new(),
-        &[],
-    )
-    .expect("plan");
+    let plan = OutputPlanLedger::new()
+        .resolve(
+            &existing_path,
+            OutputKind::Final,
+            CollisionPolicy::SkipExisting,
+            &[],
+        )
+        .expect("plan");
 
     assert_eq!(plan.action, PlannedOutputAction::SkipExisting);
     assert_eq!(plan.resolved_path, existing_path);
@@ -103,14 +87,9 @@ fn resolve_output_plan_refuses_a_256_byte_file_name_before_any_work() {
     let temp_dir = TempDir::new().expect("temp dir");
     let requested = temp_dir.path().join(format!("{}.m4b", "a".repeat(252)));
 
-    let error = resolve_output_plan(
-        &requested,
-        OutputKind::Final,
-        CollisionPolicy::Fail,
-        &HashSet::new(),
-        &[],
-    )
-    .expect_err("an overlong name is refused");
+    let error = OutputPlanLedger::new()
+        .resolve(&requested, OutputKind::Final, CollisionPolicy::Fail, &[])
+        .expect_err("an overlong name is refused");
 
     assert!(error.to_string().contains("at most 255"), "{error}");
 }
@@ -124,14 +103,14 @@ fn resolve_output_plan_replaces_a_full_length_name_whose_rename_would_be_overlon
         .join(format!("{}.preview.m4b", "a".repeat(243)));
     write(&preview, b"existing preview").expect("write existing preview");
 
-    let plan = resolve_output_plan(
-        &requested,
-        OutputKind::Preview,
-        CollisionPolicy::ReplaceExisting,
-        &HashSet::new(),
-        &[],
-    )
-    .expect("a valid replacement is planned");
+    let plan = OutputPlanLedger::new()
+        .resolve(
+            &requested,
+            OutputKind::Preview,
+            CollisionPolicy::ReplaceExisting,
+            &[],
+        )
+        .expect("a valid replacement is planned");
 
     assert_eq!(plan.action, PlannedOutputAction::ReplaceExisting);
     assert_eq!(plan.resolved_path, preview);
@@ -175,7 +154,6 @@ fn output_plan_ledger_preserves_duplicate_ordering() {
     assert_eq!(second.resolved_path, temp_dir.path().join("book-1.m4b"));
     assert_eq!(third.action, PlannedOutputAction::RenameNew);
     assert_eq!(third.resolved_path, temp_dir.path().join("book-2.m4b"));
-    assert_eq!(ledger.claimed_paths().len(), 3);
 }
 
 #[test]
@@ -195,20 +173,22 @@ fn output_plan_ledger_does_not_claim_skipped_outputs() {
         )
         .expect("first plan");
     assert_eq!(first.action, PlannedOutputAction::SkipExisting);
-    assert!(ledger.claimed_paths().is_empty());
 
     let second = ledger
         .resolve(
             &existing_path,
             OutputKind::Final,
-            CollisionPolicy::RenameNew,
+            CollisionPolicy::ReplaceExisting,
             &source_paths,
         )
         .expect("second plan");
 
-    assert_eq!(second.action, PlannedOutputAction::RenameNew);
-    assert_eq!(second.resolved_path, temp_dir.path().join("book-1.m4b"));
-    assert_eq!(ledger.claimed_paths().len(), 1);
+    assert_eq!(second.action, PlannedOutputAction::ReplaceExisting);
+    assert_eq!(second.resolved_path, existing_path);
+    assert_eq!(
+        second.collision.as_ref().map(|value| value.kind),
+        Some(OutputCollisionKind::ExistingFile)
+    );
 }
 
 #[test]

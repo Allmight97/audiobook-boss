@@ -175,29 +175,35 @@ describe('createFileListPointerReorder', () => {
 			handlers.dispose();
 		}
 
-		it('upper half of a row inserts above it', () => {
-			reorderWithHit(0, { index: 3, edge: 'top' });
-			expect(reorderFiles).toHaveBeenCalledWith(0, 2);
-		});
-
-		it('lower half of a row inserts below it', () => {
-			reorderWithHit(0, { index: 3, edge: 'bottom' });
-			expect(reorderFiles).toHaveBeenCalledWith(0, 3);
-		});
-
-		it('lower half of the last row appends at the tail', () => {
-			reorderWithHit(0, { index: 4, edge: 'bottom' });
-			expect(reorderFiles).toHaveBeenCalledWith(0, 4);
-		});
-
-		it('dragging downward past a row still compensates correctly', () => {
-			reorderWithHit(4, { index: 1, edge: 'top' });
-			expect(reorderFiles).toHaveBeenCalledWith(4, 1);
-		});
-
-		it('no-ops when the compensated destination equals the source', () => {
-			reorderWithHit(1, { index: 0, edge: 'bottom' });
-			expect(reorderFiles).not.toHaveBeenCalled();
+		it.each([
+			{
+				name: 'upper half inserts above',
+				from: 0,
+				hit: { index: 3, edge: 'top' },
+				calls: [[0, 2]],
+			},
+			{
+				name: 'lower half inserts below',
+				from: 0,
+				hit: { index: 3, edge: 'bottom' },
+				calls: [[0, 3]],
+			},
+			{
+				name: 'last row lower half appends',
+				from: 0,
+				hit: { index: 4, edge: 'bottom' },
+				calls: [[0, 4]],
+			},
+			{ name: 'upward drag compensates', from: 4, hit: { index: 1, edge: 'top' }, calls: [[4, 1]] },
+			{
+				name: 'same compensated slot is a no-op',
+				from: 1,
+				hit: { index: 0, edge: 'bottom' },
+				calls: [],
+			},
+		])('$name', ({ from, hit, calls }) => {
+			reorderWithHit(from, hit as FileListRowHit);
+			expect(reorderFiles.mock.calls).toEqual(calls);
 		});
 	});
 

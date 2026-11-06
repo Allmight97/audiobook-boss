@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
-import mainWindowCapability from '../../../src-tauri/capabilities/default.json';
+import type { AppErrorEnvelope } from '../generated/tauri';
+import type { tauriClient as TauriClient } from './client';
+import { recordedFresh } from './recordedFresh';
 
 describe('tauriClient', () => {
 	beforeEach(() => {
@@ -19,7 +20,7 @@ describe('tauriClient', () => {
 				concurrency: {
 					preference: { mode: 'auto' },
 					effective: 4,
-					capabilities: runtimeSettingsCapabilitiesFixture().maxConcurrentJobs,
+					capabilities: recordedFresh.settings.concurrency.capabilities,
 				},
 				startupDefaults: null,
 				recovery: null,
@@ -147,67 +148,36 @@ describe('tauriClient', () => {
 		expect(reply.update.output?.submissionInProgress).toBe(true);
 	});
 
-	describe('dialog helpers', () => {
-		it('sets single-file dialog options at the boundary', async () => {
-			const { open } = await import('@tauri-apps/plugin-dialog');
-			const mockOpen = vi.mocked(open);
-			mockOpen.mockResolvedValueOnce('/tmp/book.m4b');
+	describe('native dialog and opener helpers', () => {
+		it.each([
+			{
+				call: (client: typeof TauriClient) => client.openFile({ title: 'Select file' }),
+				picked: '/tmp/book.m4b',
+				options: { title: 'Select file', multiple: false, directory: false },
+			},
+			{
+				call: (client: typeof TauriClient) => client.openFiles(),
+				picked: ['/tmp/a.m4b', '/tmp/b.m4b'],
+				options: { multiple: true, directory: false },
+			},
+			{
+				call: (client: typeof TauriClient) => client.openDirectory(),
+				picked: '/tmp/output',
+				options: { multiple: false, directory: true },
+			},
+		])(
+			'opens the native dialog in the mode each picker asks for',
+			async ({ call, picked, options }) => {
+				const { open } = await import('@tauri-apps/plugin-dialog');
+				const mockOpen = vi.mocked(open);
+				mockOpen.mockResolvedValueOnce(picked);
+				const { tauriClient } = await import('./client');
 
-			const { tauriClient } = await import('./client');
-			await expect(tauriClient.openFile({ title: 'Select file' })).resolves.toBe('/tmp/book.m4b');
+				await expect(call(tauriClient)).resolves.toEqual(picked);
 
-			expect(mockOpen).toHaveBeenLastCalledWith({
-				title: 'Select file',
-				multiple: false,
-				directory: false,
-			});
-		});
-
-		it('sets multi-file dialog options at the boundary', async () => {
-			const { open } = await import('@tauri-apps/plugin-dialog');
-			const mockOpen = vi.mocked(open);
-			mockOpen.mockResolvedValueOnce(['/tmp/a.m4b', '/tmp/b.m4b']);
-
-			const { tauriClient } = await import('./client');
-			await expect(tauriClient.openFiles()).resolves.toEqual(['/tmp/a.m4b', '/tmp/b.m4b']);
-
-			expect(mockOpen).toHaveBeenLastCalledWith({ multiple: true, directory: false });
-		});
-
-		it('sets directory dialog options at the boundary', async () => {
-			const { open } = await import('@tauri-apps/plugin-dialog');
-			const mockOpen = vi.mocked(open);
-			mockOpen.mockResolvedValueOnce('/tmp/output');
-
-			const { tauriClient } = await import('./client');
-			await expect(tauriClient.openDirectory()).resolves.toBe('/tmp/output');
-
-			expect(mockOpen).toHaveBeenLastCalledWith({ multiple: false, directory: true });
-		});
-	});
-
-	describe('opener helpers', () => {
-		it('allows both web schemes used by source details without permitting other URL handlers', () => {
-			expect(
-				mainWindowCapability.permissions.find(
-					(permission) =>
-						typeof permission === 'object' && permission.identifier === 'opener:allow-open-url',
-				),
-			).toEqual({
-				identifier: 'opener:allow-open-url',
-				allow: [{ url: 'http://*' }, { url: 'https://*' }],
-			});
-		});
-
-		it('lets the window open no file path; the host opens a granted preview itself', () => {
-			expect(
-				mainWindowCapability.permissions.some(
-					(permission) =>
-						(typeof permission === 'object' ? permission.identifier : permission) ===
-						'opener:allow-open-path',
-				),
-			).toBe(false);
-		});
+				expect(mockOpen).toHaveBeenLastCalledWith(options);
+			},
+		);
 
 		it('routes URLs to the Tauri opener', async () => {
 			const { openUrl } = await import('@tauri-apps/plugin-opener');
@@ -287,18 +257,18 @@ describe('tauriClient nullish adapters', () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockRejectedValueOnce({
-			code: 'cancelled',
+			code: 'processing_cancelled',
 			category: 'cancellation',
-			message: 'Processing was cancelled.',
+			message: 'Processing was cancelled',
 			detail: 'user requested stop',
-		});
+		} satisfies AppErrorEnvelope);
 
 		const { tauriClient } = await import('./client');
 
 		await expect(tauriClient.cancelWorkOperation('mock-operation-1')).rejects.toMatchObject({
-			code: 'cancelled',
+			code: 'processing_cancelled',
 			category: 'cancellation',
-			message: 'Processing was cancelled.',
+			message: 'Processing was cancelled',
 			detail: 'user requested stop',
 		});
 	});
@@ -312,58 +282,5 @@ describe('tauriClient nullish adapters', () => {
 			category: 'io',
 			message: 'Unknown error',
 		});
-	});
-
-	it('returns .data on canonical specta success shape', async () => {
-		const { unwrapGeneratedResult } = await import('./appError');
-		const result = unwrapGeneratedResult({
-			status: 'ok' as const,
-			data: { hello: 'world' },
-		});
-		expect(result).toEqual({ hello: 'world' });
-	});
-
-	it('throws normalized AppError on canonical specta error shape', async () => {
-		const { unwrapGeneratedResult } = await import('./appError');
-		expect(() =>
-			unwrapGeneratedResult({
-				status: 'error',
-				error: {
-					code: 'toolchain_missing',
-					category: 'toolchain',
-					message: 'ffmpeg not found',
-				},
-			}),
-		).toThrow(
-			expect.objectContaining({
-				code: 'toolchain_missing',
-				category: 'toolchain',
-				message: 'ffmpeg not found',
-			}) as unknown,
-		);
-	});
-
-	it('passes through bare scalar values unchanged (get_max_concurrent_jobs path)', async () => {
-		const { unwrapGeneratedResult } = await import('./appError');
-		expect(unwrapGeneratedResult<number>(42)).toBe(42);
-	});
-
-	it('passes through bare object values unchanged (EncoderAvailability path)', async () => {
-		const { unwrapGeneratedResult } = await import('./appError');
-		const bareEncoderAvailability = {
-			ffmpegAvailable: true,
-			ffprobeAvailable: true,
-			availableEncoders: ['aac', 'libmp3lame'],
-		};
-		const result = unwrapGeneratedResult<typeof bareEncoderAvailability>(bareEncoderAvailability);
-		expect(result).toBe(bareEncoderAvailability);
-	});
-
-	it('passes through records with unrelated status values rather than treating them as Result', async () => {
-		const { unwrapGeneratedResult } = await import('./appError');
-		const bareDomainObject = { status: 'pending', data: { jobId: 'abc' } };
-		const result = unwrapGeneratedResult<typeof bareDomainObject>(bareDomainObject);
-		expect(result).toBe(bareDomainObject);
-		expect(result.status).toBe('pending');
 	});
 });

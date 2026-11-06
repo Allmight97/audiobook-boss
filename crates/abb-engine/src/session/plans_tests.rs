@@ -94,7 +94,7 @@ fn a_plan_is_resolved_again_only_when_its_request_or_sources_change() {
         }
     );
     assert!(plans.refresh([]).is_empty());
-    assert!(plans.all().is_empty());
+    assert_eq!(plans.plan("alpha"), TitlePlan::Pending);
 }
 
 #[test]
@@ -107,10 +107,12 @@ fn kept_audio_is_estimated_from_source_sizes_and_encoded_audio_from_bitrate() {
         estimate_size(&preserve, &TitlePlan::Pending, &sources, None),
         Some(SizeEstimate::Bytes { bytes: 3_000 })
     );
-    // 150 s at 64 kbps plus 3 percent.
+    let expected_bytes = 150 * 64_000 / 8 * 103 / 100;
     assert_eq!(
         estimate_size(&encode, &TitlePlan::Pending, &sources, Some(64)),
-        Some(SizeEstimate::Bytes { bytes: 1_236_000 })
+        Some(SizeEstimate::Bytes {
+            bytes: expected_bytes
+        })
     );
     assert_eq!(
         estimate_size(&encode, &TitlePlan::Pending, &sources, None),

@@ -31,6 +31,13 @@ pub(in crate::metadata_lookup) struct AudibleSearchItem {
     pub(in crate::metadata_lookup) publisher_summary: Option<String>,
     pub(in crate::metadata_lookup) merchandising_summary: Option<String>,
     pub(in crate::metadata_lookup) product_images: Option<HashMap<String, String>>,
+    pub(in crate::metadata_lookup) series: Option<Vec<AudibleSeries>>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub(in crate::metadata_lookup) struct AudibleSeries {
+    pub(in crate::metadata_lookup) title: Option<String>,
+    pub(in crate::metadata_lookup) sequence: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

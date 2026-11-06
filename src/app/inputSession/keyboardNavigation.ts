@@ -1,4 +1,4 @@
-export type FileListNavigationCommand =
+type FileListNavigationCommand =
 	| 'previous'
 	| 'next'
 	| 'first'
@@ -17,7 +17,6 @@ type NavigationTargetInput = {
 	command: FileListNavigationCommand;
 	fileCount: number;
 	selectedIndex: number;
-	pageStep?: number;
 };
 
 function hasSelection(index: number, fileCount: number): boolean {
@@ -28,7 +27,7 @@ function clampIndex(index: number, fileCount: number): number {
 	return Math.min(Math.max(index, 0), fileCount - 1);
 }
 
-export function fileListNavigationCommandFromKey(
+function fileListNavigationCommandFromKey(
 	event: KeyboardNavigationEvent,
 ): FileListNavigationCommand | null {
 	if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
@@ -53,11 +52,10 @@ export function fileListNavigationCommandFromKey(
 	}
 }
 
-export function resolveFileListNavigationTarget({
+function resolveFileListNavigationTarget({
 	command,
 	fileCount,
 	selectedIndex,
-	pageStep = DEFAULT_FILE_LIST_PAGE_STEP,
 }: NavigationTargetInput): number | null {
 	if (fileCount <= 0) {
 		return null;
@@ -69,7 +67,6 @@ export function resolveFileListNavigationTarget({
 	}
 
 	const currentIndex = clampIndex(selectedIndex, fileCount);
-	const normalizedPageStep = Math.max(1, Math.floor(pageStep));
 
 	switch (command) {
 		case 'previous':
@@ -81,9 +78,9 @@ export function resolveFileListNavigationTarget({
 		case 'last':
 			return maxIndex;
 		case 'pagePrevious':
-			return Math.max(0, currentIndex - normalizedPageStep);
+			return Math.max(0, currentIndex - DEFAULT_FILE_LIST_PAGE_STEP);
 		case 'pageNext':
-			return Math.min(maxIndex, currentIndex + normalizedPageStep);
+			return Math.min(maxIndex, currentIndex + DEFAULT_FILE_LIST_PAGE_STEP);
 	}
 }
 

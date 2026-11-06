@@ -1,3 +1,4 @@
+use super::ffmpeg_dict::{ID3_ALBUM_SORT_KEY, MP4_ALBUM_SORT_KEY};
 use super::{mp4ameta_bridge, normalize_publication_date, split_series_list, AudiobookMetadata};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::field_schema::TagField;
@@ -40,7 +41,10 @@ fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<
     metadata.genre = dict.get("genre").map(str::to_string);
     metadata.comment = read_comment(&dict);
     metadata.description = dict.get("description").map(str::to_string);
-    metadata.album_sort = dict.get("sort_album").map(str::to_string);
+    metadata.album_sort = dict
+        .get(ID3_ALBUM_SORT_KEY)
+        .or_else(|| dict.get(MP4_ALBUM_SORT_KEY))
+        .map(str::to_string);
     metadata.track = parse_position_field(
         first_tag(&dict, TagField::Track).as_deref(),
         first_tag_keys(

@@ -192,7 +192,8 @@ impl RunningWork {
 
 impl Engine {
     /// Starts the engine: locks `cache_dir`, clears working files abandoned
-    /// by a previous run, then puts the saved settings in effect.
+    /// by a previous run, puts the saved settings in effect, then starts the
+    /// remote sources, which read the Indexer connection from those settings.
     pub fn start(config: EngineConfig) -> Result<Self> {
         let cache_dir_lock = lock_cache_dir(&config.cache_dir)?;
         let power = PowerManager::default();
@@ -201,9 +202,10 @@ impl Engine {
         if let Err(error) = audio::cleanup_abandoned_processing_workspaces(&config.cache_dir) {
             log::warn!("Abandoned processing files were left in place: {error}");
         }
+        let (settings, jobs, startup) = SettingsRuntime::start(config.config_dir, power.clone());
         let remote_source = RemoteSourceRuntime::new(RemoteSourceConfig {
             cache_dir: config.cache_dir.clone(),
-            config_dir: config.config_dir.clone(),
+            settings: settings.clone(),
             app_identifier: config.app_identifier,
             power: power.clone(),
             host: host.clone(),
@@ -214,7 +216,6 @@ impl Engine {
             log::warn!("Abandoned remote downloads were left in place: {error}");
         }
 
-        let (settings, jobs, startup) = SettingsRuntime::start(config.config_dir, power.clone());
         let work = WorkRuntime::new(tasks.clone());
         let session = Session::new(SessionDeps {
             remote: remote_source.clone(),
@@ -320,6 +321,14 @@ impl Engine {
 
     pub async fn settings_dispatch(&self, intent: SettingsIntent) -> SettingsReply {
         let reset = matches!(intent, SettingsIntent::Reset);
+        let reset_lease = if reset {
+            match self.inner.remote_source.reset_lease() {
+                Ok(lease) => Some(lease),
+                Err(error) => return self.settings_rejected(error).await,
+            }
+        } else {
+            None
+        };
         let accepted = self.inner.tasks.admit(|| {
             let checkpoint = self.inner.session.defaults_checkpoint();
             let run = self.inner.settings.begin(intent, &self.inner.tasks);
@@ -332,7 +341,9 @@ impl Engine {
                         checkpoint,
                         reply.snapshot.revision,
                     );
+                    engine.inner.remote_source.saved_connection_replaced().await;
                 }
+                drop(reset_lease);
                 engine
                     .inner
                     .host
@@ -440,3 +451,7 @@ impl Engine {
             .cancel_operation(&self.inner.host, operation_id, child_job_id)
     }
 }
+
+#[cfg(test)]
+#[path = "engine_tests.rs"]
+mod tests;

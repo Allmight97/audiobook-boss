@@ -6,8 +6,8 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
 
 ## Public API Strip
 
-- Audio is the Audio Engine Deep Module. Callers import from `crate::audio`;
-  child modules are private and the compiler enforces it.
+- Callers import from `crate::audio`; child modules are private, so the
+  compiler enforces it.
 - Inspection owns source preservation capability; the title planner owns the
   recommendation.
 - Per-encoder bitrate, mode, rate, and FAAC-profile facts live in
@@ -91,17 +91,6 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   on Native AAC artifacts separate structural correctness from subjective
   encoder quality.
 
-## Audio Integrity Traps
-
-Each of these signals an audio-boundary assumption to investigate:
-
-- repeated frame-plane warnings
-- preview/full divergence for the same encoder path
-- missing or silent output channels
-- distorted audio with structurally normal progress reporting
-- mismatched source/output duration beyond expected preview boundaries
-- wrapper API behavior that disagrees with FFmpeg frame/layout semantics
-
 ## Import Discovery
 
 `discover_audio_import_paths` never fails a whole import: each path it cannot
@@ -135,7 +124,7 @@ chapters.
 the default; MP3 is packet pass-through; Opus supports M4A (MP4 muxer) and MKA.
 Auto copies joinable, matching audio when every source has a known bitrate at or
 below `COMPACT_AUDIO_MAX_BITRATE`; otherwise it plans encoding. Explicit Preserve
-copies regardless of bitrate and always copies. MP3 output stays copy-only
+always copies. MP3 output stays copy-only
 regardless of bitrate: it has no encoder route and rejects incompatible copy
 boundaries. Strict source/packet validation applies to every copy. Default M4B
 encoding uses the built-in AAC defaults (NMR 65 kbps target, source channels and

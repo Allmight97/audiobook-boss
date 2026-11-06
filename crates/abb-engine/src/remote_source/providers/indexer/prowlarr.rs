@@ -49,7 +49,6 @@ impl ReqwestProwlarrAdapter {
             client: std::sync::Mutex::default(),
         }
     }
-    // Session-only hosts must not initialize a network client they never use.
     fn client(&self) -> Result<Client> {
         let mut cached = self
             .client
@@ -61,7 +60,6 @@ impl ReqwestProwlarrAdapter {
         let client = Client::builder()
             .timeout(REQUEST_TIMEOUT)
             .user_agent(PROWLARR_USER_AGENT)
-            // X-Api-Key belongs only to the configured server.
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|error| {

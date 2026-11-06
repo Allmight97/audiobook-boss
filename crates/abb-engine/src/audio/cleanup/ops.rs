@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use super::CleanupGuard;
 
 impl CleanupGuard {
-    /// Internal cleanup implementation that never panics
     pub(crate) fn perform_cleanup(&mut self, paths: &[PathBuf]) -> Result<()> {
         let mut first_error: Option<AppError> = None;
 
@@ -31,7 +30,7 @@ impl CleanupGuard {
                     first_error = Some(e);
                 }
             } else {
-                self.remove_path(path);
+                self.forget_path(path);
             }
         }
 

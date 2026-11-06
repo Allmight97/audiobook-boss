@@ -54,7 +54,7 @@ fn supplemental_pdf_display_file_name_falls_back_to_title_ref_for_empty_title() 
 }
 
 #[test]
-fn remote_filename_stem_uses_sanitized_title() {
+fn remote_materialized_filename_stem_sanitizes_titles_and_falls_back_to_title_ref() {
     assert_eq!(
         remote_materialized_filename_stem(
             Some("Secure Love: Create a Relationship That Lasts a Lifetime"),
@@ -62,6 +62,13 @@ fn remote_filename_stem_uses_sanitized_title() {
         ),
         "Secure Love - Create a Relationship That Lasts a Lifetime"
     );
+
+    let title_id = "../../account-title";
+    for title in [Some("../"), None] {
+        let stem = remote_materialized_filename_stem(title, title_id);
+        assert_eq!(stem, format!("Audible {}", title_ref(title_id)));
+        assert!(!stem.contains(title_id));
+    }
 }
 
 #[test]

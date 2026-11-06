@@ -68,7 +68,7 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 
 - Processing emits internal `ProgressEvent` values to its supplied listener.
 - `EventStage` in `progress/mod.rs` maps internal `ProcessingStage` into
-  reducer input. The UI consumes `WorkProgressStage` from snapshots.
+  reducer input.
 
 ## Job registry (`job_registry/`)
 
@@ -79,7 +79,8 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   starts. It records the job and acquires its
   permit before execution. `BatchScheduler` keeps result order deterministic,
   keeps issuing queued work after per-task errors, and gives every scheduled
-  index a terminal result.
+  index a terminal result. A queued title whose cancel flag is set starts out
+  of turn, so it ends within the cancel poll and never behind the titles ahead.
 - Presence in the registry map is the job's only lifecycle state: tracked from
   the moment it waits for a permit; `complete_job` and `fail_job` remove it on
   every terminal path; a failed, cancelled, or dropped admission removes
@@ -93,11 +94,13 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 
 ## Edit Rules
 
-- `run.rs`'s `metadata_workflow` tests connect production preflight/planning to
-  real encode and preserve writers, then inspect output atoms. They complement
-  the session's edit-retention tests and the IPC-contract proof; they do not
-  exercise the Tauri window, scheduler, or UI.
-- Keep preflight side-effect-free.
+- `run_tests.rs`'s `metadata_workflow` tests connect production preflight and
+  planning to real encode and preserve writers, then inspect output atoms.
+- A skipped title never publishes, so an edit for it is refused at once.
+  Collision facts refresh after review without re-inspecting sources or
+  resolving audio and metadata again.
+- Keep preflight side-effect-free. Why: a plan that review refuses leaves no
+  folders or files behind.
 - `ProcessingRunOptions.title_cancels` carries one cancel flag per output title
   from WorkRuntime or the session preview. Each job's admission and
   `CancellationChecker` (built from that title's flag) observe only that flag;

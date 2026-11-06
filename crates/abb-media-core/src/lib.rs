@@ -147,8 +147,7 @@ impl SupplementalPdfIdentityBuilder {
     }
 }
 
-/// Lowercase hex-encoded SHA-256 digest of the given bytes. Shared content
-/// identity fact used for supplemental-asset integrity checks.
+/// Lowercase hex SHA-256 digest of `bytes`.
 pub fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);

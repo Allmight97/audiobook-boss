@@ -182,3 +182,7 @@ impl ProcessCommandResult {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "types_tests.rs"]
+mod tests;

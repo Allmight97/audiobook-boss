@@ -431,12 +431,11 @@ impl WorkingSet {
                 }
             })
             .collect();
-        if self
-            .selected_anchor
-            .is_some_and(|anchor| anchor >= self.files.len())
-        {
-            self.selected_anchor = None;
-        }
+        self.selected_anchor = match self.selected_anchor {
+            Some(anchor) if anchor > index => Some(anchor - 1),
+            Some(anchor) if anchor == index => None,
+            other => other,
+        };
         self.reanchor();
         sources
     }
@@ -721,8 +720,6 @@ impl WorkingSet {
         }
         self.audio_requests.insert(title_id.to_string(), request);
         self.audio_changes += 1;
-        // Requests travel in the audio part; the titles part changes only
-        // when a pending choice is settled.
         let required = self.audio_choice_required.len();
         self.audio_choice_required.retain(|id| id != title_id);
         if self.audio_choice_required.len() != required {

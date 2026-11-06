@@ -1,40 +1,7 @@
-use super::{JobId, JobRegistry, MAX_CONCURRENT_JOBS, MIN_CONCURRENT_JOBS};
+use super::{JobRegistry, MAX_CONCURRENT_JOBS, MIN_CONCURRENT_JOBS};
+use crate::errors::AppError;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-
-#[test]
-fn test_job_id_uniqueness() {
-    let id1 = JobId::new();
-    let id2 = JobId::new();
-    assert_ne!(id1, id2);
-}
-
-#[test]
-fn test_job_id_parse() {
-    let id = JobId::new();
-    let id_str = id.to_string();
-    let parsed = JobId::parse(&id_str).expect("Should parse valid UUID");
-    assert_eq!(id, parsed);
-}
-
-#[test]
-fn test_job_id_parse_invalid() {
-    let result = JobId::parse("not-a-uuid");
-    assert!(result.is_err());
-}
-
-#[tokio::test]
-async fn test_registry_new() {
-    let registry = JobRegistry::new(2);
-    assert_eq!(registry.max_concurrent(), 2);
-}
-
-#[tokio::test]
-async fn test_registry_auto() {
-    let registry = JobRegistry::auto();
-    assert!(registry.max_concurrent() >= 1);
-    assert!(registry.max_concurrent() <= 8);
-}
 
 #[test]
 fn test_max_concurrent_capabilities_match_registry_bounds() {
@@ -55,68 +22,19 @@ fn test_max_concurrent_capabilities_match_registry_bounds() {
 }
 
 #[tokio::test]
-async fn test_register_job() {
-    let registry = JobRegistry::new(2);
-    let (job_id, _permit) = registry.register_job().await.expect("Should register job");
-
-    let status = registry.get_aggregate_status().await;
-    assert_eq!(status.active_jobs, 1);
-    assert_eq!(status.total_jobs, 1);
-
-    assert!(!job_id.to_string().is_empty());
-}
-
-#[tokio::test]
-async fn test_complete_job_removes_from_registry() {
-    let registry = JobRegistry::new(2);
-    let (job_id, _permit) = registry.register_job().await.expect("Should register job");
-
-    registry.complete_job(job_id).await;
-
-    let status = registry.get_aggregate_status().await;
-    assert_eq!(status.active_jobs, 0);
-    assert_eq!(status.total_jobs, 0);
-}
-
-#[tokio::test]
-async fn test_semaphore_limits_concurrent_jobs() {
-    let registry = Arc::new(JobRegistry::new(2));
-
-    let (job_id1, permit1) = registry.register_job().await.expect("Job 1");
-    let (job_id2, permit2) = registry.register_job().await.expect("Job 2");
-
-    let status = registry.get_aggregate_status().await;
-    assert_eq!(status.active_jobs, 2);
-
-    drop(permit1);
-    registry.complete_job(job_id1).await;
-
-    let (_job_id3, _permit3) = registry.register_job().await.expect("Job 3");
-
-    drop(permit2);
-    registry.complete_job(job_id2).await;
-}
-
-#[tokio::test]
 async fn test_fail_job() {
     let registry = JobRegistry::new(2);
     let (job_id, _permit) = registry.register_job().await.expect("Should register job");
 
     registry.fail_job(job_id, "Test error".to_string()).await;
 
-    let status = registry.get_aggregate_status().await;
-    assert_eq!(status.total_jobs, 0);
-}
-
-#[tokio::test]
-async fn test_update_max_when_idle() {
-    let registry = JobRegistry::new(2);
-    let updated = registry
-        .update_max_concurrent(4)
-        .await
-        .expect("Should update when idle");
-    assert_eq!(updated, 4);
-    assert_eq!(registry.max_concurrent(), 4);
+    assert_eq!(
+        registry
+            .update_max_concurrent(1)
+            .await
+            .expect("failed job is untracked"),
+        1
+    );
 }
 
 #[tokio::test]
@@ -173,9 +91,13 @@ async fn test_stress_concurrent_registration_respects_limit() {
         peak.load(Ordering::SeqCst) <= 3,
         "max concurrent observed should respect limit"
     );
-    let status = registry.get_aggregate_status().await;
-    assert_eq!(status.active_jobs, 0);
-    assert_eq!(status.total_jobs, 0);
+    assert_eq!(
+        registry
+            .update_max_concurrent(1)
+            .await
+            .expect("every job untracked after the batch"),
+        1
+    );
 }
 
 #[tokio::test]
@@ -207,7 +129,7 @@ async fn test_scheduler_respects_max_in_flight() {
         });
     }
 
-    let results = registry.scheduler().run_batch(futures).await;
+    let results = registry.scheduler().run_batch(futures, |_| false).await;
 
     assert_eq!(results.len(), 12);
     assert!(results.into_iter().all(|item| item.is_ok()));
@@ -231,7 +153,7 @@ async fn test_scheduler_preserves_input_order() {
         });
     }
 
-    let results = registry.scheduler().run_batch(futures).await;
+    let results = registry.scheduler().run_batch(futures, |_| false).await;
 
     let ordered: Vec<usize> = results
         .into_iter()
@@ -257,7 +179,7 @@ async fn test_scheduler_continues_scheduling_after_error_and_preserves_order() {
 
             if index == 1 {
                 sleep(Duration::from_millis(5)).await;
-                return JobId::parse("not-a-uuid").map(|_| index);
+                return Err(AppError::General("task failed".to_string()));
             }
 
             sleep(Duration::from_millis(30)).await;
@@ -265,7 +187,7 @@ async fn test_scheduler_continues_scheduling_after_error_and_preserves_order() {
         });
     }
 
-    let outcomes = registry.scheduler().run_batch(futures).await;
+    let outcomes = registry.scheduler().run_batch(futures, |_| false).await;
     assert_eq!(outcomes.len(), 6);
     assert_eq!(
         started.load(Ordering::SeqCst),
@@ -309,7 +231,7 @@ async fn test_scheduler_preserves_index_for_panicking_tasks() {
         });
     }
 
-    let outcomes = registry.scheduler().run_batch(futures).await;
+    let outcomes = registry.scheduler().run_batch(futures, |_| false).await;
 
     assert_eq!(outcomes.len(), 4);
     assert_eq!(
@@ -336,4 +258,46 @@ async fn concurrency_cannot_change_while_a_run_is_held_even_between_its_jobs() {
 
     drop(run);
     assert_eq!(registry.update_max_concurrent(1).await.expect("idle"), 1);
+}
+
+#[tokio::test]
+async fn a_cancelled_queued_job_starts_without_waiting_for_the_job_ahead() {
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::atomic::AtomicBool;
+    use std::time::Duration;
+    use tokio::sync::oneshot;
+
+    type Job = Pin<Box<dyn Future<Output = crate::errors::Result<u8>> + Send>>;
+
+    let registry = JobRegistry::new(1);
+    let (release, blocked) = oneshot::channel::<()>();
+    let (started, ran) = oneshot::channel::<()>();
+    let ahead: Job = Box::pin(async move {
+        let _ = blocked.await;
+        Ok(0)
+    });
+    let queued: Job = Box::pin(async move {
+        let _ = started.send(());
+        Ok(1)
+    });
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&cancelled);
+    let scheduler = registry.scheduler();
+    let batch = scheduler.run_batch(vec![ahead, queued], move |index| {
+        index == 1 && flag.load(Ordering::Acquire)
+    });
+    let cancel_and_wait = async move {
+        cancelled.store(true, Ordering::Release);
+        tokio::time::timeout(Duration::from_secs(2), ran)
+            .await
+            .expect("the cancelled job starts while the job ahead is blocked")
+            .expect("the cancelled job ran");
+        let _ = release.send(());
+    };
+
+    let (results, ()) = tokio::join!(batch, cancel_and_wait);
+
+    let results: Vec<u8> = results.into_iter().map(|r| r.expect("ok")).collect();
+    assert_eq!(results, [0, 1]);
 }

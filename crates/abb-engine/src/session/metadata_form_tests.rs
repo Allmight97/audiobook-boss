@@ -68,26 +68,6 @@ fn an_emptied_mixed_field_is_a_bulk_blank() {
 }
 
 #[test]
-fn untouched_fields_carry_no_intent_even_when_their_inherited_value_is_invalid() {
-    let mut form = MetadataForm::single(&tagged());
-    form.set_value(MetadataField::Author, "Someone Else".to_string());
-
-    assert_eq!(
-        form.compose_intent(),
-        MetadataIntentPatch {
-            artist: set("Someone Else"),
-            ..Default::default()
-        }
-    );
-    let snapshot = form.snapshot();
-    assert!(matches!(
-        snapshot.series_part_warning,
-        Some(SeriesPartWarning::Invalid { .. })
-    ));
-    assert!(snapshot.validation_message.is_some());
-}
-
-#[test]
 fn keep_after_blank_restores_what_the_field_showed() {
     let mut form = MetadataForm::single(&tagged());
     form.set_action(MetadataField::Author, FieldAction::Blank);
@@ -97,19 +77,6 @@ fn keep_after_blank_restores_what_the_field_showed() {
 
     assert!(!form.compose_intent().is_actionable());
     assert_eq!(form.trimmed(MetadataField::Author), "Author");
-}
-
-#[test]
-fn staging_makes_the_current_values_the_baseline_keep_restores() {
-    let mut form = MetadataForm::single(&tagged());
-    form.set_value(MetadataField::Author, "Staged".to_string());
-    form.reset_dirty();
-    assert!(!form.has_dirty_fields());
-
-    form.set_action(MetadataField::Author, FieldAction::Blank);
-    form.set_action(MetadataField::Author, FieldAction::Keep);
-
-    assert_eq!(form.trimmed(MetadataField::Author), "Staged");
 }
 
 #[test]

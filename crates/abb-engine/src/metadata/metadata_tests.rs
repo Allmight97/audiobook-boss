@@ -1,5 +1,5 @@
 use super::*;
-use crate::test_cases::integration_media_execution_tests::write_sine_wav;
+use crate::test_cases::media_fixtures::write_sine_wav;
 
 #[test]
 fn a_saved_copy_shorter_than_the_original_is_refused_and_the_original_kept() {

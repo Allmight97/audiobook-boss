@@ -174,8 +174,6 @@ pub(crate) fn flush_accumulator_tail(
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
 ) -> Result<()> {
-    // Preserve the real tail length so encoders can mark their own padding as
-    // non-playable instead of turning ABB's zero pad into source audio.
     if let Some(mut tail) = accumulator.flush_tail() {
         tail.set_pts(Some(*ctx.running_pts));
         *ctx.running_pts += tail.samples() as i64;
@@ -329,8 +327,6 @@ pub(crate) fn process_input_packets(
         log::debug!("Draining decoder after EOF");
         let drain_action = process_decoded_frames(decoder, encoder, resampler, ctx, accumulator)?;
         if drain_action == PreviewAction::Continue {
-            // End of this file's real audio: recover the resampler's
-            // held-back tail before moving to the next input.
             flush_resampler_tail(resampler, encoder, ctx, accumulator)?;
         }
     } else {
@@ -385,8 +381,6 @@ fn process_packet_frames(
             );
             Ok(action)
         }
-        // A user cancel is not a pipeline failure; the job's terminal record
-        // reports it, and dev-log analysis counts ERROR lines as degradation.
         Err(e @ crate::errors::AppError::Cancellation(_)) => Err(e),
         Err(e) => {
             log::error!(

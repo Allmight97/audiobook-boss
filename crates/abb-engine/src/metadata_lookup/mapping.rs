@@ -20,26 +20,12 @@ pub(super) fn map_audnexus_book(book: AudnexusBook) -> OnlineMetadataResult {
     let authors = book.authors.into_iter().map(|p| p.name).collect();
     let narrators = book.narrators.into_iter().map(|p| p.name).collect();
 
-    let (mut series, series_part) = match book.series_primary {
-        Some(series) => (Some(series.name), clean_series_part(series.position)),
-        None => (None, None),
-    };
-    let (mut subseries, mut subseries_part) = match book.series_secondary {
-        Some(series) => (Some(series.name), clean_series_part(series.position)),
-        None => (None, None),
-    };
-
-    if subseries.is_none() {
-        if let (Some(series_name), Some(series_part_value)) =
-            (series.as_deref(), series_part.as_deref())
-        {
-            if let Some((primary, secondary)) = split_primary_series_name(series_name) {
-                series = Some(primary);
-                subseries = Some(secondary);
-                subseries_part = Some(series_part_value.to_string());
-            }
-        }
-    }
+    let (series, series_part, subseries, subseries_part) = series_fields(
+        book.series_primary
+            .map(|series| (series.name, series.position)),
+        book.series_secondary
+            .map(|series| (series.name, series.position)),
+    );
 
     let description = book.summary.or(book.description);
     let published_date = parse_publication_date(book.release_date.as_deref());
@@ -64,6 +50,40 @@ pub(super) fn map_audnexus_book(book: AudnexusBook) -> OnlineMetadataResult {
         cover_url,
         audible_only: None,
     }
+}
+
+type NamedPart = (String, Option<String>);
+
+fn series_fields(
+    primary: Option<NamedPart>,
+    secondary: Option<NamedPart>,
+) -> (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+) {
+    let (mut series, series_part) = match primary {
+        Some((name, position)) => (Some(name), clean_series_part(position)),
+        None => (None, None),
+    };
+    let (mut subseries, mut subseries_part) = match secondary {
+        Some((name, position)) => (Some(name), clean_series_part(position)),
+        None => (None, None),
+    };
+
+    if subseries.is_none() {
+        if let (Some(series_name), Some(series_part_value)) =
+            (series.as_deref(), series_part.as_deref())
+        {
+            if let Some((primary, secondary)) = split_primary_series_name(series_name) {
+                series = Some(primary);
+                subseries = Some(secondary);
+                subseries_part = Some(series_part_value.to_string());
+            }
+        }
+    }
+    (series, series_part, subseries, subseries_part)
 }
 
 pub(super) fn map_audible_item(item: AudibleSearchItem) -> OnlineMetadataResult {
@@ -101,6 +121,13 @@ pub(super) fn map_audible_item(item: AudibleSearchItem) -> OnlineMetadataResult 
         .runtime_length_min
         .map(|minutes| (minutes * 60.0).round() as u32);
     let cover_url = pick_audible_image_url(item.product_images);
+    let mut listed_series = item
+        .series
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|series| Some((series.title?, series.sequence)));
+    let (series, series_part, subseries, subseries_part) =
+        series_fields(listed_series.next(), listed_series.next());
 
     OnlineMetadataResult {
         source: MetadataSource::Audnexus,
@@ -108,10 +135,10 @@ pub(super) fn map_audible_item(item: AudibleSearchItem) -> OnlineMetadataResult 
         title,
         authors,
         narrators,
-        series: None,
-        series_part: None,
-        subseries: None,
-        subseries_part: None,
+        series,
+        series_part,
+        subseries,
+        subseries_part,
         description,
         published_date,
         duration_seconds,
@@ -148,3 +175,7 @@ fn normalize_https_url(raw: Option<String>) -> Option<String> {
     }
     Some(parsed.to_string())
 }
+
+#[cfg(test)]
+#[path = "mapping_tests.rs"]
+mod tests;

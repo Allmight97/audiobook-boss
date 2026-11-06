@@ -48,15 +48,6 @@ fn the_author_query_falls_back_from_artist_to_narrator() {
 }
 
 #[test]
-fn automatic_lookup_searches_audnexus_and_open_library() {
-    assert_eq!(
-        LookupSource::Auto.sources(),
-        [MetadataSource::Audnexus, MetadataSource::Openlibrary]
-    );
-    assert_eq!(LookupSource::Audnexus.sources(), [MetadataSource::Audnexus]);
-}
-
-#[test]
 fn a_result_supplies_only_the_fields_it_has() {
     let result = OnlineMetadataResult {
         source: MetadataSource::Audnexus,

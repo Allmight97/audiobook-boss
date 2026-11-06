@@ -17,11 +17,13 @@
 - Code states its rules as names, types, tests, asserts, or checks; agents
   copy a comment that excuses a workaround. A comment stays only for a
   license, behavior forced by an outside dependency, platform, or protocol, a
-  lint's required text or a suppression's reason, a public API contract the signature cannot show,
-  or an issue or RFC link. `scripts/check-known-mistakes.ts` rejects banners,
-  `EXCEPTION:` stamps, and `DO NOT REMOVE`.
+  lint's required text or a suppression's reason, a public API contract the
+  signature cannot show, or an issue or RFC link.
+  `scripts/check-known-mistakes.ts` rejects banners, `EXCEPTION:` stamps,
+  `DO NOT REMOVE`, excuse markers, and history narration.
 - Upstream source enters the repo only as ABB-owned build provenance under
-  `vendor/`.
+  `vendor/`. Using, copying, porting, linking, or bundling third-party runtime
+  source is the owner's design and licensing decision.
 
 ## Golden Path
 
@@ -49,16 +51,13 @@ simpler design.
   rule added there would be rewritten for every future host. Tiers:
   `crates/AGENTS.md`.
 - The engine builds metadata intent from the session's field edits;
-  validation and normalization route through the Rust Metadata Outcome
-  boundary.
+  `crate::metadata` and `abb-metadata-core` validate and normalize it.
 - Greenfield: internal payloads and aliases change freely. Interoperability
   with real-world external audiobook files and tag variants is preserved.
 - External provider partial failure is handled at the owning engine module
   with typed diagnostics; hard-fail when the selected contract cannot be met.
   Every IPC, metadata, path, and lifecycle boundary behaves explicitly, with
   no silent or caller-side substitute.
-- Solid 2 is the frontend baseline; for version-sensitive Solid API behavior
-  use the `abb-library-research` skill.
 
 ## Environment
 
@@ -71,20 +70,14 @@ Run `verify.sh` lanes, `setup.sh --check` and `--print-env`,
 `bun run bindings:check`, and `bun scripts/verification.ts plan --explain`
 without asking; they write only `.logs/`, `target/`, and temp dirs.
 
-`setup.sh` takes `frontend` or `rust`, or no argument for both. `--check`
-installs nothing and exits nonzero if something is missing. It never edits
-shell profiles (`check-known-mistakes.ts` rejects a profile write; it sets
-this repo's git hook path); PATH comes from
-`eval "$(scripts/setup.sh --print-env)"` (`scripts/AGENTS.md`, Environment).
+`bash scripts/setup.sh --help` lists its modes. It sets this repo's git hook
+path and never edits shell profiles (`check-known-mistakes.ts` rejects a
+profile write); PATH comes from `eval "$(scripts/setup.sh --print-env)"`
+(`scripts/AGENTS.md`, Environment).
 
-`verify.sh --changed origin/main` selects affected lanes without current proof.
-Explicit lane names run afresh (`verify.sh --help` lists them). No argument
-runs every lane this OS supports except `supply-chain`; name it, or
-`--changed` selects it for dependency and policy files. The commands for each
-lane live only in `verify.sh`.
-
-Codex cloud: paste `bash scripts/setup.sh` into the Codex environment settings
-field once. That setting is not in the repo.
+`verify.sh --changed origin/main` runs affected lanes without current proof;
+named lanes run afresh. `verify.sh --help` lists the lanes and what each form
+runs; their commands live only in `verify.sh`.
 
 ## Refactor Discipline
 
@@ -92,18 +85,20 @@ field once. That setting is not in the repo.
   owning layer before extracting helpers. A rule several callers must each
   remember belongs in that owner.
 - Source files stay small enough to read whole (`scripts/check-file-size.mjs`).
+  An over-budget file may not exceed its size at the merge base with
+  `origin/main`; new logic and tests go in a sibling file. A function on a
+  complexity list gains no logic, except one dispatch arm for a new intent (a
+  reviewer judgement; no check enforces it). The PR names the split the file
+  needs.
 - When merging code paths, name what each old path relied on (reads it
   skipped, state it left alone, ordering); keep each reliance or say which one
   the change drops.
-- A new or reshaped function holds one nameable responsibility. Oxlint's
-  cyclomatic limit of 20 (`.oxlintrc.json`) and the Rust check
-  (`scripts/check-rust-complexity.sh`) flag one that grows past it: split it,
-  or name the reason at the code (a flat dispatch `match`, a format parser, a
-  sequential `?` setup). A file in `.oxlintrc.json`'s hotspot
-  exemptions, or a function in the Rust allowlist
-  (`scripts/rust-complexity-allowlist.txt`), gets one disposition when next
-  changed (Proof-first, Reduce, Preserve, or Observe) with evidence and its
-  next trigger.
+- A new or reshaped function holds one nameable responsibility. Past the
+  cyclomatic limit of 20 (`.oxlintrc.json`, `scripts/check-rust-complexity.sh`),
+  split it, or record the reason in `.oxlintrc.json`'s exemptions or
+  `scripts/rust-complexity-allowlist.txt`, whose header names the accepted
+  reasons. An entry you change gets a disposition with evidence and its next
+  trigger.
 - Before adding a module, skill, CI step, abstraction, or canon rule, name the
   invariant it owns and its upkeep; extend an existing owner when one can
   carry it.
@@ -112,9 +107,7 @@ field once. That setting is not in the repo.
 - Report pre-existing dead code and suspicious seams with evidence; fix them in
   the same change only inside the active owner and when they affect its
   invariant or proof. Fix trivial mechanical drift and name it. Classify the
-  rest `fix`, `defer`, or `reject` with impact and owner.
-- Using, copying, porting, linking, or bundling third-party runtime source is a
-  design and licensing decision for the owner.
+  rest `fix` or `reject` with impact and owner.
 
 ## Testing And Proof
 
@@ -128,15 +121,10 @@ field once. That setting is not in the repo.
   3. intent ordering and TS↔Rust contract shape: the host crate
      (`audiobook-boss`) and the binding tests;
   4. DOM and UI state: Vitest under `src/`.
-- Rust unit tests live in sibling `*_tests.rs` files: `foo.rs` declares
-  `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`, and may declare more
-  than one. A folder's `mod.rs` may use `tests.rs`, and a binary uses
-  `<name>/tests.rs`, since a `src/bin/*_tests.rs` file becomes its own
-  binary; `tests/` and `test_cases/` also count. Why: an agent reads the
-  implementation without the tests, and the file-size budget counts only
-  code. `scripts/check-known-mistakes.ts` rejects another pairing and a test
-  attribute elsewhere.
-- UI behavior also needs visual review where tests cannot prove UX.
+- Rust unit tests live in sibling `*_tests.rs` files, never inline;
+  `scripts/check-known-mistakes.ts` rejects another pairing and names the fix.
+  Why: an agent reads the implementation without the tests, and tests do not
+  spend the implementation's file-size budget.
 - An owned import/export surface change updates the nearest `AGENTS.md`. A
   frontend owner or view `index.ts` also updates its hand-written STRIPS list
   in `src/__tests__/public-api-strips.contract.test.ts`. That update needs no
@@ -175,17 +163,15 @@ another CI run.
   async merge API (`merge_method: merge`). `gh pr merge` cannot merge a
   stack, and stack auto-merge is not ready to rely on. Link the stack with
   `gh stack` or `POST /repos/{owner}/{repo}/stacks`.
-- J Star gives one yes per stack or PR. After that, agents mark each layer
+- The owner gives one yes per stack or PR. After that, agents mark each layer
   ready, wait for `gate`, and merge it, and come back only when something
   fails or the story changes.
 - Work beyond the request (a new issue, PR, or follow-up after a merge)
-  waits for J Star's yes; steps inside an approved PR do not.
+  waits for the owner's yes; steps inside an approved PR do not.
 - These rules beat another bot's request for a tiny standalone PR: push back
   and deliver the work this way.
-- Roadmaps are J Star's call, announced case by case. Link an issue when one
-  exists; one is not required. A story-first PR body (why, outcome, which
-  user, developer, or agent story, and what each layer unlocks) is a habit,
-  not a rule.
+- Roadmaps are the owner's call, announced case by case. Link an issue when
+  one exists; one is not required.
 - Local proof is the primary proof. CI is the last check, and the main proof
   for a cloud Linux agent. Why the CI policy is what it is:
   `docs/DECISIONS.md`. `gate` is the check `main` requires.
@@ -196,7 +182,3 @@ another CI run.
 ## Review Guidelines
 
 - Review pull requests by following `REVIEW.md`.
-
-## Done
-
-- The final report names changes, the verification run, and residual risk.

@@ -4,10 +4,8 @@ use std::path::PathBuf;
 use abb_engine::session::{MetadataField, SessionIntent, SessionOutcome};
 use abb_engine::work_runtime::WorkOperationStatus;
 
-use super::integration_media_execution_tests::{
-    audio_duration_ts, chapters_of, mux_chapters, SAMPLE_RATE,
-};
 use super::integration_session_desk::Desk;
+use super::media_fixtures::{audio_duration_ts, chapters_of, mux_chapters, SAMPLE_RATE};
 
 #[tokio::test]
 async fn a_preview_plays_ninety_seconds_with_the_edited_metadata_and_no_chapters() {

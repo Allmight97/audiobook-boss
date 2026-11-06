@@ -1,14 +1,15 @@
 ---
 name: verify-abb
-description: Drive abb-dev headlessly through golden-path features, keep JSON plus ffprobe evidence, and never use stored credentials.
+description: "Prove ABB's golden path on real output files without a window, from import through export, collisions, cancel, chapters, layout, a killed export, or a copy of the owner's library. Use to verify a change end to end."
 ---
 
 # Verify ABB
 
 Prove the golden path without a window: import, metadata save, export,
-collisions, cancel, and chapters. Each feature is a script in `features/`
-whose exit code is its verdict; `run.sh` runs them and keeps evidence. The
-`media` lane in `scripts/verify.sh` runs the same scripts, so CI proves them.
+collisions, cancel, chapters, output layout, and a killed export. Each feature is a script in
+`features/` whose exit code is its verdict; `run.sh` runs them and keeps
+evidence. The `media` lane in `scripts/verify.sh` runs the same scripts, so CI
+proves them.
 
 1. Doctor: `bash scripts/setup.sh --check`. If it fails, run the command it
    prints and check again. Do not continue until it is clean.
@@ -21,10 +22,15 @@ whose exit code is its verdict; `run.sh` runs them and keeps evidence. The
 Rules:
 
 - Inputs are synthesized with the FFmpeg 9 CLI. Never point abb-dev at the
-  owner's library or production state; every call gets its own `--state-dir`.
+  owner's library or production state; every call gets its own `--state-dir`,
+  except `crash`, which reuses one on purpose to relaunch after `kill -9`.
 - Audible decrypt is proved by `bash scripts/verify.sh decrypt` (synthetic
   AAX/AAXC fixtures through the published helper), not by this skill.
 - Remote Audible download is blocked: it needs a real account, and this skill
   never reads stored credentials. Report it as blocked.
+- `corpus` is opt-in and not in `run.sh`'s default list: set
+  `ABB_CORPUS_DIR=<folder of the owner's audiobooks>` and run `run.sh corpus`.
+  It reads the owner's files but works only on copies, and compares title,
+  chapters, and length after encode and Preserve (`features/corpus.sh`).
 - A new feature is a new `features/<name>.sh` added to `run.sh`'s list; check
   the result with ffprobe or the JSON, not with abb-dev's exit code alone.

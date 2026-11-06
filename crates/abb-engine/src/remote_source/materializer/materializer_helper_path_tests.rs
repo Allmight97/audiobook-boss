@@ -1,5 +1,42 @@
 use super::*;
 
+fn make_executable(path: &Path) {
+    std::fs::write(path, b"helper").expect("write executable fixture");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(path)
+            .expect("executable metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(path, permissions).expect("chmod executable fixture");
+    }
+}
+
+fn repo_sidecar_path(root: &Path) -> PathBuf {
+    root.join("src-tauri")
+        .join("binaries")
+        .join(HELPER_SIDECAR_FILE)
+}
+
+fn target_debug_exe_path(root: &Path) -> PathBuf {
+    root.join("target").join("debug").join("audiobook-boss")
+}
+
+fn packaged_exe_path(root: &Path) -> PathBuf {
+    root.join("AudioBook Boss.app")
+        .join("Contents")
+        .join("MacOS")
+        .join("audiobook-boss")
+}
+
+fn packaged_helper_path(root: &Path) -> PathBuf {
+    root.join("AudioBook Boss.app")
+        .join("Contents")
+        .join("MacOS")
+        .join(HELPER_NAME)
+}
+
 #[test]
 fn env_helper_path_wins() {
     let root = tempfile::TempDir::new().expect("temp root");

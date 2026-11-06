@@ -22,9 +22,7 @@ required-features = ["binding-export"]
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "audiobook_boss_lib"
-# Tauri packaging needs these crate types. Use one package/target-selected
-# `cargo test` command at a time for Rust review instead of changing packaging
-# artifacts to influence test discovery.
+# Tauri packaging needs these crate types.
 crate-type = ["staticlib", "cdylib", "rlib"]
 doctest = false
 
@@ -37,6 +35,7 @@ tauri = { version = "2.12.5", features = [] }
 tauri-plugin-opener = "2.7.2"
 tauri-plugin-dialog = "2.8.3"
 serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.154", optional = true }
 log = "0.4.29"
 env_logger = "0.11.10"
 tokio = { version = "1.53.3", features = ["sync", "time"] }
@@ -48,13 +47,15 @@ specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }
 
 [dev-dependencies]
+tauri = { version = "2.12.5", features = ["test"] }
+serde_json = "1.0.154"
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "sync", "test-util", "time"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
 
 default = []
-binding-export = []
+binding-export = ["dep:serde_json"]
 bundled-ffmpeg = ["abb-engine/bundled-ffmpeg"]
 
 [lints]

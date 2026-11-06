@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 
 export interface Finding {
 	file: string;
@@ -33,7 +34,13 @@ const ENGINE_DIR = (dir: string) => (file: string) =>
 	OWNED_RUST(file) && !RUST_TEST_FILE(file) && file.startsWith(`crates/abb-engine/src/${dir}/`);
 const PURE_CORE = (file: string) =>
 	OWNED_RUST(file) && !RUST_TEST_FILE(file) && /^crates\/abb-[a-z-]+-core\/src\//.test(file);
-const PROVIDER_NEUTRAL_OWNERS = ['processing', 'audio', 'metadata', 'output_artifact'];
+const PROVIDER_NEUTRAL_OWNERS = [
+	'processing',
+	'audio',
+	'metadata',
+	'output_artifact',
+	'work_runtime',
+];
 const SCRIPT_SOURCE = (file: string) =>
 	/\.(ts|tsx|js|mjs)$/.test(file) &&
 	!file.startsWith('vendor/') &&
@@ -61,6 +68,13 @@ const OWNED_SOURCE = (file: string) =>
 	file !== 'src/lib/generated/tauri.ts';
 const STAND_IN_COMMENT =
 	/(?:^|\s)(?:\/\/+|#|\/\*+|\*)\s*([-=]{3,}\s*\S.*?\s*[-=]{3,}|EXCEPTION:|DO NOT REMOVE)/;
+const HISTORY_COMMENT =
+	/(?:^|\s)(?:\/\/+[!/]?|#|\/\*+|\*)\s.*\b(as it did|did under|this branch|this PR|formerly|dropped because|used to be)\b|(?:^|\s)(?:\/\/+|#)\s.*\b([0-9a-f]{8}:[\w./-]+:\d+)/;
+const EXCUSE_COMMENT =
+	/^\s*\/\/+[!/]?\s*(shortcut|TODO|FIXME|HACK|XXX|workaround)\b|^\s*\/\/.*(intentional architecture|not (?:a )?temporary)/;
+const PLANNING_COMMENT = /^\s*\/\/.*(\(#\d+ (?:Branch|residual|follow-?up|phase))/;
+const UNENFORCED_CLAIM = /^\s*\/\/.*\b(never panics?|cannot panic|will not panic)\b/;
+const PIN_TAG = /^\s*#\s*pin: .+; unpin when /;
 
 const SILENCED = /2>\s*\/dev\/null|\|\|\s*true\b/;
 const CAPTURE_WITH_SILENCE = /\$\((?:[^()]|\([^()]*\))*(2>\s*\/dev\/null|\|\|\s*true\b)/;
@@ -123,11 +137,26 @@ const RULES: Rule[] = [
 			'reaches into remote_source from an owner that takes provider-neutral facts. Fix: receive the fact through its caller (crates/abb-engine/src/remote_source/AGENTS.md).',
 	},
 	{
-		appliesTo: ENGINE_DIR('work_runtime'),
+		appliesTo: ENGINE_DIR('audio'),
 		comment: /^\s*\/\//,
-		findIn: (line) => line.match(/\bremote_source::materializer\b/)?.[0] ?? null,
+		findIn: (line) => CODE_ONLY(line).match(/\bfs::(?:rename|copy|hard_link)\b/)?.[0] ?? null,
 		message:
-			'imports the materializer into WorkRuntime. Fix: reach processing through `processing::run` (crates/abb-engine/src/work_runtime/AGENTS.md).',
+			'moves a file outside the output artifact boundary. Fix: stage locally and commit through crate::output_artifact (crates/abb-engine/src/audio/processor/AGENTS.md).',
+	},
+	{
+		appliesTo: (file) => ENGINE_DIR('session')(file) && !file.endsWith('/runtime.rs'),
+		comment: /^\s*\/\//,
+		findIn: (line) =>
+			CODE_ONLY(line).match(/\b(?:std|tokio)::fs\b|\bFile::(?:open|create)\b/)?.[0] ?? null,
+		message:
+			'does file I/O in a session state module. Fix: return a ticket and let runtime.rs perform the I/O (crates/abb-engine/src/session/AGENTS.md).',
+	},
+	{
+		appliesTo: (file) => file === 'src/test/fixtures/fakeEngine.ts',
+		comment: /^\s*(\/\/|\*|\/\*)/,
+		findIn: (line) => line.match(/\bintent\.kind\b(?!\s*===\s*'import')/)?.[0] ?? null,
+		message:
+			'puts a product rule in the fake engine. Fix: seed the answer on the intent, or add a recorded scenario (src/app/AGENTS.md, Tests).',
 	},
 	{
 		appliesTo: SOLID_SOURCE,
@@ -180,6 +209,51 @@ const RULES: Rule[] = [
 	},
 	{
 		appliesTo: OWNED_SOURCE,
+		findIn: (line) => {
+			const match = line.match(HISTORY_COMMENT);
+			return match ? (match[1] ?? match[2]) : null;
+		},
+		message:
+			"is a comment that narrates history. Fix: delete it and state today's rule as a name, type, test, or check.",
+	},
+	{
+		appliesTo: OWNED_RUST,
+		findIn: (line) => line.match(EXCUSE_COMMENT)?.[1] ?? line.match(EXCUSE_COMMENT)?.[2] ?? null,
+		message:
+			'is a comment that excuses code. Fix: fix the code, or record the gap in an issue; do not leave it in code.',
+	},
+	{
+		appliesTo: OWNED_RUST,
+		findIn: (line) => line.match(PLANNING_COMMENT)?.[1] ?? null,
+		message:
+			'is a comment that cites planning jargon. Fix: state the rule; keep at most an issue number.',
+	},
+	{
+		appliesTo: OWNED_RUST,
+		findIn: (line) => line.match(/^\s*\/\/\s*(Safety:)/)?.[1] ?? null,
+		message:
+			'looks like a safety comment but is not one. Fix: write `// SAFETY:` directly above an `unsafe` block, or delete the comment.',
+	},
+	{
+		appliesTo: OWNED_RUST,
+		findIn: (line) => line.match(UNENFORCED_CLAIM)?.[1] ?? null,
+		message:
+			'is a comment that claims what nothing enforces. Fix: return a `Result`, assert it, or drop the claim.',
+	},
+	{
+		appliesTo: OWNED_RUST,
+		findIn: (line) => line.match(/^\s*\/\/\/.*(\(None if [a-z ]+\))/)?.[1] ?? null,
+		message:
+			'restates the `Option` in its doc, and the doc reaches the generated TypeScript. Fix: state the unit or meaning only.',
+	},
+	{
+		appliesTo: OWNED_RUST,
+		findIn: (line) => line.match(/reason\s*=\s*"(joined by (?:the|a) )/)?.[1] ?? null,
+		message:
+			'gives a vague join reason. Fix: name the function that joins the task, as `joined by <function>`.',
+	},
+	{
+		appliesTo: OWNED_SOURCE,
 		findIn: (line) => line.match(STAND_IN_COMMENT)?.[1] ?? null,
 		message:
 			'is a comment that stands in for structure or enforcement. Fix: split the code where a banner sits, follow the rule an EXCEPTION stamp excuses, and replace a scare comment with a name, type, test, or check.',
@@ -211,9 +285,49 @@ function testModuleFindings(file: string, lines: string[]): Finding[] {
 	});
 }
 
+export function cargoPinFindings(file: string, text: string): Finding[] {
+	if (path.basename(file) !== 'Cargo.toml' || file.startsWith('vendor/')) return [];
+	const lines = text.split('\n');
+	return lines.flatMap((line, index) => {
+		if (!/"=\d/.test(line) || /^\s*#/.test(line)) return [];
+		for (let above = index - 1; above >= 0 && lines[above].trim() !== ''; above -= 1) {
+			if (PIN_TAG.test(lines[above])) return [];
+		}
+		return [
+			{
+				file,
+				line: index + 1,
+				message: `\`${line.trim()}\` is an exact pin without a tag. Fix: add \`# pin: <why>; unpin when <trigger or YYYY-MM-DD>\` above it (scripts/AGENTS.md, Dependencies).`,
+			},
+		];
+	});
+}
+
+export function packagePinFindings(packageJson: string, scriptsGuidance: string): Finding[] {
+	const manifest = JSON.parse(packageJson) as {
+		dependencies?: Record<string, string>;
+		devDependencies?: Record<string, string>;
+		overrides?: Record<string, string>;
+	};
+	const exact = Object.entries({ ...manifest.dependencies, ...manifest.devDependencies })
+		.filter(([, version]) => /^(?:npm:[^@]+@)?\d/.test(version))
+		.map(([name]) => name);
+	const overrides = Object.keys(manifest.overrides ?? {}).map((name) => `${name} (override)`);
+	return [...exact, ...overrides]
+		.filter((pin) => !scriptsGuidance.includes(`| \`package.json\` | \`${pin}\` |`))
+		.map((pin) => ({
+			file: 'package.json',
+			line: 1,
+			message: `\`${pin}\` is an exact pin without a row in the pin table. Fix: add \`| \`package.json\` | \`${pin}\` | pin: <why>; unpin when <trigger> |\` to scripts/AGENTS.md, Dependencies.`,
+		}));
+}
+
 export function checkFile(file: string, text: string): Finding[] {
 	const rules = RULES.filter((rule) => rule.appliesTo(file));
-	const findings: Finding[] = testModuleFindings(file, text.split('\n'));
+	const findings: Finding[] = [
+		...testModuleFindings(file, text.split('\n')),
+		...cargoPinFindings(file, text),
+	];
 	let insideCapture = false;
 	const lines = text.split('\n');
 	lines.forEach((line, index) => {
@@ -240,14 +354,82 @@ export function checkFile(file: string, text: string): Finding[] {
 	return findings;
 }
 
+const SAMPLES_DIR = 'crates/abb-engine/src/app_settings/samples/';
+const CHANGE_VERB: Record<string, string> = {
+	M: 'modified',
+	D: 'deleted',
+	R: 'renamed',
+	T: 'changed',
+};
+
+export function frozenSampleFindings(nameStatus: string): Finding[] {
+	return nameStatus.split('\n').flatMap((entry) => {
+		const [status, file] = entry.split('\t');
+		if (!file?.startsWith(SAMPLES_DIR) || status.startsWith('A')) return [];
+		const verb = CHANGE_VERB[status[0]] ?? 'changed';
+		return [
+			{
+				file,
+				line: 1,
+				message: `was ${verb}. Samples are frozen saved-settings files from real releases. Fix: restore it and add a new sample instead (crates/abb-engine/src/app_settings/AGENTS.md, Storage).`,
+			},
+		];
+	});
+}
+
+function git(repoRoot: string, args: string[]): string {
+	return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+}
+
+export function changedSampleFindings(repoRoot: string, against?: string): Finding[] {
+	if (against === undefined) {
+		return frozenSampleFindings(
+			git(repoRoot, ['diff', '--cached', '--find-renames', '--name-status']),
+		);
+	}
+	const resolved = git(repoRoot, [
+		'rev-parse',
+		'--verify',
+		'--end-of-options',
+		`${against}^{commit}`,
+	]).trim();
+	const mergeBase = git(repoRoot, ['merge-base', '--', resolved, 'HEAD']).trim();
+	return frozenSampleFindings(
+		git(repoRoot, ['diff', '--find-renames', '--name-status', mergeBase, 'HEAD']),
+	);
+}
+
+function sampleFindings(repoRoot: string, against?: string): Finding[] {
+	try {
+		return changedSampleFindings(repoRoot, against);
+	} catch (error) {
+		throw new Error(
+			`check-known-mistakes: cannot compare with ${against ?? 'the staged index'}. Fetch the base with its ancestry; a missing base fails closed.`,
+			{ cause: error },
+		);
+	}
+}
+
 function main(): number {
+	const { values } = parseArgs({ options: { against: { type: 'string' } } });
 	const repoRoot = path.resolve(import.meta.dirname, '..');
 	const tracked = execFileSync('git', ['ls-files'], { cwd: repoRoot, encoding: 'utf8' })
 		.split('\n')
-		.filter((file) => file && (OWNED_RUST(file) || RULES.some((rule) => rule.appliesTo(file))));
-	const findings = tracked.flatMap((file) =>
-		checkFile(file, readFileSync(path.join(repoRoot, file), 'utf8')),
-	);
+		.filter(
+			(file) =>
+				file &&
+				(OWNED_RUST(file) ||
+					path.basename(file) === 'Cargo.toml' ||
+					RULES.some((rule) => rule.appliesTo(file))),
+		);
+	const findings = [
+		...tracked.flatMap((file) => checkFile(file, readFileSync(path.join(repoRoot, file), 'utf8'))),
+		...packagePinFindings(
+			readFileSync(path.join(repoRoot, 'package.json'), 'utf8'),
+			readFileSync(path.join(repoRoot, 'scripts/AGENTS.md'), 'utf8'),
+		),
+		...sampleFindings(repoRoot, values.against),
+	];
 	for (const finding of findings) {
 		console.error(`${finding.file}:${finding.line}: ${finding.message}`);
 	}

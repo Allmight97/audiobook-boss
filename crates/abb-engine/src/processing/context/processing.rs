@@ -7,14 +7,6 @@ use crate::processing::ProgressEvent;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-#[cfg(test)]
-fn default_processing_workspace_root() -> PathBuf {
-    std::env::temp_dir()
-        .join("audiobook-boss")
-        .join("processing")
-        .join("sessions")
-}
-
 pub(crate) type ProgressEventListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
 
 #[derive(Debug, Clone)]
@@ -113,20 +105,6 @@ impl ProcessingContext {
             progress_listener: None,
             title_output: None,
         }
-    }
-
-    #[cfg(test)]
-    pub fn new_headless(
-        session: Arc<ProcessingSession>,
-        sample_rate: SampleRateConfig,
-        output: OutputConfig,
-    ) -> Self {
-        Self::new_headless_with_workspace_root(
-            session,
-            sample_rate,
-            output,
-            default_processing_workspace_root(),
-        )
     }
 
     #[cfg(test)]

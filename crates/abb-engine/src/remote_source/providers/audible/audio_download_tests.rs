@@ -22,6 +22,7 @@ struct Stub {
     url: String,
     client: reqwest::Client,
     range_starts: Arc<Mutex<Vec<u64>>>,
+    user_agents: Arc<Mutex<Vec<String>>>,
 }
 
 fn body() -> Vec<u8> {
@@ -55,6 +56,8 @@ async fn start_stub(script: Vec<Serve>) -> Stub {
     let address = listener.local_addr().expect("stub address");
     let range_starts = Arc::new(Mutex::new(Vec::new()));
     let recorded = Arc::clone(&range_starts);
+    let user_agents = Arc::new(Mutex::new(Vec::new()));
+    let recorded_agents = Arc::clone(&user_agents);
 
     tokio::spawn(async move {
         let body = body();
@@ -65,8 +68,9 @@ async fn start_stub(script: Vec<Serve>) -> Stub {
             let Ok(mut tls) = acceptor.accept(tcp).await else {
                 return;
             };
-            let start = read_range_start(&mut tls).await;
+            let (start, user_agent) = read_range_start(&mut tls).await;
             recorded.lock().expect("ranges").push(start);
+            recorded_agents.lock().expect("agents").push(user_agent);
             if matches!(serve, Serve::Close) {
                 let _ = tls.shutdown().await;
                 continue;
@@ -113,10 +117,13 @@ async fn start_stub(script: Vec<Serve>) -> Stub {
         url: format!("https://{address}/book.aaxc"),
         client,
         range_starts,
+        user_agents,
     }
 }
 
-async fn read_range_start(tls: &mut tokio_rustls::server::TlsStream<tokio::net::TcpStream>) -> u64 {
+async fn read_range_start(
+    tls: &mut tokio_rustls::server::TlsStream<tokio::net::TcpStream>,
+) -> (u64, String) {
     let mut request = Vec::new();
     let mut buffer = [0u8; 1024];
     while !request.windows(4).any(|window| window == b"\r\n\r\n") {
@@ -126,14 +133,24 @@ async fn read_range_start(tls: &mut tokio_rustls::server::TlsStream<tokio::net::
         }
         request.extend_from_slice(&buffer[..read]);
     }
-    String::from_utf8_lossy(&request)
-        .lines()
-        .find_map(|line| {
-            line.to_ascii_lowercase()
-                .strip_prefix("range: bytes=")
-                .and_then(|range| range.trim_end_matches('-').parse().ok())
+    let head = String::from_utf8_lossy(&request);
+    let header = |name: &str| {
+        head.lines().find_map(|line| {
+            let (key, value) = line.split_once(':')?;
+            key.eq_ignore_ascii_case(name)
+                .then(|| value.trim().to_string())
         })
-        .expect("ranged request")
+    };
+    let start = header("range")
+        .and_then(|range| {
+            range
+                .strip_prefix("bytes=")?
+                .trim_end_matches('-')
+                .parse()
+                .ok()
+        })
+        .expect("ranged request");
+    (start, header("user-agent").unwrap_or_default())
 }
 
 const LOG: DownloadLogContext<'static> = DownloadLogContext {
@@ -163,6 +180,10 @@ async fn a_truncated_download_resumes_to_the_exact_bytes() {
     assert_eq!(bytes, BODY_LEN as u64);
     assert_eq!(std::fs::read(&target).expect("downloaded bytes"), body());
     assert_eq!(*stub.range_starts.lock().expect("ranges"), [0, 400]);
+    assert_eq!(
+        *stub.user_agents.lock().expect("agents"),
+        [AUDIBLE_DOWNLOAD_USER_AGENT; 2]
+    );
     assert!(!partial_sibling(&target).exists());
 }
 

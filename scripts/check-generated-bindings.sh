@@ -22,4 +22,9 @@ if ! cmp -s "${bindings_file}" "${temporary}/tauri.ts"; then
  diff -u "${bindings_file}" "${temporary}/tauri.ts" || [[ $? -eq 1 ]]
  exit 1
 fi
+fixtures_dir="src/lib/generated/fixtures"
+if ! diff -ru -x '.*' "${fixtures_dir}" "${temporary}/fixtures"; then
+ printf 'Contract fixtures are stale or differ from the recorder: run bun run bindings:generate\n' >&2
+ exit 1
+fi
 printf 'Bindings are up to date.\n'

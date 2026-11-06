@@ -175,8 +175,8 @@ pub(crate) fn build_draft(
     if valid.iter().any(|title| title.choice_required) {
         return Err(SubmitRefusal::AudioChoiceRequired);
     }
-    // A preview is a listening check, not the export; only an export needs one.
-    let untitled = (!inputs.preview)
+    let export_needs_title = !inputs.preview;
+    let untitled = export_needs_title
         .then(|| valid.iter().find(|title| !title.has_title))
         .flatten();
     if let Some(untitled) = untitled {
@@ -239,7 +239,6 @@ pub(crate) fn build_draft(
             collision_policy: None,
             preflight_signature: None,
             supplemental_assets_by_input_id: inputs.supplemental_assets,
-            // Recorded when the runtime accepts the draft (`Session::capture_decoder`).
             aac_decoder: None,
         },
         metadata: (!metadata.is_empty()).then_some(metadata),

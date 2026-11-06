@@ -5,7 +5,6 @@ export type StatusView = {
 	readonly jobItems: ReadonlyArray<JobListItem>;
 	readonly progressPercentage: number;
 	readonly statusText: string;
-	readonly statusTextLockUntilEpochMs: number;
 	readonly stepText: string;
 	readonly stepColor: string;
 	readonly concurrencyText: string;
@@ -20,7 +19,6 @@ export const DEFAULT_STATUS_VIEW: StatusView = {
 	jobItems: [],
 	progressPercentage: 0,
 	statusText: 'Idle',
-	statusTextLockUntilEpochMs: 0,
 	stepText: 'Current Step: Waiting for files...',
 	stepColor: 'var(--text-primary)',
 	concurrencyText: '',
@@ -28,8 +26,6 @@ export const DEFAULT_STATUS_VIEW: StatusView = {
 	progressActive: false,
 	cancelAllPending: false,
 };
-
-const DEFAULT_USER_STATUS_LOCK_TTL_MS = 1_500;
 
 type StatusPublisher = (view: StatusView) => void;
 
@@ -49,20 +45,11 @@ export type StatusViewStore = {
 	setCancelAllPending: (isPending: boolean) => void;
 	showError: (message: string) => void;
 	showInfo: (message: string) => void;
-	pushTransient: (message: string, ttlMs?: number) => void;
 };
-
-function normalizeStatusLockTtlMs(ttlMs: number): number {
-	if (!Number.isFinite(ttlMs)) return 0;
-	return Math.max(0, Math.trunc(ttlMs));
-}
 
 export function createStatusViewStore(): StatusViewStore {
 	let snapshot: StatusView = DEFAULT_STATUS_VIEW;
 	let publisher: StatusPublisher | null = null;
-	let statusMessageLockTimeoutId: number | null = null;
-	let statusBeforeUserMessageLock: string | null = null;
-	let queuedStatusAfterUserMessageLock: string | null = null;
 
 	function commit(): void {
 		publisher?.(snapshot);
@@ -73,56 +60,6 @@ export function createStatusViewStore(): StatusViewStore {
 		commit();
 	}
 
-	function isUserMessageLockActive(nowMs: number = Date.now()): boolean {
-		return snapshot.statusTextLockUntilEpochMs > nowMs;
-	}
-
-	function clearUserMessageLock(): void {
-		if (statusMessageLockTimeoutId !== null) {
-			window.clearTimeout(statusMessageLockTimeoutId);
-			statusMessageLockTimeoutId = null;
-		}
-
-		const restoredStatus = queuedStatusAfterUserMessageLock ?? statusBeforeUserMessageLock;
-		snapshot = {
-			...snapshot,
-			statusTextLockUntilEpochMs: 0,
-			statusText: restoredStatus ?? snapshot.statusText,
-		};
-		statusBeforeUserMessageLock = null;
-		queuedStatusAfterUserMessageLock = null;
-		commit();
-	}
-
-	function pushUserMessageLock(
-		value: string,
-		ttlMs: number = DEFAULT_USER_STATUS_LOCK_TTL_MS,
-	): void {
-		if (!isUserMessageLockActive()) {
-			statusBeforeUserMessageLock = snapshot.statusText;
-			queuedStatusAfterUserMessageLock = null;
-		}
-
-		if (statusMessageLockTimeoutId !== null) {
-			window.clearTimeout(statusMessageLockTimeoutId);
-			statusMessageLockTimeoutId = null;
-		}
-
-		const lockTtlMs = normalizeStatusLockTtlMs(ttlMs);
-		snapshot = {
-			...snapshot,
-			statusText: value,
-			statusTextLockUntilEpochMs: lockTtlMs > 0 ? Date.now() + lockTtlMs : 0,
-		};
-		commit();
-
-		if (lockTtlMs > 0) {
-			statusMessageLockTimeoutId = window.setTimeout(() => {
-				clearUserMessageLock();
-			}, lockTtlMs);
-		}
-	}
-
 	const store: StatusViewStore = {
 		snapshot: () => snapshot,
 		bindPublisher(next) {
@@ -131,12 +68,6 @@ export function createStatusViewStore(): StatusViewStore {
 		},
 		reset() {
 			snapshot = { ...DEFAULT_STATUS_VIEW, jobItems: [] };
-			if (statusMessageLockTimeoutId !== null) {
-				window.clearTimeout(statusMessageLockTimeoutId);
-				statusMessageLockTimeoutId = null;
-			}
-			statusBeforeUserMessageLock = null;
-			queuedStatusAfterUserMessageLock = null;
 			commit();
 		},
 		setCoverArtSrc(src) {
@@ -149,15 +80,6 @@ export function createStatusViewStore(): StatusViewStore {
 			patch({ progressPercentage: value });
 		},
 		setStatusText(value) {
-			if (isUserMessageLockActive()) {
-				queuedStatusAfterUserMessageLock = value;
-				return;
-			}
-			if (snapshot.statusTextLockUntilEpochMs > 0) {
-				clearUserMessageLock();
-			}
-			queuedStatusAfterUserMessageLock = null;
-			statusBeforeUserMessageLock = null;
 			patch({ statusText: value });
 		},
 		setStepText(value) {
@@ -185,9 +107,6 @@ export function createStatusViewStore(): StatusViewStore {
 		showInfo(message) {
 			store.setStepText(message);
 			store.setStepColor(DEFAULT_STATUS_VIEW.stepColor);
-		},
-		pushTransient(message, ttlMs) {
-			pushUserMessageLock(message, ttlMs);
 		},
 	};
 

@@ -50,13 +50,7 @@ fn emitted_progress_normalizes_non_finite_percentage() {
     })
     .with_progress_listener(Some(listener));
 
-    emitter.emit_custom(
-        ProcessingStage::Converting,
-        f32::NAN,
-        "Encoding",
-        None,
-        None,
-    );
+    emitter.emit_converting_progress(f32::NAN, "Encoding", None, None);
 
     let event = captured
         .lock()

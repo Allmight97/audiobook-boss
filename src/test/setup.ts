@@ -1,18 +1,10 @@
 import '@testing-library/jest-dom/vitest';
-import { pathBasename } from '../lib/path/basename';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { audioFile, fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
-import type {
-	OperationSnapshot,
-	SupportedAudioImportMetadata,
-	WorkOperationsSnapshot,
-} from '../lib/generated/tauri';
+import type { SupportedAudioImportMetadata, WorkOperationsSnapshot } from '../lib/generated/tauri';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
 const eventListeners = new Map<string, Set<TestEventHandler>>();
-let mockJobCounter = 0;
-let mockRevision = 0;
-const mockOperations = new Map<string, OperationSnapshot>();
 
 function emitTestEvent(event: string, payload: unknown): void {
 	const handlers = eventListeners.get(event);
@@ -20,147 +12,6 @@ function emitTestEvent(event: string, payload: unknown): void {
 	for (const handler of handlers) {
 		handler({ event, id: Date.now(), payload });
 	}
-}
-
-function mockOrder(): string[] {
-	return [...mockOperations.values()]
-		.toSorted((a, b) => b.sequence - a.sequence)
-		.map((operation) => operation.operationId);
-}
-
-function mockOperationList(): WorkOperationsSnapshot {
-	return {
-		revision: mockRevision,
-		order: mockOrder(),
-		operations: mockOrder().map((id) => mockOperations.get(id)!),
-	};
-}
-
-function publishMockOperation(snapshot: OperationSnapshot): void {
-	mockOperations.set(snapshot.operationId, snapshot);
-	emitTestEvent('work-operations-update', {
-		revision: ++mockRevision,
-		order: mockOrder(),
-		changed: snapshot,
-	});
-}
-
-function mockOperationSnapshot(
-	operationId: string,
-	kind: 'processingBatch' | 'metadataSave',
-	inputFiles: string[],
-	submittedTitle?: string,
-): OperationSnapshot {
-	const isMetadataSave = kind === 'metadataSave';
-	const title = isMetadataSave
-		? `Metadata save (${inputFiles.length} files)`
-		: (submittedTitle ?? `Batch encode (${inputFiles.length} files)`);
-	const lanes = (
-		isMetadataSave ? ['metadataWrite'] : ['analysis', 'encodeCpu', 'outputCommit']
-	) as OperationSnapshot['lanes'];
-	const childLane = (
-		isMetadataSave ? 'metadataWrite' : 'encodeCpu'
-	) as OperationSnapshot['lanes'][number];
-	return {
-		operationId,
-		sequence: mockJobCounter,
-		revision: 1,
-		kind,
-		status: 'accepted' as const,
-		title,
-		createdAtMs: Date.now(),
-		startedAtMs: null,
-		finishedAtMs: null,
-		cancellable: true,
-		cancelRequested: false,
-		lanes,
-		sourceInputIds: [],
-		progress: {
-			stage: 'pending' as const,
-			percentage: 0,
-			message: 'Accepted.',
-			currentItemIndex: null,
-			totalItems: inputFiles.length,
-			bytesDownloaded: null,
-			bytesTotal: null,
-			etaSeconds: null,
-		},
-		children: inputFiles.map((path, index) => ({
-			childJobId: isMetadataSave ? `metadata-${index}` : `input-${index}`,
-			operationId,
-			label: pathBasename(path, { fallback: 'path' }),
-			status: 'queued' as const,
-			startedAtMs: null,
-			finishedAtMs: null,
-			lane: childLane,
-			progress: {
-				stage: 'pending' as const,
-				percentage: 0,
-				message: 'Queued.',
-				currentItemIndex: null,
-				totalItems: inputFiles.length,
-				bytesDownloaded: null,
-				bytesTotal: null,
-				etaSeconds: null,
-			},
-			sourcePath: path,
-			inputIndex: index,
-			inputId: null,
-			sourceInputIds: [],
-			jobId: null,
-			cancellable: false,
-			cancelRequested: false,
-			message: null,
-			outputPath: null,
-			supplementalWarning: null,
-			warnings: [],
-			outputUpdate: null,
-		})),
-		terminalSummary: null,
-		errors: [],
-		logTail: [],
-	};
-}
-
-export function publishMockMetadataSave(filePaths: string[]): void {
-	mockJobCounter += 1;
-	const operationId = `mock-metadata-operation-${mockJobCounter}`;
-	const baseSnapshot = mockOperationSnapshot(operationId, 'metadataSave', filePaths);
-	publishMockOperation(baseSnapshot);
-	publishMockOperation({
-		...baseSnapshot,
-		revision: baseSnapshot.revision + 1,
-		status: 'running',
-		startedAtMs: Date.now(),
-	});
-	publishMockOperation({
-		...baseSnapshot,
-		revision: baseSnapshot.revision + 2,
-		status: 'completed' as const,
-		startedAtMs: Date.now(),
-		finishedAtMs: Date.now(),
-		cancellable: false,
-		progress: {
-			...baseSnapshot.progress,
-			stage: 'complete' as const,
-			percentage: 100,
-			message: `Completed ${filePaths.length} item(s).`,
-		},
-		children: baseSnapshot.children.map((child) => ({
-			...child,
-			status: 'completed' as const,
-			progress: { ...child.progress, stage: 'complete' as const, percentage: 100 },
-			message: 'Metadata saved',
-		})),
-		terminalSummary: {
-			total: filePaths.length,
-			succeeded: filePaths.length,
-			skipped: 0,
-			cancelled: 0,
-			failed: 0,
-			message: `Completed ${filePaths.length} item(s).`,
-		},
-	});
 }
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -203,36 +54,11 @@ vi.mock('@tauri-apps/api/core', () => ({
 					supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
 				} satisfies SupportedAudioImportMetadata);
 			case 'list_work_operations':
-				return Promise.resolve(mockOperationList());
-			case 'cancel_work_operation': {
-				const args = _args as { operationId?: string; childJobId?: string | null } | undefined;
-				const current = mockOperations.get(args?.operationId ?? '');
-				if (!current) return Promise.reject(new Error('Operation not found'));
-				if (args?.childJobId) {
-					const snapshot: OperationSnapshot = {
-						...current,
-						revision: current.revision + 1,
-						children: current.children.map((child) =>
-							child.childJobId === args.childJobId
-								? { ...child, cancelRequested: true, cancellable: false }
-								: child,
-						),
-					};
-					publishMockOperation(snapshot);
-					return Promise.resolve(snapshot);
-				}
-				if (!current.cancellable) return Promise.resolve(current);
-				const snapshot: OperationSnapshot = {
-					...current,
-					revision: current.revision + 1,
-					status: 'cancelling' as const,
-					cancelRequested: true,
-					cancellable: false,
-				};
-				publishMockOperation(snapshot);
-				return Promise.resolve(snapshot);
-			}
-
+				return Promise.resolve({
+					revision: 0,
+					order: [],
+					operations: [],
+				} satisfies WorkOperationsSnapshot);
 			default:
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);
 		}
@@ -256,9 +82,6 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
 	open: vi.fn().mockResolvedValue(null),
-	save: vi.fn().mockResolvedValue(null),
-	message: vi.fn().mockResolvedValue(undefined),
-	confirm: vi.fn().mockResolvedValue(false),
 }));
 
 vi.mock('@tauri-apps/plugin-opener', () => ({
@@ -269,8 +92,6 @@ Object.defineProperty(window, '__TAURI_INTERNALS__', {
 	value: undefined,
 	writable: true,
 });
-
-vi.stubEnv('DEV', true);
 
 function startFakeEngine(): void {
 	resetFakeEngine();
@@ -306,42 +127,9 @@ startFakeEngine();
 
 beforeEach(() => {
 	eventListeners.clear();
-	mockJobCounter = 0;
-	mockRevision = 0;
-	mockOperations.clear();
 	startFakeEngine();
 });
 
 afterEach(() => {
 	eventListeners.clear();
-	mockJobCounter = 0;
-	mockRevision = 0;
-	mockOperations.clear();
-});
-
-const storage = new Map<string, string>();
-const localStorageMock = {
-	getItem: (key: string): string | null => (storage.has(key) ? storage.get(key)! : null),
-	setItem: (key: string, value: string): void => {
-		storage.set(key, value);
-	},
-	removeItem: (key: string): void => {
-		storage.delete(key);
-	},
-	clear: (): void => {
-		storage.clear();
-	},
-	key: (index: number): string | null => Array.from(storage.keys())[index] ?? null,
-	get length(): number {
-		return storage.size;
-	},
-};
-
-Object.defineProperty(window, 'localStorage', {
-	value: localStorageMock,
-	configurable: true,
-});
-Object.defineProperty(globalThis, 'localStorage', {
-	value: localStorageMock,
-	configurable: true,
 });

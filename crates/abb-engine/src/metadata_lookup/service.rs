@@ -1,33 +1,6 @@
-//! Canonical metadata lookup service.
-//!
-//! External metadata providers are inherently partial, unavailable, and uneven.
-//! This module implements resilient provider aggregation with three explicit
-//! degraded-mode behaviors, each with a trigger, observable diagnostic, and
-//! rationale:
-//!
-//! 1. **ASIN detail unavailable → text search used**: When a query contains a valid
-//!    ASIN, `search_online_metadata` tries `fetch_audnexus_book` first. If that
-//!    precise route fails, it continues through the normal selected-provider search
-//!    path and emits an `AsinDirectLookupUnavailableTextSearchUsed` diagnostic.
-//!    Rationale: precise lookup is preferred, but graceful degradation keeps the
-//!    feature useful when the provider endpoint is down.
-//!
-//! 2. **Selected source failed → partial results**: `collect_provider_searches`
-//!    attempts each selected provider independently. If at least one returns
-//!    usable results, the command succeeds with those results and a
-//!    `SourceFailedPartialResults` diagnostic for each failed source. Terminal
-//!    failure only occurs when *all* selected sources fail.
-//!    Rationale: multi-provider resilience; discarding valid results because one
-//!    provider is down is worse UX.
-//!
-//! 3. **Audnexus detail unavailable → Audible-only provenance**: Audnexus search
-//!    uses Audible catalog hits plus Audnexus detail enrichment. When detail
-//!    enrichment is unavailable for a specific hit, the Audible-derived result is
-//!    returned with `audible_only: true` and an
-//!    `AudnexusDetailUnavailableAudibleOnlyResult` diagnostic.
-//!    Rationale: honest provenance; we keep the hit but mark it as unenriched.
-//!
-//! These behaviors are intentional architecture, not temporary workarounds.
+//! Online metadata search over Audnexus and Open Library. A failed source leaves
+//! the usable results plus a typed `MetadataLookupDiagnostic`; the search fails
+//! only when every selected source fails.
 
 use std::time::Duration;
 
@@ -126,7 +99,6 @@ pub(crate) async fn search_online_metadata(
         ));
     }
 
-    // Merge results: Audnexus first (higher priority), then OpenLibrary fills gaps
     let merged = merge_search_results(
         provider_output.audnexus_results,
         provider_output.openlibrary_results,

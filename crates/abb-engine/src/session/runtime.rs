@@ -339,8 +339,6 @@ impl Session {
     }
 
     fn lock(&self) -> MutexGuard<'_, SessionState> {
-        // A panic mid-transition leaves state that is still structurally
-        // valid; the session keeps serving rather than failing every intent.
         self.inner
             .state
             .lock()
@@ -381,10 +379,6 @@ impl Session {
         let session = self.clone();
         self.inner.deps.tasks.spawn(async move {
             loop {
-                // Read under the session lock, so no submission can reserve a
-                // file between this check and its removal. The flag clears
-                // under the same lock, so a transition that frees a download
-                // afterwards starts the next sweep.
                 let jobs = session.transition(|state| {
                     let held = session.inner.deps.work.sources_held();
                     let jobs = state.begin_staged_removal(&held, now());
@@ -422,8 +416,6 @@ impl Session {
     }
 
     fn resolve_plans(&self, tickets: Vec<PlanTicket>) {
-        // Without a runtime (engine construction) plans stay pending until
-        // the next change.
         if tokio::runtime::Handle::try_current().is_err() {
             return;
         }
@@ -559,11 +551,6 @@ impl Session {
         let mut snapshot = self.lock().update_since(None);
         self.inner.deps.remote.add_ui_parts(&mut snapshot, None);
         snapshot
-    }
-
-    #[cfg(test)]
-    pub(crate) fn cover_art(&self) -> Option<Vec<u8>> {
-        self.lock().displayed_cover()
     }
 
     pub(crate) fn export_in_preparation(&self) -> Option<crate::work_runtime::OperationId> {
@@ -1014,8 +1001,6 @@ impl Session {
             }
         };
         let titles = staged_titles(job);
-        // A list locked by an export being prepared or reviewed unlocks when
-        // it ends; the download waits for that rather than being dropped.
         let listed = loop {
             let unlocked = self.inner.list_unlocked.notified();
             tokio::pin!(unlocked);
@@ -1225,7 +1210,6 @@ impl Session {
         inspected: crate::processing::plan::InspectedProcessingPlan,
     ) -> SessionOutcome {
         let deps = &self.inner.deps;
-        // Concurrency stays fixed while the preview runs.
         let _active_run = deps.jobs.hold_run();
         let cancels: Vec<Arc<AtomicBool>> = (0..draft.payload.input_files.len())
             .map(|_| Arc::default())
@@ -1242,8 +1226,6 @@ impl Session {
             }
         }
         let artwork = super::preview::PreviewArtwork::from_plan(&inspected);
-        // Admitted after the flags are visible, so shutdown either sees
-        // this preview to cancel or the preview sees shutdown.
         if self
             .inner
             .deps
@@ -1451,7 +1433,6 @@ impl Session {
     }
 
     fn begin_save(&self) -> Rest {
-        // Source paths are canonical, so match either spelling of the root.
         let staged = &self.inner.deps.temporary_root;
         let staged_canonical = std::fs::canonicalize(staged).ok();
         let is_temporary = |path: &Path| {
@@ -1464,8 +1445,6 @@ impl Session {
             if state.working_set.files().is_empty() {
                 return None;
             }
-            // Read under the session lock, so a submission cannot register its
-            // sources between this read and the save plan.
             let in_use = self.inner.deps.work.sources_in_use();
             let plan = state.begin_save(&in_use, is_temporary)?;
             Some((state.epoch, plan))
@@ -1678,8 +1657,6 @@ impl Session {
                 let mut state = self.lock();
                 let in_use = self.inner.deps.work.sources_in_use();
                 if !state.has_waiting_writes() {
-                    // Cleared under the state lock, where a Save adds waiting
-                    // writes, so a new one always finds a writer or starts one.
                     self.inner
                         .deferred_writer_running
                         .store(false, Ordering::SeqCst);

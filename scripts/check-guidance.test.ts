@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { checkGuidance, type GuidanceContext, isGuidanceFile } from './check-guidance';
+import {
+	checkGuidance,
+	type GuidanceContext,
+	isGuidanceFile,
+	skillFrontmatterFindings,
+} from './check-guidance';
 
 const context: GuidanceContext = {
 	packageScripts: new Set(['app:dev:log', 'test']),
@@ -19,6 +24,27 @@ describe('check-guidance', () => {
 		expect(isGuidanceFile('README.md')).toBe(true);
 		expect(isGuidanceFile('CHANGELOG.md')).toBe(false);
 		expect(isGuidanceFile('vendor/ffmpeg-sys-next-9.0.1/README.md')).toBe(false);
+		expect(isGuidanceFile('tools/abb-aaxclean-helper/README.md')).toBe(true);
+		expect(isGuidanceFile('vendor/opus/ABB-PROVENANCE.md')).toBe(true);
+	});
+
+	it('rejects skill frontmatter that is not valid YAML', () => {
+		const file = '.agents/skills/probe/SKILL.md';
+		expect(
+			skillFrontmatterFindings(
+				file,
+				'---\nname: probe\ndescription: Work: do a thing\n---\n# Probe',
+			),
+		).toEqual([
+			expect.objectContaining({ line: 2, message: expect.stringMatching(/not valid YAML/) }),
+		]);
+		expect(
+			skillFrontmatterFindings(
+				file,
+				'---\nname: probe\ndescription: "Work: do a thing"\n---\n# Probe',
+			),
+		).toEqual([]);
+		expect(skillFrontmatterFindings(file, '# Probe')).toHaveLength(1);
 	});
 
 	it('passes guidance that names lanes and scripts', () => {

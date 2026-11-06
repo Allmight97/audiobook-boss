@@ -129,11 +129,6 @@ pub(crate) async fn save_metadata_batch(
     {
         Ok(registration) => registration,
         Err(error) => {
-            // The operation is already Running + cancellable when the permit wait
-            // begins, so a cancel during that wait surfaces here as
-            // `AppError::Cancellation`, which WorkRuntime terminalizes as
-            // Cancelled. The caller still gets per-file results so pending
-            // drafts are preserved without reporting a failure.
             runtime.finish_metadata_save_operation(host, &operation_id, Err(&error))?;
             if matches!(error, AppError::Cancellation(_)) {
                 return Ok(cancelled_metadata_save_batch(items));
@@ -308,10 +303,7 @@ fn save_metadata_item(
         .map(|(before, after)| Rewrite { before, after }))
 }
 
-/// Builds the progress event fed to the metadata-save operation. `job_id` is
-/// `None` on purpose: the operation matches progress to children by
-/// `input_index`, and a shared `job_id` would cross-match in
-/// `WorkRuntimeState::apply_progress_event`.
+/// Progress for a metadata-save operation; children match by `input_index`.
 fn metadata_save_progress_event(progress: MetadataSaveProgress) -> ProgressEvent {
     ProgressEvent {
         operation_kind: OperationKind::MetadataSave,

@@ -38,19 +38,9 @@ pub use types::{
     ProcessResultSummary, ProcessingPreflightPlan, SupplementalProcessingAsset, TitleSource,
 };
 
+pub(crate) use context::processing::ProgressEventListener;
 pub(crate) use job_registry::{CancellationChecker, JobRegistry};
+pub(crate) use progress::EtaEstimator;
 pub(crate) use progress::{
     converting_percentage, converting_percentage_from_seconds, ProgressEmitter,
 };
-#[cfg(test)]
-pub(crate) fn preflight_payload(
-    payload: ProcessPayload,
-    metadata: Option<std::collections::HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview: bool,
-) -> crate::Result<ProcessingPreflightPlan> {
-    run::inspect_processing_plan(&payload, metadata.as_ref(), preview)
-        .map(|inspected| inspected.plan.to_public())
-}
-
-pub(crate) use context::processing::ProgressEventListener;
-pub(crate) use progress::EtaEstimator;

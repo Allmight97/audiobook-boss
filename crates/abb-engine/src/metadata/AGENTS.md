@@ -19,9 +19,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   container strategy applies. Single-file Preserve is the exception: it may
   Save a patch after `remux_preserved_audio_container`, and a non-MP4 Save is
   a remux, so `audio/processor/preserve.rs` verifies the chapters after it.
-  The FFmpeg mov muxer silently drops dict keys outside its known-atom table
-  (series, series-part, sort_album), so MP4-family tag truth never depends on
-  a bare remux.
+  MP4-family tag truth never depends on a bare remux (the mov muxer drops
+  unknown keys; rustdoc on `finish_artifact_tags`).
   `finalize_artifact_metadata` is the same finish for a preserved merge, after
   a remux that carries chapters and cover.
 - A Save (`save_metadata_with_plan`) never opens the original for writing. It
@@ -83,15 +82,27 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Cover intent comes only from cover actions (load, drop, clear). A text edit
   or Lookup apply that keeps the cover leaves cover intent absent, so a save
   does not rewrite unchanged art.
-- Processed outputs carry the album sort (TSOA) from `processing_album_sort`:
+- Processed outputs carry the album sort (the ID3 `TSOA` frame in MP3, the
+  sort-album atom in the MP4 family) from `processing_album_sort`:
   derived from series, book # and title when possible (fractions kept, so
   novellas sort between books), else the source's own; explicit album-sort
   intent wins. Every processing route takes it from `plan_metadata_outcome`
   (effective metadata, or `write_intent` for single-file preserve). Metadata
-  saves preserve TSOA unless explicitly changed, because a save edits the user's
-  own source file.
+  saves preserve the sort unless explicitly changed, because a save edits the
+  user's own source file. FFmpeg names the MP3 frame `album-sort` and the MP4
+  atom `sort_album`: `merge_metadata_with_plan` writes the name the output
+  container uses and drops the other only when the save sets or clears the
+  sort (otherwise both stay as found); Matroska's `SORT_ALBUM` is the
+  `sort_album` key, and tag keys compare ignoring case, since Matroska and ID3
+  user text frames report upper case. `reader.rs` reads `album-sort`, then
+  `sort_album`, so an MP3 tagged by an older ABB still reads. Why: a
+  `sort_album` key on MP3 is a stray TXXX frame no library reads.
+- Processing writes only a derived album sort: an underivable one already
+  equals the source's own value, so writing it would rewrite tags for no
+  change.
 - Keep `AlbumSortWriteAction` on `MetadataWritePlan` as its own action, apart
-  from generic field set/clear ops.
+  from generic field set/clear ops. Why: its key depends on the output
+  container, and a Save keeps it unless told otherwise.
 - Track/disk are read-compatible passthrough fields: the form never edits them,
   `MetadataIntentPatch` carries them only as explicit artifact set/clear intent,
   and full `AudiobookMetadata` writes them when present.
@@ -115,10 +126,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   validation/normalization, and cover-art handling. Clear intent is the
   explicit blank field action, never a sentinel value.
 - Publication-date and series/subseries sequence validation stay in this
-  boundary. Changes to tag precedence (canonical, mirrored, compatibility),
-  the provider-degradation contract, or container routing carry evidence and
-  update this file.
-- FFmpeg COMM reads prefer `comment`, then undescribed language keys, then
+  boundary.- FFmpeg COMM reads prefer `comment`, then undescribed language keys, then
   described comments, with lexical key order breaking ties. Explicit comment
   set/clear removes those user-comment aliases; an absent field preserves them.
   `iTun*` COMM descriptors are technical passthrough records, never display or

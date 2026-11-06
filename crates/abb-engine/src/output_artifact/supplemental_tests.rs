@@ -77,10 +77,10 @@ fn supplemental_output_asset_rejects_oversized_pdf() {
         .create_new(true)
         .open(&source)
         .expect("create source");
-    file.set_len(abb_media_core::MAX_SUPPLEMENTAL_PDF_BYTES + 1)
+    file.set_len(100 * 1024 * 1024 + 1)
         .expect("make sparse oversized pdf");
     std::fs::write(&source, b"%PDF-").expect("write header");
-    file.set_len(abb_media_core::MAX_SUPPLEMENTAL_PDF_BYTES + 1)
+    file.set_len(100 * 1024 * 1024 + 1)
         .expect("restore sparse oversized size");
     let final_audio = root.path().join("Book One.m4b");
 
@@ -91,6 +91,26 @@ fn supplemental_output_asset_rejects_oversized_pdf() {
     .expect_err("oversized pdf should fail");
 
     assert!(error.to_string().contains("100 MiB size limit"));
+}
+
+#[test]
+fn supplemental_output_asset_accepts_a_pdf_of_exactly_100_mib() {
+    let root = TempDir::new().expect("temp root");
+    let source = root.path().join("source.pdf");
+    std::fs::write(&source, b"%PDF-").expect("write header");
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&source)
+        .expect("open source")
+        .set_len(104_857_600)
+        .expect("make sparse pdf of exactly 100 MiB");
+    let final_audio = root.path().join("Book One.m4b");
+
+    commit_supplemental_output_asset(SupplementalOutputAssetCommitRequest::new(
+        &source,
+        &final_audio,
+    ))
+    .expect("the limit itself is allowed");
 }
 
 #[test]

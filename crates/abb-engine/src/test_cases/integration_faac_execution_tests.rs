@@ -1,7 +1,8 @@
 //! Real-media proofs for the bundled FAAC encoder: HE and LC timing, Auto
 //! profile resolution, and re-import alignment against external decoders.
 
-use super::integration_media_execution_tests::{
+use super::media_fixtures::ffmpeg;
+use super::media_fixtures::{
     assert_auto_merge_stereo, assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32,
     ffprobe_format_tags, native_encoder_settings, title_audio_request, MediaLane, SAMPLE_RATE,
 };
@@ -15,7 +16,6 @@ use abb_engine::{
     MetadataIntentPatch, PatchOp,
 };
 use std::fs;
-use std::process::Command;
 use std::sync::Arc;
 
 pub(crate) fn faac_encoder_settings() -> EncoderSettings {
@@ -155,7 +155,7 @@ async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
             let source = decode_pcm_f32(&lane.inputs[0]);
             let output = lane.process(None).await;
             let decoded_path = lane.tmp.path().join("apple.wav");
-            let converted = Command::new("afconvert")
+            let converted = std::process::Command::new("afconvert")
                 .args(["-f", "WAVE", "-d", "LEF32"])
                 .arg(&output)
                 .arg(&decoded_path)
@@ -261,7 +261,7 @@ async fn apple_he_aac_with_itunsmpb_reimports_aligned_and_full_length_with_both_
     fs::write(&lane.inputs[0], wav).expect("fixture value");
     let source = decode_pcm_f32(&lane.inputs[0]);
     let he = lane.tmp.path().join("apple-he.m4a");
-    let encoded = Command::new("afconvert")
+    let encoded = std::process::Command::new("afconvert")
         .args(["-f", "m4af", "-d", "aach", "-b", "32000"])
         .arg(&lane.inputs[0])
         .arg(&he)
@@ -474,21 +474,22 @@ fn best_signal_lag(reference: &[f32], decoded: &[f32], radius: i32) -> i32 {
 }
 
 fn write_center_only_surround_aac(path: &std::path::Path) {
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let output = Command::new(&binary)
-        .args(["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i"])
-        .arg(format!(
-            "aevalsrc=0|0|0.3*sin(2*PI*440*t):c=3.0:s={SAMPLE_RATE}:d=1"
-        ))
-        .args(["-c:a", "aac", "-b:a", "192k", "-y"])
-        .arg(path)
-        .output()
-        .expect("spawn ffmpeg for the surround fixture");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    let source = format!("aevalsrc=0|0|0.3*sin(2*PI*440*t):c=3.0:s={SAMPLE_RATE}:d=1");
+    ffmpeg([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        source.as_str(),
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-y",
+        path.to_str().expect("utf8 path"),
+    ]);
 }
 
 #[tokio::test]

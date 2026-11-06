@@ -20,7 +20,6 @@ pub(crate) fn validate_processing_inputs(
                 file.error.as_deref().unwrap_or("Unknown error")
             )));
         }
-        // Safety: ensure path passes our centralized validation again.
         let source = crate::audio::path_validation::validate_input_audio_path(&file.path)?;
         let expected = file.chapter_plan.as_ref().ok_or_else(|| {
             AppError::InvalidInput(

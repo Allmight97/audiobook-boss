@@ -1,5 +1,15 @@
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { checkFile } from './check-known-mistakes';
+import {
+	cargoPinFindings,
+	changedSampleFindings,
+	checkFile,
+	frozenSampleFindings,
+	packagePinFindings,
+} from './check-known-mistakes';
 
 const DISABLE = ['oxlint', 'disable'].join('-');
 
@@ -72,6 +82,136 @@ describe('check-known-mistakes', () => {
 		).toEqual([]);
 	});
 
+	it('keeps final artifact moves inside output_artifact', () => {
+		const processor = 'crates/abb-engine/src/audio/processor/finalize.rs';
+		expect(found(processor, '\tstd::fs::copy(&staged, &final_path)?;')).toEqual([
+			expect.stringMatching(/^1: `fs::copy` moves a file outside the output artifact boundary/),
+		]);
+		expect(found(processor, '\ttokio::fs::hard_link(a, b).await?;')).toHaveLength(1);
+		expect(found(processor, '\tlet name = "fs::rename";\n\t// fs::copy')).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/audio/processor/finalize_tests.rs', 'fs::copy(a, b)?;'),
+		).toEqual([]);
+		expect(found('crates/abb-engine/src/output_artifact/commit.rs', 'fs::copy(a, b)?;')).toEqual(
+			[],
+		);
+	});
+
+	it('keeps file I/O out of the session state modules', () => {
+		expect(
+			found('crates/abb-engine/src/session/state.rs', 'let bytes = std::fs::read(path)?;'),
+		).toEqual([expect.stringMatching(/^1: `std::fs` does file I\/O in a session state module/)]);
+		expect(
+			found('crates/abb-engine/src/session/plans.rs', 'let file = File::open(path)?;'),
+		).toHaveLength(1);
+		expect(
+			found('crates/abb-engine/src/session/runtime.rs', 'let file = File::open(path)?;'),
+		).toEqual([]);
+		expect(found('crates/abb-engine/src/session/state_tests.rs', 'std::fs::read(path)?;')).toEqual(
+			[],
+		);
+	});
+
+	it('keeps product rules out of the fake engine', () => {
+		const fake = 'src/test/fixtures/fakeEngine.ts';
+		expect(
+			found(fake, "\t\tif (!answered && intent.kind === 'import') appendFiles(paths);"),
+		).toEqual([]);
+		expect(found(fake, "\t\tif (intent.kind === 'setField') rewrite(intent);")).toEqual([
+			expect.stringMatching(/^1: `intent\.kind` puts a product rule in the fake engine/),
+		]);
+		expect(found(fake, '\t\tswitch (intent.kind) {')).toHaveLength(1);
+		expect(
+			found('src/test/fixtures/recordedInvoke.ts', "if (intent.kind === 'setField') x();"),
+		).toEqual([]);
+	});
+
+	it('rejects comments that narrate history', () => {
+		expect(found('src/app/x.ts', '// Advances as it did before the rewrite.')).toEqual([
+			expect.stringMatching(/^1: `as it did` is a comment that narrates history/),
+		]);
+		expect(found('src-tauri/Cargo.toml', '# formerly pinned by hand')).toHaveLength(1);
+		expect(
+			found(
+				'crates/abb-engine/src/x.rs',
+				'/// Replaces the old store, dropped because it was heavy.',
+			),
+		).toHaveLength(1);
+		expect(found('scripts/x.sh', '# d7c41f03:scripts/setup.sh:24 is the cause')).toHaveLength(1);
+		expect(found('src/app/x.ts', '// A reply that lands after disposal changes nothing.')).toEqual(
+			[],
+		);
+		expect(found('src/app/x.ts', 'const note = "as it did";')).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/x.rs', '/// A read begun before the save can no longer land.'),
+		).toEqual([]);
+	});
+
+	it('rejects Rust comments that excuse code, mislabel safety, or claim what nothing enforces', () => {
+		const file = 'crates/abb-engine/src/x.rs';
+		expect(found(file, '    // shortcut: upgrade this later')).toEqual([
+			expect.stringMatching(/^1: `shortcut` is a comment that excuses code/),
+		]);
+		expect(found(file, '    // TODO tidy this')).toHaveLength(1);
+		expect(found(file, '//! These behaviors are intentional architecture.')).toHaveLength(1);
+		expect(found(file, '    // Safety: ensure the path passes validation.')).toHaveLength(1);
+		expect(found(file, '    // SAFETY: the pointer is valid for the call.')).toEqual([]);
+		expect(found(file, '    /// Cleans up and never panics.')).toHaveLength(1);
+		expect(found(file, '    /// Seconds (None if unavailable)')).toHaveLength(1);
+		expect(found(file, '    /// Seconds.')).toEqual([]);
+		expect(found(file, '/// Names the rule (#299 Branch A).')).toHaveLength(1);
+		expect(found(file, '/// Names the rule (#299).')).toEqual([]);
+		expect(found(file, '#[expect(lint, reason = "joined by the test that starts it")]')).toEqual([
+			expect.stringMatching(/^1: `joined by the ` gives a vague join reason/),
+		]);
+		expect(found(file, '#[expect(lint, reason = "joined by run_job")]')).toEqual([]);
+	});
+
+	it('requires a pin tag above each exact Cargo pin', () => {
+		const tag = '# pin: prerelease family; unpin when specta 2.0.0 is stable';
+		expect(cargoPinFindings('crates/x/Cargo.toml', `${tag}\nspecta = "=2.0.0-rc.25"`)).toEqual([]);
+		expect(
+			cargoPinFindings(
+				'crates/x/Cargo.toml',
+				`${tag}\nspecta = "=2.0.0-rc.25"\nspecta-typescript = "=0.0.12"`,
+			),
+		).toEqual([]);
+		expect(cargoPinFindings('crates/x/Cargo.toml', 'specta = "=2.0.0-rc.25"')).toEqual([
+			expect.objectContaining({
+				line: 1,
+				message: expect.stringContaining('exact pin without a tag'),
+			}),
+		]);
+		expect(
+			cargoPinFindings('crates/x/Cargo.toml', `${tag}\n\nspecta = "=2.0.0-rc.25"`),
+		).toHaveLength(1);
+		expect(
+			cargoPinFindings('crates/x/Cargo.toml', '# pin: no trigger\nspecta = "=1.0.0"'),
+		).toHaveLength(1);
+		expect(cargoPinFindings('crates/x/Cargo.toml', 'serde = "1.0"')).toEqual([]);
+		expect(cargoPinFindings('vendor/x/Cargo.toml', 'specta = "=2.0.0-rc.25"')).toEqual([]);
+	});
+
+	it('requires a pin-table row for each exact package pin and override', () => {
+		const manifest = JSON.stringify({
+			dependencies: { 'solid-js': '2.0.0-rc.18' },
+			devDependencies: { typescript: 'npm:typescript@7.0.2', vitest: '^4.0.0' },
+			overrides: { undici: '^7.30.1' },
+		});
+		const rows = [
+			'| `package.json` | `solid-js` | pin: a; unpin when b |',
+			'| `package.json` | `typescript` | pin: a; unpin when b |',
+			'| `package.json` | `undici (override)` | pin: a; unpin when b |',
+		];
+		expect(packagePinFindings(manifest, rows.join('\n'))).toEqual([]);
+		expect(packagePinFindings(manifest, rows.slice(1).join('\n'))).toEqual([
+			expect.objectContaining({ message: expect.stringContaining('`solid-js` is an exact pin') }),
+		]);
+		expect(packagePinFindings(manifest, rows.slice(0, 2).join('\n'))).toEqual([
+			expect.objectContaining({ message: expect.stringContaining('`undici (override)`') }),
+		]);
+	});
+
 	it('keeps pure cores free of I/O and provider names', () => {
 		expect(
 			found('crates/abb-media-core/src/lib.rs', 'let bytes = std::fs::read(path)?;'),
@@ -127,7 +267,6 @@ describe('check-known-mistakes', () => {
 		expect(found('src/lib/probe.ts', 'export function Probe({ name }: Props) {')).toEqual([]);
 	});
 
-	// d7c41f03:scripts/setup.sh:24 and :142; BSD sed reads \? as a literal ?.
 	it('rejects GNU-only regex escapes in sed', () => {
 		expect(found('scripts/setup.sh', `\tsed -n '2,12p' "$0" | sed 's/^# \\?//'`)).toEqual([
 			expect.stringMatching(/^1: .*GNU-only/),
@@ -233,5 +372,86 @@ describe('check-known-mistakes', () => {
 
 	it('leaves vendored code alone', () => {
 		expect(found('vendor/x/build.sh', "sed 's/a\\?//'")).toEqual([]);
+	});
+});
+
+const SAMPLES = 'crates/abb-engine/src/app_settings/samples';
+
+function sampleRepo(body: (root: string, git: (...args: string[]) => string) => void): void {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'abb-samples-'));
+	const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+	try {
+		git('init', '-q', '-b', 'main');
+		git('config', 'user.email', 'samples@example.com');
+		git('config', 'user.name', 'Samples Test');
+		git('config', 'commit.gpgsign', 'false');
+		mkdirSync(path.join(root, SAMPLES), { recursive: true });
+		writeFileSync(path.join(root, SAMPLES, 'first.toml'), '[keep_awake]\nenabled = true\n');
+		git('add', '-A');
+		git('commit', '-q', '-m', 'base', '--no-verify');
+		body(root, git);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+}
+
+describe('frozen settings samples', () => {
+	it('allows a new sample and rejects a changed, deleted, or renamed one', () => {
+		const dir = `${SAMPLES}/`;
+		expect(frozenSampleFindings(`A\t${dir}new.toml`)).toEqual([]);
+		expect(frozenSampleFindings(`M\tsrc/other.toml\nD\tcrates/x.toml`)).toEqual([]);
+		for (const [entry, verb] of [
+			[`M\t${dir}first.toml`, 'modified'],
+			[`D\t${dir}first.toml`, 'deleted'],
+			[`R100\t${dir}first.toml\t${dir}second.toml`, 'renamed'],
+		]) {
+			const [finding] = frozenSampleFindings(entry);
+			expect(finding.file).toBe(`${dir}first.toml`);
+			expect(finding.message).toContain(`was ${verb}`);
+			expect(finding.message).toContain('frozen saved-settings files from real releases');
+			expect(finding.message).toContain('add a new sample');
+		}
+	});
+
+	it('fails on a staged edit, deletion, or rename and passes on a staged new sample', () => {
+		sampleRepo((root, git) => {
+			const first = path.join(root, SAMPLES, 'first.toml');
+			writeFileSync(path.join(root, SAMPLES, 'added.toml'), '[keep_awake]\nenabled = false\n');
+			git('add', '-A');
+			expect(changedSampleFindings(root)).toEqual([]);
+			git('reset', '-q');
+
+			writeFileSync(first, '[keep_awake]\nenabled = false\n');
+			git('add', '-A');
+			expect(changedSampleFindings(root).map((finding) => finding.file)).toEqual([
+				`${SAMPLES}/first.toml`,
+			]);
+			git('reset', '-q', '--hard');
+
+			rmSync(first);
+			git('add', '-A');
+			expect(changedSampleFindings(root)[0].message).toContain('was deleted');
+			git('reset', '-q', '--hard');
+
+			renameSync(first, path.join(root, SAMPLES, 'renamed.toml'));
+			git('add', '-A');
+			expect(changedSampleFindings(root)[0].message).toContain('was renamed');
+		});
+	});
+
+	it('compares a branch with the merge base when given a base', () => {
+		sampleRepo((root, git) => {
+			git('checkout', '-q', '-b', 'work');
+			writeFileSync(path.join(root, SAMPLES, 'added.toml'), 'x = 1\n');
+			git('add', '-A');
+			git('commit', '-q', '-m', 'add', '--no-verify');
+			expect(changedSampleFindings(root, 'main')).toEqual([]);
+			writeFileSync(path.join(root, SAMPLES, 'first.toml'), 'x = 2\n');
+			git('add', '-A');
+			git('commit', '-q', '-m', 'edit', '--no-verify');
+			expect(changedSampleFindings(root, 'main').map((finding) => finding.file)).toEqual([
+				`${SAMPLES}/first.toml`,
+			]);
+		});
 	});
 });

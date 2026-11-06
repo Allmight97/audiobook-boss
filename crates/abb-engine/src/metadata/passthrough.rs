@@ -182,7 +182,6 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
                 }));
         }
 
-        // Update offset for next file using known duration (seconds).
         // Rounded like the synthetic-chapter math so both paths agree.
         if let Some(duration) = file.duration {
             cumulative_offset_ms += (duration * 1000.0).round() as i64;

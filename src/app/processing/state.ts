@@ -24,20 +24,16 @@ export type ProcessingStatus =
 
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'skipped' | 'failed' | 'cancelled';
 
-export function isActiveEventStage(stage: ProcessingStatus['stage']): stage is ActiveEventStage {
+function isActiveEventStage(stage: ProcessingStatus['stage']): stage is ActiveEventStage {
 	return stage === 'analyzing' || stage === 'converting' || stage === 'writing';
 }
 
 export function buildStatus(
-	stage: ProcessingStatus['stage'],
+	stage: Exclude<ProcessingStatus['stage'], 'idle' | 'skipped'>,
 	percentage: number,
 	message: string,
 	active?: { currentFile?: string | null; etaSeconds?: number | null },
 ): ProcessingStatus {
-	if (stage === 'idle') {
-		return { stage, percentage: 0, message };
-	}
-
 	if (isActiveEventStage(stage)) {
 		const currentFile = active?.currentFile ?? undefined;
 		const etaSeconds = active?.etaSeconds ?? undefined;

@@ -40,7 +40,6 @@ impl Harness {
             operation_id: "operation-1".into(),
             lane: AaxcleanLane::Aax,
             input_path: PathBuf::from("/tmp/source.aax"),
-            output_temp_path: self.partial.clone(),
             output_path: self.output.clone(),
             secret: AaxcleanSecret::Aax {
                 activation_bytes_hex: SecretString::from("0a0b0c0d"),

@@ -188,8 +188,7 @@ node_meets_pinned_major() {
 }
 
 # Capture stdout and stderr: Homebrew prints `-version` on stderr.
-# Parse with awk, not sed `\?`: macOS BSD sed left Homebrew's `version 9.0.1`
-# unmatched after CI poured ffmpeg 9.0.1_1.
+# Parse with awk, not sed `\?`: BSD sed reads it as a literal.
 ffmpeg_major() {
 	local bin="$1"
 	"${bin}" -version 2>&1 | awk '
@@ -677,8 +676,6 @@ ensure_shellcheck() {
 		return
 	fi
 	if is_linux; then
-		# Only the tooling lane needs shellcheck; a frontend-only agent
-		# without root (Claude cloud hook) must still finish setup.
 		if ! can_run_as_root; then
 			log "Skipping shellcheck: apt needs root or sudo. Only verify.sh tooling uses it."
 			return

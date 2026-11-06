@@ -146,8 +146,7 @@ describe('ModalController', () => {
 	it('retries initial focus on the next animation frame when the first attempt is refused', async () => {
 		const { container, first } = dialogWithFields();
 		const modal = new ModalController();
-		// Simulate WebKit refusing focus mid-visibility-transition: the first
-		// focus() call is a no-op, later calls behave normally.
+		// Simulate WebKit refusing focus mid-visibility-transition.
 		// oxlint-disable-next-line typescript/unbound-method -- the spy calls the native focus with its own `this`.
 		const nativeFocus = HTMLElement.prototype.focus;
 		let refusals = 1;
@@ -182,23 +181,9 @@ describe('ModalController', () => {
 
 		expect(onEscape).toHaveBeenCalledTimes(1);
 		expect(event.defaultPrevented).toBe(true);
-	});
-
-	it('delegates to a guarded callback: Escape still calls it even when the callback itself no-ops', async () => {
-		const { container } = dialogWithFields();
-		let cancelDisabled = true;
-		const guardedClose = vi.fn(() => {
-			if (cancelDisabled) return;
-		});
-		const modal = new ModalController();
-		modal.sync(true, { container }, { onEscape: guardedClose });
 
 		container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-		expect(guardedClose).toHaveBeenCalledTimes(1);
-
-		cancelDisabled = false;
-		container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-		expect(guardedClose).toHaveBeenCalledTimes(2);
+		expect(onEscape).toHaveBeenCalledTimes(2);
 	});
 
 	it('wraps Tab from the last focusable element to the first', async () => {

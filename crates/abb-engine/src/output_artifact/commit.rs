@@ -14,10 +14,9 @@ fn collision_state_changed_error(final_path: &Path) -> AppError {
     ))
 }
 
-/// User-facing wording for the destination filesystem refusing the final
-/// commit (#299 Branch A): distinguishes "the destination said no" from
-/// generic processing failure and names the realistic causes. The existing
-/// destination file, if any, is never touched by a refused commit.
+/// User-facing wording for the destination refusing the final commit: names the
+/// realistic causes and tells it apart from a processing failure. The existing
+/// destination file is never touched by a refused commit.
 fn destination_refused_commit_error(final_path: &Path, error: impl std::fmt::Display) -> AppError {
     AppError::FileValidation(format!(
         "The destination refused the final file commit for '{}': {error}. \
@@ -104,7 +103,6 @@ fn publish_by_placeholder(destination_temp: SiblingTemp, final_path: &Path) -> R
             }
             destination_refused_commit_error(final_path, error)
         })?;
-    // shortcut: a crash between the placeholder and the rename leaves an empty file under the final name; upgrade to a no-replace rename (renameat2, renamex_np) if that is seen.
     destination_temp
         .commit_with(final_path, |temp, destination| {
             #[expect(
@@ -183,13 +181,10 @@ fn replacement_temp(final_path: &Path) -> Result<SiblingTemp> {
     })
 }
 
-/// Removes stale `.abb_replace_install_<key>_<uuid>` files left in the
-/// destination directory by a hard crash mid-commit (#391 residual). Error
-/// paths already clean these; only process death between the copy and the
-/// final link or replace can strand one. ABB cannot sweep user-chosen output
-/// directories at startup, so the sweep runs when ABB is about to commit the
-/// same final artifact again — it matches only this file name's key, touches
-/// regular files only, and never blocks the commit.
+/// Removes stale `.abb_replace_install_<key>_<uuid>` files that a crash
+/// mid-commit left in the destination folder. Runs when ABB commits the same
+/// final artifact again; matches only this file name's key, touches regular
+/// files only, and never blocks the commit.
 pub(super) fn remove_stale_replacement_temps(final_path: &Path) {
     let (Some(parent), Ok(tag)) = (final_path.parent(), replacement_temp_tag(final_path)) else {
         return;
@@ -333,24 +328,20 @@ pub(crate) struct FinalizedOutputSuccess {
     pub result_message: String,
 }
 
-fn commit_output_artifact_internal<F, C>(
+pub(crate) fn commit_output_artifact<C>(
     request: OutputCommitRequest<'_>,
     temp_output: PathBuf,
     cleanup_guard: &mut CleanupGuard,
-    after_move: F,
     is_cancelled: C,
 ) -> Result<OutputCommitOutcome>
 where
-    F: FnOnce(),
     C: FnOnce() -> bool,
 {
     let final_output =
         commit_temp_output_to_artifact(temp_output.clone(), request.final_path, request.action)?;
     cleanup_guard.add_path(temp_output);
 
-    // Destination output is now canonical and must not be cleaned up on cancellation.
-    cleanup_guard.remove_path(&final_output);
-    after_move();
+    cleanup_guard.forget_path(&final_output);
 
     let cancelled = is_cancelled();
     let cleanup_warning = cleanup_guard.cleanup_now().err().map(|error| {
@@ -363,39 +354,6 @@ where
         cancelled,
         cleanup_warning,
     })
-}
-
-pub(crate) fn commit_output_artifact<C>(
-    request: OutputCommitRequest<'_>,
-    temp_output: PathBuf,
-    cleanup_guard: &mut CleanupGuard,
-    is_cancelled: C,
-) -> Result<OutputCommitOutcome>
-where
-    C: FnOnce() -> bool,
-{
-    commit_output_artifact_internal(request, temp_output, cleanup_guard, || {}, is_cancelled)
-}
-
-#[cfg(test)]
-pub(crate) fn commit_output_artifact_after_move<F, C>(
-    request: OutputCommitRequest<'_>,
-    temp_output: PathBuf,
-    cleanup_guard: &mut CleanupGuard,
-    after_move: F,
-    is_cancelled: C,
-) -> Result<OutputCommitOutcome>
-where
-    F: FnOnce(),
-    C: FnOnce() -> bool,
-{
-    commit_output_artifact_internal(
-        request,
-        temp_output,
-        cleanup_guard,
-        after_move,
-        is_cancelled,
-    )
 }
 
 pub(crate) fn finalized_output_success(

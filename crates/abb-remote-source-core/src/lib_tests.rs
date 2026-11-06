@@ -8,53 +8,37 @@ use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 
 #[test]
-fn classifies_import_ready_and_protected_source_extensions() {
-    assert_eq!(
-        classify_materialized_source_path(Path::new("book.m4b")),
-        MaterializedSourceKind::ImportReadyM4b
-    );
-    assert_eq!(
-        classify_materialized_source_path(Path::new("book.aax")),
-        MaterializedSourceKind::EncryptedAax
-    );
-    assert_eq!(
-        classify_materialized_source_path(Path::new("book.aaxc")),
-        MaterializedSourceKind::EncryptedAaxc
-    );
-    assert_eq!(
-        classify_materialized_source_path(Path::new("book.pdf")),
-        MaterializedSourceKind::SupplementalPdf
-    );
-}
-
-#[test]
-fn only_m4b_family_is_import_ready_for_materialized_handoff() {
+fn materialized_sources_classify_and_only_m4b_family_is_import_ready() {
     let cases = [
-        (MaterializedSourceKind::ImportReadyM4b, true),
-        (MaterializedSourceKind::EncryptedAax, false),
-        (MaterializedSourceKind::EncryptedAaxc, false),
-        (MaterializedSourceKind::SupplementalPdf, false),
-        (MaterializedSourceKind::Unsupported, false),
+        ("book.m4b", MaterializedSourceKind::ImportReadyM4b, true),
+        ("book.m4a", MaterializedSourceKind::ImportReadyM4b, true),
+        ("book.aax", MaterializedSourceKind::EncryptedAax, false),
+        ("book.aaxc", MaterializedSourceKind::EncryptedAaxc, false),
+        ("book.pdf", MaterializedSourceKind::SupplementalPdf, false),
+        ("book.mpd", MaterializedSourceKind::Unsupported, false),
+        ("book.mp3", MaterializedSourceKind::Unsupported, false),
     ];
 
-    for (kind, expected) in cases {
+    for (path, kind, import_ready) in cases {
+        assert_eq!(
+            classify_materialized_source_path(Path::new(path)),
+            kind,
+            "{path}"
+        );
         assert_eq!(
             materialized_source_is_import_ready(kind),
-            expected,
-            "{kind:?}"
+            import_ready,
+            "{path}"
         );
     }
-}
 
-#[cfg(unix)]
-#[test]
-fn non_utf8_extensions_are_classified_as_unsupported_without_failing_open() {
-    let path = PathBuf::from(OsString::from_vec(b"book.\xFFaax".to_vec()));
-
-    assert_eq!(
-        classify_materialized_source_path(&path),
-        MaterializedSourceKind::Unsupported
-    );
+    #[cfg(unix)]
+    {
+        let path = PathBuf::from(OsString::from_vec(b"book.\xFFaax".to_vec()));
+        let kind = classify_materialized_source_path(&path);
+        assert_eq!(kind, MaterializedSourceKind::Unsupported);
+        assert!(!materialized_source_is_import_ready(kind));
+    }
 }
 
 #[test]

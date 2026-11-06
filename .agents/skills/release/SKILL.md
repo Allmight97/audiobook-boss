@@ -1,6 +1,7 @@
 ---
 name: release
-description: Release work: version and changelog, local install, portable DMG, or GitHub Release.
+description: "Version and changelog, local install, portable DMG, or GitHub Release work. Use when the owner asks to cut, package, or install a release."
+disable-model-invocation: true
 ---
 
 # Release
@@ -37,7 +38,7 @@ or publication that depends on it. Temporary development testing uses `bun run a
 ## Execute And Verify
 
 Read the applicable sections of [execution.md](references/execution.md) for
-the selected lane. Check commands against the live package scripts. That
+the selected lane. That
 reference owns the portable-artifact and publication sequence; owner guidance
 and `scripts/AGENTS.md` determine any additional code verification.
 

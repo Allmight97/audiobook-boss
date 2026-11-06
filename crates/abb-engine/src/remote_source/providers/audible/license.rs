@@ -163,7 +163,6 @@ pub(super) async fn request_license_lane(
                 job_id,
                 title_id,
                 &license,
-                &facts,
                 strategy,
                 license_decrypt_context.is_some(),
                 material.is_some(),
@@ -231,14 +230,13 @@ fn log_license_facts(
     strategy: AcquisitionStrategy,
 ) {
     log::info!(
-        "remote_source audible stage=license_classification job_id={} title_ref={} content_url_present={} container={:?} protection={:?} drm={} decryption_material_present={} supplemental_pdf_present={} strategy={}",
+        "remote_source audible stage=license_classification job_id={} title_ref={} content_url_present={} container={:?} protection={:?} drm={} supplemental_pdf_present={} strategy={}",
         job_id,
         title_ref(title_id),
         facts.content_url.is_some(),
         facts.media_container,
         facts.media_protection,
         drm_log_label(facts.drm_kind.as_deref()),
-        facts.decryption_material_present,
         facts.supplemental_pdf_url.is_some(),
         strategy_label(strategy)
     );
@@ -267,7 +265,6 @@ fn log_missing_license_material(
     job_id: &str,
     title_id: &str,
     license: &Value,
-    facts: &LicenseFacts,
     strategy: AcquisitionStrategy,
     decrypt_context_present: bool,
     material_present: bool,
@@ -282,11 +279,10 @@ fn log_missing_license_material(
         return;
     }
     log::warn!(
-        "remote_source audible stage=license_material_extraction job_id={} title_ref={} strategy={} provider_material_hint={} license_response_present={} content_license_asin_present={} decrypt_context_present={} material_extracted=false",
+        "remote_source audible stage=license_material_extraction job_id={} title_ref={} strategy={} license_response_present={} content_license_asin_present={} decrypt_context_present={} material_extracted=false",
         job_id,
         title_ref(title_id),
         strategy_label(strategy),
-        facts.decryption_material_present,
         find_first_string_for_keys(license, &["license_response", "licenseResponse"]).is_some(),
         find_first_string_for_keys(license, &["asin", "Asin"]).is_some(),
         decrypt_context_present

@@ -11,7 +11,6 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
     apply_metadata_field_ops_to_ffmpeg_dict(&mut dict, metadata)?;
     dict.set("media_type", "2");
 
-    // Album sort is intentionally excluded from field ops and handled by write plans.
     if let Some(ref album_sort) = metadata.album_sort {
         if !album_sort.trim().is_empty() {
             dict.set("sort_album", album_sort);
@@ -21,34 +20,49 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
     Ok(dict)
 }
 
+pub(crate) const MP4_ALBUM_SORT_KEY: &str = "sort_album";
+pub(crate) const ID3_ALBUM_SORT_KEY: &str = "album-sort";
+
+pub(crate) fn album_sort_key(container: &str) -> &'static str {
+    if container == "mp3" {
+        ID3_ALBUM_SORT_KEY
+    } else {
+        MP4_ALBUM_SORT_KEY
+    }
+}
+
 pub(crate) fn merge_metadata_with_plan<'a>(
     existing: ff::Dictionary<'a>,
     plan: &MetadataWritePlan,
+    container: &str,
 ) -> Result<ff::Dictionary<'a>> {
     let metadata = &plan.metadata;
     let removal = ExistingKeyRemoval::for_metadata(metadata);
-    let clears_album_sort = plan.album_sort == AlbumSortWriteAction::Clear;
+    let overrides = metadata_to_ffmpeg_dict(metadata)?;
+    let new_album_sort = match &plan.album_sort {
+        AlbumSortWriteAction::Set(value) if !value.trim().is_empty() => Some(value.as_str()),
+        _ => overrides.get(MP4_ALBUM_SORT_KEY),
+    };
+    let replaces_album_sort =
+        plan.album_sort == AlbumSortWriteAction::Clear || new_album_sort.is_some();
     let mut merged = ff::Dictionary::new();
     for (key, value) in existing.iter() {
-        if (clears_album_sort && key == "sort_album") || removal.removes(key) {
+        let is_album_sort = key.eq_ignore_ascii_case(MP4_ALBUM_SORT_KEY)
+            || key.eq_ignore_ascii_case(ID3_ALBUM_SORT_KEY);
+        if (replaces_album_sort && is_album_sort) || removal.removes(key) {
             continue;
         }
         merged.set(key, value);
     }
 
-    let overrides = metadata_to_ffmpeg_dict(metadata)?;
-    for (key, value) in overrides.iter() {
+    for (key, value) in overrides
+        .iter()
+        .filter(|(key, _)| *key != MP4_ALBUM_SORT_KEY)
+    {
         merged.set(key, value);
     }
-
-    match &plan.album_sort {
-        AlbumSortWriteAction::Preserve => {}
-        AlbumSortWriteAction::Set(value) => {
-            if !value.trim().is_empty() {
-                merged.set("sort_album", value);
-            }
-        }
-        AlbumSortWriteAction::Clear => {}
+    if let Some(value) = new_album_sort {
+        merged.set(album_sort_key(container), value);
     }
 
     Ok(merged)

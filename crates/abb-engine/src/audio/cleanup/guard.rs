@@ -31,7 +31,7 @@ impl CleanupGuard {
         self.paths.insert(path_buf);
     }
 
-    pub fn remove_path<P: AsRef<Path>>(&mut self, path: P) -> bool {
+    pub fn forget_path<P: AsRef<Path>>(&mut self, path: P) -> bool {
         let path_buf = path.as_ref().to_path_buf();
         let removed = self.paths.remove(&path_buf);
         if removed {

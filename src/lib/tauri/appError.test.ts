@@ -56,17 +56,21 @@ describe('isCancellation', () => {
 });
 
 describe('logAppError', () => {
-	it('logs code and category at error level by default', () => {
+	it('logs only the scope, code and category, never the message or detail', () => {
 		const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-		logAppError('Scope', envelope({ code: 'x', category: 'io' }));
+		logAppError(
+			'Scope',
+			envelope({
+				code: 'x',
+				category: 'io',
+				message: '/Users/me/secret.m4b',
+				detail: 'token=sk-abc',
+			}),
+		);
 		expect(spy).toHaveBeenCalledWith('Scope code=x category=io');
-		spy.mockRestore();
-	});
-
-	it('logs at warn level when requested', () => {
-		const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		logAppError('Purge', envelope({ code: 'y', category: 'resource' }), 'warn');
-		expect(spy).toHaveBeenCalledWith('Purge code=y category=resource');
+		const logged = String(spy.mock.calls[0]?.[0]);
+		expect(logged).not.toContain('/Users/me');
+		expect(logged).not.toContain('sk-abc');
 		spy.mockRestore();
 	});
 });

@@ -1,0 +1,1742 @@
+[
+  {
+    "name": "selection",
+    "steps": [
+      {
+        "intent": {
+          "kind": "import",
+          "paths": [
+            "/fixture/media/alpha.wav",
+            "/fixture/media/beta.wav",
+            "/fixture/media/broken.wav"
+          ]
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": null,
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 2,
+          "selection": null,
+          "titles": {
+            "audioChoiceRequired": [],
+            "companions": {},
+            "coversRevision": 0,
+            "files": [
+              {
+                "bitrate": 705600,
+                "channels": 1,
+                "chapterPlan": {
+                  "chapters": [],
+                  "fromCue": false,
+                  "sourceFingerprint": "fixture"
+                },
+                "chapters": [],
+                "codecLabel": "PCM S16LE",
+                "cueSource": null,
+                "duration": 1.0,
+                "error": null,
+                "format": "WAV",
+                "inputId": "title-1",
+                "isValid": true,
+                "path": "/fixture/media/alpha.wav",
+                "preservation": {
+                  "canPreserve": false
+                },
+                "sampleRate": 44100,
+                "selectedDecoder": "FFmpeg default decoder",
+                "size": 88320.0,
+                "tagArtist": "Ann Author",
+                "tagTitle": "Alpha"
+              },
+              {
+                "bitrate": 705600,
+                "channels": 1,
+                "chapterPlan": {
+                  "chapters": [],
+                  "fromCue": false,
+                  "sourceFingerprint": "fixture"
+                },
+                "chapters": [],
+                "codecLabel": "PCM S16LE",
+                "cueSource": null,
+                "duration": 1.0,
+                "error": null,
+                "format": "WAV",
+                "inputId": "title-2",
+                "isValid": true,
+                "path": "/fixture/media/beta.wav",
+                "preservation": {
+                  "canPreserve": false
+                },
+                "sampleRate": 44100,
+                "selectedDecoder": "FFmpeg default decoder",
+                "size": 88324.0,
+                "tagArtist": "  Ann Author  ",
+                "tagTitle": "Beta"
+              },
+              {
+                "bitrate": null,
+                "channels": null,
+                "chapterPlan": null,
+                "chapters": [],
+                "codecLabel": null,
+                "cueSource": null,
+                "duration": null,
+                "error": "FFmpeg error: Invalid data found when processing input",
+                "format": null,
+                "inputId": "title-3",
+                "isValid": false,
+                "path": "/fixture/media/broken.wav",
+                "preservation": null,
+                "sampleRate": null,
+                "selectedDecoder": null,
+                "size": 20.0,
+                "tagArtist": null,
+                "tagTitle": null
+              }
+            ],
+            "notice": null,
+            "orderDiffersFromImport": false,
+            "orderLocked": false,
+            "revision": 2,
+            "sortDirection": "none",
+            "titleSourcesByIdentity": {}
+          }
+        }
+      },
+      {
+        "intent": {
+          "kind": "selectFile",
+          "modifiers": {
+            "multi": false,
+            "range": false
+          },
+          "titleId": "title-1"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": {
+            "binding": 1,
+            "cover": {
+              "custom": false,
+              "imageRevision": 0,
+              "loading": false,
+              "notice": null,
+              "noticeSerial": 0,
+              "present": false,
+              "removalRequested": false
+            },
+            "form": {
+              "fields": [
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "title",
+                  "mixed": false,
+                  "value": "Alpha"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "date",
+                  "mixed": false,
+                  "value": "2001"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "author",
+                  "mixed": false,
+                  "value": "Ann Author"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "narrator",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "series",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "seriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseries",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "genre",
+                  "mixed": false,
+                  "value": "Fantasy"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "description",
+                  "mixed": false,
+                  "value": ""
+                }
+              ],
+              "mode": "single",
+              "selectionCount": 0,
+              "seriesPartWarning": null,
+              "subseriesPartWarning": null,
+              "validationMessage": null
+            },
+            "hasPendingEdits": false,
+            "revision": 3,
+            "saveInProgress": false,
+            "status": null,
+            "tags": {
+              "album": "Alpha",
+              "albumArtist": "Ann Author",
+              "albumSort": "",
+              "artist": "Ann Author",
+              "composer": "",
+              "genre": "Fantasy",
+              "series": "",
+              "seriesPart": "",
+              "subseries": "",
+              "subseriesPart": "",
+              "title": "Alpha",
+              "year": "2001"
+            },
+            "waitingWrites": []
+          },
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 3,
+          "selection": {
+            "revision": 3,
+            "selectedAnchor": 0,
+            "selectedIndices": [
+              0
+            ]
+          },
+          "titles": null
+        }
+      },
+      {
+        "intent": {
+          "kind": "selectFile",
+          "modifiers": {
+            "multi": false,
+            "range": true
+          },
+          "titleId": "title-2"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": {
+            "binding": 2,
+            "cover": {
+              "custom": false,
+              "imageRevision": 0,
+              "loading": false,
+              "notice": null,
+              "noticeSerial": 0,
+              "present": false,
+              "removalRequested": false
+            },
+            "form": {
+              "fields": [
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "title",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "date",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "author",
+                  "mixed": false,
+                  "value": "Ann Author"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "narrator",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "series",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "seriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseries",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "genre",
+                  "mixed": false,
+                  "value": "Fantasy"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "description",
+                  "mixed": false,
+                  "value": ""
+                }
+              ],
+              "mode": "multi",
+              "selectionCount": 2,
+              "seriesPartWarning": null,
+              "subseriesPartWarning": null,
+              "validationMessage": null
+            },
+            "hasPendingEdits": false,
+            "revision": 4,
+            "saveInProgress": false,
+            "status": null,
+            "tags": {
+              "album": "",
+              "albumArtist": "Ann Author",
+              "albumSort": "",
+              "artist": "Ann Author",
+              "composer": "",
+              "genre": "Fantasy",
+              "series": "",
+              "seriesPart": "",
+              "subseries": "",
+              "subseriesPart": "",
+              "title": "",
+              "year": ""
+            },
+            "waitingWrites": []
+          },
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 4,
+          "selection": {
+            "revision": 4,
+            "selectedAnchor": 1,
+            "selectedIndices": [
+              0,
+              1
+            ]
+          },
+          "titles": null
+        }
+      },
+      {
+        "intent": {
+          "kind": "selectAll"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": {
+            "binding": 3,
+            "cover": {
+              "custom": false,
+              "imageRevision": 0,
+              "loading": false,
+              "notice": null,
+              "noticeSerial": 0,
+              "present": false,
+              "removalRequested": false
+            },
+            "form": {
+              "fields": [
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "title",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "date",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "author",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "narrator",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "series",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "seriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseries",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "genre",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "description",
+                  "mixed": false,
+                  "value": ""
+                }
+              ],
+              "mode": "multi",
+              "selectionCount": 3,
+              "seriesPartWarning": null,
+              "subseriesPartWarning": null,
+              "validationMessage": null
+            },
+            "hasPendingEdits": false,
+            "revision": 5,
+            "saveInProgress": false,
+            "status": null,
+            "tags": {
+              "album": "",
+              "albumArtist": "",
+              "albumSort": "",
+              "artist": "",
+              "composer": "",
+              "genre": "",
+              "series": "",
+              "seriesPart": "",
+              "subseries": "",
+              "subseriesPart": "",
+              "title": "",
+              "year": ""
+            },
+            "waitingWrites": []
+          },
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 5,
+          "selection": {
+            "revision": 5,
+            "selectedAnchor": 0,
+            "selectedIndices": [
+              0,
+              1,
+              2
+            ]
+          },
+          "titles": null
+        }
+      },
+      {
+        "intent": {
+          "field": "genre",
+          "kind": "setField",
+          "value": ""
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": {
+            "binding": 3,
+            "cover": {
+              "custom": false,
+              "imageRevision": 0,
+              "loading": false,
+              "notice": null,
+              "noticeSerial": 0,
+              "present": false,
+              "removalRequested": false
+            },
+            "form": {
+              "fields": [
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "title",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "date",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "author",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "narrator",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "series",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "seriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseries",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "blank",
+                  "dirty": true,
+                  "field": "genre",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "description",
+                  "mixed": false,
+                  "value": ""
+                }
+              ],
+              "mode": "multi",
+              "selectionCount": 3,
+              "seriesPartWarning": null,
+              "subseriesPartWarning": null,
+              "validationMessage": null
+            },
+            "hasPendingEdits": false,
+            "revision": 6,
+            "saveInProgress": false,
+            "status": null,
+            "tags": {
+              "album": "",
+              "albumArtist": "",
+              "albumSort": "",
+              "artist": "",
+              "composer": "",
+              "genre": "",
+              "series": "",
+              "seriesPart": "",
+              "subseries": "",
+              "subseriesPart": "",
+              "title": "",
+              "year": ""
+            },
+            "waitingWrites": []
+          },
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 6,
+          "selection": null,
+          "titles": null
+        }
+      },
+      {
+        "intent": {
+          "action": "blank",
+          "field": "author",
+          "kind": "setFieldAction"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": {
+            "binding": 3,
+            "cover": {
+              "custom": false,
+              "imageRevision": 0,
+              "loading": false,
+              "notice": null,
+              "noticeSerial": 0,
+              "present": false,
+              "removalRequested": false
+            },
+            "form": {
+              "fields": [
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "title",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "date",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "blank",
+                  "dirty": true,
+                  "field": "author",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "narrator",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "series",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "seriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseries",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "blank",
+                  "dirty": true,
+                  "field": "genre",
+                  "mixed": true,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "description",
+                  "mixed": false,
+                  "value": ""
+                }
+              ],
+              "mode": "multi",
+              "selectionCount": 3,
+              "seriesPartWarning": null,
+              "subseriesPartWarning": null,
+              "validationMessage": null
+            },
+            "hasPendingEdits": false,
+            "revision": 7,
+            "saveInProgress": false,
+            "status": null,
+            "tags": {
+              "album": "",
+              "albumArtist": "",
+              "albumSort": "",
+              "artist": "",
+              "composer": "",
+              "genre": "",
+              "series": "",
+              "seriesPart": "",
+              "subseries": "",
+              "subseriesPart": "",
+              "title": "",
+              "year": ""
+            },
+            "waitingWrites": []
+          },
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 7,
+          "selection": null,
+          "titles": null
+        }
+      },
+      {
+        "intent": {
+          "kind": "clearSelection"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": {
+            "binding": 4,
+            "cover": {
+              "custom": false,
+              "imageRevision": 0,
+              "loading": false,
+              "notice": null,
+              "noticeSerial": 0,
+              "present": false,
+              "removalRequested": false
+            },
+            "form": {
+              "fields": [
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "title",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "date",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "author",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "narrator",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "series",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "seriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseries",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "genre",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "description",
+                  "mixed": false,
+                  "value": ""
+                }
+              ],
+              "mode": "single",
+              "selectionCount": 0,
+              "seriesPartWarning": null,
+              "subseriesPartWarning": null,
+              "validationMessage": null
+            },
+            "hasPendingEdits": true,
+            "revision": 8,
+            "saveInProgress": false,
+            "status": null,
+            "tags": {
+              "album": "",
+              "albumArtist": "",
+              "albumSort": "",
+              "artist": "",
+              "composer": "",
+              "genre": "",
+              "series": "",
+              "seriesPart": "",
+              "subseries": "",
+              "subseriesPart": "",
+              "title": "",
+              "year": ""
+            },
+            "waitingWrites": []
+          },
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 8,
+          "selection": {
+            "revision": 8,
+            "selectedAnchor": null,
+            "selectedIndices": []
+          },
+          "titles": null
+        }
+      }
+    ]
+  },
+  {
+    "name": "removal",
+    "steps": [
+      {
+        "intent": {
+          "kind": "import",
+          "paths": [
+            "/fixture/media/alpha.wav",
+            "/fixture/media/beta.wav",
+            "/fixture/media/gamma.wav"
+          ]
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": null,
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 2,
+          "selection": null,
+          "titles": {
+            "audioChoiceRequired": [],
+            "companions": {},
+            "coversRevision": 0,
+            "files": [
+              {
+                "bitrate": 705600,
+                "channels": 1,
+                "chapterPlan": {
+                  "chapters": [],
+                  "fromCue": false,
+                  "sourceFingerprint": "fixture"
+                },
+                "chapters": [],
+                "codecLabel": "PCM S16LE",
+                "cueSource": null,
+                "duration": 1.0,
+                "error": null,
+                "format": "WAV",
+                "inputId": "title-1",
+                "isValid": true,
+                "path": "/fixture/media/alpha.wav",
+                "preservation": {
+                  "canPreserve": false
+                },
+                "sampleRate": 44100,
+                "selectedDecoder": "FFmpeg default decoder",
+                "size": 88320.0,
+                "tagArtist": "Ann Author",
+                "tagTitle": "Alpha"
+              },
+              {
+                "bitrate": 705600,
+                "channels": 1,
+                "chapterPlan": {
+                  "chapters": [],
+                  "fromCue": false,
+                  "sourceFingerprint": "fixture"
+                },
+                "chapters": [],
+                "codecLabel": "PCM S16LE",
+                "cueSource": null,
+                "duration": 1.0,
+                "error": null,
+                "format": "WAV",
+                "inputId": "title-2",
+                "isValid": true,
+                "path": "/fixture/media/beta.wav",
+                "preservation": {
+                  "canPreserve": false
+                },
+                "sampleRate": 44100,
+                "selectedDecoder": "FFmpeg default decoder",
+                "size": 88324.0,
+                "tagArtist": "  Ann Author  ",
+                "tagTitle": "Beta"
+              },
+              {
+                "bitrate": 705600,
+                "channels": 1,
+                "chapterPlan": {
+                  "chapters": [],
+                  "fromCue": false,
+                  "sourceFingerprint": "fixture"
+                },
+                "chapters": [],
+                "codecLabel": "PCM S16LE",
+                "cueSource": null,
+                "duration": 1.0,
+                "error": null,
+                "format": "WAV",
+                "inputId": "title-3",
+                "isValid": true,
+                "path": "/fixture/media/gamma.wav",
+                "preservation": {
+                  "canPreserve": false
+                },
+                "sampleRate": 44100,
+                "selectedDecoder": "FFmpeg default decoder",
+                "size": 88320.0,
+                "tagArtist": "Gus Writer",
+                "tagTitle": "Gamma"
+              }
+            ],
+            "notice": null,
+            "orderDiffersFromImport": false,
+            "orderLocked": false,
+            "revision": 2,
+            "sortDirection": "none",
+            "titleSourcesByIdentity": {}
+          }
+        }
+      },
+      {
+        "intent": {
+          "kind": "selectFile",
+          "modifiers": {
+            "multi": false,
+            "range": false
+          },
+          "titleId": "title-3"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": {
+            "binding": 1,
+            "cover": {
+              "custom": false,
+              "imageRevision": 0,
+              "loading": false,
+              "notice": null,
+              "noticeSerial": 0,
+              "present": false,
+              "removalRequested": false
+            },
+            "form": {
+              "fields": [
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "title",
+                  "mixed": false,
+                  "value": "Gamma"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "date",
+                  "mixed": false,
+                  "value": "2003"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "author",
+                  "mixed": false,
+                  "value": "Gus Writer"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "narrator",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "series",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "seriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseries",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "genre",
+                  "mixed": false,
+                  "value": "Mystery"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "description",
+                  "mixed": false,
+                  "value": ""
+                }
+              ],
+              "mode": "single",
+              "selectionCount": 0,
+              "seriesPartWarning": null,
+              "subseriesPartWarning": null,
+              "validationMessage": null
+            },
+            "hasPendingEdits": false,
+            "revision": 3,
+            "saveInProgress": false,
+            "status": null,
+            "tags": {
+              "album": "Gamma",
+              "albumArtist": "Gus Writer",
+              "albumSort": "",
+              "artist": "Gus Writer",
+              "composer": "",
+              "genre": "Mystery",
+              "series": "",
+              "seriesPart": "",
+              "subseries": "",
+              "subseriesPart": "",
+              "title": "Gamma",
+              "year": "2003"
+            },
+            "waitingWrites": []
+          },
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 3,
+          "selection": {
+            "revision": 3,
+            "selectedAnchor": 2,
+            "selectedIndices": [
+              2
+            ]
+          },
+          "titles": null
+        }
+      },
+      {
+        "intent": {
+          "inputId": "title-1",
+          "kind": "removeFile"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": null,
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 4,
+          "selection": {
+            "revision": 4,
+            "selectedAnchor": 1,
+            "selectedIndices": [
+              1
+            ]
+          },
+          "titles": {
+            "audioChoiceRequired": [],
+            "companions": {},
+            "coversRevision": 0,
+            "files": [
+              {
+                "bitrate": 705600,
+                "channels": 1,
+                "chapterPlan": {
+                  "chapters": [],
+                  "fromCue": false,
+                  "sourceFingerprint": "fixture"
+                },
+                "chapters": [],
+                "codecLabel": "PCM S16LE",
+                "cueSource": null,
+                "duration": 1.0,
+                "error": null,
+                "format": "WAV",
+                "inputId": "title-2",
+                "isValid": true,
+                "path": "/fixture/media/beta.wav",
+                "preservation": {
+                  "canPreserve": false
+                },
+                "sampleRate": 44100,
+                "selectedDecoder": "FFmpeg default decoder",
+                "size": 88324.0,
+                "tagArtist": "  Ann Author  ",
+                "tagTitle": "Beta"
+              },
+              {
+                "bitrate": 705600,
+                "channels": 1,
+                "chapterPlan": {
+                  "chapters": [],
+                  "fromCue": false,
+                  "sourceFingerprint": "fixture"
+                },
+                "chapters": [],
+                "codecLabel": "PCM S16LE",
+                "cueSource": null,
+                "duration": 1.0,
+                "error": null,
+                "format": "WAV",
+                "inputId": "title-3",
+                "isValid": true,
+                "path": "/fixture/media/gamma.wav",
+                "preservation": {
+                  "canPreserve": false
+                },
+                "sampleRate": 44100,
+                "selectedDecoder": "FFmpeg default decoder",
+                "size": 88320.0,
+                "tagArtist": "Gus Writer",
+                "tagTitle": "Gamma"
+              }
+            ],
+            "notice": null,
+            "orderDiffersFromImport": false,
+            "orderLocked": false,
+            "revision": 4,
+            "sortDirection": "none",
+            "titleSourcesByIdentity": {}
+          }
+        }
+      },
+      {
+        "intent": {
+          "kind": "clearAll"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": {
+            "binding": 2,
+            "cover": {
+              "custom": false,
+              "imageRevision": 0,
+              "loading": false,
+              "notice": null,
+              "noticeSerial": 0,
+              "present": false,
+              "removalRequested": false
+            },
+            "form": {
+              "fields": [
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "title",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "date",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "author",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "narrator",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "series",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "seriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseries",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "genre",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "description",
+                  "mixed": false,
+                  "value": ""
+                }
+              ],
+              "mode": "single",
+              "selectionCount": 0,
+              "seriesPartWarning": null,
+              "subseriesPartWarning": null,
+              "validationMessage": null
+            },
+            "hasPendingEdits": false,
+            "revision": 5,
+            "saveInProgress": false,
+            "status": null,
+            "tags": {
+              "album": "",
+              "albumArtist": "",
+              "albumSort": "",
+              "artist": "",
+              "composer": "",
+              "genre": "",
+              "series": "",
+              "seriesPart": "",
+              "subseries": "",
+              "subseriesPart": "",
+              "title": "",
+              "year": ""
+            },
+            "waitingWrites": []
+          },
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 5,
+          "selection": {
+            "revision": 5,
+            "selectedAnchor": null,
+            "selectedIndices": []
+          },
+          "titles": {
+            "audioChoiceRequired": [],
+            "companions": {},
+            "coversRevision": 0,
+            "files": [],
+            "notice": null,
+            "orderDiffersFromImport": false,
+            "orderLocked": false,
+            "revision": 5,
+            "sortDirection": "none",
+            "titleSourcesByIdentity": {}
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "duplicates",
+    "steps": [
+      {
+        "intent": {
+          "kind": "import",
+          "paths": [
+            "/fixture/media/alpha.wav"
+          ]
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": {
+            "binding": 1,
+            "cover": {
+              "custom": false,
+              "imageRevision": 0,
+              "loading": false,
+              "notice": null,
+              "noticeSerial": 0,
+              "present": false,
+              "removalRequested": false
+            },
+            "form": {
+              "fields": [
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "title",
+                  "mixed": false,
+                  "value": "Alpha"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "date",
+                  "mixed": false,
+                  "value": "2001"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "author",
+                  "mixed": false,
+                  "value": "Ann Author"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "narrator",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "series",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "seriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseries",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "subseriesPart",
+                  "mixed": false,
+                  "value": ""
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "genre",
+                  "mixed": false,
+                  "value": "Fantasy"
+                },
+                {
+                  "action": "keep",
+                  "dirty": false,
+                  "field": "description",
+                  "mixed": false,
+                  "value": ""
+                }
+              ],
+              "mode": "single",
+              "selectionCount": 0,
+              "seriesPartWarning": null,
+              "subseriesPartWarning": null,
+              "validationMessage": null
+            },
+            "hasPendingEdits": false,
+            "revision": 2,
+            "saveInProgress": false,
+            "status": null,
+            "tags": {
+              "album": "Alpha",
+              "albumArtist": "Ann Author",
+              "albumSort": "",
+              "artist": "Ann Author",
+              "composer": "",
+              "genre": "Fantasy",
+              "series": "",
+              "seriesPart": "",
+              "subseries": "",
+              "subseriesPart": "",
+              "title": "Alpha",
+              "year": "2001"
+            },
+            "waitingWrites": []
+          },
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 2,
+          "selection": {
+            "revision": 2,
+            "selectedAnchor": 0,
+            "selectedIndices": [
+              0
+            ]
+          },
+          "titles": {
+            "audioChoiceRequired": [],
+            "companions": {},
+            "coversRevision": 0,
+            "files": [
+              {
+                "bitrate": 705600,
+                "channels": 1,
+                "chapterPlan": {
+                  "chapters": [],
+                  "fromCue": false,
+                  "sourceFingerprint": "fixture"
+                },
+                "chapters": [],
+                "codecLabel": "PCM S16LE",
+                "cueSource": null,
+                "duration": 1.0,
+                "error": null,
+                "format": "WAV",
+                "inputId": "title-1",
+                "isValid": true,
+                "path": "/fixture/media/alpha.wav",
+                "preservation": {
+                  "canPreserve": false
+                },
+                "sampleRate": 44100,
+                "selectedDecoder": "FFmpeg default decoder",
+                "size": 88320.0,
+                "tagArtist": "Ann Author",
+                "tagTitle": "Alpha"
+              }
+            ],
+            "notice": null,
+            "orderDiffersFromImport": false,
+            "orderLocked": false,
+            "revision": 2,
+            "sortDirection": "none",
+            "titleSourcesByIdentity": {}
+          }
+        }
+      },
+      {
+        "intent": {
+          "kind": "import",
+          "paths": [
+            "/fixture/media/alpha.wav"
+          ]
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": null,
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 3,
+          "selection": null,
+          "titles": {
+            "audioChoiceRequired": [],
+            "companions": {},
+            "coversRevision": 0,
+            "files": [
+              {
+                "bitrate": 705600,
+                "channels": 1,
+                "chapterPlan": {
+                  "chapters": [],
+                  "fromCue": false,
+                  "sourceFingerprint": "fixture"
+                },
+                "chapters": [],
+                "codecLabel": "PCM S16LE",
+                "cueSource": null,
+                "duration": 1.0,
+                "error": null,
+                "format": "WAV",
+                "inputId": "title-1",
+                "isValid": true,
+                "path": "/fixture/media/alpha.wav",
+                "preservation": {
+                  "canPreserve": false
+                },
+                "sampleRate": 44100,
+                "selectedDecoder": "FFmpeg default decoder",
+                "size": 88320.0,
+                "tagArtist": "Ann Author",
+                "tagTitle": "Alpha"
+              }
+            ],
+            "notice": {
+              "kind": "duplicatesOnly"
+            },
+            "orderDiffersFromImport": false,
+            "orderLocked": false,
+            "revision": 3,
+            "sortDirection": "none",
+            "titleSourcesByIdentity": {}
+          }
+        }
+      },
+      {
+        "intent": {
+          "kind": "import",
+          "paths": [
+            "/fixture/media/beta.wav",
+            "/fixture/media/beta.wav"
+          ]
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "update": {
+          "lookup": null,
+          "metadata": null,
+          "output": null,
+          "remote": null,
+          "remoteAcquisition": null,
+          "remoteLibrary": null,
+          "revision": 4,
+          "selection": null,
+          "titles": {
+            "audioChoiceRequired": [],
+            "companions": {},
+            "coversRevision": 0,
+            "files": [
+              {
+                "bitrate": 705600,
+                "channels": 1,
+                "chapterPlan": {
+                  "chapters": [],
+                  "fromCue": false,
+                  "sourceFingerprint": "fixture"
+                },
+                "chapters": [],
+                "codecLabel": "PCM S16LE",
+                "cueSource": null,
+                "duration": 1.0,
+                "error": null,
+                "format": "WAV",
+                "inputId": "title-1",
+                "isValid": true,
+                "path": "/fixture/media/alpha.wav",
+                "preservation": {
+                  "canPreserve": false
+                },
+                "sampleRate": 44100,
+                "selectedDecoder": "FFmpeg default decoder",
+                "size": 88320.0,
+                "tagArtist": "Ann Author",
+                "tagTitle": "Alpha"
+              },
+              {
+                "bitrate": 705600,
+                "channels": 1,
+                "chapterPlan": {
+                  "chapters": [],
+                  "fromCue": false,
+                  "sourceFingerprint": "fixture"
+                },
+                "chapters": [],
+                "codecLabel": "PCM S16LE",
+                "cueSource": null,
+                "duration": 1.0,
+                "error": null,
+                "format": "WAV",
+                "inputId": "title-2",
+                "isValid": true,
+                "path": "/fixture/media/beta.wav",
+                "preservation": {
+                  "canPreserve": false
+                },
+                "sampleRate": 44100,
+                "selectedDecoder": "FFmpeg default decoder",
+                "size": 88324.0,
+                "tagArtist": "  Ann Author  ",
+                "tagTitle": "Beta"
+              }
+            ],
+            "notice": null,
+            "orderDiffersFromImport": false,
+            "orderLocked": false,
+            "revision": 4,
+            "sortDirection": "none",
+            "titleSourcesByIdentity": {}
+          }
+        }
+      }
+    ]
+  }
+]

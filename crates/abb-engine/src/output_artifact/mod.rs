@@ -19,10 +19,6 @@ pub(crate) use file_lock::{lock_output_file, FileIdentity};
 pub(crate) use parent_dirs::{ensure_output_parent_dirs, OutputParentDirCleanup};
 pub(crate) use plan::OutputPlanLedger;
 pub(crate) use review::{enforce_output_plan_review, OutputPlanReview};
-#[cfg(test)]
-pub(crate) use supplemental::{
-    commit_supplemental_output_asset, SupplementalOutputAssetCommitRequest,
-};
 pub(crate) use supplemental::{
     commit_supplemental_output_assets_for_output, SupplementalOutputAssetsCommitRequest,
 };

@@ -71,8 +71,7 @@ function canCancel(operation: OperationSnapshot): boolean {
 	return operation.cancellable && !operation.cancelRequested;
 }
 
-/** A single-title operation already has the operation Cancel button. */
-function canCancelTitle(operation: OperationSnapshot, child: ChildJobSnapshot): boolean {
+function canCancelSeparateTitle(operation: OperationSnapshot, child: ChildJobSnapshot): boolean {
 	return (
 		operation.children.length > 1 &&
 		canCancel(operation) &&
@@ -213,7 +212,7 @@ export function WorkCenterView(): JSX.Element {
 																· {formatEtaRemaining(child.progress.etaSeconds ?? 0)}
 															</Show>
 														</span>
-														<Show when={canCancelTitle(operation, child)}>
+														<Show when={canCancelSeparateTitle(operation, child)}>
 															<button
 																class="work-child-action"
 																type="button"

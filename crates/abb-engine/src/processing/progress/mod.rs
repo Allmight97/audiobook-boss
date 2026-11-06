@@ -57,7 +57,6 @@ pub struct ProgressEvent {
     pub percentage: f32,
     pub message: String,
     pub current_file: Option<String>,
-    /// Estimated time remaining in seconds
     pub eta_seconds: Option<f64>,
     /// Job identifier when this event is tied to a registered job
     #[serde(skip_serializing_if = "Option::is_none")]

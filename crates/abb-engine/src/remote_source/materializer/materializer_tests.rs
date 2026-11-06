@@ -7,7 +7,6 @@ fn helper_request_serializes_secrets_only_in_stdin_payload() {
         operation_id: "operation-1".to_string(),
         lane: AaxcleanLane::Aaxc,
         input_path: PathBuf::from("/tmp/source.aaxc"),
-        output_temp_path: PathBuf::from("/tmp/materialized.m4b.partial"),
         output_path: PathBuf::from("/tmp/materialized.m4b"),
         secret: AaxcleanSecret::Aaxc {
             key_hex: SecretString::from("0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d"),
@@ -15,7 +14,8 @@ fn helper_request_serializes_secrets_only_in_stdin_payload() {
         },
     };
 
-    let payload = helper_request_json(&request).expect("helper request");
+    let payload = helper_request_json(&request, Path::new("/tmp/materialized.m4b.partial"))
+        .expect("helper request");
     let value: serde_json::Value = serde_json::from_str(&payload).expect("json");
 
     assert_eq!(value["schemaVersion"], REQUEST_SCHEMA_VERSION);

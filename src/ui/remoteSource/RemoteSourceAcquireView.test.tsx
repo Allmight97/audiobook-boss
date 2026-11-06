@@ -90,7 +90,7 @@ async function openConnected(
 	}
 }
 
-describe('RemoteSourceAcquireView close wiring', () => {
+describe('RemoteSourceAcquireView', () => {
 	let runtime: AppRuntime | undefined;
 
 	afterEach(() => {
@@ -101,26 +101,36 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		document.body.innerHTML = '';
 	});
 
-	it('routes Escape through the same close callback the Close button uses without cancelling acquisition', async () => {
+	it('hides on Escape or Close and leaves a running acquisition running', async () => {
 		runtime = createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
-				<button type="button" id="acquire-invoker">
-					Open
-				</button>
 				<RemoteSourceAcquireView />
 			</AppRuntimeProvider>
 		));
-		void runtime.remoteSource.open();
-		await Promise.resolve();
-
-		fireEvent.keyDown(document.getElementById('remote-source-close') as Element, {
-			key: 'Escape',
-			bubbles: true,
+		const cancelSent = () =>
+			fakeEngine().sessionIntents.some(
+				(sent) => sent.kind === 'remote' && sent.intent.kind === 'cancelAcquisition',
+			);
+		await openConnected(runtime, 'audible');
+		fakeEngine().change((state) => {
+			state.remoteAcquisition.job = acquisitionJob(40);
+			state.remote.busy = true;
 		});
 		flush();
 
+		fireEvent.keyDown(document.body, { key: 'Escape' });
+		flush();
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
+		expect(cancelSent()).toBe(false);
+
+		await runtime.remoteSource.open({ lane: 'audible' });
+		flush();
+		expect(runtime.remoteSource.view().isOpen).toBe(true);
+		fireEvent.click(document.getElementById('remote-source-close')!);
+		flush();
+		expect(runtime.remoteSource.view().isOpen).toBe(false);
+		expect(cancelSent()).toBe(false);
 	});
 
 	it('renders engine acquisition snapshots only in the Audible lane', async () => {
@@ -279,22 +289,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		);
 	});
 
-	it('shows indexer search controls when the lane is connected', async () => {
-		runtime = createAppRuntime();
-		render(() => (
-			<AppRuntimeProvider runtime={runtime!}>
-				<RemoteSourceAcquireView />
-			</AppRuntimeProvider>
-		));
-		await openConnected(runtime, 'indexer');
-		await Promise.resolve();
-
-		expect(screen.queryByTestId('remote-indexer-settings-needed')).not.toBeInTheDocument();
-		expect(screen.getByTestId('remote-source-indexer-author')).toBeEnabled();
-		expect(screen.getByRole('button', { name: 'Search' })).toBeEnabled();
-	});
-
-	it('searches indexer releases when Enter is pressed in the author or title field', async () => {
+	it('shows connected Indexer search controls and searches on Enter in author or title', async () => {
 		runtime = createAppRuntime();
 		const runAction = vi.spyOn(runtime.remoteSource, 'runAction');
 		render(() => (
@@ -304,6 +299,9 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		));
 		await openConnected(runtime, 'indexer');
 		await Promise.resolve();
+		expect(screen.queryByTestId('remote-indexer-settings-needed')).not.toBeInTheDocument();
+		expect(screen.getByTestId('remote-source-indexer-author')).toBeEnabled();
+		expect(screen.getByRole('button', { name: 'Search' })).toBeEnabled();
 		runAction.mockClear();
 
 		fireEvent.keyDown(screen.getByTestId('remote-source-indexer-author'), { key: 'Enter' });
@@ -316,34 +314,6 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		expect(runAction).toHaveBeenCalledWith({ type: 'searchReleases' });
 	});
 
-	it('paints protocol, category, and indexer as release tags', async () => {
-		runtime = createAppRuntime();
-		render(() => (
-			<AppRuntimeProvider runtime={runtime!}>
-				<RemoteSourceAcquireView />
-			</AppRuntimeProvider>
-		));
-		await openConnected(runtime, 'indexer', [
-			{
-				providerId: 'indexer',
-				guid: 'extinction-1',
-				indexerId: 7,
-				title: 'Extinction by David Crouse [ENG / M4B]',
-				indexer: 'MyAnonymouse',
-				sizeBytes: 550_000_000,
-				protocol: 'torrent',
-				seeders: 72,
-				categories: [{ id: 3030, name: 'Audio/Audiobook' }],
-			},
-		]);
-		await Promise.resolve();
-
-		expect(screen.getByText('torrent')).toHaveClass('remote-release-tag-torrent');
-		expect(screen.getByText('Audio/Audiobook')).toHaveClass('remote-release-tag-category');
-		expect(screen.getByText('MyAnonymouse')).toHaveClass('remote-release-tag-indexer');
-		expect(screen.getByText(/72 seeders/)).toBeInTheDocument();
-	});
-
 	it('sends the clicked indexer identity and renders the engine’s selected and failed rows', async () => {
 		const releases: RemoteRelease[] = [7, 8].map((indexerId) => ({
 			providerId: 'indexer',
@@ -353,8 +323,8 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			indexer: `Indexer ${indexerId}`,
 			sizeBytes: 1000,
 			protocol: 'torrent',
-			seeders: 10,
-			categories: [],
+			seeders: indexerId === 8 ? 72 : 10,
+			categories: [{ id: 3030, name: 'Audio/Audiobook' }],
 		}));
 		runtime = createAppRuntime();
 		render(() => (
@@ -363,6 +333,10 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			</AppRuntimeProvider>
 		));
 		await openConnected(runtime, 'indexer', releases);
+		expect(screen.getAllByText('torrent').length).toBeGreaterThan(0);
+		expect(screen.getAllByText('Audio/Audiobook').length).toBeGreaterThan(0);
+		expect(screen.getByText('Indexer 8')).toBeInTheDocument();
+		expect(screen.getAllByText(/72 seeders/).length).toBeGreaterThan(0);
 		fireEvent.click(screen.getByRole('button', { name: /^Select Release from 8/ }));
 		flush();
 		await vi.waitFor(() =>

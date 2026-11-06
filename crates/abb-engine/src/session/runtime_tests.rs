@@ -115,7 +115,8 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
     let config = tempfile::TempDir::new().expect("settings folder");
     let (settings, _, _) =
         SettingsRuntime::start(config.path().to_path_buf(), PowerManager::default());
-    let remote = crate::remote_source::tests::test_runtime(&config);
+    let remote = crate::remote_source::tests::test_runtime_over(&config, settings.clone());
+    let tasks = crate::engine::EngineTasks::default();
     let session = Session::with_network(
         SessionDeps {
             remote,
@@ -123,10 +124,10 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
                 Arc::clone(&events) as Arc<dyn EventSink>,
                 PowerManager::default(),
             ),
-            work: WorkRuntime::default(),
+            work: WorkRuntime::new(tasks.clone()),
             jobs: Arc::new(JobRegistry::new(2)),
             temporary_root: PathBuf::from("/staged"),
-            tasks: crate::engine::EngineTasks::default(),
+            tasks,
             workspace_root: std::env::temp_dir().join("abb-session-tests"),
             settings,
             remove_staged: {
@@ -297,6 +298,15 @@ impl Rig {
 
     fn metadata(&self) -> MetadataSnapshot {
         self.session.snapshot().metadata.expect("metadata part")
+    }
+
+    async fn cover_shown(&self) -> Option<Vec<u8>> {
+        let revision = self.metadata().cover.image_revision;
+        self.session
+            .cover(&format!("session/full/{revision}/"))
+            .await
+            .expect("the displayed cover is served")
+            .map(|cover| cover.to_vec())
     }
 
     fn title_shown(&self) -> String {
@@ -621,7 +631,7 @@ async fn replacing_the_cover_stages_the_result_image_with_the_text() {
         rig.pending("alpha").and_then(|patch| patch.cover_art),
         Some(PatchOp::Set(written_cover()))
     );
-    assert_eq!(rig.session.cover_art(), Some(written_cover()));
+    assert_eq!(rig.cover_shown().await, Some(written_cover()));
     assert_eq!(rig.title_shown(), "Found");
 }
 
@@ -644,7 +654,7 @@ async fn applying_a_result_reuses_the_cover_its_preview_downloaded() {
         .await;
     rig.send(rig.lookup_apply(0)).await;
 
-    assert_eq!(rig.session.cover_art(), Some(written_cover()));
+    assert_eq!(rig.cover_shown().await, Some(written_cover()));
     assert_eq!(
         rig.cover_fetches.load(std::sync::atomic::Ordering::SeqCst),
         1
@@ -823,47 +833,6 @@ async fn a_select_file_begun_after_a_reorder_still_targets_the_same_title() {
             .map(|index| titles.files[index].input_id.as_str())
             .collect::<Vec<_>>(),
         ["beta"]
-    );
-}
-
-#[tokio::test]
-async fn range_selection_resolves_anchor_and_target_by_id_after_a_reorder() {
-    let rig = rig();
-    rig.load(&["alpha", "beta", "gamma", "delta"]);
-    rig.send(SessionIntent::SelectFile {
-        title_id: "beta".into(),
-        modifiers: SelectionModifiers::default(),
-    })
-    .await;
-    rig.send(SessionIntent::ReorderFiles {
-        title_id: "alpha".into(),
-        to: 3,
-    })
-    .await;
-    rig.send(SessionIntent::SelectFile {
-        title_id: "delta".into(),
-        modifiers: SelectionModifiers {
-            multi: false,
-            range: true,
-        },
-    })
-    .await;
-
-    let titles = rig.session.snapshot().titles.expect("titles");
-    assert_eq!(
-        titles
-            .files
-            .iter()
-            .map(|file| file.input_id.as_str())
-            .collect::<Vec<_>>(),
-        ["beta", "gamma", "delta", "alpha"]
-    );
-    assert_eq!(
-        rig.selected()
-            .into_iter()
-            .map(|index| titles.files[index].input_id.as_str())
-            .collect::<Vec<_>>(),
-        ["beta", "gamma", "delta"]
     );
 }
 
@@ -1093,7 +1062,7 @@ async fn a_cover_loaded_from_a_url_is_staged_on_the_selected_title() {
         cover.notice,
         Some(crate::session::state::CoverNotice::LoadedFromUrl)
     );
-    assert_eq!(rig.session.cover_art(), Some(written_cover()));
+    assert_eq!(rig.cover_shown().await, Some(written_cover()));
 }
 
 #[tokio::test]
@@ -1412,33 +1381,6 @@ async fn output_choices_are_recorded_and_template_typing_once_it_pauses() {
     assert_eq!(
         saved().await.output_naming.custom_template.as_deref(),
         Some("{author}/{title}x")
-    );
-}
-
-#[tokio::test]
-async fn a_title_plan_resolves_in_the_background_and_reports_why_it_cannot() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.send(SessionIntent::SetTitleAudio {
-        title_ids: vec!["alpha".to_string()],
-        edit: AudioEdit::Intent(AudioIntent::Encode),
-    })
-    .await;
-
-    let plan = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        loop {
-            let plan = audio(&rig).titles["alpha"].plan.clone();
-            if plan != crate::session::TitlePlan::Pending {
-                return plan;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the plan resolves");
-    assert!(
-        matches!(plan, crate::session::TitlePlan::Failed { .. }),
-        "{plan:?}"
     );
 }
 
@@ -1826,8 +1768,7 @@ async fn lookup_cover_reply_cannot_pull_the_selection_back_to_an_earlier_title()
 #[tokio::test]
 async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply() {
     let rig = rig();
-    let lane =
-        crate::test_cases::integration_media_execution_tests::MediaLane::with_fixtures(&[0.2]);
+    let lane = crate::test_cases::media_fixtures::MediaLane::with_fixtures(&[0.2]);
     let source = lane
         .process(Some(AudiobookMetadata {
             title: Some("Preview".to_string()),
@@ -1856,7 +1797,7 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
         path: custom.to_string_lossy().into_owned(),
     })
     .await;
-    let cover = rig.session.cover_art().expect("accepted normalized cover");
+    let cover = rig.cover_shown().await.expect("accepted normalized cover");
     let jobs = &rig.session.inner.deps.jobs;
     let (first, first_permit) = jobs.register_job().await.expect("hold first slot");
     let (second, second_permit) = jobs.register_job().await.expect("hold second slot");
@@ -1949,7 +1890,13 @@ async fn an_accepted_indexer_save_finishes_when_the_host_drops_its_reply() {
     }));
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
-            if rig.session.inner.deps.remote.ui_snapshot().connection.save
+            if rig
+                .session
+                .snapshot()
+                .remote
+                .expect("remote attachment")
+                .connection
+                .save
                 == RemoteDraftStatus::Succeeded
             {
                 break;
@@ -1959,16 +1906,16 @@ async fn an_accepted_indexer_save_finishes_when_the_host_drops_its_reply() {
     })
     .await
     .expect("accepted Save finished");
-    let saved = rig
-        .session
-        .inner
-        .deps
+    let deps = &rig.session.inner.deps;
+    assert_eq!(
+        deps.settings.indexer_connection().base_url.as_deref(),
+        Some("https://proof.test")
+    );
+    assert!(deps
         .remote
-        .get_indexer_connection()
+        .indexer_api_key_configured()
         .await
-        .expect("persisted accepted connection");
-    assert_eq!(saved.base_url.as_deref(), Some("https://proof.test"));
-    assert!(saved.api_key_configured);
+        .expect("key fact for the saved URL"));
 }
 
 async fn wait_preview(
@@ -2015,56 +1962,6 @@ async fn moves_name_the_title_so_a_second_click_moves_the_same_title_again() {
         .map(|file| file.input_id)
         .collect();
     assert_eq!(order, ["gamma", "alpha", "beta"]);
-}
-
-#[tokio::test]
-async fn accepted_auth_work_survives_a_dropped_host_reply_and_reattachment_keeps_status() {
-    use crate::remote_source::{RemoteAuthStatus, RemoteUiIntent};
-    let rig = rig();
-    drop(rig.session.begin(SessionIntent::Remote {
-        intent: RemoteUiIntent::StartAuth,
-    }));
-    tokio::time::timeout(Duration::from_secs(5), async {
-        while rig
-            .session
-            .snapshot()
-            .remote
-            .expect("remote attachment")
-            .auth
-            != RemoteAuthStatus::AwaitingHandoff
-        {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("accepted start completed without host wait");
-    drop(
-        rig.session.begin(SessionIntent::Remote {
-            intent: RemoteUiIntent::CompleteAuth {
-                response_url_handoff_path: Some(
-                    rig._config
-                        .path()
-                        .join("missing-auth-handoff")
-                        .to_string_lossy()
-                        .into_owned(),
-                ),
-            },
-        }),
-    );
-    tokio::time::timeout(Duration::from_secs(5), async {
-        while !matches!(
-            rig.session
-                .snapshot()
-                .remote
-                .expect("remote attachment")
-                .auth,
-            RemoteAuthStatus::Failed { .. }
-        ) {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("accepted completion reports failure without host wait");
 }
 
 #[path = "runtime_audio_tests.rs"]

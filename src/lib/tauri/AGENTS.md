@@ -19,8 +19,8 @@
   `openPreviewOutput` also takes a numbered session turn
   (`src-tauri/AGENTS.md`). The
   `session-update` and `settings-update` events carry engine changes between
-  replies. Auth-start replies supply the one-time URL the host opens in a
-  browser.
+  replies. Auth-start replies supply the one-time URL; the `remoteSource` owner
+  opens it with `tauriClient.openUrl`.
 - A plugin or event function needs its permission in
   `src-tauri/capabilities/default.json`; `scripts/tauri-contract.test.ts`
   derives each one from the imports, since jsdom mocks cannot catch a gap.
@@ -35,7 +35,11 @@
   title's size estimate before it can be estimated) survives.
 - Name commands and types for the product; skip `_v1`/`_v2` and `_cmd`
   suffixes. A breaking change gets a new product-meaningful name.
-- The explicit blank field action (`setFieldAction` with `blank`) carries Blank.
+
+`recordedFresh.ts` is test support and not private: the fake engine and
+contract tests outside this folder import it. It normalizes the recorded fresh
+session and settings (`generated/fixtures/`) the way the client does, and sits
+here because only this folder may import `normalizers.ts`.
 
 ## Frontend Utilities
 

@@ -267,49 +267,25 @@ fn release_details_use_only_valid_source_links() {
 }
 
 #[test]
-fn map_categories_accepts_named_objects_and_bare_ids() {
-    let categories = map_categories(vec![
-        ProwlarrCategoryEntry::Id(3000),
-        ProwlarrCategoryEntry::Object {
-            id: 3030,
-            name: Some("Audio/Audiobook".to_string()),
-        },
-        ProwlarrCategoryEntry::Id(3030),
-        ProwlarrCategoryEntry::Id(100047),
-        ProwlarrCategoryEntry::Object {
-            id: 100043,
-            name: None,
-        },
-    ]);
+fn release_categories_decode_bare_ids_and_named_objects() {
+    let raw: Vec<ProwlarrReleaseRaw> = serde_json::from_str(
+        r#"[{"guid":"g","categories":[3000,{"id":3030,"name":"Audio/Audiobook"},3030,100047,{"id":100043},{"id":100044,"name":"Audiobooks"},0]}]"#,
+    )
+    .expect("mixed categories decode");
 
+    let categories = map_categories(raw.into_iter().next().expect("release").categories);
+
+    let category = |id, name: &str| RemoteReleaseCategory {
+        id,
+        name: name.to_string(),
+    };
     assert_eq!(
         categories,
         vec![
-            RemoteReleaseCategory {
-                id: 3000,
-                name: "Audio".to_string(),
-            },
-            RemoteReleaseCategory {
-                id: 3030,
-                name: "Audio/Audiobook".to_string(),
-            },
+            category(3000, "Audio"),
+            category(3030, "Audio/Audiobook"),
+            category(100044, "Audiobooks"),
         ]
-    );
-}
-
-#[test]
-fn map_categories_keeps_named_indexer_specific_categories() {
-    let categories = map_categories(vec![ProwlarrCategoryEntry::Object {
-        id: 100047,
-        name: Some("Audiobooks".to_string()),
-    }]);
-
-    assert_eq!(
-        categories,
-        vec![RemoteReleaseCategory {
-            id: 100047,
-            name: "Audiobooks".to_string(),
-        }]
     );
 }
 

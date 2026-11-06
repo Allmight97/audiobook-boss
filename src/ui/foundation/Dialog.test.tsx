@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@solidjs/testing-library';
+import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { createSignal, flush } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Dialog } from './Dialog';
@@ -20,6 +20,25 @@ describe('Dialog', () => {
 		const backdrop = screen.getByTestId('sample-dialog');
 		expect(backdrop.classList.contains('open')).toBe(true);
 		backdrop.click();
+		expect(onClose).toHaveBeenCalledTimes(1);
+	});
+
+	it('calls onClose on Escape after opening post-mount, with focus outside the dialog', () => {
+		const onClose = vi.fn();
+		const [open, setOpen] = createSignal(false);
+		render(() => (
+			<Dialog open={open()} onClose={onClose} labelledBy="title">
+				<Dialog.Body>Body</Dialog.Body>
+			</Dialog>
+		));
+		setOpen(true);
+		flush();
+		fireEvent.keyDown(document.body, { key: 'Escape' });
+		expect(onClose).toHaveBeenCalledTimes(1);
+
+		setOpen(false);
+		flush();
+		fireEvent.keyDown(document.body, { key: 'Escape' });
 		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 

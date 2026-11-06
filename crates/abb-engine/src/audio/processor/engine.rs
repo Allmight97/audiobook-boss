@@ -133,7 +133,6 @@ fn execute_pipeline(
         let _ = ff::init();
     });
 
-    // The session drops its codec/output handles before cleanup removes the path.
     let mut cleanup_guard = CleanupGuard::new(context.session.id());
     cleanup_guard.add_path(&plan.output_path);
     let mut enc_ctx = crate::audio::processor::encoder::setup_encoder(plan, metadata, passthrough)?;
@@ -164,7 +163,7 @@ fn execute_pipeline(
     }
     result?;
 
-    let _ = cleanup_guard.remove_path(&plan.output_path);
+    let _ = cleanup_guard.forget_path(&plan.output_path);
 
     if metadata.is_some() {
         log::info!("Audio processing completed with metadata integration");

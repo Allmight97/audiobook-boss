@@ -1,3 +1,5 @@
+import type { AppErrorCategory as WireErrorCategory } from '../generated/tauri';
+
 type PlainRecord = Record<string, unknown>;
 
 const APP_ERROR_CATEGORIES = [
@@ -92,40 +94,19 @@ export function normalizeAppError(
 	};
 }
 
-type SpectaResult = { status: 'ok'; data?: unknown } | { status: 'error'; error?: unknown };
-
-function isSpectaResult(value: unknown): value is SpectaResult {
-	if (!isPlainRecord(value)) {
-		return false;
-	}
-	return value.status === 'ok' || value.status === 'error';
-}
-
-export type UnwrappedResult<T> = T extends { status: 'error' }
-	? never
-	: T extends { status: 'ok'; data: infer U }
-		? U
-		: T;
-
-/* oxlint-disable typescript/no-unsafe-type-assertion -- UnwrappedResult<T> is a conditional type; isSpectaResult checks the envelope that selects its branch. */
-export function unwrapGeneratedResult<T>(value: T): UnwrappedResult<T> {
-	if (!isSpectaResult(value)) {
-		return value as UnwrappedResult<T>;
-	}
-
+export function unwrapGeneratedResult<T>(
+	value: { status: 'ok'; data: T } | { status: 'error'; error: unknown },
+): T {
 	if (value.status === 'error') {
 		throw normalizeAppError(value.error);
 	}
-
-	return value.data as UnwrappedResult<T>;
+	return value.data;
 }
-/* oxlint-enable typescript/no-unsafe-type-assertion */
 
 /**
- * Derive a user-facing message from any thrown cause. Centralizes the
- * `normalizeAppError(...).message` derivation the UI islands re-implement.
- * With `suppressUnknown`, an unclassified (`unknown_error`) cause collapses to
- * `fallback` instead of surfacing a raw/internal message.
+ * Derive a user-facing message from any thrown cause. With `suppressUnknown`,
+ * an unclassified (`unknown_error`) cause collapses to `fallback` instead of
+ * surfacing a raw message.
  */
 export function toUserMessage(
 	cause: unknown,
@@ -140,23 +121,15 @@ export function toUserMessage(
 }
 
 export function isCancellation(cause: unknown): boolean {
-	return normalizeAppError(cause).category === 'cancellation';
+	return normalizeAppError(cause).category === ('cancellation' satisfies WireErrorCategory);
 }
 
 /**
- * Log a normalized error with a consistent `code=/category=` shape. Defaults to
- * `console.error`; pass `level: 'warn'` for non-fatal diagnostics.
+ * Log a normalized error with a consistent `code=/category=` shape. The
+ * message and detail stay out of the console line because they can carry paths
+ * or provider text.
  */
-export function logAppError(
-	scope: string,
-	cause: unknown,
-	level: 'error' | 'warn' = 'error',
-): void {
+export function logAppError(scope: string, cause: unknown): void {
 	const error = normalizeAppError(cause);
-	const line = `${scope} code=${error.code} category=${error.category}`;
-	if (level === 'warn') {
-		console.warn(line);
-	} else {
-		console.error(line);
-	}
+	console.error(`${scope} code=${error.code} category=${error.category}`);
 }

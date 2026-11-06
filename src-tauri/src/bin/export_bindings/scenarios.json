@@ -1,0 +1,69 @@
+{
+  "session": [
+    {
+      "name": "selection",
+      "steps": [
+        { "kind": "import", "paths": ["/fixture/media/alpha.wav", "/fixture/media/beta.wav", "/fixture/media/broken.wav"] },
+        { "kind": "selectFile", "titleId": "title-1", "modifiers": { "multi": false, "range": false } },
+        { "kind": "selectFile", "titleId": "title-2", "modifiers": { "multi": false, "range": true } },
+        { "kind": "selectAll" },
+        { "kind": "setField", "field": "genre", "value": "" },
+        { "kind": "setFieldAction", "field": "author", "action": "blank" },
+        { "kind": "clearSelection" }
+      ]
+    },
+    {
+      "name": "removal",
+      "steps": [
+        { "kind": "import", "paths": ["/fixture/media/alpha.wav", "/fixture/media/beta.wav", "/fixture/media/gamma.wav"] },
+        { "kind": "selectFile", "titleId": "title-3", "modifiers": { "multi": false, "range": false } },
+        { "kind": "removeFile", "inputId": "title-1" },
+        { "kind": "clearAll" }
+      ]
+    },
+    {
+      "name": "duplicates",
+      "steps": [
+        { "kind": "import", "paths": ["/fixture/media/alpha.wav"] },
+        { "kind": "import", "paths": ["/fixture/media/alpha.wav"] },
+        { "kind": "import", "paths": ["/fixture/media/beta.wav", "/fixture/media/beta.wav"] }
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "name": "pin-reset",
+      "steps": [
+        { "kind": "setStartupBehavior", "behavior": "pinnedDefaults" },
+        { "kind": "pinCurrentDefaults" },
+        { "kind": "remember", "encoderDefaults": null, "outputDefaults": null, "defaultAcquisitionLane": "indexer" },
+        { "kind": "reset" }
+      ]
+    },
+    {
+      "name": "save-retry",
+      "steps": [
+        { "do": "blockConfig" },
+        { "kind": "setKeepAwake", "enabled": false },
+        { "kind": "retry" },
+        { "do": "restoreConfig" },
+        { "kind": "retry" }
+      ]
+    },
+    {
+      "name": "recovery",
+      "settingsToml": "[general]\nmax_concurrent_jobs = 99\n",
+      "steps": [
+        { "kind": "retry" },
+        { "kind": "setKeepAwake", "enabled": false }
+      ]
+    },
+    {
+      "name": "concurrency",
+      "steps": [
+        { "kind": "setConcurrency", "preference": { "mode": "fixed", "value": 2 } },
+        { "kind": "setConcurrency", "preference": { "mode": "fixed", "value": 99 } }
+      ]
+    }
+  ]
+}

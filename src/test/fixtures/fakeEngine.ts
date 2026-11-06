@@ -1,3 +1,4 @@
+import { recordedFresh } from '../../lib/tauri/recordedFresh';
 import type { EngineCapability } from '../../lib/tauri/capabilities/engine';
 import type {
 	AppSettings,
@@ -5,79 +6,62 @@ import type {
 	SettingsOutcome,
 	SettingsSnapshot,
 } from '../../types/appSettings';
-import type { AudioFile, ProcessCommandResult, TitleAudioRequest } from '../../types/audio';
-import { runtimeSettingsCapabilitiesFixture } from './runtimeSettingsCapabilities';
+import type { AudioFile, TitleAudioRequest } from '../../types/audio';
 import type {
 	CoverNotice,
-	FieldSnapshot,
 	MetadataField,
 	MetadataStatus,
-	SessionIntent,
+	RemoteAcquisitionSnapshot,
+	RemoteLibrarySnapshot,
+	RemoteUiSnapshot,
 	SessionAudio,
+	SessionIntent,
 	SessionLookup,
-	SessionOutput,
-	SizeEstimate,
-	TitleAudio,
-	TitlePlan,
 	SessionMetadata,
 	SessionOutcome,
+	SessionOutput,
 	SessionSelection,
 	SessionTitles,
 	SessionUpdate,
-	SubmissionStatus,
+	SizeEstimate,
+	TitleAudio,
+	TitlePlan,
 } from '../../types/session';
 
-type FileTags = {
-	readonly title?: string;
-	readonly date?: string;
-	readonly artist?: string;
-	readonly composer?: string;
-	readonly series?: string;
-	readonly series_part?: string;
-	readonly subseries?: string;
-	readonly subseries_part?: string;
-	readonly genre?: string;
-	readonly description?: string;
-	readonly cover_art?: number[];
-};
-
-const FIELD_TAGS: ReadonlyArray<readonly [MetadataField, keyof FileTags]> = [
-	['title', 'title'],
-	['date', 'date'],
-	['author', 'artist'],
-	['narrator', 'composer'],
-	['series', 'series'],
-	['seriesPart', 'series_part'],
-	['subseries', 'subseries'],
-	['subseriesPart', 'subseries_part'],
-	['genre', 'genre'],
-	['description', 'description'],
+const FORM_FIELDS: readonly MetadataField[] = [
+	'title',
+	'date',
+	'author',
+	'narrator',
+	'series',
+	'seriesPart',
+	'subseries',
+	'subseriesPart',
+	'genre',
+	'description',
 ];
 
+type SessionParts = {
+	titles: SessionTitles;
+	selection: SessionSelection;
+	metadata: SessionMetadata;
+	lookup: SessionLookup;
+	audio: SessionAudio;
+	output: SessionOutput;
+	remote: RemoteUiSnapshot;
+	remoteLibrary: RemoteLibrarySnapshot;
+	remoteAcquisition: RemoteAcquisitionSnapshot;
+};
+
+function freshSession(): SessionParts {
+	const { revision: _revision, ...parts } = structuredClone(recordedFresh.session);
+	return parts as SessionParts;
+}
+
 export function defaultAppSettings(): AppSettings {
-	return {
-		keepAwakeWhileWorking: true,
-		maxConcurrentJobs: { mode: 'auto' },
-		encoderDefaults: {
-			format: 'm4b',
-			intent: 'auto',
-			sampleRate: 'auto',
-			settings: {
-				encoderType: 'auto',
-				bitrateKbps: 64,
-				bitrateMode: { mode: 'cbr' },
-				channels: 'auto',
-				nativeAacSpeed: 0,
-				faacProfile: 'auto',
-			},
-		},
-		outputDefaults: {
-			outputNaming: { preset: 'absDefault', includeYear: false },
-		},
-		startupBehavior: 'rememberLastState',
-		defaultAcquisitionLane: 'audible',
-		aacDecoder: 'auto',
-	};
+	const settings = structuredClone(recordedFresh.settings.settings);
+	if (!settings) throw new Error('the recorded fresh settings hold no settings');
+	return settings;
 }
 
 export function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
@@ -93,285 +77,61 @@ export function audioFile(path: string, overrides: Partial<AudioFile> = {}): Aud
 	};
 }
 
-type Rejection = { readonly message: string };
-
 export type FakeEngine = EngineCapability & {
 	readonly sessionIntents: SessionIntent[];
 	readonly settingsIntents: SettingsIntent[];
 	readonly openedPreviews: string[];
-	readonly tags: Map<string, FileTags>;
 	analyze: (paths: readonly string[]) => AudioFile[];
 	/**
-	 * Answers an intent in place of the fake's default behavior. A reply of
-	 * `undefined`, at once or later, falls back to it.
+	 * Answers a session intent. A reply of `undefined`, at once or later, is
+	 * `applied`.
 	 */
 	respond?: (
 		intent: SessionIntent,
 	) => SessionOutcome | Promise<SessionOutcome | undefined> | undefined;
-	answerSubmission: (intent: SessionIntent) => SubmissionStatus;
-	settingsWriteError?: Rejection;
-	concurrencyError?: Rejection;
-	recovery?: SettingsSnapshot['recovery'];
-	recordSettings(patch: Partial<AppSettings>): void;
+	/** Answers a settings intent; `undefined` is `applied`. */
+	respondSettings?: (
+		intent: SettingsIntent,
+	) => SettingsOutcome | Promise<SettingsOutcome | undefined> | undefined;
+	/** Replaces parts of the settings snapshot and tells every listener. */
+	seedSettings(patch: Partial<SettingsSnapshot>): void;
+	/** Changes saved settings, with the reason they are not on disk, if any. */
+	seedAppSettings(patch: Partial<AppSettings>, saveError?: SettingsSnapshot['saveError']): void;
 	seedGroup(sources: AudioFile[], options?: { readonly choiceRequired?: boolean }): void;
-	seedField(field: MetadataField, value: string): void;
+	/** Sets the metadata form to these values, every field unchanged and shared. */
+	seedForm(
+		values: Partial<Record<MetadataField, string>>,
+		options?: {
+			readonly mode?: 'single' | 'multi';
+			readonly selectionCount?: number;
+		},
+	): void;
 	seedCover(bytes: number[], notice?: CoverNotice): void;
 	seedTitleAudio(
 		titleId: string,
 		request: TitleAudioRequest,
-		resolved?: { readonly plan?: TitlePlan; readonly estimate?: SizeEstimate | null },
+		resolved?: {
+			readonly plan?: TitlePlan;
+			readonly estimate?: SizeEstimate | null;
+		},
 	): void;
 	loadTitles(files: AudioFile[], selected?: number[]): void;
 	status(status: MetadataStatus | null): void;
-	titles(): SessionTitles;
-	selection(): SessionSelection;
-	metadata(): SessionMetadata;
-	lookup(): SessionLookup;
-	audio(): SessionAudio;
-	output(): SessionOutput;
 	settings(): SettingsSnapshot;
-	change(
-		mutate: (state: {
-			titles: SessionTitles;
-			selection: SessionSelection;
-			metadata: SessionMetadata;
-			lookup: SessionLookup;
-			audio: SessionAudio;
-			output: SessionOutput;
-			remote: import('../../types/session').RemoteUiSnapshot;
-			remoteLibrary: import('../../types/session').RemoteLibrarySnapshot;
-			remoteAcquisition: import('../../types/session').RemoteAcquisitionSnapshot;
-		}) => void,
-	): void;
+	change(mutate: (state: SessionParts) => void): void;
 };
-
-export function fakeRemote(): import('../../types/session').RemoteUiSnapshot {
-	return {
-		revision: 0,
-		lane: 'audible',
-		providers: [],
-		account: null,
-		accountStatus: { kind: 'idle' },
-		auth: { kind: 'idle' },
-		libraryStatus: { kind: 'idle' },
-		busy: false,
-		selectedTitleIds: [],
-		includePdfByTitleId: {},
-		indexer: {
-			releases: [],
-			selectedReleaseKeys: [],
-			releaseGrabs: {},
-			searching: false,
-			grabbing: false,
-			message: '',
-		},
-		connection: {
-			baseUrl: '',
-			categoryIds: [3000, 3030],
-			emptyCategoriesRefused: false,
-			apiKeyConfigured: false,
-			apiKeyEntered: false,
-			save: { kind: 'idle' },
-			test: { kind: 'idle' },
-			testResult: null,
-			draftError: null,
-		},
-	};
-}
-
-function fakeOutput(): SessionOutput {
-	return {
-		revision: 0,
-		directory: null,
-		preset: 'absDefault',
-		includeYear: false,
-		template: '',
-		naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
-		preview: { kind: 'noDirectory' },
-		submission: null,
-		submissionInProgress: false,
-		collisionReview: null,
-		restartOffers: [],
-		restartPrompt: null,
-		previewRun: null,
-	};
-}
-
-function fakeAudio(): SessionAudio {
-	const settings = {
-		encoderType: 'native_aac',
-		bitrateKbps: 65,
-		bitrateMode: { mode: 'cbr' },
-		channels: 'auto',
-		nativeAacSpeed: 0,
-		faacProfile: 'auto',
-	} as const;
-	const capabilities = runtimeSettingsCapabilitiesFixture().encoder as SessionAudio['capabilities'];
-	const native = capabilities?.encoderConfigurations.find(
-		(config) => config.encoderType === 'native_aac',
-	);
-	return {
-		revision: 0,
-		capabilities,
-		defaults: {
-			choice: {
-				format: 'm4b',
-				intent: 'auto',
-				encoder: 'native_aac',
-				aacBitrateKbps: 65,
-				opusBitrateKbps: 64,
-				savedMode: { mode: 'cbr' },
-				faacProfile: 'auto',
-				faacRateControl: 'abr',
-				faacQuality: 100,
-				nativeSpeed: 0,
-				channels: 'auto',
-				sampleRate: 'auto',
-			},
-			facts: {
-				effectiveEncoder: 'native_aac',
-				encoderOptions: [
-					{ encoder: 'aac_at', available: true },
-					{ encoder: 'native_aac', available: true },
-					{ encoder: 'faac', available: true },
-				],
-				encoderLocked: false,
-				downmixWarning: false,
-				bitrateMode: { mode: 'cbr' },
-				bitrateKbpsMin: native?.bitrateKbpsMin ?? 1,
-				bitrateKbpsMax: native?.bitrateKbpsMax ?? 0,
-				allowedModes: native?.allowedModes ?? [],
-				faacProfiles: [],
-				allowedSampleRates: native?.explicitSampleRates ?? [],
-				sampleRateSupported: true,
-				estimateKbps: 65,
-			},
-			request: { format: 'm4b', intent: 'auto', settings, sampleRate: 'auto' },
-		},
-		titles: {},
-		selection: null,
-		refusal: null,
-	};
-}
-
-function finishedPreview(): ProcessCommandResult {
-	return {
-		summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
-		terminalClass: 'success',
-		results: [
-			{
-				inputIndex: 0,
-				status: 'success',
-				message: 'Preview finished',
-				jobId: 'fake-job',
-				warnings: [],
-			},
-		],
-	};
-}
-
-function defaultSubmissionAnswer(intent: SessionIntent): SubmissionStatus {
-	switch (intent.kind) {
-		case 'preview':
-			return { kind: 'previewFinished', result: finishedPreview() };
-		case 'cancelCollisionReview':
-			return { kind: 'cancelled' };
-		default:
-			return { kind: 'submitted', operationId: 'fake-operation', title: 'Fake title' };
-	}
-}
-
-function rejection(reason: Rejection): SettingsOutcome {
-	return {
-		kind: 'rejected',
-		error: { code: 'io_error', category: 'io', message: reason.message, detail: null },
-	};
-}
 
 export function createFakeEngine(initialSettings: AppSettings = defaultAppSettings()): FakeEngine {
 	let revision = 0;
 	const listeners = new Set<(update: SessionUpdate) => void>();
 	const settingsListeners = new Set<(snapshot: SettingsSnapshot) => void>();
-	const typed = new Map<MetadataField, { value: string; blank: boolean }>();
-	let boundKey = '';
-
-	const state = {
-		titles: {
-			revision: 0,
-			files: [],
-			titleSourcesByIdentity: {},
-			audioChoiceRequired: [],
-			sortDirection: 'none',
-			orderLocked: false,
-			notice: null,
-			orderDiffersFromImport: false,
-			companions: {},
-			coversRevision: 0,
-		} as SessionTitles,
-		selection: { revision: 0, selectedIndices: [], selectedAnchor: null } as SessionSelection,
-		metadata: {
-			revision: 0,
-			binding: 0,
-			form: {
-				mode: 'single',
-				selectionCount: 0,
-				fields: [],
-				seriesPartWarning: null,
-				subseriesPartWarning: null,
-				validationMessage: null,
-			},
-			cover: {
-				imageRevision: 0,
-				present: false,
-				custom: false,
-				removalRequested: false,
-				loading: false,
-				notice: null,
-				noticeSerial: 0,
-			},
-			tags: {
-				title: '',
-				album: '',
-				artist: '',
-				albumArtist: '',
-				composer: '',
-				series: '',
-				seriesPart: '',
-				subseries: '',
-				subseriesPart: '',
-				albumSort: '',
-				year: '',
-				genre: '',
-			},
-			saveInProgress: false,
-			status: null,
-			hasPendingEdits: false,
-			waitingWrites: [],
-		} as SessionMetadata,
-		lookup: {
-			revision: 0,
-			open: false,
-			titleQuery: '',
-			authorQuery: '',
-			source: 'auto',
-			applyMode: 'current',
-			replaceCover: false,
-			status: null,
-			queuePosition: null,
-			results: [],
-			isQueueMode: false,
-			hasSearched: false,
-		} as SessionLookup,
-		audio: fakeAudio(),
-		remote: fakeRemote(),
-		remoteLibrary: { revision: 0, titles: [], diagnostics: [] },
-		remoteAcquisition: {
-			revision: 0,
-			acquiring: false,
-			job: null,
-		} as import('../../types/session').RemoteAcquisitionSnapshot,
-		output: fakeOutput(),
+	const state = freshSession();
+	let settingsSnapshot: SettingsSnapshot = {
+		...structuredClone(recordedFresh.settings),
+		settings: structuredClone(initialSettings),
 	};
+	let nextSessionSequence = 0;
+	let nextSettingsSequence = 0;
 
 	function titleFromDefaults(): TitleAudio {
 		return {
@@ -381,75 +141,9 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		};
 	}
 
-	let settingsRevision = 0;
-	let settingsValue: AppSettings = structuredClone(initialSettings);
-	let saveError: SettingsSnapshot['saveError'];
-	let concurrency = initialSettings.maxConcurrentJobs;
-
-	const engine = {} as FakeEngine;
-	let chosenCover: number[] | null = null;
-
-	function selectedFiles(): AudioFile[] {
-		return state.selection.selectedIndices
-			.map((index) => state.titles.files[index])
-			.filter((file): file is AudioFile => Boolean(file));
-	}
-
-	function effectiveTags(file: AudioFile): FileTags {
-		return { ...engine.tags.get(file.path) };
-	}
-
-	function project(): void {
-		const selected = selectedFiles();
-		const key = selected.map((file) => file.path).join('\0');
-		if (key !== boundKey) {
-			boundKey = key;
-			typed.clear();
-			chosenCover = null;
-			state.metadata.status = null;
-		}
-		const tags = selected.filter((file) => file.isValid).map(effectiveTags);
-		state.metadata.form = {
-			...state.metadata.form,
-			mode: selected.length > 1 ? 'multi' : 'single',
-			selectionCount: selected.length > 1 ? selected.length : 0,
-			fields: FIELD_TAGS.map(([field, tag]): FieldSnapshot => {
-				const edit = typed.get(field);
-				const values = new Set(tags.map((entry) => String(entry[tag] ?? '')));
-				const shared = values.size <= 1;
-				return {
-					field,
-					value: edit ? edit.value : shared ? ([...values][0] ?? '') : '',
-					action: edit?.blank ? 'blank' : 'keep',
-					dirty: Boolean(edit),
-					mixed: !edit && !shared,
-				};
-			}),
-		};
-		const cover =
-			chosenCover ?? (selected.length === 1 ? effectiveTags(selected[0]).cover_art : undefined);
-		const present = Boolean(cover?.length);
-		if (present !== state.metadata.cover.present) {
-			state.metadata.cover = {
-				...state.metadata.cover,
-				present,
-				imageRevision: state.metadata.cover.imageRevision + 1,
-			};
-		}
-	}
-
 	function settle(): SessionUpdate {
-		project();
 		revision += 1;
-		state.titles = { ...state.titles, revision };
-		state.selection = { ...state.selection, revision };
-		state.metadata = { ...state.metadata, revision };
-		state.lookup = { ...state.lookup, revision };
-		state.audio = { ...state.audio, revision };
-		state.output = { ...state.output, revision };
-		state.remote = { ...state.remote, revision };
-		state.remoteLibrary = { ...state.remoteLibrary, revision };
-		state.remoteAcquisition = { ...state.remoteAcquisition, revision };
+		for (const part of Object.values(state)) part.revision = revision;
 		return structuredClone({ revision, ...state });
 	}
 
@@ -466,274 +160,37 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		};
 	}
 
-	function selectNamed(
-		titleId: string,
-		modifiers: { readonly multi: boolean; readonly range: boolean },
-	): void {
-		const index = state.titles.files.findIndex((file) => file.inputId === titleId);
-		if (index < 0) return;
-		const current = state.selection.selectedIndices;
-		const anchor = state.selection.selectedAnchor;
-		if (modifiers.range && anchor !== null) {
-			const [from, to] = [Math.min(anchor, index), Math.max(anchor, index)];
-			select(Array.from({ length: to - from + 1 }, (_, offset) => from + offset));
-			state.selection.selectedAnchor = index;
-			return;
-		}
-		if (modifiers.multi) {
-			select(
-				current.includes(index)
-					? current.filter((selected) => selected !== index)
-					: [...current, index],
-			);
-			return;
-		}
-		select([index]);
-	}
-
 	function appendFiles(files: AudioFile[]): void {
-		const known = new Set(state.titles.files.map((file) => file.path));
-		const added = files.filter((file) => !known.has(file.path));
-		const first = state.titles.files.length === 0;
-		if (!first && added.length === 0) {
-			state.titles.notice = { kind: 'duplicatesOnly' };
-			return;
-		}
-		state.titles.files = [...state.titles.files, ...added];
-		state.titles.notice = null;
-		for (const file of added) {
-			if (file.tagTitle && !engine.tags.has(file.path))
-				engine.tags.set(file.path, { title: file.tagTitle, artist: file.tagArtist });
+		state.titles.files = [...state.titles.files, ...files];
+		for (const file of files) {
 			if (file.inputId) state.audio.titles[file.inputId] = titleFromDefaults();
 		}
-		if (first && added.length === 1 && added[0].isValid) select([0]);
 	}
 
-	function apply(intent: SessionIntent): SessionOutcome {
-		const { titles } = state;
-		const locked = titles.orderLocked;
-		switch (intent.kind) {
-			case 'import':
-				if (locked) titles.notice = { kind: 'orderLocked' };
-				else appendFiles(engine.analyze(intent.paths));
-				break;
-			case 'selectFile':
-				selectNamed(intent.titleId, intent.modifiers);
-				break;
-			case 'selectAll':
-				select(titles.files.map((_, index) => index));
-				break;
-			case 'clearSelection':
-				select([]);
-				break;
-			case 'removeFile': {
-				if (locked) break;
-				const removedIndex = titles.files.findIndex((file) => file.inputId === intent.inputId);
-				if (removedIndex < 0) break;
-				titles.files = titles.files.filter((_, index) => index !== removedIndex);
-				state.selection.selectedIndices = state.selection.selectedIndices
-					.filter((index) => index !== removedIndex)
-					.map((index) => (index > removedIndex ? index - 1 : index));
-				break;
-			}
-			case 'clearAll':
-				if (locked) break;
-				titles.files = [];
-				titles.titleSourcesByIdentity = {};
-				state.audio.titles = {};
-				state.selection.selectedIndices = [];
-				break;
-			case 'moveFile':
-			case 'reorderFiles':
-			case 'toggleSort':
-			case 'restoreImportOrder':
-			case 'groupSelected':
-			case 'ungroup':
-			case 'reorderSources':
-			case 'chooseCue':
-			case 'applyDefaultAudio':
-			case 'setDefaultAudio':
-			case 'setTitleAudio':
-			case 'loadCoverFromFile':
-			case 'loadCoverFromUrl':
-			case 'clearCover':
-			case 'save':
-			case 'lookupSearch':
-			case 'lookupApply':
-			case 'lookupSkip':
-				break;
-			case 'setOutputDirectory':
-				state.output = { ...state.output, directory: intent.directory };
-				break;
-			case 'setNamingPreset':
-				state.output = {
-					...state.output,
-					preset: intent.preset,
-					naming: { ...state.output.naming, preset: intent.preset },
-				};
-				break;
-			case 'setIncludeYear':
-				state.output = {
-					...state.output,
-					includeYear: intent.includeYear,
-					naming: { ...state.output.naming, includeYear: intent.includeYear },
-				};
-				break;
-			case 'setNamingTemplate':
-				state.output = { ...state.output, template: intent.template };
-				break;
-			case 'reset':
-				titles.files = [];
-				titles.titleSourcesByIdentity = {};
-				state.audio.titles = {};
-				titles.audioChoiceRequired = [];
-				titles.orderLocked = false;
-				titles.notice = null;
-				state.selection.selectedIndices = [];
-				state.selection.selectedAnchor = null;
-				state.lookup.open = false;
-				typed.clear();
-				break;
-			case 'setField':
-				typed.set(intent.field, { value: intent.value, blank: false });
-				state.metadata.status = null;
-				break;
-			case 'setFieldAction':
-				if (intent.action === 'blank') typed.set(intent.field, { value: '', blank: true });
-				else typed.delete(intent.field);
-				break;
-			case 'submit':
-			case 'preview':
-			case 'chooseCollisionPolicy':
-			case 'cancelCollisionReview':
-				state.output = { ...state.output, submission: engine.answerSubmission(intent) };
-				break;
-			case 'lookupOpen':
-				state.lookup.open = true;
-				break;
-			case 'lookupClose':
-				state.lookup.open = false;
-				break;
-			case 'lookupSetTitleQuery':
-				state.lookup.titleQuery = intent.value;
-				break;
-			case 'lookupSetAuthorQuery':
-				state.lookup.authorQuery = intent.value;
-				break;
-			case 'lookupSetSource':
-				state.lookup.source = intent.source;
-				break;
-			case 'lookupSetApplyMode':
-				state.lookup.applyMode = intent.mode;
-				break;
-			case 'lookupSetReplaceCover':
-				state.lookup.replaceCover = intent.replace;
-				break;
-			default:
-				break;
-		}
-		return { kind: 'applied' };
-	}
-
-	function settingsSnapshot(): SettingsSnapshot {
-		const settings = settingsValue;
-		const startup =
-			settings.startupBehavior === 'pinnedDefaults' && settings.pinnedDefaults
-				? settings.pinnedDefaults
-				: {
-						maxConcurrentJobs: settings.maxConcurrentJobs,
-						encoderDefaults: settings.encoderDefaults,
-						outputDefaults: settings.outputDefaults,
-					};
-		return structuredClone({
-			revision: settingsRevision,
-			settings,
-			saveError,
-			concurrency: {
-				preference: concurrency,
-				effective: concurrency.mode === 'fixed' ? concurrency.value : 4,
-				capabilities: {
-					allowAuto: true,
-					autoEffective: 4,
-					fixedMin: 1,
-					fixedMax: 8,
-					fixedOptions: [1, 2, 3, 4, 5, 6, 7, 8],
-				},
-			},
-			startupDefaults: startup,
-			recovery: engine.recovery,
-		});
-	}
-
-	function write(patch: Partial<AppSettings>): SettingsOutcome {
-		settingsValue = { ...settingsValue, ...patch };
-		const failed = engine.settingsWriteError && rejection(engine.settingsWriteError);
-		saveError =
-			failed && failed.kind === 'rejected'
-				? { ...failed.error, detail: failed.error.detail ?? undefined }
-				: undefined;
-		return { kind: 'applied' };
-	}
-
-	function applySettings(intent: SettingsIntent): SettingsOutcome {
-		switch (intent.kind) {
-			case 'remember': {
-				const { kind: _kind, ...patch } = intent;
-				return write(
-					Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
-				);
-			}
-			case 'setConcurrency':
-				if (engine.concurrencyError) return rejection(engine.concurrencyError);
-				concurrency = intent.preference;
-				return write({ maxConcurrentJobs: intent.preference });
-			case 'setKeepAwake':
-				return write({ keepAwakeWhileWorking: intent.enabled });
-			case 'setAacDecoder':
-				return write({ aacDecoder: intent.decoder });
-			case 'setStartupBehavior':
-				return write({ startupBehavior: intent.behavior });
-			case 'pinCurrentDefaults':
-				return write({
-					pinnedDefaults: {
-						maxConcurrentJobs: settingsValue.maxConcurrentJobs,
-						encoderDefaults: settingsValue.encoderDefaults,
-						outputDefaults: settingsValue.outputDefaults,
-					},
-				});
-			case 'retry':
-				return write({});
-			case 'reset':
-				settingsValue = defaultAppSettings();
-				concurrency = { mode: 'auto' };
-				return write({});
-		}
-	}
-
-	let nextSessionSequence = 0;
-	let nextSettingsSequence = 0;
-
-	Object.assign(engine, {
+	const engine: FakeEngine = {
 		sessionIntents: [],
 		settingsIntents: [],
 		openedPreviews: [],
-		tags: new Map(),
-		analyze: (paths: readonly string[]) => paths.map((path) => audioFile(path)),
-		answerSubmission: defaultSubmissionAnswer,
+		analyze: (paths) => paths.map((path) => audioFile(path)),
 		async attach() {
 			nextSessionSequence = 0;
 			nextSettingsSequence = 0;
-			return { client: 1, session: settle(), settings: settingsSnapshot() };
+			return {
+				client: 1,
+				session: settle(),
+				settings: structuredClone(settingsSnapshot),
+			};
 		},
-		async sessionDispatch(_client: number, sequence: number, intent: SessionIntent) {
+		async sessionDispatch(_client, sequence, intent) {
 			if (sequence !== nextSessionSequence)
 				throw new Error(`session intent ${sequence} arrived out of order`);
 			nextSessionSequence += 1;
 			engine.sessionIntents.push(structuredClone(intent));
-			const outcome = (await engine.respond?.(intent)) ?? apply(intent);
-			return { outcome, update: settle() };
+			const answered = await engine.respond?.(intent);
+			if (!answered && intent.kind === 'import') appendFiles(engine.analyze(intent.paths));
+			return { outcome: answered ?? { kind: 'applied' }, update: settle() };
 		},
-		async openPreviewOutput(client: number, sequence: number, runId: string) {
+		async openPreviewOutput(client, sequence, runId) {
 			const reply = await engine.sessionDispatch(client, sequence, {
 				kind: 'takePreviewOutput',
 				runId,
@@ -742,17 +199,39 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				engine.openedPreviews.push(reply.outcome.path);
 			return reply;
 		},
-		async settingsDispatch(_client: number, sequence: number, intent: SettingsIntent) {
+		async settingsDispatch(_client, sequence, intent) {
 			if (sequence !== nextSettingsSequence)
 				throw new Error(`settings intent ${sequence} arrived out of order`);
 			nextSettingsSequence += 1;
 			engine.settingsIntents.push(structuredClone(intent));
-			const outcome = applySettings(intent);
-			if (outcome.kind === 'applied' && intent.kind !== 'retry') engine.recovery = undefined;
-			settingsRevision += 1;
-			return { outcome, snapshot: settingsSnapshot() };
+			const outcome = (await engine.respondSettings?.(intent)) ?? {
+				kind: 'applied',
+			};
+			return { outcome, snapshot: structuredClone(settingsSnapshot) };
 		},
-		seedGroup(sources: AudioFile[], options = {}) {
+		async listenSessionUpdates(handler) {
+			listeners.add(handler);
+			return () => listeners.delete(handler);
+		},
+		async listenSettingsUpdates(handler) {
+			settingsListeners.add(handler);
+			return () => settingsListeners.delete(handler);
+		},
+		seedSettings(patch) {
+			settingsSnapshot = {
+				...settingsSnapshot,
+				...structuredClone(patch),
+				revision: settingsSnapshot.revision + 1,
+			};
+			for (const listener of settingsListeners) listener(structuredClone(settingsSnapshot));
+		},
+		seedAppSettings(patch, saveError) {
+			engine.seedSettings({
+				settings: { ...settingsSnapshot.settings!, ...patch },
+				saveError,
+			});
+		},
+		seedGroup(sources, options = {}) {
 			const [anchor] = sources;
 			const id = anchor?.inputId;
 			if (!id) throw new Error('a group needs an anchor with an input id');
@@ -761,21 +240,34 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			titles.files = titles.files.filter(
 				(file) => file.path === anchor.path || !members.has(file.path),
 			);
-			titles.titleSourcesByIdentity = { ...titles.titleSourcesByIdentity, [id]: sources };
+			titles.titleSourcesByIdentity = {
+				...titles.titleSourcesByIdentity,
+				[id]: sources,
+			};
 			if (options.choiceRequired) titles.audioChoiceRequired = [...titles.audioChoiceRequired, id];
 			select([titles.files.findIndex((file) => file.path === anchor.path)]);
 			publish();
 		},
-		seedField(field: MetadataField, value: string) {
-			typed.set(field, { value, blank: false });
+		seedForm(values, options = {}) {
+			state.metadata.form = {
+				...state.metadata.form,
+				mode: options.mode ?? 'single',
+				selectionCount: options.selectionCount ?? 0,
+				fields: FORM_FIELDS.map((field) => ({
+					field,
+					value: values[field] ?? '',
+					action: 'keep',
+					dirty: false,
+					mixed: false,
+				})),
+			};
 			publish();
 		},
-		seedCover(bytes: number[], notice?: CoverNotice) {
-			chosenCover = bytes;
+		seedCover(bytes, notice) {
 			const cover = state.metadata.cover;
 			state.metadata.cover = {
 				...cover,
-				present: true,
+				present: bytes.length > 0,
 				custom: true,
 				imageRevision: cover.imageRevision + 1,
 				notice: notice ?? cover.notice,
@@ -783,56 +275,34 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			};
 			publish();
 		},
-		async listenSessionUpdates(handler: (update: SessionUpdate) => void) {
-			listeners.add(handler);
-			return () => listeners.delete(handler);
-		},
-		async listenSettingsUpdates(handler: (snapshot: SettingsSnapshot) => void) {
-			settingsListeners.add(handler);
-			return () => settingsListeners.delete(handler);
-		},
-		recordSettings(patch: Partial<AppSettings>) {
-			write(patch);
-			settingsRevision += 1;
-			const snapshot = settingsSnapshot();
-			for (const listener of settingsListeners) listener(snapshot);
-		},
-		loadTitles(files: AudioFile[], selected: number[] = []) {
+		loadTitles(files, selected = []) {
 			appendFiles(files);
 			if (selected.length) select(selected);
 			publish();
 		},
-		status(status: MetadataStatus | null) {
+		status(status) {
 			state.metadata.status = status;
 			publish();
 		},
-		titles: () => state.titles,
-		selection: () => state.selection,
-		metadata: () => {
-			project();
-			return state.metadata;
-		},
-		lookup: () => state.lookup,
-		audio: () => state.audio,
-		output: () => state.output,
 		seedTitleAudio(titleId, request, resolved = {}) {
 			const view = structuredClone(state.audio.titles[titleId] ?? titleFromDefaults());
 			view.request = structuredClone(request);
-			view.choice = { ...view.choice, format: request.format, intent: request.intent };
+			view.choice = {
+				...view.choice,
+				format: request.format,
+				intent: request.intent,
+			};
 			if (resolved.plan) view.plan = resolved.plan;
 			if (resolved.estimate !== undefined) view.estimate = resolved.estimate;
 			state.audio.titles = { ...state.audio.titles, [titleId]: view };
-			state.titles.audioChoiceRequired = state.titles.audioChoiceRequired.filter(
-				(id) => id !== titleId,
-			);
 			publish();
 		},
-		settings: settingsSnapshot,
-		change(mutate: Parameters<FakeEngine['change']>[0]) {
+		settings: () => structuredClone(settingsSnapshot),
+		change(mutate) {
 			mutate(state);
 			publish();
 		},
-	} satisfies Partial<FakeEngine>);
+	};
 
 	return engine;
 }

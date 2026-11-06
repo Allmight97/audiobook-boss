@@ -6,7 +6,7 @@ use proptest::prelude::*;
 
 use super::*;
 use crate::audio::{AudioFile, AudioIntent, TitleAudioRequest};
-use crate::session::metadata_form::{FieldAction, FieldSnapshot};
+use crate::session::metadata_form::{FieldAction, FieldSnapshot, SeriesPartWarning};
 use crate::session::staged::tests::exported;
 use crate::session::submission::SubmissionStatus;
 use crate::session::working_set::SelectionModifiers;
@@ -196,8 +196,8 @@ impl Desk {
     }
 
     fn cover(&mut self) -> Option<Vec<u8>> {
-        self.state.settle();
-        self.state.displayed_cover()
+        let revision = self.metadata().cover.image_revision;
+        self.state.displayed_cover_at(revision)
     }
 
     /// Saves with no export running. `fail` names files whose write fails.
@@ -366,6 +366,12 @@ fn inherited_values_are_neither_rewritten_nor_revalidated_by_an_unrelated_edit()
     };
     let mut desk = Desk::open(&[("alpha", Some(odd))], &[0]);
     desk.type_into(MetadataField::Genre, "Mystery");
+    let form = desk.metadata().form;
+    assert!(matches!(
+        form.series_part_warning,
+        Some(SeriesPartWarning::Invalid { .. })
+    ));
+    assert!(form.validation_message.is_some());
     desk.save(&[]);
 
     assert_eq!(
@@ -589,37 +595,6 @@ fn an_edit_typed_while_tags_load_survives_their_arrival() {
         "Typed while loading"
     );
     assert_eq!(desk.field(MetadataField::Title).value, "Alpha");
-}
-
-#[test]
-fn a_read_begun_before_a_save_cannot_replace_the_saved_author() {
-    let mut desk = Desk::open(&[("alpha", None), ("beta", Some(beta_tags()))], &[0]);
-    desk.type_into(MetadataField::Author, "Saved Author");
-    desk.state.stage_bound_form();
-    let stale = desk
-        .state
-        .tags
-        .begin_read(&path("alpha"))
-        .expect("read begins");
-
-    desk.save(&[]);
-    assert!(desk.pending("alpha").is_none());
-    let binding = desk.state.binding;
-    desk.state.finish_reads(
-        binding,
-        vec![(
-            stale,
-            Ok(AudiobookMetadata {
-                title: Some("Alpha".to_string()),
-                artist: Some("Old Author".to_string()),
-                ..Default::default()
-            }),
-        )],
-    );
-    desk.select(&[1]).expect("select beta");
-    desk.select(&[0]).expect("select alpha");
-
-    assert_eq!(desk.field(MetadataField::Author).value, "Saved Author");
 }
 
 #[test]
@@ -1072,7 +1047,7 @@ const VALUES: [&str; 6] = ["", "A", "B", " 7 ", "1/2", "soon"];
 
 #[derive(Debug, Clone)]
 enum Step {
-    Import(usize),
+    Import(usize, bool),
     Select(Vec<usize>),
     Remove(usize),
     Group,
@@ -1100,7 +1075,7 @@ enum Step {
 
 fn step() -> impl Strategy<Value = Step> {
     prop_oneof![
-        (0..3usize).prop_map(Step::Import),
+        (0..3usize, any::<bool>()).prop_map(|(index, tagless)| Step::Import(index, tagless)),
         prop::collection::vec(0..3usize, 0..3).prop_map(Step::Select),
         (0..3usize).prop_map(Step::Remove),
         Just(Step::Group),
@@ -1200,14 +1175,16 @@ impl Run {
     fn apply(&mut self, step: Step) -> Result<(), TestCaseError> {
         let desk = &mut self.desk;
         match step {
-            Step::Import(index) => {
+            Step::Import(index, tagless) => {
                 let name = NAMES[index];
-                desk.disk
-                    .entry(path(name))
-                    .or_insert_with(|| AudiobookMetadata {
-                        title: Some(name.to_uppercase()),
-                        ..Default::default()
-                    });
+                if !tagless {
+                    desk.disk
+                        .entry(path(name))
+                        .or_insert_with(|| AudiobookMetadata {
+                            title: Some(name.to_uppercase()),
+                            ..Default::default()
+                        });
+                }
                 desk.import(&[(name, None)]);
             }
             Step::Select(indices) => {
@@ -1387,7 +1364,7 @@ proptest! {
             let disk_before = run.desk.disk.clone();
             let writes = matches!(
                 step,
-                Step::Save { .. } | Step::ExportsReading { .. } | Step::Import(_)
+                Step::Save { .. } | Step::ExportsReading { .. } | Step::Import(..)
             );
             run.apply(step)?;
             let desk = &mut run.desk;

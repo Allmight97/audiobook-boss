@@ -26,6 +26,7 @@ pub struct AppSettings {
     pub pinned_defaults: Option<PinnedDefaults>,
     pub default_acquisition_lane: AcquisitionLane,
     pub aac_decoder: AacDecoder,
+    pub indexer_connection: IndexerConnection,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
@@ -41,6 +42,16 @@ pub struct AppSettingsPatch {
     pub pinned_defaults: Option<PinnedDefaults>,
     pub default_acquisition_lane: Option<AcquisitionLane>,
     pub aac_decoder: Option<AacDecoder>,
+    pub indexer_connection: Option<IndexerConnection>,
+}
+
+/// The Indexer server and categories a search uses. The API key lives in the
+/// credential store, under the URL.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexerConnection {
+    pub base_url: Option<String>,
+    pub category_ids: Vec<u32>,
 }
 
 /// A setting that loading recovers on its own: a saved value this release
@@ -52,6 +63,7 @@ pub enum SettingsUnit {
     JobLimit,
     AcquisitionLane,
     AacDecoder,
+    IndexerConnection,
     EncoderDefaults,
     OutputDefaults,
     StartupBehavior,
@@ -130,6 +142,16 @@ impl Default for AppSettings {
             pinned_defaults: None,
             default_acquisition_lane: AcquisitionLane::default(),
             aac_decoder: AacDecoder::default(),
+            indexer_connection: IndexerConnection::default(),
+        }
+    }
+}
+
+impl Default for IndexerConnection {
+    fn default() -> Self {
+        Self {
+            base_url: None,
+            category_ids: vec![3000, 3030],
         }
     }
 }
@@ -171,6 +193,9 @@ impl AppSettings {
         if let Some(aac_decoder) = patch.aac_decoder {
             self.aac_decoder = aac_decoder;
         }
+        if let Some(indexer_connection) = patch.indexer_connection {
+            self.indexer_connection = indexer_connection;
+        }
         self.validate()?;
         Ok(self)
     }
@@ -179,13 +204,19 @@ impl AppSettings {
         self.max_concurrent_jobs.validate()?;
         self.encoder_defaults.validate()?;
         self.output_defaults.normalize();
+        self.indexer_connection.validate()?;
         if let Some(pinned) = self.pinned_defaults.as_mut() {
-            // Same validators as the live values: a stale or hand-edited
-            // pinned snapshot must never brick launch hydration.
-            pinned.max_concurrent_jobs.validate()?;
-            pinned.encoder_defaults.validate()?;
-            pinned.output_defaults.normalize();
+            pinned.validate()?;
         }
+        Ok(())
+    }
+}
+
+impl PinnedDefaults {
+    fn validate(&mut self) -> Result<()> {
+        self.max_concurrent_jobs.validate()?;
+        self.encoder_defaults.validate()?;
+        self.output_defaults.normalize();
         Ok(())
     }
 }

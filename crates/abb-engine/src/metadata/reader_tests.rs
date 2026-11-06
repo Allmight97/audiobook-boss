@@ -69,6 +69,54 @@ fn falls_back_to_show_for_series() {
 }
 
 #[test]
+fn every_known_tag_alias_reads_into_its_field() {
+    let rows: [(TagField, &[&str], &[&str]); 2] = [
+        (
+            TagField::Track,
+            &["track", "tracknumber", "trkn"],
+            &["tracktotal", "totaltracks", "totaltrack"],
+        ),
+        (
+            TagField::Disk,
+            &["disc", "disk", "discnumber", "disknumber"],
+            &["disctotal", "disktotal", "totaldiscs", "totaldisks"],
+        ),
+    ];
+    for (field, number_keys, total_keys) in rows {
+        for key in number_keys {
+            let tags = BTreeMap::from([(*key, "7".to_string())]);
+            let selected = first_tag_with_lookup(field.read_keys(), |name| tags.get(name).cloned());
+            assert_eq!(selected.as_deref(), Some("7"), "{field:?} number key {key}");
+        }
+        let read_total_keys = field.read_total_keys().expect("position field has totals");
+        for key in total_keys {
+            let tags = BTreeMap::from([(*key, "42".to_string())]);
+            let selected = first_tag_with_lookup(read_total_keys, |name| tags.get(name).cloned());
+            assert_eq!(selected.as_deref(), Some("42"), "{field:?} total key {key}");
+        }
+    }
+    assert_eq!(
+        parse_position_field(Some("7"), Some("42")),
+        Some((7, Some(42)))
+    );
+
+    let series = |tags: BTreeMap<&str, String>| {
+        first_tag_with_lookup(TagField::Series.read_keys(), |name| tags.get(name).cloned())
+    };
+    let all_series_keys = BTreeMap::from([
+        ("series", "A".to_string()),
+        ("----:com.apple.iTunes:SERIES", "B".to_string()),
+        ("show", "C".to_string()),
+    ]);
+    assert_eq!(series(all_series_keys).as_deref(), Some("A"));
+    let without_canonical = BTreeMap::from([
+        ("----:com.apple.iTunes:SERIES", "B".to_string()),
+        ("show", "C".to_string()),
+    ]);
+    assert_eq!(series(without_canonical).as_deref(), Some("B"));
+}
+
+#[test]
 fn parses_track_number_with_inline_total() {
     assert_eq!(
         parse_position_field(Some("3/12"), None),

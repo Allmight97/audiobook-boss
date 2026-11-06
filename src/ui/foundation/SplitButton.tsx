@@ -1,10 +1,8 @@
 import { createSignal, onSettled, omit } from 'solid-js';
 import type { JSX } from '@solidjs/web';
-import { Button, type ButtonTone } from './Button';
+import { Button } from './Button';
 
 export type SplitButtonProps = {
-	readonly disabled?: boolean;
-	readonly tone?: ButtonTone;
 	readonly mainId?: string;
 	readonly caretId?: string;
 	readonly dropdownId?: string;
@@ -29,7 +27,6 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 	const [open, setOpen] = createSignal(false);
 	let dropdown: HTMLDivElement | undefined;
 	let toggle: HTMLButtonElement | undefined;
-	const tone = () => props.tone ?? 'primary';
 
 	onSettled(() => {
 		function handleWindowClick(event: MouseEvent): void {
@@ -51,8 +48,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 		<div class="abb-split-button" data-testid={props.testId}>
 			<Button
 				id={props.mainId}
-				disabled={props.disabled}
-				tone={tone()}
+				tone="primary"
 				class="abb-split-main"
 				onClick={() => props.onMainClick()}
 			>
@@ -60,8 +56,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 			</Button>
 			<Button
 				id={props.caretId}
-				disabled={props.disabled}
-				tone={tone()}
+				tone="primary"
 				class="abb-split-caret"
 				aria-expanded={open() ? 'true' : 'false'}
 				ref={toggle}
@@ -75,7 +70,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 			<div
 				id={props.dropdownId}
 				class={`abb-split-dropdown${open() ? ' open' : ''}`}
-				hidden={!open() || props.disabled}
+				hidden={!open()}
 				ref={dropdown}
 			>
 				{props.children({ close })}

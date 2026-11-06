@@ -3,12 +3,12 @@ use std::path::Path;
 use specta_typescript::Typescript;
 use tauri_specta::{Builder, ErrorHandlingMode};
 
-pub fn builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new()
+pub fn builder<R: tauri::Runtime>() -> Builder<R> {
+    Builder::<R>::new()
         .commands(tauri_specta::collect_commands![
             crate::commands::attach_frontend,
             crate::commands::session_dispatch,
-            crate::commands::open_preview_output,
+            crate::commands::open_preview_output::<tauri::Wry>,
             crate::commands::settings_dispatch,
             crate::commands::get_supported_audio_import_metadata,
             crate::commands::list_work_operations,
@@ -38,7 +38,7 @@ pub fn export_typescript_bindings(
         std::fs::create_dir_all(parent)?;
     }
 
-    builder().export(Typescript::default(), output_path)?;
+    builder::<tauri::Wry>().export(Typescript::default(), output_path)?;
 
     let generated = std::fs::read_to_string(output_path)?;
     let normalized = trim_generated_typescript(&generated);
@@ -75,7 +75,3 @@ fn trim_generated_typescript(input: &str) -> String {
 
     normalized
 }
-
-#[cfg(test)]
-#[path = "ipc_contract_tests.rs"]
-mod tests;

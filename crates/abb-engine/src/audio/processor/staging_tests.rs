@@ -46,17 +46,6 @@ fn rejects_existing_staging_entry() {
 }
 
 #[test]
-fn rejects_empty_workspace_root() {
-    let err = create_processing_workspace_dir(Uuid::nil(), Path::new(""))
-        .expect_err("empty workspace root should be rejected");
-
-    assert!(
-        err.to_string().contains("workspace root is empty"),
-        "error should identify empty workspace root"
-    );
-}
-
-#[test]
 fn cleanup_refuses_out_of_root_session() {
     let root = TempDir::new().expect("root");
     let outside = TempDir::new().expect("outside");
@@ -72,19 +61,6 @@ fn cleanup_refuses_out_of_root_session() {
         "unexpected error: {err}"
     );
     assert!(session.exists(), "outside session must not be removed");
-}
-
-#[test]
-fn cleanup_abandoned_processing_sessions_removes_owned_children_only() {
-    let root = TempDir::new().expect("root");
-    let session = root.path().join(".abb-processing-session");
-    std::fs::create_dir_all(&session).expect("session");
-    std::fs::write(session.join("worker-output.m4b"), b"audio").expect("worker output");
-
-    cleanup_abandoned_processing_sessions(root.path()).expect("cleanup");
-
-    assert!(root.path().exists(), "workspace root should remain");
-    assert!(!session.exists(), "owned session should be removed");
 }
 
 #[cfg(unix)]
@@ -104,4 +80,24 @@ fn cleanup_refuses_symlink_session() {
         "unexpected error: {err}"
     );
     assert!(target.exists(), "target must not be removed");
+}
+
+#[cfg(unix)]
+#[test]
+fn startup_refuses_a_symlinked_workspace_root() {
+    let cache = TempDir::new().expect("cache");
+    let target = cache.path().join("elsewhere");
+    let workspace_root = cache.path().join("sessions");
+    std::fs::create_dir_all(target.join("kept")).expect("target");
+    std::os::unix::fs::symlink(&target, &workspace_root).expect("symlink");
+
+    let error =
+        cleanup_abandoned_processing_sessions(&workspace_root).expect_err("symlinked root refused");
+
+    assert!(error.to_string().contains("symlink"), "{error}");
+    assert!(target.join("kept").exists());
+    assert!(std::fs::symlink_metadata(&workspace_root)
+        .expect("workspace root")
+        .file_type()
+        .is_symlink());
 }

@@ -30,7 +30,7 @@ fn download_failure(stage: &str) -> AppError {
     ))
 }
 
-pub(super) fn download_status_failure(status: u16) -> AppError {
+fn download_status_failure(status: u16) -> AppError {
     AppError::General(format!(
         "Remote source download returned HTTP {status}. Check application logs for sanitized acquisition facts."
     ))
@@ -353,7 +353,7 @@ async fn stream_download_chunks(
     }
 }
 
-pub(super) fn build_download_request(
+fn build_download_request(
     client: &reqwest::Client,
     url: reqwest::Url,
     offset: u64,

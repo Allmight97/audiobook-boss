@@ -1,6 +1,6 @@
 use super::snapshot::{new_metadata_save_snapshot, new_processing_snapshot};
 use super::state::WorkRuntimeState;
-use super::{ChildJobStatus, OperationId, ResourceLane, WorkOperationStatus, WorkProgressStage};
+use super::{ChildJobStatus, OperationId, WorkOperationStatus, WorkProgressStage};
 use crate::processing::{
     EventStage, OperationKind, OperationResultSummary, ProcessCommandResult, ProcessResultEntry,
     ProcessResultStatus, ProgressEvent,
@@ -23,7 +23,10 @@ fn accepted_state() -> (WorkRuntimeState, OperationId) {
 #[test]
 fn snapshots_revision_each_operation_independently() {
     let (mut state, operation_id) = accepted_state();
-    let accepted = state.get(&operation_id).expect("accepted snapshot");
+    let accepted = state
+        .operation(operation_id.as_str())
+        .cloned()
+        .expect("accepted snapshot");
     assert_eq!(accepted.revision, 1);
 
     let running = state.mark_running(&operation_id, 150).expect("start");
@@ -53,7 +56,7 @@ fn snapshots_revision_each_operation_independently() {
     assert_eq!(next.revision, 1);
     assert_eq!(
         state
-            .get(&operation_id)
+            .operation(operation_id.as_str())
             .expect("terminal snapshot")
             .revision,
         terminal.revision
@@ -93,7 +96,10 @@ fn snapshots_revision_each_operation_independently() {
 #[test]
 fn accepted_operation_preserves_immutable_child_identity() {
     let (state, operation_id) = accepted_state();
-    let snapshot = state.get(&operation_id).expect("snapshot");
+    let snapshot = state
+        .operation(operation_id.as_str())
+        .cloned()
+        .expect("snapshot");
 
     assert_eq!(snapshot.status, WorkOperationStatus::Accepted);
     assert_eq!(snapshot.source_input_ids, ["input-1", "input-2"]);
@@ -310,38 +316,6 @@ fn apply_batch_progress_updates_matched_child_and_aggregates_operation_progress(
 }
 
 #[test]
-fn apply_single_child_progress_stages_operation_stage_without_terminaling_operation() {
-    let (mut state, operation_id) = accepted_state();
-    let single = OperationId("single-op".to_string());
-    let mut single_snapshot = state.get(&operation_id).expect("snapshot");
-    single_snapshot.children = vec![single_snapshot.children.remove(0)];
-    single_snapshot.operation_id = single.clone();
-    state.insert_operation(single_snapshot);
-
-    let snapshot = state
-        .apply_progress_event(
-            &single,
-            &ProgressEvent {
-                operation_kind: OperationKind::ProcessingBatch,
-                stage: EventStage::Completed,
-                percentage: 100.0,
-                message: "done".to_string(),
-                current_file: None,
-                eta_seconds: None,
-                job_id: Some("single-job".to_string()),
-                input_index: None,
-            },
-            1_000,
-        )
-        .expect("progress");
-
-    assert_eq!(snapshot.status, WorkOperationStatus::Running);
-    assert_eq!(snapshot.progress.stage, WorkProgressStage::Complete);
-    assert_eq!(snapshot.children.len(), 1);
-    assert_eq!(snapshot.children[0].status, ChildJobStatus::Completed);
-}
-
-#[test]
 fn apply_batch_progress_failure_keeps_operation_running_for_child_event() {
     let (mut state, operation_id) = accepted_state();
     state.mark_running(&operation_id, 150).expect("running");
@@ -367,34 +341,51 @@ fn apply_batch_progress_failure_keeps_operation_running_for_child_event() {
     assert_eq!(snapshot.children[0].status, ChildJobStatus::Failed);
 }
 
-#[test]
-fn apply_single_child_progress_failure_terminalizes_operation_immediately() {
-    let (mut state, operation_id) = accepted_state();
-    let single = OperationId("single-op".to_string());
-    let mut single_snapshot = state.get(&operation_id).expect("snapshot");
-    single_snapshot.children = vec![single_snapshot.children.remove(0)];
-    single_snapshot.operation_id = single.clone();
-    state.insert_operation(single_snapshot);
+fn single_title_state(id: &str) -> (WorkRuntimeState, OperationId) {
+    let mut state = WorkRuntimeState::default();
+    let operation_id = OperationId(id.to_string());
+    state.insert_operation(new_processing_snapshot(
+        operation_id.clone(),
+        1,
+        "Book".to_string(),
+        &["/tmp/only.m4b".to_string()],
+        None,
+        100,
+    ));
+    state.mark_running(&operation_id, 150).expect("running");
+    (state, operation_id)
+}
 
+#[test]
+fn a_single_title_export_takes_its_titles_stage_and_fails_with_it() {
+    let (mut state, operation_id) = single_title_state("single-complete");
     let snapshot = state
         .apply_progress_event(
-            &single,
+            &operation_id,
             &ProgressEvent {
-                operation_kind: OperationKind::ProcessingBatch,
-                stage: EventStage::Failed,
-                percentage: 0.0,
-                message: "done".to_string(),
-                current_file: None,
-                eta_seconds: None,
-                job_id: Some("single-job".to_string()),
-                input_index: None,
+                stage: EventStage::Completed,
+                ..converting_event(100.0, "done", 0)
             },
             1_000,
         )
         .expect("progress");
+    assert_eq!(snapshot.status, WorkOperationStatus::Running);
+    assert_eq!(snapshot.progress.stage, WorkProgressStage::Complete);
+    assert_eq!(snapshot.progress.percentage, 100.0);
+    assert_eq!(snapshot.children[0].status, ChildJobStatus::Completed);
 
+    let (mut state, operation_id) = single_title_state("single-failed");
+    let snapshot = state
+        .apply_progress_event(
+            &operation_id,
+            &ProgressEvent {
+                stage: EventStage::Failed,
+                ..converting_event(0.0, "done", 0)
+            },
+            1_000,
+        )
+        .expect("progress");
     assert_eq!(snapshot.status, WorkOperationStatus::Failed);
-    assert_eq!(snapshot.children.len(), 1);
     assert_eq!(snapshot.children[0].status, ChildJobStatus::Failed);
 }
 
@@ -468,20 +459,45 @@ fn metadata_save_state() -> (WorkRuntimeState, OperationId) {
 }
 
 #[test]
-fn metadata_save_snapshot_uses_metadata_write_lane() {
-    let (state, operation_id) = metadata_save_state();
-    let snapshot = state.get(&operation_id).expect("snapshot");
+fn metadata_save_progress_updates_only_the_title_it_names() {
+    let (mut state, operation_id) = metadata_save_state();
+    state.mark_running(&operation_id, 150).expect("running");
+    let event = |stage, percentage, message: &str, input_index| ProgressEvent {
+        operation_kind: OperationKind::MetadataSave,
+        stage,
+        percentage,
+        message: message.to_string(),
+        current_file: None,
+        eta_seconds: None,
+        job_id: None,
+        input_index: Some(input_index),
+    };
 
-    assert_eq!(snapshot.kind, OperationKind::MetadataSave);
-    assert_eq!(snapshot.lanes, [ResourceLane::MetadataWrite]);
-    assert_eq!(snapshot.children.len(), 2);
-    assert!(snapshot
-        .children
-        .iter()
-        .all(|child| child.lane == ResourceLane::MetadataWrite));
-    assert_eq!(snapshot.children[0].input_index, Some(0));
+    let snapshot = state
+        .apply_progress_event(
+            &operation_id,
+            &event(EventStage::Writing, 50.0, "Writing b", 1),
+            200,
+        )
+        .expect("progress");
+    assert_eq!(snapshot.status, WorkOperationStatus::Running);
     assert_eq!(snapshot.children[0].label, "a.m4b");
-    assert!(snapshot.children.iter().all(|child| child.job_id.is_none()));
+    assert_eq!(snapshot.children[0].status, ChildJobStatus::Queued);
+    assert_eq!(snapshot.children[1].status, ChildJobStatus::Running);
+    assert_eq!(snapshot.children[1].progress.percentage, 50.0);
+
+    let snapshot = state
+        .apply_progress_event(
+            &operation_id,
+            &event(EventStage::Completed, 100.0, "Saved a", 0),
+            300,
+        )
+        .expect("progress");
+    assert_eq!(snapshot.status, WorkOperationStatus::Running);
+    assert_eq!(snapshot.children[0].status, ChildJobStatus::Completed);
+    assert_eq!(snapshot.children[1].status, ChildJobStatus::Running);
+    assert_eq!(snapshot.children[1].progress.percentage, 50.0);
+    assert_eq!(snapshot.children[1].message.as_deref(), Some("Writing b"));
 }
 
 #[test]
@@ -621,25 +637,13 @@ fn log_tail_is_bounded_drop_oldest() {
             .expect("progress");
     }
 
-    let snapshot = state.get(&operation_id).expect("snapshot");
+    let snapshot = state
+        .operation(operation_id.as_str())
+        .cloned()
+        .expect("snapshot");
     assert_eq!(snapshot.log_tail.len(), 20);
     assert_eq!(snapshot.log_tail[0].message, "encoding chunk 20/40");
     assert_eq!(snapshot.log_tail[19].message, "encoding chunk 39/40");
-}
-
-#[test]
-fn log_tail_records_terminal_and_cancel_entries() {
-    let (mut state, operation_id) = accepted_state();
-    state.mark_running(&operation_id, 100).expect("running");
-    state
-        .cancel(&operation_id, "Processing was cancelled.".to_string(), 500)
-        .expect("cancel");
-
-    let snapshot = state.get(&operation_id).expect("snapshot");
-    let last = snapshot.log_tail.last().expect("tail entry");
-    assert_eq!(last.message, "Processing was cancelled.");
-    assert_eq!(last.stage, Some(WorkProgressStage::Cancelled));
-    assert_eq!(last.timestamp_ms, 500);
 }
 
 #[test]
@@ -720,17 +724,17 @@ fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
 
     let list = state.list();
     assert_eq!(list.operations.len(), 21, "20 terminal + 1 running");
-    assert!(state.get(&running_id).is_ok());
+    assert!(state.operation(running_id.as_str()).is_some());
 
     for sequence in 1..=5u64 {
         assert!(
-            state.get(&OperationId(format!("term-{sequence}"))).is_err(),
+            state.operation(&format!("term-{sequence}")).is_none(),
             "sequence {sequence} should have been pruned"
         );
     }
     for sequence in 6..=25u64 {
         assert!(
-            state.get(&OperationId(format!("term-{sequence}"))).is_ok(),
+            state.operation(&format!("term-{sequence}")).is_some(),
             "sequence {sequence} should be retained"
         );
     }
@@ -771,12 +775,12 @@ fn prune_orders_by_terminalization_so_a_just_finished_long_runner_survives() {
         .expect("long runner terminalizes");
 
     assert!(
-        state.get(&long_runner).is_ok(),
+        state.operation(long_runner.as_str()).is_some(),
         "the just-finished long-running operation must survive its own prune"
     );
     let list = state.list();
     assert_eq!(list.operations.len(), 20, "terminal cap holds");
-    assert!(state.get(&OperationId("term-2".to_string())).is_err());
+    assert!(state.operation("term-2").is_none());
 }
 
 #[test]
@@ -788,7 +792,10 @@ fn log_tail_records_the_cancellation_request_transition() {
         .cancel(&operation_id, "Processing was cancelled.".to_string(), 500)
         .expect("cancel");
 
-    let snapshot = state.get(&operation_id).expect("snapshot");
+    let snapshot = state
+        .operation(operation_id.as_str())
+        .cloned()
+        .expect("snapshot");
     let messages: Vec<&str> = snapshot
         .log_tail
         .iter()
@@ -796,6 +803,9 @@ fn log_tail_records_the_cancellation_request_transition() {
         .collect();
     assert!(messages.contains(&"Cancellation requested."));
     assert_eq!(messages.last(), Some(&"Processing was cancelled."));
+    let last = snapshot.log_tail.last().expect("tail entry");
+    assert_eq!(last.stage, Some(WorkProgressStage::Cancelled));
+    assert_eq!(last.timestamp_ms, 500);
 }
 
 #[test]
@@ -806,7 +816,7 @@ fn child_completion_timing_excludes_queue_and_survives_later_batch_settlement() 
         .expect("start operation");
     assert_eq!(
         state
-            .get(&operation_id)
+            .operation(operation_id.as_str())
             .expect("operation timing snapshot")
             .children[0]
             .started_at_ms,

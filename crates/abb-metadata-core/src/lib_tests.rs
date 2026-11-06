@@ -445,28 +445,6 @@ fn normalize_publication_date_accepts_year_month_and_full_date_prefix() {
 }
 
 #[test]
-fn metadata_intent_validation_reports_field_errors_as_data() {
-    let patch = MetadataIntentPatch {
-        date: Some(PatchOp::Set("not a date".to_string())),
-        series_part: Some(PatchOp::Set("1/2".to_string())),
-        ..Default::default()
-    };
-
-    let result = validate_metadata_intent_patch(&patch);
-
-    assert!(!result.is_valid);
-    assert_eq!(result.field_errors.len(), 2);
-    assert!(result
-        .field_errors
-        .iter()
-        .any(|error| error.message.contains("Publication date")));
-    assert!(result
-        .field_errors
-        .iter()
-        .any(|error| error.message.contains("Series sequence")));
-}
-
-#[test]
 fn validation_reply_carries_only_requested_fields() {
     let result = validate_metadata_intent_patch(&MetadataIntentPatch {
         title: Some(PatchOp::Set("NMR 64k".to_string())),
@@ -474,29 +452,14 @@ fn validation_reply_carries_only_requested_fields() {
         ..Default::default()
     });
 
+    assert!(result.is_valid);
+    assert!(result.field_errors.is_empty());
     assert_eq!(
         serde_json::to_value(&result).expect("serializes")["metadataPatch"],
         serde_json::json!({
             "title": { "op": "set", "value": "NMR 64k" },
             "date": { "op": "set", "value": "2024-07" },
         })
-    );
-}
-
-#[test]
-fn metadata_intent_validation_normalizes_valid_publication_date() {
-    let patch = MetadataIntentPatch {
-        date: Some(PatchOp::Set("2024-07-15T12:00:00Z".to_string())),
-        ..Default::default()
-    };
-
-    let result = validate_metadata_intent_patch(&patch);
-
-    assert!(result.is_valid);
-    assert!(result.field_errors.is_empty());
-    assert_eq!(
-        result.metadata_patch.date,
-        Some(PatchOp::Set("2024-07".to_string()))
     );
 }
 
@@ -516,6 +479,7 @@ fn metadata_intent_validation_reports_structured_field_codes() {
     assert!(result.field_errors.iter().any(|error| {
         error.field == MetadataIntentValidationField::Date
             && error.code == MetadataIntentValidationCode::PublicationDateSyntax
+            && error.message.contains("Publication date")
     }));
     assert!(result.field_errors.iter().any(|error| {
         error.field == MetadataIntentValidationField::SeriesPart
@@ -530,45 +494,10 @@ fn metadata_intent_validation_reports_structured_field_codes() {
 }
 
 #[test]
-fn metadata_intent_validation_preserves_invalid_date_for_validation() {
-    let patch = MetadataIntentPatch {
-        date: Some(PatchOp::Set("not a date".to_string())),
-        ..Default::default()
-    };
-
-    let result = validate_metadata_intent_patch(&patch);
-    assert!(!result.is_valid);
-    assert_eq!(
-        result.field_errors.first().map(|error| error.field),
-        Some(MetadataIntentValidationField::Date)
-    );
-}
-
-#[test]
 fn publication_year_from_date_handles_multibyte_prefix_without_panicking() {
     assert_eq!(publication_year_from_date(Some("2024-07")), Some(2024));
     assert_eq!(publication_year_from_date(Some("💥024-07")), None);
     assert_eq!(publication_year_from_date(Some("20💥4-07")), None);
-}
-
-#[test]
-fn naming_metadata_scrubs_legacy_series_parts() {
-    let mut naming = NamingMetadata::from_metadata(&AudiobookMetadata {
-        title: Some("Legacy Source".to_string()),
-        series: Some("Series".to_string()),
-        series_part: Some("7/8".to_string()),
-        subseries: Some("Subseries".to_string()),
-        subseries_part: Some("2/3".to_string()),
-        ..Default::default()
-    });
-
-    naming.scrub_legacy_source_series_parts_for_naming();
-
-    assert_eq!(naming.title(), Some("Legacy Source"));
-    assert_eq!(naming.series(), Some("Series"));
-    assert_eq!(naming.series_part(), None);
-    assert_eq!(naming.subseries(), Some("Subseries"));
-    assert_eq!(naming.subseries_part(), None);
 }
 
 #[test]

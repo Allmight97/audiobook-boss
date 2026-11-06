@@ -102,7 +102,3 @@ pub(crate) fn stage<T>(
     let record = Stage::start(name, path);
     record.finish(operation())
 }
-
-#[cfg(test)]
-#[path = "diagnostics_tests.rs"]
-mod tests;

@@ -4,10 +4,8 @@ use ffmpeg_next as ff;
 use super::super::ffi::set_attached_pic_disposition;
 use super::format::{detect_cover_art_format, detect_image_dimensions, CoverFormat};
 
-/// Adds a cover art stream prior to header writing.
-///
-/// For M4B/MP4 containers, this properly sets the `attached_pic` disposition using
-/// FFI to ensure the stream is treated as cover art rather than a regular video stream.
+/// Adds a cover art stream before the header is written. MP4-family streams get
+/// the `attached_pic` disposition.
 pub fn add_cover_art_stream_pre_header(
     octx: &mut ff::format::context::Output,
     cover_data: &[u8],
@@ -51,11 +49,7 @@ pub fn add_cover_art_stream_pre_header(
     }
 }
 
-/// Writes the cover art packet after header if a stream was added.
-///
-/// For attached pics in M4B/MP4 containers, this writes a single packet with
-/// specific flags that mark it as cover art. The packet should have PTS/DTS of 0
-/// and KEY flag to indicate it's a standalone image.
+/// Writes the cover packet after the header when a stream was added.
 pub fn write_cover_art_packet_post_header(
     octx: &mut ff::format::context::Output,
     stream_index: usize,

@@ -152,7 +152,7 @@ lane_host() {
 	cargo fmt --all -- --check
 	cargo test --locked -p audiobook-boss --features bundled-ffmpeg
 	bash scripts/check-generated-bindings.sh
-	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg --all-targets -- -D warnings
+	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg,binding-export --all-targets -- -D warnings
 }
 
 lane_decrypt() {
@@ -184,12 +184,12 @@ lane_tooling() {
 	bun run test -- --project tooling scripts
 	bash scripts/check-workflows.sh
 	bun scripts/check-guidance.ts
-	bun scripts/check-known-mistakes.ts
+	local file_size_base="${ABB_FILE_SIZE_BASE:-HEAD}"
+	bun scripts/check-known-mistakes.ts --against "${file_size_base}"
 	bun scripts/check-pr-workflow-policy.ts
 	local scripts
 	scripts=(scripts/*.sh .claude/hooks/*.sh .githooks/* .agents/skills/verify-abb/*.sh .agents/skills/verify-abb/features/*.sh)
 	shellcheck -S warning "${scripts[@]}"
-	local file_size_base="${ABB_FILE_SIZE_BASE:-HEAD}"
 	if ! git rev-parse --verify --end-of-options "${file_size_base}^{commit}" >/dev/null; then
 		printf 'file-size ratchet: base %s is not in this checkout. Fetch it before the tooling lane; a missing base fails closed.\n' "${file_size_base}" >&2
 		return 1

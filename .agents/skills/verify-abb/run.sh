@@ -9,7 +9,7 @@ skill_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${skill_dir}/../../.." && pwd)"
 eval "$("${repo_root}/scripts/setup.sh" --print-env)"
 
-features=(import metadata export collisions cancel chapters)
+features=(import metadata export collisions cancel chapters layout crash)
 if [[ $# -gt 0 ]]; then
 	features=("$@")
 fi

@@ -38,12 +38,6 @@ struct WorkRuntimeInner {
     sequence: AtomicU64,
 }
 
-impl Default for WorkRuntime {
-    fn default() -> Self {
-        Self::new(crate::engine::EngineTasks::default())
-    }
-}
-
 impl WorkRuntime {
     pub(crate) fn new(tasks: crate::engine::EngineTasks) -> Self {
         Self {
@@ -104,8 +98,6 @@ impl WorkRuntime {
         on_finished: Option<OnFinished>,
     ) -> Result<WorkSubmissionAccepted> {
         let (titles, inspected) = planned;
-        // Concurrency stays fixed from acceptance until the export ends,
-        // including between titles when no job is registered.
         let active_run = registry.hold_run();
         let operation_id = request.operation_id.clone();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
@@ -137,8 +129,6 @@ impl WorkRuntime {
         let title_cancels = cancel_flags.titles();
         let title_sources = title_source_paths(&request.payload);
 
-        // Recorded before the operation becomes visible, so a file is never
-        // reported free between acceptance and the first read.
         self.title_sources()
             .insert(operation_id.0.clone(), title_sources);
         let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
@@ -226,9 +216,7 @@ impl WorkRuntime {
     }
 
     /// Cancels the title at `index` and waits until it has published or
-    /// ended without an output, its own empty folders removed. A title still
-    /// queued ends at once: it cannot publish with its cancel flag set, so
-    /// a restart need not wait for the titles ahead of it. Returns whether
+    /// ended without an output, its own empty folders removed. Returns whether
     /// it published.
     pub(crate) async fn stop_title(
         &self,
@@ -241,28 +229,16 @@ impl WorkRuntime {
             .ok()
             .and_then(|state| state.child_job_id(operation_id, index));
         if let Some(child) = child {
-            match self.cancel_operation(host, operation_id.clone(), Some(child.clone())) {
-                Ok(snapshot) => {
-                    let queued = snapshot.children.iter().any(|candidate| {
-                        candidate.child_job_id == child
-                            && candidate.status == super::ChildJobStatus::Queued
-                    });
-                    if queued {
-                        title.end();
-                    }
-                }
-                Err(error) => log::warn!("Failed to cancel a title for restart: {error}"),
+            if let Err(error) = self.cancel_operation(host, operation_id.clone(), Some(child)) {
+                log::warn!("Failed to cancel a title for restart: {error}");
             }
         }
         title.settled().await
     }
 
-    /// Begin a command-driven inline metadata-save operation: register the
-    /// snapshot + operation cancel flag, emit it, and mark it running. The
-    /// command then drives the save loop and terminalizes via
-    /// `record_metadata_save_progress` + `finish_metadata_save_operation`.
-    /// Returns the operation id and its cancel flag (wire into the registry
-    /// cancellation checker so `cancel_work_operation` reaches the save loop).
+    /// Registers a metadata-save operation, emits it, and marks it running.
+    /// Returns the operation id and the cancel flag the caller wires into the
+    /// job registry so `cancel_operation` reaches the save loop.
     pub(crate) fn begin_metadata_save_operation(
         &self,
         host: &Host,
@@ -295,8 +271,8 @@ impl WorkRuntime {
         Ok((operation_id, cancel_flag))
     }
 
-    /// Apply a metadata-save progress event to its operation (Work Center
-    /// renders the live snapshot). Events are piped by `input_index`.
+    /// Applies a metadata-save progress event to its operation; events match
+    /// children by `input_index`.
     pub(crate) fn record_metadata_save_progress(
         &self,
         host: &Host,
@@ -512,8 +488,6 @@ impl WorkRuntime {
         self.title_sources().remove(operation_id.as_str());
     }
 
-    /// The map is replaced or edited in one step, so it stays usable after a
-    /// panic elsewhere; skipping it would hide sources from Save.
     fn title_sources(&self) -> MutexGuard<'_, TitleSources> {
         self.inner
             .title_sources

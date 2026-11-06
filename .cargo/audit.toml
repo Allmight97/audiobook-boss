@@ -2,54 +2,36 @@
 ignore = [
   # GTK3 stack from tauri -> tauri-runtime-wry -> wry -> webkit2gtk/gtk (Linux path).
   # Acceptance: warnings are unmaintained/unsound only; no direct top-level alternative until tauri/wry migrate.
-  "RUSTSEC-2024-0411",
-  "RUSTSEC-2024-0412",
-  "RUSTSEC-2024-0413",
-  "RUSTSEC-2024-0414",
-  "RUSTSEC-2024-0415",
-  "RUSTSEC-2024-0416",
-  "RUSTSEC-2024-0417",
-  "RUSTSEC-2024-0418",
-  "RUSTSEC-2024-0419",
-  "RUSTSEC-2024-0420",
-  "RUSTSEC-2024-0429",
+  "RUSTSEC-2024-0411", # gdkwayland-sys
+  "RUSTSEC-2024-0412", # gdk
+  "RUSTSEC-2024-0413", # atk
+  "RUSTSEC-2024-0414", # gdkx11-sys
+  "RUSTSEC-2024-0415", # gtk
+  "RUSTSEC-2024-0416", # atk-sys
+  "RUSTSEC-2024-0417", # gdkx11
+  "RUSTSEC-2024-0418", # gdk-sys
+  "RUSTSEC-2024-0419", # gtk3-macros
+  "RUSTSEC-2024-0420", # gtk-sys
+  "RUSTSEC-2024-0429", # glib
 
   # Proc-macro chain via gtk3-macros/glib-macros and specta.
   # Acceptance: compile-time only (not shipped at runtime); waiting on upstream crate replacements.
-  "RUSTSEC-2024-0370",
-  "RUSTSEC-2024-0436",
-
-  # HTML selector chain: selectors -> kuchikiki-speedreader -> (wry/tauri-utils).
-  # Acceptance: transitive unmaintained warning; used for non-cryptographic internal hashing.
-  "RUSTSEC-2025-0057",
-
-  # Rand via selectors -> kuchikiki-speedreader -> (wry/tauri-utils).
-  # Acceptance: remaining warning is upstream-only rand 0.7.3; ABB does not install a
-  # logger that re-enters rand::rng()/thread_rng, and the current tauri/wry stack does
-  # not expose a direct top-level patch path.
-  "RUSTSEC-2026-0097",
-
-  # Unicode identifier tables via urlpattern -> tauri-utils.
-  # Acceptance: transitive unmaintained utility crates with no direct top-level override in current tauri stack.
-  "RUSTSEC-2025-0075",
-  "RUSTSEC-2025-0080",
-  "RUSTSEC-2025-0081",
-  "RUSTSEC-2025-0098",
-  "RUSTSEC-2025-0100",
+  "RUSTSEC-2024-0370", # proc-macro-error
+  "RUSTSEC-2024-0436", # paste
 
   # zbus 5 chain (zvariant, zbus_names, zvariant_derive) via keepawake,
   # secret-service, and zbus-secret-service-keyring-store (Linux path).
   # Acceptance: unmaintained only, successor is zbus 6. Blocked upstream until
   # keepawake, secret-service and the keyring store move to zbus 6; dropping
   # the keyring store would lose saved Audible sign-ins on every restart.
-  "RUSTSEC-2026-0370",
-  "RUSTSEC-2026-0371",
-  "RUSTSEC-2026-0372",
+  "RUSTSEC-2026-0370", # zvariant
+  "RUSTSEC-2026-0371", # zbus_names
+  "RUSTSEC-2026-0372", # zvariant_derive
 
   # rsa via audible_api (AAX license/decrypt material for protected remote source).
   # Acceptance: "No fixed upgrade is available" per RUSTSEC-2023-0071 (Marvin timing attack).
   # Used only for Audible AAX protected flows (not core local processing). Theoretical
   # side-channel on old crypto dep; no active exploitation path in ABB's usage.
-  "RUSTSEC-2023-0071",
+  "RUSTSEC-2023-0071", # rsa
 ]
 informational_warnings = ["unmaintained", "unsound"]

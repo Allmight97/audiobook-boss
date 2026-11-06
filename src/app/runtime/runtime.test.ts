@@ -38,8 +38,23 @@ describe('app runtime', () => {
 		dispose = undefined;
 	});
 
-	it('does not share view-local state across live runtimes', () => {
-		const first = createAppRuntime();
+	it('does not share view-local state across live runtimes', async () => {
+		const engine = createFakeEngine();
+		engine.respond = (intent) => {
+			if (intent.kind === 'lookupSetTitleQuery') {
+				engine.change((state) => {
+					state.lookup.titleQuery = intent.value;
+				});
+			}
+			return intent.kind === 'submit'
+				? {
+						kind: 'rejected',
+						error: { code: 'io_error', category: 'io', message: 'Disk full', detail: null },
+					}
+				: undefined;
+		};
+		const first = createAppRuntime({ engine });
+		await first.initialize();
 		const second = createAppRuntime();
 		dispose = () => {
 			first.dispose();
@@ -48,7 +63,7 @@ describe('app runtime', () => {
 
 		first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
-		first.processing.pushTransientStatus('first runtime only');
+		await first.processing.start();
 		void first.remoteSource.open();
 		first.remoteSource.editSearch({ titleFilter: 'first runtime only' });
 
@@ -56,17 +71,16 @@ describe('app runtime', () => {
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(first.lookup.view().titleQuery).toBe('stale lookup');
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(first.processing.status().statusText).toBe('first runtime only');
-		expect(second.processing.status().statusText).toBe('Idle');
+		expect(first.processing.status().stepText).toBe('Error: Processing failed: Disk full');
+		expect(second.processing.status().stepText).toBe('Current Step: Waiting for files...');
 		expect(first.remoteSource.view().isOpen).toBe(true);
 		expect(second.remoteSource.view().isOpen).toBe(false);
 		expect(second.remoteSource.view().statusMessage).toBe('');
 
 		first.dispose();
-		first.processing.pushTransientStatus('after dispose');
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(second.processing.status().statusText).toBe('Idle');
+		expect(second.processing.status().stepText).toBe('Current Step: Waiting for files...');
 		expect(second.remoteSource.view().isOpen).toBe(false);
 
 		const third = createAppRuntime();
@@ -77,7 +91,7 @@ describe('app runtime', () => {
 		expect(third.settings.dialog().isOpen).toBe(false);
 		expect(third.lookup.view().titleQuery).toBe('');
 		expect(third.encoding.view().flavor).toBe('native_aac');
-		expect(third.processing.status().statusText).toBe('Idle');
+		expect(third.processing.status().stepText).toBe('Current Step: Waiting for files...');
 		expect(third.remoteSource.view().isOpen).toBe(false);
 	});
 
@@ -120,15 +134,6 @@ describe('app runtime', () => {
 		await startup;
 
 		expect(runtime.output.view()).toEqual(outputAfterDispose);
-	});
-
-	it('resets Remote Source owner state on dispose so a remount does not keep the dialog open', () => {
-		const runtime = createAppRuntime();
-		void runtime.remoteSource.open();
-		expect(runtime.remoteSource.view().isOpen).toBe(true);
-		runtime.dispose();
-		expect(runtime.remoteSource.view().isOpen).toBe(false);
-		expect(runtime.remoteSource.view().statusMessage).toBe('');
 	});
 
 	it('reattaches remote progress without publishing into a disposed runtime', async () => {

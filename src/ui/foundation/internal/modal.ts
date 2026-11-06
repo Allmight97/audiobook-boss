@@ -14,11 +14,7 @@ function focusableElements(container: HTMLElement): HTMLElement[] {
 	return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
 }
 
-// Open controllers in opening order; the last entry is the topmost modal and
-// the only one that responds to Escape/Tab. Each controller has its own
-// document listener, and stopPropagation cannot arbitrate between listeners
-// on the same node — this stack can.
-const openModals: ModalController[] = [];
+const openModalsInOpeningOrder: ModalController[] = [];
 
 export class ModalController {
 	#isOpen = false;
@@ -47,20 +43,15 @@ export class ModalController {
 	}
 
 	#removeFromStack(): void {
-		const index = openModals.indexOf(this);
-		if (index !== -1) openModals.splice(index, 1);
+		const index = openModalsInOpeningOrder.indexOf(this);
+		if (index !== -1) openModalsInOpeningOrder.splice(index, 1);
 	}
 
 	#handleOpenTransition(): void {
 		this.#invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-		// Document-level, capture-phase: Escape must work wherever focus sits.
-		// A container-scoped listener goes deaf whenever focus is outside the
-		// dialog (initial focus refused while the backdrop's visibility
-		// transition hasn't ticked, or WebKit blurring to body on a click of a
-		// non-focusable area), which is exactly the live-app failure this
-		// replaces.
+		// Document-level, capture-phase: WebKit can refuse initial focus or blur to body, which would leave a container-scoped listener deaf.
 		document.addEventListener('keydown', this.#keydownHandler, true);
-		openModals.push(this);
+		openModalsInOpeningOrder.push(this);
 		this.#focusInside();
 	}
 
@@ -96,10 +87,8 @@ export class ModalController {
 	}
 
 	#handleKeydown(event: KeyboardEvent): void {
-		if (openModals[openModals.length - 1] !== this) return;
+		if (openModalsInOpeningOrder[openModalsInOpeningOrder.length - 1] !== this) return;
 		if (event.key === 'Escape') {
-			// Capture-phase on document: consume Escape exclusively so it
-			// cannot also dismiss an overlay layered behind the modal.
 			event.preventDefault();
 			event.stopPropagation();
 			this.#onEscape?.();
@@ -119,9 +108,6 @@ export class ModalController {
 		const last = focusable[focusable.length - 1];
 		const active = document.activeElement;
 		if (!container.contains(active)) {
-			// Focus drifted outside the open modal (blur-to-body, refused
-			// initial focus): pull it back in rather than cycling relative to
-			// wherever it ended up.
 			event.preventDefault();
 			(event.shiftKey ? last : first).focus();
 			return;

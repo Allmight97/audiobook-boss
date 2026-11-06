@@ -142,6 +142,19 @@ fn range_selection_resolves_anchor_and_target_by_id_after_reorder() {
 }
 
 #[test]
+fn removing_a_title_above_the_anchor_keeps_shift_click_extending_from_the_same_title() {
+    let mut set = set_with(&["a", "b", "c", "d", "e"]);
+    set.select_title("d", NO_MODIFIERS);
+    set.select_title("b", RANGE);
+    assert_eq!(selected_names(&set), ["b", "c", "d"]);
+
+    set.remove_file(0);
+    set.select_title("e", RANGE);
+
+    assert_eq!(selected_names(&set), ["b", "c", "d", "e"]);
+}
+
+#[test]
 fn reordering_and_sorting_keep_the_selected_titles_selected() {
     let mut set = set_with(&["Part 10.m4b", "Part 2.m4b", "part 1.m4b"]);
     set.select_file(1, NO_MODIFIERS);
@@ -369,15 +382,26 @@ fn step() -> impl Strategy<Value = Step> {
     ]
 }
 
+fn id_at(set: &WorkingSet, index: usize) -> Option<String> {
+    set.files().get(index).map(|f| f.input_id.clone())
+}
+
+fn anchor_id(set: &WorkingSet) -> Option<String> {
+    set.selection(0)
+        .selected_anchor
+        .and_then(|index| id_at(set, index))
+}
+
 fn apply(set: &mut WorkingSet, step: Step) {
-    let id_at = |set: &WorkingSet, index: usize| set.files().get(index).map(|f| f.input_id.clone());
     match step {
         Step::Import(ids) => set.append_analyzed(
             ids.iter().map(|id| file(&format!("book-{id}"))).collect(),
             &request(AudioIntent::Auto),
         ),
         Step::Select(index, multi, range) => {
-            set.select_file(index, SelectionModifiers { multi, range });
+            if let Some(id) = id_at(set, index) {
+                set.select_title(&id, SelectionModifiers { multi, range });
+            }
         }
         Step::SelectAll => set.select_all(),
         Step::ClearSelection => set.clear_selection(),
@@ -422,6 +446,12 @@ proptest! {
     ) {
         let mut set = WorkingSet::default();
         for step in steps {
+            let anchor_before = anchor_id(&set);
+            let keeps_anchor = match &step {
+                Step::Remove(index) => id_at(&set, *index) != anchor_before,
+                Step::Move(..) | Step::Reorder(..) | Step::Sort | Step::RestoreOrder => true,
+                _ => false,
+            };
             apply(&mut set, step);
             let snapshot = set.titles(0);
             let selection = set.selection(0);
@@ -436,8 +466,19 @@ proptest! {
             if let Some(anchor) = selection.selected_anchor {
                 prop_assert!(anchor < count);
             }
-            if selection.selected_indices.is_empty() {
-                prop_assert!(selection.selected_anchor.is_none() || count > 0);
+            if let Some(anchor) = selection.selected_anchor {
+                prop_assert!(selection.selected_indices.contains(&anchor));
+            }
+            if keeps_anchor {
+                let still_selected = |id: &String| {
+                    selection
+                        .selected_indices
+                        .iter()
+                        .any(|index| id_at(&set, *index).as_ref() == Some(id))
+                };
+                if let Some(id) = anchor_before.filter(still_selected) {
+                    prop_assert_eq!(anchor_id(&set), Some(id));
+                }
             }
 
             // A source file belongs to exactly one title.

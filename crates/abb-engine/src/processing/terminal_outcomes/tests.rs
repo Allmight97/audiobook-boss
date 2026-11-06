@@ -4,116 +4,7 @@ mod classification_tests {
         ProcessingJobTerminalOutcome,
     };
     use crate::errors::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
-    use crate::processing::{ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
-    use abb_processing_core::RunTerminalClass;
-
-    fn classify_terminal_results(results: &[ProcessResultEntry]) -> RunTerminalClass {
-        ProcessCommandResult::new(results.to_vec()).terminal_class
-    }
-
-    #[test]
-    fn terminal_classification_uses_structured_status_not_result_message() {
-        let native_success = ProcessResultEntry {
-            input_index: 0,
-            status: ProcessResultStatus::Success,
-            message: "Successfully created audiobook: /tmp/native.m4b".to_string(),
-            error: None,
-            output_path: None,
-            supplemental_warning: None,
-            warnings: Vec::new(),
-            job_id: Some("job-native".to_string()),
-        };
-        let external_success = ProcessResultEntry {
-            input_index: 1,
-            status: ProcessResultStatus::Success,
-            message: "Successfully created audiobook: /tmp/external.m4b".to_string(),
-            error: None,
-            output_path: None,
-            supplemental_warning: None,
-            warnings: Vec::new(),
-            job_id: Some("job-external".to_string()),
-        };
-
-        assert_eq!(
-            classify_terminal_results(&[native_success]),
-            RunTerminalClass::Success
-        );
-        assert_eq!(
-            classify_terminal_results(&[external_success]),
-            RunTerminalClass::Success
-        );
-    }
-
-    #[test]
-    fn terminal_classification_preserves_post_commit_success_truth() {
-        let post_commit_cancel_success = ProcessResultEntry {
-            input_index: 0,
-            status: ProcessResultStatus::Success,
-            message: "Successfully created audiobook: /tmp/output.m4b".to_string(),
-            error: None,
-            output_path: None,
-            supplemental_warning: None,
-            warnings: Vec::new(),
-            job_id: Some("job-123".to_string()),
-        };
-
-        assert_eq!(
-            classify_terminal_results(&[post_commit_cancel_success]),
-            RunTerminalClass::Success
-        );
-    }
-
-    #[test]
-    fn terminal_classification_distinguishes_cancelled_failed_and_mixed_results() {
-        let cancelled = ProcessResultEntry {
-            input_index: 0,
-            status: ProcessResultStatus::Cancelled,
-            message: "Processing was cancelled".to_string(),
-            error: None,
-            output_path: None,
-            supplemental_warning: None,
-            warnings: Vec::new(),
-            job_id: None,
-        };
-        let failed = ProcessResultEntry {
-            input_index: 1,
-            status: ProcessResultStatus::Failed,
-            message: "decoder unavailable".to_string(),
-            error: Some(AppErrorEnvelope::new(
-                AppErrorCode::FfmpegError,
-                AppErrorCategory::Toolchain,
-                "decoder unavailable".to_string(),
-                Some("ffmpeg missing".to_string()),
-            )),
-            output_path: None,
-            supplemental_warning: None,
-            warnings: Vec::new(),
-            job_id: Some("job-2".to_string()),
-        };
-        let skipped = ProcessResultEntry {
-            input_index: 2,
-            status: ProcessResultStatus::Skipped,
-            message: "Skipped existing output at '/tmp/output.m4b'".to_string(),
-            error: None,
-            output_path: None,
-            supplemental_warning: None,
-            warnings: Vec::new(),
-            job_id: None,
-        };
-
-        assert_eq!(
-            classify_terminal_results(std::slice::from_ref(&cancelled)),
-            RunTerminalClass::Cancelled
-        );
-        assert_eq!(
-            classify_terminal_results(std::slice::from_ref(&failed)),
-            RunTerminalClass::Failed
-        );
-        assert_eq!(
-            classify_terminal_results(&[cancelled, failed, skipped]),
-            RunTerminalClass::Mixed
-        );
-    }
+    use crate::processing::{ProcessResultEntry, ProcessResultStatus};
 
     #[test]
     fn processing_error_classification_keeps_cancellation_and_failure_distinct() {
@@ -184,31 +75,6 @@ mod classification_tests {
         assert!(!is_cancellation_error(&AppError::General(
             "decoder unavailable".to_string()
         )));
-    }
-
-    #[test]
-    fn mixed_cancel_and_fail_classification_keeps_failure_visible() {
-        let cancelled = AppError::cancelled();
-        let failed = ProcessResultEntry {
-            input_index: 1,
-            status: ProcessResultStatus::Failed,
-            message: "decoder unavailable".to_string(),
-            error: Some(AppErrorEnvelope::new(
-                AppErrorCode::FfmpegError,
-                AppErrorCategory::Toolchain,
-                "decoder unavailable".to_string(),
-                Some("ffmpeg missing".to_string()),
-            )),
-            output_path: None,
-            supplemental_warning: None,
-            warnings: Vec::new(),
-            job_id: Some("job-2".to_string()),
-        };
-
-        assert!(is_cancellation_error(&cancelled));
-        assert!(cancellation_error_for_failed_entry(&failed).is_none());
-        assert_eq!(failed.status, ProcessResultStatus::Failed);
-        assert_eq!(failed.job_id.as_deref(), Some("job-2"));
     }
 }
 
@@ -386,22 +252,19 @@ mod batch_tests {
 
     #[test]
     fn collect_batch_results_preserves_mixed_success_and_cancelled_entries() {
-        let results = collect_batch_results(
-            2,
-            vec![
-                Ok(ProcessResultEntry {
-                    input_index: 0,
-                    status: ProcessResultStatus::Success,
-                    message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
-                    error: None,
-                    output_path: None,
-                    supplemental_warning: None,
-                    warnings: Vec::new(),
-                    job_id: Some("job-1".to_string()),
-                }),
-                Err(AppError::cancelled()),
-            ],
-        )
+        let results = collect_batch_results(vec![
+            Ok(ProcessResultEntry {
+                input_index: 0,
+                status: ProcessResultStatus::Success,
+                message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
+                error: None,
+                output_path: None,
+                supplemental_warning: None,
+                warnings: Vec::new(),
+                job_id: Some("job-1".to_string()),
+            }),
+            Err(AppError::cancelled()),
+        ])
         .expect("mixed success and cancellation should remain a successful batch result");
 
         assert_eq!(results.failure_events, Vec::<TerminalFailureEvent>::new());
@@ -430,23 +293,20 @@ mod batch_tests {
             job_id: Some("job-2".to_string()),
         };
 
-        let results = collect_batch_results(
-            3,
-            vec![
-                Ok(ProcessResultEntry {
-                    input_index: 0,
-                    status: ProcessResultStatus::Success,
-                    message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
-                    error: None,
-                    output_path: None,
-                    supplemental_warning: None,
-                    warnings: Vec::new(),
-                    job_id: Some("job-1".to_string()),
-                }),
-                Ok(failed),
-                Err(AppError::cancelled()),
-            ],
-        )
+        let results = collect_batch_results(vec![
+            Ok(ProcessResultEntry {
+                input_index: 0,
+                status: ProcessResultStatus::Success,
+                message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
+                error: None,
+                output_path: None,
+                supplemental_warning: None,
+                warnings: Vec::new(),
+                job_id: Some("job-1".to_string()),
+            }),
+            Ok(failed),
+            Err(AppError::cancelled()),
+        ])
         .expect("mixed terminal states should remain a successful batch result");
 
         assert_eq!(results.results.len(), 3);
@@ -464,44 +324,10 @@ mod batch_tests {
     }
 
     #[test]
-    fn collect_batch_results_repairs_missing_batch_slots_as_failures() {
-        let results = collect_batch_results(
-            2,
-            vec![Ok(ProcessResultEntry {
-                input_index: 0,
-                status: ProcessResultStatus::Success,
-                message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
-                error: None,
-                output_path: None,
-                supplemental_warning: None,
-                warnings: Vec::new(),
-                job_id: Some("job-1".to_string()),
-            })],
-        )
-        .expect("missing slot should be repaired as a failed terminal result");
-
-        assert_eq!(results.results.len(), 2);
-        assert_eq!(results.results[0].status, ProcessResultStatus::Success);
-        assert_eq!(results.results[1].input_index, 1);
-        assert_eq!(results.results[1].status, ProcessResultStatus::Failed);
-        assert_eq!(
-            results.failure_events,
-            vec![TerminalFailureEvent {
-                input_index: 1,
-                job_id: None,
-                message: "Missing terminal result for queued input index 1; marking as failed"
-                    .to_string(),
-            }]
-        );
-    }
-
-    #[test]
     fn collect_batch_results_returns_cancelled_when_every_job_cancelled() {
-        let error = collect_batch_results(
-            2,
-            vec![Err(AppError::cancelled()), Err(AppError::cancelled())],
-        )
-        .expect_err("fully cancelled batch should stay a top-level cancellation");
+        let error =
+            collect_batch_results(vec![Err(AppError::cancelled()), Err(AppError::cancelled())])
+                .expect_err("fully cancelled batch should stay a top-level cancellation");
 
         assert!(matches!(error, AppError::Cancellation(_)));
     }

@@ -112,6 +112,7 @@ export type AppSettings = {
 	pinnedDefaults: PinnedDefaults | null,
 	defaultAcquisitionLane: AcquisitionLane,
 	aacDecoder: AacDecoder,
+	indexerConnection: IndexerConnection,
 };
 
 export type AudioChoice = {
@@ -176,14 +177,14 @@ export type AudioFile = {
 	/**  Stable workbench/session identity for joins that must survive reorder/remove operations. */
 	inputId: string,
 	path: string,
-	/**  File size in bytes (None if unavailable) */
+	/**  Bytes. */
 	size: number | null,
-	/**  Duration in seconds (None if unavailable) */
+	/**  Seconds. */
 	duration: number | null,
 	format: string | null,
-	/**  Source audio bitrate in bits per second (None if unavailable) */
+	/**  Bits per second. */
 	bitrate: number | null,
-	/**  Sample rate in Hz (None if unavailable) */
+	/**  Hz. */
 	sampleRate: number | null,
 	channels: number | null,
 	codecLabel: string | null,
@@ -192,7 +193,7 @@ export type AudioFile = {
 	 *  source meets the automatic low-bitrate recommendation.
 	 */
 	preservation: AudioPreservation | null,
-	/**  Friendly selected decoder label for display only (None if unavailable) */
+	/**  Display only. */
 	selectedDecoder: string | null,
 	tagTitle: string | null,
 	tagArtist: string | null,
@@ -453,6 +454,15 @@ export type FrontendLogLevel = "error" | "warn";
 export type HandoffRefusal = { kind: "importFailed"; error: AppErrorEnvelope } |
 /**  The files were already listed, or a reset dropped the import. */
 { kind: "nothingAdded" };
+
+/**
+ *  The Indexer server and categories a search uses. The API key lives in the
+ *  credential store, under the URL.
+ */
+export type IndexerConnection = {
+	baseUrl: string | null,
+	categoryIds: number[],
+};
 
 export type IndexerDraftSnapshot = {
 	baseUrl: string,
@@ -967,8 +977,11 @@ export type RemoteTitleAvailability = {
 export type RemoteTitleAvailabilityStatus = "available" | "catalogOnly" | "revoked" | "providerUnavailable";
 
 export type RemoteUiIntent = { kind: "startAuth" } | { kind: "completeAuth"; responseUrlHandoffPath: string | null } |
-/**  Disconnects `provider`; refused unless it is the lane on screen. */
-{ kind: "disconnect"; provider: ProviderId } | { kind: "refreshLibrary" } | { kind: "selectLane"; lane: ProviderId } | { kind: "toggleTitle"; titleId: string } | { kind: "clearTitles" } | { kind: "togglePdf"; titleId: string } | { kind: "acquireSelected" } | { kind: "cancelAcquisition"; jobId: string } | { kind: "searchReleases"; author: string; title: string } | { kind: "selectRelease"; indexerId: number; guid: string; multi: boolean } | { kind: "grabSelected" } | { kind: "grabRelease"; indexerId: number; guid: string } | { kind: "loadConnection" } | { kind: "editConnection"; baseUrl: string | null; categoryIds: number[] | null; apiKey: string | null } | { kind: "saveConnection" } | { kind: "testConnection" };
+/**
+ *  Disconnects the Audible sign-in; refused unless Audible is the lane on
+ *  screen. The Indexer has no sign-in to remove.
+ */
+{ kind: "disconnect" } | { kind: "refreshLibrary" } | { kind: "selectLane"; lane: ProviderId } | { kind: "toggleTitle"; titleId: string } | { kind: "clearTitles" } | { kind: "togglePdf"; titleId: string } | { kind: "acquireSelected" } | { kind: "cancelAcquisition"; jobId: string } | { kind: "searchReleases"; author: string; title: string } | { kind: "selectRelease"; indexerId: number; guid: string; multi: boolean } | { kind: "grabSelected" } | { kind: "grabRelease"; indexerId: number; guid: string } | { kind: "loadConnection" } | { kind: "editConnection"; baseUrl: string | null; categoryIds: number[] | null; apiKey: string | null } | { kind: "saveConnection" } | { kind: "testConnection" };
 
 export type RemoteUiSnapshot = {
 	revision: number,
@@ -1192,7 +1205,7 @@ export type SettingsSnapshot = {
  *  A setting that loading recovers on its own: a saved value this release
  *  refuses resets only that setting.
  */
-export type SettingsUnit = "keepAwake" | "jobLimit" | "acquisitionLane" | "aacDecoder" | "encoderDefaults" | "outputDefaults" | "startupBehavior" | "pinnedDefaults";
+export type SettingsUnit = "keepAwake" | "jobLimit" | "acquisitionLane" | "aacDecoder" | "indexerConnection" | "encoderDefaults" | "outputDefaults" | "startupBehavior" | "pinnedDefaults";
 
 /**  The settings after a change made outside a settings intent. */
 export type SettingsUpdateEvent = SettingsSnapshot;
@@ -1295,7 +1308,10 @@ export type TagPreview = {
 	seriesPart: string,
 	subseries: string,
 	subseriesPart: string,
-	/**  The album sort (TSOA) processing would write. */
+	/**
+	 *  The album sort processing would write: the TSOA frame in MP3, the
+	 *  sort-album atom in the MP4 family.
+	 */
 	albumSort: string,
 	year: string,
 	genre: string,

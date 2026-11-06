@@ -173,14 +173,6 @@ impl Plans {
             .get(title_id)
             .map_or(TitlePlan::Pending, |(_, plan)| plan.clone())
     }
-
-    #[cfg(test)]
-    pub(crate) fn all(&self) -> std::collections::BTreeMap<String, TitlePlan> {
-        self.entries
-            .iter()
-            .map(|(id, (_, plan))| (id.clone(), plan.clone()))
-            .collect()
-    }
 }
 
 fn sum_known(values: impl Iterator<Item = Option<f64>>) -> Option<f64> {

@@ -8,7 +8,7 @@ use tokio::time::{sleep, timeout};
 #[tokio::test]
 async fn external_cancel_interrupts_waiting_permit_acquire() {
     let registry = JobRegistry::new(1);
-    let (_job_id, _held_permit) = registry.register_job().await.expect("first job");
+    let (first_job, held_permit) = registry.register_job().await.expect("first job");
     let operation_cancel = Arc::new(AtomicBool::new(false));
     let registration = registry.register_job_with_external_cancel(Some(operation_cancel.clone()));
     tokio::pin!(registration);
@@ -27,10 +27,14 @@ async fn external_cancel_interrupts_waiting_permit_acquire() {
         result.expect_err("registration should be cancelled"),
         AppError::Cancellation(_)
     ));
+    drop(held_permit);
+    registry.complete_job(first_job).await;
     assert_eq!(
-        registry.get_aggregate_status().await.total_jobs,
-        1,
-        "the cancelled admission is no longer tracked"
+        registry
+            .update_max_concurrent(2)
+            .await
+            .expect("the cancelled admission is no longer tracked"),
+        2
     );
 }
 

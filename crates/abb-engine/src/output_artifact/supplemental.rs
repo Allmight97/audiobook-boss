@@ -101,9 +101,10 @@ fn inspect_supplemental_pdf_source(source_path: &Path) -> Result<u64> {
         ));
     }
     if metadata.len() > MAX_SUPPLEMENTAL_PDF_BYTES {
-        return Err(AppError::FileValidation(
-            "Supplemental PDF source exceeds the 100 MiB size limit.".to_string(),
-        ));
+        return Err(AppError::FileValidation(format!(
+            "Supplemental PDF source exceeds the {} MiB size limit.",
+            MAX_SUPPLEMENTAL_PDF_BYTES / (1024 * 1024)
+        )));
     }
     Ok(metadata.len())
 }
@@ -207,8 +208,6 @@ pub(crate) fn commit_supplemental_output_asset(
             ))
         })?;
     }
-    // Held across choosing the name and publishing, so two exports of one
-    // title never pick the same free name.
     let _file = super::lock_output_file(&requested);
     let destination = next_available_supplemental_path(&requested)?;
     super::commit::remove_stale_replacement_temps(&destination);

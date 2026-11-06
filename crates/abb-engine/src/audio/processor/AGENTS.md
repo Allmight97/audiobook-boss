@@ -30,8 +30,8 @@ execution pipeline. Final artifact commit policy lives in `output_artifact/`.
 ## Hard Invariants
 
 - Finalization reports success only after the output artifact boundary returns
-  final artifact truth. Final artifact `rename`, `copy`, and `hard_link` live in
-  `output_artifact`.
+  final artifact truth. Final artifact moves live in `output_artifact`
+  (`check-known-mistakes.ts`).
 - Every route uses the shared final artifact commit handoff. Route-specific code
   stages media locally; final commit and success wording stay centralized.
   MP4-family tag truth: `metadata/AGENTS.md`.
@@ -48,6 +48,17 @@ execution pipeline. Final artifact commit policy lives in `output_artifact/`.
   preserves success with an explicit warning from Output Artifact.
 - Metadata finalize writes happen only for supported container paths and
   validated metadata payloads.
+- Cancel is checked again right before commit: publishing may first wait for
+  the output lock and write an edit, and a title cancelled meanwhile must not
+  publish. An export title publishes through its output record, which writes
+  an edit accepted meanwhile to the staged file first.
+- A queued job re-validates its source when it runs; preflight may be long past.
+- The accumulator flush keeps the real tail length, so encoders mark their own
+  padding non-playable instead of turning ABB's zero pad into source audio.
+- A user cancel is not logged as ERROR: the job's terminal record reports it,
+  and dev-log analysis counts ERROR lines as degradation.
+- The pipeline (prepare, encode, finalize) is CPU-bound and runs on a blocking
+  thread.
 
 ## Encoder diagnostics
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { pathBasename, pathSegments } from './basename';
+import { pathBasename } from './basename';
 
 describe('pathBasename', () => {
 	it('returns the final path segment while ignoring trailing separators', () => {
@@ -16,11 +16,5 @@ describe('pathBasename', () => {
 	it('uses the fallback for separator-only paths', () => {
 		expect(pathBasename('/', { fallback: 'path' })).toBe('/');
 		expect(pathBasename('/', { fallback: 'empty' })).toBe('');
-	});
-});
-
-describe('pathSegments', () => {
-	it('returns non-empty path segments', () => {
-		expect(pathSegments('/foo//bar/')).toEqual(['foo', 'bar']);
 	});
 });

@@ -167,21 +167,10 @@ pub struct RemoteReleaseGrabResponse {
     pub diagnostics: Vec<RemoteSourceDiagnostic>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct RemoteIndexerConnection {
-    pub base_url: Option<String>,
-    pub category_ids: Vec<u32>,
-    pub api_key_configured: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone)]
 pub struct RemoteIndexerConnectionUpdate {
     pub base_url: Option<String>,
-    pub category_ids: Option<Vec<u32>>,
     pub api_key: Option<String>,
-    pub clear_api_key: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -201,7 +190,6 @@ pub struct AcquisitionSelection {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AcquisitionPlan {
-    pub provider_id: ProviderId,
     pub selections: Vec<AcquisitionSelection>,
 }
 

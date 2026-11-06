@@ -8,7 +8,6 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
@@ -20,12 +19,12 @@ use tempfile::TempDir;
 
 use super::{
     materialize_protected_download, staged_materialized_path, AaxcleanMaterializer,
-    AcquisitionStrategy, AudibleAcquisitionError, LicenseLane, TitleAcquisitionCtx,
-    TitleProgressContext,
+    AudibleAcquisitionError, TitleAcquisitionCtx, TitleProgressContext,
 };
 use crate::errors::AppError;
 use crate::remote_source::materializer::{AaxcleanLane, AaxcleanSecret, MaterializationRequest};
 use crate::remote_source::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
+use crate::test_cases::media_fixtures::{audio_packet_bytes, ffmpeg, ffprobe, ffprobe_tag_ci};
 
 const AAXC_KEY_HEX: &str = "000102030405060708090a0b0c0d0e0f";
 const AAXC_IV_HEX: &str = "f0e0d0c0b0a090807060504030201000";
@@ -85,7 +84,7 @@ fn write_source_book(path: &Path) {
     )
     .expect("write ffmetadata");
 
-    ffmpeg(&[
+    ffmpeg([
         "-hide_banner",
         "-loglevel",
         "error",
@@ -112,7 +111,7 @@ fn write_source_book(path: &Path) {
         "0",
         audio.to_str().expect("audio path"),
     ]);
-    ffmpeg(&[
+    ffmpeg([
         "-hide_banner",
         "-loglevel",
         "error",
@@ -125,7 +124,7 @@ fn write_source_book(path: &Path) {
         "1",
         cover.to_str().expect("cover path"),
     ]);
-    ffmpeg(&[
+    ffmpeg([
         "-hide_banner",
         "-loglevel",
         "error",
@@ -152,24 +151,6 @@ fn write_source_book(path: &Path) {
         "ipod",
         path.to_str().expect("source path"),
     ]);
-}
-
-fn ffmpeg(args: &[&str]) {
-    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let output = Command::new(&binary)
-        .args(args)
-        .output()
-        .unwrap_or_else(|error| {
-            panic!(
-                "ffmpeg must be on PATH or set via ABB_FFMPEG; spawning `{binary}` failed: {error}"
-            )
-        });
-    assert!(
-        output.status.success(),
-        "ffmpeg failed: {}\n{}",
-        args.join(" "),
-        String::from_utf8_lossy(&output.stderr)
-    );
 }
 
 fn encrypt_aaxc(src: &[u8]) -> Vec<u8> {
@@ -573,43 +554,14 @@ fn write_u32(buf: &mut [u8], pos: usize, value: u32) {
     buf[pos..pos + 4].copy_from_slice(&value.to_be_bytes());
 }
 
-fn audio_packet_bytes(path: &Path) -> Vec<Vec<u8>> {
-    let mut input = ffmpeg_next::format::input(path).expect("open for packets");
-    let index = input
-        .streams()
-        .best(ffmpeg_next::media::Type::Audio)
-        .expect("audio stream")
-        .index();
-    input
-        .packets()
-        .filter(|(stream, _)| stream.index() == index)
-        .map(|(_, packet)| packet.data().expect("packet data").to_vec())
-        .collect()
-}
-
 fn ffprobe_json(path: &Path, extra: &[&str]) -> serde_json::Value {
-    let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
-    let output = Command::new(&binary)
-        .args(["-v", "quiet", "-print_format", "json"])
-        .args(extra)
-        .arg(path)
-        .output()
-        .unwrap_or_else(|error| {
-            panic!("ffprobe must be on PATH or set via ABB_FFPROBE; spawning `{binary}` failed: {error}")
-        });
-    assert!(
-        output.status.success(),
-        "ffprobe failed for {}: {}",
-        path.display(),
-        String::from_utf8_lossy(&output.stderr)
+    let output = ffprobe(
+        ["-v", "quiet", "-print_format", "json"]
+            .into_iter()
+            .chain(extra.iter().copied())
+            .chain([path.to_str().expect("utf8 path")]),
     );
-    serde_json::from_slice(&output.stdout).expect("ffprobe json")
-}
-
-fn tag_ci(tags: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<String> {
-    tags.iter()
-        .find(|(tag_key, _)| tag_key.eq_ignore_ascii_case(key))
-        .and_then(|(_, value)| value.as_str().map(str::to_string))
+    serde_json::from_slice(&output).expect("ffprobe json")
 }
 
 fn assert_matches_source(output: &Path, source: &Path) {
@@ -645,7 +597,11 @@ fn assert_matches_source(output: &Path, source: &Path) {
         .cloned()
         .unwrap_or_default();
     for key in ["title", "artist", "album", "genre"] {
-        assert_eq!(tag_ci(&out_tags, key), tag_ci(&src_tags, key), "tag {key}");
+        assert_eq!(
+            ffprobe_tag_ci(&out_tags, key),
+            ffprobe_tag_ci(&src_tags, key),
+            "tag {key}"
+        );
     }
 
     let out_chapters = out_format["chapters"].as_array().expect("output chapters");
@@ -653,13 +609,13 @@ fn assert_matches_source(output: &Path, source: &Path) {
     assert_eq!(out_chapters.len(), src_chapters.len(), "chapter count");
     for (out_chapter, src_chapter) in out_chapters.iter().zip(src_chapters) {
         assert_eq!(
-            tag_ci(
+            ffprobe_tag_ci(
                 out_chapter["tags"]
                     .as_object()
                     .unwrap_or(&serde_json::Map::new()),
                 "title"
             ),
-            tag_ci(
+            ffprobe_tag_ci(
                 src_chapter["tags"]
                     .as_object()
                     .unwrap_or(&serde_json::Map::new()),
@@ -678,7 +634,6 @@ async fn helper_accepts(
 ) -> Result<(), AppError> {
     let root = TempDir::new().expect("materialize root");
     let output = root.path().join("book.m4b");
-    let partial = root.path().join("book.m4b.partial");
     let materializer = AaxcleanMaterializer::new_for_helper(None);
     materializer
         .materialize(
@@ -687,7 +642,6 @@ async fn helper_accepts(
                 operation_id: "decrypt-op".into(),
                 lane,
                 input_path: input,
-                output_temp_path: partial,
                 output_path: output,
                 secret,
             },
@@ -766,11 +720,12 @@ async fn run_protected_materialization(
         },
     };
     let materializer = AaxcleanMaterializer::new_for_helper(None);
+    let material = material_for_secret(secret);
     match materialize_protected_download(
         &materializer,
         downloaded_path,
         Some(title_name),
-        &license_lane_for_secret(secret),
+        &material,
         ctx,
         &mut |_| {},
         &|| false,
@@ -789,30 +744,19 @@ async fn run_protected_materialization(
     }
 }
 
-fn license_lane_for_secret(secret: &AaxcleanSecret) -> LicenseLane {
-    let (strategy, decryption_material) = match secret {
+fn material_for_secret(secret: &AaxcleanSecret) -> abb_audible_core::AudibleDecryptionMaterial {
+    match secret {
         AaxcleanSecret::Aax {
             activation_bytes_hex,
-        } => (
-            AcquisitionStrategy::DownloadThenDecryptAax,
-            abb_audible_core::AudibleDecryptionMaterial::Aax {
-                activation_bytes_hex: activation_bytes_hex.clone(),
-            },
-        ),
-        AaxcleanSecret::Aaxc { key_hex, iv_hex } => (
-            AcquisitionStrategy::DownloadThenDecryptAaxc,
+        } => abb_audible_core::AudibleDecryptionMaterial::Aax {
+            activation_bytes_hex: activation_bytes_hex.clone(),
+        },
+        AaxcleanSecret::Aaxc { key_hex, iv_hex } => {
             abb_audible_core::AudibleDecryptionMaterial::Aaxc {
                 key_hex: key_hex.clone(),
                 iv_hex: iv_hex.clone(),
-            },
-        ),
-    };
-    LicenseLane {
-        content_url: String::new(),
-        strategy,
-        decryption_material: Some(decryption_material),
-        supplemental_pdf_url: None,
-        denial: None,
+            }
+        }
     }
 }
 
@@ -934,7 +878,6 @@ async fn cancel_kills_the_helper_and_leaves_no_output() {
                 operation_id: "decrypt-cancel-op".into(),
                 lane: AaxcleanLane::Aaxc,
                 input_path: books.aaxc.clone(),
-                output_temp_path: partial.clone(),
                 output_path: output.clone(),
                 secret: aaxc_secret(),
             },

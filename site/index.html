@@ -167,7 +167,6 @@
   </footer>
 
   <script>
-    // Intersection Observer for staggered reveals
     const reveals = document.querySelectorAll('.reveal');
     const observer = new IntersectionObserver(
       (entries) => {
@@ -182,7 +181,6 @@
     );
     reveals.forEach((el) => observer.observe(el));
 
-    // Nav scroll state
     const nav = document.querySelector('nav');
     let ticking = false;
     window.addEventListener('scroll', () => {

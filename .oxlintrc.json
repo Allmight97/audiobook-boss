@@ -21,7 +21,7 @@
 				"paths": [
 					{
 						"name": "typescript",
-						"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+						"message": "TypeScript 7 has no stable compiler API; parse without importing typescript (scripts/AGENTS.md)."
 					}
 				],
 				"patterns": [
@@ -51,9 +51,9 @@
 		"import/no-cycle": "error",
 		"typescript/no-explicit-any": "error",
 		"typescript/no-floating-promises": "error",
-		// Solid ignores an event handler's return value, as Biome's noMisusedPromises did.
+		// Solid ignores an event handler's return value.
 		"typescript/no-misused-promises": ["error", { "checksVoidReturn": { "attributes": false } }],
-		// A default branch counts as exhaustive, as it did under Biome.
+		// A default branch counts as exhaustive.
 		"typescript/switch-exhaustiveness-check": [
 			"error",
 			{ "considerDefaultExhaustiveForUnions": true }
@@ -122,7 +122,6 @@
 				"scripts/dev-log-analysis.ts",
 				"scripts/verification.ts",
 				"src/app/encoding/project.ts",
-				"src/test/fixtures/fakeEngine.ts",
 				"src/ui/fileList/AudioHandlingControl.tsx",
 				"src/ui/remoteSource/RemoteSourceAcquireView.tsx"
 			],
@@ -140,7 +139,7 @@
 						"paths": [
 							{
 								"name": "typescript",
-								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+								"message": "TypeScript 7 has no stable compiler API; parse without importing typescript (scripts/AGENTS.md)."
 							}
 						],
 						"patterns": [
@@ -179,7 +178,7 @@
 						"paths": [
 							{
 								"name": "typescript",
-								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+								"message": "TypeScript 7 has no stable compiler API; parse without importing typescript (scripts/AGENTS.md)."
 							}
 						],
 						"patterns": [
@@ -223,7 +222,7 @@
 						"paths": [
 							{
 								"name": "typescript",
-								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+								"message": "TypeScript 7 has no stable compiler API; parse without importing typescript (scripts/AGENTS.md)."
 							}
 						],
 						"patterns": [
@@ -266,7 +265,7 @@
 						"paths": [
 							{
 								"name": "typescript",
-								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+								"message": "TypeScript 7 has no stable compiler API; parse without importing typescript (scripts/AGENTS.md)."
 							}
 						],
 						"patterns": [

@@ -147,14 +147,9 @@ fn audio_shape(path: &std::path::Path) -> Result<(i64, bool, usize)> {
     Ok((input.duration(), length_is_estimated(&input), audio_streams))
 }
 
-/// Finalizes a freshly produced artifact's metadata in one container-aware
-/// pass, as a preserved merge needs: a remux pass carries chapters and cover
-/// art, then MP4-family tag truth is rewritten through the mp4ameta adapter
-/// chosen by actual container classification. The FFmpeg mov muxer silently
-/// drops dictionary keys outside its known-atom table (series, series-part,
-/// sort_album), so MP4-family artifacts must not rely
-/// on the remux for tag truth. Re-exported at the crate root for the
-/// media-execution lane's artifact-finalize proof.
+/// Remuxes a freshly produced artifact into its container with the accepted
+/// chapters and cover art, then finishes its tags (see `finish_artifact_tags`).
+/// Used by preserved merges.
 pub fn finalize_artifact_metadata(
     path: &std::path::Path,
     metadata: Option<&AudiobookMetadata>,

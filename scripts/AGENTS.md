@@ -5,9 +5,7 @@ helpers, and diagnostics.
 
 ## What to run for a change
 
-Same on macOS and Linux. Run `bash scripts/setup.sh` once after clone. Run
-`bash scripts/verify.sh --changed origin/main` for the affected lanes whose
-current inputs have no passing receipt, or name lanes to run them afresh.
+Commands: root `AGENTS.md`, Environment.
 `scripts/verification.ts` owns path selection, platform job planning, and proof
 validity; `scripts/lane-paths.yml` owns the patterns and explicit exemptions.
 It rejects unmapped tracked or changed paths before CI schedules any job.
@@ -25,7 +23,6 @@ after it.
 the lanes still unproven, from these receipts. PATH is not part of a receipt's
 environment, so a pass recorded in one harness's shell counts in another; the
 recorded tool versions still invalidate it.
-Other harnesses use the same verifier and evidence files.
 
 - Frontend (`frontend`).
 - A core crate (`core`).
@@ -37,24 +34,25 @@ Other harnesses use the same verifier and evidence files.
 - Apple AAC (`apple`, macOS only).
 - Audible decrypt helper (`decrypt`). Fixtures are synthesized at test time.
   A wrong AAXC key is not the negative case.
-- Host or IPC types (`host`). Then the Vitest contract tests under `src/lib/`
-  that name the changed surface. Boundary rules: `src-tauri/AGENTS.md` and
-  `src/lib/tauri/AGENTS.md`.
+- Host or IPC types (`host`). Then the `*.contract.test.ts` Vitest files under
+  `src/` that name the changed surface. Boundary rules: `src-tauri/AGENTS.md`
+  and `src/lib/tauri/AGENTS.md`.
 - Workflows, shell scripts, and guidance (`tooling`): actionlint, zizmor
   (`scripts/check-workflows.sh`), shellcheck, and `scripts/check-guidance.ts`,
   which fails when guidance copies a command, names a missing package script,
-  or points at a missing path. `scripts/check-known-mistakes.ts` fails on
+  points at a missing path, or ships a skill whose frontmatter is not valid
+  YAML. `scripts/check-known-mistakes.ts` fails on
   code shapes behind repeated past failures; each error names the fix and
-  any allow marker. `scripts/check-file-size.mjs` ratchets source file
-  size: a staged file over the budget may grow back to its size at the
-  merge-base with `origin/main` (HEAD when none), so a split commit makes room for the
-  next one. `bun scripts/check-file-size.mjs --help` prints how a file that fails it is split.
+  any allow marker. `scripts/check-file-size.mjs` ratchets source file size;
+  `bun scripts/check-file-size.mjs --help` prints the rule and how to split a
+  file that fails it. CI sets `ABB_FILE_SIZE_BASE` to the pull-request base,
+  because a PR checkout makes the index and HEAD the same commit.
 - JavaScript/Rust advisories and Rust licenses (`supply-chain`): runs in CI
   on dependency or policy changes and daily advisory refreshes; `--changed`
-  selects it for those paths. Accepted
-  advisories live in
-  `.cargo/audit.toml`; license, source, and single-version rules in
-  `deny.toml`.
+  selects it for those paths. Accepted advisories live in `.cargo/audit.toml`,
+  each naming its crate (`scripts/audit-ignores.test.ts` fails when
+  `Cargo.lock` no longer resolves it); license, source, and single-version
+  rules in `deny.toml`.
 
 For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.
@@ -70,10 +68,12 @@ Traps:
   into the target set. Binding export has its own command:
   `bun run bindings:generate` (`bundled-ffmpeg`).
 - `bun run bindings:check` generates into temporary output and leaves the
-  candidate untouched. `bun run bindings:generate` intentionally updates it.
+  candidate untouched; `bun run bindings:generate` intentionally updates it.
+  The check also diffs all of `src/lib/generated/fixtures/` (dotfiles aside)
+  and fails on a file missing from either side. After an engine behavior
+  changes, regenerate; the recorded contract tests then fail where the UI
+  disagrees. Recorder traps: `src-tauri/AGENTS.md`.
 - Each git worktree holds its own `target/`. Remove finished worktrees.
-- `bun run build` may still print the known DEP0205 and Vite plugin-timing
-  warnings.
 
 A change to CI or validation speed quotes before and after numbers from
 `bun run ci:timing` in its PR body, so every comparison uses one recipe.
@@ -89,12 +89,12 @@ A change to CI or validation speed quotes before and after numbers from
 - `bun run app:dev:log` runs Tauri dev with captured logs. Read
   `.logs/tauri-dev-summary.md` for the session verdict, then
   `.logs/tauri-dev.log` for raw evidence, before asking for pasted terminal
-  output. The five newest runs stay under `.logs/runs/<run-id>/`. Log-level
-  switches: header of `scripts/dev-tauri-log.sh`.
+  output. The five newest runs stay under `.logs/runs/<run-id>/`.
+  `ABB_DEV_RUST_LOG` sets the log level; `ABB_DEV_USE_EXISTING_RUST_LOG=1`
+  keeps `RUST_LOG`.
 - `bash scripts/abb-dev.sh --help` drives an engine session without a
   window (header of `scripts/abb-dev.sh`).
-- Release artifacts: use `.agents/skills/release`. `bundled-ffmpeg` always
-  enables `ffmpeg-sys-next/build-portable`. Public DMG builds publish the
+- Release artifacts: use `.agents/skills/release`. Public DMG builds publish the
   AAXClean helper from current source; local app builds may reuse a fresh
   helper sidecar whose source, SDK, target, and executable digests still match.
 
@@ -102,8 +102,9 @@ A change to CI or validation speed quotes before and after numbers from
 
 - A new script enforces a live repo invariant or simplifies a build or release
   workflow, and has a package script or a usage header.
-- The runtime-boundary scanner stays a text scan until TypeScript 7 ships a
-  programmatic API (Oxlint bans importing `typescript`).
+- The runtime-boundary scanner stays a text scan until TypeScript has a stable
+  programmatic API; 7.0 offers only `typescript/unstable/*` (Oxlint bans
+  importing `typescript`).
 - Oxfmt formats JS, TS, JSON, and CSS. Markdown, YAML, and TOML stay
   unformatted: a formatter would rewrite `vendor/` sources and hand-wrapped
   guidance.
@@ -132,8 +133,7 @@ A change to CI or validation speed quotes before and after numbers from
   command in `verify.sh`). Manifest ranges stay compatible. Exact pins
   are for prerelease families (Solid and its companions; Specta),
   cross-version type boundaries, synchronized families, and vendored or
-  provenance-sensitive dependencies. `linguist-languages` is pinned exactly:
-  `scripts/check-file-size.mjs` classifies source from that database.
+  provenance-sensitive dependencies.
 - Fresh Bun resolutions wait 10 days (`bunfig.toml` `minimumReleaseAge`), and
   Dependabot uses the same cooldown, to limit exposure to fresh supply-chain
   compromises. Cargo has no release-age gate, so review a manual `cargo update`
@@ -143,21 +143,20 @@ A change to CI or validation speed quotes before and after numbers from
   `--exclude-newer-package` with a removal date.
   `bun run update:rc` updates the prerelease families listed in `bunfig.toml`.
   An early-release exemption in `bunfig.toml` names each new transitive and
-  platform package too (`@oven/bun-*`, `@biomejs/cli-*`), between
-  `# early-install until YYYY-MM-DD` and `# early-install end`.
-  `scripts/early-install.test.ts` fails once that date passes. Why: Bun
-  silently drops an age-blocked optional package from `bun.lock`.
+  platform package too, between `# early-install until YYYY-MM-DD` and
+  `# early-install end` (`scripts/early-install.test.ts`). Why: Bun silently
+  drops an age-blocked optional package from `bun.lock`.
 - `package.json` `overrides` keeps one `@tauri-apps/api` version across the app
   and its plugins, at the Rust `tauri` crate's minor
   (`scripts/tauri-contract.test.ts` checks). Move them together.
 - Update direct dependencies that have a concrete trigger in the touched
   owner; leave unrelated lockfile churn out.
 - Every exact pin, `package.json` override, and `bunfig.toml` exclusion carries
-  one tag: `pin: <why>; unpin when <trigger or YYYY-MM-DD>`. A file that allows
-  comments holds the tag beside the pin (one tag covers the pins under it, up
-  to the next blank line). `package.json`, `.node-version`, and shell pins get
-  a row in the table below. Review each pin at its trigger; a newer release at
-  least 10 days old is a reason to update, not to keep the pin.
+  `pin: <why>; unpin when <trigger or YYYY-MM-DD>`, beside the pin; one tag
+  covers the pins under it, up to the next blank line (`check-known-mistakes.ts`
+  checks the Cargo and `package.json` pins; `package.json`, `.node-version`,
+  and shell pins use the table below). A newer release at least 10 days old is
+  a reason to update, not to keep a pin.
 
 | File | Pin | Tag |
 | --- | --- | --- |
@@ -166,7 +165,6 @@ A change to CI or validation speed quotes before and after numbers from
 | `package.json` | `@solidjs/vite-plugin` | pin: prerelease that must match the Solid build; unpin when its 3.0 is stable |
 | `package.json` | `@solidjs/testing-library` | pin: prerelease that must match the Solid build; unpin when its 1.0 is stable |
 | `package.json` | `linguist-languages` | pin: `scripts/check-file-size.mjs` classifies source from this database; unpin when the owner accepts a newer classification |
-| `package.json` | `typescript` | pin: exact TypeScript 7 build adopted in the TS 7 move; unpin when the owner moves to a `^7` range |
 | `package.json` | `@tauri-apps/api (override)` | pin: one version across the app and its plugins, same minor as the Rust `tauri` crate; unpin when the plugins agree on one `@tauri-apps/api` range |
 | `package.json` | `source-map-js (override)` | pin: security floor for css-tree's transitive dependency; unpin when css-tree requires `^1.2.2` or newer |
 | `package.json` | `nanoid (override)` | pin: security floor for PostCSS's transitive dependency; unpin when PostCSS requires `^3.3.20` or newer |

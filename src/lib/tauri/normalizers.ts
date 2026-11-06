@@ -81,8 +81,8 @@ export function denormalizeNullish<T>(value: T): T {
 /* oxlint-enable typescript/no-unsafe-type-assertion */
 
 /**
- * Audio files and lookup results take the optional-field forms the frontend
- * uses elsewhere.
+ * Nulls become absent in the parts the frontend reads as optional; `selection`,
+ * `metadata`, and `audio` are otherwise unchanged.
  */
 export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionUpdate {
 	const { titles, selection, metadata, lookup, audio, output, remote, remoteLibrary } = update;

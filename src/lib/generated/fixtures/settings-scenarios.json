@@ -1,0 +1,1635 @@
+[
+  {
+    "name": "pin-reset",
+    "start": {
+      "concurrency": {
+        "capabilities": {
+          "allowAuto": true,
+          "autoEffective": 4,
+          "fixedMax": 8,
+          "fixedMin": 1,
+          "fixedOptions": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ]
+        },
+        "effective": 4,
+        "preference": {
+          "mode": "auto"
+        }
+      },
+      "recovery": null,
+      "revision": 0,
+      "saveError": null,
+      "settings": {
+        "aacDecoder": "auto",
+        "defaultAcquisitionLane": "audible",
+        "encoderDefaults": {
+          "format": "m4b",
+          "intent": "auto",
+          "sampleRate": "auto",
+          "settings": {
+            "bitrateKbps": 65,
+            "bitrateMode": {
+              "mode": "cbr"
+            },
+            "channels": "auto",
+            "encoderType": "native_aac",
+            "faacProfile": "auto",
+            "nativeAacSpeed": 0
+          }
+        },
+        "indexerConnection": {
+          "baseUrl": null,
+          "categoryIds": [
+            3000,
+            3030
+          ]
+        },
+        "keepAwakeWhileWorking": true,
+        "maxConcurrentJobs": {
+          "mode": "auto"
+        },
+        "outputDefaults": {
+          "outputDirectory": null,
+          "outputNaming": {
+            "customTemplate": null,
+            "includeYear": false,
+            "preset": "absDefault"
+          }
+        },
+        "pinnedDefaults": null,
+        "startupBehavior": "rememberLastState"
+      },
+      "startupDefaults": {
+        "encoderDefaults": {
+          "format": "m4b",
+          "intent": "auto",
+          "sampleRate": "auto",
+          "settings": {
+            "bitrateKbps": 65,
+            "bitrateMode": {
+              "mode": "cbr"
+            },
+            "channels": "auto",
+            "encoderType": "native_aac",
+            "faacProfile": "auto",
+            "nativeAacSpeed": 0
+          }
+        },
+        "maxConcurrentJobs": {
+          "mode": "auto"
+        },
+        "outputDefaults": {
+          "outputDirectory": null,
+          "outputNaming": {
+            "customTemplate": null,
+            "includeYear": false,
+            "preset": "absDefault"
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "intent": {
+          "behavior": "pinnedDefaults",
+          "kind": "setStartupBehavior"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "snapshot": {
+          "concurrency": {
+            "capabilities": {
+              "allowAuto": true,
+              "autoEffective": 4,
+              "fixedMax": 8,
+              "fixedMin": 1,
+              "fixedOptions": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            },
+            "effective": 4,
+            "preference": {
+              "mode": "auto"
+            }
+          },
+          "recovery": null,
+          "revision": 1,
+          "saveError": null,
+          "settings": {
+            "aacDecoder": "auto",
+            "defaultAcquisitionLane": "audible",
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "indexerConnection": {
+              "baseUrl": null,
+              "categoryIds": [
+                3000,
+                3030
+              ]
+            },
+            "keepAwakeWhileWorking": true,
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            },
+            "pinnedDefaults": null,
+            "startupBehavior": "pinnedDefaults"
+          },
+          "startupDefaults": {
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            }
+          }
+        }
+      },
+      {
+        "intent": {
+          "kind": "pinCurrentDefaults"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "snapshot": {
+          "concurrency": {
+            "capabilities": {
+              "allowAuto": true,
+              "autoEffective": 4,
+              "fixedMax": 8,
+              "fixedMin": 1,
+              "fixedOptions": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            },
+            "effective": 4,
+            "preference": {
+              "mode": "auto"
+            }
+          },
+          "recovery": null,
+          "revision": 2,
+          "saveError": null,
+          "settings": {
+            "aacDecoder": "auto",
+            "defaultAcquisitionLane": "audible",
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "indexerConnection": {
+              "baseUrl": null,
+              "categoryIds": [
+                3000,
+                3030
+              ]
+            },
+            "keepAwakeWhileWorking": true,
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            },
+            "pinnedDefaults": {
+              "encoderDefaults": {
+                "format": "m4b",
+                "intent": "auto",
+                "sampleRate": "auto",
+                "settings": {
+                  "bitrateKbps": 65,
+                  "bitrateMode": {
+                    "mode": "cbr"
+                  },
+                  "channels": "auto",
+                  "encoderType": "native_aac",
+                  "faacProfile": "auto",
+                  "nativeAacSpeed": 0
+                }
+              },
+              "maxConcurrentJobs": {
+                "mode": "auto"
+              },
+              "outputDefaults": {
+                "outputDirectory": null,
+                "outputNaming": {
+                  "customTemplate": null,
+                  "includeYear": false,
+                  "preset": "absDefault"
+                }
+              }
+            },
+            "startupBehavior": "pinnedDefaults"
+          },
+          "startupDefaults": {
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            }
+          }
+        }
+      },
+      {
+        "intent": {
+          "defaultAcquisitionLane": "indexer",
+          "encoderDefaults": null,
+          "kind": "remember",
+          "outputDefaults": null
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "snapshot": {
+          "concurrency": {
+            "capabilities": {
+              "allowAuto": true,
+              "autoEffective": 4,
+              "fixedMax": 8,
+              "fixedMin": 1,
+              "fixedOptions": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            },
+            "effective": 4,
+            "preference": {
+              "mode": "auto"
+            }
+          },
+          "recovery": null,
+          "revision": 3,
+          "saveError": null,
+          "settings": {
+            "aacDecoder": "auto",
+            "defaultAcquisitionLane": "indexer",
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "indexerConnection": {
+              "baseUrl": null,
+              "categoryIds": [
+                3000,
+                3030
+              ]
+            },
+            "keepAwakeWhileWorking": true,
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            },
+            "pinnedDefaults": {
+              "encoderDefaults": {
+                "format": "m4b",
+                "intent": "auto",
+                "sampleRate": "auto",
+                "settings": {
+                  "bitrateKbps": 65,
+                  "bitrateMode": {
+                    "mode": "cbr"
+                  },
+                  "channels": "auto",
+                  "encoderType": "native_aac",
+                  "faacProfile": "auto",
+                  "nativeAacSpeed": 0
+                }
+              },
+              "maxConcurrentJobs": {
+                "mode": "auto"
+              },
+              "outputDefaults": {
+                "outputDirectory": null,
+                "outputNaming": {
+                  "customTemplate": null,
+                  "includeYear": false,
+                  "preset": "absDefault"
+                }
+              }
+            },
+            "startupBehavior": "pinnedDefaults"
+          },
+          "startupDefaults": {
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            }
+          }
+        }
+      },
+      {
+        "intent": {
+          "kind": "reset"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "snapshot": {
+          "concurrency": {
+            "capabilities": {
+              "allowAuto": true,
+              "autoEffective": 4,
+              "fixedMax": 8,
+              "fixedMin": 1,
+              "fixedOptions": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            },
+            "effective": 4,
+            "preference": {
+              "mode": "auto"
+            }
+          },
+          "recovery": null,
+          "revision": 4,
+          "saveError": null,
+          "settings": {
+            "aacDecoder": "auto",
+            "defaultAcquisitionLane": "audible",
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "indexerConnection": {
+              "baseUrl": null,
+              "categoryIds": [
+                3000,
+                3030
+              ]
+            },
+            "keepAwakeWhileWorking": true,
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            },
+            "pinnedDefaults": null,
+            "startupBehavior": "rememberLastState"
+          },
+          "startupDefaults": {
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "save-retry",
+    "start": {
+      "concurrency": {
+        "capabilities": {
+          "allowAuto": true,
+          "autoEffective": 4,
+          "fixedMax": 8,
+          "fixedMin": 1,
+          "fixedOptions": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ]
+        },
+        "effective": 4,
+        "preference": {
+          "mode": "auto"
+        }
+      },
+      "recovery": null,
+      "revision": 0,
+      "saveError": null,
+      "settings": {
+        "aacDecoder": "auto",
+        "defaultAcquisitionLane": "audible",
+        "encoderDefaults": {
+          "format": "m4b",
+          "intent": "auto",
+          "sampleRate": "auto",
+          "settings": {
+            "bitrateKbps": 65,
+            "bitrateMode": {
+              "mode": "cbr"
+            },
+            "channels": "auto",
+            "encoderType": "native_aac",
+            "faacProfile": "auto",
+            "nativeAacSpeed": 0
+          }
+        },
+        "indexerConnection": {
+          "baseUrl": null,
+          "categoryIds": [
+            3000,
+            3030
+          ]
+        },
+        "keepAwakeWhileWorking": true,
+        "maxConcurrentJobs": {
+          "mode": "auto"
+        },
+        "outputDefaults": {
+          "outputDirectory": null,
+          "outputNaming": {
+            "customTemplate": null,
+            "includeYear": false,
+            "preset": "absDefault"
+          }
+        },
+        "pinnedDefaults": null,
+        "startupBehavior": "rememberLastState"
+      },
+      "startupDefaults": {
+        "encoderDefaults": {
+          "format": "m4b",
+          "intent": "auto",
+          "sampleRate": "auto",
+          "settings": {
+            "bitrateKbps": 65,
+            "bitrateMode": {
+              "mode": "cbr"
+            },
+            "channels": "auto",
+            "encoderType": "native_aac",
+            "faacProfile": "auto",
+            "nativeAacSpeed": 0
+          }
+        },
+        "maxConcurrentJobs": {
+          "mode": "auto"
+        },
+        "outputDefaults": {
+          "outputDirectory": null,
+          "outputNaming": {
+            "customTemplate": null,
+            "includeYear": false,
+            "preset": "absDefault"
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "intent": {
+          "enabled": false,
+          "kind": "setKeepAwake"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "snapshot": {
+          "concurrency": {
+            "capabilities": {
+              "allowAuto": true,
+              "autoEffective": 4,
+              "fixedMax": 8,
+              "fixedMin": 1,
+              "fixedOptions": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            },
+            "effective": 4,
+            "preference": {
+              "mode": "auto"
+            }
+          },
+          "recovery": null,
+          "revision": 1,
+          "saveError": {
+            "category": "io",
+            "code": "io_error",
+            "detail": "",
+            "message": "IO operation failed: <operating system error>"
+          },
+          "settings": {
+            "aacDecoder": "auto",
+            "defaultAcquisitionLane": "audible",
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "indexerConnection": {
+              "baseUrl": null,
+              "categoryIds": [
+                3000,
+                3030
+              ]
+            },
+            "keepAwakeWhileWorking": false,
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            },
+            "pinnedDefaults": null,
+            "startupBehavior": "rememberLastState"
+          },
+          "startupDefaults": {
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            }
+          }
+        }
+      },
+      {
+        "intent": {
+          "kind": "retry"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "snapshot": {
+          "concurrency": {
+            "capabilities": {
+              "allowAuto": true,
+              "autoEffective": 4,
+              "fixedMax": 8,
+              "fixedMin": 1,
+              "fixedOptions": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            },
+            "effective": 4,
+            "preference": {
+              "mode": "auto"
+            }
+          },
+          "recovery": null,
+          "revision": 2,
+          "saveError": {
+            "category": "io",
+            "code": "io_error",
+            "detail": "",
+            "message": "IO operation failed: <operating system error>"
+          },
+          "settings": {
+            "aacDecoder": "auto",
+            "defaultAcquisitionLane": "audible",
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "indexerConnection": {
+              "baseUrl": null,
+              "categoryIds": [
+                3000,
+                3030
+              ]
+            },
+            "keepAwakeWhileWorking": false,
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            },
+            "pinnedDefaults": null,
+            "startupBehavior": "rememberLastState"
+          },
+          "startupDefaults": {
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            }
+          }
+        }
+      },
+      {
+        "intent": {
+          "kind": "retry"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "snapshot": {
+          "concurrency": {
+            "capabilities": {
+              "allowAuto": true,
+              "autoEffective": 4,
+              "fixedMax": 8,
+              "fixedMin": 1,
+              "fixedOptions": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            },
+            "effective": 4,
+            "preference": {
+              "mode": "auto"
+            }
+          },
+          "recovery": null,
+          "revision": 3,
+          "saveError": null,
+          "settings": {
+            "aacDecoder": "auto",
+            "defaultAcquisitionLane": "audible",
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "indexerConnection": {
+              "baseUrl": null,
+              "categoryIds": [
+                3000,
+                3030
+              ]
+            },
+            "keepAwakeWhileWorking": false,
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            },
+            "pinnedDefaults": null,
+            "startupBehavior": "rememberLastState"
+          },
+          "startupDefaults": {
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "recovery",
+    "start": {
+      "concurrency": {
+        "capabilities": {
+          "allowAuto": true,
+          "autoEffective": 4,
+          "fixedMax": 8,
+          "fixedMin": 1,
+          "fixedOptions": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ]
+        },
+        "effective": 4,
+        "preference": {
+          "mode": "auto"
+        }
+      },
+      "recovery": {
+        "reset": [
+          "jobLimit"
+        ],
+        "setAsideAs": null
+      },
+      "revision": 0,
+      "saveError": null,
+      "settings": {
+        "aacDecoder": "auto",
+        "defaultAcquisitionLane": "audible",
+        "encoderDefaults": {
+          "format": "m4b",
+          "intent": "auto",
+          "sampleRate": "auto",
+          "settings": {
+            "bitrateKbps": 65,
+            "bitrateMode": {
+              "mode": "cbr"
+            },
+            "channels": "auto",
+            "encoderType": "native_aac",
+            "faacProfile": "auto",
+            "nativeAacSpeed": 0
+          }
+        },
+        "indexerConnection": {
+          "baseUrl": null,
+          "categoryIds": [
+            3000,
+            3030
+          ]
+        },
+        "keepAwakeWhileWorking": true,
+        "maxConcurrentJobs": {
+          "mode": "auto"
+        },
+        "outputDefaults": {
+          "outputDirectory": null,
+          "outputNaming": {
+            "customTemplate": null,
+            "includeYear": false,
+            "preset": "absDefault"
+          }
+        },
+        "pinnedDefaults": null,
+        "startupBehavior": "rememberLastState"
+      },
+      "startupDefaults": {
+        "encoderDefaults": {
+          "format": "m4b",
+          "intent": "auto",
+          "sampleRate": "auto",
+          "settings": {
+            "bitrateKbps": 65,
+            "bitrateMode": {
+              "mode": "cbr"
+            },
+            "channels": "auto",
+            "encoderType": "native_aac",
+            "faacProfile": "auto",
+            "nativeAacSpeed": 0
+          }
+        },
+        "maxConcurrentJobs": {
+          "mode": "auto"
+        },
+        "outputDefaults": {
+          "outputDirectory": null,
+          "outputNaming": {
+            "customTemplate": null,
+            "includeYear": false,
+            "preset": "absDefault"
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "intent": {
+          "kind": "retry"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "snapshot": {
+          "concurrency": {
+            "capabilities": {
+              "allowAuto": true,
+              "autoEffective": 4,
+              "fixedMax": 8,
+              "fixedMin": 1,
+              "fixedOptions": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            },
+            "effective": 4,
+            "preference": {
+              "mode": "auto"
+            }
+          },
+          "recovery": {
+            "reset": [
+              "jobLimit"
+            ],
+            "setAsideAs": null
+          },
+          "revision": 1,
+          "saveError": null,
+          "settings": {
+            "aacDecoder": "auto",
+            "defaultAcquisitionLane": "audible",
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "indexerConnection": {
+              "baseUrl": null,
+              "categoryIds": [
+                3000,
+                3030
+              ]
+            },
+            "keepAwakeWhileWorking": true,
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            },
+            "pinnedDefaults": null,
+            "startupBehavior": "rememberLastState"
+          },
+          "startupDefaults": {
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            }
+          }
+        }
+      },
+      {
+        "intent": {
+          "enabled": false,
+          "kind": "setKeepAwake"
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "snapshot": {
+          "concurrency": {
+            "capabilities": {
+              "allowAuto": true,
+              "autoEffective": 4,
+              "fixedMax": 8,
+              "fixedMin": 1,
+              "fixedOptions": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            },
+            "effective": 4,
+            "preference": {
+              "mode": "auto"
+            }
+          },
+          "recovery": null,
+          "revision": 2,
+          "saveError": null,
+          "settings": {
+            "aacDecoder": "auto",
+            "defaultAcquisitionLane": "audible",
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "indexerConnection": {
+              "baseUrl": null,
+              "categoryIds": [
+                3000,
+                3030
+              ]
+            },
+            "keepAwakeWhileWorking": false,
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            },
+            "pinnedDefaults": null,
+            "startupBehavior": "rememberLastState"
+          },
+          "startupDefaults": {
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "maxConcurrentJobs": {
+              "mode": "auto"
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "concurrency",
+    "start": {
+      "concurrency": {
+        "capabilities": {
+          "allowAuto": true,
+          "autoEffective": 4,
+          "fixedMax": 8,
+          "fixedMin": 1,
+          "fixedOptions": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ]
+        },
+        "effective": 4,
+        "preference": {
+          "mode": "auto"
+        }
+      },
+      "recovery": null,
+      "revision": 0,
+      "saveError": null,
+      "settings": {
+        "aacDecoder": "auto",
+        "defaultAcquisitionLane": "audible",
+        "encoderDefaults": {
+          "format": "m4b",
+          "intent": "auto",
+          "sampleRate": "auto",
+          "settings": {
+            "bitrateKbps": 65,
+            "bitrateMode": {
+              "mode": "cbr"
+            },
+            "channels": "auto",
+            "encoderType": "native_aac",
+            "faacProfile": "auto",
+            "nativeAacSpeed": 0
+          }
+        },
+        "indexerConnection": {
+          "baseUrl": null,
+          "categoryIds": [
+            3000,
+            3030
+          ]
+        },
+        "keepAwakeWhileWorking": true,
+        "maxConcurrentJobs": {
+          "mode": "auto"
+        },
+        "outputDefaults": {
+          "outputDirectory": null,
+          "outputNaming": {
+            "customTemplate": null,
+            "includeYear": false,
+            "preset": "absDefault"
+          }
+        },
+        "pinnedDefaults": null,
+        "startupBehavior": "rememberLastState"
+      },
+      "startupDefaults": {
+        "encoderDefaults": {
+          "format": "m4b",
+          "intent": "auto",
+          "sampleRate": "auto",
+          "settings": {
+            "bitrateKbps": 65,
+            "bitrateMode": {
+              "mode": "cbr"
+            },
+            "channels": "auto",
+            "encoderType": "native_aac",
+            "faacProfile": "auto",
+            "nativeAacSpeed": 0
+          }
+        },
+        "maxConcurrentJobs": {
+          "mode": "auto"
+        },
+        "outputDefaults": {
+          "outputDirectory": null,
+          "outputNaming": {
+            "customTemplate": null,
+            "includeYear": false,
+            "preset": "absDefault"
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "intent": {
+          "kind": "setConcurrency",
+          "preference": {
+            "mode": "fixed",
+            "value": 2
+          }
+        },
+        "outcome": {
+          "kind": "applied"
+        },
+        "snapshot": {
+          "concurrency": {
+            "capabilities": {
+              "allowAuto": true,
+              "autoEffective": 4,
+              "fixedMax": 8,
+              "fixedMin": 1,
+              "fixedOptions": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            },
+            "effective": 2,
+            "preference": {
+              "mode": "fixed",
+              "value": 2
+            }
+          },
+          "recovery": null,
+          "revision": 1,
+          "saveError": null,
+          "settings": {
+            "aacDecoder": "auto",
+            "defaultAcquisitionLane": "audible",
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "indexerConnection": {
+              "baseUrl": null,
+              "categoryIds": [
+                3000,
+                3030
+              ]
+            },
+            "keepAwakeWhileWorking": true,
+            "maxConcurrentJobs": {
+              "mode": "fixed",
+              "value": 2
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            },
+            "pinnedDefaults": null,
+            "startupBehavior": "rememberLastState"
+          },
+          "startupDefaults": {
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "maxConcurrentJobs": {
+              "mode": "fixed",
+              "value": 2
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            }
+          }
+        }
+      },
+      {
+        "intent": {
+          "kind": "setConcurrency",
+          "preference": {
+            "mode": "fixed",
+            "value": 99
+          }
+        },
+        "outcome": {
+          "error": {
+            "category": "validation",
+            "code": "invalid_input",
+            "detail": null,
+            "message": "Invalid input: Max concurrent jobs must be auto or a fixed value from 1 to 8."
+          },
+          "kind": "rejected"
+        },
+        "snapshot": {
+          "concurrency": {
+            "capabilities": {
+              "allowAuto": true,
+              "autoEffective": 4,
+              "fixedMax": 8,
+              "fixedMin": 1,
+              "fixedOptions": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            },
+            "effective": 2,
+            "preference": {
+              "mode": "fixed",
+              "value": 2
+            }
+          },
+          "recovery": null,
+          "revision": 2,
+          "saveError": null,
+          "settings": {
+            "aacDecoder": "auto",
+            "defaultAcquisitionLane": "audible",
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "indexerConnection": {
+              "baseUrl": null,
+              "categoryIds": [
+                3000,
+                3030
+              ]
+            },
+            "keepAwakeWhileWorking": true,
+            "maxConcurrentJobs": {
+              "mode": "fixed",
+              "value": 2
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            },
+            "pinnedDefaults": null,
+            "startupBehavior": "rememberLastState"
+          },
+          "startupDefaults": {
+            "encoderDefaults": {
+              "format": "m4b",
+              "intent": "auto",
+              "sampleRate": "auto",
+              "settings": {
+                "bitrateKbps": 65,
+                "bitrateMode": {
+                  "mode": "cbr"
+                },
+                "channels": "auto",
+                "encoderType": "native_aac",
+                "faacProfile": "auto",
+                "nativeAacSpeed": 0
+              }
+            },
+            "maxConcurrentJobs": {
+              "mode": "fixed",
+              "value": 2
+            },
+            "outputDefaults": {
+              "outputDirectory": null,
+              "outputNaming": {
+                "customTemplate": null,
+                "includeYear": false,
+                "preset": "absDefault"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+]

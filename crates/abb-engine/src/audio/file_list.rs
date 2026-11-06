@@ -305,7 +305,7 @@ pub fn apply_chapter_plans(
                 plan,
             )?;
             file.chapter_plan = Some(plan.clone());
-            file.cue_source = None; // accepted intent supersedes inspection/confirmation status
+            file.cue_source = None;
         } else if file.cue_source.is_some() {
             return Err(AppError::InvalidInput(
                 "Review the sibling CUE in Input before processing, or explicitly ignore it."

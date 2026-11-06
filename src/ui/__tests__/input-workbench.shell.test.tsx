@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/te
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, SupportedAudioImportMetadata } from '../../types/audio';
+import type { SessionOutcome } from '../../types/session';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
@@ -61,6 +62,13 @@ function runtimeFor(
 	return createAppRuntime({ input: fakeInput(options.input), engine });
 }
 
+function selects(selectedIndices: number[], selectedAnchor: number): SessionOutcome {
+	engine.change((state) => {
+		state.selection = { ...state.selection, selectedIndices, selectedAnchor };
+	});
+	return { kind: 'applied' };
+}
+
 async function renderApp(runtime: AppRuntime) {
 	const rendered = render(() => (
 		<AppRuntimeProvider runtime={runtime}>
@@ -95,6 +103,11 @@ describe('Solid input workbench', () => {
 				}),
 			],
 		});
+		engine.respond = (intent) => {
+			if (intent.kind !== 'import') return undefined;
+			engine.loadTitles(engine.analyze(intent.paths), [0]);
+			return { kind: 'applied' };
+		};
 		await renderApp(runtime);
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
@@ -144,6 +157,15 @@ describe('Solid input workbench', () => {
 				mixed: ['faacProfile', 'channels'],
 			};
 		});
+		const selectionAnswers = [
+			() => selects([0], 0),
+			() => selects([0, 1], 1),
+			() => selects([2], 2),
+		];
+		engine.respond = (intent) => {
+			if (intent.kind !== 'selectFile') return undefined;
+			return selectionAnswers.shift()?.();
+		};
 		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
 		await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });
 		await user.click(screen.getByRole('button', { name: 'Audio settings · 2 titles' }));
@@ -311,6 +333,11 @@ describe('Solid input workbench', () => {
 		runtime = runtimeFor({
 			files: [analyzedFile('/books/alpha.m4b'), analyzedFile('/books/bravo.m4b')],
 		});
+		engine.respond = (intent) => {
+			if (intent.kind === 'selectFile') return selects([0], 0);
+			if (intent.kind === 'selectAll') return selects([0, 1], 0);
+			return undefined;
+		};
 		await renderApp(runtime);
 		void runtime.input.importIntent({
 			type: 'importPaths',
@@ -384,20 +411,16 @@ describe('Solid input workbench', () => {
 		});
 	});
 
-	it('blocks import while order is locked and surfaces the lock banner', async () => {
+	it('shows the engine order lock and its refused-import notice', async () => {
 		runtime = runtimeFor();
 		await renderApp(runtime);
 		engine.change((state) => {
 			state.titles.orderLocked = true;
+			state.titles.notice = { kind: 'orderLocked' };
 		});
-		await waitFor(() => {
-			expect(screen.getByTestId('file-order-lock')).toBeVisible();
-		});
-		void runtime.input.importIntent({ type: 'importPaths', paths: ['/tmp/file1.mp3'] });
 		await waitFor(() => {
 			expect(screen.getByTestId('file-order-lock')).toBeVisible();
 			expect(screen.getByText(/Wait for completion to add files/)).toBeInTheDocument();
 		});
-		expect(engine.analyze).not.toHaveBeenCalled();
 	});
 });

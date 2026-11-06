@@ -2,7 +2,6 @@
 
 ## Public API Strip
 
-- `WorkRuntime` is built with `new(tasks)` on the engine's `EngineTasks`.
 - `submit_processing_operation` spawns a background export and returns
   `WorkSubmissionAccepted`. Callers name the operation after its books; the
   request `title` is required and non-empty. `on_finished` receives the
@@ -44,13 +43,19 @@
 - Each output title is one child. Operation and child `source_input_ids` retain
   all source identities, so a grouped title's downloads settle together at its
   terminal outcome, including in mixed-success batches.
-- A child with `supplemental_warning` stays Completed; the session keeps that
-  title's download. A child's `warnings` copy the title's display-only notes
-  from `ProcessResultEntry`; the Work Center shows them on the finished title.
+- A child copies `supplemental_warning` and `warnings` from
+  `ProcessResultEntry` and stays Completed.
 - Own child `startedAtMs` / `finishedAtMs` in retained snapshots: first active
   progress through the output's Completed event. Keep each child's finish when
   the batch settles; missing timestamps mean unknown, so derive them from
   neither logs nor batch duration.
+- An export holds concurrency fixed from acceptance to its end, including
+  between titles. Title sources are recorded before the operation is visible,
+  so a file is never reported free between acceptance and the first read.
+- A metadata save's children match progress by `input_index` and carry no
+  per-file `job_id`: a shared one would cross-match in `apply_progress_event`.
+  A cancel during the registry permit wait ends the operation as Cancelled and
+  keeps the per-file results.
 - Stamp per-operation `revision` under the state lock before mutable access.
 - Every change reaches hosts as one `EngineEvent::WorkOperations`
   (`WorkOperationsUpdate`): the changed operation plus the display order,
@@ -64,11 +69,8 @@
   they stay outside retained export history. Event names belong to the host
   (`src-tauri/src/events.rs`).
 - Terminal-operation retention: `WorkRuntimeState` keeps at most
-  `TERMINAL_OPERATIONS_CAP` (20) terminal operations, pruned oldest-first by
+  `TERMINAL_OPERATIONS_CAP` terminal operations, pruned oldest-first by
   terminalization order (a just-finished long-running operation must survive
   its own prune). Running and accepted operations are never pruned.
-- Reach processing through `processing::run` (`check-known-mistakes.ts`
-  rejects `remote_source::materializer` here).
+- Reach processing through `processing::run`.
 - `WorkProgressStage` is a work_runtime-owned display vocabulary.
-
-`mod.rs` is routing only.

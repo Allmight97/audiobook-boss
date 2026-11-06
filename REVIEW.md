@@ -1,8 +1,7 @@
 # REVIEW.md
 
-How to review an ABB pull request. Root `AGENTS.md` (Review Guidelines) and the
-`claude review` workflow both point here. The rules live in the `AGENTS.md`
-chain; this file says how to review against them.
+How to review an ABB pull request. The rules live in the `AGENTS.md` chain;
+this file says how to review against them.
 
 ## Scope
 
@@ -21,17 +20,14 @@ chain; this file says how to review against them.
 
 ## Severity
 
-- **Important** blocks merge: the diff breaks a root hard invariant or a
-  nested owner's rule (data-loss protection, TS↔Rust parity, path safety,
-  IPC outside `src/lib/tauri/*`, product or metadata rules outside
-  `abb-engine`, silent substitute behavior); a user's chosen setting can be
-  lost or reset; or behavior crossing a boundary changes without a focused
-  test at the owning tier.
+- **Important** blocks merge: the diff breaks a root Hard Invariant, a Golden
+  Path line, or a nested owner's rule, or changes behavior crossing a boundary
+  without a focused test at the owning tier.
 - **Nit**: Refactor Discipline targets, a test that does not earn keep,
   naming, or local clarity. Post at most five; fold the rest into the
   summary.
-- **Pre-existing**: report only in code the diff touches, classified `fix`,
-  `defer`, or `reject` as root `AGENTS.md` asks.
+- **Pre-existing**: report only in code the diff touches, classified `fix` or
+  `reject` as root `AGENTS.md` asks.
 
 ## Verification bar
 
@@ -39,8 +35,7 @@ chain; this file says how to review against them.
   input that produces the wrong result. Read the code a finding depends on
   before posting it.
 - A change to an owned import/export surface without its `AGENTS.md` update
-  is Important. A frontend owner or view strip without its STRIPS list
-  update is also Important.
+  is Important.
 
 ## Summary
 

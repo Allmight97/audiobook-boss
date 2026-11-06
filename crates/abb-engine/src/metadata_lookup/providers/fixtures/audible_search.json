@@ -1,0 +1,42 @@
+{
+	"products": [
+		{
+			"asin": "B002V1OF70",
+			"title": "Dune",
+			"subtitle": "Book One of the Dune Chronicles",
+			"authors": [{ "asin": "B000AQ0842", "name": "Frank Herbert" }],
+			"narrators": [{ "name": "Scott Brick" }, { "name": "Orlagh Cassidy" }],
+			"release_date": "2007-01-30",
+			"runtime_length_min": 1262,
+			"publisher_summary": "<p>The publisher summary.</p>",
+			"merchandising_summary": "<p>The merchandising summary.</p>",
+			"product_images": {
+				"500": "https://m.media-amazon.com/images/I/fixture-cover._SL500_.jpg",
+				"1024": "https://m.media-amazon.com/images/I/fixture-cover._SL1024_.jpg"
+			},
+			"series": [
+				{
+					"asin": "B000SERIES",
+					"sequence": "1",
+					"title": "Dune",
+					"url": "/series/Dune-Audiobooks/B000SERIES"
+				},
+				{
+					"asin": "B000SEQUEL",
+					"sequence": "12",
+					"title": "The Dune Sequence",
+					"url": "/series/The-Dune-Sequence/B000SEQUEL"
+				}
+			],
+			"content_type": "Product",
+			"language": "english"
+		},
+		{
+			"asin": "B000000002",
+			"title": "A Standalone Book",
+			"merchandising_summary": "<p>Only a merchandising summary.</p>"
+		}
+	],
+	"response_groups": ["contributors", "product_desc", "series"],
+	"total_results": 2
+}

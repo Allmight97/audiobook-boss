@@ -96,8 +96,6 @@ fn processing_write_intent(
     effective: Option<&AudiobookMetadata>,
 ) -> Option<MetadataIntentPatch> {
     let mut write_intent = patch.cloned().unwrap_or_default();
-    // Only a derived key is written; an underivable one already equals the
-    // source's own value, so writing it would rewrite tags for no change.
     if write_intent.album_sort.is_none() {
         write_intent.album_sort = effective
             .and_then(|metadata| {
