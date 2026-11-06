@@ -16,6 +16,8 @@ export type ProcessingOwner = {
 	keepLocation: (offer: RestartOffer) => Promise<void>;
 	start: () => Promise<void>;
 	preview: () => Promise<void>;
+	/** Says what Preview Audio does, with the length the engine renders. */
+	previewTooltip: () => string;
 	cancelAll: () => void;
 	cancelJob: (childJobId: string) => void;
 	/** The engine still accepts a cancel of the running preview. */
@@ -126,6 +128,14 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 		},
 		preview() {
 			return send({ kind: 'preview' });
+		},
+		previewTooltip() {
+			const { shortestSeconds, longestSeconds } = deps.link.titles().previewLength;
+			const length =
+				shortestSeconds === longestSeconds
+					? `${longestSeconds}-second`
+					: `${shortestSeconds}- to ${longestSeconds}-second`;
+			return `Encode a ${length} sample of each title, split across its files, with its current audio settings and metadata, so you can listen before exporting.`;
 		},
 		cancelAll() {
 			cancelPreview();

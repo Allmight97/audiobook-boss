@@ -112,6 +112,9 @@ one host attachment.
   multi-source title has none (`metadata/chapter_count.rs`, shared with the
   merge and passthrough writers). Per-source rows keep their own count. These
   are packaging facts, not a statement that every container keeps them.
+  `titles.previewLength` spans the valid titles' preview lengths
+  (`PreviewConfig::title_seconds`), so the Preview Audio tooltip names the
+  length processing renders.
 - **Cover.** A cover change applies only when exactly one valid title is
   selected. A later cover choice or Clear supersedes a load still running.
 - **Save targets.** Save covers every pending edit on a valid single-source

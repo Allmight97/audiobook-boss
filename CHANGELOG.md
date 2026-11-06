@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- The Preview Audio tooltip names the sample length ABB renders. A title of more
+  than 18 files runs longer than 90 seconds, and the tooltip now says so.
 - When a path can't be built, the output Example line says why, such as the
   unknown template token and the tokens allowed, instead of a generic message.
 - Work Center and Status Panel buttons (Cancel, Show in Finder) no longer lose a

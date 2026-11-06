@@ -6,6 +6,7 @@ use serde::Serialize;
 
 use crate::audio::AudioFile;
 use crate::metadata::output_chapter_count;
+use crate::processing::{PreviewConfig, PREVIEW_SECONDS};
 
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -16,10 +17,29 @@ pub struct TitleTotals {
     pub size_bytes: f64,
 }
 
-#[derive(Debug, Clone, Default)]
+/// How long Preview Audio runs for the titles in the list, in whole seconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewLength {
+    pub shortest_seconds: u32,
+    pub longest_seconds: u32,
+}
+
+impl PreviewLength {
+    fn spanning(title_seconds: &[u32]) -> Self {
+        let standard = PREVIEW_SECONDS as u32;
+        Self {
+            shortest_seconds: title_seconds.iter().copied().min().unwrap_or(standard),
+            longest_seconds: title_seconds.iter().copied().max().unwrap_or(standard),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub(super) struct ListTotals {
     pub by_title: BTreeMap<String, TitleTotals>,
     pub total_size_bytes: f64,
+    pub preview_length: PreviewLength,
 }
 
 fn accepted_chapter_count(file: &AudioFile) -> usize {
@@ -32,7 +52,9 @@ pub(super) fn title_totals(
     files: &[AudioFile],
     title_sources: &BTreeMap<String, Vec<AudioFile>>,
 ) -> ListTotals {
-    let mut totals = ListTotals::default();
+    let mut by_title = BTreeMap::new();
+    let mut total_size_bytes = 0.0;
+    let mut preview_seconds = Vec::new();
     for file in files {
         let sources = title_sources
             .get(&file.input_id)
@@ -43,8 +65,11 @@ pub(super) fn title_totals(
             .iter()
             .map(|source| accepted_chapter_count(source))
             .collect();
-        totals.total_size_bytes += valid.iter().map(|source| size_of(source)).sum::<f64>();
-        totals.by_title.insert(
+        total_size_bytes += valid.iter().map(|source| size_of(source)).sum::<f64>();
+        if !valid.is_empty() {
+            preview_seconds.push(PreviewConfig.title_seconds(valid.len()).round() as u32);
+        }
+        by_title.insert(
             file.input_id.clone(),
             TitleTotals {
                 chapter_count: output_chapter_count(&chapter_counts),
@@ -56,7 +81,11 @@ pub(super) fn title_totals(
             },
         );
     }
-    totals
+    ListTotals {
+        by_title,
+        total_size_bytes,
+        preview_length: PreviewLength::spanning(&preview_seconds),
+    }
 }
 
 #[cfg(test)]

@@ -102,6 +102,10 @@
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 90,
+              "shortestSeconds": 90
+            },
             "revision": 2,
             "sortDirection": "none",
             "titleSourcesByIdentity": {},
@@ -1042,6 +1046,10 @@
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 90,
+              "shortestSeconds": 90
+            },
             "revision": 2,
             "sortDirection": "none",
             "titleSourcesByIdentity": {},
@@ -1287,6 +1295,10 @@
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 90,
+              "shortestSeconds": 90
+            },
             "revision": 4,
             "sortDirection": "none",
             "titleSourcesByIdentity": {},
@@ -1442,6 +1454,10 @@
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 90,
+              "shortestSeconds": 90
+            },
             "revision": 5,
             "sortDirection": "none",
             "titleSourcesByIdentity": {},
@@ -1622,6 +1638,10 @@
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 90,
+              "shortestSeconds": 90
+            },
             "revision": 2,
             "sortDirection": "none",
             "titleSourcesByIdentity": {},
@@ -1690,6 +1710,10 @@
             },
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 90,
+              "shortestSeconds": 90
+            },
             "revision": 3,
             "sortDirection": "none",
             "titleSourcesByIdentity": {},
@@ -1782,6 +1806,10 @@
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 90,
+              "shortestSeconds": 90
+            },
             "revision": 4,
             "sortDirection": "none",
             "titleSourcesByIdentity": {},

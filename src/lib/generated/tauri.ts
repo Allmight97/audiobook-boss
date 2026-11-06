@@ -795,6 +795,12 @@ export type PlannedOutput = {
 
 export type PlannedOutputAction = "write" | "replace_existing" | "rename_new" | "skip_existing" | "review_required";
 
+/**  How long Preview Audio runs for the titles in the list, in whole seconds. */
+export type PreviewLength = {
+	shortestSeconds: number,
+	longestSeconds: number,
+};
+
 export type PreviewSnapshot = {
 	operation: OperationSnapshot,
 	/**  A successful single preview may be claimed for opening once, across hosts. */
@@ -1353,6 +1359,7 @@ export type TitlesSnapshot = {
 	titleTotals: { [key in string]: TitleTotals },
 	/**  Bytes of every valid source in the list. */
 	totalSizeBytes: number | null,
+	previewLength: PreviewLength,
 	sortDirection: SortDirection,
 	orderLocked: boolean,
 	notice: InputNotice | null,

@@ -85,3 +85,31 @@ fn combined_size_counts_valid_sources_of_every_title() {
 
     assert_eq!(title_totals(&files, &sources).total_size_bytes, 35.0);
 }
+
+#[test]
+fn the_preview_length_spans_the_titles_in_the_list() {
+    let many = (0..30)
+        .map(|index| source(&format!("{index}.mp3"), 60.0, 1.0, 0))
+        .collect::<Vec<_>>();
+    let (mut files, sources) = grouped(many);
+    files.push(source("single.m4b", 600.0, 1.0, 0));
+
+    assert_eq!(
+        title_totals(&files, &sources).preview_length,
+        PreviewLength {
+            shortest_seconds: 90,
+            longest_seconds: 150,
+        }
+    );
+}
+
+#[test]
+fn an_empty_list_reports_the_standard_preview_length() {
+    assert_eq!(
+        title_totals(&[], &BTreeMap::new()).preview_length,
+        PreviewLength {
+            shortest_seconds: 90,
+            longest_seconds: 90,
+        }
+    );
+}

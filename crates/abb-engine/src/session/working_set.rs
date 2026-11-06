@@ -16,7 +16,7 @@ use crate::errors::AppErrorEnvelope;
 use crate::metadata::{CueStatus, MetadataIntentPatch, PatchOp};
 use crate::metadata_save::Rewrite;
 
-use super::title_totals::{title_totals, TitleTotals};
+use super::title_totals::{title_totals, PreviewLength, TitleTotals};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -87,6 +87,7 @@ pub struct TitlesSnapshot {
     pub title_totals: BTreeMap<String, TitleTotals>,
     /// Bytes of every valid source in the list.
     pub total_size_bytes: f64,
+    pub preview_length: PreviewLength,
     pub sort_direction: SortDirection,
     pub order_locked: bool,
     pub notice: Option<InputNotice>,
@@ -136,6 +137,7 @@ impl WorkingSet {
             audio_choice_required: self.audio_choice_required.clone(),
             title_totals: totals.by_title,
             total_size_bytes: totals.total_size_bytes,
+            preview_length: totals.preview_length,
             sort_direction: self.sort_direction,
             order_locked: self.order_locked,
             notice: self.notice.clone(),

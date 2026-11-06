@@ -107,6 +107,34 @@ describe('engine preview adapter', () => {
 		);
 	});
 
+	it('names the preview length the engine publishes', async () => {
+		const engine = createFakeEngine();
+		const app = createAppRuntime({ engine });
+		runtimes.push(app);
+		await app.initialize();
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<PreviewAudioControls />
+			</AppRuntimeProvider>
+		));
+		const tooltip = () => screen.getByRole('button', { name: 'Preview Audio' }).title;
+		expect(tooltip()).toContain('Encode a 90-second sample of each title,');
+
+		engine.change((state) => {
+			state.titles.previewLength = { shortestSeconds: 150, longestSeconds: 150 };
+		});
+		await vi.waitFor(() =>
+			expect(tooltip()).toContain('Encode a 150-second sample of each title,'),
+		);
+
+		engine.change((state) => {
+			state.titles.previewLength = { shortestSeconds: 90, longestSeconds: 150 };
+		});
+		await vi.waitFor(() =>
+			expect(tooltip()).toContain('Encode a 90- to 150-second sample of each title,'),
+		);
+	});
+
 	it('moves the status bar only while the preview runs', async () => {
 		const engine = createFakeEngine();
 		const queued = preview();

@@ -1,6 +1,14 @@
 use super::PreviewConfig;
 
 #[test]
+fn a_title_past_eighteen_files_previews_longer_than_ninety_seconds() {
+    assert_eq!(PreviewConfig.title_seconds(1).round(), 90.0);
+    assert_eq!(PreviewConfig.title_seconds(7).round(), 90.0);
+    assert_eq!(PreviewConfig.title_seconds(18).round(), 90.0);
+    assert_eq!(PreviewConfig.title_seconds(30).round(), 150.0);
+}
+
+#[test]
 fn ninety_seconds_split_across_the_files_with_a_five_second_floor() {
     for (files, seconds, samples_at_44k1, samples_at_22k05) in [
         (1, 90.0, 3_969_000, 1_984_500),

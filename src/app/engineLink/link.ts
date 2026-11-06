@@ -76,6 +76,7 @@ function emptyTitles(): SessionTitles {
 		audioChoiceRequired: [],
 		titleTotals: {},
 		totalSizeBytes: 0,
+		previewLength: { shortestSeconds: 0, longestSeconds: 0 },
 		sortDirection: 'none',
 		orderLocked: false,
 		notice: null,

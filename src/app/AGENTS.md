@@ -123,7 +123,8 @@ without a bullet has none. Engine paths name the owner of the truth.
   before the reply (host side: `src-tauri/AGENTS.md`). Submit availability comes from
   `output.submissionInProgress`; preview Cancel availability comes from the
   run's `cancellable`, and a title's from its child `cancellable`.
-  `preview()` sends no length: the engine owns the preview length and content.
+  `preview()` sends no length: the engine owns the preview length and content,
+  and `previewTooltip()` words `titles.previewLength`.
   Each owner instance owns its status store and publisher.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and
   `selectLane` send only the lane intent. Connection editing sends write-only

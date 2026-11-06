@@ -17,7 +17,7 @@ mod state;
 mod submission;
 mod tag_cache;
 mod title_totals;
-pub use title_totals::TitleTotals;
+pub use title_totals::{PreviewLength, TitleTotals};
 mod working_set;
 
 pub use audio::{

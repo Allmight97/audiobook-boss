@@ -511,6 +511,10 @@
     "notice": null,
     "orderDiffersFromImport": false,
     "orderLocked": false,
+    "previewLength": {
+      "longestSeconds": 90,
+      "shortestSeconds": 90
+    },
     "revision": 0,
     "sortDirection": "none",
     "titleSourcesByIdentity": {},
