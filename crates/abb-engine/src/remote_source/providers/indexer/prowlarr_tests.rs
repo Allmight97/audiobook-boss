@@ -884,7 +884,7 @@ async fn a_grab_that_times_out_may_already_be_sent_so_it_is_unconfirmed() {
         .build()
         .expect("client");
 
-    let error = ReqwestProwlarrAdapter::with_client(client)
+    let outcome = ReqwestProwlarrAdapter::with_client(client)
         .grab(
             "http://prowlarr.test",
             &SecretString::from("secret-key".to_string()),
@@ -892,13 +892,13 @@ async fn a_grab_that_times_out_may_already_be_sent_so_it_is_unconfirmed() {
             "test-grab",
         )
         .await
-        .expect_err("a timeout leaves the grab unconfirmed");
+        .expect("a timeout is an outcome");
 
     server.await.expect("server");
-    assert!(
-        error.to_string().ends_with(
-            "Prowlarr did not answer in time, so this release may already be sent. Check your downloader before you Retry."
-        ),
-        "{error}"
+    assert!(!outcome.accepted);
+    assert!(outcome.unconfirmed);
+    assert_eq!(
+        outcome.diagnostics[0].message,
+        "Prowlarr did not answer in time, so this release may already be sent. Check your downloader before you Retry."
     );
 }

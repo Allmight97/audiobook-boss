@@ -32,6 +32,7 @@ pub(super) struct ProwlarrSearchOutcome {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ProwlarrGrabOutcome {
     pub accepted: bool,
+    pub unconfirmed: bool,
     pub message: String,
     pub diagnostics: Vec<RemoteSourceDiagnostic>,
 }
@@ -153,7 +154,10 @@ impl ReqwestProwlarrAdapter {
                     request_id,
                     error.without_url()
                 );
-                return Err(AppError::General(GRAB_UNCONFIRMED.to_string()));
+                return Ok(ProwlarrGrabOutcome {
+                    unconfirmed: true,
+                    ..grab_failed(GRAB_UNCONFIRMED)
+                });
             }
         };
 
@@ -170,6 +174,7 @@ impl ReqwestProwlarrAdapter {
         if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
             return Ok(ProwlarrGrabOutcome {
                 accepted: false,
+                unconfirmed: false,
                 message: "Indexer rejected the API key.".to_string(),
                 diagnostics: vec![RemoteSourceDiagnostic {
                     kind: RemoteAcquisitionFailureKind::AuthRequired,
@@ -207,6 +212,7 @@ impl ReqwestProwlarrAdapter {
 
         Ok(ProwlarrGrabOutcome {
             accepted: true,
+            unconfirmed: false,
             message: "Release sent to downloader.".to_string(),
             diagnostics: Vec::new(),
         })
@@ -536,6 +542,7 @@ const PROWLARR_NOT_RESPONDING: &str =
 fn grab_failed(line: &str) -> ProwlarrGrabOutcome {
     ProwlarrGrabOutcome {
         accepted: false,
+        unconfirmed: false,
         message: line.to_string(),
         diagnostics: vec![RemoteSourceDiagnostic {
             kind: RemoteAcquisitionFailureKind::ReleaseGrabFailed,

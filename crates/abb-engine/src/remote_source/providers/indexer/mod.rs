@@ -116,6 +116,7 @@ impl IndexerProvider {
             .await;
         let outcome = match &result {
             Ok(outcome) if outcome.accepted => "handoff_confirmed",
+            Ok(outcome) if outcome.unconfirmed => "unconfirmed",
             Ok(_) => "rejected",
             Err(_) => "unconfirmed",
         };
