@@ -35,17 +35,33 @@ function afterStep(step: QueueStep | null): string {
 	}
 }
 
+const error = (message: string): Status => ({ message, variant: 'error' });
+
+type FixedKind = Exclude<
+	LookupStatus['kind'],
+	'found' | 'searchFailed' | 'applied' | 'queueComplete'
+>;
+
+const FIXED_STATUS: Record<FixedKind, Status> = {
+	noValidTitle: error('Select a valid file to search metadata.'),
+	queryRequired: error('Enter a title, author, or ASIN to search.'),
+	searching: { message: 'Searching metadata sources…', variant: 'info' },
+	searchSuperseded: error('Search stopped because it changed. Search again.'),
+	applying: { message: 'Applying metadata…', variant: 'info' },
+	applySuperseded: error('Apply stopped because the search changed. Apply again.'),
+	noTitleQueued: error('Select at least one file before applying metadata.'),
+	applyRejected: error(
+		'Could not apply metadata to the selected file. Review pending edits and try again.',
+	),
+	nextTitleRejected: error(
+		'Could not select the next file. Review pending metadata edits and try again.',
+	),
+	failed: error('Metadata lookup failed. Check console and try again.'),
+};
+
 function statusOf(status: LookupStatus | null): Status {
-	const error = (message: string): Status => ({ message, variant: 'error' });
-	switch (status?.kind) {
-		case undefined:
-			return { message: '', variant: 'info' };
-		case 'noValidTitle':
-			return error('Select a valid file to search metadata.');
-		case 'queryRequired':
-			return error('Enter a title, author, or ASIN to search.');
-		case 'searching':
-			return { message: 'Searching metadata sources…', variant: 'info' };
+	if (status === null) return { message: '', variant: 'info' };
+	switch (status.kind) {
 		case 'found': {
 			const found = status.partial
 				? `Found ${status.count} results. Some lookup data was unavailable; showing available results.`
@@ -58,18 +74,6 @@ function statusOf(status: LookupStatus | null): Status {
 		}
 		case 'searchFailed':
 			return error(`${afterStep(status.after)}Search failed. Check your query and try again.`);
-		case 'searchSuperseded':
-			return error('Search stopped because it changed. Search again.');
-		case 'applying':
-			return { message: 'Applying metadata…', variant: 'info' };
-		case 'applySuperseded':
-			return error('Apply stopped because the search changed. Apply again.');
-		case 'noTitleQueued':
-			return error('Select at least one file before applying metadata.');
-		case 'applyRejected':
-			return error(
-				'Could not apply metadata to the selected file. Review pending edits and try again.',
-			);
 		case 'applied':
 			return status.coverFailed
 				? error('Metadata applied to form, but cover art failed to load.')
@@ -78,10 +82,8 @@ function statusOf(status: LookupStatus | null): Status {
 			return status.coverFailed
 				? error('Queue complete, but cover art failed to load.')
 				: { message: 'Queue complete.', variant: 'success' };
-		case 'nextTitleRejected':
-			return error('Could not select the next file. Review pending metadata edits and try again.');
-		case 'failed':
-			return error('Metadata lookup failed. Check console and try again.');
+		default:
+			return FIXED_STATUS[status.kind];
 	}
 }
 
