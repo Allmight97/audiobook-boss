@@ -200,6 +200,7 @@ impl SessionState {
         {
             Ok(link) => link,
             Err(RestartStale::Stale) => {
+                self.preview.end_finished();
                 self.refuse_submission(SubmitRefusal::RestartStale);
                 return None;
             }

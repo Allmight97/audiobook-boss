@@ -262,6 +262,10 @@ fn a_finished_preview_ends_when_the_user_starts_the_next_submission() {
     refused.act(MetadataField::Title, FieldAction::Blank);
     assert!(refused.state.begin_submission(false).is_none());
     assert_eq!(refused.state.output_snapshot(0).preview_run, None);
+
+    let mut stale_restart = finished();
+    assert!(stale_restart.state.begin_restart("alpha", 0).is_none());
+    assert_eq!(stale_restart.state.output_snapshot(0).preview_run, None);
 }
 
 #[test]
