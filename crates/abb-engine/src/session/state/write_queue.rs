@@ -66,13 +66,13 @@ impl WriteQueue {
             held: 0,
         };
         for item in items {
-            let being_written = self.writing.contains(&item.path)
+            let queued = self.writing.contains(&item.path)
                 || self.deferred.iter().any(|write| {
-                    write.phase == DeferredPhase::Writing && write.item.path == item.path
+                    write.phase != DeferredPhase::Failed && write.item.path == item.path
                 });
             if is_temporary(&item.path) {
                 routing.held += 1;
-            } else if in_use.contains(&item.path) || being_written {
+            } else if in_use.contains(&item.path) || queued {
                 routing.waiting += 1;
                 self.defer(item);
             } else {
@@ -86,7 +86,16 @@ impl WriteQueue {
         routing
     }
 
-    fn defer(&mut self, item: SaveItem) {
+    fn defer(&mut self, mut item: SaveItem) {
+        let replaced = self
+            .deferred
+            .iter()
+            .find(|write| write.phase == DeferredPhase::Waiting && write.item.path == item.path);
+        if let Some(replaced) = replaced {
+            let mut patch = replaced.item.patch.clone();
+            patch.merge(&item.patch);
+            item.patch = patch;
+        }
         self.deferred
             .retain(|write| write.item.path != item.path || write.phase == DeferredPhase::Writing);
         self.deferred.push(DeferredWrite {

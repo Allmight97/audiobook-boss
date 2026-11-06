@@ -110,6 +110,57 @@ fn a_later_save_replaces_the_edit_a_waiting_write_will_apply() {
 }
 
 #[test]
+fn a_later_save_keeps_the_waiting_edit_of_a_title_that_left_and_returned() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    let reading = HashSet::from([path("alpha")]);
+    desk.type_into(MetadataField::Genre, "Mystery");
+    desk.save_during(&reading, &[], &[]);
+    desk.change(|set| {
+        set.remove_file(0);
+    })
+    .expect("remove");
+    desk.import(&[("alpha", None)]);
+    desk.select(&[0]).expect("select returning title");
+    desk.type_into(MetadataField::Author, "Edited Author");
+    desk.save_during(&reading, &[], &[]);
+
+    desk.exports_now_reading(&HashSet::new());
+
+    let on_disk = &desk.disk[&path("alpha")];
+    assert_eq!(on_disk.genre.as_deref(), Some("Mystery"));
+    assert_eq!(on_disk.artist.as_deref(), Some("Edited Author"));
+}
+
+#[test]
+fn a_save_on_a_freed_file_joins_the_write_still_waiting_there() {
+    for fails in [false, true] {
+        let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+        desk.type_into(MetadataField::Genre, "Mystery");
+        desk.save_during(&HashSet::from([path("alpha")]), &[], &[]);
+        desk.change(|set| {
+            set.remove_file(0);
+        })
+        .expect("remove");
+        desk.import(&[("alpha", None)]);
+        desk.select(&[0]).expect("select returning title");
+        desk.type_into(MetadataField::Author, "Edited Author");
+
+        let plan = desk.save(&[]).expect("save");
+        assert_eq!((plan.immediate.len(), plan.waiting), (0, 1));
+        let taken = desk.begin_deferred(&HashSet::new());
+        let fail: &[&str] = if fails { &["alpha"] } else { &[] };
+        desk.end_deferred(taken, fail);
+        if fails {
+            desk.save(&[]).expect("retry");
+        }
+
+        let on_disk = &desk.disk[&path("alpha")];
+        assert_eq!(on_disk.genre.as_deref(), Some("Mystery"));
+        assert_eq!(on_disk.artist.as_deref(), Some("Edited Author"));
+    }
+}
+
+#[test]
 fn a_save_while_a_waiting_write_runs_never_writes_the_file_alongside_it() {
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     let reading = HashSet::from([path("alpha")]);
