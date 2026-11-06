@@ -47,7 +47,7 @@ describe('Solid import tracer shell', () => {
 		await screen.findByTestId('left-column');
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
-		const row = await screen.findByRole('option', { name: 'chapter.m4b' });
+		const row = await screen.findByRole('option', { name: 'Chapter One' });
 		expect(within(row).getByText('Chapter One')).toBeInTheDocument();
 		expect(document.querySelector('.file-details')?.textContent).toMatch(/Narrator/);
 		expect(screen.getByRole('region', { name: 'Input and File Order' })).toBeInTheDocument();
@@ -83,5 +83,50 @@ describe('Solid import tracer shell', () => {
 		expect(document.querySelector('.file-cue-details span')?.textContent).toBe(
 			'2 chapters from chapter.cue',
 		);
+	});
+
+	it.each(['ignored', 'invalid'] as const)(
+		'names no chapter source for a CUE with status %s',
+		async (status) => {
+			const user = userEvent.setup();
+			const engine = createFakeEngine();
+			engine.analyze = (paths) =>
+				paths.map((path) =>
+					audioFile(path.replace(/\.m4b$/, '.mp3'), {
+						chapterPlan: null,
+						cueSource: { fileName: 'chapter.cue', status, message: 'About the CUE.' },
+					}),
+				);
+			runtime = await createAppRuntime({ input: fakeInput(), engine });
+			render(() => (
+				<AppRuntimeProvider runtime={runtime!}>
+					<App />
+				</AppRuntimeProvider>
+			));
+			await screen.findByTestId('left-column');
+
+			await user.click(screen.getByRole('button', { name: 'Add audio files' }));
+			await screen.findByRole('option', { name: 'chapter.mp3' });
+			expect(screen.getByText('About the CUE.')).toBeInTheDocument();
+			expect(document.querySelector('.file-cue-details')?.textContent).not.toMatch(/from/);
+		},
+	);
+
+	it('names a row and its reorder grip by the title label, not the file name', async () => {
+		const user = userEvent.setup();
+		const engine = createFakeEngine();
+		engine.analyze = (paths) =>
+			paths.map((path) => audioFile(path, { label: 'Chapter One', artist: 'Narrator' }));
+		runtime = await createAppRuntime({ input: fakeInput(), engine });
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<App />
+			</AppRuntimeProvider>
+		));
+		await screen.findByTestId('left-column');
+
+		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
+		const row = await screen.findByRole('option', { name: 'Chapter One' });
+		expect(within(row).getByRole('button', { name: 'Reorder Chapter One' })).toBeInTheDocument();
 	});
 });

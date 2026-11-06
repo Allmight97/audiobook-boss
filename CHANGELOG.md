@@ -6,6 +6,10 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- A CUE sheet that ABB ignored or could not read no longer shows a "chapters from"
+  line in the file list.
+- Screen readers announce a file-list row and its reorder button by the title
+  label, as the row shows it, instead of by the file name.
 - Work Center gives the reason for a skipped or cancelled title, as it already did
   for a failed one.
 - After you start an export, the status line reads "Submitted to Work Center." without

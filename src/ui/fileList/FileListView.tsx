@@ -4,7 +4,6 @@ import {
 	formatAudioProperties,
 	interpretFileListKeyDown,
 } from '../../app/inputSession';
-import { pathBasename } from '../../lib/path/basename';
 import { useAppRuntime } from '../../app/runtime';
 import { coverSrc } from '../../lib/tauri/coverSrc';
 import { Button, CoverImage } from '../foundation';
@@ -230,7 +229,7 @@ export function FileListView(props: {
 									}
 									role="option"
 									aria-selected={isSelected(index()) ? 'true' : 'false'}
-									aria-label={pathBasename(file.path, { fallback: 'path' })}
+									aria-label={file.label}
 									tabindex={-1}
 									onClick={(event) => handleFileListClick(index(), event)}
 								>
@@ -239,7 +238,7 @@ export function FileListView(props: {
 											type="button"
 											class="file-reorder-grip"
 											tabindex={-1}
-											aria-label={`Reorder ${pathBasename(file.path, { fallback: 'path' })}`}
+											aria-label={`Reorder ${file.label}`}
 											onPointerDown={(event) => reorderHandlers.onGripPointerDown(index(), event)}
 											onClick={(event) => event.stopPropagation()}
 										>
@@ -335,13 +334,15 @@ export function FileListView(props: {
 											<Show when={file.cueSource}>
 												{(cue) => (
 													<div class="file-cue-details">
-														<span>
-															{acceptedChapterCount(file)} chapter
-															{acceptedChapterCount(file) === 1 ? '' : 's'} from{' '}
-															{cue().status === 'embeddedPreferred'
-																? 'embedded audio'
-																: cue().fileName}
-														</span>
+														<Show when={cue().status !== 'ignored' && cue().status !== 'invalid'}>
+															<span>
+																{acceptedChapterCount(file)} chapter
+																{acceptedChapterCount(file) === 1 ? '' : 's'} from{' '}
+																{cue().status === 'embeddedPreferred'
+																	? 'embedded audio'
+																	: cue().fileName}
+															</span>
+														</Show>
 														<Show when={cue().message}>
 															<p>{cue().message}</p>
 														</Show>
