@@ -23,9 +23,10 @@ engine does not offer, add it to the engine's host interface.
   starts so that exit path and the hidden webview's commands never panic.
 - **Quit.** `lib.rs` holds every quit until `Engine::shutdown` settles. Running
   work, a slow shutdown, and unsaved settings reach the user as choices. The
-  process exits early only when the user chooses Quit Now. Saves waiting only
-  behind a review or preview are written during shutdown, and the quit prompt
-  says so first.
+  process exits before the engine settles only when the user chooses Quit Now,
+  and with unsaved settings only when the user chooses Quit Anyway. Saves
+  waiting only behind a review or preview are written during shutdown, and the
+  quit prompt says so first.
 
 ## Commands
 
@@ -49,7 +50,7 @@ engine does not offer, add it to the engine's host interface.
 - Register a new command in `ipc_contract.rs`, then run
   `bun run bindings:generate` (the host lane checks drift). Run it after an
   engine behavior change too: `src/lib/generated/fixtures/` records real engine
-  replies.
+  outcomes and the changed session snapshot parts.
 
 ## Tests
 

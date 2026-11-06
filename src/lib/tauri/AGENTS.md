@@ -2,12 +2,13 @@
 
 ## Public API Strip
 
-- `client.ts` exports `tauriClient`, the one runtime surface (pinned by
-  `src/lib/tauri-public-api.contract.test.ts`).
+- `client.ts` exports `tauriClient`, the one runtime surface, with
+  `TAURI_COMMAND_NAMES`, `TAURI_APP_EVENT_NAMES`, and the `TauriCommand` type
+  for the contract test (pinned by `src/lib/tauri-public-api.contract.test.ts`).
 - Regenerate bindings with `bun run bindings:generate`.
-  `check-tauri-runtime-boundary.ts` keeps generated imports in `commands.ts`
-  and `client.ts`; Oxlint `no-restricted-imports` keeps plugin and event imports
-  in `src/lib/tauri`.
+  `check-tauri-runtime-boundary.ts` keeps generated value imports in
+  `commands.ts` and `client.ts` (type imports may appear elsewhere); Oxlint
+  `no-restricted-imports` keeps plugin and event imports in `src/lib/tauri`.
 - Native-dialog methods select files and folders only. Session questions render
   identified snapshots; a native question cannot be dismissed on frontend
   replacement.
@@ -20,7 +21,8 @@
   (`src-tauri/AGENTS.md`). The
   `session-update` and `settings-update` events carry engine changes between
   replies. Auth-start replies supply the one-time URL; the `remoteSource` owner
-  opens it with `tauriClient.openUrl`.
+  opens it with `tauriClient.openUrl`. A view opens only a link the user
+  clicked (`src/ui/AGENTS.md`).
 - A plugin or event function needs its permission in
   `src-tauri/capabilities/default.json`; `scripts/tauri-contract.test.ts`
   derives each one from the imports, since jsdom mocks cannot catch a gap.
@@ -44,8 +46,8 @@ here because only this folder may import `normalizers.ts`.
 ## Frontend Utilities
 
 `appError.ts`, `subscriptionGroup.ts`, and `coverSrc.ts` are frontend
-utilities, not `tauriClient` methods; views import them directly. Each has its
-own module test.
+utilities, not `tauriClient` methods; views and owners import them directly.
+Each has its own module test.
 
 - `appError.ts` owns error normalization and presentation. Derive user
   messages and cancellation here.

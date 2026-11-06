@@ -97,12 +97,14 @@ its rustdoc in `session_lifecycle.rs`.
 A finished job hands its files to the session through the engine-set `Handoff`
 and records the outcome on the job. From then on the session decides when the
 download goes (`crate::session`, `staged.rs`) and calls `purge_session`, which
-also drops the job's record. Cancel does nothing to a job that already finished,
-so it cannot remove files the session holds. Materialized handoff files stay
-usable after provider logout. A Disconnect refuses unfinished
-acquisition/handoff; its scope is on `RemoteUiIntent::Disconnect`. Job changes
-update `SessionUpdate.remote_acquisition` (admission `acquiring` and the current
-job), a part with its own revision; download progress is published at most every
+drops the lifecycle registry's record of the job. The snapshot's job stays
+until a disconnect or the next job replaces it. Cancel does nothing to a job
+that already finished, so it cannot remove files the session holds.
+Materialized handoff files stay usable after provider logout. A Disconnect
+refuses unfinished acquisition/handoff; its scope is on
+`RemoteUiIntent::Disconnect`. Job changes update
+`SessionUpdate.remote_acquisition` (admission `acquiring` and the current job),
+a part with its own revision; download progress is published at most every
 100 ms, a stage change at once, and a progress tick carries no other part. The
 change that settles the job or rejects the sign-in also carries the remote part.
 Why: a tick stays one job's size at any library size and cannot drop a crossing

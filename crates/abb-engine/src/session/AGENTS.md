@@ -128,7 +128,9 @@ one host attachment.
   stale or duplicate answers are `Superseded`. A Reset during preflight, before
   a review is held, drops that preflight and unlocks the list. Frontend teardown
   is not a user cancellation. `output.submission_in_progress` owns the busy
-  fact.
+  fact; the frontend also locks the concurrency controls while it is set, and
+  the engine refuses a concurrency change while jobs are active
+  (`processing/job_registry`).
   `output.restart_prompt` selects one unanswered current offer in title-id order
   only after the preceding answer's work settles; answering suppresses that
   offer's automatic question for the engine session, even if Restart or Keep

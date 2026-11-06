@@ -32,7 +32,8 @@ second copy of owner state.
   status line shows a rejection there (cover loads, processing, Remote
   Source); the metadata echo, lookup actions and file selection pass it to
   `link.refuse`, the same notice `post` uses. The host runs both in the order
-  called.
+  called; a gap in the numbering is skipped after `MISSING_INTENT_WAIT`
+  (`src-tauri/AGENTS.md`).
 - A part that arrives unchanged keeps object identity for its files and lookup
   results. A changed remote part keeps the objects of its unchanged selection
   lists, PDF choices, releases, and grab records. Solid rows are not rebuilt,
@@ -111,16 +112,18 @@ without a bullet has none. Engine paths name the owner of the truth.
   eligible question, and `restartOffers` feeds Work Center retry. Restart and
   Keep Location send the title and revision shown; teardown answers neither.
   Preview identity, progress, and terminal truth come from `output.previewRun`:
-  render its snapshot and aggregate nothing. `cancelPreview` carries the run
+  render its snapshot; the status panel only counts titles by status for its
+  chips. `cancelPreview` carries the run
   identity and an optional child identity; whole-preview cancel needs no native
   job id, and disposal does not cancel. The artwork shows from the run's
   `cover` address once the engine offers one. A finished preview opens through
   `link.openPreview(runId)`, even when the requesting frontend is disposed
   before the reply (host side: `src-tauri/AGENTS.md`). Submit and Cancel
-  availability follow the engine preview state, including for a frontend that
-  attaches to an active run. `preview()` sends no length: the engine owns the
-  preview length and content. Each owner instance owns its status store and
-  publisher.
+  availability come from the status store's `isProcessing`: `renderPreview`
+  sets it from the engine preview state, including for a frontend that attaches
+  to an active run, and `submit.ts` clears it when a submission ends.
+  `preview()` sends no length: the engine owns the preview length and content.
+  Each owner instance owns its status store and publisher.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and
   `selectLane` send only the lane intent. Connection editing sends write-only
   key, URL, and category intents; keys never come back from the engine, and
@@ -149,8 +152,10 @@ without a bullet has none. Engine paths name the owner of the truth.
   operations in the engine's order. `reset` invalidates pending responses.
   `isWorkRunning` decides which work shows motion (running or cancelling), for
   the Work Center and the preview bar alike.
-  Only whole-operation cancels track pending state; title cancels are
-  idempotent in the backend.
+  `view()` changes with every progress tick, and Work Center rows read it: no
+  narrower accessor exists. Only whole-operation cancels track pending state
+  (the Cancel button disables while one is in flight); repeating any cancel
+  returns the current snapshot.
 
 ## Tests
 
@@ -160,7 +165,8 @@ appends imported files. It holds no product rule;
 `check-known-mistakes.ts` rejects an `intent.kind` branch in it other than
 `import`. Seed the engine's answer on the intent that asks for it (`respond`,
 `respondSettings`, `seedForm`, `seedSettings`, `change`). What the real engine answers to a
-sequence of intents is proved by `runtime/recordedWorkflows.contract.test.ts`;
+sequence of intents (outcomes and the changed snapshot parts, audio excluded)
+is proved by `runtime/recordedWorkflows.contract.test.ts`;
 a new engine-owned behavior a view depends on becomes a scenario in
 `src-tauri/src/bin/export_bindings/scenarios.json`, not a rule in the fake.
 

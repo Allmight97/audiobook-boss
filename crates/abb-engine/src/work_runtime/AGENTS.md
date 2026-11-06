@@ -39,7 +39,8 @@
   `child_job_id` cancels only that title. Only processing titles cancel one at
   a time; a metadata save's files share one flag. Repeating a cancel, or
   cancelling a finished title, returns the current snapshot. Child
-  `cancellable` is the authority for offering title cancel.
+  `cancellable` is the authority for offering title cancel; the Work Center
+  adds only that the operation has more than one title.
 - Each output title is one child. Operation and child `source_input_ids` retain
   all source identities, so a grouped title's downloads settle together at its
   terminal outcome, including in mixed-success batches.
@@ -73,4 +74,7 @@
   terminalization order (a just-finished long-running operation must survive
   its own prune). Running and accepted operations are never pruned.
 - Reach processing through `processing::run`.
-- `WorkProgressStage` is a work_runtime-owned display vocabulary.
+- `WorkProgressStage` is a work_runtime-owned display vocabulary. Processing
+  sets every stage except Downloading and Decrypting, which nothing sets;
+  `src/app/processing/render.ts` folds the stages into the status panel's
+  analyzing, converting, writing, and terminal stages.
