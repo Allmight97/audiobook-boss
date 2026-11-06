@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Work Center gives the reason for a skipped or cancelled title, as it already did
+  for a failed one.
 - After you start an export, the status line reads "Submitted to Work Center." without
   a Completed stage or 100% bar, since the work has only been accepted.
 - The Audible status shows it is busy while the library loads after an account

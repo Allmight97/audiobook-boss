@@ -72,9 +72,13 @@ function canCancelSeparateTitle(operation: OperationSnapshot, child: ChildJobSna
 
 function childReason(child: ChildJobSnapshot): string | null {
 	if (child.status === 'failed') return child.message ?? null;
-	const notes = [child.supplementalWarning, ...child.warnings, outputUpdateText(child)].filter(
-		Boolean,
-	);
+	const endNote = child.status === 'skipped' || child.status === 'cancelled' ? child.message : null;
+	const notes = [
+		endNote,
+		child.supplementalWarning,
+		...child.warnings,
+		outputUpdateText(child),
+	].filter(Boolean);
 	return notes.length > 0 ? notes.join(' ') : null;
 }
 

@@ -215,7 +215,7 @@ it('keeps each row and its buttons across a progress update', async () => {
 	expect(reveal).toBeInTheDocument();
 });
 
-it('reveals only completed titles in the host file manager', async () => {
+it('a child with an output path offers a reveal in the host file manager', async () => {
 	const operation = completedOperation();
 	operation.children[0] = {
 		...operation.children[0],
@@ -229,6 +229,24 @@ it('reveals only completed titles in the host file manager', async () => {
 	expect(reveal).toHaveBeenCalledWith(
 		expect.objectContaining({ outputPath: '/Library/A Change of Plans.m4b' }),
 	);
+});
+
+it('says why a title was skipped or cancelled, and keeps its other notes', async () => {
+	const operation = completedOperation();
+	operation.children[0] = {
+		...operation.children[0],
+		status: 'skipped',
+		message: 'Skipped: output exists.',
+	};
+	operation.children[1] = {
+		...operation.children[1],
+		status: 'cancelled',
+		message: 'Cancelled before it started.',
+		warnings: ['Cover was not embedded.'],
+	};
+	await showOperation(operation);
+	expect(screen.getByText('Skipped: output exists.')).toBeVisible();
+	expect(screen.getByText('Cancelled before it started. Cover was not embedded.')).toBeVisible();
 });
 
 it('keeps retryable Restart and Keep actions on only the matching export row', async () => {
