@@ -92,6 +92,26 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => expect(bitrate.value).toBe('193'));
 	});
 
+	it('shows the engine encoder after a pick the engine did not take', async () => {
+		await renderEncoder((defaults) => {
+			defaults.facts.encoderOptions = defaults.facts.encoderOptions.map((option) => ({
+				...option,
+				available: true,
+			}));
+		});
+		await vi.waitFor(() => expect(document.getElementById('adv-encoder')).not.toBeNull());
+		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
+		const held = select.value;
+		const other = Array.from(select.options).find(
+			(option) => option.value !== held && !option.disabled,
+		);
+
+		changeSelectValue(select, other!.value);
+
+		await vi.waitFor(() => expect(sent()).toHaveLength(1));
+		expect(select.value).toBe(held);
+	});
+
 	it('renders option ranges from the engine facts and capabilities', async () => {
 		await renderEncoder((defaults, audio) => {
 			defaults.facts.bitrateKbpsMin = 24;

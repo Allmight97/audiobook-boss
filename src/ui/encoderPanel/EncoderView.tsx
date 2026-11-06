@@ -60,6 +60,7 @@ function EncoderPanel(props: {
 			const select = event.currentTarget;
 			if (!(select instanceof HTMLSelectElement || select instanceof HTMLInputElement)) return;
 			choose(field, select.value);
+			if (field === 'encoder') select.value = String(value('encoder', displayedFlavor()));
 			if (field === 'bitrate') select.value = String(view().bitrate);
 		};
 	}
