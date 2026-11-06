@@ -3,9 +3,8 @@
 App Settings owns the settings in effect for this run and whether they have
 reached disk. Hosts change them through `Engine::settings_dispatch` with a
 `SettingsIntent`, and read them from the `SettingsSnapshot` in the reply. The
-one exception is the Indexer URL and categories, which change through the
-remote UI's Save (a session intent) so the API key moves with them. A default
-the session records reaches hosts as `EngineEvent::Settings`.
+Indexer connection is the exception (Settings Runtime, below). A default the
+session records reaches hosts as `EngineEvent::Settings`.
 
 ## Public API Strip
 
@@ -38,11 +37,10 @@ the session records reaches hosts as `EngineEvent::Settings`.
   the scheduler takes the startup defaults' concurrency (pinned, if the user
   chose to start from pinned defaults). A launch from pinned defaults puts
   them in effect, so a later pin or save starts from what is on screen.
-- Reset is refused while exports run, and while an Indexer search, grab, or
-  connection Save holds the connection lease (`Engine::settings_dispatch`
-  takes it from `RemoteSourceRuntime::reset_lease`), so it never changes the
-  connection between two releases of a batch. Otherwise it puts the defaults
-  in effect and writes them like any change.
+- Reset is refused while exports run, and while
+  `RemoteSourceRuntime::reset_lease` refuses it (`Engine::settings_dispatch`
+  takes the lease; rule in `remote_source/AGENTS.md`). Otherwise it puts the
+  defaults in effect and writes them like any change.
 - `keep_awake_while_working` defaults on. Applying it updates
   `PowerManager`; opting out releases an active hold.
 - `aac_decoder` takes effect for imports and submissions accepted after it;
@@ -61,8 +59,7 @@ the session records reaches hosts as `EngineEvent::Settings`.
   `storage.rs` owns `settings.toml` in the host's config folder: one section
   per area, in a saved shape kept apart from the IPC types so a change to
   what hosts send cannot change what a saved file means.
-- Loading never fails. No file means the defaults. There is no file-format
-  migration: files from builds before `settings.toml` are never read. Each
+- Loading never fails. No file means the defaults. Each
   recovery unit (`SettingsUnit`) loads on its own: a value that fails
   validation (damaged outside ABB, or a bug; a release that narrows a value
   follows the rule below) resets only that unit, and an absent one takes its

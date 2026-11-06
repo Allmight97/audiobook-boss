@@ -1,20 +1,12 @@
 # Release Execution
 
 Read the sections for the selected lane after stating the version or no-bump
-decision. Before running a command, check it against the live package
-scripts; the repository environment owns command truth.
+decision.
 
 ## Version And Changelog
 
-During explicit version work, keep these synchronized:
-
-- `package.json`
-- `src-tauri/tauri.conf.json`
-- `src-tauri/Cargo.toml`
-- `Cargo.lock`
-- `CHANGELOG.md`
-
-Use `bun scripts/bump-version.ts <x.y.z>`. Add a concise, user-facing section:
+`bun scripts/bump-version.ts <x.y.z>` updates every version surface. Add a
+concise, user-facing `CHANGELOG.md` section by hand:
 
 ```markdown
 ## [x.y.z] - YYYY-MM-DD
@@ -58,9 +50,7 @@ bun scripts/resolve-release-dmg.ts --version <x.y.z>
 hdiutil verify "<resolved-dmg-path>"
 ```
 
-The build must stay noninteractive. `bundled-ffmpeg` always enables
-`ffmpeg-sys-next/build-portable`, so a distributable DMG does not inherit the
-build host's native CPU tuning. Report the resolved path and verification
+The build must stay noninteractive. Report the resolved path and verification
 result, then stop before tagging or publishing.
 
 ## Public Release
@@ -108,6 +98,9 @@ result, then stop before tagging or publishing.
    git push origin main
    git push origin v<x.y.z>
    ```
+
+   The push skips the PR path through the admin bypass on the `CI gate`
+   ruleset, so it needs the owner's credentials.
 
 9. Publish the verified artifact with the
    matching changelog section as release notes:

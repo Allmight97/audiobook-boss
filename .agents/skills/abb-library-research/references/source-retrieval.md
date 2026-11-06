@@ -19,9 +19,3 @@ checkout after use.
 If the published artifact cannot be tied to a revision, report the retrieved
 source as unproven for the installed version. Return the implementation
 consequence to the ABB owner instead of silently substituting upstream behavior.
-
-A maintained pattern reference earns a place here only after repeated ABB
-lookup friction. Before adding one, inspect existing callers and references;
-retain the decision-changing idiom and exact source pointer rather than an
-upstream tutorial. Refresh or remove it when its evidence no longer matches
-the selected package.

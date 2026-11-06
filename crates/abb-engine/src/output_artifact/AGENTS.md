@@ -25,7 +25,7 @@
   that file's process-wide lock, so a later export replacing the file is never
   overwritten by an earlier export's tag save. The Supplemental PDF commit
   holds the lock on its requested name while it picks a free name and
-  publishes.
+  publishes, so two exports of one title never pick the same free name.
 - Publishing under a new name (Write, RenameNew, Supplemental PDF) never
   replaces an entry. Same disk: the staged audio is flushed, then
   hard-linked. Another disk, and always for the PDF (its source may be a
@@ -36,12 +36,10 @@
   and is renamed over it; a crash between the two leaves at most an empty
   file. Why any reason: network and FUSE disks report a missing hard-link
   feature with many different errors, and this path never replaces an entry.
-- Replacement temps are `.abb_replace_install_<key>_<uuid>`, where the key is
-  the first 16 hex digits of the final file name's SHA-256. The stale-temp
-  sweep before a commit removes only regular files with that key, so another
-  title's active temp survives. `file_replace` backups are
-  `.abb_replace_<uuid>`. Temp names never embed the final name, so any final
-  name that passes preflight commits.
+- Replacement temps carry a key from the final name's hash, so the stale-temp
+  sweep before a commit removes only that title's temps (`commit.rs`). Temp
+  names never embed the final name, so any final name that passes preflight
+  commits.
 - Preflight (`OutputPlanLedger::resolve`) refuses a path component or preview name
   over 255 UTF-16 units (bytes on Linux) before collision probes
   (`abb_output_artifact_core::check_output_name_lengths`). A rename

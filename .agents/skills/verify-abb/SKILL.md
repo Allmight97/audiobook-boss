@@ -1,6 +1,6 @@
 ---
 name: verify-abb
-description: Drive abb-dev headlessly through golden-path features, keep JSON plus ffprobe evidence, and never use stored credentials.
+description: "Prove ABB's golden path on real output files without a window, from import through export, collisions, cancel, chapters, layout, a killed export, or a copy of the owner's library. Use to verify a change end to end."
 ---
 
 # Verify ABB
@@ -24,17 +24,13 @@ Rules:
 - Inputs are synthesized with the FFmpeg 9 CLI. Never point abb-dev at the
   owner's library or production state; every call gets its own `--state-dir`,
   except `crash`, which reuses one on purpose to relaunch after `kill -9`.
-  `corpus` is the one feature that reads the owner's files, and only copies.
 - Audible decrypt is proved by `bash scripts/verify.sh decrypt` (synthetic
   AAX/AAXC fixtures through the published helper), not by this skill.
 - Remote Audible download is blocked: it needs a real account, and this skill
   never reads stored credentials. Report it as blocked.
 - `corpus` is opt-in and not in `run.sh`'s default list: set
-  `ABB_CORPUS_DIR=<folder of the owner's audiobooks>` and run
-  `run.sh corpus`. It copies each file, so it never writes into the folder,
-  and runs import, encode, and re-import against the copy, plus Preserve for
-  MP3, M4B, and M4A, comparing title, chapters, and length. Unset, it fails
-  and names `ABB_CORPUS_DIR`. Names are copied byte for byte: NFC and NFD
-  forms stay distinct.
+  `ABB_CORPUS_DIR=<folder of the owner's audiobooks>` and run `run.sh corpus`.
+  It reads the owner's files but works only on copies, and compares title,
+  chapters, and length after encode and Preserve (`features/corpus.sh`).
 - A new feature is a new `features/<name>.sh` added to `run.sh`'s list; check
   the result with ffprobe or the JSON, not with abb-dev's exit code alone.

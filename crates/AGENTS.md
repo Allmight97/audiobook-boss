@@ -13,8 +13,7 @@
 
 ## Ownership
 
-- `abb-*-core` crates package pure domain logic for an engine owner. They are
-  package boundaries, not additional Public API Strips.
+- `abb-*-core` crates are package boundaries, not additional Public API Strips.
 - `abb-remote-source-core` stays provider-neutral (stages, strategies,
   progress, materialized kinds; `check-known-mistakes.ts` rejects a provider
   name there). Provider protocol interpretation, such as Audible license keys

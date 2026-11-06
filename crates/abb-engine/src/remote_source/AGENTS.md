@@ -13,11 +13,11 @@ session files, Supplemental Assets, and staging cleanup.
   cross only `SessionIntent::Remote`. `RemoteLibrarySnapshot` and
   `RemoteAcquisitionSnapshot` are separate revisioned session parts; the
   runtime itself is crate-private.
-- Processing, audio, metadata, output artifact, and frontend code consume
-  provider-neutral facts only (`check-known-mistakes.ts` rejects
-  `crate::remote_source` in the four engine owners). No provider secrets, license blobs, raw provider
-  responses, or protected intermediates cross the strip or the generated
-  TypeScript boundary.
+- Processing, audio, metadata, output artifact, WorkRuntime, and frontend code
+  consume provider-neutral facts only (`check-known-mistakes.ts` rejects
+  `crate::remote_source` in those engine owners). No provider secrets,
+  license blobs, raw provider responses, or protected intermediates cross the
+  strip or the generated TypeScript boundary.
 - Supplemental Assets cross only as provider-neutral, validated asset facts.
   Processing receives them explicitly by file-list `inputId` and never queries
   `RemoteSourceRuntime`.
@@ -34,10 +34,7 @@ session files, Supplemental Assets, and staging cleanup.
   Audible denies licenses to the 2021 profile that `audible_api` hard-codes
   (mkb79/Audible#909). A saved sign-in keeps the profile it registered with,
   so a profile change takes effect only after the user signs in again.
-- On Linux the vault uses the Secret Service when one answers on the session
-  bus, and kernel keyutils otherwise. Keyutils lasts until restart; the account
-  message says sign-in will not be remembered. The warning follows the store's
-  persistence (`UntilDelete` survives). No second copy of a secret is written.
+- Linux vault choice and its account message: rustdoc in `vault.rs`.
 - Staged remote writes (`scoped_output.rs`): `prepare` (stale-partial
   pre-clean) -> partial write -> cancel check -> same-directory
   `rename_and_commit`. Drop removes the partial; the final path appears only
@@ -50,23 +47,20 @@ session files, Supplemental Assets, and staging cleanup.
   and keeps credentials, release GUIDs/URLs, and raw response bodies out of the
   entries. Release detail URLs are optional source-provided HTTP(S) links
   without embedded credentials, never inferred from a release GUID.
-- Indexer connection URLs reject embedded credentials on save and draft
-  testing; the rule lives in App Settings' `IndexerConnection`. The URL and
-  categories are an App Settings recovery unit in `settings.toml`;
-  `remote_source` reads them from `SettingsRuntime::indexer_connection` and
-  never stores them. `indexer.toml` is never read. API keys stay in the
-  credential store.
+- The Indexer URL and categories are App Settings' `IndexerConnection`, whose
+  `validate` rejects embedded credentials on save and draft testing.
+  `remote_source` reads them with `SettingsRuntime::indexer_connection` and
+  never stores them. API keys live only in the credential store, scoped to the
+  normalized server URL. Save reserves its settings turn when accepted and
+  changes that URL's key after the change applies; a vault failure says the URL
+  and categories changed but the key did not, and a failed save never pairs one
+  server with another server's key.
 - The private connection owner resolves the saved URL, categories, and the
   host's key for search/grab together; its credential-bearing result never
   crosses IPC.
 - A search uses exactly the saved categories. An edit or save that chooses none
   is refused (`empty_categories_refused` on the draft), and a saved unit with
   none resets and is named in recovery (default Audio 3000, Audiobooks 3030).
-- Indexer credentials are scoped to the normalized server URL in the vault;
-  `settings.toml` never holds a key. Save reserves its settings turn when
-  accepted and changes that URL's key after the change applies; a vault
-  failure says the URL and categories changed but the key did not. A failed
-  save never pairs one server with another server's key.
 - Connection Test accepts a draft without persisting it. An omitted draft key
   resolves only from that draft URL's vault slot; a new URL requires its own
   key.
@@ -107,17 +101,16 @@ files, so `integration_audible_handoff_tests.rs` runs the chain from
 A finished job hands its files to the session through the engine-set `Handoff`
 and records the outcome on the job. From then on the session decides when the
 download goes (`crate::session`, `staged.rs`) and calls `purge_session`, which
-also drops the job's record. Cancel does nothing to a job that already
-finished, so it cannot remove files the session holds. Materialized handoff
-files stay usable after provider logout. A Disconnect is Audible's only (the
-Indexer has no sign-in to remove; its key stays in the credential store under
-its URL) and refuses unfinished acquisition/handoff. Job changes update `SessionUpdate.remote_acquisition`
-(admission `acquiring` and the current job), a part with its own revision;
-download progress is published at most every 100 ms, a stage change at once,
-and a progress tick carries no other part. The change that settles the job
-or rejects the sign-in also carries the remote part. Why: a tick stays one
-job's size at any library size and cannot drop a crossing selection change. Snapshot `terminal` and
-`settled` facts belong here.
+also drops the job's record. Cancel does nothing to a job that already finished,
+so it cannot remove files the session holds. Materialized handoff files stay
+usable after provider logout. A Disconnect refuses unfinished
+acquisition/handoff; its scope is on `RemoteUiIntent::Disconnect`. Job changes
+update `SessionUpdate.remote_acquisition` (admission `acquiring` and the current
+job), a part with its own revision; download progress is published at most every
+100 ms, a stage change at once, and a progress tick carries no other part. The
+change that settles the job or rejects the sign-in also carries the remote part.
+Why: a tick stays one job's size at any library size and cannot drop a crossing
+selection change. Snapshot `terminal` and `settled` facts belong here.
 
 ## Working Remote State
 
@@ -142,18 +135,21 @@ job's size at any library size and cannot drop a crossing selection change. Snap
   its initiating reply, and retains AwaitingHandoff without the URL. Completion
   reserves credentials until registration and persistence settle. StartAuth,
   Disconnect, acquisition, and lane replacement are refused during completion.
-  Shutdown cancels registration before the credential commit is admitted and
-  awaits an admitted blocking commit. Keychain reads for Indexer search, grab,
-  and Test, the Audible library, and acquisition run on a blocking thread that
-  the caller awaits. None starts once closing; `until_closing` wraps only the
-  network future, so a started read is awaited.
+  `AUTH_REGISTRATION_TIMEOUT` bounds registration, so a stalled Amazon
+  endpoint cannot hold the surface until quit. A handoff path that cannot be
+  read keeps the pending sign-in, so the user can fix the path without a new
+  browser round trip. Shutdown cancels registration before the credential
+  commit is admitted and awaits an admitted blocking commit. Keychain reads for Indexer search, grab,
+  and Test, the Audible library, and acquisition run on a blocking thread the
+  caller awaits (`vault_blocking`, rustdoc). None starts once closing. An Indexer key read for Load is dropped at
+  shutdown rather than awaited.
 - Accepted disconnect reserves the UI guard's disconnecting fact through vault
   work outside the guard; account_status Running exposes that pending work.
   Credential deletion failure preserves account/library choices and reports
   Failed. Successful deletion updates account truth before staging cleanup, so
-  cleanup failure cannot leave a Connected account. Failed unmaterialized jobs remain in the
-  lifecycle registry; startup abandoned-session cleanup retries their paths.
-  Materialized handoff files remain session-owned.
+  cleanup failure cannot leave a Connected account. Failed unmaterialized jobs
+  remain in the lifecycle registry; startup abandoned-session cleanup retries
+  their paths.
 - Available PDFs start included; refresh preserves explicit exclusion while
   pruning titles that cannot be acquired. A Grab batch captures its releases,
   sends sequentially, and keeps per-release failures for explicit retry. Its
@@ -161,17 +157,20 @@ job's size at any library size and cannot drop a crossing selection change. Snap
   replacement are refused until it finishes, and a connection Save and a search
   refuse each other the same way. A refused Reset says to wait; no outcome or
   retry row is lost. An admitted Reset (`reset_lease`) refuses a new Search or
-  Grab until it ends, however it ends. A release sent since the last search or Save is not sent
-  again (the grab answers "Already sent").
+  Grab until it ends, however it ends. A release sent since the last search or
+  Save is not sent again (the grab answers "Already sent"): it is claimed in
+  `sent_releases` before the send and released again if the send is not
+  accepted.
 - The draft starts from the saved settings; Load reads only whether a key is
   stored for the saved URL. An applied Reset replaces the draft, clears its
-  errors, failures, and search results, and rereads the account when the
-  Indexer lane is shown (`saved_connection_replaced`). A Test that finishes
-  after it changes nothing. A Save refuses Reset (`reset_lease`), so no Save
-  finishes after it. Old Test/Search
-  results cannot replace newer requests or changed lanes. API keys stay private; snapshots report only
-  configured/entered facts. The HTTP client initializes on first use, so a
-  session that never uses Indexer pays no network setup cost.
+  errors, failures, and search results, and rereads the account when the Indexer
+  lane is shown (`saved_connection_replaced`). A Test that finishes after it
+  changes nothing. A Save refuses Reset (`reset_lease`), so no Save finishes
+  after it. Old Test/Search results cannot replace newer requests or changed
+  lanes. API keys stay private, and `RemoteUiIntent`'s `Debug` prints no payload;
+snapshots report only configured/entered facts.
+  The HTTP client initializes on first use, so a session that never uses Indexer
+  pays no network setup cost.
 - Acquisition admission and disconnect share the remote UI guard. A late library
   reply or terminal publication cannot restore disconnected choices or jobs.
   One unsettled acquisition includes its pending Input handoff, not only
@@ -181,19 +180,19 @@ job's size at any library size and cannot drop a crossing selection change. Snap
 
 Providers return typed unsupported/protected/auth statuses. An Audible
 `AuthRejected` reply (see the scope rule above) on the library or on an
-acquisition (`AuthRequired` diagnostic) sets the UI
-state's sign-in-rejected fact: the account shows NeedsAuth with the reason, and
-a later keychain read cannot turn it back to Connected. Only a completed
-sign-in or a disconnect clears it. ABB never deletes the stored sign-in on a
-refusal. A license reply with `content_license.status_code` Denied fails that
-title as `LicenseDenied`, and the message gives Audible's reason codes. A
-`CustomerThrottled` reason means a temporary limit or an outdated device
-registration, so the message says to sign in again, then retry later. It is never reported as a missing URL. Acquisition success
-means real materialized files: manual-import fallback and placeholder sources
-do not exist. Dash/Widevine acquisition stays unsupported until ABB has its own
-CDM, MPD/PSSH, and content-key design. An AAX or AAXC license reply with no
-usable decryption material fails as `ProtectedUnsupported` before any audio is
-downloaded; the key is the only thing that decides, not the reply's shape. An Audible AAX or AAXC file is
-materialized only when its output decodes as audio with FFmpeg's built-in
-decoder. A wrong key fails as `MaterializationFailed`, and the message names
-the decrypt. For AAXC, helper exit 0 is not that proof.
+acquisition (`AuthRequired` diagnostic) sets the UI state's sign-in-rejected
+fact: the account shows NeedsAuth with the reason, and a later keychain read
+cannot turn it back to Connected. Only a completed sign-in or a disconnect
+clears it. ABB never deletes the stored sign-in on a refusal. A license reply
+with `content_license.status_code` Denied fails that title as `LicenseDenied`,
+and the message gives Audible's reason codes. A `CustomerThrottled` reason means
+a temporary limit or an outdated device registration, so the message says to
+sign in again, then retry later. It is never reported as a missing URL.
+Acquisition success means real materialized files. Dash/Widevine acquisition
+stays unsupported until ABB has its own CDM, MPD/PSSH, and content-key design.
+An AAX or AAXC license reply with no usable decryption material fails as
+`ProtectedUnsupported` before any audio is downloaded; the key is the only thing
+that decides, not the reply's shape. An Audible AAX or AAXC file is materialized
+only when its output decodes as audio with FFmpeg's built-in decoder. A wrong
+key fails as `MaterializationFailed`, and the message names the decrypt. For
+AAXC, helper exit 0 is not that proof.

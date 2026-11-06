@@ -23,7 +23,9 @@ second copy of owner state.
   each snapshot part (titles, selection, metadata, lookup, audio, output,
   remote, remote library, remote acquisition, settings) by revision, and sends
   intents. Adapters read the link. `workOperations` is the exception: it reads
-  WorkRuntime through `tauriClient`.
+  WorkRuntime through `tauriClient`. The link listens before it attaches, so no
+  update published in between is missed; part revisions make applying one twice
+  harmless.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
   for intents whose outcome and completion nobody awaits; its refusal shows as
   the link's `refusal` (`RefusedChangeNotice`). A `send` caller with its own
@@ -59,16 +61,11 @@ second copy of owner state.
 
 - `createAppRuntime()` creates the engine link and one instance of every owner
   inside one Solid root and disposes them together. A late engine reply after
-  disposal changes nothing visible.
-- Screen-local disclosure, focus, and transient input live in the Solid view.
-  Accepted background operation truth lives in WorkRuntime.
-- Compute derived views from owner truth. Capability and validation facts stay
-  with their Rust owner.
+  disposal changes nothing visible; a caller that awaited it still receives it.
+- Accepted background operation truth lives in WorkRuntime.
 
 ## Workflow And Failure Shape
 
-- Owner workflows are plain async. Public entrypoints return a Promise or a
-  synchronous domain outcome.
 - Error normalization and cancellation follow `src/lib/tauri/AGENTS.md`. Keep
   typed provider diagnostics and backend terminal verdicts.
 
@@ -149,21 +146,22 @@ without a bullet has none. Engine paths name the owner of the truth.
   Only whole-operation cancels track pending state; title cancels are
   idempotent in the backend.
 
+## Tests
+
+Tests run against `src/test/fixtures/fakeEngine.ts`. It starts from the
+recorded fresh session and settings, records intents, answers `applied`, and
+appends imported files. It holds no product rule beyond one bookkeeping line
+(`seedTitleAudio` removes the title from `audioChoiceRequired`);
+`check-known-mistakes.ts` rejects an `intent.kind` branch in it other than
+`import`. Seed the
+engine's answer on the intent that asks for it (`respond`, `respondSettings`,
+`seedForm`, `seedSettings`, `change`). What the real engine answers to a
+sequence of intents is proved by `runtime/recordedWorkflows.contract.test.ts`;
+a new engine-owned behavior a view depends on becomes a scenario in
+`src-tauri/src/bin/export_bindings/scenarios.json`, not a rule in the fake.
+
+Add App Runtime two-instance proof when isolation changes.
+
 ## Done
 
-- The owner has one source of truth, one Public API Strip, and one disposal
-  path.
-- Tests run against `src/test/fixtures/fakeEngine.ts`. It starts from the
-  recorded fresh session and settings (`src/lib/generated/fixtures/`), records
-  intents, answers `applied`, and appends imported files. It holds no product
-  rule beyond one bookkeeping line (`seedTitleAudio` removes the title from
-  `audioChoiceRequired`): seed the engine's answer on the intent that asks for it (`respond`,
-  `respondSettings`, `seedForm`, `seedSettings`, `change`) and add no rule
-  there. What the real engine answers to a sequence of intents is proved in
-  `runtime/recordedWorkflows.contract.test.ts`, which replays the recorded
-  scenarios (`session-scenarios.json`, `settings-scenarios.json`) through the
-  real client and owners with `src/test/fixtures/recordedInvoke.ts`. A new
-  engine-owned behavior a view depends on becomes a scenario in
-  `src-tauri/src/bin/export_bindings/scenarios.json`, not a rule in the fake.
-- Add App Runtime two-instance proof when isolation changes.
-- Record a non-obvious owner invariant as one bullet under Owners.
+The owner has one source of truth, one Public API Strip, and one disposal path.

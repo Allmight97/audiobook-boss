@@ -57,10 +57,11 @@ app, a test, and the `abb-dev` tool drive the same code
 - Online metadata search belongs to `crate::metadata_lookup`. A provider that
   fails while others answer leaves the usable results plus typed diagnostics;
   the search fails only when no selected source can answer
-  (`metadata_lookup/service.rs`). Reply mapping is pinned by small scrubbed
-  replies in `metadata_lookup/providers/fixtures/`; a fixture holds no account
-  data. The Audible fallback maps its `series` list the way Audnexus does, so
-  a fallback result keeps the book's series.
+  (`metadata_lookup/service.rs`). A query with a valid ASIN tries the Audnexus
+  detail route first and falls back to text search with a diagnostic; an
+  Audnexus hit without detail returns Audible-only (`audible_only: true`) with
+  a diagnostic. Reply mapping is pinned by small scrubbed replies in
+  `metadata_lookup/providers/fixtures/`.
 - The settings in effect, their validation, storage, and durability belong to
   `crate::app_settings`; it consults runtime owners for accept/reject rules.
 - Remote provider registry, secrets, acquisition, and staged files belong to
@@ -72,10 +73,8 @@ app, a test, and the `abb-dev` tool drive the same code
   outcome rather than choosing MP4/FFmpeg strategy modules.
 - Final artifact paths, collision review, replacement, and commit truth cross
   `crate::output_artifact`.
-- Crash-safe file replacement (`SiblingTemp`, `write_atomically`,
-  `replace_file`) belongs to `file_replace.rs` (rustdoc). `clippy.toml`
-  `disallowed-methods` rejects direct `std::fs::rename` and
-  `tokio::fs::rename`; a bare rename over a file is not crash-safe.
+- Crash-safe file replacement belongs to `file_replace.rs` (rustdoc);
+  `clippy.toml` rejects a direct rename.
 - Exports and previews start from the session (`Submit`, `Preview`). An
   export enters WorkRuntime through `submit_processing_operation`; a preview
   runs `process_inspected_with_options` with a stable identity, actual cancel
@@ -99,14 +98,17 @@ app, a test, and the `abb-dev` tool drive the same code
   live opt-out. Active encoding, metadata-save, Audible-acquisition, and
   Indexer-handoff scopes hold an `ActiveWork` guard through their final writes
   and cleanup. Acquire after a job's scheduler wait; opening ABB, browsing, and
-  external downloader activity do not acquire guards. The manager has no
-  polling or idle OS resource.
+  external downloader activity do not acquire guards.
+- Locks that guard state a panic cannot half-apply are taken with
+  `PoisonError::into_inner`, so one panic does not fail every later call:
+  session transitions, job-registry admission, the WorkRuntime source map. The
+  power hold also releases during unwinding.
 - Validate input audio paths where they enter the engine with
   `crate::audio::validate_input_audio_path()`. Paths the engine hands back are
   canonical; compare paths in that spelling.
-- Production `unsafe` stays inside the FFmpeg and FAAC wrappers under
-  `audio/` and `metadata/`; `scripts/check-known-mistakes.ts` rejects it
-  elsewhere. Prefer a safe `ffmpeg-next` API where one exists.
+- Production `unsafe` stays under `audio/` and `metadata/`
+  (`scripts/check-known-mistakes.ts`). Prefer a safe `ffmpeg-next` API where
+  one exists.
 
 ## Proof placement
 

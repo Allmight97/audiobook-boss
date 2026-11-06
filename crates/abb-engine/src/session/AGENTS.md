@@ -41,12 +41,26 @@ one host attachment.
   exception is `PlanTicket::resolve`, which reads sources on a blocking thread.
   Each method is one atomic transition. Work that needs a file or the network
   leaves as data (a `ReadTicket`, a `SavePlan`, a `PlanTicket`) and returns as a
-  completion the state accepts or drops.
+  completion the state accepts or drops. `check-known-mistakes.ts` rejects
+  direct file I/O in session files other than `runtime.rs`.
 - `runtime.rs` performs that work. It never holds the state lock across an
   await, and `Session::transition` re-derives snapshots (`settle`) after every
   transition. It may read WorkRuntime (`sources_in_use`, `sources_held`) under
   the state lock; WorkRuntime and `TitleOutput` callbacks never take the session
   lock, which keeps that order deadlock-free.
+- Reads that gate a removal or a save plan (the staged-download sweep,
+  `sources_in_use`) run under the state lock, so no submission reserves a file
+  between the read and the removal or plan. The sweep flag clears under the
+  same lock; a transition that frees a download afterwards starts the next
+  sweep. Waiting writes clear under the state lock, where Save adds them, so a
+  new write always finds a writer or starts one.
+- A preview holds concurrency fixed and is admitted after its cancel flags are
+  visible, so shutdown either sees it to cancel or the preview sees shutdown.
+- With no tokio runtime (engine construction) plans stay pending until the next
+  change. A download finishing while the list is locked waits for the unlock.
+  Source paths are canonical, so match both spellings of the staged root.
+  Tag-cache tokens and revisions keep counting across a reset, so nothing
+  issued earlier matches afterward.
 - A new rule belongs in the state modules, tested beside the module that holds
   it. It goes in `runtime.rs` only when it is about ordering between an intent
   and its I/O.

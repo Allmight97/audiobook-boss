@@ -58,9 +58,6 @@ production simplification is in scope. Preserve seams that isolate real side
 effects, lifecycle transitions, platform variation, or external dependencies.
 Report out-of-scope simplifications with impact and owner.
 
-Update owner guidance only when the change reveals a new local trap or changes
-an owned interface.
-
 ## Proof And Completion
 
 Run the focused checks for changed owners, expanding only for crossed

@@ -26,7 +26,7 @@ bash scripts/setup.sh
 bun run app:dev:log
 ```
 
-Requires: macOS (Apple Silicon) or x86_64 Ubuntu 22.04 or newer (glibc 2.27+, OpenSSL, WebKitGTK 4.1), Bun 1.4 or newer, Rust (rustup), and a .NET 10 SDK for the sidecar. macOS also needs Homebrew. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
+Requires: macOS (Apple Silicon) or x86_64 Ubuntu 22.04 or newer (OpenSSL, WebKitGTK 4.1), Bun 1.4 or newer, Rust (rustup), and a .NET 10 SDK for the sidecar. macOS also needs Homebrew. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
 
 **AAC runtime contract**: output encoder and input decoder are separate. Auto
 selects Native NMR; Apple AAC and bundled FAAC are explicit choices.
@@ -46,8 +46,7 @@ encoder. Auto selects a compatible FFmpeg decoder per file, including Apple's
 `aac_at` on macOS. FAAD3 selects the bundled decoder for AAC-LC, HE-AAC v1/v2,
 and ADTS with up to eight channels, which the output setting then downmixes;
 other AAC profiles, including xHE-AAC, keep Auto. The choice is saved between
-launches. The bundled FAAC encoder and FAAD3 decoder come from upstream
-`master` at `9e268a31` (FAAC 3.0.0, not yet tagged). A failed FAAD3 decode is
+launches. `vendor/faac-sys/ABB-PROVENANCE.md` names the bundled FAAC and FAAD3 source. A failed FAAD3 decode is
 reported without switching decoders.
 
 All processing runs in the in-process Audio engine. Bundled source revisions
@@ -74,13 +73,6 @@ and metadata saves, while allowing display sleep. Turning it off takes effect
 during active work. Leaving ABB open and idle does not prevent sleep; manual sleep, lid
 closure, and low-battery sleep remain controlled by macOS.
 
-## Toolchain
-
-- Package manager: **Bun**, a `devDependency` updated with the other packages;
-  `bash scripts/locked-bun-version.sh` prints the version CI uses.
-- Verify Bun or frontend changes with the commands below; use `.agents/skills/release`
-  for packaging and GitHub Release work.
-
 ## Development
 
 After clone, `bash scripts/setup.sh` then `bash scripts/verify.sh`. Setup
@@ -88,8 +80,8 @@ prints the line that puts its tools on PATH, installs this repo's pre-commit
 hook, and never edits shell profiles. Lanes and owner mapping: root
 `AGENTS.md` Environment and `scripts/AGENTS.md`.
 
-Linux (tested target): x86_64 Ubuntu 22.04 or newer, glibc 2.27+, OpenSSL, and
-WebKitGTK 4.1. The AAXClean helper also builds for `linux-arm64`; that build is not proven on real hardware.
+Linux is a tested target. The AAXClean helper also builds for `linux-arm64`;
+that build is not proven on real hardware.
 A saved Audible sign-in and indexer key go to the desktop secret service when
 one is running, so they survive a reboot. With no secret service, they last
 until the next restart, and the account view says sign-in will not be
@@ -131,40 +123,13 @@ package a DMG that may run on an unknown recipient Mac.
 
 ## Script Guide
 
-Index of common commands; `package.json` holds the shortcuts.
+`package.json` holds the shortcuts.
 
-- Core dev: `bun run app:dev:log` (bundled FFmpeg). `bun run build` is the
-  frontend production bundle only.
-- Frontend checks: `bun run typecheck`,
-  `bun run test -- <test files>`, plus `bun run fmt:check` / `bun run lint:check`
-  when formatting or lint is in scope.
-- Rust checks: `bash scripts/verify.sh <lane>`; lanes and their owners are
-  in `scripts/AGENTS.md`.
-- Engine without a window: `bash scripts/abb-dev.sh <file-or-folder>...
-  [--set field=value] [--save] [--out folder --export] [--json]` imports files
-  into an engine session and can edit and save tags, choose audio and naming,
-  export or preview with progress, cancel a title, and read back the exported
-  tags. `--help` lists every option. It keeps its own state and never touches
-  the app's settings.
-- IPC/boundary checks: `bun run bindings:check` and
-  `bun run bindings:check:runtime-boundary`. Verification leaves the checked
-  files untouched.
-- Dependency hygiene: `bun run audit`.
-- CI (`.github/workflows/ci.yml`): `scripts/check-pr-workflow-policy.ts`
-  enforces its rules (`docs/DECISIONS.md`). Each job runs `scripts/setup.sh`
-  and the `scripts/verify.sh` lanes that the changed paths select
-  (`scripts/lane-paths.yml`). GitHub also runs Pages for `site/**`.
-- Bun is the package manager, script runner, and test runner.
-- IPC bindings: `bun run bindings:generate`, `bun run bindings:check`.
-- Build timing: Cargo's `--timings` report shows where compile time goes.
-- Release lanes: use `.agents/skills/release`.
-  `bun scripts/bump-version.ts <version>` updates version surfaces;
-  `bun run app:install-local` is the developer-install lane and silently
-  replaces `/Applications/AudioBook Boss.app`; `bun run app:build` builds a
-  repo-local `.app`; `bun run app:build:dmg` builds a portable,
-  noninteractive public DMG and rebuilds the AAXClean helper from current source.
-  `bun scripts/resolve-release-dmg.ts --version <version>` resolves the artifact;
-  download the uploaded asset and compare its `shasum -a 256` with the local DMG.
+- Run the app: `bun run app:dev:log` (bundled FFmpeg).
+- Run the checks: `bash scripts/verify.sh`; lanes are in `scripts/AGENTS.md`.
+- Drive the engine without a window: `bash scripts/abb-dev.sh --help`. It keeps
+  its own state and never touches the app's settings.
+- Audit dependencies: `bun run audit`.
 
 ## Claude on GitHub
 
@@ -196,19 +161,9 @@ before testing `@claude` on a real request. From the CLI:
 gh workflow run claude.yml --repo Allmight97/audiobook-boss --ref main
 ```
 
-Automatic review (`claude-review.yml`) runs once when a PR opens ready,
-reopens, or leaves draft, never per push (`docs/DECISIONS.md`). In a draft,
-ask with an @claude comment. Turn automatic review off or on with:
+Turn automatic review (`claude-review.yml`, `docs/DECISIONS.md`) off or on with:
 
 ```sh
 gh workflow disable claude-review.yml --repo Allmight97/audiobook-boss
 gh workflow enable claude-review.yml --repo Allmight97/audiobook-boss
 ```
-
-The workflow files must be on the default branch before comment triggers, the
-manual authentication check, and automatic review run.
-
-## Project Operation
-
-- Agents: start in [AGENTS.md](AGENTS.md) and follow the nearest nested
-  `AGENTS.md`; agent operating guidance lives there, not in this README.

@@ -9,9 +9,7 @@ A pull request is the unit of a yes. CI is the check an agent did not run on
 itself: ready work only, cancelled when a newer revision replaces it, and
 thin enough that a draft does not spend a runner. The workflow
 `.github/workflows/ci.yml` and `scripts/check-pr-workflow-policy.ts` own
-those rules. This repository is user-owned, so a merge queue does not run
-and the workflow does not listen for one. Linux runners are pinned in that
-workflow because the `ubuntu-latest` label moves to Ubuntu 26 on 2026-10-19.
+those rules.
 An agent review runs once when a pull request opens ready, reopens, or leaves
 draft (`.github/workflows/claude-review.yml`), never per push; the policy
 check rejects any agent-review workflow with other triggers. In a draft, a

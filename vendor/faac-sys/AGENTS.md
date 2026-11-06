@@ -13,8 +13,8 @@
 ## Invariants
 
 - `upstream/` is one unmodified upstream commit: the latest `master` or a
-  tagged release (J Star, 2026-11-04). Fix upstream defects by moving the
-  pin, never by editing `upstream/`.
+  tagged release. Fix upstream defects by moving the pin, never by editing
+  `upstream/`.
 - `build.rs` compiles the scalar source lists from upstream's
   `libfaac/meson.build`, `libfaad/meson.build`, and `common/meson.build`, and
   generates bindings from the same `faac.h` and `faad3.h`, so the C libraries

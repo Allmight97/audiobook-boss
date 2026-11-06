@@ -15,14 +15,17 @@ engine does not offer, add it to the engine's host interface.
   each one after all earlier ones, except that a number still missing after
   `MISSING_INTENT_WAIT` is skipped with a warning. An intent from a replaced
   frontend is refused. An intent that arrives after a later one has run is
-  refused, never applied out of order.
+  refused, never applied out of order. The check and the claim happen in one
+  step, so a reload between them cannot hand an old frontend's intent a turn.
 - **Second copy.** When `Engine::start` fails with `AlreadyRunning`, setup
   hides the window, shows the message in a native dialog, and exits on OK
   without an engine. `Quit` and `FrontendLink` are managed before the engine
   starts so that exit path and the hidden webview's commands never panic.
 - **Quit.** `lib.rs` holds every quit until `Engine::shutdown` settles. Running
   work, a slow shutdown, and unsaved settings reach the user as choices. The
-  process exits early only when the user chooses Quit Now.
+  process exits early only when the user chooses Quit Now. Saves waiting only
+  behind a review or preview are written during shutdown, and the quit prompt
+  says so first.
 
 ## Commands
 
@@ -44,7 +47,9 @@ engine does not offer, add it to the engine's host interface.
 - The engine validates paths, metadata intent, output artifact truth, and
   operation lifecycle. A command passes the request through.
 - Register a new command in `ipc_contract.rs`, then run
-  `bun run bindings:generate` (the host lane checks drift).
+  `bun run bindings:generate` (the host lane checks drift). Run it after an
+  engine behavior change too: `src/lib/generated/fixtures/` records real engine
+  replies.
 
 ## Tests
 
@@ -55,7 +60,12 @@ engine owner that decides it.
 and the real invoke handler (`ipc_contract::builder::<MockRuntime>()`, so
 `open_preview_output` is generic over the runtime). It pins the camelCase
 argument and reply names the webview sees, the error envelope for a refused
-intent number, and the managed state a command needs. It does not cover the
-capability file, `setup`, or the cover protocol. Send a numbered intent only
+intent number, and the managed state a command needs. Send a numbered intent only
 after the one before it: a gap stalls the test for `MISSING_INTENT_WAIT`, then
 `IntentOrder` skips the number and refuses it as late.
+
+`src/bin/export_bindings` records the fixtures from the real engine: the intent
+sequences are in `scenarios.json`. The check runs on macOS and Linux, so a value
+that differs between machines is pinned in `pin_machine_values`; a new one
+makes the other OS report a stale fixture. Name a title only after importing
+it, or the recorder panics.

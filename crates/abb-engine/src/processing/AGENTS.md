@@ -68,7 +68,7 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 
 - Processing emits internal `ProgressEvent` values to its supplied listener.
 - `EventStage` in `progress/mod.rs` maps internal `ProcessingStage` into
-  reducer input. The UI consumes `WorkProgressStage` from snapshots.
+  reducer input.
 
 ## Job registry (`job_registry/`)
 
@@ -94,11 +94,13 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 
 ## Edit Rules
 
-- `run_tests.rs`'s `metadata_workflow` tests connect production preflight/planning to
-  real encode and preserve writers, then inspect output atoms. They complement
-  the session's edit-retention tests and the IPC-contract proof; they do not
-  exercise the Tauri window, scheduler, or UI.
-- Keep preflight side-effect-free.
+- `run_tests.rs`'s `metadata_workflow` tests connect production preflight and
+  planning to real encode and preserve writers, then inspect output atoms.
+- A skipped title never publishes, so an edit for it is refused at once.
+  Collision facts refresh after review without re-inspecting sources or
+  resolving audio and metadata again.
+- Keep preflight side-effect-free. Why: a plan that review refuses leaves no
+  folders or files behind.
 - `ProcessingRunOptions.title_cancels` carries one cancel flag per output title
   from WorkRuntime or the session preview. Each job's admission and
   `CancellationChecker` (built from that title's flag) observe only that flag;

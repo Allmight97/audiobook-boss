@@ -35,7 +35,6 @@
   title's size estimate before it can be estimated) survives.
 - Name commands and types for the product; skip `_v1`/`_v2` and `_cmd`
   suffixes. A breaking change gets a new product-meaningful name.
-- The explicit blank field action (`setFieldAction` with `blank`) carries Blank.
 
 `recordedFresh.ts` is test support and not private: the fake engine and
 contract tests outside this folder import it. It normalizes the recorded fresh
