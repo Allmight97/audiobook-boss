@@ -259,6 +259,16 @@ fn audible_idle_rungs_keep_their_order_and_the_connected_note() {
 }
 
 #[test]
+fn a_running_connection_update_outranks_a_running_library_load_and_the_handoff_prompt() {
+    let mut ui = UiState::default();
+    ui.snapshot.auth = RemoteAuthStatus::AwaitingHandoff;
+    ui.snapshot.library_status = RemoteDraftStatus::Running;
+    assert_eq!(message(&ui), "Loading Audible library.");
+    ui.snapshot.account_status = RemoteDraftStatus::Running;
+    assert_eq!(message(&ui), "Updating connection.");
+}
+
+#[test]
 fn a_settled_job_keeps_the_ephemeral_sign_in_note() {
     let mut ui = settled_ui();
     ui.snapshot.account = connected(ProviderId::Audible, WARNING);
