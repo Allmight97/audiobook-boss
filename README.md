@@ -89,7 +89,8 @@ one is running, so they survive a reboot. With no secret service, they last
 until the next restart, and the account view says sign-in will not be
 remembered
 ([#557](https://github.com/Allmight97/audiobook-boss/issues/557)).
-Windows has no native build; run ABB under WSL.
+Windows has no native build. The plan is to run ABB under WSL, which
+[#557](https://github.com/Allmight97/audiobook-boss/issues/557) has yet to prove.
 
 ### Install a local build
 
