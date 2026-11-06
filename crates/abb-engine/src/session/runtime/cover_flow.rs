@@ -10,6 +10,13 @@ use crate::session::preview::PreviewArtwork;
 use crate::session::state::SessionState;
 
 impl Session {
+    pub(super) fn begin_cover_drop(&self, paths: Vec<String>) -> Rest {
+        match crate::cover_source::dropped_cover_path(paths) {
+            Some(path) => self.begin_cover_load(CoverSource::File(path)),
+            None => Rest::Done(SessionOutcome::Applied),
+        }
+    }
+
     pub(super) fn begin_cover_load(&self, source: CoverSource) -> Rest {
         let from_url = matches!(source, CoverSource::Url(_));
         if let CoverSource::Url(url) = &source {

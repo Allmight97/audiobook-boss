@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use super::{blocking, Rest, Session};
 use crate::errors::{AppError, AppErrorEnvelope};
+use crate::output_artifact::CollisionPolicy;
 use crate::processing::run::inspect_processing_plan;
 use crate::session::exports::ExportLink;
 use crate::session::intent::SessionOutcome;
@@ -176,6 +177,61 @@ impl Session {
         self.sources_released();
     }
 
+    pub(super) fn begin_collision_policy(&self, review_id: u64, policy: CollisionPolicy) -> Rest {
+        match self.transition(|state| state.take_review(review_id)) {
+            Some(draft) => Rest::Reviewed {
+                draft: Box::new(draft),
+                policy,
+                resets: self.inner.resets.load(Ordering::SeqCst),
+            },
+            None => Rest::Done(SessionOutcome::Superseded),
+        }
+    }
+
+    pub(super) async fn submit_reviewed(
+        &self,
+        mut draft: Draft,
+        policy: CollisionPolicy,
+        resets: u64,
+    ) -> SessionOutcome {
+        draft.payload.collision_policy = Some(policy);
+        self.submit(draft, resets).await
+    }
+
+    pub(super) fn cancel_collision_review(&self, review_id: u64) -> Rest {
+        let cancelled = self.transition(|state| state.cancel_review_named(review_id));
+        if cancelled {
+            self.sources_released();
+        }
+        Rest::Done(if cancelled {
+            SessionOutcome::Applied
+        } else {
+            SessionOutcome::Superseded
+        })
+    }
+
+    pub(super) fn begin_keep_location(&self, title_id: String, revision: u64) -> Rest {
+        match self.transition(|state| state.begin_keep_location(&title_id, revision)) {
+            Some(link) => Rest::KeepLocation {
+                title_id,
+                revision,
+                link: Box::new(link),
+            },
+            None => Rest::Done(SessionOutcome::Superseded),
+        }
+    }
+
+    pub(super) async fn keep_location_finished(
+        &self,
+        title_id: String,
+        revision: u64,
+        link: ExportLink,
+    ) -> SessionOutcome {
+        let outcome = self.keep_location(title_id, revision, link).await;
+        self.transition(SessionState::finish_keep_location);
+        outcome
+    }
+
     pub(super) fn begin_restart(&self, title_id: &str, revision: u64) -> Rest {
         let started = self.transition(|state| state.begin_restart(title_id, revision));
         match started {
@@ -216,7 +272,7 @@ impl Session {
         self.end_submission(&draft, SubmissionStatus::FinishedBeforeRestart { outputs })
     }
 
-    pub(super) async fn keep_location(
+    async fn keep_location(
         &self,
         title_id: String,
         revision: u64,

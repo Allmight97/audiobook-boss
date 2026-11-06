@@ -15,7 +15,7 @@ use super::state::{GateBlock, SavePlan, SessionState, SessionUpdate};
 use super::submission::{Draft, SubmitRefusal};
 use super::tag_cache::ReadTicket;
 use super::working_set::{SelectionModifiers, WorkingSet};
-use crate::app_settings::{SettingsIntent, SettingsRun, SettingsRuntime};
+use crate::app_settings::{SettingsRun, SettingsRuntime};
 use crate::audio::{self};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::host::{EngineEvent, Host};
@@ -202,29 +202,13 @@ impl Session {
                 resets,
                 turn,
             } => session.import(paths, resets, turn).await,
-            Rest::Remember(run) => {
-                let reply = run.finish().await;
-                session
-                    .inner
-                    .deps
-                    .host
-                    .emit(EngineEvent::Settings(Box::new(reply.snapshot)));
-                match reply.outcome {
-                    crate::app_settings::SettingsOutcome::Rejected { error } => {
-                        SessionOutcome::Rejected { error }
-                    }
-                    _ => SessionOutcome::Applied,
-                }
-            }
+            Rest::Remember(run) => session.finish_remember(run).await,
             Rest::Submit { draft, resets } => session.submit(*draft, resets).await,
             Rest::Reviewed {
-                mut draft,
+                draft,
                 policy,
                 resets,
-            } => {
-                draft.payload.collision_policy = Some(policy);
-                session.submit(*draft, resets).await
-            }
+            } => session.submit_reviewed(*draft, policy, resets).await,
             Rest::Save { epoch, plan } => session.save(epoch, plan).await,
             Rest::Restart {
                 draft,
@@ -236,9 +220,9 @@ impl Session {
                 revision,
                 link,
             } => {
-                let outcome = session.keep_location(title_id, revision, *link).await;
-                session.transition(SessionState::finish_keep_location);
-                outcome
+                session
+                    .keep_location_finished(title_id, revision, *link)
+                    .await
             }
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
             Rest::LookupSearch { request } => session.lookup_search(request, None).await,
@@ -389,10 +373,7 @@ impl Session {
         snapshot
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one arm per intent; each arm is a call"
-    )]
+    #[expect(clippy::too_many_lines, reason = "one arm per intent")]
     fn begin_rest(&self, intent: SessionIntent) -> Rest {
         use SessionIntent as I;
         match intent {
@@ -446,38 +427,8 @@ impl Session {
             I::SetIncludeYear { include_year } => {
                 self.edit_output(|output| output.set_include_year(include_year))
             }
-            I::SetNamingTemplate { template } => {
-                let defaults = self.transition(|state| {
-                    state.output.set_template(template);
-                    self.inner.output_edits.fetch_add(1, Ordering::SeqCst);
-                    state.output.defaults()
-                });
-                let run = self.inner.deps.settings.remember_output_after_pause(
-                    defaults,
-                    Arc::clone(&self.inner.output_edits),
-                    &self.inner.deps.tasks,
-                );
-                let host = self.inner.deps.host.clone();
-                self.inner.deps.tasks.spawn(async move {
-                    let reply = run.finish().await;
-                    host.emit(EngineEvent::Settings(Box::new(reply.snapshot)));
-                });
-                Rest::Done(SessionOutcome::Applied)
-            }
-            I::SetDefaultAudio { edit } => match self.transition(|state| {
-                let defaults = state.audio.edit(edit);
-                if defaults.is_some() {
-                    self.inner.audio_edits.fetch_add(1, Ordering::SeqCst);
-                }
-                defaults
-            }) {
-                Some(defaults) => self.remember_later(SettingsIntent::Remember {
-                    encoder_defaults: Some(defaults),
-                    output_defaults: None,
-                    default_acquisition_lane: None,
-                }),
-                None => Rest::Done(SessionOutcome::Applied),
-            },
+            I::SetNamingTemplate { template } => self.set_naming_template(template),
+            I::SetDefaultAudio { edit } => self.set_default_audio(edit),
             I::SetTitleAudio { title_ids, edit } => {
                 self.transition(|state| state.edit_title_audio(&title_ids, edit));
                 Rest::Done(SessionOutcome::Applied)
@@ -486,13 +437,7 @@ impl Session {
                 self.transition(|state| state.apply_default_audio(&title_ids));
                 Rest::Done(SessionOutcome::Applied)
             }
-            I::Reset => {
-                self.inner.resets.fetch_add(1, Ordering::SeqCst);
-                self.transition(SessionState::reset);
-                self.sources_released();
-                Rest::Done(SessionOutcome::Applied)
-            }
-
+            I::Reset => self.begin_reset(),
             I::SetField {
                 binding,
                 field,
@@ -504,12 +449,7 @@ impl Session {
                 action,
             } => self.edit_form(|state| state.set_field_action(binding, field, action)),
             I::LoadCoverFromFile { path } => self.begin_cover_load(CoverSource::File(path)),
-            I::LoadCoverFromDrop { paths } => {
-                match crate::cover_source::dropped_cover_path(paths) {
-                    Some(path) => self.begin_cover_load(CoverSource::File(path)),
-                    None => Rest::Done(SessionOutcome::Applied),
-                }
-            }
+            I::LoadCoverFromDrop { paths } => self.begin_cover_drop(paths),
             I::LoadCoverFromUrl { url } => self.begin_cover_load(CoverSource::Url(url)),
             I::ClearCover => {
                 self.transition(SessionState::clear_cover);
@@ -526,46 +466,16 @@ impl Session {
                 path: self.transition(|state| state.preview.take_output(&run_id)),
             }),
             I::ChooseCollisionPolicy { review_id, policy } => {
-                match self.transition(|state| state.take_review(review_id)) {
-                    Some(draft) => Rest::Reviewed {
-                        draft: Box::new(draft),
-                        policy,
-                        resets: self.inner.resets.load(Ordering::SeqCst),
-                    },
-                    None => Rest::Done(SessionOutcome::Superseded),
-                }
+                self.begin_collision_policy(review_id, policy)
             }
-            I::CancelCollisionReview { review_id } => {
-                let cancelled = self.transition(|state| state.cancel_review_named(review_id));
-                if cancelled {
-                    self.sources_released();
-                }
-                Rest::Done(if cancelled {
-                    SessionOutcome::Applied
-                } else {
-                    SessionOutcome::Superseded
-                })
-            }
+            I::CancelCollisionReview { review_id } => self.cancel_collision_review(review_id),
             I::RestartTitle { title_id, revision } => self.begin_restart(&title_id, revision),
             I::KeepTitleLocation { title_id, revision } => {
-                match self.transition(|state| state.begin_keep_location(&title_id, revision)) {
-                    Some(link) => Rest::KeepLocation {
-                        title_id,
-                        revision,
-                        link: Box::new(link),
-                    },
-                    None => Rest::Done(SessionOutcome::Superseded),
-                }
+                self.begin_keep_location(title_id, revision)
             }
 
             I::LookupOpen => self.begin_lookup_open(),
-            I::LookupClose => {
-                self.transition(|state| {
-                    state.lookup.request += 1;
-                    state.lookup.open = false;
-                });
-                Rest::Done(SessionOutcome::Applied)
-            }
+            I::LookupClose => self.begin_lookup_close(),
             I::LookupSearch => Rest::LookupSearch {
                 request: self.begin_lookup_action(),
             },
@@ -654,6 +564,13 @@ impl Session {
         self.publish();
         let reads = read_all(bound.reads).await;
         self.transition(|state| state.finish_reads(bound.binding, reads));
+    }
+
+    fn begin_reset(&self) -> Rest {
+        self.inner.resets.fetch_add(1, Ordering::SeqCst);
+        self.transition(SessionState::reset);
+        self.sources_released();
+        Rest::Done(SessionOutcome::Applied)
     }
 
     fn sources_released(&self) {

@@ -28,6 +28,14 @@ impl Session {
         self.transition(|state| (state.lookup.request == request).then(|| change(state)))
     }
 
+    pub(super) fn begin_lookup_close(&self) -> Rest {
+        self.transition(|state| {
+            state.lookup.request += 1;
+            state.lookup.open = false;
+        });
+        Rest::Done(SessionOutcome::Applied)
+    }
+
     pub(super) fn begin_lookup_open(&self) -> Rest {
         let request = self.begin_lookup_action();
         let has_titles = self.transition(|state| {
