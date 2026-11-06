@@ -16,8 +16,15 @@ corpus_listing() {
 	find "${ABB_CORPUS_DIR}" -type f -exec ls -l {} + | LC_ALL=C sort
 }
 
+# A raw ADTS stream has no length header; ffprobe estimates it from the bit
+# rate and was 1.1% short on a 5-minute probe, so that one is measured by decoding.
 duration_of() {
-	ffprobe -hide_banner -loglevel error -show_entries format=duration -of default=nw=1:nk=1 "$1"
+	if [[ "$1" == *.aac ]]; then
+		ffmpeg -hide_banner -nostats -i "$1" -f null - 2>&1 |
+			awk -F'time=' '/time=/ { t = $2 } END { split(t, p, " "); split(p[1], h, ":"); print h[1] * 3600 + h[2] * 60 + h[3] }'
+	else
+		ffprobe -hide_banner -loglevel error -show_entries format=duration -of default=nw=1:nk=1 "$1"
+	fi
 }
 
 chapter_lines() {
@@ -25,9 +32,18 @@ chapter_lines() {
 		-show_entries chapter=start_time:chapter_tags=title -of csv=p=0 "$1"
 }
 
+# Codec priming and padding move a length by a few frames, not by seconds:
+# synthetic books of 1 minute to 1 hour (MP3, AAC, FLAC, WAV; encode and
+# Preserve) came out within 0.01 s of the source. 0.25 s allows 2112 AAC priming
+# samples at 22.05 kHz (0.1 s) with margin, and does not grow with the book.
+LENGTH_TOLERANCE_SECONDS=0.25
+
 same_length() {
-	awk -v a="$1" -v b="$2" 'BEGIN { d = a - b; if (d < 0) d = -d; t = a * 0.005; if (t < 0.5) t = 0.5; exit d > t }'
+	awk -v a="$1" -v b="$2" -v t="${LENGTH_TOLERANCE_SECONDS}" 'BEGIN { d = a - b; if (d < 0) d = -d; exit d > t }'
 }
+
+same_length 36000 35999.9 || fail "same_length rejects a 0.1 s drift"
+same_length 36000 35821 && fail "same_length accepts a 179 s truncation of a 10-hour book"
 
 same_chapters() {
 	[[ "$(wc -l <"$1")" -eq "$(wc -l <"$2")" ]] || return 1
