@@ -58,7 +58,12 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 		view: () => {
 			revision();
 			const draft = link.remote().connection;
-			const saveError = draft.save.kind === 'failed' ? toUserMessage(draft.save.error) : localError;
+			const saveError =
+				draft.save.kind === 'failed'
+					? toUserMessage(draft.save.error)
+					: draft.draftError
+						? toUserMessage(draft.draftError)
+						: localError;
 			return {
 				baseUrlDraft: typed?.baseUrlDraft ?? draft.baseUrl,
 				categoryIdsDraft: draft.categoryIds,

@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- The Indexer settings panel keeps the reason an edit was refused (for example a bad URL or API
+  key) in its error line after Save or Test are refused for it, instead of replacing it with
+  a generic message.
 - When the drag-and-drop listener cannot start, the import area now says drag and drop is not
   working and points to Add Folder; the Opus "Player compatibility" link says why when the
   page does not open.
