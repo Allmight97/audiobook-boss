@@ -103,14 +103,11 @@ describe('engine link', () => {
 		const [first, second] = link.titles().files;
 
 		engine.change((state) => {
-			state.titles.files = [
-				{ ...state.titles.files[0], tagTitle: 'Renamed' },
-				state.titles.files[1],
-			];
+			state.titles.files = [{ ...state.titles.files[0], label: 'Renamed' }, state.titles.files[1]];
 		});
 
 		expect(link.titles().files[0]).not.toBe(first);
-		expect(link.titles().files[0]?.tagTitle).toBe('Renamed');
+		expect(link.titles().files[0]?.label).toBe('Renamed');
 		expect(link.titles().files[1]).toBe(second);
 	});
 

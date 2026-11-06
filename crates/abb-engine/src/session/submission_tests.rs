@@ -158,7 +158,7 @@ fn a_submission_refuses_what_it_cannot_send() {
 #[test]
 fn the_operation_is_named_after_the_edited_title_and_carries_pending_edits() {
     let mut alpha = file("alpha", true);
-    alpha.tag_title = Some("Tagged".to_string());
+    alpha.set_tag_title(Some("Tagged".to_string()));
     alpha.chapter_plan = Some(ChapterPlan {
         chapters: Vec::new(),
         from_cue: false,

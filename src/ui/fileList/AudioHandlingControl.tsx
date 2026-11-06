@@ -1,6 +1,5 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { Portal, type JSX } from '@solidjs/web';
-import { displayedTitleForFile } from '../../app/inputSession';
 import { useAppRuntime } from '../../app/runtime';
 import { EncoderView } from '../encoderPanel';
 import { tauriClient } from '../../lib/tauri/client';
@@ -133,7 +132,7 @@ export function AudioHandlingControl(props: {
 					'preservation-info-trigger',
 					{ kept: kept(), 'needs-choice': needsChoice() || !!error() },
 				]}
-				aria-label={`Audio plan for ${displayedTitleForFile(props.file)}`}
+				aria-label={`Audio plan for ${props.file.label}`}
 				aria-haspopup="dialog"
 				aria-expanded={open() ? 'true' : 'false'}
 				aria-controls={guidanceId()}

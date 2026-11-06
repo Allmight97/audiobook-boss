@@ -260,7 +260,7 @@ async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() 
         Some("First Narrator;Second Narrator")
     );
     let imported = get_file_list_info(&[&output], AacDecoder::Auto).expect("fixture value");
-    assert_eq!(imported.files[0].tag_artist, metadata.artist);
+    assert_eq!(imported.files[0].artist, metadata.artist);
 
     save_metadata_intent(
         &output,

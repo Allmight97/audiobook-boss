@@ -8,18 +8,6 @@ import { toUserMessage } from '../../lib/tauri/appError';
 import type { InputNotice, SessionSelection, SessionTitles } from '../../types/session';
 import { fileIdentityKey, type InputView } from './types';
 
-export function displayedTitleForFile(file: AudioFile): string {
-	if (file.tagTitle?.trim()) {
-		return file.tagTitle;
-	}
-	const segments = file.path.split(/[\\/]/).filter((segment) => segment !== '');
-	return segments[segments.length - 1] ?? file.path;
-}
-
-export function displayedArtistForFile(file: AudioFile): string {
-	return file.tagArtist?.trim() ?? '';
-}
-
 /** The chapters a file converts with: its accepted plan once the engine made
  * one (repaired embedded or CUE chapters), else its embedded chapters. */
 export function acceptedChapterCount(file: AudioFile): number {
@@ -30,7 +18,7 @@ export function formatFileDetails(
 	file: AudioFile,
 	chapterCount = acceptedChapterCount(file),
 ): string {
-	const artist = displayedArtistForFile(file);
+	const artist = file.artist ?? '';
 	const artistPrefix = artist ? `${artist} • ` : '';
 	const chapterSuffix = chapterCount
 		? ` • ${chapterCount} chapter${chapterCount === 1 ? '' : 's'}`

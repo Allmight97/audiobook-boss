@@ -33,7 +33,13 @@ impl Session {
             if let Some(slot) = written.items.get_mut(entry.input_index) {
                 *slot = entry.status == MetadataSaveResultStatus::Success;
             }
-            if let (Some(item), Some(rewrite)) = (items.get(entry.input_index), &entry.rewrite) {
+            let Some(item) = items.get(entry.input_index) else {
+                continue;
+            };
+            if entry.status == MetadataSaveResultStatus::Success {
+                state.working_set.note_saved_names(&item.path, &item.patch);
+            }
+            if let Some(rewrite) = &entry.rewrite {
                 state.working_set.note_tag_write(&item.path, rewrite);
             }
         }

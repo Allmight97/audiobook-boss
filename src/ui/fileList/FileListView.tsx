@@ -1,5 +1,4 @@
 import {
-	displayedTitleForFile,
 	acceptedChapterCount,
 	formatFileDetails,
 	formatAudioProperties,
@@ -293,7 +292,7 @@ export function FileListView(props: {
 														</svg>
 														<span aria-hidden="true">{expanded() ? '⌄' : '›'}</span>
 													</Show>
-													<span class="title-disclosure-label">{displayedTitleForFile(file)}</span>
+													<span class="title-disclosure-label">{file.label}</span>
 													<Show when={grouped()}>
 														<span class="title-source-count">{sources().length} files</span>
 													</Show>

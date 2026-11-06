@@ -267,17 +267,7 @@ fn label_with_edit(
 }
 
 pub(crate) fn title_label(file: &AudioFile) -> String {
-    file.tag_title
-        .as_deref()
-        .map(str::trim)
-        .filter(|title| !title.is_empty())
-        .map(str::to_string)
-        .or_else(|| {
-            file.path
-                .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-        })
-        .unwrap_or_else(|| file.path.to_string_lossy().into_owned())
+    file.label.clone()
 }
 
 pub(crate) fn collisions(outputs: &[PlannedOutput]) -> Vec<String> {

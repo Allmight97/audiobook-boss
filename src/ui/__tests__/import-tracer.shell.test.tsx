@@ -43,8 +43,8 @@ describe('Solid import tracer shell', () => {
 					inputId: 'input-1',
 					duration: 300,
 					size: 15 * 1024 * 1024,
-					tagTitle: 'Chapter One',
-					tagArtist: 'Narrator',
+					label: 'Chapter One',
+					artist: 'Narrator',
 				}),
 			);
 		runtime = createAppRuntime({ input: fakeInput(), engine });

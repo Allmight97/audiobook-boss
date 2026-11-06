@@ -139,10 +139,12 @@ async fn a_name_in_either_unicode_form_survives_import_export_and_reimport() {
     })
     .await;
 
-    let mut read_titles: Vec<_> = imported(&desk)
-        .into_iter()
-        .map(|file| file.tag_title.expect("title tag"))
-        .collect();
+    let files = imported(&desk);
+    assert!(
+        files.iter().all(|file| file.artist.is_some()),
+        "the tags were read"
+    );
+    let mut read_titles: Vec<_> = files.into_iter().map(|file| file.label).collect();
     read_titles.sort();
     assert_eq!(
         read_titles,

@@ -32,7 +32,7 @@ function engineWithTaggedBooks({ cover = true } = {}): FakeEngine {
 	const engine = createFakeEngine();
 	const form: Partial<Record<MetadataField, string>> = {};
 	engine.analyze = (paths) =>
-		paths.map((path) => audioFile(path, { duration: 1, size: 1000, tagTitle: 'Alpha' }));
+		paths.map((path) => audioFile(path, { duration: 1, size: 1000, label: 'Alpha' }));
 	engine.respond = (intent) => {
 		if (intent.kind === 'setField') {
 			form[intent.field] = intent.value;

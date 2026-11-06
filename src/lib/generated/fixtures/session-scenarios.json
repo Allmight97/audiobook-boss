@@ -28,6 +28,7 @@
             "companions": {},
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -44,6 +45,7 @@
                 "format": "WAV",
                 "inputId": "title-1",
                 "isValid": true,
+                "label": "Alpha",
                 "path": "/fixture/media/alpha.wav",
                 "preservation": {
                   "canPreserve": false
@@ -51,11 +53,10 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Ann Author",
-                "tagTitle": "Alpha"
+                "sourceRemoved": false
               },
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -72,6 +73,7 @@
                 "format": "WAV",
                 "inputId": "title-2",
                 "isValid": true,
+                "label": "Beta",
                 "path": "/fixture/media/beta.wav",
                 "preservation": {
                   "canPreserve": false
@@ -79,11 +81,10 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false,
-                "tagArtist": "  Ann Author  ",
-                "tagTitle": "Beta"
+                "sourceRemoved": false
               },
               {
+                "artist": null,
                 "bitrate": null,
                 "channels": null,
                 "chapterPlan": null,
@@ -96,14 +97,13 @@
                 "format": null,
                 "inputId": "title-3",
                 "isValid": false,
+                "label": "broken.wav",
                 "path": "/fixture/media/broken.wav",
                 "preservation": null,
                 "sampleRate": null,
                 "selectedDecoder": null,
                 "size": 20.0,
-                "sourceRemoved": false,
-                "tagArtist": null,
-                "tagTitle": null
+                "sourceRemoved": false
               }
             ],
             "notice": null,
@@ -947,6 +947,7 @@
             "companions": {},
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -963,6 +964,7 @@
                 "format": "WAV",
                 "inputId": "title-1",
                 "isValid": true,
+                "label": "Alpha",
                 "path": "/fixture/media/alpha.wav",
                 "preservation": {
                   "canPreserve": false
@@ -970,11 +972,10 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Ann Author",
-                "tagTitle": "Alpha"
+                "sourceRemoved": false
               },
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -991,6 +992,7 @@
                 "format": "WAV",
                 "inputId": "title-2",
                 "isValid": true,
+                "label": "Beta",
                 "path": "/fixture/media/beta.wav",
                 "preservation": {
                   "canPreserve": false
@@ -998,11 +1000,10 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false,
-                "tagArtist": "  Ann Author  ",
-                "tagTitle": "Beta"
+                "sourceRemoved": false
               },
               {
+                "artist": "Gus Writer",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1019,6 +1020,7 @@
                 "format": "WAV",
                 "inputId": "title-3",
                 "isValid": true,
+                "label": "Gamma",
                 "path": "/fixture/media/gamma.wav",
                 "preservation": {
                   "canPreserve": false
@@ -1026,9 +1028,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Gus Writer",
-                "tagTitle": "Gamma"
+                "sourceRemoved": false
               }
             ],
             "notice": null,
@@ -1206,6 +1206,7 @@
             "companions": {},
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1222,6 +1223,7 @@
                 "format": "WAV",
                 "inputId": "title-2",
                 "isValid": true,
+                "label": "Beta",
                 "path": "/fixture/media/beta.wav",
                 "preservation": {
                   "canPreserve": false
@@ -1229,11 +1231,10 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false,
-                "tagArtist": "  Ann Author  ",
-                "tagTitle": "Beta"
+                "sourceRemoved": false
               },
               {
+                "artist": "Gus Writer",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1250,6 +1251,7 @@
                 "format": "WAV",
                 "inputId": "title-3",
                 "isValid": true,
+                "label": "Gamma",
                 "path": "/fixture/media/gamma.wav",
                 "preservation": {
                   "canPreserve": false
@@ -1257,9 +1259,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Gus Writer",
-                "tagTitle": "Gamma"
+                "sourceRemoved": false
               }
             ],
             "notice": null,
@@ -1555,6 +1555,7 @@
             "companions": {},
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1571,6 +1572,7 @@
                 "format": "WAV",
                 "inputId": "title-1",
                 "isValid": true,
+                "label": "Alpha",
                 "path": "/fixture/media/alpha.wav",
                 "preservation": {
                   "canPreserve": false
@@ -1578,9 +1580,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Ann Author",
-                "tagTitle": "Alpha"
+                "sourceRemoved": false
               }
             ],
             "notice": null,
@@ -1616,6 +1616,7 @@
             "companions": {},
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1632,6 +1633,7 @@
                 "format": "WAV",
                 "inputId": "title-1",
                 "isValid": true,
+                "label": "Alpha",
                 "path": "/fixture/media/alpha.wav",
                 "preservation": {
                   "canPreserve": false
@@ -1639,9 +1641,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Ann Author",
-                "tagTitle": "Alpha"
+                "sourceRemoved": false
               }
             ],
             "notice": {
@@ -1680,6 +1680,7 @@
             "companions": {},
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1696,6 +1697,7 @@
                 "format": "WAV",
                 "inputId": "title-1",
                 "isValid": true,
+                "label": "Alpha",
                 "path": "/fixture/media/alpha.wav",
                 "preservation": {
                   "canPreserve": false
@@ -1703,11 +1705,10 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Ann Author",
-                "tagTitle": "Alpha"
+                "sourceRemoved": false
               },
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1724,6 +1725,7 @@
                 "format": "WAV",
                 "inputId": "title-2",
                 "isValid": true,
+                "label": "Beta",
                 "path": "/fixture/media/beta.wav",
                 "preservation": {
                   "canPreserve": false
@@ -1731,9 +1733,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false,
-                "tagArtist": "  Ann Author  ",
-                "tagTitle": "Beta"
+                "sourceRemoved": false
               }
             ],
             "notice": null,

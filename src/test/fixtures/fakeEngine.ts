@@ -69,6 +69,7 @@ export function audioFile(path: string, overrides: Partial<AudioFile> = {}): Aud
 	return {
 		inputId: path,
 		path,
+		label: path.split('/').filter(Boolean).pop() ?? path,
 		size: 1024,
 		duration: 60,
 		format: 'm4b',

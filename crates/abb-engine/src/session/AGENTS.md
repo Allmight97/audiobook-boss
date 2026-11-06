@@ -145,6 +145,10 @@ one host attachment.
   written edit becomes the title's known tags and a failed one is pending again
   for Save. A failed write stays recorded until its title returns and Save
   retries it; no background retry runs.
+- **Listed names.** `AudioFile::label` (title tag, else file name) and
+  `artist` are what the list, refusals, and the draft label show. Analysis and
+  every successful write (`WorkingSet::note_saved_names`) set them; the list
+  does not follow staged edits. The frontend renders them as given.
 - **Audio choice.** A title edit applies to every named title or none: one
   title that refuses it, or a locked list, changes nothing and sets
   `audio.refusal` until the selection or the lock changes. A defaults edit is

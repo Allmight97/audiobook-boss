@@ -56,8 +56,6 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 		[
 			'acceptedChapterCount',
 			'createInputOwner',
-			'displayedArtistForFile',
-			'displayedTitleForFile',
 			'formatAudioProperties',
 			'formatFileDetails',
 			'interpretFileListKeyDown',

@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::audio::{AudioFile, TitleAudioRequest};
 use crate::errors::AppErrorEnvelope;
-use crate::metadata::CueStatus;
+use crate::metadata::{CueStatus, MetadataIntentPatch, PatchOp};
 use crate::metadata_save::Rewrite;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
@@ -654,6 +654,36 @@ impl WorkingSet {
         let moved = sources.remove(from);
         sources.insert(to, moved);
         self.touch();
+    }
+
+    /// Makes the list call a saved source by the title and author just
+    /// written to its file.
+    pub(crate) fn note_saved_names(&mut self, path: &Path, saved: &MetadataIntentPatch) {
+        let mut changed = false;
+        let mut apply = |file: &mut AudioFile| {
+            if file.path != path {
+                return;
+            }
+            match &saved.title {
+                Some(PatchOp::Set(title)) => file.set_tag_title(Some(title.clone())),
+                Some(PatchOp::Clear) => file.set_tag_title(None),
+                None => {}
+            }
+            match &saved.artist {
+                Some(PatchOp::Set(artist)) => file.set_artist(Some(artist.clone())),
+                Some(PatchOp::Clear) => file.set_artist(None),
+                None => {}
+            }
+            changed = true;
+        };
+        self.files.iter_mut().for_each(&mut apply);
+        self.title_sources
+            .values_mut()
+            .flat_map(|sources| sources.iter_mut())
+            .for_each(&mut apply);
+        if changed {
+            self.touch();
+        }
     }
 
     /// Carries a source's chapter plan across ABB's own tag write, which

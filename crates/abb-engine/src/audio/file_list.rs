@@ -23,7 +23,7 @@ fn validate_single_file(path: &Path, aac_decoder: AacDecoder) -> Result<AudioFil
 
     let canonical_path = match crate::audio::path_validation::validate_input_audio_path(path) {
         Ok(canonical) => {
-            audio_file.path = canonical.clone();
+            audio_file.set_path(canonical.clone());
             canonical
         }
         Err(e) => {
@@ -52,8 +52,8 @@ fn validate_single_file(path: &Path, aac_decoder: AacDecoder) -> Result<AudioFil
             audio_file.channels = properties.channels;
             audio_file.codec_label = properties.codec_label;
             audio_file.preservation = Some(properties.preservation);
-            audio_file.tag_title = properties.tag_title;
-            audio_file.tag_artist = properties.tag_artist;
+            audio_file.set_tag_title(properties.tag_title);
+            audio_file.set_artist(properties.tag_artist);
             audio_file.chapters = properties.chapters;
             let (plan, cue) = match crate::metadata::inspect_chapter_source(
                 &canonical_path,

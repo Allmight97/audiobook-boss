@@ -108,6 +108,7 @@ describe('encoder panel behavior controls', () => {
 			[
 				{
 					path: '/books/source.m4b',
+					label: 'source.m4b',
 					isValid: true,
 					sourceRemoved: false,
 					sampleRate: 44100,

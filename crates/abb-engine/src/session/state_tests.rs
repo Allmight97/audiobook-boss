@@ -112,9 +112,10 @@ impl Desk {
         }
         let files = books
             .iter()
-            .map(|(name, tags)| AudioFile {
-                tag_title: tags.as_ref().and_then(|tags| tags.title.clone()),
-                ..audio_file(name, true)
+            .map(|(name, tags)| {
+                let mut file = audio_file(name, true);
+                file.set_tag_title(tags.as_ref().and_then(|tags| tags.title.clone()));
+                file
             })
             .collect();
         self.state
@@ -1498,7 +1499,7 @@ fn a_download_being_removed_is_neither_written_nor_submitted() {
     let defaults = desk.state.audio.request();
     let mut next = crate::audio::AudioFile::new(path("beta"));
     next.is_valid = true;
-    next.tag_title = Some("Beta".to_string());
+    next.set_tag_title(Some("Beta".to_string()));
     desk.state
         .working_set
         .append_analyzed(vec![next], &defaults);
@@ -1692,9 +1693,10 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_and_reset() 
     assert!(!desk.state.output_snapshot(0).submission_in_progress);
     let request = desk.state.audio.request();
     desk.state.working_set.append_analyzed(
-        vec![AudioFile {
-            tag_title: Some("Beta".to_string()),
-            ..audio_file("beta", true)
+        vec![{
+            let mut file = audio_file("beta", true);
+            file.set_tag_title(Some("Beta".to_string()));
+            file
         }],
         &request,
     );

@@ -39,8 +39,11 @@ pub struct AudioFile {
     pub preservation: Option<AudioPreservation>,
     /// Display only.
     pub selected_decoder: Option<String>,
-    pub tag_title: Option<String>,
-    pub tag_artist: Option<String>,
+    /// What the title list calls this source: the title tag, else the file name.
+    pub label: String,
+    pub artist: Option<String>,
+    #[serde(skip)]
+    pub(crate) tag_title: Option<String>,
     /// Chapters embedded in this individual source file, normalized to milliseconds.
     pub chapters: Vec<AudioChapter>,
     pub chapter_plan: Option<crate::metadata::ChapterPlan>,
@@ -79,7 +82,7 @@ impl fmt::Display for DecoderSelection {
 
 impl AudioFile {
     pub fn new(path: PathBuf) -> Self {
-        Self {
+        let mut file = Self {
             input_id: uuid::Uuid::new_v4().to_string(),
             path,
             size: None,
@@ -91,8 +94,9 @@ impl AudioFile {
             codec_label: None,
             preservation: None,
             selected_decoder: None,
+            label: String::new(),
+            artist: None,
             tag_title: None,
-            tag_artist: None,
             chapters: Vec::new(),
             chapter_plan: None,
             cue_source: None,
@@ -100,7 +104,40 @@ impl AudioFile {
             source_removed: false,
             cover: None,
             error: None,
-        }
+        };
+        file.relabel();
+        file
+    }
+
+    pub(crate) fn set_path(&mut self, path: PathBuf) {
+        self.path = path;
+        self.relabel();
+    }
+
+    pub(crate) fn set_tag_title(&mut self, title: Option<String>) {
+        self.tag_title = title;
+        self.relabel();
+    }
+
+    pub(crate) fn set_artist(&mut self, artist: Option<String>) {
+        self.artist = artist
+            .map(|artist| artist.trim().to_string())
+            .filter(|artist| !artist.is_empty());
+    }
+
+    fn relabel(&mut self) {
+        self.label = self
+            .tag_title
+            .as_deref()
+            .map(str::trim)
+            .filter(|title| !title.is_empty())
+            .map(str::to_string)
+            .or_else(|| {
+                self.path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+            })
+            .unwrap_or_else(|| self.path.to_string_lossy().into_owned());
     }
 
     pub(crate) fn takes_edits(&self) -> bool {

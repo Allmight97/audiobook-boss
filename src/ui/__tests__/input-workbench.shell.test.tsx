@@ -23,6 +23,7 @@ const listeners: {
 function analyzedFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
 	return {
 		path,
+		label: path.split('/').pop() ?? path,
 		isValid: true,
 		sourceRemoved: false,
 		duration: 1,

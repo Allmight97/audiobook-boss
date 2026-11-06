@@ -2,8 +2,6 @@ export { createInputOwner } from './owner';
 export type { InputOwner, InputOwnerDeps } from './owner';
 export {
 	acceptedChapterCount,
-	displayedArtistForFile,
-	displayedTitleForFile,
 	formatFileDetails,
 	formatAudioProperties,
 	toInputView,

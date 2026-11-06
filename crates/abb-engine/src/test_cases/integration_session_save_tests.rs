@@ -111,6 +111,49 @@ async fn one_save_blanks_author_on_two_titles_and_writes_each_titles_own_edit() 
 }
 
 #[tokio::test]
+async fn a_save_changes_the_title_and_author_the_list_shows() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 0.2)
+        .await;
+    desk.import(&book).await;
+    let listed = |desk: &Desk| {
+        let file = desk
+            .engine
+            .session_snapshot()
+            .titles
+            .expect("titles")
+            .files
+            .remove(0);
+        (file.label, file.artist)
+    };
+    assert_eq!(
+        listed(&desk),
+        ("Alpha".to_string(), Some("Source Author".to_string()))
+    );
+
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Title,
+        value: "Renamed".to_string(),
+    })
+    .await;
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Author,
+        value: "New Author".to_string(),
+    })
+    .await;
+    assert_eq!(
+        desk.send(SessionIntent::Save).await,
+        SessionOutcome::Applied
+    );
+
+    assert_eq!(
+        listed(&desk),
+        ("Renamed".to_string(), Some("New Author".to_string()))
+    );
+}
+
+#[tokio::test]
 async fn a_second_save_on_a_finished_output_keeps_the_first_saves_tag() {
     let desk = Desk::new();
     let source = desk

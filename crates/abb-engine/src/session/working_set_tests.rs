@@ -574,3 +574,43 @@ fn a_removed_download_stays_as_finished_history_and_leaves_other_rows_alone() {
         Some("Exported. Its download was removed to save space; acquire it again to export it again.")
     );
 }
+
+#[test]
+fn a_saved_title_and_author_rename_the_listed_source_and_clearing_returns_the_file_name() {
+    let mut set = set_with(&["dune.m4b", "other.m4b"]);
+    let before = set.titles_changes();
+    let saved = |title, artist| MetadataIntentPatch {
+        title,
+        artist,
+        ..Default::default()
+    };
+
+    set.note_saved_names(
+        Path::new("/books/dune.m4b"),
+        &saved(
+            Some(PatchOp::Set("  Dune  ".into())),
+            Some(PatchOp::Set(" Herbert ".into())),
+        ),
+    );
+
+    let listed = |set: &WorkingSet, name: &str| {
+        let file = set
+            .files()
+            .iter()
+            .find(|file| file.input_id == name)
+            .expect("listed");
+        (file.label.clone(), file.artist.clone())
+    };
+    assert_eq!(
+        listed(&set, "dune.m4b"),
+        ("Dune".to_string(), Some("Herbert".to_string()))
+    );
+    assert_eq!(listed(&set, "other.m4b"), ("other.m4b".to_string(), None));
+    assert!(set.titles_changes() > before);
+
+    set.note_saved_names(
+        Path::new("/books/dune.m4b"),
+        &saved(Some(PatchOp::Clear), Some(PatchOp::Clear)),
+    );
+    assert_eq!(listed(&set, "dune.m4b"), ("dune.m4b".to_string(), None));
+}

@@ -91,7 +91,7 @@ describe('metadata lookup dialog', () => {
 	) {
 		engine = createFakeEngine();
 		engine.analyze = (paths) =>
-			paths.map((path) => audioFile(path, { tagTitle: path.includes('beta') ? 'Beta' : 'Alpha' }));
+			paths.map((path) => audioFile(path, { label: path.includes('beta') ? 'Beta' : 'Alpha' }));
 		const lookupAfter: Partial<Record<SessionIntent['kind'], Partial<SessionLookup>>> = {
 			lookupOpen: queued(0),
 			...answers,

@@ -35,8 +35,8 @@ function importedFile(): AudioFile {
 		channels: 1,
 		codecLabel: 'AAC',
 		selectedDecoder: 'FFmpeg',
-		tagTitle: 'Dune (old tags)',
-		tagArtist: 'Old Author',
+		label: 'Dune (old tags)',
+		artist: 'Old Author',
 		isValid: true,
 		sourceRemoved: false,
 	};

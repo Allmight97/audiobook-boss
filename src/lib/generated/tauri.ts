@@ -195,8 +195,9 @@ export type AudioFile = {
 	preservation: AudioPreservation | null,
 	/**  Display only. */
 	selectedDecoder: string | null,
-	tagTitle: string | null,
-	tagArtist: string | null,
+	/**  What the title list calls this source: the title tag, else the file name. */
+	label: string,
+	artist: string | null,
 	/**  Chapters embedded in this individual source file, normalized to milliseconds. */
 	chapters: ChapterSpec[],
 	chapterPlan: ChapterPlan | null,
