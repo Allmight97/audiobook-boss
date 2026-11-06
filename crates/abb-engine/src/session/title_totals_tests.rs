@@ -113,3 +113,18 @@ fn an_empty_list_reports_the_standard_preview_length() {
         }
     );
 }
+
+#[test]
+fn a_title_with_no_valid_source_adds_no_preview_length() {
+    let mut broken = source("broken.mp3", 10.0, 1.0, 0);
+    broken.is_valid = false;
+    let files = vec![source("good.m4b", 600.0, 1.0, 0), broken];
+
+    assert_eq!(
+        title_totals(&files, &BTreeMap::new()).preview_length,
+        PreviewLength {
+            shortest_seconds: 90,
+            longest_seconds: 90,
+        }
+    );
+}
