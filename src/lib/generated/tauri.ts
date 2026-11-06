@@ -1305,7 +1305,10 @@ export type TagPreview = {
 	seriesPart: string,
 	subseries: string,
 	subseriesPart: string,
-	/**  The album sort (TSOA) processing would write. */
+	/**
+	 *  The album sort processing would write: the TSOA frame in MP3, the
+	 *  sort-album atom in the MP4 family.
+	 */
 	albumSort: string,
 	year: string,
 	genre: string,

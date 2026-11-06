@@ -83,13 +83,18 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Cover intent comes only from cover actions (load, drop, clear). A text edit
   or Lookup apply that keeps the cover leaves cover intent absent, so a save
   does not rewrite unchanged art.
-- Processed outputs carry the album sort (TSOA) from `processing_album_sort`:
+- Processed outputs carry the album sort (the ID3 `TSOA` frame in MP3, the
+  sort-album atom in the MP4 family) from `processing_album_sort`:
   derived from series, book # and title when possible (fractions kept, so
   novellas sort between books), else the source's own; explicit album-sort
   intent wins. Every processing route takes it from `plan_metadata_outcome`
   (effective metadata, or `write_intent` for single-file preserve). Metadata
-  saves preserve TSOA unless explicitly changed, because a save edits the user's
-  own source file.
+  saves preserve the sort unless explicitly changed, because a save edits the
+  user's own source file. FFmpeg names the MP3 frame `album-sort` and the MP4
+  atom `sort_album`: `merge_metadata_with_plan` writes the name the output
+  container uses and drops the other; `reader.rs` reads `album-sort`, then
+  `sort_album`, so an MP3 tagged by an older ABB still reads. Why: a
+  `sort_album` key on MP3 is a stray TXXX frame no library reads.
 - Keep `AlbumSortWriteAction` on `MetadataWritePlan` as its own action, apart
   from generic field set/clear ops.
 - Track/disk are read-compatible passthrough fields: the form never edits them,

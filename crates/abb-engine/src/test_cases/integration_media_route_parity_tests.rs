@@ -1,6 +1,7 @@
 //! One seeded set of tags, a cover and drifting chapters go through the
 //! production planner on every output route and are read back from the file.
 
+use super::id3_frames::{id3v2_text, id3v2_txxx_descriptions};
 use super::integration_media_execution_tests::{
     assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32, ffprobe_format_tags,
     mux_chapters, native_encoder_settings,
@@ -300,7 +301,23 @@ fn assert_planned_tags(route: &Route, output: &Path) {
     assert_ffprobe_tag(&external, "title", &title);
     assert_ffprobe_tag(&external, "series", SEEDED_SERIES);
     assert_ffprobe_tag(&external, "series-part", SEEDED_PART);
-    assert_ffprobe_tag(&external, "sort_album", &sort);
+    if output
+        .extension()
+        .is_some_and(|extension| extension == "mp3")
+    {
+        assert_ffprobe_tag(&external, "album-sort", &sort);
+        assert_eq!(
+            id3v2_text(output, "TSOA").as_deref(),
+            Some(sort.as_str()),
+            "{name}"
+        );
+        assert!(
+            !id3v2_txxx_descriptions(output).contains(&"sort_album".to_string()),
+            "{name}: the album sort is a TSOA frame, not a user text frame"
+        );
+    } else {
+        assert_ffprobe_tag(&external, "sort_album", &sort);
+    }
 }
 
 fn expected_pictures(route: &Route) -> Vec<(Id, Vec<u8>)> {

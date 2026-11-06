@@ -1,3 +1,5 @@
+#[path = "id3_frames.rs"]
+pub(crate) mod id3_frames;
 #[path = "integration_audible_handoff_tests.rs"]
 mod integration_audible_handoff_tests;
 #[path = "integration_collision_review_tests.rs"]
@@ -10,6 +12,8 @@ mod integration_faac_execution_tests;
 mod integration_indexer_connection_tests;
 #[path = "integration_library_readback_tests.rs"]
 mod integration_library_readback_tests;
+#[path = "integration_media_album_sort_tests.rs"]
+mod integration_media_album_sort_tests;
 #[path = "integration_media_encoding_choice_tests.rs"]
 mod integration_media_encoding_choice_tests;
 #[path = "integration_media_execution_tests.rs"]

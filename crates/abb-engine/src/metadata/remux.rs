@@ -298,9 +298,11 @@ fn copy_container_metadata(
     metadata: Option<&MetadataWritePlan>,
 ) -> Result<()> {
     let mut dict = match metadata {
-        Some(plan) => {
-            super::ffmpeg_dict::merge_metadata_with_plan(ictx.metadata().to_owned(), plan)?
-        }
+        Some(plan) => super::ffmpeg_dict::merge_metadata_with_plan(
+            ictx.metadata().to_owned(),
+            plan,
+            octx.format().name(),
+        )?,
         None => ictx.metadata().to_owned(),
     };
     if octx.format().name() == "mp4" {

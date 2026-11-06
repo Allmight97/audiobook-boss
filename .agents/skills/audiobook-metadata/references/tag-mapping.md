@@ -31,6 +31,12 @@ FFmpeg-written containers (MP3 ID3, FLAC/Opus comments, Matroska) carry only
 `series` / `series-part`; an iTunes freeform name there is a stray tag (an ID3
 TXXX frame, a Vorbis comment) no reader maps.
 
+Album sort: MP4-family files carry the sort-album atom (FFmpeg key
+`sort_album`). MP3 carries the ID3v2.4 `TSOA` frame (FFmpeg key `album-sort`);
+`sort_album` there would be a stray TXXX frame. ABB reads `album-sort` first,
+then `sort_album`, so an MP3 tagged by an older ABB still reads. A Save or
+Preserve that sets or clears the sort replaces both keys on MP3.
+
 Read precedence favors lowercase canonical values, then uppercase mirrors,
 then legacy `show` / `episode_sort` values. Preserve legacy read compatibility;
 new writes use the canonical/mirrored families. Series/subseries projection and

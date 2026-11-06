@@ -26,8 +26,8 @@ fn comment_edits_replace_language_aliases_and_preserve_technical_comments() {
             comment: comment.map(str::to_owned),
             ..Default::default()
         });
-        let merged =
-            merge_metadata_with_plan(source, &plan).expect("apply comment edit to source tags");
+        let merged = merge_metadata_with_plan(source, &plan, "mp4")
+            .expect("apply comment edit to source tags");
         assert_eq!(merged.get("comment-iTunSMPB-eng"), Some("gapless timing"));
         assert_eq!(merged.get("comment-iTunNORM-eng"), Some("normalization"));
         for key in [
@@ -62,7 +62,8 @@ fn clearing_author_and_date_removes_their_alias_keys() {
         ..Default::default()
     });
 
-    let merged = merge_metadata_with_plan(source, &plan).expect("apply clears to source tags");
+    let merged =
+        merge_metadata_with_plan(source, &plan, "mp4").expect("apply clears to source tags");
 
     for key in ["artist", "album_artist", "date", "year"] {
         assert_eq!(merged.get(key), None, "{key}");
@@ -80,7 +81,7 @@ fn merge_metadata_preserves_album_sort_without_explicit_intent() {
         album_sort: AlbumSortWriteAction::Preserve,
     };
 
-    let merged = merge_metadata_with_plan(base_dict(), &plan).expect("merge metadata");
+    let merged = merge_metadata_with_plan(base_dict(), &plan, "mp4").expect("merge metadata");
 
     assert_eq!(merged.get("genre"), Some("Sci-Fi"));
     assert_eq!(merged.get("sort_album"), Some("Custom Sort"));
@@ -92,15 +93,59 @@ fn merge_metadata_sets_and_clears_album_sort_explicitly() {
         album_sort: Some("Requested Sort".to_string()),
         ..Default::default()
     });
-    let set = merge_metadata_with_plan(base_dict(), &set_plan).expect("set album sort");
+    let set = merge_metadata_with_plan(base_dict(), &set_plan, "mp4").expect("set album sort");
     assert_eq!(set.get("sort_album"), Some("Requested Sort"));
 
     let clear_plan = MetadataWritePlan::from_metadata(AudiobookMetadata {
         album_sort: Some(String::new()),
         ..Default::default()
     });
-    let cleared = merge_metadata_with_plan(base_dict(), &clear_plan).expect("clear album sort");
+    let cleared =
+        merge_metadata_with_plan(base_dict(), &clear_plan, "mp4").expect("clear album sort");
     assert_eq!(cleared.get("sort_album"), None);
+}
+
+#[test]
+fn an_mp3_album_sort_goes_under_the_id3_key_and_drops_the_old_one() {
+    let mut existing = base_dict();
+    existing.set("album-sort", "Older Frame");
+    for plan in [
+        MetadataWritePlan::from_metadata(AudiobookMetadata {
+            album_sort: Some("Requested Sort".to_string()),
+            ..Default::default()
+        }),
+        MetadataWritePlan {
+            metadata: AudiobookMetadata::default(),
+            album_sort: AlbumSortWriteAction::Set("Requested Sort".to_string()),
+        },
+    ] {
+        let merged = merge_metadata_with_plan(existing.clone(), &plan, "mp3").expect("set");
+        assert_eq!(merged.get("album-sort"), Some("Requested Sort"));
+        assert_eq!(merged.get("sort_album"), None);
+    }
+
+    let clear_plan = MetadataWritePlan::from_metadata(AudiobookMetadata {
+        album_sort: Some(String::new()),
+        ..Default::default()
+    });
+    let cleared = merge_metadata_with_plan(existing, &clear_plan, "mp3").expect("clear");
+    assert_eq!(cleared.get("album-sort"), None);
+    assert_eq!(cleared.get("sort_album"), None);
+}
+
+#[test]
+fn an_mp3_save_that_leaves_album_sort_alone_keeps_both_keys_it_was_given() {
+    let mut existing = base_dict();
+    existing.set("album-sort", "Frame Sort");
+    let plan = MetadataWritePlan {
+        metadata: AudiobookMetadata::default(),
+        album_sort: AlbumSortWriteAction::Preserve,
+    };
+
+    let merged = merge_metadata_with_plan(existing, &plan, "mp3").expect("preserve");
+
+    assert_eq!(merged.get("album-sort"), Some("Frame Sort"));
+    assert_eq!(merged.get("sort_album"), Some("Custom Sort"));
 }
 
 #[test]
