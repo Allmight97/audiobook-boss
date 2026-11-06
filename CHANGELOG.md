@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- The Audible status shows it is busy while the library loads after an account
+  check, instead of reading idle until the load ends.
 - The metadata lookup queue names each title as the file list does, by its title
   tag, instead of by its file name.
 - Cancelling an export while it is being prepared no longer reports "Preview was
