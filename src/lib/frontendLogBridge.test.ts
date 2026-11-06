@@ -46,13 +46,6 @@ describe('frontend error log bridge', () => {
 		expect(entry.message).toContain('String rejection value');
 	});
 
-	it('forwards a bounded error record', () => {
-		window.dispatchEvent(rejectionEvent(new Error('x'.repeat(600))));
-		const entry = logFrontendMock.mock.calls[0][0];
-		expect(entry.scope).toBe('window.unhandledrejection:Error');
-		expect(entry.message.length).toBe(501);
-	});
-
 	it('reports fixed-window overflow after rollover', () => {
 		const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(0);
 		for (let i = 0; i < 25; i++) window.dispatchEvent(rejectionEvent(new Error(`e-${i}`)));
@@ -68,10 +61,14 @@ describe('frontend error log bridge', () => {
 		nowSpy.mockRestore();
 	});
 
-	it('flattens log-breaking controls in a forwarded record and installs once', () => {
+	it('forwards an error under its name and installs once', () => {
 		initFrontendErrorLogBridge();
-		window.dispatchEvent(rejectionEvent(new Error('a\nb\rc\t\u0007d')));
+		window.dispatchEvent(rejectionEvent(new Error('boom')));
 		expect(logFrontendMock).toHaveBeenCalledTimes(1);
-		expect(logFrontendMock.mock.calls[0][0].message).toBe('a b c d');
+		expect(logFrontendMock.mock.calls[0][0]).toEqual({
+			level: 'error',
+			scope: 'window.unhandledrejection:Error',
+			message: 'boom',
+		});
 	});
 });

@@ -2,8 +2,6 @@ import type { FrontendLogLevel } from '../types/frontendLog';
 import { isAppErrorEnvelope } from './tauri/appError';
 import { tauriClient } from './tauri/client';
 
-const MESSAGE_MAX_CHARS = 500;
-const SCOPE_MAX_CHARS = 200;
 const MAX_EVENTS_PER_WINDOW = 20;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
@@ -11,24 +9,6 @@ let installed = false;
 let windowStartMs = 0;
 let sentInWindow = 0;
 let droppedInWindow = 0;
-
-function flattenLogText(value: string): string {
-	// oxlint-disable-next-line typescript/no-misused-spread -- splitting by code point keeps a surrogate pair whole.
-	return [...value.replace(/[\r\n\t]+/g, ' ')]
-		.filter((character) => {
-			const code = character.charCodeAt(0);
-			return code > 0x1f && (code < 0x7f || code > 0x9f);
-		})
-		.join('');
-}
-
-function truncate(value: string, maxChars: number): string {
-	return value.length <= maxChars ? value : `${value.slice(0, maxChars)}…`;
-}
-
-function sanitizeOutboundField(value: string, maxChars: number): string {
-	return truncate(flattenLogText(value), maxChars);
-}
 
 function summarizeRejectionReason(reason: unknown): { name: string; message: string } {
 	if (reason instanceof Error) {
@@ -63,17 +43,7 @@ function rollRateLimitWindow(nowMs: number): number {
 }
 
 function sendLogFrontend(level: FrontendLogLevel, scope: string, message: string): void {
-	try {
-		void tauriClient
-			.logFrontend({
-				level,
-				scope: sanitizeOutboundField(scope, SCOPE_MAX_CHARS),
-				message: sanitizeOutboundField(message, MESSAGE_MAX_CHARS),
-			})
-			.catch(() => undefined);
-	} catch {
-		// Log forwarding must not throw while handling another error.
-	}
+	void tauriClient.logFrontend({ level, scope, message }).catch(() => undefined);
 }
 
 function forward(scope: string, message: string): void {
