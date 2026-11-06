@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.17.1] - 2026-11-05
+
 ### Changed
 
 - The Indexer URL and categories now live in `settings.toml` with every other
@@ -17,6 +19,12 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   API key. It is refused while an Indexer search, grab, or save is running.
 - MP3 exports write the album sort as a real TSOA frame. ABB still reads the
   older `sort_album` tag.
+- A full test audit removed about 155 tests that protected nothing and added
+  end-to-end proof that every output route, edit, Save, setting, and cleanup
+  path reaches real files. UI tests now replay replies recorded from the real
+  engine.
+- Guidance and code comments were audited against the code, and more of their
+  rules are enforced by checks.
 
 ### Fixed
 
@@ -35,15 +43,6 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 ### Removed
 
 - The Audible PDF live probe, and Indexer Disconnect, which no screen offered.
-
-### Maintenance
-
-- A full test audit removed about 155 tests that protected nothing and added
-  end-to-end proof that every output route, edit, Save, setting, and cleanup
-  path reaches real files. UI tests now replay replies recorded from the real
-  engine.
-- Guidance and code comments were audited against the code, and more of their
-  rules are enforced by checks.
 
 ## [1.17.0] - 2026-11-05
 
