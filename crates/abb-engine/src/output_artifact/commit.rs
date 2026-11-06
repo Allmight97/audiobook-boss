@@ -115,7 +115,11 @@ fn publish_by_placeholder(destination_temp: SiblingTemp, final_path: &Path) -> R
             if std::fs::symlink_metadata(final_path)
                 .is_ok_and(|entry| entry.is_file() && entry.len() == 0)
             {
-                let _ = std::fs::remove_file(final_path);
+                if let Err(cleanup) = std::fs::remove_file(final_path) {
+                    log::warn!(
+                        "Could not remove the empty placeholder after a refused commit: {cleanup}"
+                    );
+                }
             }
             destination_refused_commit_error(final_path, error)
         })

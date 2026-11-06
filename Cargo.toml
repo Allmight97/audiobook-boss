@@ -28,6 +28,8 @@ too_many_lines = "warn"
 allow_attributes = "warn"
 allow_attributes_without_reason = "warn"
 disallowed_methods = "warn"
+let_underscore_must_use = "warn"
+unused_result_ok = "warn"
 
 [patch.crates-io]
 ffmpeg-next = { path = "vendor/ffmpeg-next-9.0.0" }

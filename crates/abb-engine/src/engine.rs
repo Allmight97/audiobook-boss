@@ -44,6 +44,10 @@ impl EngineTasks {
     }
 
     pub(crate) fn close(&self) {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "a check that always passes cannot refuse the close"
+        )]
         let _ = self.close_if(|| Ok::<(), ()>(()));
     }
 

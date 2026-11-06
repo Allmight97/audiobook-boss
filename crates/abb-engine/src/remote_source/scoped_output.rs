@@ -89,14 +89,14 @@ impl ProvisionalCommittedFile {
 
 impl Drop for StagedTempFile {
     fn drop(&mut self) {
-        let _ = remove_if_present(&self.partial_path);
+        remove_logging_failure(&self.partial_path);
     }
 }
 
 impl Drop for ProvisionalCommittedFile {
     fn drop(&mut self) {
         if !self.permanent {
-            let _ = remove_if_present(&self.path);
+            remove_logging_failure(&self.path);
         }
     }
 }
@@ -112,6 +112,12 @@ pub(crate) fn partial_sibling(path: &Path) -> PathBuf {
         .map(|extension| format!("{extension}.partial"))
         .unwrap_or_else(|| "partial".to_string());
     path.with_extension(extension)
+}
+
+pub(crate) fn remove_logging_failure(path: &Path) {
+    if let Err(error) = remove_if_present(path) {
+        log::warn!("remote_source could not remove a staged file: {error}");
+    }
 }
 
 pub(crate) fn remove_if_present(path: &Path) -> std::io::Result<()> {

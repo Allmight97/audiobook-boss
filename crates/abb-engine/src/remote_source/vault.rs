@@ -65,6 +65,10 @@ fn ensure_native_store() -> Result<()> {
         return Ok(());
     }
     register_native_store()?;
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "a concurrent registration may have set it already"
+    )]
     let _ = REGISTERED.set(());
     Ok(())
 }

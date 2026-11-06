@@ -490,7 +490,15 @@ fn serve_grabs_pausing_on_the_second(
             let json: serde_json::Value = serde_json::from_str(&body).expect("grab body");
             ids.push(json["indexerId"].as_i64().expect("indexer id"));
             if index == 1 {
+                #[expect(
+                    clippy::unused_result_ok,
+                    reason = "the receiver is gone if the test stops waiting"
+                )]
                 arrived.take().expect("one pause").send(()).ok();
+                #[expect(
+                    clippy::unused_result_ok,
+                    reason = "the sender is dropped when the test ends"
+                )]
                 gate.take().expect("one pause").await.ok();
             }
             stream

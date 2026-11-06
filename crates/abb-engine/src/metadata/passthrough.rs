@@ -152,6 +152,10 @@ fn synthesize_chapters_from_files(files: &[PassthroughSource]) -> (Vec<ChapterSp
 /// Chapters are normalized to milliseconds and offset by cumulative durations
 /// to preserve ordering for multi-file merges.
 pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughMetadata {
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "ffmpeg initialization is idempotent; the first ffmpeg call reports a failure"
+    )]
     let _ = ff::init();
 
     let mut passthrough = PassthroughMetadata::default();

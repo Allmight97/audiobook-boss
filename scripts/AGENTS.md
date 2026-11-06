@@ -77,6 +77,9 @@ Traps:
   and fails on a file missing from either side. After an engine behavior
   changes, regenerate; the recorded contract tests then fail where the UI
   disagrees. Recorder traps: `src-tauri/AGENTS.md`.
+- Clippy rejects `let _ =` on a `#[must_use]` value and `.ok()` on a result
+  (`let_underscore_must_use`, `unused_result_ok`). A benign site takes
+  `#[expect(..., reason = "...")]`; any other failure is logged or returned.
 - Each git worktree holds its own `target/`. Remove finished worktrees.
 
 A change to CI or validation speed quotes before and after numbers from

@@ -108,6 +108,10 @@ impl RemoteSourceRuntime {
     /// Sets where finished acquisitions hand their files. Set once, by the
     /// engine, after the session exists.
     pub(crate) fn set_handoff(&self, handoff: Handoff) {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "set once by the engine after the session exists"
+        )]
         let _ = self.inner.handoff.set(handoff);
     }
 

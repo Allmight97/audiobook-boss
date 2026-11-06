@@ -10,7 +10,7 @@ use crate::errors::{AppError, Result};
 use crate::remote_source::materializer::{
     AaxcleanLane, AaxcleanMaterializer, AaxcleanSecret, MaterializationRequest,
 };
-use crate::remote_source::scoped_output::remove_if_present;
+use crate::remote_source::scoped_output::{remove_if_present, remove_logging_failure};
 use crate::remote_source::types::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
 
 pub(super) struct MaterializedProtectedSource {
@@ -77,7 +77,7 @@ pub(super) async fn materialize_protected_download(
             std::thread::sleep,
         )),
         Err(error) => {
-            let _ = remove_if_present(downloaded_path);
+            remove_logging_failure(downloaded_path);
             if matches!(error, AppError::Cancellation(_)) {
                 return Err(error);
             }
@@ -110,7 +110,7 @@ async fn confirm_decrypted_output(path: PathBuf, job_id: &str, title_id: &str) -
             job_id,
             title_ref(title_id)
         );
-        let _ = remove_if_present(&path);
+        remove_logging_failure(&path);
         return Err(undecodable_decrypt_output());
     }
     Ok(path)

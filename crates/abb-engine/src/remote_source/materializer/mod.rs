@@ -161,6 +161,10 @@ impl AaxcleanMaterializer {
             .wait()
             .await
             .map_err(|_| materializer_failure("helper wait"))?;
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "the helper stderr drain only feeds the log"
+        )]
         let _ = stderr_task.await;
         ensure_not_cancelled(&is_cancelled)?;
 
@@ -474,10 +478,13 @@ fn safe_helper_error_message(category: Option<&str>, message: Option<&str>) -> S
 }
 
 fn signal_process(pid: u32) {
-    let _ = StdCommand::new("/bin/kill")
+    if let Err(error) = StdCommand::new("/bin/kill")
         .arg("-TERM")
         .arg(pid.to_string())
-        .status();
+        .status()
+    {
+        log::warn!("Could not signal the AAXClean helper to stop: {error}");
+    }
 }
 
 #[cfg(test)]

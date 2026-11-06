@@ -637,6 +637,10 @@ async fn main() -> ExitCode {
                     Err(message) => classify_failed(message),
                 };
                 if temporary {
+                    #[expect(
+                        clippy::let_underscore_must_use,
+                        reason = "the throwaway state folder of a finished dev run"
+                    )]
                     let _ = std::fs::remove_dir_all(&state_dir);
                 }
                 status

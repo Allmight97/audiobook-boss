@@ -15,6 +15,10 @@ impl FixtureEngine {
             "abb-contract-fixture-{}-{name}",
             std::process::id()
         ));
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "the fixture folder is usually absent before a run"
+        )]
         let _ = std::fs::remove_dir_all(&root);
         if let Some(toml) = settings_toml {
             std::fs::create_dir_all(root.join("config"))
@@ -33,8 +37,16 @@ impl FixtureEngine {
     }
 
     pub fn finish(self) {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "shutdown outcome is not part of the recorded fixture"
+        )]
         let _ = tauri::async_runtime::block_on(self.engine.shutdown());
         drop(self.engine);
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "best-effort removal of the fixture folder"
+        )]
         let _ = std::fs::remove_dir_all(self.root);
     }
 }

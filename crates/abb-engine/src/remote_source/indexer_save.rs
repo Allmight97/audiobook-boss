@@ -191,6 +191,10 @@ impl RemoteSourceRuntime {
         };
         drop(write);
         if let Some(request) = refresh {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the refresh records its own failure in the account status"
+            )]
             let _ = self.refresh_ui_account(ProviderId::Indexer, request).await;
         }
         result.map(|_| RemoteUiResult::Saved)
@@ -244,6 +248,10 @@ impl RemoteSourceRuntime {
         };
         self.publish_ui();
         if let Some(request) = refresh {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the refresh records its own failure in the account status"
+            )]
             let _ = self.refresh_ui_account(ProviderId::Indexer, request).await;
         }
     }

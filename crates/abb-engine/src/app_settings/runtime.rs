@@ -324,6 +324,10 @@ impl SettingsRuntime {
                 tokio::time::sleep_until(*deadline).await;
             }
             if let Some(previous) = previous {
+                #[expect(
+                    clippy::let_underscore_must_use,
+                    reason = "only the order matters; the previous run replies to its own caller"
+                )]
                 let _ = previous.await;
             }
             let superseded = pause.is_some_and(|(latest, revision, _)| {
@@ -337,6 +341,10 @@ impl SettingsRuntime {
             } else {
                 settings.apply_ordered(change).await
             };
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the receiver is gone once nobody waits for completion"
+            )]
             let _ = done.send(());
             reply
         });

@@ -157,6 +157,10 @@ impl Run {
                 let count = desk.state.working_set.files().len();
                 let indices: Vec<usize> =
                     indices.into_iter().filter(|index| *index < count).collect();
+                #[expect(
+                    clippy::let_underscore_must_use,
+                    reason = "a refused selection leaves the state unchanged, which the sequence checks"
+                )]
                 let _ = desk.select(&indices);
             }
             Step::Remove(index) => {
@@ -184,11 +188,19 @@ impl Run {
                 }
             }
             Step::Group => {
+                #[expect(
+                    clippy::let_underscore_must_use,
+                    reason = "a refused edit leaves the state unchanged, which the sequence checks"
+                )]
                 let _ = desk.change(|set| {
                     set.group_selected();
                 });
             }
             Step::Ungroup(index) => {
+                #[expect(
+                    clippy::let_underscore_must_use,
+                    reason = "a refused edit leaves the state unchanged, which the sequence checks"
+                )]
                 let _ = desk.change(|set| {
                     set.ungroup(NAMES[index]);
                 });

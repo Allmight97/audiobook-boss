@@ -48,12 +48,20 @@ impl StderrAndFile {
 
 impl Write for StderrAndFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "stderr is a convenience copy; the log file write is the one reported"
+        )]
         let _ = io::stderr().write_all(buf);
         self.file.write_all(buf)?;
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "stderr is a convenience copy; the log file flush is the one reported"
+        )]
         let _ = io::stderr().flush();
         self.file.flush()
     }

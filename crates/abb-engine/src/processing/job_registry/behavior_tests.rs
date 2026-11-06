@@ -273,10 +273,18 @@ async fn a_cancelled_queued_job_starts_without_waiting_for_the_job_ahead() {
     let (release, blocked) = oneshot::channel::<()>();
     let (started, ran) = oneshot::channel::<()>();
     let ahead: Job = Box::pin(async move {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "the sender is dropped when the test ends the batch"
+        )]
         let _ = blocked.await;
         Ok(0)
     });
     let queued: Job = Box::pin(async move {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "the receiver is gone if the test stops waiting"
+        )]
         let _ = started.send(());
         Ok(1)
     });
@@ -292,6 +300,10 @@ async fn a_cancelled_queued_job_starts_without_waiting_for_the_job_ahead() {
             .await
             .expect("the cancelled job starts while the job ahead is blocked")
             .expect("the cancelled job ran");
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "the receiver is gone if the batch ended first"
+        )]
         let _ = release.send(());
     };
 

@@ -90,6 +90,10 @@ fn best_audio_stream<'a>(
 }
 
 fn detect_aac_decoder_availability() -> AacDecoderAvailability {
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "ffmpeg initialization is idempotent; the first ffmpeg call reports a failure"
+    )]
     let _ = ff::init();
 
     AacDecoderAvailability {
@@ -458,6 +462,10 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
         }
     }
 
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "the drain loop below reports a decoder failure"
+    )]
     let _ = decoder.send_eof();
     loop {
         let mut frame = ff::frame::Audio::empty();

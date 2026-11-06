@@ -106,7 +106,15 @@ impl Drop for Rig {
     fn drop(&mut self) {
         let dir = config_dir(&self.root);
         if dir.is_file() {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the directory is usually absent before the test"
+            )]
             let _ = std::fs::remove_file(&dir);
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the test fails later if the directory is unusable"
+            )]
             let _ = std::fs::create_dir_all(&dir);
         }
     }

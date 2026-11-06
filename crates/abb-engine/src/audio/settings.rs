@@ -80,7 +80,9 @@ fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()>
     {
         Ok(file) => {
             drop(file);
-            let _ = std::fs::remove_file(&temp_file);
+            if let Err(error) = std::fs::remove_file(&temp_file) {
+                log::warn!("Could not remove the output directory write probe: {error}");
+            }
             Ok(())
         }
         Err(e) => Err(AppError::FileValidation(format!(

@@ -328,12 +328,20 @@ impl Session {
                 let (sender, reply) = tokio::sync::oneshot::channel();
                 match self.begin_rest(intent) {
                     Rest::Done(outcome) => {
+                        #[expect(
+                            clippy::let_underscore_must_use,
+                            reason = "the host may have dropped its wait; the result also reaches it as an event"
+                        )]
                         let _ = sender.send(outcome);
                     }
                     rest => {
                         let session = self.clone();
                         self.inner.deps.tasks.spawn(async move {
                             let outcome = session.complete(rest).await;
+                            #[expect(
+                                clippy::let_underscore_must_use,
+                                reason = "the host may have dropped its wait; the result also reaches it as an event"
+                            )]
                             let _ = sender.send(outcome);
                         });
                     }
@@ -345,6 +353,10 @@ impl Session {
                     self.transition(|state| state.refuse_submission(SubmitRefusal::Closing));
                 }
                 let (sender, reply) = tokio::sync::oneshot::channel();
+                #[expect(
+                    clippy::let_underscore_must_use,
+                    reason = "the host may have dropped its wait; the result also reaches it as an event"
+                )]
                 let _ = sender.send(SessionOutcome::Rejected {
                     error: AppErrorEnvelope::from(&error),
                 });

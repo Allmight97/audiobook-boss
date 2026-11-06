@@ -390,6 +390,10 @@ async fn a_release_sent_in_this_search_is_not_sent_again() {
     assert!(runtime.grab_release(release("release-2")).await.is_err());
     assert!(runtime.grab_release(release("release-2")).await.is_err());
 
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "the search only refreshes the state this test inspects"
+    )]
     let _ = runtime
         .search_releases(types::RemoteReleaseSearchRequest {
             author: None,

@@ -28,6 +28,10 @@ impl RunTiming {
 }
 
 /// Opens an adapter run record; `adapter` names the matching `--- end {adapter} run ---` footer.
+#[expect(
+    clippy::let_underscore_must_use,
+    reason = "writing to a String cannot fail"
+)]
 pub(super) fn write_run_header(
     output: &mut String,
     adapter: &str,
@@ -46,6 +50,10 @@ pub(super) fn write_run_header(
     }
 }
 
+#[expect(
+    clippy::let_underscore_must_use,
+    reason = "writing to a String cannot fail"
+)]
 pub(super) fn write_run_identity(
     output: &mut String,
     context: &crate::processing::ProcessingContext,
@@ -65,6 +73,10 @@ pub(super) fn write_run_identity(
     let _ = writeln!(output, "operation_kind={:?}", context.operation_kind);
 }
 
+#[expect(
+    clippy::let_underscore_must_use,
+    reason = "writing to a String cannot fail"
+)]
 pub(crate) fn write_common_run_fields(
     output: &mut String,
     (monotonic_elapsed, wallclock_elapsed): (Duration, Option<Duration>),

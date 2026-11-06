@@ -34,6 +34,10 @@ fn error_message(error: &Value) -> &str {
 #[test]
 fn session_and_settings_round_trip_through_the_real_invoke_handler() {
     let root = std::env::temp_dir().join(format!("abb-invoke-test-{}", std::process::id()));
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "the directory is usually absent before the test"
+    )]
     let _ = std::fs::remove_dir_all(&root);
     let engine = Engine::start(EngineConfig {
         cache_dir: root.join("cache"),
@@ -121,7 +125,15 @@ fn session_and_settings_round_trip_through_the_real_invoke_handler() {
     assert!(error_message(&replaced).contains("replaced"));
 
     let engine = app.state::<Engine>();
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "shutdown outcome is not under test"
+    )]
     let _ = tauri::async_runtime::block_on(engine.shutdown());
     drop(app);
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "best-effort removal of the test directory"
+    )]
     let _ = std::fs::remove_dir_all(root);
 }

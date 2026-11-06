@@ -6,6 +6,10 @@ use super::{log_dir, open_fresh_log, StderrAndFile, CURRENT_LOG, PREVIOUS_LOG};
 
 fn scratch_dir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("abb-log-file-{name}-{}", std::process::id()));
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "the directory is usually absent before the test"
+    )]
     let _ = fs::remove_dir_all(&dir);
     dir
 }

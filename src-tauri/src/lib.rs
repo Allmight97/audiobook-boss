@@ -159,6 +159,10 @@ async fn ask_to_retry_settings_save(app: tauri::AppHandle, reason: String) -> bo
             "Quit Anyway".to_string(),
         ))
         .show(move |retry| {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the quit flow has stopped waiting if the receiver is gone"
+            )]
             let _ = answer.send(retry);
         });
     answered.await.unwrap_or(false)
@@ -177,6 +181,10 @@ async fn ask_to_keep_waiting(app: tauri::AppHandle) -> bool {
             "Quit Now".to_string(),
         ))
         .show(move |wait| {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the quit flow has stopped waiting if the receiver is gone"
+            )]
             let _ = answer.send(wait);
         });
     answered.await.unwrap_or(false)

@@ -77,6 +77,10 @@ fn run_action(step: &Value, root: &Path) {
     let config = root.join("config");
     match step["do"].as_str() {
         Some("blockConfig") => {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the folder is usually absent; a real failure shows when the file is written next"
+            )]
             let _ = std::fs::remove_dir_all(&config);
             std::fs::write(&config, b"").expect("failed to block the config folder");
         }
