@@ -1,7 +1,6 @@
 ---
 name: release
 description: "Version and changelog, local install, portable DMG, or GitHub Release work. Use when the owner asks to cut, package, or install a release."
-disable-model-invocation: true
 ---
 
 # Release
