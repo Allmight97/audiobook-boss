@@ -53,8 +53,12 @@ one host attachment.
   Each method is one atomic transition. Work that needs a file or the network
   leaves as data (a `ReadTicket`, a `SavePlan`, a `PlanTicket`) and returns as a
   completion the state accepts or drops. `check-known-mistakes.ts` rejects
-  direct file I/O in session files other than `runtime.rs`.
-- `runtime.rs` performs that work. It never holds the state lock across an
+  direct file I/O in session files other than `runtime.rs` and `runtime/`.
+- `runtime.rs` and `runtime/` perform that work. `runtime.rs` holds the intent
+  pipeline. `runtime/<x>_flow.rs` performs the I/O and ordering of one
+  workflow; its rules stay in the state modules. Their tests are children of
+  `runtime_tests.rs` (`runtime/<x>_flow_tests.rs`), so they share its `Rig`.
+  Runtime never holds the state lock across an
   await, and `Session::transition` re-derives snapshots (`settle`) after every
   transition. It may read WorkRuntime (`sources_in_use`, `sources_held`) under
   the state lock; WorkRuntime and `TitleOutput` callbacks never take the session
@@ -74,8 +78,8 @@ one host attachment.
   issued earlier matches afterward.
 - A new rule belongs in the `state/` child that owns its concept, tested in
   that child's `_tests.rs` through the `Desk` harness in `state_tests.rs`. It
-  goes in `runtime.rs` only when it is about ordering between an intent and
-  its I/O.
+  goes in `runtime.rs` or `runtime/` only when it is about ordering between an
+  intent and its I/O.
   - `bound_form.rs`: the form bound to the selection and the draft gate.
   - `save.rs`: where each pending edit goes and what a finished write changes.
   - `write_queue.rs`: which files are being written or wait to be written.

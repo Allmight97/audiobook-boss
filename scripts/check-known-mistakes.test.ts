@@ -107,6 +107,9 @@ describe('check-known-mistakes', () => {
 		expect(
 			found('crates/abb-engine/src/session/runtime.rs', 'let file = File::open(path)?;'),
 		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/session/runtime/save_flow.rs', 'let file = File::open(path)?;'),
+		).toEqual([]);
 		expect(found('crates/abb-engine/src/session/state_tests.rs', 'std::fs::read(path)?;')).toEqual(
 			[],
 		);

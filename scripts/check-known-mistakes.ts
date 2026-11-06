@@ -144,12 +144,15 @@ const RULES: Rule[] = [
 			'moves a file outside the output artifact boundary. Fix: stage locally and commit through crate::output_artifact (crates/abb-engine/src/audio/processor/AGENTS.md).',
 	},
 	{
-		appliesTo: (file) => ENGINE_DIR('session')(file) && !file.endsWith('/runtime.rs'),
+		appliesTo: (file) =>
+			ENGINE_DIR('session')(file) &&
+			!file.endsWith('/runtime.rs') &&
+			!file.startsWith('crates/abb-engine/src/session/runtime/'),
 		comment: /^\s*\/\//,
 		findIn: (line) =>
 			CODE_ONLY(line).match(/\b(?:std|tokio)::fs\b|\bFile::(?:open|create)\b/)?.[0] ?? null,
 		message:
-			'does file I/O in a session state module. Fix: return a ticket and let runtime.rs perform the I/O (crates/abb-engine/src/session/AGENTS.md).',
+			'does file I/O in a session state module. Fix: return a ticket and let runtime perform the I/O (crates/abb-engine/src/session/AGENTS.md).',
 	},
 	{
 		appliesTo: (file) => file === 'src/test/fixtures/fakeEngine.ts',
