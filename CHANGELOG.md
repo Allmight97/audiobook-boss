@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Opening an unsupported file with ABB from the OS now shows the same "no supported files"
+  notice as importing one, instead of doing nothing.
 - A click on a row, Select All, or a keyboard selection while a Save runs now says
   "A Save is running. Try again when it finishes." A metadata edit or cover change dropped
   because the selection changed says "Your edit was not applied because the selection changed."

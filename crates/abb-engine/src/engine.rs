@@ -399,14 +399,11 @@ impl Engine {
     }
 
     /// Imports files the operating system asked ABB to open; no window has
-    /// to ask. Unsupported paths are dropped. While the list is locked the
-    /// import waits and appends once it unlocks. Refused once ABB is closing.
+    /// to ask. Unsupported paths get the notice a normal import gives. While
+    /// the list is locked the import waits and appends once it unlocks.
+    /// Refused once ABB is closing.
     pub fn open_audio_files(&self, paths: Vec<PathBuf>) -> Result<()> {
-        let supported = crate::opened_audio::supported_opened_audio_paths(paths);
-        if supported.is_empty() {
-            return Ok(());
-        }
-        self.inner.session.import_opened(supported)
+        self.inner.session.import_opened(paths)
     }
 
     #[expect(
