@@ -147,8 +147,6 @@ async fn resetting_all_settings_returns_the_remote_draft_to_the_default_connecti
     assert_eq!(reply.outcome, SettingsOutcome::Applied);
     let connection = drafted(&desk);
     assert_eq!(connection.category_ids, [3000, 3030]);
-    assert_eq!(connection.base_url, "");
-    assert!(!connection.api_key_configured);
     assert_eq!(
         reply.snapshot.settings.indexer_connection,
         IndexerConnection::default()

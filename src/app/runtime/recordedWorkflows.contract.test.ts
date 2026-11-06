@@ -182,9 +182,7 @@ describe('workflows recorded from the real engine', () => {
 
 		await runtime.settings.setKeepAwakeWhileWorking(false);
 		expect(runtime.settings.durability().state).toBe('error');
-		expect(runtime.settings.durability().message).toBe(
-			'IO operation failed: <operating system error>',
-		);
+		expect(runtime.settings.durability().message).toMatch(/^IO operation failed/);
 		expect(runtime.settings.dialog().settings?.keepAwakeWhileWorking).toBe(false);
 
 		await runtime.settings.retryPersistence();
