@@ -152,7 +152,7 @@ lane_host() {
 	cargo fmt --all -- --check
 	cargo test --locked -p audiobook-boss --features bundled-ffmpeg
 	bash scripts/check-generated-bindings.sh
-	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg --all-targets -- -D warnings
+	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg,binding-export --all-targets -- -D warnings
 }
 
 lane_decrypt() {
