@@ -1,12 +1,13 @@
 ---
 name: verify-abb
-description: "Prove ABB's golden path on real output files without a window, from import through export, collisions, cancel, chapters, layout, a killed export, or a copy of the owner's library. Use to verify a change end to end."
+description: "Prove ABB's golden path on real output files without a window, from import through export, collisions, cancel, a save during an export, chapters, layout, a killed export, or a copy of the owner's library. Use to verify a change end to end."
 ---
 
 # Verify ABB
 
 Prove the golden path without a window: import, metadata save, export,
-collisions, cancel, chapters, output layout, and a killed export. Each feature is a script in
+collisions, cancel, a save made during an export, chapters, output layout, and
+a killed export. Each feature is a script in
 `features/` whose exit code is its verdict; `run.sh` runs them and keeps
 evidence. The `media` lane in `scripts/verify.sh` runs the same scripts, so CI
 proves them.

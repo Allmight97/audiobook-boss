@@ -3,7 +3,8 @@
 //!
 //! It imports audio, prints the session, and can edit metadata on every
 //! imported title, save, choose audio and output, export or preview, show
-//! progress, cancel one title, and read back the exported tags. It runs under
+//! progress, cancel one title, edit and re-import while an export reads its
+//! files, and read back the exported tags. It runs under
 //! its own identity and state folder, so it never reads or changes the app's
 //! settings or stored credentials.
 
@@ -24,6 +25,10 @@ use abb_engine::work_runtime::{
     ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus,
 };
 use abb_engine::{Engine, EngineConfig, EngineEvent, EventSink};
+
+#[path = "abb_dev/during_export.rs"]
+mod during_export;
+use during_export::DuringExport;
 
 const USAGE: &str = "\
 Usage: abb-dev <file-or-folder>... [options]
@@ -51,6 +56,16 @@ Options:
   --on-collision <policy> What to do when an export already exists: rename,
                           replace, or skip. Without it, a collision stops.
   --cancel-title <n>      Cancel the nth title (from 1) while queued or running.
+  --during-export-set <field>=<value>
+                          Once the export is running and reading the file,
+                          edit that field and Save. Repeatable.
+  --during-export-reimport
+                          At that point in the order, remove every title and
+                          import the same paths again.
+                          These steps run in the order given, before the tool
+                          waits for the export and for waiting writes to land.
+                          The tool fails if the export had finished before a
+                          step, or if a Save did not wait for the export.
   --json                  Print the session as JSON.
   --state-dir <dir>       Keep engine state here instead of a folder that is
                           removed when the tool exits.
@@ -71,6 +86,7 @@ struct Options {
     preview: bool,
     on_collision: Option<CollisionPolicy>,
     cancel_title: Option<usize>,
+    during_export: Vec<DuringExport>,
     json: bool,
     state_dir: Option<PathBuf>,
 }
@@ -103,6 +119,14 @@ fn field_named(name: &str) -> Option<MetadataField> {
         "description" => MetadataField::Description,
         _ => return None,
     })
+}
+
+fn parse_edit(edit: &str, flag: &str) -> Result<(MetadataField, String), String> {
+    let (name, value) = edit
+        .split_once('=')
+        .ok_or_else(|| format!("{flag} needs <field>=<value>, got '{edit}'"))?;
+    let field = field_named(name).ok_or_else(|| format!("unknown field '{name}'"))?;
+    Ok((field, value.to_string()))
 }
 
 fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
@@ -150,12 +174,14 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
             "--json" => options.json = true,
             "--set" => {
                 let edit = args.next().ok_or("--set needs <field>=<value>")?;
-                let (name, value) = edit
-                    .split_once('=')
-                    .ok_or_else(|| format!("--set needs <field>=<value>, got '{edit}'"))?;
-                let field = field_named(name).ok_or_else(|| format!("unknown field '{name}'"))?;
-                options.edits.push((field, value.to_string()));
+                options.edits.push(parse_edit(&edit, "--set")?);
             }
+            "--during-export-set" => {
+                let edit = value(&mut args, "--during-export-set")?;
+                let (field, value) = parse_edit(&edit, "--during-export-set")?;
+                options.during_export.push(DuringExport::Set(field, value));
+            }
+            "--during-export-reimport" => options.during_export.push(DuringExport::Reimport),
             "--state-dir" => {
                 options.state_dir = Some(args.next().ok_or("--state-dir needs a folder")?.into());
             }
@@ -438,7 +464,15 @@ async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
             ..
         } => {
             eprintln!("Exporting {title}");
+            during_export::run_steps(
+                engine,
+                &operation_id,
+                &options.paths,
+                &options.during_export,
+            )
+            .await?;
             let operation = follow(engine, &operation_id, options.cancel_title).await?;
+            during_export::await_landed(engine).await?;
             print_export(engine, &operation).await;
             export_verdict(&operation, options.cancel_title)
         }
