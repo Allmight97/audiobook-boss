@@ -17,7 +17,7 @@ fn export_verdict_requires_the_requested_title_to_be_cancelled() {
                 serde_json::json!({
                     "childJobId": index.to_string(), "operationId": "export",
                     "label": index.to_string(), "status": status,
-                    "lane": "encodeCpu", "progress": progress,
+                    "progress": progress,
                     "sourceInputIds": [], "cancellable": false, "cancelRequested": false,
                     "warnings": [],
                 })
@@ -27,9 +27,9 @@ fn export_verdict_requires_the_requested_title_to_be_cancelled() {
             "operationId": "export", "sequence": 1, "revision": 1,
             "kind": "processingBatch", "title": "export",
             "status": if statuses.contains(&"cancelled") { "mixed" } else { "completed" },
-            "createdAtMs": 0, "cancellable": false, "cancelRequested": true,
-            "lanes": [], "sourceInputIds": [], "progress": progress,
-            "children": children, "errors": [], "logTail": [],
+            "cancellable": false, "cancelRequested": true,
+            "sourceInputIds": [], "progress": progress,
+            "children": children, "logTail": [],
         }))
         .expect("export snapshot");
         assert_eq!(

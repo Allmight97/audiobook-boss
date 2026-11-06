@@ -66,7 +66,6 @@ impl Preview {
             draft.title.clone(),
             &draft.payload.input_files,
             draft.payload.input_ids.as_deref(),
-            now_ms(),
         ));
     }
 

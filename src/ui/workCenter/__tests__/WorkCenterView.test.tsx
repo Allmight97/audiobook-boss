@@ -21,12 +21,10 @@ function completedOperation(): OperationSnapshot {
 		kind: 'processingBatch',
 		status: 'completed',
 		title: 'Batch encode (2 files)',
-		createdAtMs: 0,
 		startedAtMs: 1_000,
 		finishedAtMs: 20_000,
 		cancellable: false,
 		cancelRequested: false,
-		lanes: ['encodeCpu'],
 		sourceInputIds: [],
 		progress,
 		children: [
@@ -36,7 +34,6 @@ function completedOperation(): OperationSnapshot {
 				operationId: 'batch',
 				label: 'A Change of Plans.m4b',
 				status: 'completed',
-				lane: 'encodeCpu',
 				progress,
 				cancellable: false,
 				cancelRequested: false,
@@ -50,7 +47,6 @@ function completedOperation(): OperationSnapshot {
 				operationId: 'batch',
 				label: 'Feedback.m4b',
 				status: 'completed',
-				lane: 'encodeCpu',
 				progress,
 				cancellable: false,
 				cancelRequested: false,
@@ -59,7 +55,6 @@ function completedOperation(): OperationSnapshot {
 				warnings: [],
 			},
 		],
-		errors: [],
 		logTail: [],
 	};
 }

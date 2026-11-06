@@ -58,24 +58,11 @@ pub enum WorkProgressStage {
     Analyzing,
     Converting,
     Writing,
-    Downloading,
-    Decrypting,
     Committing,
     Cleaning,
     Complete,
     Failed,
     Cancelled,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum ResourceLane {
-    EncodeCpu,
-    NetworkDownload,
-    HelperMaterializer,
-    MetadataWrite,
-    OutputCommit,
-    Analysis,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -85,23 +72,15 @@ pub struct ProgressSnapshot {
     #[specta(type = specta_typescript::Number)]
     pub percentage: f32,
     pub message: String,
-    pub current_item_index: Option<usize>,
-    pub total_items: Option<usize>,
-    pub bytes_downloaded: Option<u64>,
-    pub bytes_total: Option<u64>,
     pub eta_seconds: Option<f64>,
 }
 
 impl ProgressSnapshot {
-    pub fn pending(message: impl Into<String>, total_items: Option<usize>) -> Self {
+    pub fn pending(message: impl Into<String>) -> Self {
         Self {
             stage: WorkProgressStage::Pending,
             percentage: 0.0,
             message: message.into(),
-            current_item_index: None,
-            total_items,
-            bytes_downloaded: None,
-            bytes_total: None,
             eta_seconds: None,
         }
     }
@@ -117,7 +96,6 @@ pub struct ChildJobSnapshot {
     /// First active progress and final completion, authored by WorkRuntime.
     pub started_at_ms: Option<i64>,
     pub finished_at_ms: Option<i64>,
-    pub lane: ResourceLane,
     pub progress: ProgressSnapshot,
     pub source_path: Option<String>,
     pub input_index: Option<usize>,
@@ -174,17 +152,14 @@ pub struct OperationSnapshot {
     pub kind: OperationKind,
     pub status: WorkOperationStatus,
     pub title: String,
-    pub created_at_ms: i64,
     pub started_at_ms: Option<i64>,
     pub finished_at_ms: Option<i64>,
     pub cancellable: bool,
     pub cancel_requested: bool,
-    pub lanes: Vec<ResourceLane>,
     pub source_input_ids: Vec<String>,
     pub progress: ProgressSnapshot,
     pub children: Vec<ChildJobSnapshot>,
     pub terminal_summary: Option<OperationTerminalSummary>,
-    pub errors: Vec<String>,
     pub log_tail: Vec<OperationLogEntry>,
 }
 

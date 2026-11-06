@@ -410,7 +410,6 @@ impl WorkRuntimeState {
             Some(WorkProgressStage::Failed),
             None,
         );
-        snapshot.errors.push(message.clone());
         let summary = OperationResultSummary::all_failed(snapshot.children.len());
         snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message.clone()));
         for child in &mut snapshot.children {

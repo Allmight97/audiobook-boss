@@ -272,7 +272,6 @@ export type ChildJobSnapshot = {
 	/**  First active progress and final completion, authored by WorkRuntime. */
 	startedAtMs: number | null,
 	finishedAtMs: number | null,
-	lane: ResourceLane,
 	progress: ProgressSnapshot,
 	sourcePath: string | null,
 	inputIndex: number | null,
@@ -669,17 +668,14 @@ export type OperationSnapshot = {
 	kind: OperationKind,
 	status: WorkOperationStatus,
 	title: string,
-	createdAtMs: number,
 	startedAtMs: number | null,
 	finishedAtMs: number | null,
 	cancellable: boolean,
 	cancelRequested: boolean,
-	lanes: ResourceLane[],
 	sourceInputIds: string[],
 	progress: ProgressSnapshot,
 	children: ChildJobSnapshot[],
 	terminalSummary: OperationTerminalSummary | null,
-	errors: string[],
 	logTail: OperationLogEntry[],
 };
 
@@ -846,10 +842,6 @@ export type ProgressSnapshot = {
 	stage: WorkProgressStage,
 	percentage: number,
 	message: string,
-	currentItemIndex: number | null,
-	totalItems: number | null,
-	bytesDownloaded: number | null,
-	bytesTotal: number | null,
 	etaSeconds: number | null,
 };
 
@@ -993,8 +985,6 @@ export type RemoteUiSnapshot = {
 	/**  The Audible lane's status line while no job is running. */
 	audibleMessage: string,
 };
-
-export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer" | "metadataWrite" | "outputCommit" | "analysis";
 
 /**
  *  An edit that would move a title's unpublished output. Hosts ask whether
@@ -1398,7 +1388,7 @@ export type WorkOperationsUpdate = {
 /**  An accepted operation changed, with the display order as of then. */
 export type WorkOperationsUpdateEvent = WorkOperationsUpdate;
 
-export type WorkProgressStage = "pending" | "analyzing" | "converting" | "writing" | "downloading" | "decrypting" | "committing" | "cleaning" | "complete" | "failed" | "cancelled";
+export type WorkProgressStage = "pending" | "analyzing" | "converting" | "writing" | "committing" | "cleaning" | "complete" | "failed" | "cancelled";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

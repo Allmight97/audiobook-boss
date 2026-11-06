@@ -47,7 +47,7 @@ describe('tauriClient generated event bindings', () => {
 		expectTypeOf<SessionUpdate['revision']>().toEqualTypeOf<number>();
 		expectTypeOf<SelectionSnapshot['selectedIndices']>().toEqualTypeOf<number[]>();
 		expectTypeOf<ProgressSnapshot['percentage']>().toEqualTypeOf<number>();
-		expectTypeOf<ProgressSnapshot['bytesDownloaded']>().toEqualTypeOf<number | null>();
+		expectTypeOf<AcquisitionProgress['bytesDownloaded']>().toEqualTypeOf<number | null>();
 		expectTypeOf<MaxConcurrentJobsCapabilities['fixedMax']>().toEqualTypeOf<number>();
 	});
 });

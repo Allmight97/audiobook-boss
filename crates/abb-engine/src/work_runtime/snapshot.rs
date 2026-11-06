@@ -1,6 +1,5 @@
 use super::types::{
-    ChildJobSnapshot, OperationId, OperationSnapshot, ProgressSnapshot, ResourceLane,
-    WorkOperationStatus,
+    ChildJobSnapshot, OperationId, OperationSnapshot, ProgressSnapshot, WorkOperationStatus,
 };
 use crate::processing::OperationKind;
 use std::path::Path;
@@ -11,14 +10,12 @@ pub(crate) fn new_processing_snapshot(
     title: String,
     input_files: &[String],
     input_ids: Option<&[Option<String>]>,
-    now_ms: i64,
 ) -> OperationSnapshot {
     let source_input_ids = input_ids
         .unwrap_or_default()
         .iter()
         .filter_map(|value| value.clone())
         .collect();
-    let total_items = Some(input_files.len());
     let children = input_files
         .iter()
         .enumerate()
@@ -32,8 +29,6 @@ pub(crate) fn new_processing_snapshot(
                 input_ids
                     .and_then(|ids| ids.get(index))
                     .and_then(|value| value.clone()),
-                ResourceLane::EncodeCpu,
-                total_items,
             )
         })
         .collect();
@@ -45,35 +40,26 @@ pub(crate) fn new_processing_snapshot(
         kind: OperationKind::ProcessingBatch,
         status: WorkOperationStatus::Accepted,
         title,
-        created_at_ms: now_ms,
         started_at_ms: None,
         finished_at_ms: None,
         cancellable: true,
         cancel_requested: false,
-        lanes: vec![
-            ResourceLane::Analysis,
-            ResourceLane::EncodeCpu,
-            ResourceLane::OutputCommit,
-        ],
         source_input_ids,
-        progress: ProgressSnapshot::pending("Accepted for background processing.", total_items),
+        progress: ProgressSnapshot::pending("Accepted for background processing."),
         children,
         terminal_summary: None,
-        errors: Vec::new(),
         log_tail: Vec::new(),
     }
 }
 
 /// Builds a metadata-save operation snapshot: one child per file, matched by
-/// `input_index`, on the `MetadataWrite` lane.
+/// `input_index`.
 pub(crate) fn new_metadata_save_snapshot(
     operation_id: OperationId,
     sequence: u64,
     title: String,
     input_files: &[String],
-    now_ms: i64,
 ) -> OperationSnapshot {
-    let total_items = Some(input_files.len());
     let children = input_files
         .iter()
         .enumerate()
@@ -85,8 +71,6 @@ pub(crate) fn new_metadata_save_snapshot(
                 Some(path.clone()),
                 Some(index),
                 None,
-                ResourceLane::MetadataWrite,
-                total_items,
             )
         })
         .collect();
@@ -98,25 +82,18 @@ pub(crate) fn new_metadata_save_snapshot(
         kind: OperationKind::MetadataSave,
         status: WorkOperationStatus::Accepted,
         title,
-        created_at_ms: now_ms,
         started_at_ms: None,
         finished_at_ms: None,
         cancellable: true,
         cancel_requested: false,
-        lanes: vec![ResourceLane::MetadataWrite],
         source_input_ids: Vec::new(),
-        progress: ProgressSnapshot::pending("Queued for metadata save.", total_items),
+        progress: ProgressSnapshot::pending("Queued for metadata save."),
         children,
         terminal_summary: None,
-        errors: Vec::new(),
         log_tail: Vec::new(),
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Each argument is one field of the child record"
-)]
 fn new_child(
     operation_id: &OperationId,
     child_job_id: String,
@@ -124,8 +101,6 @@ fn new_child(
     source_path: Option<String>,
     input_index: Option<usize>,
     input_id: Option<String>,
-    lane: ResourceLane,
-    total_items: Option<usize>,
 ) -> ChildJobSnapshot {
     ChildJobSnapshot {
         child_job_id,
@@ -134,8 +109,7 @@ fn new_child(
         status: super::ChildJobStatus::Queued,
         started_at_ms: None,
         finished_at_ms: None,
-        lane,
-        progress: ProgressSnapshot::pending("Queued.", total_items),
+        progress: ProgressSnapshot::pending("Queued."),
         source_path,
         input_index,
         source_input_ids: input_id.iter().cloned().collect(),

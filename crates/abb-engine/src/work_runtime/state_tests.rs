@@ -15,7 +15,6 @@ fn accepted_state() -> (WorkRuntimeState, OperationId) {
         "Batch encode (2 files)".to_string(),
         &["/tmp/first.m4b".to_string(), "/tmp/second.m4b".to_string()],
         Some(&[Some("input-1".to_string()), Some("input-2".to_string())]),
-        100,
     ));
     (state, operation_id)
 }
@@ -51,7 +50,6 @@ fn snapshots_revision_each_operation_independently() {
         2,
         "Tags".to_string(),
         &["/tmp/new.m4b".to_string()],
-        180,
     ));
     assert_eq!(next.revision, 1);
     assert_eq!(
@@ -350,7 +348,6 @@ fn single_title_state(id: &str) -> (WorkRuntimeState, OperationId) {
         "Book".to_string(),
         &["/tmp/only.m4b".to_string()],
         None,
-        100,
     ));
     state.mark_running(&operation_id, 150).expect("running");
     (state, operation_id)
@@ -453,7 +450,6 @@ fn metadata_save_state() -> (WorkRuntimeState, OperationId) {
         1,
         "Metadata save (2 files)".to_string(),
         &["/tmp/a.m4b".to_string(), "/tmp/b.m4b".to_string()],
-        100,
     ));
     (state, operation_id)
 }
@@ -704,7 +700,6 @@ fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
             format!("Batch {sequence}"),
             &["/tmp/f.m4b".to_string()],
             None,
-            100,
         ));
         state
             .fail(&id, "boom".to_string(), 100 + sequence as i64)
@@ -718,7 +713,6 @@ fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
         "Running".to_string(),
         &["/tmp/r.m4b".to_string()],
         None,
-        500,
     ));
     state.mark_running(&running_id, 500).expect("running");
 
@@ -751,7 +745,6 @@ fn prune_orders_by_terminalization_so_a_just_finished_long_runner_survives() {
         "Long batch".to_string(),
         &["/tmp/long.m4b".to_string()],
         None,
-        100,
     ));
     state.mark_running(&long_runner, 100).expect("running");
 
@@ -763,7 +756,6 @@ fn prune_orders_by_terminalization_so_a_just_finished_long_runner_survives() {
             format!("Batch {sequence}"),
             &["/tmp/f.m4b".to_string()],
             None,
-            100,
         ));
         state
             .fail(&id, "boom".to_string(), 100 + sequence as i64)
@@ -899,7 +891,6 @@ fn metadata_save_items_cannot_be_cancelled_one_at_a_time() {
         1,
         "Tags".to_string(),
         &["/tmp/a.m4b".to_string(), "/tmp/b.m4b".to_string()],
-        100,
     ));
     let running = state.mark_running(&operation_id, 110).expect("running");
 
@@ -949,7 +940,6 @@ fn each_published_change_advances_the_revision_and_orders_active_work_first() {
         2,
         "Tags".to_string(),
         &["/tmp/new.m4b".to_string()],
-        130,
     ));
     let queued = OperationId("op-3".to_string());
     state.insert_operation(new_metadata_save_snapshot(
@@ -957,7 +947,6 @@ fn each_published_change_advances_the_revision_and_orders_active_work_first() {
         3,
         "Tags".to_string(),
         &["/tmp/other.m4b".to_string()],
-        140,
     ));
     let started = state.mark_running(&running, 150).expect("running");
     let second = state.publish(started);

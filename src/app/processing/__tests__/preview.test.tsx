@@ -15,10 +15,6 @@ function preview(): NonNullable<SessionOutput['previewRun']> {
 		stage: 'converting' as const,
 		percentage: 42,
 		message: 'Rendering excerpt.',
-		currentItemIndex: 0,
-		totalItems: 1,
-		bytesDownloaded: null,
-		bytesTotal: null,
 		etaSeconds: 3,
 	};
 	return {
@@ -31,16 +27,13 @@ function preview(): NonNullable<SessionOutput['previewRun']> {
 			kind: 'processingBatch',
 			status: 'running',
 			title: 'Edited book',
-			createdAtMs: 0,
 			startedAtMs: 1,
 			finishedAtMs: null,
 			cancellable: true,
 			cancelRequested: false,
-			lanes: ['encodeCpu'],
 			sourceInputIds: ['title-1'],
 			progress,
 			terminalSummary: null,
-			errors: [],
 			logTail: [],
 			children: [
 				{
@@ -50,7 +43,6 @@ function preview(): NonNullable<SessionOutput['previewRun']> {
 					status: 'running',
 					startedAtMs: 1,
 					finishedAtMs: null,
-					lane: 'encodeCpu',
 					progress,
 					sourcePath: '/books/Book.m4b',
 					inputIndex: 0,

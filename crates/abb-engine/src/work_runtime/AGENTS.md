@@ -74,7 +74,5 @@
   terminalization order (a just-finished long-running operation must survive
   its own prune). Running and accepted operations are never pruned.
 - Reach processing through `processing::run`.
-- `WorkProgressStage` is a work_runtime-owned display vocabulary. Processing
-  sets every stage except Downloading and Decrypting, which nothing sets;
-  `src/app/processing/render.ts` folds the stages into the status panel's
-  analyzing, converting, writing, and terminal stages.
+- `WorkProgressStage` is a work_runtime-owned display vocabulary;
+  `src/app/processing/render.ts` words each stage directly.
