@@ -759,7 +759,7 @@ async fn an_accepted_grab_never_asks_about_downloaders() {
 }
 
 #[tokio::test]
-async fn a_grab_to_a_prowlarr_that_does_not_answer_says_so() {
+async fn a_grab_that_cannot_connect_to_prowlarr_says_it_is_not_responding() {
     let (listener, addr) = start_listener().await;
     drop(listener);
 
@@ -863,4 +863,42 @@ fn a_failed_grab_logs_only_a_capped_url_free_message() {
             "{body}"
         );
     }
+}
+
+#[tokio::test]
+async fn a_grab_that_times_out_may_already_be_sent_so_it_is_unconfirmed() {
+    let (listener, addr) = start_listener().await;
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by a_grab_that_times_out_may_already_be_sent_so_it_is_unconfirmed"
+    )]
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.expect("accept request");
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        drop(stream);
+    });
+    let client = Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_millis(200))
+        .resolve("prowlarr.test", addr)
+        .build()
+        .expect("client");
+
+    let error = ReqwestProwlarrAdapter::with_client(client)
+        .grab(
+            "http://prowlarr.test",
+            &SecretString::from("secret-key".to_string()),
+            &release("Example", RemoteReleaseProtocol::Torrent),
+            "test-grab",
+        )
+        .await
+        .expect_err("a timeout leaves the grab unconfirmed");
+
+    server.await.expect("server");
+    assert!(
+        error.to_string().ends_with(
+            "Prowlarr did not answer in time, so this release may already be sent. Check your downloader before you Retry."
+        ),
+        "{error}"
+    );
 }

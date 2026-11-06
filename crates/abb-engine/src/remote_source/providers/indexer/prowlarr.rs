@@ -139,13 +139,21 @@ impl ReqwestProwlarrAdapter {
             .await;
         let response = match sent {
             Ok(response) => response,
-            Err(error) => {
+            Err(error) if error.is_connect() => {
                 log::warn!(
                     "remote_source indexer_grab request_id={} stage=prowlarr_unreachable error={}",
                     request_id,
                     error.without_url()
                 );
                 return Ok(grab_failed(PROWLARR_NOT_RESPONDING));
+            }
+            Err(error) => {
+                log::warn!(
+                    "remote_source indexer_grab request_id={} stage=prowlarr_send_unconfirmed error={}",
+                    request_id,
+                    error.without_url()
+                );
+                return Err(AppError::General(GRAB_UNCONFIRMED.to_string()));
             }
         };
 
@@ -519,6 +527,8 @@ fn search_failed_diagnostic(status: StatusCode, body: &str) -> RemoteSourceDiagn
         ),
     }
 }
+
+const GRAB_UNCONFIRMED: &str = "Prowlarr did not answer in time, so this release may already be sent. Check your downloader before you Retry.";
 
 const PROWLARR_NOT_RESPONDING: &str =
     "Prowlarr is not responding. Check that it is running, then Retry.";
