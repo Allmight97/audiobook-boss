@@ -52,6 +52,25 @@ fn saving_one_cover_changes_only_that_source_address() {
 }
 
 #[test]
+fn a_later_cover_write_leaves_an_earlier_written_source_address_alone() {
+    let mut desk = Desk::open(
+        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
+        &[0],
+    );
+    desk.state.apply_cover(vec![1]);
+    desk.save(&[]).expect("alpha cover save");
+    let alpha = desk.source_cover("alpha");
+    let beta = desk.source_cover("beta");
+
+    desk.select(&[1]).expect("select beta");
+    desk.state.apply_cover(vec![2]);
+    desk.save(&[]).expect("beta cover save");
+
+    assert_eq!(desk.source_cover("alpha"), alpha);
+    assert_ne!(desk.source_cover("beta"), beta);
+}
+
+#[test]
 fn a_source_never_offers_an_address_it_offered_for_another_image() {
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     let mut offered = vec![desk.source_cover("alpha")];
