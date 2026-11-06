@@ -19,6 +19,7 @@ export type WorkOperationsOwner = {
 };
 
 const CANCEL_ERROR_PREFIX = 'Failed to cancel';
+const REVEAL_ERROR_PREFIX = 'Failed to show the exported file';
 
 /** Work runs now, a cancel included until it lands; only running work shows motion. */
 export function isWorkRunning(status: OperationSnapshot['status']): boolean {
@@ -77,10 +78,11 @@ export function createWorkOperationsOwner(deps: {
 		},
 		async revealOutput(child) {
 			if (!child.outputPath) return;
+			if (errorMessage?.startsWith(REVEAL_ERROR_PREFIX)) showError(null);
 			try {
 				await tauriClient.revealPath(child.outputPath);
 			} catch (error) {
-				showError(`Failed to show the exported file: ${toUserMessage(error)}`);
+				showError(`${REVEAL_ERROR_PREFIX}: ${toUserMessage(error)}`);
 			}
 		},
 		reset() {

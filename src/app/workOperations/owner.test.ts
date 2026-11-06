@@ -29,6 +29,31 @@ describe('work operations owner', () => {
 		);
 	});
 
+	it('clears a failed reveal when a later reveal works', async () => {
+		vi.spyOn(tauriClient, 'revealPath')
+			.mockRejectedValueOnce('file manager unavailable')
+			.mockResolvedValueOnce(undefined);
+		const { workOperations } = await attached();
+
+		await workOperations.revealOutput({ outputPath: '/tmp/book.m4b' });
+		expect(workOperations.view().errorMessage).not.toBeNull();
+
+		await workOperations.revealOutput({ outputPath: '/tmp/book.m4b' });
+		expect(workOperations.view().errorMessage).toBeNull();
+	});
+
+	it('keeps a failed cancel when a reveal works', async () => {
+		vi.spyOn(tauriClient, 'revealPath').mockResolvedValue(undefined);
+		const engine = createFakeEngine();
+		const { workOperations } = await attached(engine);
+		engine.respondCancel = () => Promise.reject(new Error('engine busy'));
+		await workOperations.cancel('batch', 'first');
+
+		await workOperations.revealOutput({ outputPath: '/tmp/book.m4b' });
+
+		expect(workOperations.view().errorMessage).toBe('Failed to cancel title: engine busy');
+	});
+
 	it('shows a failed cancel until a later cancel succeeds', async () => {
 		const engine = createFakeEngine();
 		const { workOperations } = await attached(engine);

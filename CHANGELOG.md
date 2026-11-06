@@ -8,6 +8,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 - With nothing running in this window, the step line reads "Ready" instead of
   "Waiting for files...", which it showed even with files loaded.
+- Work Center's "Failed to show the exported file" message clears when a later
+  attempt works.
 - A CUE sheet that ABB ignored or could not read no longer shows a "chapters from"
   line in the file list.
 - Screen readers announce a file-list row and its reorder button by the title
