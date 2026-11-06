@@ -925,36 +925,6 @@ fn a_save_while_a_submission_is_prepared_waits_for_its_sources() {
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Mystery"));
 }
 
-#[test]
-fn an_update_carries_only_the_parts_that_changed() {
-    let mut desk = Desk::open(
-        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
-        &[0],
-    );
-    let before = desk.state.revision();
-
-    desk.type_into(MetadataField::Genre, "Mystery");
-    let update = desk.state.update_since(Some(before));
-    assert!(update.metadata.is_some());
-    assert!(update.titles.is_none() && update.selection.is_none() && update.lookup.is_none());
-
-    let before = desk.state.revision();
-    desk.state.settle();
-    assert_eq!(
-        desk.state.revision(),
-        before,
-        "nothing changed, nothing stamped"
-    );
-
-    desk.select(&[1]).expect("select beta");
-    let update = desk.state.update_since(Some(before));
-    assert!(update.selection.is_some() && update.metadata.is_some());
-    assert!(
-        update.titles.is_none(),
-        "selecting does not resend the titles"
-    );
-}
-
 const NAMES: [&str; 3] = ["a", "b", "c"];
 const FIELDS: [MetadataField; 4] = [
     MetadataField::Title,
@@ -1874,3 +1844,6 @@ fn grouped_surround_sources_publish_downmix_warning_only_for_explicit_channels()
 
 #[path = "state/cover_tests.rs"]
 mod cover;
+
+#[path = "state/snapshots_tests.rs"]
+mod snapshots;
