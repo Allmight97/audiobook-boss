@@ -215,17 +215,25 @@ impl Session {
                 })
             ) {
                 let title = Arc::clone(&edit.title);
-                let _ = blocking(move || {
+                match blocking(move || {
                     title.apply_published();
                     Ok(())
                 })
-                .await;
-                if let Some(OutputUpdate {
-                    status: OutputUpdateStatus::Failed { message },
-                    ..
-                }) = edit.title.update_state()
+                .await
                 {
-                    reply = Err(message);
+                    Err(error) => {
+                        log::warn!("Output update did not finish: {error}");
+                        reply = Err(error.to_string());
+                    }
+                    Ok(()) => {
+                        if let Some(OutputUpdate {
+                            status: OutputUpdateStatus::Failed { message },
+                            ..
+                        }) = edit.title.update_state()
+                        {
+                            reply = Err(message);
+                        }
+                    }
                 }
             }
             replies.push((edit, reply));

@@ -294,12 +294,20 @@ fn save_metadata_item(
     let validated_path = validate_input_audio_path(&path)?;
     log::info!("Saving metadata to: {}", validated_path.display());
 
-    let before = crate::metadata::source_fingerprint(&validated_path).ok();
+    let before = crate::metadata::source_fingerprint(&validated_path)
+        .inspect_err(|error| {
+            log::warn!("Fingerprint before the metadata save unavailable: {error}")
+        })
+        .ok();
     crate::metadata::save_metadata_intent(&validated_path, &metadata_patch)?;
-    let after = std::fs::metadata(&validated_path).ok().and_then(|stat| {
-        let fingerprint = crate::metadata::source_fingerprint_from_metadata(&stat).ok()?;
-        Some((fingerprint, stat.len()))
-    });
+    let after = std::fs::metadata(&validated_path)
+        .and_then(|stat| {
+            let fingerprint = crate::metadata::source_fingerprint_from_metadata(&stat)
+                .map_err(|error| std::io::Error::other(error.to_string()))?;
+            Ok((fingerprint, stat.len()))
+        })
+        .inspect_err(|error| log::warn!("Fingerprint after the metadata save unavailable: {error}"))
+        .ok();
 
     log::info!("Metadata saved to: {}", validated_path.display());
     Ok(before
