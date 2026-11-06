@@ -11,6 +11,7 @@ import { Button, CoverImage } from '../foundation';
 import { createSignal, createEffect, Show, For, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import type { AudioFile } from '../../types/audio';
+import type { TitleTotals } from '../../types/session';
 
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 import { TitleSources } from './TitleSources';
@@ -19,6 +20,13 @@ import './fileList.css';
 
 function isFailedSource(source: AudioFile): boolean {
 	return !source.isValid && !source.sourceRemoved;
+}
+
+function titleDetails(file: AudioFile, totals: TitleTotals | undefined): string {
+	return formatFileDetails(
+		{ ...file, duration: totals?.durationSeconds ?? 0, size: totals?.sizeBytes ?? 0 },
+		totals?.chapterCount ?? 0,
+	);
 }
 
 function isInteractiveListTarget(target: EventTarget | null): boolean {
@@ -86,10 +94,7 @@ export function FileListView(props: {
 		if (event.shiftKey) window.getSelection()?.removeAllRanges();
 		void selectFile({
 			index,
-			modifiers: {
-				multi: event.metaKey || event.ctrlKey,
-				range: event.shiftKey,
-			},
+			modifiers: { multi: event.metaKey || event.ctrlKey, range: event.shiftKey },
 		});
 	}
 
@@ -106,10 +111,7 @@ export function FileListView(props: {
 			if (view().selectedIndices.length === 1 && view().selectedIndices[0] === command.index) {
 				return;
 			}
-			void selectFile({
-				index: command.index,
-				modifiers: { multi: false, range: false },
-			});
+			void selectFile({ index: command.index, modifiers: { multi: false, range: false } });
 			return;
 		}
 		if (command.type === 'selectAll') {
@@ -158,9 +160,7 @@ export function FileListView(props: {
 					</span>
 					<Button
 						id="restore-import-order-btn"
-						style={{
-							display: view().showRestoreImportOrder ? 'block' : 'none',
-						}}
+						style={{ display: view().showRestoreImportOrder ? 'block' : 'none' }}
 						onClick={() => restoreImportOrder()}
 					>
 						Restore import order
@@ -207,7 +207,6 @@ export function FileListView(props: {
 						{(file, index) => {
 							const [expanded, setExpanded] = createSignal(false);
 							const sources = () => input.sourcesFor(file);
-							const totals = () => input.totalsFor(file);
 							const grouped = () => sources().length > 1;
 							const failedSource = () => sources().find(isFailedSource);
 							const unusableSource = () =>
@@ -320,14 +319,7 @@ export function FileListView(props: {
 												{grouped()
 													? unusableSource()
 														? formatFileDetails(unusableSource() ?? file)
-														: formatFileDetails(
-																{
-																	...file,
-																	duration: totals()?.durationSeconds ?? 0,
-																	size: totals()?.sizeBytes ?? 0,
-																},
-																totals()?.chapterCount ?? 0,
-															)
+														: titleDetails(file, input.totalsFor(file))
 													: formatFileDetails(file)}
 											</div>
 											<div class="file-audio-row">
