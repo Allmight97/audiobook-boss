@@ -8,12 +8,16 @@ mod integration_collision_review_tests;
 mod integration_estimated_length_tests;
 #[path = "integration_faac_execution_tests.rs"]
 mod integration_faac_execution_tests;
+#[path = "integration_import_variants_tests.rs"]
+mod integration_import_variants_tests;
 #[path = "integration_indexer_connection_tests.rs"]
 mod integration_indexer_connection_tests;
 #[path = "integration_library_readback_tests.rs"]
 mod integration_library_readback_tests;
 #[path = "integration_media_album_sort_tests.rs"]
 mod integration_media_album_sort_tests;
+#[path = "integration_media_cue_scale_tests.rs"]
+mod integration_media_cue_scale_tests;
 #[path = "integration_media_encoding_choice_tests.rs"]
 mod integration_media_encoding_choice_tests;
 #[path = "integration_media_execution_tests.rs"]
@@ -42,6 +46,8 @@ mod unit_runtime_settings_capabilities_tests;
 mod unit_settings_encoder_tests;
 #[path = "unit_settings_validation_tests.rs"]
 mod unit_settings_validation_tests;
+#[path = "wav_fixture.rs"]
+pub(crate) mod wav_fixture;
 
 #[expect(
     clippy::disallowed_methods,

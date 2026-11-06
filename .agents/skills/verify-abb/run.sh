@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Drives abb-dev through the golden path without a window and keeps evidence
 # in .logs/verify/<run-id>/. Each feature is a script whose exit code is its
-# verdict. Features run in order and keep going after a failure; the exit code
-# is nonzero if any failed. The media lane in scripts/verify.sh runs this.
+# verdict (77 means the feature opted out). Features run in order and keep
+# going after a failure; the exit code is nonzero if any failed. The media
+# lane in scripts/verify.sh runs this.
 # Usage: bash .agents/skills/verify-abb/run.sh [feature ...]
 set -euo pipefail
 skill_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,8 +27,13 @@ for feature in "${features[@]}"; do
 	if bash "${skill_dir}/features/${feature}.sh" >"${EVIDENCE}/${feature}.log" 2>&1; then
 		printf 'PASS %s\n' "${feature}" | tee -a "${EVIDENCE}/summary.txt"
 	else
-		printf 'FAIL %s (log: %s)\n' "${feature}" "${EVIDENCE}/${feature}.log" | tee -a "${EVIDENCE}/summary.txt"
-		failed=1
+		status=$?
+		if [[ "${status}" -eq 77 ]]; then
+			printf 'SKIP %s (log: %s)\n' "${feature}" "${EVIDENCE}/${feature}.log" | tee -a "${EVIDENCE}/summary.txt"
+		else
+			printf 'FAIL %s (log: %s)\n' "${feature}" "${EVIDENCE}/${feature}.log" | tee -a "${EVIDENCE}/summary.txt"
+			failed=1
+		fi
 	fi
 done
 exit "${failed}"

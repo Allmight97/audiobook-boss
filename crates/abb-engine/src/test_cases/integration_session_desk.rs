@@ -113,7 +113,7 @@ impl Desk {
             .value
     }
 
-    pub(super) async fn export(&self) -> abb_engine::work_runtime::OperationId {
+    pub(super) async fn prepare_export(&self) {
         let output = self.root.path().join("exports");
         fs::create_dir_all(&output).expect("create export folder");
         self.send(SessionIntent::SetOutputDirectory {
@@ -139,6 +139,10 @@ impl Desk {
             })
             .await;
         }
+    }
+
+    pub(super) async fn export(&self) -> abb_engine::work_runtime::OperationId {
+        self.prepare_export().await;
         self.send(SessionIntent::Submit).await;
         match submission(self) {
             Some(SubmissionStatus::Submitted { operation_id, .. }) => operation_id,
