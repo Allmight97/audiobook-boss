@@ -22,12 +22,14 @@ second copy of owner state.
 - `engineLink` is the one connection to the engine. It keeps the newest copy of
   each snapshot part (titles, selection, metadata, lookup, audio, output,
   remote, remote library, remote acquisition, settings) by revision, and sends
-  intents. Adapters read the link. The link listens before it attaches, so no
-  update published in between is missed; part revisions make applying one twice
-  harmless. WorkRuntime operations come with the attach reply and then as
-  `work-operations-update` events, merged by `workOperations.ts` (newest
-  snapshot per operation, newest order). A cancel's change arrives as one of
-  those events; its reply carries nothing.
+  intents. `attachEngineLink` resolves once the engine's first snapshot is in
+  the link, so every part an adapter reads is engine truth; a reply missing a
+  part fails the attach. It listens before it attaches and applies what arrived
+  in between on top of the reply, so no update is missed; part revisions make
+  applying one twice harmless. WorkRuntime operations come with the attach
+  reply and then as `work-operations-update` events, merged by
+  `workOperations.ts` (newest snapshot per operation, newest order). A cancel's
+  change arrives as one of those events; its reply carries nothing.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
   for intents whose outcome and completion nobody awaits; its refusal shows as
   the link's `refusal` (`RefusedChangeNotice`). A `send` caller with its own
@@ -63,9 +65,12 @@ second copy of owner state.
 
 ## State And Lifetime
 
-- `createAppRuntime()` creates the engine link and one instance of every owner
-  inside one Solid root and disposes them together. A late engine reply after
-  disposal changes nothing visible; a caller that awaited it still receives it.
+- `createAppRuntime()` attaches the engine link, then creates one instance of
+  every owner inside one Solid root, and disposes them together. It rejects
+  when the attach fails. `AppRoot` owns that wait: it renders nothing until the
+  runtime exists, the failure as an alert, and disposes a runtime that arrives
+  after it unmounted. A late engine reply after disposal changes nothing
+  visible; a caller that awaited it still receives it.
 - Accepted background operation truth lives in WorkRuntime.
 
 ## Workflow And Failure Shape

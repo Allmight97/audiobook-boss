@@ -99,7 +99,7 @@ describe('metadata lookup dialog', () => {
 			});
 			return { kind: 'applied' };
 		};
-		const app = createAppRuntime({ input: fakeInput(), engine });
+		const app = await createAppRuntime({ input: fakeInput(), engine });
 		runtime = app;
 		render(() => (
 			<AppRuntimeProvider runtime={app}>

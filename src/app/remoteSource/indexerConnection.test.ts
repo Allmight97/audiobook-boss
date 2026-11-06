@@ -15,8 +15,7 @@ async function open() {
 			apiKeyConfigured: true,
 		};
 	});
-	runtime = createAppRuntime({ engine });
-	await runtime.initialize();
+	runtime = await createAppRuntime({ engine });
 	return runtime.remoteSource;
 }
 it('sends edited draft, Test, and Save as separate intents and never reads the saved key', async () => {
@@ -82,8 +81,7 @@ it('reopens from the engine draft without exposing another host’s entered key'
 		state.remote.connection.baseUrl = 'https://unsaved.test';
 	});
 	runtime!.dispose();
-	runtime = createAppRuntime({ engine });
-	await runtime.initialize();
+	runtime = await createAppRuntime({ engine });
 	expect(runtime.remoteSource.indexerConnection()).toMatchObject({
 		baseUrlDraft: 'https://unsaved.test',
 		apiKeyDraft: '',

@@ -16,8 +16,7 @@ describe('input owner', () => {
 
 	async function open(input = liveInputCapability): Promise<AppRuntime> {
 		engine = createFakeEngine();
-		runtime = createAppRuntime({ engine, input });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine, input });
 		return runtime;
 	}
 

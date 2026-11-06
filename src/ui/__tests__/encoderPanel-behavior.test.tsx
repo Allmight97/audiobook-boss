@@ -25,8 +25,7 @@ describe('encoder panel behavior controls', () => {
 			state.audio.defaults.choice.intent = 'encode';
 			seed(state.audio.defaults, state.audio);
 		});
-		runtime = createAppRuntime({ engine });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine });
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<EncoderView />

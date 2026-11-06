@@ -70,7 +70,7 @@ describe('metadata workbench shell', () => {
 		{ name: 'not when no cover shows', cover: false, tabIndex: -1 },
 	])('lets Tab reach Clear cover $name', async ({ cover, tabIndex }) => {
 		const engine = engineWithTaggedBooks({ cover });
-		runtime = createAppRuntime({ input: fakeInput(), engine });
+		runtime = await createAppRuntime({ input: fakeInput(), engine });
 		await renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
@@ -85,7 +85,7 @@ describe('metadata workbench shell', () => {
 
 	it('sends a typed title and the save to the engine in that order', async () => {
 		const engine = engineWithTaggedBooks();
-		runtime = createAppRuntime({ input: fakeInput(), engine });
+		runtime = await createAppRuntime({ input: fakeInput(), engine });
 		await renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
@@ -124,7 +124,7 @@ describe('metadata workbench shell', () => {
 
 	it('sends each form control to the engine field it edits', async () => {
 		const engine = engineWithTaggedBooks();
-		runtime = createAppRuntime({ input: fakeInput(), engine });
+		runtime = await createAppRuntime({ input: fakeInput(), engine });
 		await renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
@@ -150,7 +150,7 @@ describe('metadata workbench shell', () => {
 
 	it('saves from the global shortcut', async () => {
 		const engine = engineWithTaggedBooks();
-		runtime = createAppRuntime({ input: fakeInput(), engine });
+		runtime = await createAppRuntime({ input: fakeInput(), engine });
 		await renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {

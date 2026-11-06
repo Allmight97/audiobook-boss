@@ -21,8 +21,7 @@ describe('AppSettingsDialogView', () => {
 	): Promise<AppRuntime> {
 		engine = createFakeEngine();
 		prepare(engine);
-		runtime = createAppRuntime({ engine });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine });
 		runtime.settings.openDialog();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>

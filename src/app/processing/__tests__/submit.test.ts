@@ -10,9 +10,8 @@ describe('submission snapshot adapter', () => {
 
 	it('renders outcomes received without a local waiter and trusts engine busy facts', async () => {
 		const engine = createFakeEngine();
-		const app = createAppRuntime({ engine });
+		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		await app.initialize();
 		engine.change((state) => {
 			state.output.submission = { kind: 'submitted', operationId: 'op-1', title: 'Alpha' };
 		});
@@ -36,9 +35,8 @@ describe('submission snapshot adapter', () => {
 
 	it('sends export, preview and targeted restart intents without building or continuing work', async () => {
 		const engine = createFakeEngine();
-		const app = createAppRuntime({ engine });
+		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		await app.initialize();
 		await app.processing.start();
 		await app.processing.preview();
 		await app.processing.restart({
@@ -57,9 +55,8 @@ describe('submission snapshot adapter', () => {
 
 	it('words backend cancellation without reporting failure', async () => {
 		const engine = createFakeEngine();
-		const app = createAppRuntime({ engine });
+		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		await app.initialize();
 		engine.change((state) => {
 			state.output.submission = {
 				kind: 'failed',

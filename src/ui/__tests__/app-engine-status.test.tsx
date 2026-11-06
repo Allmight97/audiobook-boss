@@ -16,7 +16,7 @@ function fakeInput(): InputCapability {
 	};
 }
 
-describe('app before and around the engine', () => {
+describe('app around the engine', () => {
 	let runtime: AppRuntime | undefined;
 
 	afterEach(() => {
@@ -25,8 +25,8 @@ describe('app before and around the engine', () => {
 		runtime = undefined;
 	});
 
-	function renderWith(engine: FakeEngine): void {
-		const app = createAppRuntime({ input: fakeInput(), engine });
+	async function renderWith(engine: FakeEngine): Promise<void> {
+		const app = await createAppRuntime({ input: fakeInput(), engine });
 		runtime = app;
 		render(() => (
 			<AppRuntimeProvider runtime={app}>
@@ -34,35 +34,6 @@ describe('app before and around the engine', () => {
 			</AppRuntimeProvider>
 		));
 	}
-
-	it('shows nothing the engine owns until its first snapshot arrives', async () => {
-		const engine = createFakeEngine();
-		const attach = engine.attach.bind(engine);
-		let release!: () => void;
-		const released = new Promise<void>((resolve) => {
-			release = resolve;
-		});
-		engine.attach = async () => {
-			await released;
-			return attach();
-		};
-		renderWith(engine);
-
-		expect(screen.queryByTestId('left-column')).toBeNull();
-		release();
-		expect(await screen.findByTestId('left-column')).toBeInTheDocument();
-	});
-
-	it('says so when the engine cannot be reached', async () => {
-		const engine = createFakeEngine();
-		engine.attach = async () => {
-			throw new Error('engine unavailable');
-		};
-		renderWith(engine);
-
-		expect(await screen.findByRole('alert')).toHaveTextContent('engine unavailable');
-		expect(screen.queryByTestId('left-column')).toBeNull();
-	});
 
 	it('shows a refused change until the user dismisses it', async () => {
 		const engine = createFakeEngine();
@@ -78,7 +49,7 @@ describe('app before and around the engine', () => {
 						},
 					}
 				: undefined;
-		renderWith(engine);
+		await renderWith(engine);
 		await screen.findByTestId('left-column');
 
 		runtime?.input.toggleSort();

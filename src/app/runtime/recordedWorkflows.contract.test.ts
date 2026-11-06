@@ -23,8 +23,7 @@ describe('workflows recorded from the real engine', () => {
 	});
 
 	async function open(): Promise<AppRuntime> {
-		app = createAppRuntime();
-		await app.initialize();
+		app = await createAppRuntime();
 		return app;
 	}
 

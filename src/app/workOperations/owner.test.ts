@@ -11,9 +11,8 @@ describe('work operations owner', () => {
 	});
 
 	async function attached(engine = createFakeEngine()): Promise<AppRuntime> {
-		const runtime = createAppRuntime({ engine });
+		const runtime = await createAppRuntime({ engine });
 		runtimes.push(runtime);
-		await runtime.initialize();
 		return runtime;
 	}
 

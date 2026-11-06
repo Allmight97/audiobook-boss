@@ -15,10 +15,10 @@ describe('settings owner', () => {
 		runtime = undefined;
 	});
 
-	function open(prepare: (engine: FakeEngine) => void = () => {}): AppRuntime {
+	async function open(prepare: (engine: FakeEngine) => void = () => {}): Promise<AppRuntime> {
 		engine = createFakeEngine();
 		prepare(engine);
-		runtime = createAppRuntime({ engine });
+		runtime = await createAppRuntime({ engine });
 		return runtime;
 	}
 
@@ -27,8 +27,7 @@ describe('settings owner', () => {
 	}
 
 	it('words the job count as Auto → N or Max N from the engine snapshot', async () => {
-		const app = open();
-		await app.initialize();
+		const app = await open();
 
 		expect(app.settings.concurrency()).toMatchObject({
 			selection: 'auto',
@@ -53,8 +52,7 @@ describe('settings owner', () => {
 	});
 
 	it('shows an unsaved accepted default as an error until a retry saves it', async () => {
-		const app = open();
-		await app.initialize();
+		const app = await open();
 
 		engine.seedAppSettings(
 			{ encoderDefaults: { ...engine.settings().settings.encoderDefaults, intent: 'preserve' } },
@@ -74,8 +72,7 @@ describe('settings owner', () => {
 	});
 
 	it('shows the default import source as saving until the engine replies', async () => {
-		const app = open();
-		await app.initialize();
+		const app = await open();
 		let release: () => void = () => {};
 		const replied = new Promise<void>((resolve) => {
 			release = resolve;
@@ -96,8 +93,7 @@ describe('settings owner', () => {
 	});
 
 	it('shows a refused default import source beside its choice', async () => {
-		const app = open();
-		await app.initialize();
+		const app = await open();
 		engine.settingsDispatch = async () => ({
 			outcome: {
 				kind: 'rejected',
@@ -120,8 +116,7 @@ describe('settings owner', () => {
 	});
 
 	it('keeps a dialog choice that could not be saved in effect and reports the save once', async () => {
-		const app = open();
-		await app.initialize();
+		const app = await open();
 		app.settings.openDialog();
 
 		engine.respondSettings = () => {

@@ -31,7 +31,7 @@ type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 type AppSettingsDialogState = {
 	isOpen: boolean;
-	settings: AppSettings | null;
+	settings: AppSettings;
 	saveState: SettingsSaveState;
 	saveError: string;
 	powerSaveState: SettingsSaveState;
@@ -201,7 +201,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 				fixedOptions: capabilities.fixedOptions,
 			};
 		},
-		defaultAcquisitionLane: () => link.settings().settings?.defaultAcquisitionLane ?? 'audible',
+		defaultAcquisitionLane: () => link.settings().settings.defaultAcquisitionLane,
 		dialog: () => {
 			rev();
 			return { ...dialog, settings: link.settings().settings };

@@ -23,8 +23,7 @@ describe('encoder panel encoder resolution', () => {
 		engine.change((state) => {
 			state.audio.defaults.choice.intent = 'encode';
 		});
-		runtime = createAppRuntime({ engine });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine });
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<EncoderView />

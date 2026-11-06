@@ -32,9 +32,8 @@ async function open(
 	engine: FakeEngine = createFakeEngine(),
 	openAuthorizationUrl = vi.fn(async (_url: string) => undefined),
 ) {
-	const runtime = createAppRuntime({ engine, remoteSource: { openAuthorizationUrl } });
+	const runtime = await createAppRuntime({ engine, remoteSource: { openAuthorizationUrl } });
 	runtimes.push(runtime);
-	await runtime.initialize();
 	await runtime.remoteSource.open({ lane: 'audible' });
 	return { runtime, engine, openAuthorizationUrl, owner: runtime.remoteSource };
 }

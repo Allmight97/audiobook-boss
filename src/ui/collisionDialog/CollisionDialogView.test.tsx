@@ -29,9 +29,8 @@ afterEach(() => {
 	for (const runtime of runtimes.splice(0)) runtime.dispose();
 });
 async function mount(engine: FakeEngine) {
-	const runtime = createAppRuntime({ engine });
+	const runtime = await createAppRuntime({ engine });
 	runtimes.push(runtime);
-	await runtime.initialize();
 	const view = render(() => (
 		<AppRuntimeProvider runtime={runtime}>
 			<CollisionDialogView />

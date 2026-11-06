@@ -85,9 +85,8 @@ function completedOperation(): OperationSnapshot {
 async function showOperation(operation: OperationSnapshot, offers: RestartOffer[] = []) {
 	const engine = createFakeEngine();
 	engine.publishOperation(operation);
-	runtime = createAppRuntime({ engine });
+	runtime = await createAppRuntime({ engine });
 	vi.spyOn(runtime.processing, 'restartOffers').mockReturnValue(offers);
-	await runtime.initialize();
 	render(() => (
 		<AppRuntimeProvider runtime={runtime!}>
 			<WorkCenterView />

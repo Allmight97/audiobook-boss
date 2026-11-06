@@ -50,7 +50,7 @@ describe('MetadataLookup cover preview', () => {
 			});
 			return { kind: 'applied' };
 		};
-		runtime = createAppRuntime({
+		runtime = await createAppRuntime({
 			engine,
 			metadata: { openFile: vi.fn(async () => null) },
 		});

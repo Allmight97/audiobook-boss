@@ -49,15 +49,15 @@ const REMOVED_NOTICE =
 
 let engine: FakeEngine;
 
-function runtimeFor(
+async function runtimeFor(
 	options: { files?: AudioFile[]; input?: Partial<InputCapability> } = {},
-): AppRuntime {
+): Promise<AppRuntime> {
 	engine = createFakeEngine();
 	const analyze = options.files
 		? () => options.files ?? []
 		: (paths: readonly string[]) => paths.map((path) => analyzedFile(path));
 	engine.analyze = vi.fn(analyze);
-	return createAppRuntime({ input: fakeInput(options.input), engine });
+	return await createAppRuntime({ input: fakeInput(options.input), engine });
 }
 
 function selects(selectedIndices: number[], selectedAnchor: number): SessionOutcome {
@@ -90,7 +90,7 @@ describe('Solid input workbench', () => {
 
 	it('imports audio and enables grouping only for multiple selected titles', async () => {
 		const user = userEvent.setup();
-		runtime = runtimeFor({
+		runtime = await runtimeFor({
 			input: { openFiles: vi.fn(async () => ['/tmp/file1.mp3']) },
 			files: [
 				analyzedFile('/tmp/file1.mp3', {
@@ -119,7 +119,7 @@ describe('Solid input workbench', () => {
 	it('opens the picker with the engine import formats and shows the engine support text', async () => {
 		const user = userEvent.setup();
 		const openFiles = vi.fn(async () => []);
-		runtime = runtimeFor({ input: { openFiles } });
+		runtime = await runtimeFor({ input: { openFiles } });
 		await renderApp(runtime);
 
 		expect(runtime.input.view().supportText).toBe(SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT);
@@ -135,7 +135,7 @@ describe('Solid input workbench', () => {
 		const files = ['first.m4b', 'second.m4b', 'other.m4b'].map((name) =>
 			analyzedFile(`/books/${name}`),
 		);
-		runtime = runtimeFor({ files });
+		runtime = await runtimeFor({ files });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -229,7 +229,7 @@ describe('Solid input workbench', () => {
 	it('shows the engine plan, its failure, and the estimate in the audio plan popover', async () => {
 		const user = userEvent.setup();
 		const file = analyzedFile('/books/estimate.m4b');
-		runtime = runtimeFor({ files: [file] });
+		runtime = await runtimeFor({ files: [file] });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -281,7 +281,7 @@ describe('Solid input workbench', () => {
 				error: 'Broken audio source',
 			}),
 		];
-		runtime = runtimeFor({ files });
+		runtime = await runtimeFor({ files });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -302,7 +302,7 @@ describe('Solid input workbench', () => {
 			sourceRemoved: true,
 			error: REMOVED_NOTICE,
 		});
-		runtime = runtimeFor({ files: [removed] });
+		runtime = await runtimeFor({ files: [removed] });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -338,7 +338,7 @@ describe('Solid input workbench', () => {
 			isValid: false,
 			error: 'Broken audio source',
 		});
-		runtime = runtimeFor({ files: [gone, goneToo, broken] });
+		runtime = await runtimeFor({ files: [gone, goneToo, broken] });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -361,7 +361,7 @@ describe('Solid input workbench', () => {
 
 	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {
 		const files = [analyzedFile('/books/part1.m4b'), analyzedFile('/books/part2.m4b')];
-		runtime = runtimeFor({ files });
+		runtime = await runtimeFor({ files });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -389,7 +389,7 @@ describe('Solid input workbench', () => {
 				},
 			}),
 		);
-		runtime = runtimeFor({ files });
+		runtime = await runtimeFor({ files });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -412,7 +412,7 @@ describe('Solid input workbench', () => {
 				codecLabel: 'MP3',
 			}),
 		);
-		runtime = runtimeFor({ files });
+		runtime = await runtimeFor({ files });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -460,7 +460,7 @@ describe('Solid input workbench', () => {
 	});
 
 	it('handles keyboard actions only from the focused listbox', async () => {
-		runtime = runtimeFor({
+		runtime = await runtimeFor({
 			files: [analyzedFile('/books/alpha.m4b'), analyzedFile('/books/bravo.m4b')],
 		});
 		engine.respond = (intent) => {
@@ -492,7 +492,7 @@ describe('Solid input workbench', () => {
 	});
 
 	it('routes cover-art drops away from import and imports file-area drops', async () => {
-		runtime = runtimeFor();
+		runtime = await runtimeFor();
 		const cover = document.createElement('div');
 		cover.id = 'cover-art-area';
 		document.body.appendChild(cover);
@@ -545,7 +545,7 @@ describe('Solid input workbench', () => {
 	});
 
 	it('shows the engine order lock and its refused-import notice', async () => {
-		runtime = runtimeFor();
+		runtime = await runtimeFor();
 		await renderApp(runtime);
 		engine.change((state) => {
 			state.titles.orderLocked = true;

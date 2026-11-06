@@ -13,8 +13,7 @@ afterEach(() => {
 
 it('restores the accepted select value and shows the engine rejection', async () => {
 	const engine = fakeEngine();
-	runtime = createAppRuntime();
-	await runtime.initialize();
+	runtime = await createAppRuntime();
 	render(() => (
 		<AppRuntimeProvider runtime={runtime!}>
 			<ConcurrencyControl />

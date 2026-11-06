@@ -19,8 +19,7 @@ describe('encoding owner', () => {
 			audioFile('/books/alpha.m4b', { sampleRate: 44100, channels: 2 }),
 			audioFile('/books/beta.m4b', { sampleRate: 22050, channels: 1 }),
 		]);
-		runtime = createAppRuntime({ engine });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine });
 		return runtime;
 	}
 

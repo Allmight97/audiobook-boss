@@ -7,8 +7,7 @@ import { FileImportView } from './FileImportView';
 
 async function runtimeDefaultingToIndexer() {
 	const engine = createFakeEngine({ ...defaultAppSettings(), defaultAcquisitionLane: 'indexer' });
-	const runtime = createAppRuntime({ engine });
-	await runtime.initialize();
+	const runtime = await createAppRuntime({ engine });
 	return { runtime, engine };
 }
 

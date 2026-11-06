@@ -6,7 +6,7 @@ import { isWorkRunning } from '../workOperations';
 
 export type ConcurrencyRead = {
 	readonly selection: string;
-	readonly effective: number | null;
+	readonly effective: number;
 };
 
 export type StatusLine = {
@@ -49,19 +49,9 @@ export function renderStatus(view: StatusViewStore, status: StatusLine): void {
 	view.setProgressActive(false);
 }
 
-export function renderConcurrencyStatus(
-	view: StatusViewStore,
-	concurrency: ConcurrencyRead | undefined,
-): void {
-	const effective = concurrency?.effective ?? null;
-	const suffix = concurrency?.selection === 'auto' ? ' (Auto)' : '';
-
-	if (effective === null) {
-		view.setConcurrencyText('Max jobs: —');
-		return;
-	}
-
-	view.setConcurrencyText(`Max jobs: ${effective}${suffix}`);
+export function renderConcurrencyStatus(view: StatusViewStore, concurrency: ConcurrencyRead): void {
+	const suffix = concurrency.selection === 'auto' ? ' (Auto)' : '';
+	view.setConcurrencyText(`Max jobs: ${concurrency.effective}${suffix}`);
 }
 
 export function renderPreview(view: StatusViewStore, preview: SessionOutput['previewRun']): void {

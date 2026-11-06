@@ -1,4 +1,3 @@
-import { createRoot } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	audioFile,
@@ -8,7 +7,7 @@ import {
 } from '../../test/fixtures/fakeEngine';
 import type { SessionUpdate } from '../../types/session';
 import type { OperationSnapshot } from '../../types/workRuntime';
-import { createEngineLink, type EngineLink } from './link';
+import { attachEngineLink, type EngineLink } from './link';
 
 function operation(operationId: string): OperationSnapshot {
 	return {
@@ -38,15 +37,10 @@ describe('engine link', () => {
 		dispose = undefined;
 	});
 
-	function linkTo(engine: FakeEngine): EngineLink {
-		return createRoot((disposeRoot) => {
-			const link = createEngineLink(engine);
-			dispose = () => {
-				link.dispose();
-				disposeRoot();
-			};
-			return link;
-		});
+	async function linkTo(engine: FakeEngine): Promise<EngineLink> {
+		const link = await attachEngineLink(engine);
+		dispose = () => link.dispose();
+		return link;
 	}
 
 	it('numbers intents in the order they were sent, including before the engine answers', async () => {
@@ -57,7 +51,7 @@ describe('engine link', () => {
 			sequences.push(sequence);
 			return dispatch(client, sequence, intent);
 		};
-		const link = linkTo(engine);
+		const link = await linkTo(engine);
 
 		const sent = [
 			link.send({ kind: 'setField', binding: 0, field: 'title', value: 'A' }),
@@ -81,8 +75,7 @@ describe('engine link', () => {
 			publish = handler;
 			return () => undefined;
 		};
-		const link = linkTo(engine);
-		await link.ready();
+		const link = await linkTo(engine);
 		await link.send({ kind: 'setField', binding: 0, field: 'title', value: 'Newer' });
 		const current = link.metadata();
 
@@ -111,8 +104,7 @@ describe('engine link', () => {
 			publish = handler;
 			return () => undefined;
 		};
-		const link = linkTo(engine);
-		await link.ready();
+		const link = await linkTo(engine);
 		const library = { ...link.remoteLibrary(), revision: 10, diagnostics: [] };
 		publish(sessionUpdate({ revision: 10, remoteLibrary: library }));
 		publish(
@@ -132,8 +124,7 @@ describe('engine link', () => {
 	it('keeps the object of every file whose content did not change', async () => {
 		const engine = createFakeEngine();
 		engine.loadTitles([audioFile('/books/a.m4b'), audioFile('/books/b.m4b')]);
-		const link = linkTo(engine);
-		await link.ready();
+		const link = await linkTo(engine);
 		const [first, second] = link.titles().files;
 
 		engine.change((state) => {
@@ -152,8 +143,7 @@ describe('engine link', () => {
 			publish = handler;
 			return () => undefined;
 		};
-		const link = linkTo(engine);
-		await link.ready();
+		const link = await linkTo(engine);
 		const remote = link.remote();
 		publish(
 			sessionUpdate({
@@ -199,8 +189,7 @@ describe('engine link', () => {
 			state.remote.indexer.releases = [release('one', 1), release('two', 2)];
 			state.remote.indexer.releaseGrabs = { x: { status: 'sent', message: '' } };
 		});
-		const link = linkTo(engine);
-		await link.ready();
+		const link = await linkTo(engine);
 		const before = link.remote();
 
 		engine.change((state) => {
@@ -218,34 +207,7 @@ describe('engine link', () => {
 		expect(after.indexer.releases[1]?.seeders).toBe(9);
 	});
 
-	it('does not replace a live frontend when a disposed link finishes registering listeners', async () => {
-		const engine = createFakeEngine();
-		let registered!: (stop: () => void) => void;
-		let stopped = false;
-		let attachments = 0;
-		engine.listenSessionUpdates = () =>
-			new Promise((resolve) => {
-				registered = resolve;
-			});
-		const attach = engine.attach.bind(engine);
-		engine.attach = () => {
-			attachments++;
-			return attach();
-		};
-		const link = linkTo(engine);
-		link.dispose();
-		registered(() => {
-			stopped = true;
-		});
-		await expect(link.ready()).rejects.toThrow('disposed');
-		expect(attachments).toBe(0);
-		expect(stopped).toBe(true);
-	});
-
-	it("shows the attach reply's operations and keeps an update that arrived before it", async () => {
-		const engine = createFakeEngine();
-		const listed = operation('listed');
-		engine.publishOperation(listed);
+	function holdAttachReply(engine: FakeEngine): { replying: () => boolean; reply: () => void } {
 		const attach = engine.attach.bind(engine);
 		let reply: (() => void) | undefined;
 		engine.attach = async () => {
@@ -255,20 +217,44 @@ describe('engine link', () => {
 			});
 			return attachment;
 		};
-		const link = linkTo(engine);
-		await vi.waitFor(() => expect(reply).toBeDefined());
+		return { replying: () => reply !== undefined, reply: () => reply?.() };
+	}
+
+	it("shows the attach reply's operations and keeps an update that arrived before it", async () => {
+		const engine = createFakeEngine();
+		const listed = operation('listed');
+		engine.publishOperation(listed);
+		const held = holdAttachReply(engine);
+		const attaching = linkTo(engine);
+		await vi.waitFor(() => expect(held.replying()).toBe(true));
 
 		engine.publishOperation({ ...listed, revision: 2, title: 'From the event' });
-		reply?.();
-		await link.ready();
+		held.reply();
+		const link = await attaching;
 
 		expect(link.workOperations().map((item) => item.title)).toEqual(['From the event']);
 	});
 
+	it('keeps a session update and a settings update that arrived before the attach reply', async () => {
+		const engine = createFakeEngine();
+		const held = holdAttachReply(engine);
+		const attaching = linkTo(engine);
+		await vi.waitFor(() => expect(held.replying()).toBe(true));
+
+		engine.change((state) => {
+			state.output.directory = '/from-the-event';
+		});
+		engine.seedAppSettings({ keepAwakeWhileWorking: false });
+		held.reply();
+		const link = await attaching;
+
+		expect(link.output().directory).toBe('/from-the-event');
+		expect(link.settings().settings.keepAwakeWhileWorking).toBe(false);
+	});
+
 	it('stops following operations once disposed', async () => {
 		const engine = createFakeEngine();
-		const link = linkTo(engine);
-		await link.ready();
+		const link = await linkTo(engine);
 		link.dispose();
 
 		engine.publishOperation(operation('late'));
@@ -276,22 +262,33 @@ describe('engine link', () => {
 		expect(link.workOperations()).toEqual([]);
 	});
 
-	it('reports a refused attach through the intent that needed it', async () => {
+	it('stops listening and rejects when the engine refuses to attach', async () => {
 		const engine = createFakeEngine();
+		const listen = engine.listenSessionUpdates.bind(engine);
+		let stopped = false;
+		engine.listenSessionUpdates = async (handler) => {
+			const stop = await listen(handler);
+			return () => {
+				stopped = true;
+				stop();
+			};
+		};
 		engine.attach = async () => {
 			throw new Error('engine unavailable');
 		};
-		const link = linkTo(engine);
 
-		await expect(link.send({ kind: 'selectAll' })).rejects.toThrow('engine unavailable');
-		await expect(link.ready()).rejects.toThrow('engine unavailable');
-		expect(link.attachment()).toEqual({ kind: 'failed', message: 'engine unavailable' });
+		await expect(attachEngineLink(engine)).rejects.toThrow('engine unavailable');
+		expect(stopped).toBe(true);
 	});
 
-	it('is pending until the first snapshot arrives', async () => {
-		const link = linkTo(createFakeEngine());
-		expect(link.attachment()).toEqual({ kind: 'pending' });
-		await link.ready();
-		expect(link.attachment()).toEqual({ kind: 'ready' });
+	it('refuses a first snapshot that lacks a part', async () => {
+		const engine = createFakeEngine();
+		const attach = engine.attach.bind(engine);
+		engine.attach = async () => {
+			const attachment = await attach();
+			return { ...attachment, session: { ...attachment.session, output: null } };
+		};
+
+		await expect(attachEngineLink(engine)).rejects.toThrow('output');
 	});
 });

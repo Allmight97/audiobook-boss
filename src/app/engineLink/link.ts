@@ -1,12 +1,7 @@
 import { createSignal, type Accessor } from 'solid-js';
 import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
 import { liveEngineCapability, type EngineCapability } from '../../lib/tauri/capabilities/engine';
-import type {
-	AppSettings,
-	SettingsIntent,
-	SettingsOutcome,
-	SettingsSnapshot,
-} from '../../types/appSettings';
+import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../types/appSettings';
 import type { AudioFile } from '../../types/audio';
 import type {
 	RemoteAcquisitionSnapshot,
@@ -23,12 +18,7 @@ import type {
 	SessionTitles,
 	SessionUpdate,
 } from '../../types/session';
-import type {
-	OperationId,
-	OperationSnapshot,
-	WorkOperationsSnapshot,
-	WorkOperationsUpdate,
-} from '../../types/workRuntime';
+import type { OperationId, OperationSnapshot, WorkOperationsUpdate } from '../../types/workRuntime';
 import { applyWorkOperations, emptyWorkCenterModel, visibleOperations } from './workOperations';
 
 export type EngineLink = {
@@ -41,7 +31,7 @@ export type EngineLink = {
 	readonly remote: Accessor<RemoteUiSnapshot>;
 	readonly remoteLibrary: Accessor<RemoteLibrarySnapshot>;
 	readonly remoteAcquisition: Accessor<RemoteAcquisitionSnapshot>;
-	readonly settings: Accessor<LinkSettings>;
+	readonly settings: Accessor<SettingsSnapshot>;
 	/** WorkRuntime's operations in the engine's display order. */
 	readonly workOperations: Accessor<ReadonlyArray<OperationSnapshot>>;
 	/** Cancels an operation, or only the title named by `childJobId`; the
@@ -58,218 +48,9 @@ export type EngineLink = {
 	/** Why the latest posted intent was refused, worded for the user. */
 	readonly refusal: Accessor<string | null>;
 	dismissRefusal: () => void;
-	/** `pending` until the engine's first snapshot arrives; nothing it owns
-	 * is truthful before then. */
-	readonly attachment: Accessor<Attachment>;
 	sendSettings: (intent: SettingsIntent) => Promise<SettingsOutcome>;
-	ready: () => Promise<void>;
 	dispose: () => void;
 };
-
-/** The engine's settings; `settings` stays null until it attaches. */
-type LinkSettings = Omit<SettingsSnapshot, 'settings' | 'startupDefaults'> & {
-	readonly settings: AppSettings | null;
-};
-
-type Attachment =
-	| { readonly kind: 'pending' }
-	| { readonly kind: 'ready' }
-	| { readonly kind: 'failed'; readonly message: string };
-
-const UNATTACHED = -1;
-
-function emptyTitles(): SessionTitles {
-	return {
-		revision: UNATTACHED,
-		files: [],
-		titleSourcesByIdentity: {},
-		audioChoiceRequired: [],
-		titleTotals: {},
-		totalSizeBytes: 0,
-		previewLength: { shortestSeconds: 0, longestSeconds: 0 },
-		sortDirection: 'none',
-		orderLocked: false,
-		notice: null,
-		orderDiffersFromImport: false,
-		companions: {},
-	};
-}
-
-function emptyMetadata(): SessionMetadata {
-	return {
-		revision: UNATTACHED,
-		binding: 0,
-		form: {
-			mode: 'single',
-			selectionCount: 0,
-			fields: [],
-			seriesPartWarning: null,
-			subseriesPartWarning: null,
-			validationMessage: null,
-		},
-		cover: {
-			image: null,
-			custom: false,
-			removalRequested: false,
-			loading: false,
-			notice: null,
-			noticeSerial: 0,
-		},
-		tags: {
-			title: '',
-			album: '',
-			artist: '',
-			albumArtist: '',
-			composer: '',
-			series: '',
-			seriesPart: '',
-			subseries: '',
-			subseriesPart: '',
-			albumSort: '',
-			year: '',
-			genre: '',
-		},
-		saveInProgress: false,
-		status: null,
-		hasPendingEdits: false,
-		waitingWrites: [],
-	};
-}
-
-function emptyLookup(): SessionLookup {
-	return {
-		revision: UNATTACHED,
-		open: false,
-		titleQuery: '',
-		authorQuery: '',
-		source: 'auto',
-		applyMode: 'current',
-		replaceCover: false,
-		status: null,
-		queuePosition: null,
-		results: [],
-		isQueueMode: false,
-		hasSearched: false,
-	};
-}
-
-function emptyOutput(): SessionOutput {
-	return {
-		revision: UNATTACHED,
-		directory: null,
-		preset: 'absDefault',
-		includeYear: false,
-		template: '',
-		naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
-		preview: { kind: 'noDirectory' },
-		submission: null,
-		submissionInProgress: false,
-		collisionReview: null,
-		restartOffers: [],
-		restartPrompt: null,
-		previewRun: null,
-	};
-}
-
-function emptyAudio(): SessionAudio {
-	const settings = {
-		encoderType: 'native_aac',
-		bitrateKbps: 65,
-		bitrateMode: { mode: 'cbr' },
-		channels: 'auto',
-		nativeAacSpeed: 0,
-		faacProfile: 'auto',
-	} as const;
-	return {
-		revision: UNATTACHED,
-		capabilities: null,
-		defaults: {
-			choice: {
-				format: 'm4b',
-				intent: 'auto',
-				encoder: 'native_aac',
-				aacBitrateKbps: 65,
-				opusBitrateKbps: 64,
-				faacProfile: 'auto',
-				faacRateControl: 'abr',
-				faacQuality: 100,
-				nativeSpeed: 0,
-				channels: 'auto',
-				sampleRate: 'auto',
-			},
-			facts: {
-				effectiveEncoder: 'native_aac',
-				encoderOptions: [],
-				encoderLocked: true,
-				encodeOffered: true,
-				downmixWarning: false,
-				bitrateMode: { mode: 'cbr' },
-				bitrateKbpsMin: 1,
-				bitrateKbpsMax: 0,
-				allowedModes: [],
-				faacProfiles: [],
-				allowedSampleRates: [],
-				sampleRateSupported: true,
-			},
-			request: { format: 'm4b', intent: 'auto', settings, sampleRate: 'auto' },
-		},
-		titles: {},
-		selection: null,
-		refusal: null,
-	};
-}
-
-function emptyRemote(): RemoteUiSnapshot {
-	return {
-		revision: UNATTACHED,
-		lane: 'audible',
-		providers: [],
-		account: null,
-		audibleMessage: '',
-		busy: false,
-		selectedTitleIds: [],
-		includePdfByTitleId: {},
-		indexer: {
-			releases: [],
-			selectedReleaseKeys: [],
-			canGrabSelection: false,
-			releaseGrabs: {},
-			searching: false,
-			grabbing: false,
-			message: '',
-		},
-		connection: {
-			baseUrl: '',
-			categoryIds: [],
-			emptyCategoriesRefused: false,
-			apiKeyConfigured: false,
-			apiKeyEntered: false,
-			save: { kind: 'idle' },
-			test: { kind: 'idle' },
-			testResult: null,
-			draftError: null,
-		},
-	};
-}
-
-function emptySettings(): LinkSettings {
-	return {
-		revision: UNATTACHED,
-		settings: null,
-		saveError: null,
-		recovery: null,
-		concurrency: {
-			preference: { mode: 'auto' },
-			effective: 1,
-			capabilities: {
-				autoEffective: 1,
-				fixedMin: 1,
-				fixedMax: 1,
-				fixedOptions: [],
-			},
-		},
-	};
-}
 
 function shareUnchangedFiles(previous: SessionTitles, next: SessionTitles): SessionTitles {
 	const known = new Map<string, { file: AudioFile; content: string }>();
@@ -355,6 +136,14 @@ function shareUnchangedRemote(
 	};
 }
 
+type Attachment = Awaited<ReturnType<EngineCapability['attach']>>;
+
+type Inbound = {
+	session: (update: SessionUpdate) => void;
+	settings: (snapshot: SettingsSnapshot) => void;
+	work: (update: WorkOperationsUpdate) => void;
+};
+
 type Part<T> = {
 	readonly read: () => T;
 	apply(next: T | null | undefined): void;
@@ -379,42 +168,36 @@ function sessionPart<T extends { readonly revision: number }>(
 	};
 }
 
-export function createEngineLink(capability: EngineCapability = liveEngineCapability): EngineLink {
-	const titles = sessionPart(emptyTitles(), shareUnchangedFiles);
-	const selection = sessionPart<SessionSelection>({
-		revision: UNATTACHED,
-		selectedIndices: [],
-		selectedAnchor: null,
-		canGroup: false,
-	});
-	const metadata = sessionPart(emptyMetadata());
-	const lookup = sessionPart(emptyLookup(), shareUnchangedResults);
-	const audio = sessionPart(emptyAudio());
-	const output = sessionPart(emptyOutput());
-	const remote = sessionPart(emptyRemote(), shareUnchangedRemote);
-	const remoteLibrary = sessionPart<RemoteLibrarySnapshot>({
-		revision: UNATTACHED,
-		titles: [],
-		diagnostics: [],
-	});
-	const remoteAcquisition = sessionPart<RemoteAcquisitionSnapshot>({
-		revision: UNATTACHED,
-		acquiring: false,
-		job: null,
-	});
-	const settings = sessionPart(emptySettings());
-	let work = emptyWorkCenterModel();
-	let operations: ReadonlyArray<OperationSnapshot> = [];
+function present<T>(part: T | null, name: string): T {
+	if (part === null) throw new Error(`The engine's first snapshot has no ${name}.`);
+	return part;
+}
+
+function createLink(
+	capability: EngineCapability,
+	attachment: Attachment,
+	stopListening: () => void,
+): { readonly link: EngineLink; readonly inbound: Inbound } {
+	const { client, session } = attachment;
+	const titles = sessionPart(present(session.titles, 'titles'), shareUnchangedFiles);
+	const selection = sessionPart(present(session.selection, 'selection'));
+	const metadata = sessionPart(present(session.metadata, 'metadata'));
+	const lookup = sessionPart(present(session.lookup, 'lookup'), shareUnchangedResults);
+	const audio = sessionPart(present(session.audio, 'audio'));
+	const output = sessionPart(present(session.output, 'output'));
+	const remote = sessionPart(present(session.remote, 'remote'), shareUnchangedRemote);
+	const remoteLibrary = sessionPart(present(session.remoteLibrary, 'remote library'));
+	const remoteAcquisition = sessionPart(present(session.remoteAcquisition, 'remote acquisition'));
+	const settings = sessionPart(attachment.settings);
+	let work = applyWorkOperations(emptyWorkCenterModel(), attachment.workOperations);
+	let operations: ReadonlyArray<OperationSnapshot> = visibleOperations(work);
 	const part = () => createSignal(0, { ownedWrite: true });
 	const [workRev, bumpWork] = part();
 	const [refusalRev, bumpRefusal] = part();
-	const [attachmentRev, bumpAttachment] = part();
 	let refusal: string | null = null;
-	let attachment: Attachment = { kind: 'pending' };
 	let disposed = false;
 	let sessionSequence = 0;
 	let settingsSequence = 0;
-	let unlisten: (() => void) | undefined;
 
 	function applySession(update: SessionUpdate): void {
 		if (disposed) return;
@@ -433,7 +216,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		if (!disposed) settings.apply(snapshot);
 	}
 
-	function applyWork(incoming: WorkOperationsSnapshot | WorkOperationsUpdate): void {
+	function applyWork(incoming: WorkOperationsUpdate): void {
 		if (disposed) return;
 		const next = applyWorkOperations(work, incoming);
 		if (next === work) return;
@@ -442,58 +225,18 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		bumpWork((n) => n + 1);
 	}
 
-	const attached = Promise.all([
-		capability.listenSessionUpdates(applySession),
-		capability.listenSettingsUpdates(applySettings),
-		capability.listenWorkOperations(applyWork),
-	])
-		.then((stops) => {
-			const stop = () => {
-				for (const each of stops) each();
-			};
-			if (disposed) {
-				stop();
-				throw new Error('Engine link was disposed before attachment.');
-			}
-			unlisten = stop;
-			return capability.attach();
-		})
-		.then((ready) => {
-			applySession(ready.session);
-			applySettings(ready.settings);
-			applyWork(ready.workOperations);
-			setAttachment({ kind: 'ready' });
-			return ready.client;
-		});
-	attached.catch((error: unknown) => {
-		setAttachment({
-			kind: 'failed',
-			message: toUserMessage(error, {
-				fallback: 'ABB could not reach its engine.',
-			}),
-		});
-	});
-
-	function setAttachment(next: Attachment): void {
-		if (disposed) return;
-		attachment = next;
-		bumpAttachment((n) => n + 1);
-	}
-
 	function dispatch(
 		request: (client: number, sequence: number) => Promise<SessionReply>,
 	): Promise<SessionOutcome> {
-		return attached
-			.then((client) => request(client, sessionSequence++))
-			.then((reply) => {
-				applySession(reply.update);
-				if (reply.outcome.kind === 'rejected') throw reply.outcome.error;
-				return reply.outcome;
-			});
+		return request(client, sessionSequence++).then((reply) => {
+			applySession(reply.update);
+			if (reply.outcome.kind === 'rejected') throw reply.outcome.error;
+			return reply.outcome;
+		});
 	}
 
 	function send(intent: SessionIntent): Promise<SessionOutcome> {
-		return dispatch((client, sequence) => capability.sessionDispatch(client, sequence, intent));
+		return dispatch((id, sequence) => capability.sessionDispatch(id, sequence, intent));
 	}
 
 	function refuse(intent: SessionIntent, error: unknown): void {
@@ -505,7 +248,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		bumpRefusal((n) => n + 1);
 	}
 
-	return {
+	const link: EngineLink = {
 		titles: titles.read,
 		selection: selection.read,
 		metadata: metadata.read,
@@ -523,7 +266,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		cancelWork: capability.cancelWorkOperation,
 		send,
 		openPreview: (runId) =>
-			dispatch((client, sequence) => capability.openPreviewOutput(client, sequence, runId)),
+			dispatch((id, sequence) => capability.openPreviewOutput(id, sequence, runId)),
 		post(intent) {
 			send(intent).catch((error: unknown) => refuse(intent, error));
 		},
@@ -536,23 +279,52 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 			refusal = null;
 			bumpRefusal((n) => n + 1);
 		},
-		attachment: () => {
-			attachmentRev();
-			return attachment;
-		},
 		sendSettings(intent) {
-			return attached
-				.then((client) => capability.settingsDispatch(client, settingsSequence++, intent))
-				.then((reply) => {
-					applySettings(reply.snapshot);
-					return reply.outcome;
-				});
+			return capability.settingsDispatch(client, settingsSequence++, intent).then((reply) => {
+				applySettings(reply.snapshot);
+				return reply.outcome;
+			});
 		},
-		ready: () => attached.then(() => undefined),
 		dispose() {
 			disposed = true;
-			unlisten?.();
-			unlisten = undefined;
+			stopListening();
 		},
 	};
+	return {
+		link,
+		inbound: { session: applySession, settings: applySettings, work: applyWork },
+	};
+}
+
+/**
+ * Starts listening, then attaches, and resolves with the link once the
+ * engine's first snapshot is in it. What arrives in between is applied on top
+ * of that snapshot, so no update is missed; part revisions keep the newest.
+ */
+export async function attachEngineLink(
+	capability: EngineCapability = liveEngineCapability,
+): Promise<EngineLink> {
+	const early: Array<(inbound: Inbound) => void> = [];
+	let inbound: Inbound | undefined;
+	function deliver(apply: (to: Inbound) => void): void {
+		if (inbound) apply(inbound);
+		else early.push(apply);
+	}
+	const stops = await Promise.all([
+		capability.listenSessionUpdates((update) => deliver((to) => to.session(update))),
+		capability.listenSettingsUpdates((snapshot) => deliver((to) => to.settings(snapshot))),
+		capability.listenWorkOperations((update) => deliver((to) => to.work(update))),
+	]);
+	const stopListening = () => {
+		for (const stop of stops) stop();
+	};
+	try {
+		const attached = createLink(capability, await capability.attach(), stopListening);
+		inbound = attached.inbound;
+		for (const apply of early) apply(attached.inbound);
+		return attached.link;
+	} catch (error) {
+		stopListening();
+		throw error;
+	}
 }

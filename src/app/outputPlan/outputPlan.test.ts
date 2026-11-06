@@ -16,8 +16,7 @@ describe('output plan owner', () => {
 	async function open(): Promise<AppRuntime> {
 		engine = createFakeEngine();
 		engine.loadTitles([audioFile('/books/a.m4b', { duration: 100, size: 1024 })]);
-		runtime = createAppRuntime({ engine });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine });
 		return runtime;
 	}
 

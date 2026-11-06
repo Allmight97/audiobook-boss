@@ -125,7 +125,7 @@ describe('UI workflow intents', () => {
 			}
 			return undefined;
 		};
-		const runtime = createAppRuntime({ engine });
+		const runtime = await createAppRuntime({ engine });
 		const user = userEvent.setup();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime}>

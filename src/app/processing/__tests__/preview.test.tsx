@@ -75,9 +75,8 @@ describe('engine preview adapter', () => {
 			state.output.previewRun = preview();
 			state.output.submissionInProgress = true;
 		});
-		const first = createAppRuntime({ engine });
+		const first = await createAppRuntime({ engine });
 		runtimes.push(first);
-		await first.initialize();
 		render(() => (
 			<AppRuntimeProvider runtime={first}>
 				<StatusPanelView />
@@ -92,9 +91,8 @@ describe('engine preview adapter', () => {
 			expect(first.processing.status().coverArtSrc).toBe(coverSrc(PREVIEW_COVER)),
 		);
 		first.dispose();
-		const replacement = createAppRuntime({ engine });
+		const replacement = await createAppRuntime({ engine });
 		runtimes.push(replacement);
-		await replacement.initialize();
 		expect(replacement.processing.status().progressPercentage).toBe(42);
 		expect(replacement.processing.isProcessing()).toBe(true);
 		replacement.processing.cancelAll();
@@ -109,9 +107,8 @@ describe('engine preview adapter', () => {
 
 	it('names the preview length the engine publishes', async () => {
 		const engine = createFakeEngine();
-		const app = createAppRuntime({ engine });
+		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		await app.initialize();
 		render(() => (
 			<AppRuntimeProvider runtime={app}>
 				<PreviewAudioControls />
@@ -142,9 +139,8 @@ describe('engine preview adapter', () => {
 		engine.change((state) => {
 			state.output.previewRun = queued;
 		});
-		const app = createAppRuntime({ engine });
+		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		await app.initialize();
 		render(() => (
 			<AppRuntimeProvider runtime={app}>
 				<StatusPanelView />
@@ -178,9 +174,8 @@ describe('engine preview adapter', () => {
 		engine.change((state) => {
 			state.output.previewRun = run;
 		});
-		const app = createAppRuntime({ engine });
+		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		await app.initialize();
 		render(() => (
 			<AppRuntimeProvider runtime={app}>
 				<StatusPanelView />
@@ -195,9 +190,8 @@ describe('engine preview adapter', () => {
 		engine.change((state) => {
 			state.output.previewRun = preview();
 		});
-		const app = createAppRuntime({ engine });
+		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		await app.initialize();
 		render(() => (
 			<AppRuntimeProvider runtime={app}>
 				<StatusPanelView />
@@ -221,9 +215,8 @@ describe('engine preview adapter', () => {
 		engine.change((state) => {
 			state.output.previewRun = preview();
 		});
-		const app = createAppRuntime({ engine });
+		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		await app.initialize();
 		const { container } = render(() => (
 			<AppRuntimeProvider runtime={app}>
 				<StatusPanelView />
@@ -262,9 +255,8 @@ describe('engine preview adapter', () => {
 			intent.kind === 'takePreviewOutput'
 				? { kind: 'previewOutput', path: '/tmp/Book.preview.m4b' }
 				: undefined;
-		const app = createAppRuntime({ engine });
+		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		await app.initialize();
 		const complete = preview();
 		complete.operation.status = 'completed';
 		complete.openReady = true;

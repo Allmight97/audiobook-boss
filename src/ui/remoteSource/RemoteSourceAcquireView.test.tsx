@@ -102,7 +102,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('hides on Escape or Close and leaves a running acquisition running', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -134,7 +134,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('renders engine acquisition snapshots only in the Audible lane', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -186,7 +186,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('exposes Audible controls and filters connected library titles', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -211,7 +211,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('switches source lanes from the enabled provider control', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -245,7 +245,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('renders engine auth busy and failures while preserving the handoff input for retry', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -287,7 +287,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('shows connected Indexer search controls and searches on Enter in author or title', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		const runAction = vi.spyOn(runtime.remoteSource, 'runAction');
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -325,7 +325,7 @@ describe('RemoteSourceAcquireView', () => {
 			seeders: indexerId === 8 ? 72 : 10,
 			categories: [{ id: 3030, name: 'Audio/Audiobook' }],
 		}));
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -440,8 +440,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 	it('advances progress at 1,000 titles without re-running or rebuilding any row', async () => {
 		const host = engineWithUpdates();
 		seedLibrary(host.engine, 1000);
-		runtime = createAppRuntime({ engine: host.capability });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine: host.capability });
 		await runtime.remoteSource.open({ lane: 'audible' });
 		const owner = runtime.remoteSource;
 		const reads = { row: 0, list: 0, view: 0 };
@@ -497,8 +496,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 	it('keeps no title rows while closed and shows current choices on reopen', async () => {
 		const host = engineWithUpdates();
 		seedLibrary(host.engine, 20);
-		runtime = createAppRuntime({ engine: host.capability });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine: host.capability });
 		await runtime.remoteSource.open({ lane: 'audible' });
 		const app = runtime;
 		render(() => (
@@ -533,8 +531,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 	it('reopens each list where it was scrolled when closed', async () => {
 		const host = engineWithUpdates();
 		seedLibrary(host.engine, 20);
-		runtime = createAppRuntime({ engine: host.capability });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine: host.capability });
 		await runtime.remoteSource.open({ lane: 'audible' });
 		const app = runtime;
 		render(() => (
@@ -582,8 +579,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 			}));
 			state.remoteAcquisition.job = acquisitionJob(10);
 		});
-		runtime = createAppRuntime({ engine: host.capability });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine: host.capability });
 		await runtime.remoteSource.open({ lane: 'indexer' });
 		const owner = runtime.remoteSource;
 		let views = 0;

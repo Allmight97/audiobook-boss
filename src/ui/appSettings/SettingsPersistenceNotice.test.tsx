@@ -15,8 +15,7 @@ afterEach(() => {
 async function renderNotice(recovery: SettingsSnapshot['recovery']): Promise<FakeEngine> {
 	const engine = createFakeEngine();
 	engine.seedSettings({ recovery });
-	runtime = createAppRuntime({ engine });
-	await runtime.initialize();
+	runtime = await createAppRuntime({ engine });
 	render(() => (
 		<AppRuntimeProvider runtime={runtime!}>
 			<SettingsPersistenceNotice />

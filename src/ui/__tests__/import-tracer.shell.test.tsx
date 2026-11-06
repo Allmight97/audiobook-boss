@@ -38,7 +38,7 @@ describe('Solid import tracer shell', () => {
 					artist: 'Narrator',
 				}),
 			);
-		runtime = createAppRuntime({ input: fakeInput(), engine });
+		runtime = await createAppRuntime({ input: fakeInput(), engine });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />
@@ -69,7 +69,7 @@ describe('Solid import tracer shell', () => {
 					cueSource: { fileName: 'chapter.cue', status: 'ready', message: '' },
 				}),
 			);
-		runtime = createAppRuntime({ input: fakeInput(), engine });
+		runtime = await createAppRuntime({ input: fakeInput(), engine });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />

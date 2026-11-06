@@ -18,8 +18,7 @@ describe('metadata owner', () => {
 		engine = createFakeEngine();
 		engine.loadTitles([audioFile('/books/alpha.m4b')], [0]);
 		engine.seedForm({ title: 'Alpha', author: 'Author' });
-		runtime = createAppRuntime({ engine });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine });
 		return runtime;
 	}
 
