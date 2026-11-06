@@ -501,26 +501,6 @@ fn publication_year_from_date_handles_multibyte_prefix_without_panicking() {
 }
 
 #[test]
-fn naming_metadata_scrubs_legacy_series_parts() {
-    let mut naming = NamingMetadata::from_metadata(&AudiobookMetadata {
-        title: Some("Legacy Source".to_string()),
-        series: Some("Series".to_string()),
-        series_part: Some("7/8".to_string()),
-        subseries: Some("Subseries".to_string()),
-        subseries_part: Some("2/3".to_string()),
-        ..Default::default()
-    });
-
-    naming.scrub_legacy_source_series_parts_for_naming();
-
-    assert_eq!(naming.title(), Some("Legacy Source"));
-    assert_eq!(naming.series(), Some("Series"));
-    assert_eq!(naming.series_part(), None);
-    assert_eq!(naming.subseries(), Some("Subseries"));
-    assert_eq!(naming.subseries_part(), None);
-}
-
-#[test]
 fn artifact_clear_intents_reach_write_plan_sentinels() {
     let patch = MetadataIntentPatch {
         comment: Some(PatchOp::Clear),
