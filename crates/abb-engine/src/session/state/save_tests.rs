@@ -383,3 +383,112 @@ fn a_save_still_writing_after_a_reset_keeps_its_file_busy() {
     );
     assert!(desk.state.begin_submission(false).is_some());
 }
+
+#[test]
+fn a_save_overtaken_by_a_reset_never_ends_the_save_running_after_it() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.type_into(MetadataField::Genre, "Mystery");
+    let overtaken = desk
+        .state
+        .begin_save(&HashSet::new(), |_| false)
+        .expect("save");
+    let overtaken_epoch = desk.state.epoch;
+
+    desk.state.reset();
+    desk.import(&[("beta", Some(beta_tags()))]);
+    desk.select(&[0]).expect("select");
+    desk.type_into(MetadataField::Genre, "Thriller");
+    let running = desk
+        .state
+        .begin_save(&HashSet::new(), |_| false)
+        .expect("save");
+
+    desk.state.finish_save(
+        overtaken_epoch,
+        &paths_of(&overtaken.immediate),
+        &overtaken.immediate,
+        MetadataStatus::SaveCancelled,
+    );
+    assert!(desk.metadata().save_in_progress);
+    assert!(desk.state.begin_save(&HashSet::new(), |_| false).is_none());
+    assert_eq!(
+        desk.metadata().status,
+        Some(MetadataStatus::SaveAlreadyInProgress)
+    );
+
+    let epoch = desk.state.epoch;
+    desk.state.finish_save(
+        epoch,
+        &paths_of(&running.immediate),
+        &running.immediate,
+        MetadataStatus::SaveCancelled,
+    );
+    assert!(!desk.metadata().save_in_progress);
+}
+
+#[test]
+fn a_save_after_a_reset_waits_for_the_file_the_overtaken_save_still_writes() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.type_into(MetadataField::Genre, "Mystery");
+    let overtaken = desk
+        .state
+        .begin_save(&HashSet::new(), |_| false)
+        .expect("save");
+    let overtaken_epoch = desk.state.epoch;
+
+    desk.state.reset();
+    desk.import(&[("alpha", Some(alpha_tags()))]);
+    desk.select(&[0]).expect("select");
+    desk.type_into(MetadataField::Genre, "Horror");
+    let plan = desk.save(&[]).expect("save");
+    assert_eq!((plan.immediate.len(), plan.waiting), (0, 1));
+    assert!(desk.begin_deferred(&HashSet::new()).is_empty());
+
+    desk.state.finish_save(
+        overtaken_epoch,
+        &paths_of(&overtaken.immediate),
+        &overtaken.immediate,
+        MetadataStatus::SaveCancelled,
+    );
+    let ready = desk.begin_deferred(&HashSet::new());
+    assert_eq!(ready.len(), 1);
+    assert_eq!(
+        ready[0].patch.genre,
+        Some(PatchOp::Set("Horror".to_string()))
+    );
+}
+
+#[test]
+fn a_failed_waiting_write_hands_its_edit_to_the_newer_write_waiting_on_the_same_file() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    let reading = HashSet::from([path("alpha")]);
+    desk.type_into(MetadataField::Genre, "Mystery");
+    desk.save_during(&reading, &[], &[]);
+    let running = desk.begin_deferred(&HashSet::new());
+    assert_eq!(running.len(), 1);
+    desk.change(|set| {
+        set.remove_file(0);
+    })
+    .expect("remove");
+    desk.import(&[("alpha", None)]);
+    desk.select(&[0]).expect("select returning title");
+    desk.type_into(MetadataField::Author, "Second");
+    let plan = desk.save_during(&HashSet::new(), &[], &[]).expect("save");
+    assert_eq!((plan.immediate.len(), plan.waiting), (0, 1));
+
+    desk.end_deferred(running, &["alpha"]);
+    let next = desk.begin_deferred(&HashSet::new());
+    assert_eq!(next.len(), 1);
+    assert_eq!(
+        next[0].patch.genre,
+        Some(PatchOp::Set("Mystery".to_string()))
+    );
+    assert_eq!(
+        next[0].patch.artist,
+        Some(PatchOp::Set("Second".to_string()))
+    );
+    desk.end_deferred(next, &[]);
+    let on_disk = &desk.disk[&path("alpha")];
+    assert_eq!(on_disk.genre.as_deref(), Some("Mystery"));
+    assert_eq!(on_disk.artist.as_deref(), Some("Second"));
+}
