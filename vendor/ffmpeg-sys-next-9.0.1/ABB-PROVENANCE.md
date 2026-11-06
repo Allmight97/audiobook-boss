@@ -29,8 +29,9 @@ What ABB relies on in that source:
 
 1. Write the new commit to `ffmpeg-revision` and run `bash scripts/setup.sh rust`
    to fetch it.
-2. Build with `--features bundled-ffmpeg`. A new upstream enum value fails the
-   build in `../ffmpeg-next-9.0.0`; map it there and list it in that crate's
+2. Build the engine with its `bundled-ffmpeg` feature
+   (`bash scripts/verify.sh engine`). A new upstream enum value fails the build
+   in `../ffmpeg-next-9.0.0`; map it there and list it in that crate's
    provenance. The chapter patch must still apply.
 3. Recheck each item in the list above against the upstream diff, and update
    the FAAD3 trim table if `api-skip-samples` changed.
@@ -50,8 +51,8 @@ Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,
 SDK/sysroot and relevant compiler environment. Rebuild notifications are emitted
 before deciding reuse. The C library is stored in `target/abb-ffmpeg-cache/<identity>`
-rather than Cargo's per-unit `OUT_DIR`, because `cargo build` and `cargo clippy`
-are different units and would otherwise each compile FFmpeg. Each build marks its
+rather than Cargo's per-unit `OUT_DIR`, because Cargo treats a build and a Clippy
+run as different units and would otherwise each compile FFmpeg. Each build marks its
 tree used and deletes sibling trees unused for 14 days that no build holds locked;
 a build releases its lock before Cargo links against the tree, so only age makes a
 tree safe to delete. Cargo reruns the build script when its tree's

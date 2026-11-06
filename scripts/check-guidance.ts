@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { parse } from 'yaml';
 
 export interface Finding {
 	file: string;
@@ -15,7 +16,8 @@ export interface GuidanceContext {
 }
 
 const GUIDANCE_FILE =
-	/(^|\/)(AGENTS|CLAUDE|REVIEW)\.md$|^README\.md$|^\.agents\/.*\.md$|^docs\/.*\.md$/;
+	/(^|\/)(AGENTS|CLAUDE|REVIEW)\.md$|^README\.md$|^\.agents\/.*\.md$|^docs\/.*\.md$|^tools\/.*\/README\.md$|^vendor\/[^/]+\/ABB-PROVENANCE\.md$/;
+const SKILL_FILE = /^\.agents\/skills\/[^/]+\/SKILL\.md$/;
 const COMMAND_COPY = /\bcargo (test|clippy|fmt|run|build|check|audit|deny)\b|--features\b/;
 const BUN_RUN = /^bun run ([\w:.-]+)/;
 const SCRIPT_NAME = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)+$/;
@@ -111,6 +113,28 @@ export function checkGuidance(file: string, text: string, context: GuidanceConte
 	return findings;
 }
 
+export function skillFrontmatterFindings(file: string, text: string): Finding[] {
+	const frontmatter = text.match(/^---\n([\s\S]*?)\n---/)?.[1];
+	if (frontmatter === undefined) {
+		return [
+			{ file, line: 1, message: 'has no frontmatter. Fix: start the skill with a `---` block.' },
+		];
+	}
+	try {
+		parse(frontmatter);
+		return [];
+	} catch (error) {
+		const reason = error instanceof Error ? error.message.split('\n')[0] : String(error);
+		return [
+			{
+				file,
+				line: 2,
+				message: `frontmatter is not valid YAML (${reason}). Fix: quote the description.`,
+			},
+		];
+	}
+}
+
 function main(): number {
 	const repoRoot = path.resolve(import.meta.dirname, '..');
 	const tracked = execFileSync('git', ['ls-files'], { cwd: repoRoot, encoding: 'utf8' })
@@ -122,11 +146,18 @@ function main(): number {
 		trackedTopLevel: new Set(tracked.map((file) => file.split('/')[0])),
 		pathExists: (repoRelativePath) => existsSync(path.join(repoRoot, repoRelativePath)),
 	};
-	const findings = tracked
-		.filter(isGuidanceFile)
-		.flatMap((file) =>
-			checkGuidance(file, readFileSync(path.join(repoRoot, file), 'utf8'), context),
-		);
+	const findings = [
+		...tracked
+			.filter(isGuidanceFile)
+			.flatMap((file) =>
+				checkGuidance(file, readFileSync(path.join(repoRoot, file), 'utf8'), context),
+			),
+		...tracked
+			.filter((file) => SKILL_FILE.test(file))
+			.flatMap((file) =>
+				skillFrontmatterFindings(file, readFileSync(path.join(repoRoot, file), 'utf8')),
+			),
+	];
 	for (const finding of findings) {
 		console.error(`${finding.file}:${finding.line}: ${finding.message}`);
 	}
