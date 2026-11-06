@@ -1,3 +1,4 @@
+use super::super::{release_key, ReleaseGrabStatus};
 use super::*;
 use crate::app_settings::SettingsIntent;
 use crate::remote_source::tests::{test_runtime, test_runtime_with, MemoryVault};
@@ -450,5 +451,185 @@ async fn a_reset_clears_an_old_save_failure() {
     assert_eq!(
         runtime.ui_snapshot().connection.save,
         RemoteDraftStatus::Idle
+    );
+}
+
+fn release(indexer_id: i64) -> crate::remote_source::types::RemoteRelease {
+    crate::remote_source::types::RemoteRelease {
+        provider_id: ProviderId::Indexer,
+        guid: "shared-guid".into(),
+        indexer_id,
+        title: format!("Book {indexer_id}"),
+        indexer: "Indexer".into(),
+        detail_url: None,
+        size_bytes: 100,
+        protocol: crate::remote_source::types::RemoteReleaseProtocol::Torrent,
+        seeders: Some(10),
+        categories: vec![],
+    }
+}
+
+/// Answers three grab requests in order. The second waits for `gate` after
+/// reporting that it arrived, so a test can act while a batch is mid-flight.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "joined by the test that starts it"
+)]
+fn serve_grabs_pausing_on_the_second(
+    listener: tokio::net::TcpListener,
+    arrived: tokio::sync::oneshot::Sender<()>,
+    gate: tokio::sync::oneshot::Receiver<()>,
+) -> tokio::task::JoinHandle<Vec<i64>> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    tokio::spawn(async move {
+        let (mut arrived, mut gate) = (Some(arrived), Some(gate));
+        let mut ids = Vec::new();
+        for (index, status) in ["200 OK", "500 Internal Server Error", "200 OK"]
+            .into_iter()
+            .enumerate()
+        {
+            let (mut stream, _) = listener.accept().await.expect("accept a grab");
+            let mut request = Vec::new();
+            let body = loop {
+                let mut bytes = [0; 1024];
+                let count = stream.read(&mut bytes).await.expect("read a grab");
+                assert_ne!(count, 0);
+                request.extend_from_slice(&bytes[..count]);
+                let text = String::from_utf8_lossy(&request).into_owned();
+                if let Some((headers, body)) = text.split_once("\r\n\r\n") {
+                    let length = headers
+                        .lines()
+                        .find_map(|line| {
+                            line.split_once(':')
+                                .filter(|(key, _)| key.eq_ignore_ascii_case("content-length"))
+                                .and_then(|(_, value)| value.trim().parse::<usize>().ok())
+                        })
+                        .unwrap_or(0);
+                    if body.len() >= length {
+                        break body.to_string();
+                    }
+                }
+            };
+            let json: serde_json::Value = serde_json::from_str(&body).expect("grab body");
+            ids.push(json["indexerId"].as_i64().expect("indexer id"));
+            if index == 1 {
+                arrived.take().expect("one pause").send(()).ok();
+                gate.take().expect("one pause").await.ok();
+            }
+            stream
+                .write_all(
+                    format!(
+                        "HTTP/1.1 {status}\r\nConnection: close\r\nContent-Length: 2\r\n\r\n{{}}"
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .expect("answer a grab");
+        }
+        ids
+    })
+}
+
+#[tokio::test]
+async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryable() {
+    let root = TempDir::new().expect("temp root");
+    let runtime = test_runtime(&root);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener");
+    let url = format!("http://{}", listener.local_addr().expect("address"));
+    save(&runtime, &url, Some("grab-key"))
+        .await
+        .expect("connection saved");
+    run(
+        &runtime,
+        RemoteUiIntent::SelectLane {
+            lane: ProviderId::Indexer,
+        },
+    )
+    .await
+    .expect("lane");
+    {
+        let mut state = runtime.ui();
+        let request = state.search_request;
+        state.searched(
+            request,
+            &Ok(crate::remote_source::types::RemoteReleaseSearchResponse {
+                provider_id: ProviderId::Indexer,
+                releases: vec![release(1), release(2)],
+                diagnostics: vec![],
+            }),
+        );
+    }
+    for indexer_id in [1, 2] {
+        run(
+            &runtime,
+            RemoteUiIntent::SelectRelease {
+                indexer_id,
+                guid: "shared-guid".into(),
+                multi: true,
+            },
+        )
+        .await
+        .expect("select");
+    }
+    let (arrived, second_is_sending) = tokio::sync::oneshot::channel();
+    let (release_second, gate) = tokio::sync::oneshot::channel();
+    let serving = serve_grabs_pausing_on_the_second(listener, arrived, gate);
+    let revision = runtime.inner.settings.snapshot().await.revision;
+
+    {
+        let _searching = runtime.inner.indexer_turn.read().await;
+        assert!(
+            runtime.reset_lease().is_err(),
+            "a search or grab holding the lease refuses a Reset"
+        );
+    }
+    let batch = runtime.ui_begin(RemoteUiIntent::GrabSelected);
+    assert!(
+        runtime.reset_lease().is_err(),
+        "an accepted grab refuses a Reset before its lease is taken"
+    );
+    let (batch, ()) = tokio::join!(batch.finish(), async {
+        second_is_sending.await.expect("the second release is sent");
+        let refused = runtime.reset_lease().err().expect("a Reset waits");
+        assert!(
+            matches!(&refused, AppError::InvalidInput(message) if message.contains("before resetting settings")),
+            "{refused}"
+        );
+        assert_eq!(
+            runtime
+                .inner
+                .settings
+                .indexer_connection()
+                .base_url
+                .as_deref(),
+            Some(url.as_str())
+        );
+        assert_eq!(runtime.inner.settings.snapshot().await.revision, revision);
+        release_second.send(()).expect("resume the batch");
+    });
+    batch.expect("the batch finishes");
+
+    let status_of = |indexer_id| {
+        runtime.ui_snapshot().indexer.release_grabs[&release_key(indexer_id, "shared-guid")]
+            .status
+            .clone()
+    };
+    assert_eq!(status_of(1), ReleaseGrabStatus::Sent);
+    assert_eq!(status_of(2), ReleaseGrabStatus::Error);
+    assert!(runtime
+        .ui_snapshot()
+        .indexer
+        .message
+        .contains("1 releases sent. 1 failed; retry their rows."));
+    run(&runtime, RemoteUiIntent::GrabSelected)
+        .await
+        .expect("the failed row is retried");
+    assert_eq!(status_of(2), ReleaseGrabStatus::Sent);
+    assert_eq!(serving.await.expect("server"), [1, 2, 2]);
+    assert!(
+        runtime.reset_lease().is_ok(),
+        "a Reset is accepted once the Indexer is idle"
     );
 }

@@ -158,9 +158,10 @@ job's size at any library size and cannot drop a crossing selection change. Snap
 - Available PDFs start included; refresh preserves explicit exclusion while
   pruning titles that cannot be acquired. A Grab batch captures its releases,
   sends sequentially, and keeps per-release failures for explicit retry. Its
-  connection lease spans gaps between requests; Save and lane replacement are
-  refused until it finishes, and a connection Save and a search refuse each
-  other the same way. A release sent since the last search or Save is not sent
+  connection lease spans gaps between requests; Save, Reset, and lane
+  replacement are refused until it finishes, and a connection Save and a search
+  refuse each other the same way. A refused Reset says to wait; no outcome or
+  retry row is lost. A release sent since the last search or Save is not sent
   again (the grab answers "Already sent").
 - The draft starts from the saved settings; Load reads only whether a key is
   stored for the saved URL. An applied Reset replaces the draft, clears its

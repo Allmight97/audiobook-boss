@@ -100,17 +100,7 @@ impl RemoteSourceRuntime {
     }
 
     fn begin_save(&self) -> Result<UiAction> {
-        let write = self
-            .inner
-            .indexer_turn
-            .clone()
-            .try_write_owned()
-            .map_err(|_| {
-                AppError::InvalidInput(
-                    "Wait for the current search or grab to finish before saving the Indexer connection."
-                        .to_string(),
-                )
-            })?;
+        let write = self.indexer_write_lease("saving the Indexer connection")?;
         let mut state = self.ui();
         state.accept()?;
         state
@@ -123,6 +113,40 @@ impl RemoteSourceRuntime {
                 write,
             })
             .map(UiAction::Save)
+    }
+
+    /// The Indexer connection changes only while no search, grab, or Save
+    /// holds the lease, so a batch never sees a connection change between two
+    /// releases. A Save and a Reset take it through here.
+    fn indexer_write_lease(&self, action: &str) -> Result<tokio::sync::OwnedRwLockWriteGuard<()>> {
+        self.inner
+            .indexer_turn
+            .clone()
+            .try_write_owned()
+            .map_err(|_| {
+                AppError::InvalidInput(format!(
+                    "Wait for the current Indexer search, grab, or save to finish before {action}."
+                ))
+            })
+    }
+
+    /// Reset replaces the saved connection, so it is refused while the Indexer
+    /// works or saves, as a Save is. Hold the returned lease until
+    /// [`Self::saved_connection_replaced`] has run.
+    pub(crate) fn reset_lease(&self) -> Result<tokio::sync::OwnedRwLockWriteGuard<()>> {
+        let lease = self.indexer_write_lease("resetting settings")?;
+        let state = self.ui();
+        if state.connection_saving
+            || state.snapshot.indexer.searching
+            || state.snapshot.indexer.grabbing
+        {
+            return Err(AppError::InvalidInput(
+                "Wait for the current Indexer search, grab, or save to finish before resetting settings."
+                    .into(),
+            ));
+        }
+        drop(state);
+        Ok(lease)
     }
 
     pub(super) async fn finish_indexer_save(&self, save: IndexerSave) -> Result<RemoteUiResult> {
@@ -225,12 +249,7 @@ impl RemoteSourceRuntime {
             connection.save = RemoteDraftStatus::Idle;
             connection.test = RemoteDraftStatus::Idle;
             connection.test_result = None;
-            state.search_request += 1;
-            state.snapshot.indexer = IndexerWorkSnapshot {
-                searching: state.snapshot.indexer.searching,
-                grabbing: state.snapshot.indexer.grabbing,
-                ..IndexerWorkSnapshot::default()
-            };
+            state.snapshot.indexer = IndexerWorkSnapshot::default();
             state.changed();
             (state.snapshot.lane == ProviderId::Indexer).then(|| {
                 state.account_request += 1;

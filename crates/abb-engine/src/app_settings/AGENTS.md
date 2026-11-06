@@ -36,8 +36,11 @@ default the session records reaches hosts as `EngineEvent::Settings`.
   the scheduler takes the startup defaults' concurrency (pinned, if the user
   chose to start from pinned defaults). A launch from pinned defaults puts
   them in effect, so a later pin or save starts from what is on screen.
-- Reset is refused while exports run; otherwise it puts the defaults in
-  effect and writes them like any change.
+- Reset is refused while exports run, and while an Indexer search, grab, or
+  connection Save holds the connection lease (`Engine::settings_dispatch`
+  takes it from `RemoteSourceRuntime::reset_lease`), so it never changes the
+  connection between two releases of a batch. Otherwise it puts the defaults
+  in effect and writes them like any change.
 - `keep_awake_while_working` defaults on. Applying it updates
   `PowerManager`; opting out releases an active hold.
 - `aac_decoder` takes effect for imports and submissions accepted after it;

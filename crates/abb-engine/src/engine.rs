@@ -321,6 +321,14 @@ impl Engine {
 
     pub async fn settings_dispatch(&self, intent: SettingsIntent) -> SettingsReply {
         let reset = matches!(intent, SettingsIntent::Reset);
+        let reset_lease = if reset {
+            match self.inner.remote_source.reset_lease() {
+                Ok(lease) => Some(lease),
+                Err(error) => return self.settings_rejected(error).await,
+            }
+        } else {
+            None
+        };
         let accepted = self.inner.tasks.admit(|| {
             let checkpoint = self.inner.session.defaults_checkpoint();
             let run = self.inner.settings.begin(intent, &self.inner.tasks);
@@ -335,6 +343,7 @@ impl Engine {
                     );
                     engine.inner.remote_source.saved_connection_replaced().await;
                 }
+                drop(reset_lease);
                 engine
                     .inner
                     .host
@@ -442,3 +451,7 @@ impl Engine {
             .cancel_operation(&self.inner.host, operation_id, child_job_id)
     }
 }
+
+#[cfg(test)]
+#[path = "engine_tests.rs"]
+mod tests;

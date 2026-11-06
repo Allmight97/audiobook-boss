@@ -419,7 +419,7 @@ async fn a_connection_save_and_a_search_or_grab_refuse_each_other() {
         .finish()
         .await;
     assert!(
-        matches!(save, Err(AppError::InvalidInput(message)) if message.contains("search or grab"))
+        matches!(save, Err(AppError::InvalidInput(message)) if message.contains("search, grab, or save"))
     );
     assert_eq!(runtime.inner.settings.snapshot().await.revision, revision);
     drop(searching);
