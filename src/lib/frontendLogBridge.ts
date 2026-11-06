@@ -91,12 +91,3 @@ export function initFrontendErrorLogBridge(): void {
 	window.addEventListener('error', handleWindowError);
 	window.addEventListener('unhandledrejection', handleUnhandledRejection);
 }
-
-export function disposeFrontendErrorLogBridgeForTests(): void {
-	window.removeEventListener('error', handleWindowError);
-	window.removeEventListener('unhandledrejection', handleUnhandledRejection);
-	installed = false;
-	windowStartMs = 0;
-	sentInWindow = 0;
-	droppedInWindow = 0;
-}

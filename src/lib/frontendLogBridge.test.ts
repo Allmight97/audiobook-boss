@@ -6,11 +6,7 @@ vi.mock('./tauri/client', () => ({
 	tauriClient: { logFrontend: (...args: unknown[]) => logFrontendMock(...args) },
 }));
 
-import {
-	disposeFrontendErrorLogBridgeForTests,
-	initFrontendErrorLogBridge,
-	logFrontendFailure,
-} from './frontendLogBridge';
+type Bridge = typeof import('./frontendLogBridge');
 
 function rejectionEvent(reason: unknown): PromiseRejectionEvent {
 	return new PromiseRejectionEvent('unhandledrejection', {
@@ -20,21 +16,47 @@ function rejectionEvent(reason: unknown): PromiseRejectionEvent {
 }
 
 describe('frontend error log bridge', () => {
-	beforeEach(() => {
+	let bridge: Bridge;
+	let registered: Array<[string, EventListenerOrEventListenerObject]> = [];
+
+	function setTauri(present: boolean): void {
+		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = present ? {} : undefined;
+	}
+
+	async function freshBridge(): Promise<Bridge> {
+		vi.resetModules();
+		return import('./frontendLogBridge');
+	}
+
+	function removeRegisteredListeners(): void {
+		for (const [type, listener] of registered) window.removeEventListener(type, listener);
+		registered = [];
+	}
+
+	beforeEach(async () => {
 		logFrontendMock.mockClear();
-		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
-		initFrontendErrorLogBridge();
+		const addEventListener = window.addEventListener.bind(window);
+		vi.spyOn(window, 'addEventListener').mockImplementation(
+			(type: string, listener: EventListenerOrEventListenerObject, options?: unknown) => {
+				registered.push([type, listener]);
+				addEventListener(type, listener, options as AddEventListenerOptions);
+			},
+		);
+		setTauri(true);
+		bridge = await freshBridge();
+		bridge.initFrontendErrorLogBridge();
 	});
 
 	afterEach(() => {
-		disposeFrontendErrorLogBridgeForTests();
-		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = undefined;
+		removeRegisteredListeners();
+		vi.restoreAllMocks();
+		setTauri(false);
 	});
 
-	it('does not install outside a Tauri webview', () => {
-		disposeFrontendErrorLogBridgeForTests();
-		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = undefined;
-		initFrontendErrorLogBridge();
+	it('does not install outside a Tauri webview', async () => {
+		removeRegisteredListeners();
+		setTauri(false);
+		(await freshBridge()).initFrontendErrorLogBridge();
 		window.dispatchEvent(rejectionEvent(new Error('boom')));
 		expect(logFrontendMock).not.toHaveBeenCalled();
 	});
@@ -63,7 +85,7 @@ describe('frontend error log bridge', () => {
 	});
 
 	it('forwards an error under its name and installs once', () => {
-		initFrontendErrorLogBridge();
+		bridge.initFrontendErrorLogBridge();
 		window.dispatchEvent(rejectionEvent(new Error('boom')));
 		expect(logFrontendMock).toHaveBeenCalledTimes(1);
 		expect(logFrontendMock.mock.calls[0][0]).toEqual({
@@ -74,7 +96,7 @@ describe('frontend error log bridge', () => {
 	});
 
 	it('forwards a scoped failure with only the code and category of an app error', () => {
-		logFrontendFailure('Scope', {
+		bridge.logFrontendFailure('Scope', {
 			code: 'x',
 			category: 'io',
 			message: '/Users/me/secret.m4b',
@@ -89,7 +111,7 @@ describe('frontend error log bridge', () => {
 
 	it('forwards a scoped failure under the shared rate limit', () => {
 		const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(0);
-		for (let i = 0; i < 25; i++) logFrontendFailure('Scope', new Error(`e-${i}`));
+		for (let i = 0; i < 25; i++) bridge.logFrontendFailure('Scope', new Error(`e-${i}`));
 		expect(logFrontendMock).toHaveBeenCalledTimes(20);
 		expect(logFrontendMock.mock.calls[0][0]).toEqual({
 			level: 'error',
