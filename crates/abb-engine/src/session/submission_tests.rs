@@ -63,6 +63,7 @@ fn invalid_standalone_titles_are_left_out_and_the_rest_are_sent_in_order() {
     assert_eq!(draft.payload.audio_requests.len(), 2);
     assert_eq!(draft.title, "alpha.m4b + 1 more");
     assert_eq!(draft.sources.len(), 2);
+    assert_eq!(draft.left_out, 1);
 }
 
 #[test]

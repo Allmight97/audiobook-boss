@@ -98,6 +98,7 @@ describe('UI workflow intents', () => {
 						kind: 'submitted',
 						operationId: 'operation-1',
 						title: 'Dune',
+						leftOut: 0,
 					};
 				});
 				return { kind: 'applied' };

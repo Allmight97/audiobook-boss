@@ -145,6 +145,7 @@ impl Session {
                 SubmissionStatus::Submitted {
                     operation_id: accepted.operation_id,
                     title: draft.title.clone(),
+                    left_out: draft.left_out,
                 }
             }
             Err(AppError::Closing) => closing(),

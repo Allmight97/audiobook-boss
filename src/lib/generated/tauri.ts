@@ -1238,7 +1238,9 @@ export type StartupBehavior = "rememberLastState" |
 
 export type SubmissionStatus = { kind: "preparing"; preview: boolean } | { kind: "refused"; reason: SubmitRefusal } |
 /**  Some outputs already exist; `OutputSnapshot::collision_review` holds the question. */
-{ kind: "reviewRequired" } | { kind: "blocked"; message: string } | { kind: "failed"; error: AppErrorEnvelope } | { kind: "submitted"; operationId: OperationId; title: string } | { kind: "previewing" } | { kind: "previewFinished"; result: ProcessCommandResult } |
+{ kind: "reviewRequired" } | { kind: "blocked"; message: string } | { kind: "failed"; error: AppErrorEnvelope } | { kind: "submitted"; operationId: OperationId; title: string;
+/**  Invalid titles the submission left out. */
+leftOut: number } | { kind: "previewing" } | { kind: "previewFinished"; result: ProcessCommandResult } |
 /**  The user cancelled the collision review. */
 { kind: "cancelled" } |
 /**

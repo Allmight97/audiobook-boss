@@ -32,6 +32,7 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
     let Some(SubmissionStatus::Submitted {
         operation_id,
         title,
+        ..
     }) = submission(&desk)
     else {
         panic!("submitted: {:?}", submission(&desk));

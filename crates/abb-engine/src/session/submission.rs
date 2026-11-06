@@ -95,6 +95,8 @@ pub enum SubmissionStatus {
     Submitted {
         operation_id: OperationId,
         title: String,
+        /// Invalid titles the submission left out.
+        left_out: usize,
     },
     Previewing,
     PreviewFinished {
@@ -118,6 +120,7 @@ pub(crate) struct Draft {
     pub(crate) title: String,
     pub(crate) sources: Vec<PathBuf>,
     pub(crate) reviewed: Option<Vec<String>>,
+    pub(crate) left_out: usize,
 }
 
 impl Draft {
@@ -247,6 +250,7 @@ pub(crate) fn build_draft(
         title,
         sources,
         reviewed: None,
+        left_out: titles.len() - valid.len(),
     })
 }
 

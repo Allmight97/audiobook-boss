@@ -271,7 +271,12 @@ describe('engine preview adapter', () => {
 		const { engine, app } = await afterFailedPreview();
 		engine.change((state) => {
 			state.output.previewRun = null;
-			state.output.submission = { kind: 'submitted', operationId: 'op-1', title: 'Alpha' };
+			state.output.submission = {
+				kind: 'submitted',
+				operationId: 'op-1',
+				title: 'Alpha',
+				leftOut: 0,
+			};
 		});
 		await vi.waitFor(() =>
 			expect(app.processing.status().stepText).toBe('Current Step: Submitted to Work Center.'),

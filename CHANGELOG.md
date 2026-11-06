@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Submitting with an invalid file in the list now says "Submitted to Work Center. 1 invalid
+  file was left out." instead of only "Submitted to Work Center."
 - Pasting text that is not a URL while the pointer is over the cover now says "The pasted
   text is not an image URL." instead of doing nothing.
 - Choosing "Keep location" on an out-of-date restart offer now says the offer no longer

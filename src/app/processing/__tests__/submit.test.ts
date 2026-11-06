@@ -13,7 +13,12 @@ describe('submission snapshot adapter', () => {
 		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
 		engine.change((state) => {
-			state.output.submission = { kind: 'submitted', operationId: 'op-1', title: 'Alpha' };
+			state.output.submission = {
+				kind: 'submitted',
+				operationId: 'op-1',
+				title: 'Alpha',
+				leftOut: 0,
+			};
 		});
 		await vi.waitFor(() =>
 			expect(app.processing.status().stepText).toBe('Current Step: Submitted to Work Center.'),
@@ -33,6 +38,33 @@ describe('submission snapshot adapter', () => {
 			state.output.submissionInProgress = false;
 		});
 		await vi.waitFor(() => expect(app.settings.concurrency().controlsEnabled).toBe(true));
+	});
+
+	it('says how many invalid files a Submit left out', async () => {
+		const engine = createFakeEngine();
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		const submitted = (leftOut: number) =>
+			engine.change((state) => {
+				state.output.submission = {
+					kind: 'submitted',
+					operationId: `op-${leftOut}`,
+					title: 'Alpha',
+					leftOut,
+				};
+			});
+		submitted(1);
+		await vi.waitFor(() =>
+			expect(app.processing.status().stepText).toBe(
+				'Current Step: Submitted to Work Center. 1 invalid file was left out.',
+			),
+		);
+		submitted(2);
+		await vi.waitFor(() =>
+			expect(app.processing.status().stepText).toBe(
+				'Current Step: Submitted to Work Center. 2 invalid files were left out.',
+			),
+		);
 	});
 
 	it('shows work that finished before its restart as completed', async () => {

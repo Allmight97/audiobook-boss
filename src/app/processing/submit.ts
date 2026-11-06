@@ -40,6 +40,12 @@ function refusalText(reason: SubmitRefusal): string {
 	}
 }
 
+function submittedText(leftOut: number): string {
+	if (leftOut === 0) return 'Submitted to Work Center.';
+	const files = leftOut === 1 ? '1 invalid file was' : `${leftOut} invalid files were`;
+	return `Submitted to Work Center. ${files} left out.`;
+}
+
 export function renderSubmission(
 	display: SubmissionDisplay,
 	status: SubmissionStatus | null,
@@ -55,7 +61,7 @@ export function renderSubmission(
 			return;
 		case 'submitted':
 			display.resetToIdle();
-			display.showStep('Submitted to Work Center.');
+			display.showStep(submittedText(status.leftOut));
 			return;
 		case 'finishedBeforeRestart':
 			display.showCompleted(

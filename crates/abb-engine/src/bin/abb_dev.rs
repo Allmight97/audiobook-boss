@@ -435,6 +435,7 @@ async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
         SubmissionStatus::Submitted {
             operation_id,
             title,
+            ..
         } => {
             eprintln!("Exporting {title}");
             let operation = follow(engine, &operation_id, options.cancel_title).await?;
