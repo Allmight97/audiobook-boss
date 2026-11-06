@@ -14,14 +14,17 @@ impl IndexerConnection {
     }
 }
 
-pub(crate) fn validate_api_key(key: &str) -> Result<()> {
+pub(crate) fn api_key_header_value(key: &str) -> Result<reqwest::header::HeaderValue> {
     reqwest::header::HeaderValue::from_str(key).map_err(|_| {
         AppError::InvalidInput(
             "The Indexer API key has a character that cannot be sent in a request. Copy it again."
                 .to_string(),
         )
-    })?;
-    Ok(())
+    })
+}
+
+pub(crate) fn validate_api_key(key: &str) -> Result<()> {
+    api_key_header_value(key).map(drop)
 }
 
 fn chosen_category_ids(ids: Vec<u32>) -> Result<Vec<u32>> {

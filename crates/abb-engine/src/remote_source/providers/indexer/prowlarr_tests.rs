@@ -451,3 +451,33 @@ async fn grab_returns_failure_diagnostic_for_server_error() {
         RemoteAcquisitionFailureKind::ReleaseGrabFailed
     );
 }
+
+#[tokio::test]
+async fn a_stored_api_key_that_cannot_be_sent_fails_every_request_without_sending_it() {
+    let adapter = ReqwestProwlarrAdapter::with_client(local_client(
+        "prowlarr.test",
+        "127.0.0.1:9".parse().expect("address"),
+    ));
+    let base_url = "http://prowlarr.test";
+    let key = SecretString::from("bad\nkey".to_string());
+    let params = ProwlarrSearchParams {
+        query: "test".to_string(),
+        category_ids: vec![3030],
+    };
+
+    let errors = [
+        adapter.search(base_url, &key, &params).await.err(),
+        adapter.system_status(base_url, &key).await.err(),
+        adapter
+            .grab(base_url, &key, "guid", 7, "request")
+            .await
+            .err(),
+    ];
+
+    for error in errors {
+        assert!(
+            matches!(error, Some(AppError::InvalidInput(ref message)) if message.contains("API key")),
+            "{error:?}"
+        );
+    }
+}

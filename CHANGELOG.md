@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- An Indexer API key saved earlier that has a character that cannot be sent in a request now
+  makes search, grab, and Test connection say so, instead of sending the request with no key.
 - Editing the title or author query, or the source, while a metadata lookup result is being
   applied now says "Apply stopped because the search changed. Apply again." instead of
   leaving the earlier "Found" line with nothing applied.

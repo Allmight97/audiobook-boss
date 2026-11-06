@@ -1,10 +1,11 @@
 use std::time::Duration;
 
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::header::{HeaderMap, HeaderName};
 use reqwest::{Client, StatusCode, Url};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 
+use crate::app_settings::api_key_header_value;
 use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
     release_key, ProviderId, RemoteAcquisitionFailureKind, RemoteRelease, RemoteReleaseCategory,
@@ -86,7 +87,7 @@ impl ReqwestProwlarrAdapter {
         let response = self
             .client()?
             .get(url)
-            .headers(api_key_headers(api_key))
+            .headers(api_key_headers(api_key)?)
             .send()
             .await
             .map_err(|error| {
@@ -105,7 +106,7 @@ impl ReqwestProwlarrAdapter {
         let response = self
             .client()?
             .get(url)
-            .headers(api_key_headers(api_key))
+            .headers(api_key_headers(api_key)?)
             .send()
             .await
             .map_err(|error| {
@@ -131,7 +132,7 @@ impl ReqwestProwlarrAdapter {
         let response = self
             .client()?
             .post(url)
-            .headers(api_key_headers(api_key))
+            .headers(api_key_headers(api_key)?)
             .json(&body)
             .send()
             .await
@@ -200,14 +201,13 @@ fn join_api_path(base_url: &str, path: &str) -> Result<Url> {
     Ok(base)
 }
 
-fn api_key_headers(api_key: &SecretString) -> HeaderMap {
+fn api_key_headers(api_key: &SecretString) -> Result<HeaderMap> {
     let mut headers = HeaderMap::new();
-    if let Ok(name) = HeaderName::from_bytes(b"X-Api-Key") {
-        if let Ok(value) = HeaderValue::from_str(api_key.expose_secret()) {
-            headers.insert(name, value);
-        }
-    }
-    headers
+    headers.insert(
+        HeaderName::from_static("x-api-key"),
+        api_key_header_value(api_key.expose_secret())?,
+    );
+    Ok(headers)
 }
 
 async fn parse_system_status_response(
