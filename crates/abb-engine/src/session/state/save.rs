@@ -120,7 +120,9 @@ impl SessionState {
                 self.cover.removal_requested = false;
             }
         }
-        self.writes.end_save();
+        if !written.is_empty() {
+            self.writes.end_save();
+        }
         self.status = Some(status);
     }
 

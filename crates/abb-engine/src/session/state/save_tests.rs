@@ -561,3 +561,36 @@ fn a_newer_write_that_lands_ends_the_older_failed_write_of_the_same_field() {
     assert!(desk.pending("alpha").is_none());
     assert_eq!(desk.field(MetadataField::Genre).value, "Horror");
 }
+
+#[test]
+fn a_save_with_nothing_to_write_never_ends_the_save_running_after_it() {
+    let mut desk = Desk::open(
+        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
+        &[0],
+    );
+    desk.type_into(MetadataField::Genre, "Mystery");
+    let waiting = desk
+        .state
+        .begin_save(&HashSet::from([path("alpha")]), |_| false)
+        .expect("save");
+    assert!(waiting.immediate.is_empty());
+
+    desk.select(&[1]).expect("select beta");
+    desk.type_into(MetadataField::Genre, "Thriller");
+    let reading = HashSet::from([path("alpha")]);
+    let running = desk.state.begin_save(&reading, |_| false).expect("save");
+    assert_eq!(running.immediate.len(), 1);
+
+    let epoch = desk.state.epoch;
+    desk.state
+        .finish_save(epoch, &[], &[], MetadataStatus::NoPendingChanges);
+    assert!(desk.metadata().save_in_progress);
+
+    desk.state.finish_save(
+        epoch,
+        &paths_of(&running.immediate),
+        &running.immediate,
+        MetadataStatus::SaveCancelled,
+    );
+    assert!(!desk.metadata().save_in_progress);
+}

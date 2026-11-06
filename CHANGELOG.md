@@ -22,6 +22,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   no longer returns to the failed value, which the next Save would have written back.
 - Reordering several selected titles no longer loses what you typed into the form
   when an import or download finishes afterward.
+- A Save that only updates finished outputs no longer marks a later Save as done
+  while that Save is still writing.
 - After you start an export, the status line reads "Submitted to Work Center." without
   a Completed stage or 100% bar, since the work has only been accepted.
 - The Audible status shows it is busy while the library loads after an account
