@@ -54,6 +54,9 @@ recorded tool versions still invalidate it.
   each naming its crate (`scripts/audit-ignores.test.ts` fails when
   `Cargo.lock` no longer resolves it); license, source, and single-version
   rules in `deny.toml`.
+- `scripts/tauri-contract.test.ts` (`tooling`) also fails on a wire intent in
+  `SessionIntent`, `SettingsIntent`, or `RemoteUiIntent` that no non-test source
+  sends; the Rust variant and its sender go together.
 
 For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.

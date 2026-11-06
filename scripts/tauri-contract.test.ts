@@ -24,6 +24,22 @@ function requiredPermissions(source: string): string[] {
 	);
 }
 
+const pascal = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
+
+function trackedFiles(...patterns: string[]): string[] {
+	return execFileSync('git', ['ls-files', ...patterns], { cwd: repoRoot, encoding: 'utf8' })
+		.split('\n')
+		.filter(Boolean);
+}
+
+function intentKinds(generated: string, union: string): string[] {
+	const start = generated.indexOf(`export type ${union} =`);
+	const end = generated.indexOf('\nexport type ', start + 1);
+	return [...generated.slice(start, end).matchAll(/\bkind: "(\w+)"/g)].flatMap(([, kind]) =>
+		kind ? [kind] : [],
+	);
+}
+
 type Capability = { permissions: (string | { identifier: string })[] };
 
 function readCapability(): Capability {
@@ -69,6 +85,30 @@ describe('Tauri contract between the frontend and src-tauri', () => {
 				.map((permission) => `${file}: ${permission}`),
 		);
 		expect(missing, 'Add each permission to src-tauri/capabilities/default.json').toEqual([]);
+	});
+
+	it('has a production sender for every wire intent', () => {
+		const generated = read('src/lib/generated/tauri.ts');
+		const frontend = trackedFiles('src/**/*.ts', 'src/**/*.tsx')
+			.filter((file) => !/\.test\.tsx?$|^src\/lib\/generated\/|^src\/test\/|__tests__/.test(file))
+			.map(read)
+			.join('\n');
+		const host = trackedFiles('src-tauri/src/*.rs', 'src-tauri/src/**/*.rs')
+			.filter((file) => !file.endsWith('_tests.rs'))
+			.map(read)
+			.join('\n');
+		const unsent = ['SessionIntent', 'SettingsIntent', 'RemoteUiIntent'].flatMap((union) =>
+			intentKinds(generated, union)
+				.filter(
+					(kind) =>
+						!new RegExp(`['"]${kind}['"]`).test(frontend) &&
+						!new RegExp(`\\b${union}::${pascal(kind)}\\b`).test(host),
+				)
+				.map((kind) => `${union}.${kind}`),
+		);
+		expect(unsent, 'Remove each intent from the Rust enum, or send it from non-test code').toEqual(
+			[],
+		);
 	});
 
 	it('lets the window open http and https URLs and no file path', () => {
