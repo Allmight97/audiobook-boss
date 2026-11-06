@@ -48,7 +48,8 @@ pub(crate) fn merge_metadata_with_plan<'a>(
         plan.album_sort == AlbumSortWriteAction::Clear || new_album_sort.is_some();
     let mut merged = ff::Dictionary::new();
     for (key, value) in existing.iter() {
-        let is_album_sort = key == MP4_ALBUM_SORT_KEY || key == ID3_ALBUM_SORT_KEY;
+        let is_album_sort = key.eq_ignore_ascii_case(MP4_ALBUM_SORT_KEY)
+            || key.eq_ignore_ascii_case(ID3_ALBUM_SORT_KEY);
         if (replaces_album_sort && is_album_sort) || removal.removes(key) {
             continue;
         }

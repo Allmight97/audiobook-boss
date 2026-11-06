@@ -72,6 +72,63 @@ fn clearing_author_and_date_removes_their_alias_keys() {
 }
 
 #[test]
+fn clearing_series_removes_every_series_alias_whatever_its_key_case() {
+    for (series_keys, part_keys) in [
+        (
+            ["series", "show", "----:com.apple.iTunes:SERIES"],
+            [
+                "series-part",
+                "episode_sort",
+                "----:com.apple.iTunes:SERIES-PART",
+            ],
+        ),
+        (
+            ["SERIES", "SHOW", "----:COM.APPLE.ITUNES:series"],
+            [
+                "SERIES-PART",
+                "EPISODE_SORT",
+                "----:COM.APPLE.ITUNES:series-part",
+            ],
+        ),
+    ] {
+        let mut source = ff::Dictionary::new();
+        for key in series_keys.iter().chain(&part_keys) {
+            source.set(key, "Old");
+        }
+        source.set("title", "Keep");
+        let plan = MetadataWritePlan::from_metadata(AudiobookMetadata {
+            series: Some(String::new()),
+            series_part: Some(String::new()),
+            ..Default::default()
+        });
+
+        let merged = merge_metadata_with_plan(source, &plan, "matroska,webm")
+            .expect("apply series clears to source tags");
+
+        for key in series_keys.iter().chain(&part_keys) {
+            assert_eq!(merged.get(key), None, "{key}");
+        }
+        assert_eq!(merged.get("title"), Some("Keep"));
+    }
+}
+
+#[test]
+fn replacing_an_album_sort_drops_the_old_one_whatever_its_key_case() {
+    let mut source = ff::Dictionary::new();
+    source.set("SORT_ALBUM", "Old Sort");
+    source.set("ALBUM-SORT", "Older Frame");
+    let plan = MetadataWritePlan::from_metadata(AudiobookMetadata {
+        album_sort: Some("Requested Sort".to_string()),
+        ..Default::default()
+    });
+
+    let merged = merge_metadata_with_plan(source, &plan, "mp4").expect("replace album sort");
+
+    assert_eq!(merged.get("sort_album"), Some("Requested Sort"));
+    assert_eq!(merged.get("album-sort"), None);
+}
+
+#[test]
 fn merge_metadata_preserves_album_sort_without_explicit_intent() {
     let plan = MetadataWritePlan {
         metadata: AudiobookMetadata {

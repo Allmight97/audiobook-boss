@@ -24,6 +24,8 @@ mod integration_media_encoding_choice_tests;
 pub(crate) mod integration_media_execution_tests;
 #[path = "integration_media_route_parity_tests.rs"]
 mod integration_media_route_parity_tests;
+#[path = "integration_media_tag_clear_tests.rs"]
+mod integration_media_tag_clear_tests;
 #[path = "integration_output_safety_tests.rs"]
 mod integration_output_safety_tests;
 #[path = "integration_preview_tests.rs"]

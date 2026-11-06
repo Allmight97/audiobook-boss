@@ -188,10 +188,12 @@ impl ExistingKeyRemoval {
 
     pub(crate) fn removes(&self, key: &str) -> bool {
         (self.comment_touched && super::field_schema::comment_key_rank(key).is_some())
-            || self
-                .cleared
-                .iter()
-                .any(|field| field.clear_keys().contains(&key))
+            || self.cleared.iter().any(|field| {
+                field
+                    .clear_keys()
+                    .iter()
+                    .any(|held| held.eq_ignore_ascii_case(key))
+            })
     }
 }
 
