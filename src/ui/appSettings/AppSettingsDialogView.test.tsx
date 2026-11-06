@@ -49,6 +49,31 @@ describe('AppSettingsDialogView', () => {
 		await vi.waitFor(() => expect(sent('reset')).toBe(1));
 	});
 
+	it('keeps Reset disabled and sends one reset while the reset is saving', async () => {
+		await renderOpenDialog();
+		const release = { done: () => {} };
+		engine.respondSettings = (intent) =>
+			intent.kind === 'reset'
+				? new Promise((resolve) => {
+						release.done = () => resolve(undefined);
+					})
+				: undefined;
+
+		fireEvent.click(screen.getByTestId('app-settings-reset'));
+		flush();
+		fireEvent.click(screen.getByTestId('app-settings-reset-confirm'));
+		flush();
+		await vi.waitFor(() => expect(sent('reset')).toBe(1));
+
+		const reset = screen.getByTestId('app-settings-reset');
+		expect(reset).toBeDisabled();
+		fireEvent.click(reset);
+		flush();
+		expect(screen.queryByTestId('app-settings-reset-confirm-prompt')).not.toBeInTheDocument();
+		expect(sent('reset')).toBe(1);
+		release.done();
+	});
+
 	it('shows an automatic save failure and retries without discarding the accepted choice', async () => {
 		await renderOpenDialog();
 		engine.change((state) => {

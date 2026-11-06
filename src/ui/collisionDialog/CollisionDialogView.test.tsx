@@ -111,6 +111,32 @@ describe('engine decision dialogs', () => {
 		);
 	});
 
+	it.each([
+		['Overwrite Existing', 'replace_existing'],
+		['Skip Existing', 'skip_existing'],
+		['Keep Existing', 'rename_new'],
+	] as const)('answers %s once when it is pressed twice', async (label, policy) => {
+		const engine = createFakeEngine();
+		seed(engine, 'collision');
+		await mount(engine);
+		const button = screen.getByRole('button', { name: label });
+		fireEvent.click(button, { detail: 1 });
+		fireEvent.click(button, { detail: 2 });
+		await vi.waitFor(() => expect(engine.sessionIntents).toHaveLength(1));
+		expect(engine.sessionIntents).toEqual([{ kind: 'chooseCollisionPolicy', reviewId: 7, policy }]);
+	});
+
+	it('restarts once when Restart is pressed twice', async () => {
+		const engine = createFakeEngine();
+		seed(engine, 'restart');
+		await mount(engine);
+		const button = screen.getByRole('button', { name: 'Restart' });
+		fireEvent.click(button, { detail: 1 });
+		fireEvent.click(button, { detail: 2 });
+		await vi.waitFor(() => expect(engine.sessionIntents).toHaveLength(1));
+		expect(engine.sessionIntents).toEqual([{ kind: 'restartTitle', titleId: 'beta', revision: 3 }]);
+	});
+
 	it.each(['collision', 'restart'] as const)(
 		'reattaches the unanswered %s question without answering on teardown',
 		async (kind) => {
