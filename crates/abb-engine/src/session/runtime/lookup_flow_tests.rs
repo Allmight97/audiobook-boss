@@ -109,7 +109,10 @@ async fn an_empty_search_asks_for_a_query_without_calling_a_provider() {
 
     rig.send(SessionIntent::LookupSearch).await;
 
-    assert_eq!(rig.lookup().status, Some(LookupStatus::QueryRequired));
+    assert_eq!(
+        rig.lookup().status,
+        Some(LookupStatus::QueryRequired { after: None })
+    );
     assert_eq!(rig.searches().len(), searched);
 }
 
@@ -470,7 +473,12 @@ async fn a_result_the_gate_rejects_keeps_the_queue_on_its_title() {
     rig.send(rig.lookup_apply(0)).await;
 
     let lookup = rig.lookup();
-    assert_eq!(lookup.status, Some(LookupStatus::NextTitleRejected));
+    assert_eq!(
+        lookup.status,
+        Some(LookupStatus::NextTitleRejected {
+            cover_failed: false
+        })
+    );
     assert_eq!(lookup.queue_position.map(|at| at.index), Some(0));
     assert_eq!(lookup.results.len(), 1, "results stay for another try");
     assert_eq!(rig.searches().len(), searched);
@@ -478,6 +486,58 @@ async fn a_result_the_gate_rejects_keeps_the_queue_on_its_title() {
     assert!(
         rig.pending("alpha").is_none(),
         "an invalid edit is never staged"
+    );
+}
+
+#[tokio::test]
+async fn a_failed_cover_is_still_reported_when_the_gate_stops_the_queue() {
+    let rig = rig();
+    rig.load(&["alpha", "beta"]);
+    rig.select(&[0, 1]).await;
+    let invalid = OnlineMetadataResult {
+        published_date: Some("soon".to_string()),
+        ..result("Found A")
+    };
+    rig.answer_next_search(Ok(MetadataLookupResponse {
+        results: vec![invalid],
+        diagnostics: Vec::new(),
+    }));
+    rig.send(SessionIntent::LookupOpen).await;
+    rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
+        .await;
+    *rig.cover.lock().expect("cover") = Err(AppError::General("unreachable".to_string()));
+
+    rig.send(rig.lookup_apply(0)).await;
+
+    assert_eq!(
+        rig.lookup().status,
+        Some(LookupStatus::NextTitleRejected { cover_failed: true })
+    );
+}
+
+#[tokio::test]
+async fn a_failed_cover_is_still_reported_when_the_next_title_has_nothing_to_search() {
+    let rig = rig();
+    rig.load(&["alpha", "_"]);
+    rig.select(&[0, 1]).await;
+    rig.session.transition(|state| {
+        state
+            .tags
+            .retain_paths(&std::collections::HashSet::from([path("alpha")]))
+    });
+    rig.answer_next_search(Ok(found(&["Found A"])));
+    rig.send(SessionIntent::LookupOpen).await;
+    rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
+        .await;
+    *rig.cover.lock().expect("cover") = Err(AppError::General("unreachable".to_string()));
+
+    rig.send(rig.lookup_apply(0)).await;
+
+    assert_eq!(
+        rig.lookup().status,
+        Some(LookupStatus::QueryRequired {
+            after: Some(QueueStep::AppliedWithoutCover)
+        })
     );
 }
 

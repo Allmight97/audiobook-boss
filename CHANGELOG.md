@@ -15,6 +15,15 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   applied, or while a queue Apply moves on to its next title, now says "Apply stopped because
   the search changed. Apply again." instead of leaving the earlier "Found" or "Applied" line
   in place.
+- Choosing another cover, or clearing it, while a cover loads no longer says "Your edit was
+  not applied because the selection changed."; that notice stays for a cover load lost because
+  the selection changed.
+- Pasting text that is not a URL while the URL field has focus now pastes it with no "The
+  pasted text is not an image URL." message.
+- A title whose tags were read once, when a second read of it fails, no longer says its tags
+  cannot be read.
+- A queue Apply whose chosen cover failed to load still says so when the next title has no
+  search text or cannot be selected, instead of dropping the cover failure.
 - Keep original audio on a source no output format can keep (MP3) now says "This audio cannot
   be kept unchanged in any output format. Choose encoding settings." instead of advising a
   format change that cannot help.

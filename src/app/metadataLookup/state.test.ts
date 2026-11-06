@@ -46,6 +46,22 @@ describe('lookup wording', () => {
 			'Skipped. Search failed. Check your query and try again.',
 			'error',
 		],
+		[{ kind: 'queryRequired', after: null }, 'Enter a title, author, or ASIN to search.', 'error'],
+		[
+			{ kind: 'queryRequired', after: 'appliedWithoutCover' },
+			'Metadata applied, but cover art failed to load. Enter a title, author, or ASIN to search.',
+			'error',
+		],
+		[
+			{ kind: 'nextTitleRejected', coverFailed: false },
+			'Could not select the next file. Review pending metadata edits and try again.',
+			'error',
+		],
+		[
+			{ kind: 'nextTitleRejected', coverFailed: true },
+			'Cover art failed to load. Could not select the next file. Review pending metadata edits and try again.',
+			'error',
+		],
 		[{ kind: 'searchSuperseded' }, 'Search stopped because it changed. Search again.', 'error'],
 		[{ kind: 'applying' }, 'Applying metadata…', 'info'],
 		[

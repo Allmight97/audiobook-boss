@@ -499,7 +499,7 @@ export type LookupSource =
 /**  The lookup's last outcome. Hosts word these. */
 export type LookupStatus =
 /**  Lookup was opened with no valid title selected. */
-{ kind: "noValidTitle" } | { kind: "queryRequired" } | { kind: "searching" } | { kind: "found"; count: number;
+{ kind: "noValidTitle" } | { kind: "queryRequired"; after: QueueStep | null } | { kind: "searching" } | { kind: "found"; count: number;
 /**  Some lookup data was unavailable; the results shown are partial. */
 partial: boolean; after: QueueStep | null } | { kind: "searchFailed"; after: QueueStep | null } |
 /**  The query or source changed while a search ran, so its answer was dropped. */
@@ -509,7 +509,7 @@ partial: boolean; after: QueueStep | null } | { kind: "searchFailed"; after: Que
 /**  The query or source changed, or the selection moved, while an apply ran, so it was dropped. */
 { kind: "applySuperseded" } |
 /**  The title's pending edits were not accepted, so the result was not applied. */
-{ kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } | { kind: "nextTitleRejected" } | { kind: "failed" };
+{ kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } | { kind: "nextTitleRejected"; coverFailed: boolean } | { kind: "failed" };
 
 export type MaxConcurrentJobsCapabilities = {
 	autoEffective: number,

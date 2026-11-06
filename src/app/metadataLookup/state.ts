@@ -39,12 +39,11 @@ const error = (message: string): Status => ({ message, variant: 'error' });
 
 type FixedKind = Exclude<
 	LookupStatus['kind'],
-	'found' | 'searchFailed' | 'applied' | 'queueComplete'
+	'found' | 'searchFailed' | 'queryRequired' | 'nextTitleRejected' | 'applied' | 'queueComplete'
 >;
 
 const FIXED_STATUS: Record<FixedKind, Status> = {
 	noValidTitle: error('Select a valid file to search metadata.'),
-	queryRequired: error('Enter a title, author, or ASIN to search.'),
 	searching: { message: 'Searching metadata sources…', variant: 'info' },
 	searchSuperseded: error('Search stopped because it changed. Search again.'),
 	applying: { message: 'Applying metadata…', variant: 'info' },
@@ -52,9 +51,6 @@ const FIXED_STATUS: Record<FixedKind, Status> = {
 	noTitleQueued: error('Select at least one file before applying metadata.'),
 	applyRejected: error(
 		'Could not apply metadata to the selected file. Review pending edits and try again.',
-	),
-	nextTitleRejected: error(
-		'Could not select the next file. Review pending metadata edits and try again.',
 	),
 	failed: error('Metadata lookup failed. Check console and try again.'),
 };
@@ -72,6 +68,12 @@ function statusOf(status: LookupStatus | null): Status {
 					status.after === 'appliedWithoutCover' ? 'error' : status.partial ? 'info' : 'success',
 			};
 		}
+		case 'queryRequired':
+			return error(`${afterStep(status.after)}Enter a title, author, or ASIN to search.`);
+		case 'nextTitleRejected':
+			return error(
+				`${status.coverFailed ? 'Cover art failed to load. ' : ''}Could not select the next file. Review pending metadata edits and try again.`,
+			);
 		case 'searchFailed':
 			return error(`${afterStep(status.after)}Search failed. Check your query and try again.`);
 		case 'applied':

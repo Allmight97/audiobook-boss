@@ -52,7 +52,10 @@ pub enum QueueStep {
 pub enum LookupStatus {
     /// Lookup was opened with no valid title selected.
     NoValidTitle,
-    QueryRequired,
+    #[serde(rename_all = "camelCase")]
+    QueryRequired {
+        after: Option<QueueStep>,
+    },
     Searching,
     #[serde(rename_all = "camelCase")]
     Found {
@@ -81,7 +84,10 @@ pub enum LookupStatus {
     QueueComplete {
         cover_failed: bool,
     },
-    NextTitleRejected,
+    #[serde(rename_all = "camelCase")]
+    NextTitleRejected {
+        cover_failed: bool,
+    },
     Failed,
 }
 

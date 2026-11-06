@@ -89,7 +89,7 @@ impl Session {
         let search = self.lookup_step(request, |state| {
             let query = state.lookup.search_query();
             if query.is_empty() {
-                state.lookup.status = Some(LookupStatus::QueryRequired);
+                state.lookup.status = Some(LookupStatus::QueryRequired { after });
                 return None;
             }
             state.lookup.status = Some(LookupStatus::Searching);
@@ -282,7 +282,9 @@ impl Session {
         };
         let moved = self.lookup_step(request, |state| {
             if !selected {
-                state.lookup.status = Some(LookupStatus::NextTitleRejected);
+                state.lookup.status = Some(LookupStatus::NextTitleRejected {
+                    cover_failed: step == QueueStep::AppliedWithoutCover,
+                });
                 return false;
             }
             let known = state.known_tags(&title.path);
