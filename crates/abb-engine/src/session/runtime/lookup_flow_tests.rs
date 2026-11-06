@@ -604,6 +604,30 @@ async fn editing_the_lookup_query_drops_a_search_for_the_old_query() {
 }
 
 #[tokio::test]
+async fn editing_the_query_during_an_apply_says_the_apply_stopped() {
+    let (cover, pending) = tokio::sync::oneshot::channel();
+    let rig = rig_with_cover(Some(pending));
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.answer_next_search(Ok(found(&["Found"])));
+    rig.send(SessionIntent::LookupOpen).await;
+    rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
+        .await;
+    let applying = rig.session.begin(rig.lookup_apply(0));
+    assert_eq!(rig.lookup().status, Some(LookupStatus::Applying));
+
+    rig.send(SessionIntent::LookupSetTitleQuery {
+        value: "Changed".to_string(),
+    })
+    .await;
+    cover.send(Ok(vec![1, 2, 3])).expect("cover reply");
+
+    assert_eq!(applying.finish().await.outcome, SessionOutcome::Superseded);
+    assert_eq!(rig.lookup().status, Some(LookupStatus::ApplySuperseded));
+    assert_eq!(rig.title_shown(), "ALPHA");
+}
+
+#[tokio::test]
 async fn lookup_cover_reply_cannot_pull_the_selection_back_to_an_earlier_title() {
     let (cover, pending) = tokio::sync::oneshot::channel();
     let rig = rig_with_cover(Some(pending));
@@ -617,6 +641,7 @@ async fn lookup_cover_reply_cannot_pull_the_selection_back_to_an_earlier_title()
     rig.select(&[1]).await;
     cover.send(Ok(vec![1, 2, 3])).expect("cover reply");
     assert_eq!(applying.finish().await.outcome, SessionOutcome::Superseded);
+    assert_eq!(rig.lookup().status, Some(LookupStatus::ApplySuperseded));
     assert_eq!(rig.selected(), vec![1]);
     assert_eq!(rig.title_shown(), "BETA");
     assert!(rig.pending("alpha").is_none());

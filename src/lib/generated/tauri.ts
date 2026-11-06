@@ -545,7 +545,9 @@ partial: boolean; after: QueueStep | null } | { kind: "searchFailed"; after: Que
 /**  The query or source changed while a search ran, so its answer was dropped. */
 { kind: "searchSuperseded" } |
 /**  Apply was requested with no title queued. */
-{ kind: "noTitleQueued" } |
+{ kind: "noTitleQueued" } | { kind: "applying" } |
+/**  The query or source changed, or the selection moved, while an apply ran, so it was dropped. */
+{ kind: "applySuperseded" } |
 /**  The title's pending edits were not accepted, so the result was not applied. */
 { kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } | { kind: "nextTitleRejected" } | { kind: "failed" };
 

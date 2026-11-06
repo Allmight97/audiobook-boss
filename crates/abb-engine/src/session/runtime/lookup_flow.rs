@@ -10,8 +10,14 @@ impl Session {
         self.transition(|state| {
             change(&mut state.lookup);
             state.lookup.request += 1;
-            if state.lookup.status == Some(LookupStatus::Searching) {
-                state.lookup.status = Some(LookupStatus::SearchSuperseded);
+            match state.lookup.status {
+                Some(LookupStatus::Searching) => {
+                    state.lookup.status = Some(LookupStatus::SearchSuperseded);
+                }
+                Some(LookupStatus::Applying) => {
+                    state.lookup.status = Some(LookupStatus::ApplySuperseded);
+                }
+                _ => {}
             }
         });
         Rest::Done(SessionOutcome::Applied)
@@ -161,6 +167,7 @@ impl Session {
                 state.lookup.status = Some(LookupStatus::NoTitleQueued);
                 return None;
             };
+            state.lookup.status = Some(LookupStatus::Applying);
             Some(ChosenResult {
                 result,
                 title,
@@ -207,7 +214,14 @@ impl Session {
         }
         let selected = match self.select_title(&title, request, binding).await {
             Ok(selected) => selected,
-            Err(outcome) => return outcome,
+            Err(outcome) => {
+                self.lookup_step(request, |state| {
+                    if state.lookup.status == Some(LookupStatus::Applying) {
+                        state.lookup.status = Some(LookupStatus::ApplySuperseded);
+                    }
+                });
+                return outcome;
+            }
         };
         let metadata = lookup::result_metadata(&result);
         let applied = self.lookup_step(request, |state| {

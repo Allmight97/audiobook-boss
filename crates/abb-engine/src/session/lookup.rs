@@ -68,6 +68,9 @@ pub enum LookupStatus {
     SearchSuperseded,
     /// Apply was requested with no title queued.
     NoTitleQueued,
+    Applying,
+    /// The query or source changed, or the selection moved, while an apply ran, so it was dropped.
+    ApplySuperseded,
     /// The title's pending edits were not accepted, so the result was not applied.
     ApplyRejected,
     #[serde(rename_all = "camelCase")]

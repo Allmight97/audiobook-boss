@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Editing the title or author query, or the source, while a metadata lookup result is being
+  applied now says "Apply stopped because the search changed. Apply again." instead of
+  leaving the earlier "Found" line with nothing applied.
 - Keep original audio on a source no output format can keep (MP3) now says "This audio cannot
   be kept unchanged in any output format. Choose encoding settings." instead of advising a
   format change that cannot help.

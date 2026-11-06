@@ -47,6 +47,12 @@ describe('lookup wording', () => {
 			'error',
 		],
 		[{ kind: 'searchSuperseded' }, 'Search stopped because it changed. Search again.', 'error'],
+		[{ kind: 'applying' }, 'Applying metadata…', 'info'],
+		[
+			{ kind: 'applySuperseded' },
+			'Apply stopped because the search changed. Apply again.',
+			'error',
+		],
 		[{ kind: 'applied', coverFailed: false }, 'Metadata applied to form.', 'success'],
 		[
 			{ kind: 'applied', coverFailed: true },
