@@ -62,11 +62,7 @@ async fn an_indexer_save_is_in_effect_after_quitting_and_relaunching() {
 async fn quitting_with_an_unwritable_folder_after_an_indexer_save_reports_it_and_a_relaunch_after_the_folder_returns_shows_it(
 ) {
     let desk = Desk::new();
-    let config = desk.root.path().join("config");
-    if config.is_dir() {
-        fs::remove_dir_all(&config).expect("remove the config folder");
-    }
-    fs::write(&config, b"").expect("a regular file where the config folder was");
+    desk.block_config_folder();
 
     save_categories(&desk, vec![3040]).await;
     assert_eq!(
@@ -84,8 +80,7 @@ async fn quitting_with_an_unwritable_folder_after_an_indexer_save_reports_it_and
     };
     assert!(!error.message.is_empty());
 
-    fs::remove_file(&config).expect("remove the blocking file");
-    fs::create_dir_all(&config).expect("restore the config folder");
+    desk.restore_config_folder();
     assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 
     let desk = desk.relaunch();

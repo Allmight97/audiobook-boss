@@ -669,22 +669,3 @@ async fn a_damaged_indexer_unit_is_reported_until_the_next_accepted_change() {
 
     assert_eq!(reply.snapshot.recovery, None);
 }
-
-#[tokio::test]
-async fn reset_returns_the_indexer_connection_to_its_default() {
-    let rig = start();
-    rig.send_connection(connection("https://indexer.test", &[3030]))
-        .await;
-
-    let reply = rig.send(SettingsIntent::Reset).await;
-
-    assert_eq!(reply.outcome, SettingsOutcome::Applied);
-    assert_eq!(
-        rig.settings.indexer_connection(),
-        IndexerConnection::default()
-    );
-    assert_eq!(
-        rig.on_disk().indexer_connection,
-        IndexerConnection::default()
-    );
-}

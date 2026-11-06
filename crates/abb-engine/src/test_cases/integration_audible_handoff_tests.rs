@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,31 +16,11 @@ use crate::work_runtime::WorkRuntime;
 
 const TITLE_ID: &str = "B0FIXTURE";
 
-fn silent_wav(path: &Path) {
-    const SAMPLE_RATE: u32 = 44_100;
-    let data_len = SAMPLE_RATE * 2;
-    let mut bytes = Vec::with_capacity(44 + data_len as usize);
-    bytes.extend_from_slice(b"RIFF");
-    bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
-    bytes.extend_from_slice(b"WAVEfmt ");
-    bytes.extend_from_slice(&16u32.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-    bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
-    bytes.extend_from_slice(&(SAMPLE_RATE * 2).to_le_bytes());
-    bytes.extend_from_slice(&2u16.to_le_bytes());
-    bytes.extend_from_slice(&16u16.to_le_bytes());
-    bytes.extend_from_slice(b"data");
-    bytes.extend_from_slice(&data_len.to_le_bytes());
-    bytes.resize(44 + data_len as usize, 0);
-    std::fs::write(path, bytes).expect("write a downloaded WAV");
-}
-
 fn downloads_one_wav() -> AcquireTitles {
     Arc::new(|request| {
         Box::pin(async move {
             let path = request.job_dir.join("book.wav");
-            silent_wav(&path);
+            super::wav_fixture::write_wav(&path, 1, None, None);
             Ok(AcquisitionJob {
                 job_id: request.job_id,
                 provider_id: ProviderId::Audible,

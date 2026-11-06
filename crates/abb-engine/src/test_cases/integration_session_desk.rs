@@ -36,6 +36,20 @@ impl Desk {
         Self { root, engine }
     }
 
+    pub(super) fn block_config_folder(&self) {
+        let config = self.root.path().join("config");
+        if config.is_dir() {
+            fs::remove_dir_all(&config).expect("remove the config folder");
+        }
+        fs::write(&config, b"").expect("a regular file where the config folder was");
+    }
+
+    pub(super) fn restore_config_folder(&self) {
+        let config = self.root.path().join("config");
+        fs::remove_file(&config).expect("remove the blocking file");
+        fs::create_dir_all(&config).expect("restore the config folder");
+    }
+
     pub(super) fn relaunch(self) -> Self {
         let Self { root, engine } = self;
         drop(engine);

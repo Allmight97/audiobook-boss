@@ -31,20 +31,6 @@ async fn choose_format_and_bitrate(desk: &Desk, format: AudiobookFormat, kbps: u
     }
 }
 
-fn block_config_folder(desk: &Desk) {
-    let config = desk.root.path().join("config");
-    if config.is_dir() {
-        fs::remove_dir_all(&config).expect("remove the config folder");
-    }
-    fs::write(&config, b"").expect("a regular file where the config folder was");
-}
-
-fn restore_config_folder(desk: &Desk) {
-    let config = desk.root.path().join("config");
-    fs::remove_file(&config).expect("remove the blocking file");
-    fs::create_dir_all(&config).expect("restore the config folder");
-}
-
 async fn quit(desk: &Desk) {
     assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 }
@@ -215,7 +201,7 @@ async fn a_launch_from_pinned_defaults_ignores_the_values_last_used_before_quitt
 async fn quitting_with_a_failed_save_reports_it_and_quitting_again_after_the_folder_returns_saves()
 {
     let desk = Desk::new();
-    block_config_folder(&desk);
+    desk.block_config_folder();
 
     let snapshot = settings(
         &desk,
@@ -239,7 +225,7 @@ async fn quitting_with_a_failed_save_reports_it_and_quitting_again_after_the_fol
     };
     assert!(!error.message.is_empty());
 
-    restore_config_folder(&desk);
+    desk.restore_config_folder();
     quit(&desk).await;
 
     let desk = desk.relaunch();
@@ -256,7 +242,7 @@ async fn quitting_with_a_failed_save_reports_it_and_quitting_again_after_the_fol
 #[tokio::test]
 async fn a_retry_after_a_failed_save_writes_every_choice_made_while_it_failed() {
     let desk = Desk::new();
-    block_config_folder(&desk);
+    desk.block_config_folder();
     settings(
         &desk,
         SettingsIntent::SetConcurrency {
@@ -273,7 +259,7 @@ async fn a_retry_after_a_failed_save_writes_every_choice_made_while_it_failed() 
     .await;
     assert!(failing.save_error.is_some());
 
-    restore_config_folder(&desk);
+    desk.restore_config_folder();
     let retried = settings(&desk, SettingsIntent::Retry).await;
     assert_eq!(retried.save_error, None);
     quit(&desk).await;
