@@ -11,7 +11,8 @@ are relative to the ABB root.
 | Series key families and precedence | `crates/abb-engine/src/metadata/tag_registry.rs` |
 | Field fan-outs, tuples, series/subseries projection | `crates/abb-engine/src/metadata/metadata_ops.rs` |
 | Actual container writes and atom-level tests | `crates/abb-engine/src/metadata/metadata_sinks.rs` |
-| MP4 reads, album sort, movement cleanup, artwork | `crates/abb-engine/src/metadata/mp4ameta_bridge.rs` |
+| MP4 reads, movement cleanup, artwork | `crates/abb-engine/src/metadata/mp4ameta_bridge.rs` |
+| FFmpeg album-sort keys (`sort_album`, `album-sort`) and which one a write keeps | `crates/abb-engine/src/metadata/ffmpeg_dict.rs`, `reader.rs` |
 | Date and series validation/normalization | `crates/abb-metadata-core/src/lib.rs` |
 
 The schema describes ABB's supported fields. A field recognized by an external
@@ -32,10 +33,14 @@ FFmpeg-written containers (MP3 ID3, FLAC/Opus comments, Matroska) carry only
 TXXX frame, a Vorbis comment) no reader maps.
 
 Album sort: MP4-family files carry the sort-album atom (FFmpeg key
-`sort_album`). MP3 carries the ID3v2.4 `TSOA` frame (FFmpeg key `album-sort`);
-`sort_album` there would be a stray TXXX frame. ABB reads `album-sort` first,
-then `sort_album`, so an MP3 tagged by an older ABB still reads. A Save or
-Preserve that sets or clears the sort replaces both keys on MP3.
+`sort_album`) and Matroska carries a `SORT_ALBUM` tag (the same key; FFmpeg and
+ABB compare tag keys ignoring case, and Matroska reports them upper case). MP3
+carries the ID3v2.4 `TSOA` frame (FFmpeg key `album-sort`); `sort_album` there
+would be a stray TXXX frame. ABB reads `album-sort` first, then `sort_album`,
+so an MP3 tagged by an older ABB still reads. A Save or Preserve that sets or
+clears the sort replaces both keys on MP3; one that leaves the sort alone
+keeps whatever keys the file has. Clearing a field removes its tag whatever
+case the container reports.
 
 Read precedence favors lowercase canonical values, then uppercase mirrors,
 then legacy `show` / `episode_sort` values. Preserve legacy read compatibility;

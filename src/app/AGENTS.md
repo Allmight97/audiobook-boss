@@ -40,7 +40,8 @@ second copy of owner state.
   keystroke arrives, and only in the scope the owner names (the form's
   `binding`, the lookup queue item). The echo is display only and never decides what is saved.
   The Remote Source URL echo does not use it: it drops only once the engine's
-  URL matches the trimmed text.
+  URL matches the trimmed text, or at once when an applied settings Reset
+  discards the typed connection edits (below).
 
 ## Owner Interface
 
@@ -120,7 +121,10 @@ without a bullet has none. Engine paths name the owner of the truth.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and
   `selectLane` send only the lane intent. Connection editing sends write-only
   key, URL, and category intents; keys never come back from the engine, and
-  only unconfirmed URL typing and the key's visual echo stay local. Close
+  only unconfirmed URL typing and the key's visual echo stay local. An applied
+  settings Reset reaches it through the settings owner's `onAppliedReset`
+  (wired in `runtime/index.ts`) and `discardIndexerConnectionEdits()`, so the
+  form shows the engine's default connection. Close
   leaves accepted work running. Disposal invalidates pending
   authorization-browser replies. An authorization URL occurs only in the
   initiating intent outcome; snapshots never reopen a browser. Render
@@ -152,7 +156,8 @@ without a bullet has none. Engine paths name the owner of the truth.
 - Tests run against `src/test/fixtures/fakeEngine.ts`. It starts from the
   recorded fresh session and settings (`src/lib/generated/fixtures/`), records
   intents, answers `applied`, and appends imported files. It holds no product
-  rule: seed the engine's answer on the intent that asks for it (`respond`,
+  rule beyond one bookkeeping line (`seedTitleAudio` removes the title from
+  `audioChoiceRequired`): seed the engine's answer on the intent that asks for it (`respond`,
   `respondSettings`, `seedForm`, `seedSettings`, `change`) and add no rule
   there. What the real engine answers to a sequence of intents is proved in
   `runtime/recordedWorkflows.contract.test.ts`, which replays the recorded

@@ -37,10 +37,10 @@
   suffixes. A breaking change gets a new product-meaningful name.
 - The explicit blank field action (`setFieldAction` with `blank`) carries Blank.
 
-`recordedFresh.ts` is test support: it normalizes the recorded fresh session
-and settings (`generated/fixtures/`) the way the client does, for the fake
-engine and contract tests. It sits here because only this folder may import
-`normalizers.ts`.
+`recordedFresh.ts` is test support and not private: the fake engine and
+contract tests outside this folder import it. It normalizes the recorded fresh
+session and settings (`generated/fixtures/`) the way the client does, and sits
+here because only this folder may import `normalizers.ts`.
 
 ## Frontend Utilities
 

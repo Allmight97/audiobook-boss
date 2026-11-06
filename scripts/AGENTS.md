@@ -71,16 +71,22 @@ Traps:
   `bun run bindings:generate` (`bundled-ffmpeg`).
 - `bun run bindings:check` generates into temporary output and leaves the
   candidate untouched. `bun run bindings:generate` intentionally updates it.
-  Both also cover every file in `src/lib/generated/fixtures/` and fail on a
-  file missing from either side. `settings-fresh.json` and
-  `session-fresh.json` record a fresh engine; `session-scenarios.json` and
-  `settings-scenarios.json` record the real engine's replies to the intent
-  sequences in `src-tauri/src/bin/export_bindings/scenarios.json`
-  (`recording.rs`, `scenarios.rs`). The recorder pins or renames each value
-  that differs between runs or machines, since the check runs on macOS and
-  Linux: `aac_at` availability, the automatic job count, the temp root, title
-  ids, source fingerprints. A new platform-dependent value in a snapshot makes
-  the other OS report a stale fixture; add its line to `Normalizer`. After an
+  The check also diffs the whole `src/lib/generated/fixtures/` folder (dotfiles
+  aside) and fails on a file missing from either side; generate only writes.
+  `settings-fresh.json` and `session-fresh.json` record a fresh engine;
+  `session-scenarios.json` and `settings-scenarios.json` record the real
+  engine's replies to the intent sequences in
+  `src-tauri/src/bin/export_bindings/scenarios.json` (`recording.rs`,
+  `scenarios.rs`). Session scenarios record every part except `audio`, whose
+  shape only `session-fresh.json` carries. The recorder pins or renames each
+  value that differs between runs or machines, since the check runs on macOS
+  and Linux: `aac_at` availability, the automatic job count, source
+  fingerprints, and the operating system's I/O error text
+  (`pin_machine_values`), plus the temp root and title ids (`Normalizer`). A
+  title id in a snapshot that no titles list names panics the recorder: import
+  the title before a step names it. A new platform-dependent value in a
+  snapshot makes the other OS report a stale fixture; add its line to
+  `pin_machine_values`. After an
   engine behavior changes, regenerate; `recordedFresh.contract.test.ts` and
   `recordedWorkflows.contract.test.ts` then fail where the UI disagrees.
 - Each git worktree holds its own `target/`. Remove finished worktrees.

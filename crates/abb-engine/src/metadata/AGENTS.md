@@ -92,7 +92,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   saves preserve the sort unless explicitly changed, because a save edits the
   user's own source file. FFmpeg names the MP3 frame `album-sort` and the MP4
   atom `sort_album`: `merge_metadata_with_plan` writes the name the output
-  container uses and drops the other; `reader.rs` reads `album-sort`, then
+  container uses and drops the other only when the save sets or clears the
+  sort (otherwise both stay as found); Matroska's `SORT_ALBUM` is the
+  `sort_album` key, and tag keys compare ignoring case, since Matroska and ID3
+  user text frames report upper case. `reader.rs` reads `album-sort`, then
   `sort_album`, so an MP3 tagged by an older ABB still reads. Why: a
   `sort_album` key on MP3 is a stray TXXX frame no library reads.
 - Keep `AlbumSortWriteAction` on `MetadataWritePlan` as its own action, apart

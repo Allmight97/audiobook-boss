@@ -1,9 +1,11 @@
 # App Settings
 
 App Settings owns the settings in effect for this run and whether they have
-reached disk. Hosts change them only through `Engine::settings_dispatch` with
-a `SettingsIntent`, and read them from the `SettingsSnapshot` in the reply. A
-default the session records reaches hosts as `EngineEvent::Settings`.
+reached disk. Hosts change them through `Engine::settings_dispatch` with a
+`SettingsIntent`, and read them from the `SettingsSnapshot` in the reply. The
+one exception is the Indexer URL and categories, which change through the
+remote UI's Save (a session intent) so the API key moves with them. A default
+the session records reaches hosts as `EngineEvent::Settings`.
 
 ## Public API Strip
 
