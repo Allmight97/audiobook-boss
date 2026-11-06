@@ -5,8 +5,8 @@ use abb_engine::output_artifact::CollisionPolicy;
 use abb_engine::session::{InputNotice, MetadataField, SessionIntent, SubmissionStatus};
 use abb_engine::work_runtime::{ChildJobStatus, OperationId, WorkOperationStatus};
 
-use super::integration_media_execution_tests::chapters_of;
 use super::integration_session_desk::{collision_review, finished, submission, Desk};
+use super::media_fixtures::chapters_of;
 use super::wav_fixture::write_wav;
 
 fn imported(desk: &Desk) -> Vec<abb_engine::audio::AudioFile> {

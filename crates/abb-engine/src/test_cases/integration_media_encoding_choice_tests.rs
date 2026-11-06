@@ -7,8 +7,8 @@ use abb_engine::audio::{
 use abb_engine::session::{AudioEdit, MetadataField, SessionIntent, SubmissionStatus, TitlePlan};
 use abb_engine::work_runtime::WorkOperationStatus;
 
-use super::integration_media_execution_tests::{audio_duration_ts, decode_pcm_f32, MediaLane};
 use super::integration_session_desk::{finished, submission, Desk};
+use super::media_fixtures::{audio_duration_ts, decode_pcm_f32, MediaLane};
 use super::media_fixtures::{audio_packet_bytes, ffmpeg, ffprobe};
 
 fn stream_fact(path: &Path, entry: &str) -> String {

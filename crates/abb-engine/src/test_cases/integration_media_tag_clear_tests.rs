@@ -14,8 +14,8 @@ use abb_engine::{
 use std::sync::Arc;
 use tempfile::TempDir;
 
-use super::integration_media_execution_tests::{ffprobe_format_tags, write_sine_mp3_with};
 use super::media_fixtures::ffmpeg;
+use super::media_fixtures::{ffprobe_format_tags, write_sine_mp3_with};
 
 const UPPER_CASE_TAGS: [(&str, &str); 5] = [
     ("ARTIST", "Old Author"),

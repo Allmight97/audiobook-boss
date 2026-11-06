@@ -1,9 +1,9 @@
 use super::integration_faac_execution_tests::faac_encoder_settings;
-use super::integration_media_execution_tests::{
+use super::media_fixtures::ffmpeg;
+use super::media_fixtures::{
     audio_duration_ts, chapters_of, decode_pcm_f32, mux_chapters, write_sine_mp3_with,
     write_sine_wav, MediaLane, SAMPLE_RATE,
 };
-use super::media_fixtures::ffmpeg;
 use abb_engine::audio::{execute_audio_engine, get_file_list_info, AacDecoder};
 use abb_engine::processing::ProcessingSession;
 use abb_engine::{read_metadata, save_metadata_intent, MetadataIntentPatch, PatchOp};

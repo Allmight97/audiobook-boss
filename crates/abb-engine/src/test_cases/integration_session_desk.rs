@@ -12,7 +12,7 @@ use abb_engine::work_runtime::WorkOperationStatus;
 use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig};
 use tempfile::TempDir;
 
-use super::integration_media_execution_tests::MediaLane;
+use super::media_fixtures::MediaLane;
 
 pub(super) struct Desk {
     pub(super) root: TempDir,

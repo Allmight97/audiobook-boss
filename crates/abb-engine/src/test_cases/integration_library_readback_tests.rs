@@ -8,11 +8,11 @@ use abb_engine::session::{
 use abb_engine::work_runtime::WorkOperationStatus;
 use abb_engine::{AudiobookMetadata, MetadataIntentPatch, PatchOp, ShutdownOutcome};
 
-use super::integration_media_execution_tests::{
+use super::integration_session_desk::{finished, submission, Desk};
+use super::media_fixtures::{
     assert_ffprobe_tag, chapters_of, decode_pcm_f32, ffprobe_format_tags, write_sine_mp3,
     SAMPLE_RATE,
 };
-use super::integration_session_desk::{finished, submission, Desk};
 use super::media_fixtures::{minimal_jpg_bytes, picture_codecs, timed_text_chapter_track};
 
 fn encode_m4b() -> [AudioEdit; 3] {

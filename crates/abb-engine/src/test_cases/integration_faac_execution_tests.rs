@@ -1,11 +1,11 @@
 //! Real-media proofs for the bundled FAAC encoder: HE and LC timing, Auto
 //! profile resolution, and re-import alignment against external decoders.
 
-use super::integration_media_execution_tests::{
+use super::media_fixtures::ffmpeg;
+use super::media_fixtures::{
     assert_auto_merge_stereo, assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32,
     ffprobe_format_tags, native_encoder_settings, title_audio_request, MediaLane, SAMPLE_RATE,
 };
-use super::media_fixtures::ffmpeg;
 use abb_engine::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
     ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,

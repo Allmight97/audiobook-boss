@@ -4,7 +4,7 @@ use abb_engine::{read_metadata, save_metadata_intent, AlbumSortPatchOp, Metadata
 use tempfile::TempDir;
 
 use super::id3_frames::{id3v2_text, id3v2_txxx_descriptions};
-use super::integration_media_execution_tests::write_sine_mp3_with;
+use super::media_fixtures::write_sine_mp3_with;
 
 fn mp3_with_tag(path: &Path, key_and_value: &str) {
     write_sine_mp3_with(path, 0.5, 440.0, &["-metadata", key_and_value]);

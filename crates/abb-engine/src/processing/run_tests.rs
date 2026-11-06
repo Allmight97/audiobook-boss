@@ -669,7 +669,7 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
 fn preflight_refuses_a_too_long_companion_pdf_name_only_when_the_title_has_one() {
     let temp_dir = TempDir::new().expect("temp dir");
     let source = temp_dir.path().join("source.wav");
-    crate::test_cases::integration_media_execution_tests::write_sine_wav(&source, 0.2, 440.0);
+    crate::test_cases::media_fixtures::write_sine_wav(&source, 0.2, 440.0);
     let source_key = source.to_string_lossy().to_string();
     std::fs::create_dir(temp_dir.path().join("out")).expect("create output folder");
     let metadata = HashMap::from([(

@@ -254,7 +254,7 @@ async fn finish_export(desk: &Desk) {
 
 #[tokio::test]
 async fn a_decoder_change_during_collision_review_does_not_change_the_accepted_export() {
-    use super::integration_media_execution_tests::decode_pcm_f32;
+    use super::media_fixtures::decode_pcm_f32;
     use abb_engine::app_settings::SettingsIntent;
     use abb_engine::audio::AacDecoder;
     use abb_engine::output_artifact::CollisionPolicy;
@@ -331,7 +331,7 @@ fn walk(dir: &Path) -> Vec<PathBuf> {
 
 #[tokio::test]
 async fn a_decoder_change_after_submit_is_accepted_does_not_change_that_export() {
-    use super::integration_media_execution_tests::decode_pcm_f32;
+    use super::media_fixtures::decode_pcm_f32;
     use abb_engine::app_settings::SettingsIntent;
     use abb_engine::audio::AacDecoder;
 

@@ -21,7 +21,7 @@ mod integration_media_cue_scale_tests;
 #[path = "integration_media_encoding_choice_tests.rs"]
 mod integration_media_encoding_choice_tests;
 #[path = "integration_media_execution_tests.rs"]
-pub(crate) mod integration_media_execution_tests;
+mod integration_media_execution_tests;
 #[path = "integration_media_route_parity_tests.rs"]
 mod integration_media_route_parity_tests;
 #[path = "integration_media_tag_clear_tests.rs"]

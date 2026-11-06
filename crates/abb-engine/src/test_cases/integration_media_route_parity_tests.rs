@@ -2,7 +2,7 @@
 //! production planner on every output route and are read back from the file.
 
 use super::id3_frames::{id3v2_text, id3v2_txxx_descriptions};
-use super::integration_media_execution_tests::{
+use super::media_fixtures::{
     assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32, ffprobe_format_tags,
     mux_chapters, native_encoder_settings,
 };

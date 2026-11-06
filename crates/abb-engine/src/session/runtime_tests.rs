@@ -1768,8 +1768,7 @@ async fn lookup_cover_reply_cannot_pull_the_selection_back_to_an_earlier_title()
 #[tokio::test]
 async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply() {
     let rig = rig();
-    let lane =
-        crate::test_cases::integration_media_execution_tests::MediaLane::with_fixtures(&[0.2]);
+    let lane = crate::test_cases::media_fixtures::MediaLane::with_fixtures(&[0.2]);
     let source = lane
         .process(Some(AudiobookMetadata {
             title: Some("Preview".to_string()),
