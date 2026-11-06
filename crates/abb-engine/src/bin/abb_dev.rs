@@ -455,6 +455,23 @@ async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
     }
 }
 
+async fn apply_edits(engine: &Engine, options: &Options) -> Result<(), String> {
+    for (field, value) in options.edits.clone() {
+        let binding = engine
+            .session_snapshot()
+            .metadata
+            .ok_or("the session shows no metadata form")?
+            .binding;
+        let edit = SessionIntent::SetField {
+            binding,
+            field,
+            value,
+        };
+        send(engine, edit).await?;
+    }
+    Ok(())
+}
+
 async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, String> {
     let engine = Engine::start(EngineConfig {
         cache_dir: state_dir.join("cache"),
@@ -482,22 +499,7 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, Strin
     )
     .await?;
     send(&engine, SessionIntent::SelectAll).await?;
-    for (field, value) in options.edits.clone() {
-        let binding = engine
-            .session_snapshot()
-            .metadata
-            .ok_or("the session shows no metadata form")?
-            .binding;
-        send(
-            &engine,
-            SessionIntent::SetField {
-                binding,
-                field,
-                value,
-            },
-        )
-        .await?;
-    }
+    apply_edits(&engine, &options).await?;
     if options.save {
         send(&engine, SessionIntent::Save).await?;
     }
