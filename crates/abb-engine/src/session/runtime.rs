@@ -476,15 +476,19 @@ impl Session {
                 step: QueueStep::Skipped,
             },
             I::LookupSetTitleQuery { value } => {
-                self.edit_lookup(|lookup| lookup.title_query = value)
+                self.edit_lookup_search(|lookup| lookup.title_query = value)
             }
             I::LookupSetAuthorQuery { value } => {
-                self.edit_lookup(|lookup| lookup.author_query = value)
+                self.edit_lookup_search(|lookup| lookup.author_query = value)
             }
-            I::LookupSetSource { source } => self.edit_lookup(|lookup| lookup.source = source),
-            I::LookupSetApplyMode { mode } => self.edit_lookup(|lookup| lookup.apply_mode = mode),
+            I::LookupSetSource { source } => {
+                self.edit_lookup_search(|lookup| lookup.source = source)
+            }
+            I::LookupSetApplyMode { mode } => {
+                self.edit_lookup_setting(|lookup| lookup.apply_mode = mode)
+            }
             I::LookupSetReplaceCover { replace } => {
-                self.edit_lookup(|lookup| lookup.replace_cover = replace)
+                self.edit_lookup_setting(|lookup| lookup.replace_cover = replace)
             }
         }
     }

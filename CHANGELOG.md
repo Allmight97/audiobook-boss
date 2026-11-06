@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Editing the metadata search query or source while a search runs now ends the status
+  with "Search stopped because it changed. Search again." instead of "Searching…" forever.
+  Changing the apply mode or replace-cover option no longer cancels a running search.
 - A download that imported some titles and failed on others now says which failed,
   instead of only the count imported.
 - The app writes a log file (`~/Library/Logs/com.audiobook-boss/abb.log` on macOS), so a

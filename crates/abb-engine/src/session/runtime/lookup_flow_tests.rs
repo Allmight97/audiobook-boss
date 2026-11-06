@@ -200,6 +200,99 @@ async fn a_newer_search_keeps_its_results_when_an_earlier_one_answers_last() {
     assert_eq!(rig.lookup().results[0].title, "Newer");
 }
 
+async fn start_held_search(
+    rig: &Rig,
+) -> (
+    tokio::sync::oneshot::Sender<SearchReply>,
+    tokio::task::JoinHandle<SessionOutcome>,
+) {
+    let held = rig.hold_next_search();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by start_held_search's callers"
+    )]
+    let search = tokio::spawn({
+        let session = rig.session.clone();
+        async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
+    });
+    let searched = rig.searches().len();
+    while rig.searches().len() == searched {
+        tokio::task::yield_now().await;
+    }
+    (held, search)
+}
+
+#[tokio::test]
+async fn editing_the_query_during_a_search_says_the_search_stopped() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.send(SessionIntent::LookupOpen).await;
+    let (held, search) = start_held_search(&rig).await;
+    assert_eq!(rig.lookup().status, Some(LookupStatus::Searching));
+
+    rig.send(SessionIntent::LookupSetTitleQuery {
+        value: "Changed".to_string(),
+    })
+    .await;
+    held.send(Ok(found(&["Late"])))
+        .unwrap_or_else(|_| panic!("search is waiting"));
+
+    assert_eq!(search.await.expect("search"), SessionOutcome::Superseded);
+    let lookup = rig.lookup();
+    assert_eq!(lookup.status, Some(LookupStatus::SearchSuperseded));
+    assert!(lookup.results.is_empty());
+}
+
+#[tokio::test]
+async fn changing_the_source_during_a_search_says_the_search_stopped() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.send(SessionIntent::LookupOpen).await;
+    let (held, search) = start_held_search(&rig).await;
+
+    rig.send(SessionIntent::LookupSetSource {
+        source: LookupSource::Openlibrary,
+    })
+    .await;
+    held.send(Ok(found(&["Late"])))
+        .unwrap_or_else(|_| panic!("search is waiting"));
+
+    assert_eq!(search.await.expect("search"), SessionOutcome::Superseded);
+    assert_eq!(rig.lookup().status, Some(LookupStatus::SearchSuperseded));
+}
+
+#[tokio::test]
+async fn changing_how_results_are_applied_does_not_stop_a_search() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.send(SessionIntent::LookupOpen).await;
+    let (held, search) = start_held_search(&rig).await;
+
+    rig.send(SessionIntent::LookupSetApplyMode {
+        mode: LookupApplyMode::Queue,
+    })
+    .await;
+    rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
+        .await;
+    held.send(Ok(found(&["Found"])))
+        .unwrap_or_else(|_| panic!("search is waiting"));
+
+    assert_eq!(search.await.expect("search"), SessionOutcome::Applied);
+    let lookup = rig.lookup();
+    assert_eq!(
+        lookup.status,
+        Some(LookupStatus::Found {
+            count: 1,
+            partial: false,
+            after: None
+        })
+    );
+    assert_eq!(lookup.results[0].title, "Found");
+}
+
 #[tokio::test]
 async fn applying_to_the_current_title_edits_its_form_and_stays_on_it() {
     let rig = rig();

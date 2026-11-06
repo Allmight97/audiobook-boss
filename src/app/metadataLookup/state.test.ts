@@ -46,6 +46,7 @@ describe('lookup wording', () => {
 			'Skipped. Search failed. Check your query and try again.',
 			'error',
 		],
+		[{ kind: 'searchSuperseded' }, 'Search stopped because it changed. Search again.', 'error'],
 		[{ kind: 'applied', coverFailed: false }, 'Metadata applied to form.', 'success'],
 		[
 			{ kind: 'applied', coverFailed: true },

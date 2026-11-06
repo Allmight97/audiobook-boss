@@ -542,6 +542,8 @@ export type LookupStatus =
 { kind: "noValidTitle" } | { kind: "queryRequired" } | { kind: "searching" } | { kind: "found"; count: number;
 /**  Some lookup data was unavailable; the results shown are partial. */
 partial: boolean; after: QueueStep | null } | { kind: "searchFailed"; after: QueueStep | null } |
+/**  The query or source changed while a search ran, so its answer was dropped. */
+{ kind: "searchSuperseded" } |
 /**  Apply was requested with no title queued. */
 { kind: "noTitleQueued" } |
 /**  The title's pending edits were not accepted, so the result was not applied. */

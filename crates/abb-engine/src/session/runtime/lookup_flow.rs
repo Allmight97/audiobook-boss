@@ -6,11 +6,22 @@ use crate::session::state::SessionState;
 use crate::session::working_set::SelectionModifiers;
 
 impl Session {
-    pub(super) fn edit_lookup(&self, change: impl FnOnce(&mut lookup::LookupState)) -> Rest {
+    pub(super) fn edit_lookup_search(&self, change: impl FnOnce(&mut lookup::LookupState)) -> Rest {
         self.transition(|state| {
             change(&mut state.lookup);
             state.lookup.request += 1;
+            if state.lookup.status == Some(LookupStatus::Searching) {
+                state.lookup.status = Some(LookupStatus::SearchSuperseded);
+            }
         });
+        Rest::Done(SessionOutcome::Applied)
+    }
+
+    pub(super) fn edit_lookup_setting(
+        &self,
+        change: impl FnOnce(&mut lookup::LookupState),
+    ) -> Rest {
+        self.transition(|state| change(&mut state.lookup));
         Rest::Done(SessionOutcome::Applied)
     }
 

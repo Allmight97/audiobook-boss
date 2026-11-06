@@ -64,6 +64,8 @@ pub enum LookupStatus {
     SearchFailed {
         after: Option<QueueStep>,
     },
+    /// The query or source changed while a search ran, so its answer was dropped.
+    SearchSuperseded,
     /// Apply was requested with no title queued.
     NoTitleQueued,
     /// The title's pending edits were not accepted, so the result was not applied.

@@ -58,6 +58,8 @@ function statusOf(status: LookupStatus | null): Status {
 		}
 		case 'searchFailed':
 			return error(`${afterStep(status.after)}Search failed. Check your query and try again.`);
+		case 'searchSuperseded':
+			return error('Search stopped because it changed. Search again.');
 		case 'noTitleQueued':
 			return error('Select at least one file before applying metadata.');
 		case 'applyRejected':
