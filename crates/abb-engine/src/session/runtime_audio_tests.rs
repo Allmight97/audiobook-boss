@@ -15,32 +15,6 @@ async fn a_new_title_starts_from_the_default_audio_choice() {
 }
 
 #[tokio::test]
-async fn a_default_audio_edit_is_recorded_in_the_settings_and_announced() {
-    let rig = rig();
-    rig.send(SessionIntent::SetDefaultAudio {
-        edit: AudioEdit::Bitrate(96),
-    })
-    .await;
-
-    let settings = rig.session.inner.deps.settings.snapshot().await;
-    let saved = settings.settings.encoder_defaults;
-    assert_eq!(saved.settings.bitrate_kbps, 96);
-    assert_eq!(saved.intent, AudioIntent::Encode);
-    let announced = rig.events.1.lock().expect("events").last().cloned();
-    assert_eq!(
-        announced.map(|snapshot| snapshot.revision),
-        Some(settings.revision)
-    );
-
-    let before = rig.events.1.lock().expect("events").len();
-    rig.send(SessionIntent::SetDefaultAudio {
-        edit: AudioEdit::Bitrate(96),
-    })
-    .await;
-    assert_eq!(rig.events.1.lock().expect("events").len(), before);
-}
-
-#[tokio::test]
 async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
     let rig = rig();
     rig.load(&["alpha", "beta"]);

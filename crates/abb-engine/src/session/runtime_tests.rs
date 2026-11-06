@@ -804,74 +804,6 @@ fn preview_path(rig: &Rig) -> String {
 }
 
 #[tokio::test]
-async fn the_output_preview_follows_the_form_the_directory_and_the_format() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    assert_eq!(
-        output(&rig).preview,
-        crate::session::OutputPreview::NoDirectory
-    );
-
-    rig.send(SessionIntent::SetOutputDirectory {
-        directory: "/out".to_string(),
-    })
-    .await;
-    let first = preview_path(&rig);
-    assert!(first.starts_with("/out/Author"), "{first}");
-    assert!(first.ends_with(".m4b"), "{first}");
-
-    rig.type_into(MetadataField::Title, "Dune").await;
-    rig.send(SessionIntent::SetTitleAudio {
-        title_ids: vec!["alpha".to_string()],
-        edit: AudioEdit::Format(AudiobookFormat::Mp3),
-    })
-    .await;
-    let renamed = preview_path(&rig);
-    assert!(
-        renamed.contains("Dune") && renamed.ends_with(".mp3"),
-        "{renamed}"
-    );
-}
-
-#[tokio::test(start_paused = true)]
-async fn output_choices_are_recorded_and_template_typing_once_it_pauses() {
-    let rig = rig();
-    let saved = || async {
-        rig.session
-            .inner
-            .deps
-            .settings
-            .snapshot()
-            .await
-            .settings
-            .output_defaults
-    };
-
-    rig.send(SessionIntent::SetNamingPreset {
-        preset: NamingPreset::CustomTemplate,
-    })
-    .await;
-    assert_eq!(
-        saved().await.output_naming.preset,
-        NamingPreset::CustomTemplate
-    );
-
-    for template in ["{a", "{author}", "{author}/{title}x"] {
-        rig.send(SessionIntent::SetNamingTemplate {
-            template: template.to_string(),
-        })
-        .await;
-    }
-    assert_eq!(saved().await.output_naming.custom_template, None);
-    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
-    assert_eq!(
-        saved().await.output_naming.custom_template.as_deref(),
-        Some("{author}/{title}x")
-    );
-}
-
-#[tokio::test]
 async fn ending_a_submission_wakes_a_save_waiting_on_its_sources() {
     let rig = rig();
     rig.load(&["alpha"]);
@@ -1426,6 +1358,8 @@ async fn moves_name_the_title_so_a_second_click_moves_the_same_title_again() {
 
 #[path = "runtime_audio_tests.rs"]
 mod audio;
+#[path = "runtime/defaults_flow_tests.rs"]
+mod defaults_flow;
 #[path = "runtime_field_edit_tests.rs"]
 mod field_edit;
 #[path = "runtime/lookup_flow_tests.rs"]

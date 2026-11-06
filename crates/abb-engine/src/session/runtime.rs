@@ -6,18 +6,16 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use lookup_flow::ChosenResult;
 
-use super::audio::AudioDefaults;
 use super::exports::{ExportLink, OutputEdit, OutputEdits};
 use super::intent::{SessionIntent, SessionOutcome, SessionReply};
 use super::lookup::{QueueStep, RESULT_LIMIT};
-use super::output::OutputPlan;
 use super::plans::PlanTicket;
 use super::state::{GateBlock, MetadataStatus, SaveItem, SavePlan, SessionState, SessionUpdate};
 use super::submission::{plan_verdict, Draft, PlanVerdict, SubmissionStatus, SubmitRefusal};
 use super::tag_cache::ReadTicket;
 use super::working_set::{InputNotice, SelectionModifiers, WorkingSet};
-use crate::app_settings::{PinnedDefaults, SettingsIntent, SettingsRun, SettingsRuntime};
-use crate::audio::{self, AudioFile, EncoderSettingsCapabilities};
+use crate::app_settings::{SettingsIntent, SettingsRun, SettingsRuntime};
+use crate::audio::{self, AudioFile};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::host::{EngineEvent, Host};
 use crate::metadata::AudiobookMetadata;
@@ -37,14 +35,6 @@ use crate::work_runtime::{OperationSnapshot, SubmitProcessingOperationRequest};
 use crate::ManagedJobRegistry;
 
 const READ_CONCURRENCY: usize = 8;
-
-fn remember_output(defaults: crate::app_settings::OutputDefaults) -> SettingsIntent {
-    SettingsIntent::Remember {
-        encoder_defaults: None,
-        output_defaults: Some(defaults),
-        default_acquisition_lane: None,
-    }
-}
 
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 
@@ -464,55 +454,6 @@ impl Session {
             since,
             reply,
         }
-    }
-
-    pub(crate) fn start_from_defaults(
-        &self,
-        defaults: Option<&PinnedDefaults>,
-        caps: Option<EncoderSettingsCapabilities>,
-    ) {
-        self.transition(|state| {
-            state.audio =
-                AudioDefaults::new(defaults.map(|defaults| &defaults.encoder_defaults), caps);
-            if let Some(defaults) = defaults {
-                state.output = OutputPlan::from_defaults(&defaults.output_defaults);
-            }
-        });
-    }
-
-    /// The edit counts a settings Reset compares against, so a default the
-    /// user changed while the Reset ran is kept.
-    pub(crate) fn defaults_checkpoint(&self) -> (u64, u64) {
-        let _state = self.lock();
-        (
-            self.inner.audio_edits.load(Ordering::SeqCst),
-            self.inner.output_edits.load(Ordering::SeqCst),
-        )
-    }
-
-    /// Replaces the defaults and output choices after a settings Reset.
-    /// Loaded titles keep their own audio choices.
-    pub(crate) fn replace_defaults(
-        &self,
-        defaults: &PinnedDefaults,
-        checkpoint: (u64, u64),
-        revision: u64,
-    ) {
-        self.transition(|state| {
-            if revision <= self.inner.settings_applied.load(Ordering::SeqCst) {
-                return;
-            }
-            self.inner
-                .settings_applied
-                .store(revision, Ordering::SeqCst);
-            if self.inner.audio_edits.load(Ordering::SeqCst) == checkpoint.0 {
-                state.audio.replace(&defaults.encoder_defaults);
-            }
-            if self.inner.output_edits.load(Ordering::SeqCst) == checkpoint.1 {
-                state.output = OutputPlan::from_defaults(&defaults.output_defaults);
-            }
-        });
-        self.publish();
     }
 
     pub(crate) fn snapshot(&self) -> SessionUpdate {
@@ -1310,24 +1251,6 @@ impl Session {
         SessionOutcome::Applied
     }
 
-    fn edit_output(&self, change: impl FnOnce(&mut OutputPlan)) -> Rest {
-        let defaults = self.transition(|state| {
-            change(&mut state.output);
-            self.inner.output_edits.fetch_add(1, Ordering::SeqCst);
-            state.output.defaults()
-        });
-        self.remember_later(remember_output(defaults))
-    }
-
-    fn remember_later(&self, intent: SettingsIntent) -> Rest {
-        Rest::Remember(
-            self.inner
-                .deps
-                .settings
-                .begin(intent, &self.inner.deps.tasks),
-        )
-    }
-
     fn begin_cover_load(&self, source: CoverSource) -> Rest {
         let from_url = matches!(source, CoverSource::Url(_));
         if let CoverSource::Url(url) = &source {
@@ -1706,6 +1629,7 @@ async fn read_all(tickets: Vec<ReadTicket>) -> Vec<(ReadTicket, Result<Audiobook
 #[path = "cover_request.rs"]
 mod cover_request;
 
+mod defaults_flow;
 mod lookup_flow;
 mod save_flow;
 
