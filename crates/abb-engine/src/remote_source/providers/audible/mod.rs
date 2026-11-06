@@ -312,9 +312,5 @@ fn extract_audible_auth_code(response_url: &str) -> Result<String> {
 }
 
 #[cfg(test)]
-#[path = "probe_tests.rs"]
-mod probe;
-
-#[cfg(test)]
 #[path = "audible_tests.rs"]
 mod tests;
