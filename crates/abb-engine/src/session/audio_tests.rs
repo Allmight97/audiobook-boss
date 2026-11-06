@@ -128,7 +128,7 @@ fn an_explicit_field_has_no_auto_value() {
 }
 
 #[test]
-fn the_plan_problem_of_an_unmixed_field_is_reported_and_a_mixed_field_reports_none() {
+fn a_plan_problem_is_reported_whether_or_not_the_field_is_mixed() {
     let failed = |field| TitlePlan::Failed {
         message: "48000 Hz is not available".to_string(),
         field: Some(field),
@@ -144,7 +144,12 @@ fn the_plan_problem_of_an_unmixed_field_is_reported_and_a_mixed_field_reports_no
     assert_eq!(selection.auto_channels.problem, None);
 
     let mixed = at_rate(44_100, failed(AudioPlanField::SampleRate));
-    assert_eq!(select(&[&broken, &mixed]).auto_sample_rate.problem, None);
+    let reading = select(&[&broken, &mixed]).auto_sample_rate;
+    assert_eq!(reading.outcome, AutoOutcome::Unresolved);
+    assert_eq!(
+        reading.problem.as_deref(),
+        Some("48000 Hz is not available")
+    );
     let stereo = AudioChoice {
         channels: ChannelConfig::Stereo,
         ..AudioChoice::default()

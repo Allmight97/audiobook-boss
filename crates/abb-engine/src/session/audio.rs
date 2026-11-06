@@ -128,9 +128,6 @@ pub(crate) fn selection_audio(titles: &[(&String, &TitleAudio)]) -> Option<Selec
 }
 
 fn auto_reading(field: AudioField, mixed: &[AudioField], titles: &[&TitleAudio]) -> AutoReading {
-    if mixed.contains(&field) {
-        return AutoReading::default();
-    }
     let (plan_field, on_auto): (_, fn(&AudioChoice) -> bool) = match field {
         AudioField::SampleRate => (AudioPlanField::SampleRate, |choice| {
             choice.sample_rate == SampleRateConfig::Auto
@@ -146,6 +143,12 @@ fn auto_reading(field: AudioField, mixed: &[AudioField], titles: &[&TitleAudio])
         } if *failed == plan_field => Some(message.clone()),
         _ => None,
     });
+    if mixed.contains(&field) {
+        return AutoReading {
+            outcome: AutoOutcome::Unresolved,
+            problem,
+        };
+    }
     let values: Option<Vec<u32>> = titles
         .iter()
         .map(|title| match &title.plan {
