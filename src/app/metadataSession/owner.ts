@@ -106,6 +106,10 @@ function statusText(status: MetadataStatus | null): string {
 			);
 		case 'saveCancelled':
 			return 'Metadata save cancelled.';
+		case 'tagReadFailed':
+			return status.more === 0
+				? `Could not read the tags of ${status.label}. The fields shown are not its tags.`
+				: `Could not read the tags of ${status.label} and ${status.more} other ${status.more === 1 ? 'file' : 'files'}. The fields shown are not their tags.`;
 		case 'saveFailed':
 			return toUserMessage(status.error, { fallback: 'Metadata save failed.' });
 		case 'deferredWritesFinished':

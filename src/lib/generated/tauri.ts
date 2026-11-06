@@ -609,7 +609,12 @@ export type MetadataStatus =
 /**  Local sources an export is still reading; written when it finishes. */
 waiting: number;
 /**  Temporary downloads; never written, their edits go with exports. */
-held: number; outputs: OutputEdits } | { kind: "saveCancelled" } | { kind: "saveFailed"; error: AppErrorEnvelope } |
+held: number; outputs: OutputEdits } | { kind: "saveCancelled" } |
+/**
+ *  The shown form is not the tags of `label` or of `more` other selected
+ *  titles, whose tags could not be read.
+ */
+{ kind: "tagReadFailed"; label: string; more: number } | { kind: "saveFailed"; error: AppErrorEnvelope } |
 /**
  *  Saves that waited for an export have run. A failed write keeps its
  *  edit pending on a title still in the list, so Save retries it.

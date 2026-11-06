@@ -140,12 +140,21 @@ impl SessionState {
         }
     }
 
+    fn label_of(&self, path: &std::path::Path) -> String {
+        self.working_set
+            .files()
+            .iter()
+            .find(|file| file.path == path)
+            .map_or_else(|| path.display().to_string(), |file| file.label.clone())
+    }
+
     pub(crate) fn finish_reads(
         &mut self,
         binding: u64,
         reads: Vec<(ReadTicket, Result<AudiobookMetadata, AppError>)>,
     ) {
         let cover_path = self.cover_read_target();
+        let mut unreadable: Vec<String> = Vec::new();
         for (ticket, result) in reads {
             match result {
                 Ok(metadata) => {
@@ -153,6 +162,11 @@ impl SessionState {
                 }
                 Err(error) => {
                     log::warn!("Failed to read metadata: {error}");
+                    if binding == self.binding
+                        && self.bound.iter().any(|title| title.path == ticket.path)
+                    {
+                        unreadable.push(self.label_of(&ticket.path));
+                    }
                     if binding == self.binding && cover_path.as_ref() == Some(&ticket.path) {
                         self.set_cover_notice(CoverNotice::LoadFailed {
                             error: AppErrorEnvelope::from(&error),
@@ -160,6 +174,12 @@ impl SessionState {
                     }
                 }
             }
+        }
+        if let Some((first, rest)) = unreadable.split_first() {
+            self.status = Some(MetadataStatus::TagReadFailed {
+                label: first.clone(),
+                more: rest.len(),
+            });
         }
         if binding == self.binding {
             let fresh = self.form_from_known_tags();

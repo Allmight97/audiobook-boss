@@ -242,6 +242,30 @@ fn an_invalid_edit_keeps_the_selection_and_the_titles_where_they_are() {
 }
 
 #[test]
+fn a_file_whose_tags_cannot_be_read_is_named_beside_its_blank_form() {
+    let mut desk = Desk::open(&[("alpha", None), ("beta", None)], &[0]);
+    assert_eq!(
+        desk.metadata().status,
+        Some(MetadataStatus::TagReadFailed {
+            label: "alpha.m4b".to_string(),
+            more: 0
+        })
+    );
+
+    desk.select(&[0, 1]).expect("select both");
+    assert_eq!(
+        desk.metadata().status,
+        Some(MetadataStatus::TagReadFailed {
+            label: "alpha.m4b".to_string(),
+            more: 1
+        })
+    );
+
+    let mut readable = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    assert_eq!(readable.metadata().status, None);
+}
+
+#[test]
 fn an_unreadable_file_still_shows_its_staged_edits_when_selected_again() {
     let mut desk = Desk::open(&[("alpha", None), ("beta", None)], &[0]);
     desk.type_into(MetadataField::Author, "Edited Author");

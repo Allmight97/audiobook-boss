@@ -139,6 +139,20 @@ describe('metadata owner', () => {
 		);
 	});
 
+	it('names the titles whose tags could not be read beside the form that stands in for them', async () => {
+		const app = await open();
+
+		engine.status({ kind: 'tagReadFailed', label: 'alpha.m4b', more: 0 });
+		expect(app.metadata.view().statusMessage).toBe(
+			'Could not read the tags of alpha.m4b. The fields shown are not its tags.',
+		);
+
+		engine.status({ kind: 'tagReadFailed', label: 'alpha.m4b', more: 2 });
+		expect(app.metadata.view().statusMessage).toBe(
+			'Could not read the tags of alpha.m4b and 2 other files. The fields shown are not their tags.',
+		);
+	});
+
 	it('keeps typing for one title off the form of the next', async () => {
 		const app = await open();
 		engine.respond = (intent) =>

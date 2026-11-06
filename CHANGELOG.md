@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- When a selected file's tags cannot be read, the status line now names the file and says
+  the fields shown are not its tags, so a Save no longer writes over tags you could not see
+  without warning.
 - An Indexer API key with a character that cannot be sent in a request is refused when you
   enter it, instead of being sent as no key and read as a generic rejection.
 - Submitting with an invalid file in the list now says "Submitted to Work Center. 1 invalid
