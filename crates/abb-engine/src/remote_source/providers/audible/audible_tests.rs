@@ -65,7 +65,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-fn fixture_auth() -> Auth {
+pub(in crate::remote_source) fn fixture_auth() -> Auth {
     Auth {
         locale: localization::find_by_country_code(COUNTRY_CODE).expect("locale"),
         device_registration: Registration {

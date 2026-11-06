@@ -806,6 +806,7 @@ impl RemoteSourceRuntime {
         result?;
         if library_eligible {
             if let Ok(request) = self.inner.tasks.admit(|| self.ui().begin_library()) {
+                self.publish_ui();
                 return self.refresh_ui_library(request).await;
             }
         }

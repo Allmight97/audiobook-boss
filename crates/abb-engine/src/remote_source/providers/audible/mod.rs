@@ -313,4 +313,4 @@ fn extract_audible_auth_code(response_url: &str) -> Result<String> {
 
 #[cfg(test)]
 #[path = "audible_tests.rs"]
-mod tests;
+pub(in crate::remote_source) mod tests;

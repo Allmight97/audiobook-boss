@@ -12,6 +12,69 @@ impl crate::EventSink for Updates {
     }
 }
 
+struct ConnectedVault {
+    auth: String,
+    reads: std::sync::atomic::AtomicUsize,
+    library_read: VaultGate,
+}
+
+impl crate::remote_source::vault::SecretVault for ConnectedVault {
+    fn get_secret(&self, _key: &str) -> Result<Option<secrecy::SecretString>> {
+        let reads = self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if reads == 0 {
+            return Ok(Some(self.auth.clone().into()));
+        }
+        self.library_read.wait();
+        Err(AppError::ResourceCleanup("library read ended".into()))
+    }
+    fn set_secret(&self, _key: &str, _value: secrecy::SecretString) -> Result<()> {
+        Ok(())
+    }
+    fn delete_secret(&self, _key: &str) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn the_library_load_after_an_account_read_is_published_as_busy_while_it_runs() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let updates = std::sync::Arc::new(Updates::default());
+    let (library_read, entered, release) = vault_gate();
+    let auth = crate::remote_source::providers::audible::tests::fixture_auth();
+    let runtime = crate::remote_source::tests::test_runtime_with(
+        &root,
+        Some(Box::new(ConnectedVault {
+            auth: serde_json::to_string(&auth).expect("auth json"),
+            reads: std::sync::atomic::AtomicUsize::new(0),
+            library_read,
+        })),
+        Some(updates.clone()),
+    );
+
+    let load = runtime.inner.tasks.spawn(
+        runtime
+            .ui_begin(RemoteUiIntent::SelectLane {
+                lane: ProviderId::Audible,
+            })
+            .finish(),
+    );
+    entered.await.expect("library load reads the vault");
+
+    let last = updates
+        .0
+        .lock()
+        .expect("updates")
+        .iter()
+        .rev()
+        .find_map(|update| update.remote.clone())
+        .expect("a remote part");
+    assert!(last.busy);
+    assert_eq!(last.library_status, RemoteDraftStatus::Running);
+
+    release.send(()).expect("release library read");
+    assert!(load.await.expect("tracked load").is_err());
+}
+
 #[test]
 fn acquisition_choices_enforce_availability_and_preserve_explicit_pdf_choice_on_refresh() {
     let mut ui = UiState::default();
