@@ -1,4 +1,5 @@
 use super::*;
+use crate::remote_source::AcquisitionSelection;
 
 #[derive(Default)]
 struct Updates(std::sync::Mutex<Vec<crate::session::SessionUpdate>>);

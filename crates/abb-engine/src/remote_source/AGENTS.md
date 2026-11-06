@@ -112,8 +112,9 @@ selection change. Snapshot `terminal` and `settled` facts belong here.
 
 - `ui.rs` owns accepted title/PDF/release choices, normalized connection drafts,
   request generations, and batch outcomes. Its intent match is routing; effect
-  execution stays in `RemoteUiRun`; `indexer_save.rs` owns the Indexer Save
-  and Reset effects on the draft. Accepted runs execute on `EngineTasks`
+  execution stays in `RemoteUiRun`; `audible_lane.rs` owns sign-in, library, and
+  title and PDF choices; `indexer_save.rs` owns the Indexer Save and Reset
+  effects on the draft. Accepted runs execute on `EngineTasks`
   through the session, whether or not a host awaits the reply.
 - SelectLane reads the selected account and, for connected Audible outside an
   acquisition/handoff, its library; repeated entry coalesces pending reads.
