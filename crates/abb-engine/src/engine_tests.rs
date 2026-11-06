@@ -6,7 +6,6 @@ fn config(root: &Path) -> EngineConfig {
         config_dir: root.join("config"),
         app_identifier: "com.audiobook-boss.test".to_string(),
         events: Arc::new(crate::DiscardEvents),
-        aaxclean_helper: None,
     }
 }
 

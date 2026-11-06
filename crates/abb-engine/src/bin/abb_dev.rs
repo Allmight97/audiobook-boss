@@ -461,7 +461,6 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, Strin
         config_dir: state_dir.join("config"),
         app_identifier: APP_IDENTIFIER.to_string(),
         events: Arc::new(PrintProgress::default()),
-        aaxclean_helper: None,
     })
     .map_err(|error| format!("engine failed to start: {error}"))?;
 

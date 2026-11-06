@@ -68,7 +68,6 @@ function showOperation(operation: OperationSnapshot, offers: RestartOffer[] = []
 	runtime = createAppRuntime();
 	vi.spyOn(runtime.processing, 'restartOffers').mockReturnValue(offers);
 	vi.spyOn(runtime.workOperations, 'view').mockReturnValue({
-		initialized: true,
 		operations: [operation],
 		cancelPendingByOperationId: {},
 		errorMessage: null,
@@ -176,11 +175,6 @@ it('reveals only completed titles in the host file manager', () => {
 	operation.children[0] = {
 		...operation.children[0],
 		outputPath: '/Library/A Change of Plans.m4b',
-	};
-	operation.children[1] = {
-		...operation.children[1],
-		status: 'cancelled' as const,
-		outputPath: '/x.m4b',
 	};
 	showOperation(operation);
 	const reveal = vi.spyOn(runtime!.workOperations, 'revealOutput').mockResolvedValue();

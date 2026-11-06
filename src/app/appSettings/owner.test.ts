@@ -35,7 +35,6 @@ describe('settings owner', () => {
 			effective: 4,
 			autoEffective: 4,
 			effectiveLabel: 'Auto → 4',
-			allowAuto: true,
 		});
 		engine.respondSettings = () => {
 			const { concurrency } = engine.settings();

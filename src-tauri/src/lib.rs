@@ -95,7 +95,6 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
         config_dir: resolve("config", app.path().app_config_dir())?,
         app_identifier: app.config().identifier.clone(),
         events: std::sync::Arc::new(events::TauriEvents(app.handle().clone())),
-        aaxclean_helper: None,
     })
 }
 

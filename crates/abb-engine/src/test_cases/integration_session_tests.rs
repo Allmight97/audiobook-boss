@@ -8,7 +8,7 @@ use abb_engine::session::{
     SubmissionStatus, SubmitRefusal, TitlePlan,
 };
 use abb_engine::work_runtime::WorkOperationStatus;
-use abb_engine::{read_metadata, Engine, ShutdownOutcome};
+use abb_engine::{read_metadata, Engine, RunningWork, ShutdownOutcome};
 use tempfile::TempDir;
 
 use super::integration_session_desk::{
@@ -482,7 +482,7 @@ async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_w
 
     assert!(finished(desk.export_status(&export)));
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
-    assert!(desk.engine.running_work().is_empty());
+    assert_eq!(desk.engine.running_work(), RunningWork::default());
     desk.send(SessionIntent::Submit).await;
     assert_eq!(
         submission(&desk),

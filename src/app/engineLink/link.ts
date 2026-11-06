@@ -236,7 +236,6 @@ function emptySettings(): SettingsSnapshot {
 			preference: { mode: 'auto' },
 			effective: 1,
 			capabilities: {
-				allowAuto: true,
 				autoEffective: 1,
 				fixedMin: 1,
 				fixedMax: 1,

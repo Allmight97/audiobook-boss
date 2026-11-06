@@ -123,9 +123,6 @@ pub struct EngineConfig {
     /// Scopes stored credentials. Two identifiers never share a vault.
     pub app_identifier: String,
     pub events: Arc<dyn EventSink>,
-    /// Location of the Audible helper binary. `None` resolves it beside the
-    /// running executable.
-    pub aaxclean_helper: Option<PathBuf>,
 }
 
 /// One running ABB engine. Cloning shares the same engine.
@@ -184,12 +181,6 @@ enum StoppedWork {
     Acquisition(String),
 }
 
-impl RunningWork {
-    pub fn is_empty(&self) -> bool {
-        *self == Self::default()
-    }
-}
-
 impl Engine {
     /// Starts the engine: locks `cache_dir`, clears working files abandoned
     /// by a previous run, puts the saved settings in effect, then starts the
@@ -209,7 +200,6 @@ impl Engine {
             app_identifier: config.app_identifier,
             power: power.clone(),
             host: host.clone(),
-            aaxclean_helper: config.aaxclean_helper,
             tasks: tasks.clone(),
         })?;
         if let Err(error) = remote_source.cleanup_abandoned_sessions() {

@@ -55,7 +55,7 @@ export function renderPreview(
 		operation.status === 'running' ||
 		operation.status === 'cancelling';
 	const stage = stageForProgress(operation.progress.stage);
-	const message = operation.terminalSummary?.message ?? operation.progress.message;
+	const message = operation.progress.message;
 	renderStatus(
 		view,
 		buildStatus(stage, operation.progress.percentage, message, {
@@ -80,7 +80,7 @@ export function renderPreview(
 						: (child.message ?? child.progress.message),
 			stage: stageForProgress(child.progress.stage),
 			percentage: child.progress.percentage,
-			canCancel: child.cancellable && active,
+			canCancel: child.cancellable,
 			cancelId: child.childJobId,
 			onCancel: cancel,
 		})),

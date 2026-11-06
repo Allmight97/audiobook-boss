@@ -557,7 +557,6 @@ export type MaterializedSourceFile = {
 };
 
 export type MaxConcurrentJobsCapabilities = {
-	allowAuto: boolean,
 	autoEffective: number,
 	fixedMin: number,
 	fixedMax: number,
@@ -640,7 +639,7 @@ export type OnlineMetadataResult = {
 
 export type OperationId = string;
 
-export type OperationKind = "processingBatch" | "remoteAcquisition" | "metadataSave";
+export type OperationKind = "processingBatch" | "metadataSave";
 
 /**
  *  Bounded per-operation activity tail rendered by the Work Center's op-card

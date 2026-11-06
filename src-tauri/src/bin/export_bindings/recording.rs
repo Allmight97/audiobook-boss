@@ -27,7 +27,6 @@ impl FixtureEngine {
             config_dir: root.join("config"),
             app_identifier: "com.audiobook-boss.contract-fixture".into(),
             events: Arc::new(DiscardEvents),
-            aaxclean_helper: None,
         })
         .expect("failed to start the fixture engine");
         Self { engine, root }

@@ -7,7 +7,6 @@ use std::sync::Arc;
 fn test_max_concurrent_capabilities_match_registry_bounds() {
     let capabilities = JobRegistry::max_concurrent_jobs_capabilities();
 
-    assert!(capabilities.allow_auto);
     assert_eq!(capabilities.fixed_min, MIN_CONCURRENT_JOBS);
     assert_eq!(capabilities.fixed_max, MAX_CONCURRENT_JOBS);
     assert_eq!(

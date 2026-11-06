@@ -43,8 +43,6 @@ pub(crate) struct RemoteSourceConfig {
     pub(crate) app_identifier: String,
     pub(crate) power: crate::power::PowerManager,
     pub(crate) host: crate::host::Host,
-    /// Host-supplied helper location; `None` resolves it beside the executable.
-    pub(crate) aaxclean_helper: Option<PathBuf>,
     pub(crate) tasks: crate::engine::EngineTasks,
 }
 
@@ -92,7 +90,7 @@ impl RemoteSourceRuntime {
                 )),
                 lifecycle: RemoteAcquisitionLifecycle::new(
                     RemoteSourceStaging::new(config.cache_dir),
-                    AaxcleanMaterializer::new_for_helper(config.aaxclean_helper),
+                    AaxcleanMaterializer::new_for_helper(None),
                     config.host,
                     ui,
                     session_lifecycle::audible_acquire(),

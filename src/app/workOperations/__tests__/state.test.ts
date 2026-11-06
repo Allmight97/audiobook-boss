@@ -152,7 +152,6 @@ describe('Work Center state', () => {
 		list.reject(new Error('late list failure'));
 		await expect(initializing).resolves.toBeUndefined();
 		expect(session.view()).toMatchObject({
-			initialized: false,
 			operations: [],
 			errorMessage: null,
 		});
@@ -191,7 +190,7 @@ describe('Work Center state', () => {
 		);
 	});
 
-	it('does not mark initialized or retain listeners when disposed mid-initialization', async () => {
+	it('applies no list or retained listeners when disposed mid-initialization', async () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 		const updateUnlisten = vi.fn();
 		const listDeferred = createDeferred<WorkOperationsSnapshot>();
@@ -205,7 +204,7 @@ describe('Work Center state', () => {
 		await initPromise.catch(() => {});
 
 		expect(updateUnlisten).toHaveBeenCalledTimes(1);
-		expect(session.view().initialized).toBe(false);
+		expect(session.view().operations).toEqual([]);
 	});
 
 	it('does not share operation snapshots across sessions', async () => {

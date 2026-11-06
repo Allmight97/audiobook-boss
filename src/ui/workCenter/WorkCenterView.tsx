@@ -44,7 +44,6 @@ function acceptedQueuePosition(
 
 function operationKindLabel(kind: OperationSnapshot['kind']): string {
 	if (kind === 'processingBatch') return 'Batch';
-	if (kind === 'remoteAcquisition') return 'Acquisition';
 	return 'Metadata';
 }
 
@@ -67,22 +66,8 @@ function revealLabel(): string {
 	return 'Show in Folder';
 }
 
-function canCancel(operation: OperationSnapshot): boolean {
-	return operation.cancellable && !operation.cancelRequested;
-}
-
 function canCancelSeparateTitle(operation: OperationSnapshot, child: ChildJobSnapshot): boolean {
-	return (
-		operation.children.length > 1 &&
-		canCancel(operation) &&
-		child.cancellable &&
-		!child.cancelRequested
-	);
-}
-
-function summaryText(operation: OperationSnapshot): string {
-	if (operation.terminalSummary) return operation.terminalSummary.message;
-	return operation.progress.message;
+	return operation.children.length > 1 && child.cancellable;
 }
 
 function childReason(child: ChildJobSnapshot): string | null {
@@ -159,7 +144,7 @@ export function WorkCenterView(): JSX.Element {
 												class="work-action-button"
 												type="button"
 												disabled={
-													!canCancel(operation) ||
+													!operation.cancellable ||
 													view().cancelPendingByOperationId[operation.operationId] === true
 												}
 												onClick={() => void workOperations.cancel(operation.operationId)}
@@ -186,8 +171,8 @@ export function WorkCenterView(): JSX.Element {
 											</Show>
 										</span>
 									</div>
-									<div class="work-summary" title={summaryText(operation)}>
-										{summaryText(operation)}
+									<div class="work-summary" title={operation.progress.message}>
+										{operation.progress.message}
 									</div>
 									<Show when={operation.logTail.length > 0}>
 										<div class="work-log-tail" role="log" aria-label="Recent operation activity">
@@ -249,7 +234,7 @@ export function WorkCenterView(): JSX.Element {
 																</>
 															)}
 														</Show>
-														<Show when={child.status === 'completed' && child.outputPath}>
+														<Show when={child.outputPath}>
 															<button
 																class="work-child-action"
 																type="button"

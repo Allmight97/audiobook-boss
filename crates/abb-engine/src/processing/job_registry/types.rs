@@ -25,7 +25,6 @@ impl std::fmt::Display for JobId {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MaxConcurrentJobsCapabilities {
-    pub allow_auto: bool,
     pub auto_effective: usize,
     pub fixed_min: usize,
     pub fixed_max: usize,

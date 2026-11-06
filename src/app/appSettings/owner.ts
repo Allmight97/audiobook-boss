@@ -24,7 +24,6 @@ type ConcurrencyView = {
 	readonly autoEffective: number;
 	readonly effectiveLabel: string;
 	readonly controlsEnabled: boolean;
-	readonly allowAuto: boolean;
 	readonly fixedOptions: ReadonlyArray<number>;
 };
 
@@ -58,7 +57,6 @@ export type SettingsOwner = {
 	setControlsEnabled: (enabled: boolean) => void;
 	openDialog: () => void;
 	closeDialog: () => void;
-	setDialogOpen: (open: boolean) => void;
 	setKeepAwakeWhileWorking: (enabled: boolean) => Promise<void>;
 	setAacDecoder: (decoder: AacDecoder) => Promise<void>;
 	saveCurrentSettingsAsPinnedDefaults: () => Promise<void>;
@@ -205,7 +203,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 				autoEffective: capabilities.autoEffective,
 				effectiveLabel: selection === 'auto' ? `Auto → ${effective}` : `Max ${effective}`,
 				controlsEnabled,
-				allowAuto: capabilities.allowAuto,
 				fixedOptions: capabilities.fixedOptions,
 			};
 		},
@@ -235,9 +232,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		},
 		closeDialog() {
 			updateDialog(resetGeneration, { isOpen: false });
-		},
-		setDialogOpen(open) {
-			updateDialog(resetGeneration, { isOpen: open });
 		},
 		async setKeepAwakeWhileWorking(enabled) {
 			if (dialog.powerSaveState === 'saving') return;

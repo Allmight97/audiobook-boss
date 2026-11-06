@@ -2,25 +2,9 @@ import type { AppErrorCategory as WireErrorCategory } from '../generated/tauri';
 
 type PlainRecord = Record<string, unknown>;
 
-const APP_ERROR_CATEGORIES = [
-	'validation',
-	'cancellation',
-	'toolchain',
-	'resource',
-	'io',
-	'internal',
-	'auth',
-	'network',
-	'import',
-	'processing',
-	'unknown',
-] as const;
-
-type AppErrorCategory = (typeof APP_ERROR_CATEGORIES)[number] | (string & {});
-
 export interface AppErrorEnvelope {
 	code: string;
-	category: AppErrorCategory;
+	category: string;
 	message: string;
 	detail?: string | null;
 }

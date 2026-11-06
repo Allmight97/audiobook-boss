@@ -12,7 +12,6 @@ import { toUserMessage } from '../../lib/tauri/appError';
 import { createSubscriptionGroup, type SubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
 
 export type WorkOperationsView = {
-	readonly initialized: boolean;
 	readonly operations: ReadonlyArray<OperationSnapshot>;
 	readonly cancelPendingByOperationId: Readonly<Partial<Record<string, boolean>>>;
 	readonly errorMessage: string | null;
@@ -20,7 +19,6 @@ export type WorkOperationsView = {
 
 interface WorkCenterState {
 	model: WorkCenterModel;
-	initialized: boolean;
 	cancelPendingByOperationId: Record<string, boolean>;
 	errorMessage: string | null;
 }
@@ -30,7 +28,6 @@ const CANCEL_ERROR_PREFIX = 'Failed to cancel';
 function emptyWorkCenterState(): WorkCenterState {
 	return {
 		model: emptyWorkCenterModel(),
-		initialized: false,
 		cancelPendingByOperationId: {},
 		errorMessage: null,
 	};
@@ -38,7 +35,6 @@ function emptyWorkCenterState(): WorkCenterState {
 
 export function emptyWorkOperationsView(): WorkOperationsView {
 	return {
-		initialized: false,
 		operations: [],
 		cancelPendingByOperationId: {},
 		errorMessage: null,
@@ -71,7 +67,6 @@ export function createWorkOperationsSession(
 
 	function snapshot(): WorkOperationsView {
 		return {
-			initialized: state.initialized,
 			operations: visibleOperations(state.model),
 			cancelPendingByOperationId: state.cancelPendingByOperationId,
 			errorMessage: state.errorMessage,
@@ -118,7 +113,6 @@ export function createWorkOperationsSession(
 		initialize() {
 			if (initializationPromise !== null) return initializationPromise;
 			if (!isTauriRuntimeAvailable()) {
-				state.initialized = true;
 				state.errorMessage = null;
 				commit();
 				return Promise.resolve();
@@ -136,7 +130,6 @@ export function createWorkOperationsSession(
 					return;
 				}
 				apply(applyWorkOperations(state.model, list));
-				state.initialized = true;
 				state.errorMessage = null;
 				commit();
 			})().catch((error) => {
@@ -156,7 +149,6 @@ export function createWorkOperationsSession(
 			subscriptions?.dispose();
 			subscriptions = null;
 			initializationPromise = null;
-			state.initialized = false;
 			state.model = emptyWorkCenterModel();
 			state.cancelPendingByOperationId = {};
 			state.errorMessage = null;

@@ -204,7 +204,6 @@ impl JobRegistry {
 
     pub fn max_concurrent_jobs_capabilities() -> MaxConcurrentJobsCapabilities {
         MaxConcurrentJobsCapabilities {
-            allow_auto: true,
             auto_effective: Self::default_max(),
             fixed_min: MIN_CONCURRENT_JOBS,
             fixed_max: MAX_CONCURRENT_JOBS,

@@ -1,7 +1,6 @@
 {
   "concurrency": {
     "capabilities": {
-      "allowAuto": true,
       "autoEffective": 4,
       "fixedMax": 8,
       "fixedMin": 1,

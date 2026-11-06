@@ -25,7 +25,6 @@ pub(super) fn engine_config(root: &Path) -> EngineConfig {
         config_dir: root.join("config"),
         app_identifier: "com.audiobook-boss.test".to_string(),
         events: Arc::new(abb_engine::DiscardEvents),
-        aaxclean_helper: None,
     }
 }
 

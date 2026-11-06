@@ -40,7 +40,6 @@ fn session_and_settings_round_trip_through_the_real_invoke_handler() {
         config_dir: root.join("config"),
         app_identifier: "com.audiobook-boss.invoke-test".into(),
         events: Arc::new(DiscardEvents),
-        aaxclean_helper: None,
     })
     .expect("the engine starts");
     let app = mock_builder()
