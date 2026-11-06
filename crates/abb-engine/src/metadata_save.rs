@@ -38,6 +38,7 @@ pub(crate) struct MetadataSaveResultEntry {
 pub(crate) struct Rewrite {
     pub before: String,
     pub after: String,
+    pub after_bytes: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -295,12 +296,19 @@ fn save_metadata_item(
 
     let before = crate::metadata::source_fingerprint(&validated_path).ok();
     crate::metadata::save_metadata_intent(&validated_path, &metadata_patch)?;
-    let after = crate::metadata::source_fingerprint(&validated_path).ok();
+    let after = std::fs::metadata(&validated_path).ok().and_then(|stat| {
+        let fingerprint = crate::metadata::source_fingerprint_from_metadata(&stat).ok()?;
+        Some((fingerprint, stat.len()))
+    });
 
     log::info!("Metadata saved to: {}", validated_path.display());
     Ok(before
         .zip(after)
-        .map(|(before, after)| Rewrite { before, after }))
+        .map(|(before, (after, after_bytes))| Rewrite {
+            before,
+            after,
+            after_bytes,
+        }))
 }
 
 /// Progress for a metadata-save operation; children match by `input_index`.

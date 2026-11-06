@@ -9,7 +9,8 @@ pub use abb_metadata_core::{
     parse_cue, validate_chapters, ChapterSpec, CueInterpretation, CueSheet,
 };
 pub(crate) use cue::{
-    inspect_chapter_source, source_fingerprint, validate_chapter_plan, validate_source_fingerprint,
+    inspect_chapter_source, source_fingerprint, source_fingerprint_from_metadata,
+    validate_chapter_plan, validate_source_fingerprint,
 };
 pub use cue::{ChapterPlan, CueSource, CueStatus};
 mod chapter_count;

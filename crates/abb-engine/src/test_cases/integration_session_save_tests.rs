@@ -3,7 +3,7 @@ use std::path::Path;
 
 use abb_engine::session::{
     FieldAction, MetadataField, MetadataStatus, OutputEdits, SelectionModifiers, SessionIntent,
-    SessionOutcome,
+    SessionOutcome, TitlePlan,
 };
 use abb_engine::work_runtime::WorkOperationStatus;
 use abb_engine::{read_metadata, AudiobookMetadata, ShutdownOutcome};
@@ -156,6 +156,38 @@ async fn a_save_changes_the_title_and_author_the_list_shows() {
         listed(&desk),
         ("Renamed".to_string(), Some("New Author".to_string()))
     );
+}
+
+#[tokio::test]
+async fn a_save_lists_the_new_file_size_and_keeps_the_resolved_plan() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 0.2)
+        .await;
+    desk.import(&book).await;
+    desk.wait_until("the plan resolves", |desk| {
+        matches!(desk.plan(), TitlePlan::Resolved { .. })
+    })
+    .await;
+    let imported = fs::metadata(&book).expect("source").len();
+
+    desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
+        field: MetadataField::Title,
+        value: "A much longer title than the one the file had ".repeat(40),
+    })
+    .await;
+    assert_eq!(
+        desk.send(SessionIntent::Save).await,
+        SessionOutcome::Applied
+    );
+
+    let saved = fs::metadata(&book).expect("source").len();
+    assert_ne!(saved, imported);
+    let titles = desk.engine.session_snapshot().titles.expect("titles");
+    assert_eq!(titles.files[0].size, Some(saved as f64));
+    assert_eq!(titles.total_size_bytes, saved as f64);
+    assert!(matches!(desk.plan(), TitlePlan::Resolved { .. }));
 }
 
 #[tokio::test]

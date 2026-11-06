@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- After a Save, the file list shows each file's new size, and a saved title's
+  audio plan no longer drops back to checking.
 - The Preview Audio tooltip names the sample length ABB renders. A title of more
   than 18 files runs longer than 90 seconds, and the tooltip now says so.
 - When a path can't be built, the output Example line says why, such as the

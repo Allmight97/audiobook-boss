@@ -536,6 +536,7 @@ fn a_tag_write_moves_a_chapter_plan_only_when_the_file_was_as_inspected() {
         &Rewrite {
             before: "10:1".into(),
             after: "20:2".into(),
+            after_bytes: 20,
         },
     );
     set.note_tag_write(
@@ -543,6 +544,7 @@ fn a_tag_write_moves_a_chapter_plan_only_when_the_file_was_as_inspected() {
         &Rewrite {
             before: "15:5".into(),
             after: "25:6".into(),
+            after_bytes: 25,
         },
     );
 

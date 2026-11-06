@@ -30,7 +30,7 @@ pub struct CueSource {
     pub message: String,
 }
 
-fn source_fingerprint_from_metadata(stat: &std::fs::Metadata) -> Result<String> {
+pub(crate) fn source_fingerprint_from_metadata(stat: &std::fs::Metadata) -> Result<String> {
     let modified = stat
         .modified()?
         .duration_since(std::time::UNIX_EPOCH)

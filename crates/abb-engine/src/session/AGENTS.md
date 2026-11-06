@@ -179,7 +179,8 @@ one host attachment.
 - **Listed names.** `AudioFile::label` (title tag, else file name) and
   `artist` are what the list, refusals, and the draft label show. Analysis and
   every successful write (`WorkingSet::note_saved_names`) set them; the list
-  does not follow staged edits. The frontend renders them as given.
+  does not follow staged edits. The frontend renders them as given. A write
+  also sets the source's size (`note_tag_write`).
 - **Audio choice.** A title edit applies to every named title or none: one
   title that refuses it, or a locked list, changes nothing and sets
   `audio.refusal` until the selection or the lock changes. A defaults edit is

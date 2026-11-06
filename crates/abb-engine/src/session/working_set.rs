@@ -703,15 +703,18 @@ impl WorkingSet {
         }
     }
 
-    /// Carries a source's chapter plan across ABB's own tag write, which
-    /// changes the file but not its audio. A plan made for a file that had
-    /// already changed before the write keeps its old fingerprint, so the
+    /// Carries a source's size and chapter plan across ABB's own tag write,
+    /// which changes the file but not its audio. A plan made for a file that
+    /// had already changed before the write keeps its old fingerprint, so the
     /// change is still caught.
     pub(crate) fn note_tag_write(&mut self, path: &Path, rewrite: &Rewrite) {
-        let apply = |file: &mut AudioFile| {
+        let mut changed = false;
+        let mut apply = |file: &mut AudioFile| {
             if file.path != path {
                 return;
             }
+            file.size = Some(rewrite.after_bytes as f64);
+            changed = true;
             if let Some(plan) = file
                 .chapter_plan
                 .as_mut()
@@ -720,11 +723,14 @@ impl WorkingSet {
                 plan.source_fingerprint = rewrite.after.clone();
             }
         };
-        self.files.iter_mut().for_each(apply);
+        self.files.iter_mut().for_each(&mut apply);
         self.title_sources
             .values_mut()
             .flat_map(|sources| sources.iter_mut())
-            .for_each(apply);
+            .for_each(&mut apply);
+        if changed {
+            self.touch();
+        }
     }
 
     pub(crate) fn choose_cue(&mut self, input_id: &str, choice: CueChoice) {
