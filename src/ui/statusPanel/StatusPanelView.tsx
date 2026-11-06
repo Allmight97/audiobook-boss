@@ -127,16 +127,16 @@ export function StatusPanelView(): JSX.Element {
 						class="queue-job-list"
 						hidden={!queueExpanded() || items().length === 0}
 					>
-						<For each={items()}>
+						<For each={items()} keyed={(item) => item.childJobId}>
 							{(item) => (
-								<div class={`queue-job-row ${JOB_STATUS_CLASS[item.status]}`}>
-									<span class="queue-job-label">{item.label}</span>
-									<span class="queue-job-status">{jobStatusLabel(item)}</span>
+								<div class={`queue-job-row ${JOB_STATUS_CLASS[item().status]}`}>
+									<span class="queue-job-label">{item().label}</span>
+									<span class="queue-job-status">{jobStatusLabel(item())}</span>
 									<button
 										class="job-cancel-button"
 										type="button"
-										disabled={!item.canCancel}
-										onClick={() => processing.cancelJob(item.childJobId)}
+										disabled={!item().canCancel}
+										onClick={() => processing.cancelJob(item().childJobId)}
 									>
 										Cancel
 									</button>

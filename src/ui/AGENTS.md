@@ -11,13 +11,13 @@ imports). Files in one folder import each other relatively.
 
 - `App.tsx` composes the views and owns the global key bindings (Cmd+S saves
   metadata, Cmd+, opens Settings).
-- A `<For>` over option, provider, title, or release rows a snapshot rebuilds
-  passes `keyed` a stable key (`option.value`, `title.titleId`,
-  `release.key`), so unchanged rows keep their DOM. Why: a recreated `<option>`
-  resets its `<select>` to the first option. File list, lookup, and source rows
-  pass none: `engineLink` keeps their object identity (`src/app/AGENTS.md`).
-  Work Center and Status Panel rows pass none either, so a progress tick that
-  replaces an operation or job object rebuilds its row.
+- A `<For>` over option, provider, title, release, operation, or job rows a
+  snapshot rebuilds passes `keyed` a stable key (`option.value`,
+  `title.titleId`, `release.key`, `operation.operationId`,
+  `child.childJobId`), so each row keeps its DOM. Why: a recreated `<option>`
+  resets its `<select>` to the first option, and a button rebuilt by a progress
+  tick between press and release loses the click. File list, lookup, and source
+  rows pass none: `engineLink` keeps their object identity (`src/app/AGENTS.md`).
 - A view opens an external link with `tauriClient.openUrl` only for a link the
   user clicked: a release's source page and the Opus help link.
 

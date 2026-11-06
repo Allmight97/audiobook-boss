@@ -188,6 +188,46 @@ describe('engine preview adapter', () => {
 		expect(screen.getByText('Cancelling')).toBeVisible();
 	});
 
+	it('keeps a title row and its Cancel across a progress tick', async () => {
+		const engine = createFakeEngine();
+		engine.change((state) => {
+			state.output.previewRun = preview();
+		});
+		const app = createAppRuntime({ engine });
+		runtimes.push(app);
+		await app.initialize();
+		const { container } = render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<StatusPanelView />
+			</AppRuntimeProvider>
+		));
+		const row = container.querySelector('.queue-job-row');
+		const cancel = row?.querySelector('button');
+		expect(cancel).toBeInstanceOf(HTMLButtonElement);
+
+		const ticked = preview();
+		ticked.operation.children[0].progress = {
+			...ticked.operation.children[0].progress,
+			percentage: 55,
+		};
+		engine.change((state) => {
+			state.output.previewRun = ticked;
+		});
+
+		await vi.waitFor(() =>
+			expect(container.querySelector('.queue-job-status')).toHaveTextContent('55.0%'),
+		);
+		expect(cancel).toBeInTheDocument();
+		cancel?.click();
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'cancelPreview',
+				runId: 'preview-1',
+				childJobId: 'input-0',
+			}),
+		);
+	});
+
 	it('claims a finished preview once and never claims a cancelled run', async () => {
 		const engine = createFakeEngine();
 		engine.respond = (intent) =>

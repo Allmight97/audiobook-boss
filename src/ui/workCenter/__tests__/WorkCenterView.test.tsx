@@ -165,6 +165,35 @@ it('cancels one title in a running batch and hides title cancel for a single tit
 	expect(screen.queryByTitle(/only$/)).not.toBeInTheDocument();
 });
 
+it('keeps each row and its buttons across a progress update', async () => {
+	const operation = completedOperation();
+	operation.status = 'running';
+	operation.cancellable = true;
+	operation.children = operation.children.map((child) => ({
+		...child,
+		status: 'running',
+		cancellable: true,
+	}));
+	operation.children[1].outputPath = '/Library/Feedback.m4b';
+	const engine = await showOperation(operation);
+	const titleCancel = screen.getByTitle('Cancel Feedback.m4b only');
+	const [operationCancel] = screen.getAllByRole('button', { name: 'Cancel' });
+	const reveal = screen.getByRole('button', { name: /^Show in / });
+
+	engine.publishOperation({
+		...operation,
+		revision: 2,
+		progress: { ...operation.progress, percentage: 42 },
+		children: [{ ...operation.children[0], status: 'completed' }, operation.children[1]],
+	});
+
+	await screen.findByText('42%');
+	expect(screen.getByText('Done in 00:18')).toBeVisible();
+	expect(titleCancel).toBeInTheDocument();
+	expect(operationCancel).toBeInTheDocument();
+	expect(reveal).toBeInTheDocument();
+});
+
 it('reveals only completed titles in the host file manager', async () => {
 	const operation = completedOperation();
 	operation.children[0] = {
