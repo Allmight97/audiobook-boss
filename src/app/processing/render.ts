@@ -24,7 +24,6 @@ function stageText(stage: WorkProgressStage): string {
 		case 'converting':
 			return 'Converting';
 		case 'writing':
-		case 'committing':
 		case 'cleaning':
 			return 'Writing Metadata';
 		case 'complete':

@@ -34,7 +34,6 @@ function activeStageLabel(stage: JobListItem['stage']): string {
 		case 'converting':
 			return 'converting';
 		case 'writing':
-		case 'committing':
 		case 'cleaning':
 			return 'writing';
 		case 'complete':

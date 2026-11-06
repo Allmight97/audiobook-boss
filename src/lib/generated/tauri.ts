@@ -1406,7 +1406,7 @@ export type WorkOperationsUpdate = {
 /**  An accepted operation changed, with the display order as of then. */
 export type WorkOperationsUpdateEvent = WorkOperationsUpdate;
 
-export type WorkProgressStage = "pending" | "analyzing" | "converting" | "writing" | "committing" | "cleaning" | "complete" | "failed" | "cancelled";
+export type WorkProgressStage = "pending" | "analyzing" | "converting" | "writing" | "cleaning" | "complete" | "failed" | "cancelled";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

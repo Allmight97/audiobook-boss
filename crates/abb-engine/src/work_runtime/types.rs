@@ -58,7 +58,6 @@ pub enum WorkProgressStage {
     Analyzing,
     Converting,
     Writing,
-    Committing,
     Cleaning,
     Complete,
     Failed,

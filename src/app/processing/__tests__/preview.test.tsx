@@ -164,7 +164,6 @@ describe('engine preview adapter', () => {
 		['pending', 'Analyzing', '1 analyzing'],
 		['analyzing', 'Analyzing', '1 analyzing'],
 		['writing', 'Writing Metadata', '1 writing'],
-		['committing', 'Writing Metadata', '1 writing'],
 		['cleaning', 'Writing Metadata', '1 writing'],
 	] as const)('words the engine stage %s', async (stage, statusText, chip) => {
 		const engine = createFakeEngine();
