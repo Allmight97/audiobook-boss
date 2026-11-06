@@ -819,3 +819,48 @@ async fn a_stored_api_key_that_cannot_be_sent_fails_every_request_without_sendin
         );
     }
 }
+
+#[test]
+fn a_failed_grab_logs_only_a_capped_url_free_message() {
+    let long = "x".repeat(300);
+    let long_body = format!(r#"{{"message":"{long}"}}"#);
+    let cases: [(&str, Option<String>); 9] = [
+        (
+            r#"{"message":"Unable to connect to qBittorrent","description":"System.Net.Http at http://tracker.example/dl?passkey=SECRET"}"#,
+            Some("Unable to connect to qBittorrent".to_string()),
+        ),
+        (
+            r#"{"message":"Download failed for https://tracker.example/download/7?passkey=SECRET123 (403)"}"#,
+            Some("Download failed for <url> (403)".to_string()),
+        ),
+        (
+            r#"{"message":"Bad link (http://tracker.example/a?passkey=SECRET123) and HTTPS://t.example/b?k=SECRET456"}"#,
+            Some("Bad link <url> and <url>".to_string()),
+        ),
+        (
+            r#"{"message":"No route to www.tracker.example/dl?passkey=SECRET123 or magnet:?xt=urn:btih:SECRET789"}"#,
+            Some("No route to <url> or <url>".to_string()),
+        ),
+        (&long_body, Some("x".repeat(200))),
+        (
+            r#"{"description":"http://tracker.example/dl?passkey=SECRET"}"#,
+            None,
+        ),
+        (r#"{"message":42}"#, None),
+        (
+            "<html>Bad gateway http://tracker.example/?passkey=SECRET</html>",
+            None,
+        ),
+        ("", None),
+    ];
+    for (body, expected) in cases {
+        let logged = failure_message_for_log(body);
+        assert_eq!(logged, expected, "{body}");
+        assert!(
+            logged
+                .as_deref()
+                .is_none_or(|text| !text.contains("SECRET")),
+            "{body}"
+        );
+    }
+}

@@ -15,7 +15,7 @@ use crate::remote_source::types::{
 pub(super) const PROWLARR_USER_AGENT: &str = "audiobook-boss/indexer";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 const DIAGNOSIS_TIMEOUT: Duration = Duration::from_secs(10);
-const LOGGED_BODY_CHARS: usize = 2000;
+const LOGGED_MESSAGE_CHARS: usize = 200;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ProwlarrSearchParams {
@@ -172,12 +172,19 @@ impl ReqwestProwlarrAdapter {
         }
 
         if !status.is_success() {
-            log::warn!(
-                "remote_source indexer_grab request_id={} stage=prowlarr_failure http_status={} body={:?}",
-                request_id,
-                status.as_u16(),
-                truncated(&body, LOGGED_BODY_CHARS)
-            );
+            match failure_message_for_log(&body) {
+                Some(message) => log::warn!(
+                    "remote_source indexer_grab request_id={} stage=prowlarr_failure http_status={} message={:?}",
+                    request_id,
+                    status.as_u16(),
+                    message
+                ),
+                None => log::warn!(
+                    "remote_source indexer_grab request_id={} stage=prowlarr_failure http_status={}",
+                    request_id,
+                    status.as_u16()
+                ),
+            }
             let line = match status_failure_line(status, &indexer_label(release)) {
                 Some(line) => line,
                 None => {
@@ -599,6 +606,22 @@ fn downloader_failure_line(
             first.name
         ),
     }
+}
+
+fn failure_message_for_log(body: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(body).ok()?;
+    let message = value.get("message")?.as_str()?;
+    let redacted = message
+        .split_whitespace()
+        .map(|word| if looks_like_url(word) { "<url>" } else { word })
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(truncated(&redacted, LOGGED_MESSAGE_CHARS))
+}
+
+fn looks_like_url(word: &str) -> bool {
+    let lower = word.to_ascii_lowercase();
+    lower.contains("://") || lower.starts_with("www.") || lower.starts_with("magnet:")
 }
 
 fn trim_body(body: &str) -> String {
