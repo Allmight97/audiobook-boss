@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- When the drag-and-drop listener cannot start, the import area now says drag and drop is not
+  working and points to Add Folder; the Opus "Player compatibility" link says why when the
+  page does not open.
 - A title whose source could not be opened for its chapters or cover, or whose length was
   unknown so later chapters shift, now finishes with a warning in Work Center instead of
   reporting Done with nothing said.

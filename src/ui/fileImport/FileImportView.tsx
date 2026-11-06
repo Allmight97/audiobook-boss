@@ -1,10 +1,11 @@
-import { onSettled, Show } from 'solid-js';
+import { createSignal, onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { nativeDropTargetAtPoint } from '../../app/inputSession';
 import { useAppRuntime } from '../../app/runtime';
 import type { AcquisitionLane } from '../../types/appSettings';
 import { isFileDropEvent } from '../../types/events';
+import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { createSubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
 import { Button, SplitButton } from '../foundation';
 import { FileListView } from '../fileList';
@@ -20,6 +21,7 @@ export function FileImportView(): JSX.Element {
 	const defaultAcquisitionLane = runtime.settings.defaultAcquisitionLane;
 	const applyCoverArtDrop = runtime.metadata.applyCoverArtDrop;
 	const setDragOver = runtime.input.setDragOver;
+	const [dropUnavailable, setDropUnavailable] = createSignal(false);
 	let fileManagementContainer: HTMLElement | null = null;
 
 	function openAcquire(lane: AcquisitionLane): void {
@@ -28,17 +30,23 @@ export function FileImportView(): JSX.Element {
 
 	onSettled(() => {
 		const subscriptions = createSubscriptionGroup();
-		void subscriptions.add(
+		const subscribe = (registration: Promise<() => void>): void => {
+			subscriptions.add(registration).catch((error: unknown) => {
+				logFrontendFailure('fileImport.dragDropListener', error);
+				setDropUnavailable(true);
+			});
+		};
+		subscribe(
 			capability().listenDragEnter(() => {
 				setDragOver(true);
 			}),
 		);
-		void subscriptions.add(
+		subscribe(
 			capability().listenDragLeave(() => {
 				setDragOver(false);
 			}),
 		);
-		void subscriptions.add(
+		subscribe(
 			capability().listenDragDrop((payload) => {
 				setDragOver(false);
 				if (!isFileDropEvent(payload)) {
@@ -98,6 +106,11 @@ export function FileImportView(): JSX.Element {
 					)}
 				</SplitButton>
 			</div>
+			<Show when={dropUnavailable()}>
+				<div class="file-import-error" role="status">
+					Drag and drop is not working. Use Add Folder, or click the file list header, to import.
+				</div>
+			</Show>
 			<Show when={view().errorMessage}>
 				{(message) => (
 					<div id="file-import-error" class="file-import-error">

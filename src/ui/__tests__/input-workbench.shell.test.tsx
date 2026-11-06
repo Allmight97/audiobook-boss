@@ -11,6 +11,7 @@ import type { SessionOutcome } from '../../types/session';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
+import { tauriClient } from '../../lib/tauri/client';
 import { App } from '../App';
 
 const listeners: {
@@ -457,6 +458,30 @@ describe('Solid input workbench', () => {
 		fireEvent.focus(indicator);
 		fireEvent.mouseEnter(indicator);
 		expect(screen.queryByRole('dialog', { name: 'Audio plan' })).not.toBeInTheDocument();
+	});
+
+	it('says why the Opus compatibility page did not open', async () => {
+		const user = userEvent.setup();
+		const file = analyzedFile('/books/part1.mp3', { codecLabel: 'MP3' });
+		runtime = await runtimeFor({ files: [file] });
+		await renderApp(runtime);
+		await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
+		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(1));
+		engine.seedTitleAudio(file.path, { ...titleAudioRequest(), format: 'm4aOpus' });
+		const openUrl = vi.spyOn(tauriClient, 'openUrl').mockRejectedValueOnce({
+			code: 'opener_failed',
+			category: 'io',
+			message: 'No browser could be started.',
+			detail: null,
+		});
+		const indicator = screen.getByRole('button', { name: 'Audio plan for part1.mp3' });
+		await user.click(indicator);
+		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
+
+		await user.click(within(popup).getByRole('button', { name: 'Player compatibility' }));
+
+		expect(openUrl).toHaveBeenCalledTimes(1);
+		expect(await within(popup).findByText('No browser could be started.')).toBeInTheDocument();
 	});
 
 	it('handles keyboard actions only from the focused listbox', async () => {

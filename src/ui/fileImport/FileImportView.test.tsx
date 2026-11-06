@@ -73,4 +73,26 @@ describe('FileImportView import split button', () => {
 		);
 		expect(document.getElementById('import-split-caret')).toHaveAttribute('aria-expanded', 'false');
 	});
+
+	it('says drag and drop is not working when its listener cannot start', async () => {
+		runtime = await createAppRuntime({
+			engine: createFakeEngine(),
+			input: {
+				openFiles: vi.fn(async () => []),
+				openDirectory: vi.fn(async () => null),
+				listenDragEnter: vi.fn(async () => () => undefined),
+				listenDragLeave: vi.fn(async () => () => undefined),
+				listenDragDrop: vi.fn(async () => {
+					throw new Error('no window');
+				}),
+			},
+		});
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<FileImportView />
+			</AppRuntimeProvider>
+		));
+
+		expect(await screen.findByText(/Drag and drop is not working/)).toBeInTheDocument();
+	});
 });
