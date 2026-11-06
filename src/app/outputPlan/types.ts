@@ -1,6 +1,6 @@
 import type { OutputNamingConfig } from '../../types/audio';
 
-export type OutputNamingPreset = OutputNamingConfig['preset'];
+type OutputNamingPreset = OutputNamingConfig['preset'];
 
 export type OutputView = {
 	readonly outputDirectory: string;

@@ -1,7 +1,7 @@
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { tauriClient } from '../client';
 
-export interface InputOpenFileOptions {
+interface InputOpenFileOptions {
 	readonly filters?: ReadonlyArray<{
 		readonly name: string;
 		readonly extensions: ReadonlyArray<string>;
@@ -13,7 +13,7 @@ export interface NativeDropPayload {
 	readonly position: { readonly x: number; readonly y: number };
 }
 
-export type InputUnlisten = UnlistenFn;
+type InputUnlisten = UnlistenFn;
 
 export interface InputCapability {
 	openFiles: (options?: InputOpenFileOptions) => Promise<string[] | null>;

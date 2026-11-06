@@ -19,7 +19,7 @@ export type EncodingField =
 	| 'sampleRate'
 	| 'channels';
 
-export type EncodingOption = {
+type EncodingOption = {
 	readonly value: string;
 	readonly label: string;
 	readonly disabled?: boolean;

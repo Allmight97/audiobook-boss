@@ -6,7 +6,7 @@ export type DisplayStage =
 	| 'skipped'
 	| 'failed'
 	| 'cancelled';
-export type ActiveEventStage = Extract<DisplayStage, 'analyzing' | 'converting' | 'writing'>;
+type ActiveEventStage = Extract<DisplayStage, 'analyzing' | 'converting' | 'writing'>;
 
 export type ProcessingStatus =
 	| { stage: 'idle'; percentage: 0; message: string }

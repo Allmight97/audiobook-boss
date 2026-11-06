@@ -1,6 +1,6 @@
 import type { AudioFile } from '../../types/audio';
 
-export type InputSortDirection = 'none' | 'ascending' | 'descending';
+type InputSortDirection = 'none' | 'ascending' | 'descending';
 
 export type SelectionModifiers = {
 	readonly multi: boolean;

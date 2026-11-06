@@ -1,4 +1,4 @@
-export type PathBasenameFallback = 'path' | 'empty';
+type PathBasenameFallback = 'path' | 'empty';
 
 type PathBasenameOptions = {
 	fallback: PathBasenameFallback;

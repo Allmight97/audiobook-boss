@@ -2,7 +2,7 @@ import { formatAudioBitrate, formatFileSize, type AudioFile } from '../../types/
 import { pathBasename } from '../../lib/path/basename';
 import type { InputView } from './types';
 
-export type InspectorContextVariant = 'empty' | 'single' | 'multi';
+type InspectorContextVariant = 'empty' | 'single' | 'multi';
 
 export type InspectorView = {
 	readonly contextText: string;

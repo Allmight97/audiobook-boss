@@ -8,7 +8,7 @@ import type {
 
 type MetadataFormMode = 'single' | 'multi';
 export type MetadataFieldAction = FieldAction;
-export type MetadataFieldId =
+type MetadataFieldId =
 	| 'meta-title'
 	| 'meta-author'
 	| 'meta-narrator'

@@ -19,10 +19,10 @@ export type AcquisitionLane = GeneratedAcquisitionLane;
 export type AacDecoder = GeneratedAacDecoder;
 export type StartupBehavior = GeneratedStartupBehavior;
 export type SettingsUnit = GeneratedSettingsUnit;
-export type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
+type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
 	settings: EncoderSettings;
 };
-export type OutputDefaults = NullToOptionalDeep<GeneratedOutputDefaults>;
+type OutputDefaults = NullToOptionalDeep<GeneratedOutputDefaults>;
 export type PinnedDefaults = {
 	maxConcurrentJobs: ConcurrencyPreference;
 	encoderDefaults: EncoderDefaults;

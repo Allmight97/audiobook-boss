@@ -49,7 +49,7 @@ export type EngineLink = {
 	dispose: () => void;
 };
 
-export type Attachment =
+type Attachment =
 	| { readonly kind: 'pending' }
 	| { readonly kind: 'ready' }
 	| { readonly kind: 'failed'; readonly message: string };

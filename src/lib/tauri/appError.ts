@@ -16,7 +16,7 @@ const APP_ERROR_CATEGORIES = [
 	'unknown',
 ] as const;
 
-export type AppErrorCategory = (typeof APP_ERROR_CATEGORIES)[number] | (string & {});
+type AppErrorCategory = (typeof APP_ERROR_CATEGORIES)[number] | (string & {});
 
 export interface AppErrorEnvelope {
 	code: string;

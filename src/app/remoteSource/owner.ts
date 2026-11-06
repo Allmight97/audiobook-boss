@@ -16,7 +16,7 @@ import {
 } from './selection';
 import type { ReleaseGrabState, RemoteSourceView } from './types';
 
-export type RemoteSourceAction =
+type RemoteSourceAction =
 	| { readonly type: 'startAuth' | 'completeAuth' | 'logout' | 'loadLibrary' }
 	| { readonly type: 'searchReleases' }
 	| { readonly type: 'grabSelectedReleases' }

@@ -10,7 +10,7 @@ export type ReleaseGrabState = {
 	message: string;
 };
 
-export type AcquisitionState = {
+type AcquisitionState = {
 	isBusy: boolean;
 	providerId: ProviderId;
 	providers: readonly RemoteSourceProviderCapabilities[];
