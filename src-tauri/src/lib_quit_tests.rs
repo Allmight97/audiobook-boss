@@ -1,6 +1,9 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::{quit_prompt, quit_when_saved, settle_or_ask, SHUTDOWN_WAIT};
+use super::{
+    next_quit_step, quit_prompt, quit_when_saved, settle_or_ask, QuitStep, ShutdownWait,
+    SHUTDOWN_WAIT,
+};
 
 #[test]
 fn quitting_asks_first_when_it_would_stop_downloads_or_exports() {
@@ -9,23 +12,73 @@ fn quitting_asks_first_when_it_would_stop_downloads_or_exports() {
         acquisitions,
         ..Default::default()
     };
-    assert_eq!(quit_prompt(&running(0, 0)), None);
-    let (title, message) = quit_prompt(&running(0, 1)).expect("asks about the download");
-    assert_eq!(title, "Downloads are still running");
+    let prompt = quit_prompt(&running(0, 1));
+    assert_eq!(prompt.title, "Downloads are still running");
     assert!(
-        message.starts_with("1 Audible download is still running."),
-        "{message}"
+        prompt
+            .message
+            .starts_with("1 Audible download is still running."),
+        "{}",
+        prompt.message
     );
-    let (title, message) = quit_prompt(&running(2, 2)).expect("asks about both");
-    assert_eq!(title, "Work is still running");
-    assert!(message.contains("2 exports are") && message.contains("2 Audible downloads are"));
+    let prompt = quit_prompt(&running(2, 2));
+    assert_eq!(prompt.title, "Work is still running");
+    assert!(
+        prompt.message.contains("2 exports are")
+            && prompt.message.contains("2 Audible downloads are")
+    );
     let waiting = abb_engine::RunningWork {
         waiting_writes: 1,
         ..Default::default()
     };
-    let (title, message) = quit_prompt(&waiting).expect("asks about the waiting save");
-    assert_eq!(title, "Saves are still waiting");
-    assert!(message.contains("1 file"), "{message}");
+    let prompt = quit_prompt(&waiting);
+    assert_eq!(prompt.title, "Saves are still waiting");
+    assert!(prompt.message.contains("1 file"), "{}", prompt.message);
+}
+
+fn exports_running(exports: usize, acquisitions: usize) -> abb_engine::RunningWork {
+    abb_engine::RunningWork {
+        exports,
+        acquisitions,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn quitting_shuts_down_when_the_engine_closes_for_the_consent() {
+    let step = next_quit_step(|_| Ok(()), &abb_engine::QuitConsent::default());
+    assert_eq!(step, QuitStep::ShutDown);
+}
+
+#[test]
+fn quitting_asks_again_when_the_work_changed_since_the_user_agreed() {
+    let none = abb_engine::QuitConsent::default();
+    let first = next_quit_step(|_| Err(exports_running(1, 0)), &none);
+    let QuitStep::Ask { prompt, consent } = first else {
+        panic!("asked nothing although an export is running");
+    };
+    assert_eq!(prompt.title, "Exports are still running");
+
+    let second = next_quit_step(
+        |agreed| {
+            assert_eq!(*agreed, consent);
+            Err(exports_running(1, 1))
+        },
+        &consent,
+    );
+    let QuitStep::Ask { prompt, consent } = second else {
+        panic!("did not ask about the download that started after the first answer");
+    };
+    assert_eq!(prompt.title, "Work is still running");
+
+    let third = next_quit_step(
+        |agreed| {
+            assert_eq!(*agreed, consent);
+            Ok(())
+        },
+        &consent,
+    );
+    assert_eq!(third, QuitStep::ShutDown);
 }
 
 #[tokio::test(start_paused = true)]
@@ -36,7 +89,7 @@ async fn an_unsettled_shutdown_waits_until_the_user_chooses_to_quit() {
         async move { times < 2 }
     })
     .await;
-    assert!(settled.is_none());
+    assert!(matches!(settled, ShutdownWait::QuitChosen));
     assert_eq!(asked.load(Ordering::SeqCst), 2);
 }
 
@@ -46,7 +99,7 @@ async fn a_shutdown_that_settles_in_time_asks_nothing() {
         panic!("asked although shutdown settled")
     })
     .await;
-    assert!(settled.is_some());
+    assert!(matches!(settled, ShutdownWait::Finished(())));
 }
 
 fn unsaved() -> abb_engine::ShutdownOutcome {

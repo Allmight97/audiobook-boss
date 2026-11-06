@@ -120,23 +120,28 @@ struct Quit {
 
 const SHUTDOWN_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
 
+#[derive(Debug)]
+enum ShutdownWait<T> {
+    Finished(T),
+    QuitChosen,
+}
+
 /// Awaits `shutdown`, asking after each `SHUTDOWN_WAIT` whether to keep
-/// waiting. Returns its outcome; `None` only when the user chose to quit
-/// anyway.
+/// waiting.
 async fn settle_or_ask<T, A>(
     shutdown: impl std::future::Future<Output = T>,
     mut keep_waiting: impl FnMut() -> A,
-) -> Option<T>
+) -> ShutdownWait<T>
 where
     A: std::future::Future<Output = bool>,
 {
     tokio::pin!(shutdown);
     loop {
         if let Ok(outcome) = tokio::time::timeout(SHUTDOWN_WAIT, &mut shutdown).await {
-            return Some(outcome);
+            return ShutdownWait::Finished(outcome);
         }
         if !keep_waiting().await {
-            return None;
+            return ShutdownWait::QuitChosen;
         }
     }
 }
@@ -188,14 +193,14 @@ async fn quit_when_saved<S, W, R>(
 {
     loop {
         match settle_or_ask(shutdown(), &mut keep_waiting).await {
-            Some(abb_engine::ShutdownOutcome::Settled) => break,
-            Some(abb_engine::ShutdownOutcome::SettingsUnsaved { error }) => {
+            ShutdownWait::Finished(abb_engine::ShutdownOutcome::Settled) => break,
+            ShutdownWait::Finished(abb_engine::ShutdownOutcome::SettingsUnsaved { error }) => {
                 if !retry_save(error.message).await {
                     log::warn!("Quit with unsaved settings, at the user's choice");
                     break;
                 }
             }
-            None => {
+            ShutdownWait::QuitChosen => {
                 log::warn!("Quit before the engine settled, at the user's choice");
                 break;
             }
@@ -228,7 +233,13 @@ fn plural(count: usize, one: &str, many: &str) -> String {
     format!("{count} {}", if count == 1 { one } else { many })
 }
 
-fn quit_prompt(running: &abb_engine::RunningWork) -> Option<(&'static str, String)> {
+#[derive(Debug, PartialEq)]
+struct QuitPrompt {
+    title: &'static str,
+    message: String,
+}
+
+fn quit_prompt(running: &abb_engine::RunningWork) -> QuitPrompt {
     let waiting = (running.exports == 0 && running.waiting_writes > 0).then(|| {
         format!(
             "Metadata changes for {} wait to be saved. Quitting saves them first.",
@@ -263,13 +274,44 @@ fn quit_prompt(running: &abb_engine::RunningWork) -> Option<(&'static str, Strin
         )
     });
     match (exports.or(waiting), downloads) {
-        (Some(work), None) if running.exports > 0 => Some(("Exports are still running", work)),
-        (Some(work), None) => Some(("Saves are still waiting", work)),
-        (None, Some(downloads)) => Some(("Downloads are still running", downloads)),
-        (Some(work), Some(downloads)) => {
-            Some(("Work is still running", format!("{work} {downloads}")))
-        }
-        (None, None) => None,
+        (Some(work), None) if running.exports > 0 => QuitPrompt {
+            title: "Exports are still running",
+            message: work,
+        },
+        (Some(work), None) => QuitPrompt {
+            title: "Saves are still waiting",
+            message: work,
+        },
+        (Some(work), Some(downloads)) => QuitPrompt {
+            title: "Work is still running",
+            message: format!("{work} {downloads}"),
+        },
+        (None, downloads) => QuitPrompt {
+            title: "Downloads are still running",
+            message: downloads.unwrap_or_default(),
+        },
+    }
+}
+
+#[derive(Debug, PartialEq)]
+enum QuitStep {
+    ShutDown,
+    Ask {
+        prompt: QuitPrompt,
+        consent: abb_engine::QuitConsent,
+    },
+}
+
+fn next_quit_step(
+    close_for_quit: impl FnOnce(&abb_engine::QuitConsent) -> Result<(), abb_engine::RunningWork>,
+    consent: &abb_engine::QuitConsent,
+) -> QuitStep {
+    match close_for_quit(consent) {
+        Ok(()) => QuitStep::ShutDown,
+        Err(running) => QuitStep::Ask {
+            prompt: quit_prompt(&running),
+            consent: running.consent,
+        },
     }
 }
 
@@ -288,20 +330,20 @@ fn hold_quit(app: &tauri::AppHandle) -> bool {
 /// asks about the work quitting would stop now, and asks again if that
 /// changes before the user answers.
 fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) {
-    let closed = app
-        .try_state::<abb_engine::Engine>()
-        .map_or(Ok(()), |engine| engine.close_for_quit(consent));
-    let running = match closed {
-        Ok(()) => return shut_down_then_exit(app),
-        Err(running) => running,
-    };
-    let Some((title, message)) = quit_prompt(&running) else {
+    let step = next_quit_step(
+        |consent| {
+            app.try_state::<abb_engine::Engine>()
+                .map_or(Ok(()), |engine| engine.close_for_quit(consent))
+        },
+        consent,
+    );
+    let QuitStep::Ask { prompt, consent } = step else {
         return shut_down_then_exit(app);
     };
     let app = app.clone();
     app.dialog()
-        .message(message)
-        .title(title)
+        .message(prompt.message)
+        .title(prompt.title)
         .buttons(MessageDialogButtons::OkCancelCustom(
             "Quit Anyway".to_string(),
             "Keep Open".to_string(),
@@ -310,7 +352,7 @@ fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) 
             let app = app.clone();
             move |quit| {
                 if quit {
-                    quit_with_consent(&app, &running.consent);
+                    quit_with_consent(&app, &consent);
                 }
             }
         });
