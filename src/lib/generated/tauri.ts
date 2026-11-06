@@ -61,8 +61,6 @@ export type AcquisitionJob = {
 	providerId: ProviderId,
 	status: RemoteAcquisitionStatus,
 	progress: AcquisitionProgress,
-	materializedFiles: MaterializedSourceFile[],
-	supplementalAssets: SupplementalAsset[],
 	diagnostics: RemoteSourceDiagnostic[],
 	/**  Set once the engine has tried to import the job's files. */
 	handoff?: AcquisitionHandoff | null,
@@ -268,7 +266,6 @@ export type ChildJobSnapshot = {
 	sourcePath: string | null,
 	inputIndex: number | null,
 	inputId: string | null,
-	sourceInputIds: string[],
 	jobId: string | null,
 	cancellable: boolean,
 	cancelRequested: boolean,
@@ -314,7 +311,6 @@ export type CoverSnapshot = {
 	image: string | null,
 	/**  The user replaced the cover and has not saved or staged it yet. */
 	custom: boolean,
-	removalRequested: boolean,
 	loading: boolean,
 	notice: CoverNotice | null,
 	/**  Advances with every notice, so a repeated notice is still new. */
@@ -334,27 +330,6 @@ export type CueSource = {
 };
 
 export type CueStatus = "ready" | "needsConfirmation" | "invalid" | "ignored" | "embeddedPreferred";
-
-export type EncoderAvailability = {
-	aacAtAvailable: boolean,
-	nativeAacAvailable: boolean,
-	autoEncoder: EncoderType,
-};
-
-/**
- *  Encoder-specific settings facts that cannot be represented by the global
- *  controls below. In particular, FAAC's explicit HE-AAC sample-rate support
- *  is narrower than the rates accepted by the other encoders.
- */
-export type EncoderConfigurationCapability = {
-	encoderType: EncoderType,
-	bitrateKbpsMin: number,
-	bitrateKbpsMax: number,
-	allowedModes: BitrateModeKind[],
-	defaultMode: BitrateMode,
-	explicitSampleRates: number[],
-	faacProfiles: FaacProfileCapability[],
-};
 
 export type EncoderDefaults = {
 	format: AudiobookFormat,
@@ -383,9 +358,6 @@ export type EncoderSettings = {
 };
 
 export type EncoderSettingsCapabilities = {
-	availability: EncoderAvailability,
-	encoderTypes: EncoderType[],
-	encoderConfigurations: EncoderConfigurationCapability[],
 	nativeSpeedMax: number,
 	faacQualityPresets: number[],
 	faacQualityDefault: number,
@@ -402,11 +374,6 @@ export type EncoderType =
 
 /**  FAAC resolves Auto once from the requested output configuration. */
 export type FaacProfile = "auto" | "aac_lc" | "he_aac_v1";
-
-export type FaacProfileCapability = {
-	profile: FaacProfile,
-	explicitSampleRates: number[],
-};
 
 export type FaacRateControl = "abr" | "vbr";
 
@@ -482,7 +449,6 @@ export type IndexerWorkSnapshot = {
 	canGrabSelection: boolean,
 	releaseGrabs: { [key in string]: ReleaseGrabSnapshot },
 	searching: boolean,
-	grabbing: boolean,
 	message: string,
 };
 
@@ -545,18 +511,8 @@ partial: boolean; after: QueueStep | null } | { kind: "searchFailed"; after: Que
 /**  The title's pending edits were not accepted, so the result was not applied. */
 { kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } | { kind: "nextTitleRejected" } | { kind: "failed" };
 
-export type MaterializedSourceFile = {
-	inputId: string,
-	titleId: string,
-	path: string,
-	sizeBytes: number,
-	sha256: string,
-};
-
 export type MaxConcurrentJobsCapabilities = {
 	autoEffective: number,
-	fixedMin: number,
-	fixedMax: number,
 	fixedOptions: number[],
 };
 
@@ -590,8 +546,6 @@ export type MetadataSnapshot = {
 	saveInProgress: boolean,
 	status: MetadataStatus | null,
 	hasPendingEdits: boolean,
-	/**  Files with a Save waiting for the exports reading them to finish. */
-	waitingWrites: string[],
 };
 
 export type MetadataSource = "audnexus" | "openlibrary";
@@ -623,7 +577,6 @@ export type NamingPreset = "absDefault" | "customTemplate";
 
 export type OnlineMetadataResult = {
 	source: MetadataSource,
-	sourceId: string,
 	title: string,
 	authors: string[],
 	narrators: string[],
@@ -674,27 +627,15 @@ export type OperationSnapshot = {
 	finishedAtMs: number | null,
 	cancellable: boolean,
 	cancelRequested: boolean,
-	sourceInputIds: string[],
 	progress: ProgressSnapshot,
 	children: ChildJobSnapshot[],
-	terminalSummary: OperationTerminalSummary | null,
 	logTail: OperationLogEntry[],
-};
-
-export type OperationTerminalSummary = {
-	total: number,
-	succeeded: number,
-	skipped: number,
-	cancelled: number,
-	failed: number,
-	message: string,
 };
 
 export type OutputAudio = { format: "m4b"; settings: EncoderSettings } | { format: "m4aOpus"; settings: EncoderSettings } | { format: "mkaOpus"; settings: EncoderSettings };
 
 export type OutputCollisionInfo = {
 	kind: OutputCollisionKind,
-	conflictingPath: string | null,
 	detail: string | null,
 };
 
@@ -733,7 +674,6 @@ export type OutputPreview = { kind: "noDirectory" } | { kind: "noTitle" } | { ki
 { kind: "unavailable"; message: string };
 
 export type OutputReviewRequirement = {
-	canProceed: boolean,
 	message: string,
 };
 
@@ -789,7 +729,6 @@ export type PlannedOutput = {
 	kind: OutputKind,
 	requestedPath: string,
 	resolvedPath: string,
-	renameCandidate: string | null,
 	collision: OutputCollisionInfo | null,
 	review: OutputReviewRequirement | null,
 	action: PlannedOutputAction,
@@ -887,8 +826,6 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
 
 export type RemoteAcquisitionSnapshot = {
 	revision: number,
-	/**  An accepted request whose job is not registered yet. */
-	acquiring: boolean,
 	job: AcquisitionSnapshot | null,
 };
 
@@ -1191,11 +1128,6 @@ export type SettingsSnapshot = {
 	saveError: AppErrorEnvelope | null,
 	concurrency: ConcurrencySnapshot,
 	/**
-	 *  The defaults a host shows at launch: the pinned ones when the user
-	 *  chose that and has pinned some, otherwise the last used.
-	 */
-	startupDefaults: PinnedDefaults,
-	/**
 	 *  What this launch could not keep from the saved settings. Absent after
 	 *  the next accepted change.
 	 */
@@ -1274,16 +1206,6 @@ export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | {
 { kind: "restartStale" };
 
 export type SubseriesPartWarning = { kind: "invalid"; message: string } | { kind: "missingNumber" };
-
-export type SupplementalAsset = {
-	assetId: string,
-	inputId: string,
-	titleId: string,
-	path: string,
-	fileName: string,
-	sizeBytes: number,
-	sha256: string,
-};
 
 /**
  *  The tags the values on screen become. Title is also the album; author is

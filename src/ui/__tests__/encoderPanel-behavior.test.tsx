@@ -187,10 +187,9 @@ describe('encoder panel behavior controls', () => {
 	});
 
 	it('keeps showing a chosen encoder that is no longer available', async () => {
-		await renderEncoder((defaults, audio) => {
+		await renderEncoder((defaults) => {
 			defaults.choice.encoder = 'aac_at';
 			defaults.facts.effectiveEncoder = 'aac_at';
-			if (audio.capabilities) audio.capabilities.availability.aacAtAvailable = false;
 			defaults.facts.encoderOptions = defaults.facts.encoderOptions.map((option) =>
 				option.encoder === 'aac_at' ? { ...option, available: false } : option,
 			);

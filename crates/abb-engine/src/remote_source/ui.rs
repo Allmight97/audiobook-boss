@@ -119,6 +119,7 @@ pub struct IndexerWorkSnapshot {
     pub can_grab_selection: bool,
     pub release_grabs: BTreeMap<String, ReleaseGrabSnapshot>,
     pub searching: bool,
+    #[serde(skip)]
     pub grabbing: bool,
     pub message: String,
 }

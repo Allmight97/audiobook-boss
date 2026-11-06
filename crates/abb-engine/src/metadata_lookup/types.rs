@@ -34,6 +34,7 @@ pub struct MetadataLookupResponse {
 #[serde(rename_all = "camelCase")]
 pub struct OnlineMetadataResult {
     pub source: MetadataSource,
+    #[serde(skip)]
     pub source_id: String,
     pub title: String,
     pub authors: Vec<String>,

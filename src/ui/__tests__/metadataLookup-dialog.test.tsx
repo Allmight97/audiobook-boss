@@ -12,7 +12,6 @@ import { App } from '../App';
 function lookupResult(): OnlineMetadataResult {
 	return {
 		source: 'audnexus',
-		sourceId: 'audnexus:1',
 		title: 'Lookup Title',
 		authors: ['Author One'],
 		narrators: ['Narrator One'],

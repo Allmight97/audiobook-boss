@@ -10,7 +10,6 @@ import { MetadataLookupView } from '../metadataLookup';
 function coverResult(source: 'audnexus' | 'openlibrary', name: string): OnlineMetadataResult {
 	return {
 		source,
-		sourceId: `${source}:${name}`,
 		title: `${name} Cover`,
 		authors: ['Author'],
 		narrators: ['Narrator'],

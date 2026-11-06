@@ -69,6 +69,7 @@ pub enum OutputCollisionKind {
 #[serde(rename_all = "camelCase")]
 pub struct OutputCollisionInfo {
     pub kind: OutputCollisionKind,
+    #[serde(skip)]
     pub conflicting_path: Option<String>,
     pub detail: Option<String>,
 }
@@ -76,6 +77,7 @@ pub struct OutputCollisionInfo {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputReviewRequirement {
+    #[serde(skip)]
     pub can_proceed: bool,
     pub message: String,
 }
@@ -88,6 +90,7 @@ pub struct PlannedOutput {
     pub kind: OutputKind,
     pub requested_path: String,
     pub resolved_path: String,
+    #[serde(skip)]
     pub rename_candidate: Option<String>,
     pub collision: Option<OutputCollisionInfo>,
     pub review: Option<OutputReviewRequirement>,

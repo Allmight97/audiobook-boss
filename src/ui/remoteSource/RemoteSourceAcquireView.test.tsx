@@ -32,8 +32,6 @@ function acquisitionJob(percentage: number, terminal = false): AcquisitionJob {
 			currentItemIndex: 1,
 			totalItems: 1,
 		},
-		materializedFiles: [],
-		supplementalAssets: [],
 		diagnostics: [],
 	};
 }
@@ -402,7 +400,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 				deliver(
 					sessionUpdate({
 						revision,
-						remoteAcquisition: { revision, acquiring: false, job: acquisitionJob(percentage) },
+						remoteAcquisition: { revision, job: acquisitionJob(percentage) },
 					}),
 				);
 				flush();

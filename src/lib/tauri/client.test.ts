@@ -22,7 +22,6 @@ describe('tauriClient', () => {
 					effective: 4,
 					capabilities: recordedFresh.settings.concurrency.capabilities,
 				},
-				startupDefaults: null,
 				recovery: null,
 			},
 		});
@@ -100,7 +99,6 @@ describe('tauriClient', () => {
 		});
 		expect(reply.outcome).toEqual({ kind: 'superseded' });
 		expect(reply.update.output?.collisionReview?.reviewId).toBe(42);
-		expect(reply.update.output?.collisionReview?.outputs[0].renameCandidate).toBeNull();
 		expect(reply.update.output?.restartPrompt).toBeNull();
 		expect(reply.update.output?.submissionInProgress).toBe(true);
 	});

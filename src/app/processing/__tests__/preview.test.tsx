@@ -31,9 +31,7 @@ function preview(): NonNullable<SessionOutput['previewRun']> {
 			finishedAtMs: null,
 			cancellable: true,
 			cancelRequested: false,
-			sourceInputIds: ['title-1'],
 			progress,
-			terminalSummary: null,
 			logTail: [],
 			children: [
 				{
@@ -47,7 +45,6 @@ function preview(): NonNullable<SessionOutput['previewRun']> {
 					sourcePath: '/books/Book.m4b',
 					inputIndex: 0,
 					inputId: 'title-1',
-					sourceInputIds: ['title-1'],
 					jobId: 'native-job',
 					cancellable: true,
 					cancelRequested: false,

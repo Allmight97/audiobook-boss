@@ -47,7 +47,6 @@ function importedFile(): AudioFile {
 function lookupResult(): OnlineMetadataResult {
 	return {
 		source: 'audnexus',
-		sourceId: 'dune-1965',
 		title: 'Dune',
 		authors: ['Frank Herbert'],
 		narrators: ['George Guidall'],

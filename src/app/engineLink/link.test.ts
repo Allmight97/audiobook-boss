@@ -21,11 +21,9 @@ function operation(operationId: string): OperationSnapshot {
 		finishedAtMs: null,
 		cancellable: true,
 		cancelRequested: false,
-		sourceInputIds: [],
 		progress: { stage: 'converting', percentage: 10, message: 'Working.', etaSeconds: null },
 		children: [],
 		logTail: [],
-		terminalSummary: null,
 	};
 }
 
@@ -110,7 +108,7 @@ describe('engine link', () => {
 		publish(
 			sessionUpdate({
 				revision: 11,
-				remoteAcquisition: { revision: 11, acquiring: true, job: null },
+				remoteAcquisition: { revision: 11, job: null },
 			}),
 		);
 		expect(link.remoteLibrary()).toBe(library);
@@ -118,7 +116,7 @@ describe('engine link', () => {
 			sessionUpdate({ revision: 12, remoteLibrary: { ...library, revision: 9, diagnostics: [] } }),
 		);
 		expect(link.remoteLibrary()).toBe(library);
-		expect(link.remoteAcquisition().acquiring).toBe(true);
+		expect(link.remoteAcquisition().revision).toBe(11);
 	});
 
 	it('keeps the object of every file whose content did not change', async () => {
@@ -148,7 +146,7 @@ describe('engine link', () => {
 		publish(
 			sessionUpdate({
 				revision: 31,
-				remoteAcquisition: { revision: 31, acquiring: false, job: null },
+				remoteAcquisition: { revision: 31, job: null },
 			}),
 		);
 		publish(
@@ -162,10 +160,10 @@ describe('engine link', () => {
 		publish(
 			sessionUpdate({
 				revision: 32,
-				remoteAcquisition: { revision: 29, acquiring: true, job: null },
+				remoteAcquisition: { revision: 29, job: null },
 			}),
 		);
-		expect(link.remoteAcquisition().acquiring).toBe(false);
+		expect(link.remoteAcquisition().revision).toBe(31);
 	});
 
 	it('keeps unchanged remote choices and releases when another remote fact changes', async () => {

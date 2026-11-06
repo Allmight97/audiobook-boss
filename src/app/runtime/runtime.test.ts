@@ -29,8 +29,6 @@ function runningJob(): AcquisitionJob {
 			currentItemIndex: null,
 			totalItems: null,
 		},
-		materializedFiles: [],
-		supplementalAssets: [],
 		diagnostics: [],
 	};
 }

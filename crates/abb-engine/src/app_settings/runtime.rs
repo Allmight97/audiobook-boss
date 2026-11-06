@@ -76,6 +76,7 @@ pub struct SettingsSnapshot {
     pub concurrency: ConcurrencySnapshot,
     /// The defaults a host shows at launch: the pinned ones when the user
     /// chose that and has pinned some, otherwise the last used.
+    #[serde(skip)]
     pub startup_defaults: PinnedDefaults,
     /// What this launch could not keep from the saved settings. Absent after
     /// the next accepted change.

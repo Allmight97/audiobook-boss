@@ -5,8 +5,6 @@ import type {
 	AcquisitionProgress,
 	ChapterSpec,
 	ChildJobSnapshot,
-	MaterializedSourceFile,
-	MaxConcurrentJobsCapabilities,
 	OperationSnapshot,
 	ProgressSnapshot,
 	SelectionSnapshot,
@@ -40,7 +38,6 @@ describe('tauriClient generated event bindings', () => {
 	it('keeps bounded wide Rust values in the numeric IPC contract', () => {
 		expectTypeOf<AcquisitionProgress['percentage']>().toEqualTypeOf<number>();
 		expectTypeOf<ChapterSpec['startMs']>().toEqualTypeOf<number>();
-		expectTypeOf<MaterializedSourceFile['sizeBytes']>().toEqualTypeOf<number>();
 		expectTypeOf<OperationSnapshot['sequence']>().toEqualTypeOf<number>();
 		expectTypeOf<ChildJobSnapshot['startedAtMs']>().toEqualTypeOf<number | null>();
 		expectTypeOf<ChildJobSnapshot['finishedAtMs']>().toEqualTypeOf<number | null>();
@@ -48,6 +45,5 @@ describe('tauriClient generated event bindings', () => {
 		expectTypeOf<SelectionSnapshot['selectedIndices']>().toEqualTypeOf<number[]>();
 		expectTypeOf<ProgressSnapshot['percentage']>().toEqualTypeOf<number>();
 		expectTypeOf<AcquisitionProgress['bytesDownloaded']>().toEqualTypeOf<number | null>();
-		expectTypeOf<MaxConcurrentJobsCapabilities['fixedMax']>().toEqualTypeOf<number>();
 	});
 });

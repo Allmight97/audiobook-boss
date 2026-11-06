@@ -242,6 +242,7 @@ pub struct MaterializedSourceFile {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SupplementalAsset {
+    #[serde(skip)]
     pub asset_id: String,
     pub input_id: String,
     pub title_id: String,
@@ -258,7 +259,9 @@ pub struct AcquisitionJob {
     pub provider_id: ProviderId,
     pub status: RemoteAcquisitionStatus,
     pub progress: AcquisitionProgress,
+    #[serde(skip)]
     pub materialized_files: Vec<MaterializedSourceFile>,
+    #[serde(skip)]
     pub supplemental_assets: Vec<SupplementalAsset>,
     pub diagnostics: Vec<RemoteSourceDiagnostic>,
     /// Set once the engine has tried to import the job's files.
@@ -286,6 +289,7 @@ pub struct RemoteAcquisitionSnapshot {
     #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     /// An accepted request whose job is not registered yet.
+    #[serde(skip)]
     pub acquiring: bool,
     pub job: Option<Box<AcquisitionSnapshot>>,
 }

@@ -24,8 +24,6 @@ const job: AcquisitionJob = {
 		currentItemIndex: null,
 		totalItems: null,
 	},
-	materializedFiles: [],
-	supplementalAssets: [],
 	diagnostics: [],
 };
 async function open(
@@ -79,7 +77,6 @@ it('shows the engine line for a settled job and keeps Indexer status independent
 	});
 	engine.change((state) => {
 		state.remote.indexer.message = 'Sending one release';
-		state.remote.indexer.grabbing = true;
 		state.remote.busy = true;
 	});
 	expect(owner.view().statusMessage).toBe('Sending one release');

@@ -26,7 +26,9 @@ impl std::fmt::Display for JobId {
 #[serde(rename_all = "camelCase")]
 pub struct MaxConcurrentJobsCapabilities {
     pub auto_effective: usize,
+    #[serde(skip)]
     pub fixed_min: usize,
+    #[serde(skip)]
     pub fixed_max: usize,
     pub fixed_options: Vec<usize>,
 }

@@ -89,6 +89,7 @@ pub struct CoverSnapshot {
     pub image: Option<String>,
     /// The user replaced the cover and has not saved or staged it yet.
     pub custom: bool,
+    #[serde(skip)]
     pub removal_requested: bool,
     pub loading: bool,
     pub notice: Option<CoverNotice>,
@@ -111,6 +112,7 @@ pub struct MetadataSnapshot {
     pub status: Option<MetadataStatus>,
     pub has_pending_edits: bool,
     /// Files with a Save waiting for the exports reading them to finish.
+    #[serde(skip)]
     pub waiting_writes: Vec<PathBuf>,
 }
 

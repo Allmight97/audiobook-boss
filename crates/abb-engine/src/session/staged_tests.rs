@@ -25,20 +25,21 @@ pub(crate) fn exported(titles: &[(&str, ChildJobStatus, bool)]) -> Vec<ChildJobS
     titles
         .iter()
         .map(|(input_id, status, warning)| {
-            serde_json::from_value(serde_json::json!({
+            let mut child: ChildJobSnapshot = serde_json::from_value(serde_json::json!({
                 "childJobId": format!("child-{input_id}"),
                 "operationId": "operation-1",
                 "label": input_id,
                 "status": status,
                 "lane": "encodeCpu",
                 "progress": { "stage": "complete", "percentage": 100.0, "message": "" },
-                "sourceInputIds": input_id.split('+').collect::<Vec<_>>(),
                 "cancellable": false,
                 "cancelRequested": false,
                 "supplementalWarning": warning.then_some("PDF failed"),
                 "warnings": [],
             }))
-            .expect("child snapshot")
+            .expect("child snapshot");
+            child.source_input_ids = input_id.split('+').map(str::to_string).collect();
+            child
         })
         .collect()
 }

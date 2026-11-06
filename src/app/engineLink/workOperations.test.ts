@@ -41,7 +41,6 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 		finishedAtMs: null,
 		cancellable: true,
 		cancelRequested: false,
-		sourceInputIds: [id],
 		progress: {
 			stage: 'pending',
 			percentage: 0,
@@ -49,7 +48,6 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 			etaSeconds: null,
 		},
 		children,
-		terminalSummary: null,
 		logTail: [],
 	};
 }

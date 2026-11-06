@@ -31,11 +31,9 @@ function completedOperation(): OperationSnapshot {
 		finishedAtMs: 20_000,
 		cancellable: false,
 		cancelRequested: false,
-		sourceInputIds: [],
 		progress,
 		children: [
 			{
-				sourceInputIds: [],
 				childJobId: 'first',
 				operationId: 'batch',
 				label: 'A Change of Plans.m4b',
@@ -56,7 +54,6 @@ function completedOperation(): OperationSnapshot {
 				outputUpdate: null,
 			},
 			{
-				sourceInputIds: [],
 				childJobId: 'second',
 				operationId: 'batch',
 				label: 'Feedback.m4b',
@@ -78,7 +75,6 @@ function completedOperation(): OperationSnapshot {
 			},
 		],
 		logTail: [],
-		terminalSummary: null,
 	};
 }
 

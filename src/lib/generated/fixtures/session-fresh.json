@@ -1,197 +1,10 @@
 {
   "audio": {
     "capabilities": {
-      "availability": {
-        "aacAtAvailable": true,
-        "autoEncoder": "native_aac",
-        "nativeAacAvailable": true
-      },
       "channelOptions": [
         "auto",
         "mono",
         "stereo"
-      ],
-      "encoderConfigurations": [
-        {
-          "allowedModes": [
-            "cbr"
-          ],
-          "bitrateKbpsMax": 1152,
-          "bitrateKbpsMin": 1,
-          "defaultMode": {
-            "mode": "cbr"
-          },
-          "encoderType": "auto",
-          "explicitSampleRates": [
-            7350,
-            8000,
-            11025,
-            12000,
-            16000,
-            22050,
-            24000,
-            32000,
-            44100,
-            48000,
-            64000,
-            88200,
-            96000
-          ],
-          "faacProfiles": []
-        },
-        {
-          "allowedModes": [
-            "cvbr"
-          ],
-          "bitrateKbpsMax": 1152,
-          "bitrateKbpsMin": 1,
-          "defaultMode": {
-            "mode": "cvbr"
-          },
-          "encoderType": "aac_at",
-          "explicitSampleRates": [
-            7350,
-            8000,
-            11025,
-            12000,
-            16000,
-            22050,
-            24000,
-            32000,
-            44100,
-            48000,
-            64000,
-            88200,
-            96000
-          ],
-          "faacProfiles": []
-        },
-        {
-          "allowedModes": [
-            "cbr"
-          ],
-          "bitrateKbpsMax": 1152,
-          "bitrateKbpsMin": 1,
-          "defaultMode": {
-            "mode": "cbr"
-          },
-          "encoderType": "native_aac",
-          "explicitSampleRates": [
-            7350,
-            8000,
-            11025,
-            12000,
-            16000,
-            22050,
-            24000,
-            32000,
-            44100,
-            48000,
-            64000,
-            88200,
-            96000
-          ],
-          "faacProfiles": []
-        },
-        {
-          "allowedModes": [
-            "abr",
-            "vbr"
-          ],
-          "bitrateKbpsMax": 1152,
-          "bitrateKbpsMin": 1,
-          "defaultMode": {
-            "mode": "abr"
-          },
-          "encoderType": "faac",
-          "explicitSampleRates": [
-            7350,
-            8000,
-            11025,
-            12000,
-            16000,
-            22050,
-            24000,
-            32000,
-            44100,
-            48000,
-            64000,
-            88200,
-            96000
-          ],
-          "faacProfiles": [
-            {
-              "explicitSampleRates": [
-                7350,
-                8000,
-                11025,
-                12000,
-                16000,
-                22050,
-                24000,
-                32000,
-                44100,
-                48000,
-                64000,
-                88200,
-                96000
-              ],
-              "profile": "auto"
-            },
-            {
-              "explicitSampleRates": [
-                7350,
-                8000,
-                11025,
-                12000,
-                16000,
-                22050,
-                24000,
-                32000,
-                44100,
-                48000,
-                64000,
-                88200,
-                96000
-              ],
-              "profile": "aac_lc"
-            },
-            {
-              "explicitSampleRates": [
-                32000,
-                44100,
-                48000
-              ],
-              "profile": "he_aac_v1"
-            }
-          ]
-        },
-        {
-          "allowedModes": [
-            "vbr"
-          ],
-          "bitrateKbpsMax": 510,
-          "bitrateKbpsMin": 6,
-          "defaultMode": {
-            "mode": "vbr_target"
-          },
-          "encoderType": "opus",
-          "explicitSampleRates": [
-            8000,
-            12000,
-            16000,
-            24000,
-            48000
-          ],
-          "faacProfiles": []
-        }
-      ],
-      "encoderTypes": [
-        "auto",
-        "aac_at",
-        "native_aac",
-        "faac",
-        "opus"
       ],
       "explicitSampleRates": [
         7350,
@@ -317,8 +130,7 @@
       "image": null,
       "loading": false,
       "notice": null,
-      "noticeSerial": 0,
-      "removalRequested": false
+      "noticeSerial": 0
     },
     "form": {
       "fields": [
@@ -416,8 +228,7 @@
       "subseriesPart": "",
       "title": "",
       "year": ""
-    },
-    "waitingWrites": []
+    }
   },
   "output": {
     "collisionReview": null,
@@ -465,7 +276,6 @@
     "includePdfByTitleId": {},
     "indexer": {
       "canGrabSelection": false,
-      "grabbing": false,
       "message": "",
       "releaseGrabs": {},
       "releases": [],
@@ -487,7 +297,6 @@
     "selectedTitleIds": []
   },
   "remoteAcquisition": {
-    "acquiring": false,
     "job": null,
     "revision": 0
   },

@@ -18,7 +18,7 @@ fn export_verdict_requires_the_requested_title_to_be_cancelled() {
                     "childJobId": index.to_string(), "operationId": "export",
                     "label": index.to_string(), "status": status,
                     "progress": progress,
-                    "sourceInputIds": [], "cancellable": false, "cancelRequested": false,
+                    "cancellable": false, "cancelRequested": false,
                     "warnings": [],
                 })
             })
@@ -28,7 +28,7 @@ fn export_verdict_requires_the_requested_title_to_be_cancelled() {
             "kind": "processingBatch", "title": "export",
             "status": if statuses.contains(&"cancelled") { "mixed" } else { "completed" },
             "cancellable": false, "cancelRequested": true,
-            "sourceInputIds": [], "progress": progress,
+            "progress": progress,
             "children": children, "logTail": [],
         }))
         .expect("export snapshot");
