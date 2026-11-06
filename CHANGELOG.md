@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Keep original audio on a source no output format can keep (MP3) now says "This audio cannot
+  be kept unchanged in any output format. Choose encoding settings." instead of advising a
+  format change that cannot help.
 - The Indexer settings panel keeps the reason an edit was refused (for example a bad URL or API
   key) in its error line after Save or Test are refused for it, instead of replacing it with
   a generic message.

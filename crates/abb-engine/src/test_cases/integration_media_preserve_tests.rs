@@ -358,8 +358,14 @@ fn mp3_stack_encodes_to_m4b_but_cannot_be_kept_unchanged() {
     kept.audio_requests[0].intent = abb_engine::audio::AudioIntent::Preserve;
     let error = preflight_payload(kept, None, false).expect_err("MP3 cannot be kept in an M4B");
     assert!(
-        error.to_string().contains("cannot be kept unchanged"),
+        error.to_string().contains(
+            "This audio cannot be kept unchanged in any output format. Choose encoding settings."
+        ),
         "{error}"
+    );
+    assert!(
+        !error.to_string().contains("Change the output format"),
+        "no other output format could keep MP3: {error}"
     );
     assert_eq!(
         fs::read_dir(&output_dir)
@@ -367,6 +373,27 @@ fn mp3_stack_encodes_to_m4b_but_cannot_be_kept_unchanged() {
             .count(),
         0,
         "preflight must not publish output"
+    );
+}
+
+#[tokio::test]
+async fn aac_kept_in_an_opus_format_is_refused_with_advice_to_change_the_format() {
+    use abb_engine::audio::{resolve_title_audio, AudioIntent, OutputAudio};
+    let lane = MediaLane::with_fixtures(&[1.5]);
+    let source = lane.process(None).await;
+    let info = get_file_list_info(&[&source], AacDecoder::Auto).expect("fixture value");
+    let mut request = title_audio_request(AudioIntent::Preserve, native_encoder_settings());
+    request.output = OutputAudio::M4aOpus {
+        settings: native_encoder_settings(),
+    };
+
+    let error = resolve_title_audio(&request, &info, false).expect_err("AAC is not Opus");
+
+    assert!(
+        error
+            .to_string()
+            .contains("cannot be kept unchanged in M4A. Change the output format"),
+        "{error}"
     );
 }
 
