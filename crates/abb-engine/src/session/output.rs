@@ -5,6 +5,7 @@ use serde::Serialize;
 use super::submission::SubmissionStatus;
 use crate::app_settings::OutputDefaults;
 use crate::audio::AudiobookFormat;
+use crate::errors::AppError;
 use crate::metadata::{AudiobookMetadata, NamingMetadata};
 use crate::output_artifact::{
     build_output_path_preview, derive_output_artifact_path, NamingPreset, OutputKind,
@@ -155,6 +156,9 @@ impl OutputPlan {
                     .to_string_lossy()
                     .into_owned(),
             },
+            Err(AppError::InvalidInput(message) | AppError::FileValidation(message)) => {
+                OutputPreview::Unavailable { message }
+            }
             Err(error) => OutputPreview::Unavailable {
                 message: error.to_string(),
             },
@@ -184,3 +188,7 @@ impl OutputPlan {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "output_tests.rs"]
+mod tests;

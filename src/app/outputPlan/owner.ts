@@ -6,12 +6,7 @@ import type { NamingPreset } from '../../lib/generated/tauri';
 import type { OutputPreview } from '../../types/session';
 import { createTypingEcho, type EngineLink } from '../engineLink';
 import { collisionView, type CollisionView } from './collision';
-import {
-	EMPTY_PREVIEW_TEXT,
-	EMPTY_PREVIEW_TITLE,
-	PREVIEW_UNAVAILABLE_TEXT,
-	type OutputView,
-} from './types';
+import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE, type OutputView } from './types';
 
 export type OutputPlanOwner = {
 	readonly view: Accessor<OutputView>;
@@ -39,7 +34,7 @@ function previewText(preview: OutputPreview, directory: string | null): string {
 		case 'path':
 			return preview.path;
 		case 'unavailable':
-			return PREVIEW_UNAVAILABLE_TEXT;
+			return preview.message;
 	}
 }
 

@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- When a path can't be built, the output Example line says why, such as the
+  unknown template token and the tokens allowed, instead of a generic message.
 - Work Center and Status Panel buttons (Cancel, Show in Finder) no longer lose a
   click when a progress update lands between press and release.
 - The file list shows the full list of supported audio formats from the first moment.

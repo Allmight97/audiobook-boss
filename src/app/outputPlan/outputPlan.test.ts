@@ -38,9 +38,10 @@ describe('output plan owner', () => {
 		engine.change((state) => {
 			state.output.preview = { kind: 'unavailable', message: 'bad template' };
 		});
-		expect(app.output.view().previewText).toBe(
-			'Output preview unavailable. Fix metadata/template and retry.',
-		);
+		expect(app.output.view()).toMatchObject({
+			previewText: 'bad template',
+			previewTitle: 'bad template',
+		});
 	});
 
 	it('sends output choices and shows typed template text until the engine confirms it', async () => {
