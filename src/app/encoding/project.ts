@@ -7,17 +7,8 @@ import type {
 	FaacProfile,
 } from '../../types/audio';
 
-export type EncodingField =
-	| 'format'
-	| 'intent'
-	| 'encoder'
-	| 'quality'
-	| 'faacProfile'
-	| 'rateControl'
-	| 'nativeSpeed'
-	| 'bitrate'
-	| 'sampleRate'
-	| 'channels';
+export type EncodingField = AudioEdit['field'];
+type EditValue<F extends EncodingField> = Extract<AudioEdit, { field: F }>['value'];
 
 type EncodingOption = {
 	readonly value: string;
@@ -29,7 +20,6 @@ export type EncodingView = {
 	readonly format: AudiobookFormat;
 	readonly intent: AudioIntent;
 	readonly encodeOffered: boolean;
-	readonly flavor: string;
 	readonly effectiveFlavor: string;
 	readonly flavorOptions: ReadonlyArray<EncodingOption>;
 	readonly flavorDisabled: boolean;
@@ -51,11 +41,9 @@ export type EncodingView = {
 	readonly bitrateKbpsMin: number;
 	readonly sampleRate: string;
 	readonly sampleRateOptions: ReadonlyArray<EncodingOption>;
-	readonly sampleRateDisabled: boolean;
 	readonly sampleRateHint: string | null;
 	readonly channels: string;
 	readonly channelOptions: ReadonlyArray<EncodingOption>;
-	readonly channelsDisabled: boolean;
 	readonly channelsHint: string | null;
 };
 
@@ -85,8 +73,6 @@ const FAAC_PROFILES: Record<FaacProfile, string> = {
 	he_aac_v1: 'HE-AAC v1',
 };
 
-const opus = (format: AudiobookFormat) => format === 'm4aOpus' || format === 'mkaOpus';
-
 function rangeOptions(min: number, max: number): number[] {
 	const values: number[] = [];
 	for (let value = min; value <= max; value += 1) values.push(value);
@@ -108,27 +94,18 @@ function encoderLabel(value: EncoderType): string {
 	}
 }
 
-function qualityLabel(capabilities: EncoderSettingsCapabilities | null, value: number): string {
-	const standard = capabilities?.faacQualityDefault ?? 100;
+function qualityLabel(capabilities: EncoderSettingsCapabilities, value: number): string {
+	const standard = capabilities.faacQualityDefault;
 	const label = value === standard ? 'Standard' : value < standard ? 'Smaller' : 'Higher';
 	return `${label} (${value})`;
 }
 
 function sampleRateLabel(value: string): string {
-	return value === 'auto' ? 'Auto' : `${value} Hz`;
+	return `${value} Hz`;
 }
 
 function channelLabel(value: string): string {
-	switch (value) {
-		case 'auto':
-			return 'Auto';
-		case 'mono':
-			return 'Mono';
-		case 'stereo':
-			return 'Stereo';
-		default:
-			return value;
-	}
+	return value === 'mono' ? 'Mono' : 'Stereo';
 }
 
 function autoLabel(reading: AutoReading | undefined, value: (count: number) => string): string {
@@ -166,16 +143,13 @@ function channelsHint(source: EncodingSource): string | null {
 
 export function projectView(source: EncodingSource): EncodingView {
 	const { choice, facts, capabilities } = source;
-	const isOpus = opus(choice.format);
+	const isOpus = facts.effectiveEncoder === 'opus';
 	const sampleRate = choice.sampleRate === 'auto' ? 'auto' : String(choice.sampleRate.explicit);
-	const flavorOptions: EncodingOption[] =
-		capabilities === null
-			? [{ value: 'auto', label: 'Loading…', disabled: true }]
-			: facts.encoderOptions.map((option) => ({
-					value: option.encoder,
-					label: encoderLabel(option.encoder),
-					disabled: !option.available,
-				}));
+	const flavorOptions: EncodingOption[] = facts.encoderOptions.map((option) => ({
+		value: option.encoder,
+		label: encoderLabel(option.encoder),
+		disabled: !option.available,
+	}));
 	const sampleRateOptions = capabilities
 		? [
 				...(capabilities.sampleRateAuto ? ['auto'] : []),
@@ -196,7 +170,6 @@ export function projectView(source: EncodingSource): EncodingView {
 		format: choice.format,
 		intent: choice.intent,
 		encodeOffered: facts.encodeOffered,
-		flavor: isOpus ? 'opus' : choice.encoder,
 		effectiveFlavor: facts.effectiveEncoder,
 		flavorOptions,
 		flavorDisabled: facts.encoderLocked,
@@ -221,31 +194,27 @@ export function projectView(source: EncodingSource): EncodingView {
 			label:
 				value === 0
 					? '0 · Full search (default)'
-					: value === 4
-						? '4 · Fastest search'
+					: value === capabilities?.nativeSpeedMax
+						? `${value} · Fastest search`
 						: String(value),
 		})),
 		showQuality,
 		quality: choice.faacQuality,
-		qualityOptions: (capabilities?.faacQualityPresets ?? []).map((value) => ({
-			value: String(value),
-			label: qualityLabel(capabilities, value),
-		})),
+		qualityOptions: capabilities
+			? capabilities.faacQualityPresets.map((value) => ({
+					value: String(value),
+					label: qualityLabel(capabilities, value),
+				}))
+			: [],
 		bitrate: isOpus ? choice.opusBitrateKbps : choice.aacBitrateKbps,
 		bitrateKbpsMin: facts.bitrateKbpsMin,
 		sampleRate,
 		sampleRateOptions,
-		sampleRateDisabled: sampleRateOptions.length === 0,
 		sampleRateHint: sampleRateHint(source),
 		channels: choice.channels,
 		channelOptions,
-		channelsDisabled: channelOptions.length === 0,
 		channelsHint: channelsHint(source),
 	};
-}
-
-function oneOf<T extends string>(options: readonly T[], value: string): value is T {
-	return (options as readonly string[]).includes(value);
 }
 
 export function editFor(field: EncodingField, value: string): AudioEdit | null {
@@ -253,35 +222,23 @@ export function editFor(field: EncodingField, value: string): AudioEdit | null {
 	const whole = value.trim() !== '' && Number.isInteger(number) && number >= 0;
 	switch (field) {
 		case 'format':
-			return oneOf(['m4b', 'mp3', 'm4aOpus', 'mkaOpus'] as const, value)
-				? { field: 'format', value }
-				: null;
+			return { field, value: value as EditValue<'format'> };
 		case 'intent':
-			return oneOf(['auto', 'encode', 'preserve'] as const, value)
-				? { field: 'intent', value }
-				: null;
+			return { field, value: value as EditValue<'intent'> };
 		case 'encoder':
-			return oneOf(['auto', 'aac_at', 'native_aac', 'faac'] as const, value)
-				? { field: 'encoder', value }
-				: null;
+			return { field, value: value as EditValue<'encoder'> };
 		case 'faacProfile':
-			return oneOf(['auto', 'aac_lc', 'he_aac_v1'] as const, value)
-				? { field: 'faacProfile', value }
-				: null;
+			return { field, value: value as EditValue<'faacProfile'> };
 		case 'rateControl':
-			return value === 'abr' || value === 'vbr' ? { field: 'rateControl', value: value } : null;
-		case 'quality':
-			return whole ? { field: 'quality', value: number } : null;
-		case 'nativeSpeed':
-			return whole ? { field: 'nativeSpeed', value: number } : null;
-		case 'bitrate':
-			return whole ? { field: 'bitrate', value: number } : null;
-		case 'sampleRate':
-			if (value === 'auto') return { field: 'sampleRate', value: 'auto' };
-			return whole ? { field: 'sampleRate', value: { explicit: number } } : null;
+			return { field, value: value as EditValue<'rateControl'> };
 		case 'channels':
-			return oneOf(['auto', 'mono', 'stereo'] as const, value)
-				? { field: 'channels', value }
-				: null;
+			return { field, value: value as EditValue<'channels'> };
+		case 'quality':
+		case 'nativeSpeed':
+		case 'bitrate':
+			return whole ? { field, value: number } : null;
+		case 'sampleRate':
+			if (value === 'auto') return { field, value };
+			return whole ? { field, value: { explicit: number } } : null;
 	}
 }

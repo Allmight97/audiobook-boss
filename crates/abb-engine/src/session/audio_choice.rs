@@ -56,6 +56,7 @@ pub struct AudioChoice {
     pub opus_bitrate_kbps: u16,
     /// The bitrate mode the saved settings carried, used until capabilities
     /// name the encoder's default.
+    #[serde(skip)]
     pub saved_mode: BitrateMode,
     pub faac_profile: FaacProfile,
     pub faac_rate_control: FaacRateControl,
@@ -112,6 +113,7 @@ pub struct AudioChoiceFacts {
     /// accept; the user must choose another before export.
     pub sample_rate_supported: bool,
     /// Total target kbps, or `None` when a quality setting owns the bitrate.
+    #[serde(skip)]
     pub estimate_kbps: Option<u16>,
 }
 

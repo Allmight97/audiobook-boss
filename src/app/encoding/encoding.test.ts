@@ -28,7 +28,7 @@ describe('encoding owner', () => {
 		return app.input.view().files;
 	}
 
-	it('sends each control as a typed edit and drops values no control offers', async () => {
+	it('sends each control as a typed edit and drops a non-numeric bitrate', async () => {
 		const app = await open();
 
 		app.encoding.select('bitrate', '96');
@@ -36,7 +36,6 @@ describe('encoding owner', () => {
 		app.encoding.select('sampleRate', 'auto');
 		app.encoding.select('rateControl', 'vbr');
 		app.encoding.select('bitrate', 'fast');
-		app.encoding.select('format', 'wav');
 
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents.filter((intent) => intent.kind === 'setDefaultAudio')).toEqual([
@@ -146,11 +145,10 @@ describe('encoding owner', () => {
 
 	it('shows the selection the engine combined, blanking the fields it names as mixed', async () => {
 		const app = await open();
-		const [alpha, beta] = titles(app);
+		const [alpha] = titles(app);
 		engine.change((state) => {
 			const first = state.audio.titles[alpha.inputId!];
 			state.audio.selection = {
-				titleIds: [alpha.inputId!, beta.inputId!],
 				choice: first.choice,
 				facts: { ...first.facts, downmixWarning: true },
 				mixed: ['channels'],
@@ -165,7 +163,7 @@ describe('encoding owner', () => {
 	});
 	it("words a selection's Auto from the engine's reading of its titles", async () => {
 		const app = await open();
-		const [alpha, beta] = titles(app);
+		const [alpha] = titles(app);
 		const autoLabel = (view: EncodingView | null, field: 'sampleRateOptions' | 'channelOptions') =>
 			view?.[field].find((option) => option.value === 'auto')?.label;
 		const select = (
@@ -175,7 +173,6 @@ describe('encoding owner', () => {
 			engine.change((state) => {
 				const first = state.audio.titles[alpha.inputId!];
 				state.audio.selection = {
-					titleIds: [alpha.inputId!, beta.inputId!],
 					choice: first.choice,
 					facts: first.facts,
 					mixed: [],

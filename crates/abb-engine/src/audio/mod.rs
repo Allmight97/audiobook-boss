@@ -36,6 +36,7 @@ pub struct AudioFile {
     pub codec_label: Option<String>,
     /// Whether this source can be copied without re-encoding and whether the
     /// source meets the automatic low-bitrate recommendation.
+    #[serde(skip)]
     pub preservation: Option<AudioPreservation>,
     /// Display only.
     pub selected_decoder: Option<String>,

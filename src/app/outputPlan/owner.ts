@@ -44,7 +44,6 @@ function previewText(preview: OutputPreview, directory: string | null): string {
 
 export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	const { link } = deps;
-	let disposed = false;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	const typed = createTypingEcho<'template'>({
 		scopeOf: () => [],
@@ -70,17 +69,13 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	return {
 		view,
 		estimateTitleSizeText(file) {
-			if (!file.isValid) return null;
-			const estimate = link.audio().titles[file.inputId ?? file.path]?.estimate;
+			const estimate = link.audio().titles[file.inputId]?.estimate;
 			if (!estimate) return null;
 			return estimate.kind === 'bytes'
 				? `Est. ~ ${formatFileSize(estimate.bytes)}`
 				: 'Size varies with audio';
 		},
-		collision: () => {
-			rev();
-			return collisionView(disposed ? null : link.output().collisionReview);
-		},
+		collision: () => collisionView(link.output().collisionReview),
 		async browseDirectory() {
 			try {
 				const directory = await tauriClient.openDirectory({ title: 'Select Output Directory' });
@@ -104,13 +99,12 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			);
 		},
 		chooseCollisionPolicy(reviewId, policy) {
-			if (!disposed) link.post({ kind: 'chooseCollisionPolicy', reviewId, policy });
+			link.post({ kind: 'chooseCollisionPolicy', reviewId, policy });
 		},
 		cancelCollisionReview(reviewId) {
-			if (!disposed) link.post({ kind: 'cancelCollisionReview', reviewId });
+			link.post({ kind: 'cancelCollisionReview', reviewId });
 		},
 		reset() {
-			disposed = true;
 			typed.clear();
 		},
 	};

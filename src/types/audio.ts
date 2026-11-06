@@ -1,5 +1,4 @@
 import type {
-	ChapterSpec as GeneratedAudioChapter,
 	AudioFile as GeneratedAudioFile,
 	CollisionPolicy as GeneratedCollisionPolicy,
 	EncoderSettingsCapabilities as GeneratedEncoderSettingsCapabilities,
@@ -15,12 +14,7 @@ import type {
 import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
 
-type GeneratedAudioFileUi = NullToOptionalDeep<GeneratedAudioFile>;
-type AudioChapter = NullToOptionalDeep<GeneratedAudioChapter>;
-export type AudioFile = Omit<GeneratedAudioFileUi, 'inputId' | 'chapters'> & {
-	inputId?: string;
-	chapters?: AudioChapter[];
-};
+export type AudioFile = NullToOptionalDeep<GeneratedAudioFile>;
 
 export type CollisionPolicy = GeneratedCollisionPolicy;
 export type OutputCollisionKind = GeneratedOutputCollisionKind;

@@ -229,10 +229,7 @@
         "intent": "auto",
         "nativeSpeed": 0,
         "opusBitrateKbps": 64,
-        "sampleRate": "auto",
-        "savedMode": {
-          "mode": "cbr"
-        }
+        "sampleRate": "auto"
       },
       "facts": {
         "allowedModes": [
@@ -276,7 +273,6 @@
             "encoder": "faac"
           }
         ],
-        "estimateKbps": 65,
         "faacProfiles": [],
         "sampleRateSupported": true
       },

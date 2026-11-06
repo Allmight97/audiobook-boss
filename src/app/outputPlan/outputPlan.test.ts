@@ -81,6 +81,5 @@ describe('output plan owner', () => {
 		expect(app.output.estimateTitleSizeText(title)).toBe('Est. ~ 1.0 MB');
 		engine.seedTitleAudio(id, titleAudioRequest(), { estimate: { kind: 'variesWithAudio' } });
 		expect(app.output.estimateTitleSizeText(title)).toBe('Size varies with audio');
-		expect(app.output.estimateTitleSizeText({ ...title, isValid: false })).toBeNull();
 	});
 });

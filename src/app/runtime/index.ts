@@ -70,7 +70,6 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			runtime.remoteSource.reset();
 			runtime.settings.reset();
 			runtime.output.reset();
-			runtime.encoding.reset();
 			runtime.lookup.reset();
 			runtime.metadata.reset();
 			runtime.input.reset();

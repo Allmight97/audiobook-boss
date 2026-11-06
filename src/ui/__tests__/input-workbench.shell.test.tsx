@@ -27,6 +27,7 @@ function analyzedFile(path: string, overrides: Partial<AudioFile> = {}): AudioFi
 		size: 1000,
 		format: 'mp3',
 		inputId: path,
+		chapters: [],
 		...overrides,
 	};
 }
@@ -166,7 +167,6 @@ describe('Solid input workbench', () => {
 				};
 			}
 			state.audio.selection = {
-				titleIds: [files[0].path, files[1].path],
 				choice: first.choice,
 				facts: first.facts,
 				mixed: ['faacProfile', 'channels'],

@@ -90,7 +90,7 @@ describe('app runtime', () => {
 		};
 		expect(third.settings.dialog().isOpen).toBe(false);
 		expect(third.lookup.view().titleQuery).toBe('');
-		expect(third.encoding.view().flavor).toBe('native_aac');
+		expect(third.encoding.view().effectiveFlavor).toBe('native_aac');
 		expect(third.processing.status().stepText).toBe('Current Step: Waiting for files...');
 		expect(third.remoteSource.view().isOpen).toBe(false);
 	});

@@ -60,7 +60,6 @@ function EncoderPanel(props: {
 			const select = event.currentTarget;
 			if (!(select instanceof HTMLSelectElement || select instanceof HTMLInputElement)) return;
 			choose(field, select.value);
-			if (field === 'encoder') select.value = displayedFlavor();
 			if (field === 'bitrate') select.value = String(view().bitrate);
 		};
 	}
@@ -127,18 +126,14 @@ function EncoderPanel(props: {
 				>
 					<details class="encoder-conversion" open={!editingTitles()}>
 						<summary>
-							Encoding settings
-							<Show when={view().intent === 'encode'}>
-								{' '}
-								·{' '}
-								{mixed('encoder')
-									? 'Mixed encoders'
-									: mixed('quality') || mixed('bitrate')
-										? 'Mixed quality'
-										: view().flavor === 'opus'
-											? `Opus · ${view().bitrate} kbps VBR`
-											: `${view().flavorOptions.find((option) => option.value === displayedFlavor())?.label} · ${view().showQuality ? `VBR ${view().quality}` : `${view().bitrate} kbps`}`}
-							</Show>
+							Encoding settings ·{' '}
+							{mixed('encoder')
+								? 'Mixed encoders'
+								: mixed('quality') || mixed('bitrate')
+									? 'Mixed quality'
+									: displayedFlavor() === 'opus'
+										? `Opus · ${view().bitrate} kbps VBR`
+										: `${view().flavorOptions.find((option) => option.value === displayedFlavor())?.label} · ${view().showQuality ? `VBR ${view().quality}` : `${view().bitrate} kbps`}`}
 						</summary>
 						<div class="encoder-workbench-grid">
 							<div class="encoder-field-row">
@@ -295,7 +290,6 @@ function EncoderPanel(props: {
 											id={id('output-samplerate')}
 											data-testid="samplerate-select"
 											value={value('sampleRate', view().sampleRate)}
-											disabled={view().sampleRateDisabled}
 											onChange={bind('sampleRate')}
 										>
 											<Show when={mixed('sampleRate')}>
@@ -330,7 +324,6 @@ function EncoderPanel(props: {
 											id={id('output-channels')}
 											data-testid="channels-select"
 											value={value('channels', view().channels)}
-											disabled={view().channelsDisabled}
 											onChange={bind('channels')}
 										>
 											<Show when={mixed('channels')}>

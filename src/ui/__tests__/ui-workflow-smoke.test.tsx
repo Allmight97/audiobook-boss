@@ -25,6 +25,7 @@ const OUTPUT_DIRECTORY = '/exports/audiobooks';
 function importedFile(): AudioFile {
 	return {
 		inputId: 'input-dune',
+		chapters: [],
 		path: INPUT_PATH,
 		size: 1024,
 		duration: 3600,

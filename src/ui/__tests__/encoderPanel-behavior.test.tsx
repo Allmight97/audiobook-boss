@@ -121,6 +121,8 @@ describe('encoder panel behavior controls', () => {
 		engine.loadTitles(
 			[
 				{
+					inputId: '/books/source.m4b',
+					chapters: [],
 					path: '/books/source.m4b',
 					label: 'source.m4b',
 					isValid: true,
@@ -153,7 +155,6 @@ describe('encoder panel behavior controls', () => {
 				faacProfiles: ['auto', 'aac_lc', 'he_aac_v1'],
 				allowedSampleRates: [44100],
 				sampleRateSupported: false,
-				estimateKbps: null,
 			};
 		});
 

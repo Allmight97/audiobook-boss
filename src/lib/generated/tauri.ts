@@ -126,11 +126,6 @@ export type AudioChoice = {
 	encoder: EncoderType,
 	aacBitrateKbps: number,
 	opusBitrateKbps: number,
-	/**
-	 *  The bitrate mode the saved settings carried, used until capabilities
-	 *  name the encoder's default.
-	 */
-	savedMode: BitrateMode,
 	faacProfile: FaacProfile,
 	faacRateControl: FaacRateControl,
 	faacQuality: number,
@@ -160,8 +155,6 @@ export type AudioChoiceFacts = {
 	 *  accept; the user must choose another before export.
 	 */
 	sampleRateSupported: boolean,
-	/**  Total target kbps, or `None` when a quality setting owns the bitrate. */
-	estimateKbps: number | null,
 };
 
 export type AudioChoiceView = {
@@ -193,11 +186,6 @@ export type AudioFile = {
 	sampleRate: number | null,
 	channels: number | null,
 	codecLabel: string | null,
-	/**
-	 *  Whether this source can be copied without re-encoding and whether the
-	 *  source meets the automatic low-bitrate recommendation.
-	 */
-	preservation: AudioPreservation | null,
 	/**  Display only. */
 	selectedDecoder: string | null,
 	/**  What the title list calls this source: the title tag, else the file name. */
@@ -224,10 +212,6 @@ export type AudioIntent = "auto" | "preserve" | "encode";
 
 /**  The audio setting a title's plan failed on, when one setting is the cause. */
 export type AudioPlanField = "sampleRate" | "channels";
-
-export type AudioPreservation = {
-	canPreserve: boolean,
-};
 
 export type AudioRefusal =
 /**  A submission holds the list. */
@@ -1037,8 +1021,6 @@ export type SampleRateConfig =
 { explicit: number };
 
 export type SelectionAudio = {
-	/**  The titles this describes, in list order. */
-	titleIds: string[],
 	/**  The first title's choice; `mixed` names where the others differ. */
 	choice: AudioChoice,
 	/**  Only what every selected title accepts is offered. */

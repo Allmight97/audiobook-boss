@@ -48,6 +48,7 @@ pub struct AudioSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct SelectionAudio {
     /// The titles this describes, in list order.
+    #[serde(skip)]
     pub title_ids: Vec<String>,
     /// The first title's choice; `mixed` names where the others differ.
     pub choice: AudioChoice,

@@ -13,8 +13,8 @@ import {
 export type { EncodingField, EncodingView } from './project';
 
 export type EncodingOwner = {
-	/** The request processing receives for `file`, or the defaults' request. */
-	audioRequest: (file?: AudioFile) => TitleAudioRequest;
+	/** The request processing receives for `file`. */
+	audioRequest: (file: AudioFile) => TitleAudioRequest;
 	plan: (file: AudioFile) => TitlePlan;
 	titleView: (file: AudioFile) => EncodingView;
 	/** The selected titles' audio as the engine combines it; `null` with
@@ -28,7 +28,6 @@ export type EncodingOwner = {
 	/** The defaults, as the Settings panel edits them. */
 	readonly view: Accessor<EncodingView>;
 	select: (field: EncodingField, value: string) => void;
-	reset: () => void;
 };
 
 export type EncodingOwnerDeps = {
@@ -36,7 +35,7 @@ export type EncodingOwnerDeps = {
 };
 
 function titleId(file: AudioFile): string {
-	return file.inputId ?? file.path;
+	return file.inputId;
 }
 
 export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
@@ -90,7 +89,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 
 	return {
 		audioRequest(file) {
-			return file ? titleChoice(file).request : link.audio().defaults.request;
+			return titleChoice(file).request;
 		},
 		plan,
 		titleView,
@@ -129,6 +128,5 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			const edit = editFor(field, value);
 			if (edit) link.post({ kind: 'setDefaultAudio', edit });
 		},
-		reset() {},
 	};
 }
