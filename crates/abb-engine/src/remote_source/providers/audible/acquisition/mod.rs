@@ -153,8 +153,15 @@ fn record_title_outcome(
             if error.is_cancellation() {
                 return Err(error.into_app_error());
             }
-            job.diagnostics
-                .push(error.into_diagnostic(Some(title_id.to_string())));
+            let diagnostic = error.into_diagnostic(Some(title_id.to_string()));
+            log::warn!(
+                "remote_source audible stage=title_acquisition job_id={} title_ref={} kind={:?} action=failed message={}",
+                job.job_id,
+                title_ref(title_id),
+                diagnostic.kind,
+                diagnostic.message
+            );
+            job.diagnostics.push(diagnostic);
         }
     }
     Ok(())

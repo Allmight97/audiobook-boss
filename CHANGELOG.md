@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- A download that imported some titles and failed on others now says which failed,
+  instead of only the count imported.
 - The app writes a log file (`~/Library/Logs/com.audiobook-boss/abb.log` on macOS), so a
   failure in an app opened from Finder can be read. Failures the window used to show
   only in its console now reach that file too.

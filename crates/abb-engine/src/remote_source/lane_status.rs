@@ -59,7 +59,8 @@ pub(super) fn indexer_message(remote: &RemoteUiSnapshot) -> String {
 }
 
 pub(super) fn settled_job_line(job: &AcquisitionJob) -> String {
-    match &job.handoff {
+    let diagnostics = unique_diagnostic_message(&job.diagnostics);
+    let outcome = match &job.handoff {
         Some(AcquisitionHandoff::Imported { count }) => {
             let plural = if *count == 1 { "" } else { "s" };
             format!("{count} acquired title{plural} imported.")
@@ -72,14 +73,13 @@ pub(super) fn settled_job_line(job: &AcquisitionJob) -> String {
         }) => {
             format!("Acquired titles were not added to the input session. {STAGED_FILES_REMOVED}")
         }
-        None => {
-            let diagnostics = unique_diagnostic_message(&job.diagnostics);
-            if job.progress.terminal && !diagnostics.is_empty() {
-                diagnostics
-            } else {
-                job.progress.message.clone()
-            }
-        }
+        None if job.progress.terminal && !diagnostics.is_empty() => return diagnostics,
+        None => return job.progress.message.clone(),
+    };
+    if diagnostics.is_empty() || outcome.contains(&diagnostics) {
+        outcome
+    } else {
+        format!("{outcome} {diagnostics}")
     }
 }
 

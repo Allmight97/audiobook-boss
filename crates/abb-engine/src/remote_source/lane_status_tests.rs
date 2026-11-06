@@ -235,12 +235,26 @@ fn a_failed_job_shows_its_reason_and_falls_back_to_the_stage_word() {
 }
 
 #[test]
-fn an_imported_job_shows_only_its_count_when_it_has_diagnostics() {
+fn a_settled_import_or_removal_names_the_titles_that_failed() {
     let partial = AcquisitionJob {
-        diagnostics: vec![diagnostic("One title failed.")],
+        diagnostics: vec![
+            diagnostic("One title failed."),
+            diagnostic("One title failed."),
+        ],
         ..imported(1)
     };
-    assert_eq!(settled_job_line(&partial), "1 acquired title imported.");
+    assert_eq!(
+        settled_job_line(&partial),
+        "1 acquired title imported. One title failed."
+    );
+    let nothing_added = AcquisitionJob {
+        diagnostics: vec![diagnostic("One title failed.")],
+        ..removed(HandoffRefusal::NothingAdded)
+    };
+    assert_eq!(
+        settled_job_line(&nothing_added),
+        "Acquired titles were not added to the input session. Staged remote files were removed. One title failed."
+    );
 }
 
 #[test]
