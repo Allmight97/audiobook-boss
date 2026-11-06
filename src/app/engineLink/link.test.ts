@@ -21,7 +21,12 @@ function operation(operationId: string): OperationSnapshot {
 		finishedAtMs: null,
 		cancellable: true,
 		cancelRequested: false,
-		progress: { stage: 'converting', percentage: 10, message: 'Working.', etaSeconds: null },
+		progress: {
+			stage: 'converting',
+			percentage: 10,
+			message: 'Working.',
+			etaSeconds: null,
+		},
 		children: [],
 		logTail: [],
 	};
@@ -74,13 +79,22 @@ describe('engine link', () => {
 			return () => undefined;
 		};
 		const link = await linkTo(engine);
-		await link.send({ kind: 'setField', binding: 0, field: 'title', value: 'Newer' });
+		await link.send({
+			kind: 'setField',
+			binding: 0,
+			field: 'title',
+			value: 'Newer',
+		});
 		const current = link.metadata();
 
 		publish(
 			sessionUpdate({
 				revision: current.revision - 1,
-				metadata: { ...current, revision: current.revision - 1, saveInProgress: true },
+				metadata: {
+					...current,
+					revision: current.revision - 1,
+					saveInProgress: true,
+				},
 			}),
 		);
 
@@ -89,7 +103,11 @@ describe('engine link', () => {
 		publish(
 			sessionUpdate({
 				revision: current.revision + 5,
-				metadata: { ...current, revision: current.revision + 5, saveInProgress: true },
+				metadata: {
+					...current,
+					revision: current.revision + 5,
+					saveInProgress: true,
+				},
 			}),
 		);
 		expect(link.metadata().saveInProgress).toBe(true);
@@ -113,7 +131,10 @@ describe('engine link', () => {
 		);
 		expect(link.remoteLibrary()).toBe(library);
 		publish(
-			sessionUpdate({ revision: 12, remoteLibrary: { ...library, revision: 9, diagnostics: [] } }),
+			sessionUpdate({
+				revision: 12,
+				remoteLibrary: { ...library, revision: 9, diagnostics: [] },
+			}),
 		);
 		expect(link.remoteLibrary()).toBe(library);
 		expect(link.remoteAcquisition().revision).toBe(11);
@@ -185,7 +206,9 @@ describe('engine link', () => {
 			state.remote.selectedTitleIds = ['a'];
 			state.remote.includePdfByTitleId = { a: true, b: false };
 			state.remote.indexer.releases = [release('one', 1), release('two', 2)];
-			state.remote.indexer.releaseGrabs = { x: { status: 'sent', message: '' } };
+			state.remote.indexer.releaseGrabs = {
+				x: { status: 'sent', message: '' },
+			};
 		});
 		const link = await linkTo(engine);
 		const before = link.remote();
@@ -205,7 +228,10 @@ describe('engine link', () => {
 		expect(after.indexer.releases[1]?.seeders).toBe(9);
 	});
 
-	function holdAttachReply(engine: FakeEngine): { replying: () => boolean; reply: () => void } {
+	function holdAttachReply(engine: FakeEngine): {
+		replying: () => boolean;
+		reply: () => void;
+	} {
 		const attach = engine.attach.bind(engine);
 		let reply: (() => void) | undefined;
 		engine.attach = async () => {
@@ -226,7 +252,11 @@ describe('engine link', () => {
 		const attaching = linkTo(engine);
 		await vi.waitFor(() => expect(held.replying()).toBe(true));
 
-		engine.publishOperation({ ...listed, revision: 2, title: 'From the event' });
+		engine.publishOperation({
+			...listed,
+			revision: 2,
+			title: 'From the event',
+		});
 		held.reply();
 		const link = await attaching;
 
@@ -275,7 +305,13 @@ describe('engine link', () => {
 		it.each<[SessionIntent]>([
 			[{ kind: 'selectAll' }],
 			[{ kind: 'clearSelection' }],
-			[{ kind: 'selectFile', titleId: 'a', modifiers: { multi: false, range: false } }],
+			[
+				{
+					kind: 'selectFile',
+					titleId: 'a',
+					modifiers: { multi: false, range: false },
+				},
+			],
 		])('says a Save is running when it blocks %j', async (intent) => {
 			expect(await refusalAfter(intent, { kind: 'draftRejected', message: null })).toBe(
 				saveRunning,
@@ -291,15 +327,54 @@ describe('engine link', () => {
 		it.each<[SessionIntent]>([
 			[{ kind: 'setField', binding: 0, field: 'title', value: 'A' }],
 			[{ kind: 'setFieldAction', binding: 0, field: 'title', action: 'blank' }],
-			[{ kind: 'loadCoverFromFile', path: '/c.jpg' }],
-			[{ kind: 'loadCoverFromDrop', paths: ['/c.jpg'] }],
-			[{ kind: 'loadCoverFromUrl', url: 'https://example.com/c.jpg' }],
 		])('says the edit was lost when %j is superseded', async (intent) => {
 			expect(await refusalAfter(intent, { kind: 'superseded' })).toBe(editLost);
 		});
 
+		const coverLoads: SessionIntent[] = [
+			{ kind: 'loadCoverFromFile', path: '/c.jpg' },
+			{ kind: 'loadCoverFromDrop', paths: ['/c.jpg'] },
+			{ kind: 'loadCoverFromUrl', url: 'https://example.com/c.jpg' },
+		];
+
+		async function coverRefusal(intent: SessionIntent, bindingChanges: boolean) {
+			const engine = createFakeEngine();
+			engine.respond = () => ({ kind: 'superseded' });
+			const dispatch = engine.sessionDispatch.bind(engine);
+			engine.sessionDispatch = async (client, sequence, sent) => {
+				const reply = await dispatch(client, sequence, sent);
+				if (bindingChanges && reply.update.metadata) {
+					reply.update.metadata = {
+						...reply.update.metadata,
+						binding: reply.update.metadata.binding + 1,
+					};
+				}
+				return reply;
+			};
+			const link = await linkTo(engine);
+			await link.send(intent);
+			return link.refusal();
+		}
+
+		it.each(coverLoads)(
+			'stays silent when a newer cover choice overtakes %j on the same form',
+			async (intent) => {
+				expect(await coverRefusal(intent, false)).toBeNull();
+			},
+		);
+
+		it.each(coverLoads)('says the edit was lost when the form changed under %j', async (intent) => {
+			expect(await coverRefusal(intent, true)).toBe(editLost);
+		});
+
 		it.each<[SessionIntent]>([
-			[{ kind: 'selectFile', titleId: 'a', modifiers: { multi: false, range: false } }],
+			[
+				{
+					kind: 'selectFile',
+					titleId: 'a',
+					modifiers: { multi: false, range: false },
+				},
+			],
 			[{ kind: 'chooseCollisionPolicy', reviewId: 1, policy: 'skip_existing' }],
 		])('stays silent when a newer %j replaces it', async (intent) => {
 			expect(await refusalAfter(intent, { kind: 'superseded' })).toBeNull();
@@ -349,7 +424,10 @@ describe('engine link', () => {
 		const attach = engine.attach.bind(engine);
 		engine.attach = async () => {
 			const attachment = await attach();
-			return { ...attachment, session: { ...attachment.session, output: null } };
+			return {
+				...attachment,
+				session: { ...attachment.session, output: null },
+			};
 		};
 
 		await expect(attachEngineLink(engine)).rejects.toThrow('output');

@@ -60,17 +60,23 @@ const EDIT_LOST_NOTICE = 'Your edit was not applied because the selection change
 const SUPERSEDED_LOSES_THE_EDIT: ReadonlySet<SessionIntent['kind']> = new Set([
 	'setField',
 	'setFieldAction',
+]);
+
+const COVER_LOADS: ReadonlySet<SessionIntent['kind']> = new Set([
 	'loadCoverFromFile',
 	'loadCoverFromDrop',
 	'loadCoverFromUrl',
 ]);
 
-function outcomeNotice(intent: SessionIntent, outcome: SessionOutcome): string | null {
+function outcomeNotice(
+	intent: SessionIntent,
+	outcome: SessionOutcome,
+	formChanged: boolean,
+): string | null {
 	if (outcome.kind === 'draftRejected' && outcome.message === null) return SAVE_RUNNING_NOTICE;
-	if (outcome.kind === 'superseded' && SUPERSEDED_LOSES_THE_EDIT.has(intent.kind)) {
-		return EDIT_LOST_NOTICE;
-	}
-	return null;
+	if (outcome.kind !== 'superseded') return null;
+	if (SUPERSEDED_LOSES_THE_EDIT.has(intent.kind)) return EDIT_LOST_NOTICE;
+	return COVER_LOADS.has(intent.kind) && formChanged ? EDIT_LOST_NOTICE : null;
 }
 
 function shareUnchangedFiles(previous: SessionTitles, next: SessionTitles): SessionTitles {
@@ -263,9 +269,10 @@ function createLink(
 	}
 
 	function send(intent: SessionIntent): Promise<SessionOutcome> {
+		const bindingAtSend = metadata.read().binding;
 		return dispatch((id, sequence) => capability.sessionDispatch(id, sequence, intent)).then(
 			(outcome) => {
-				const notice = outcomeNotice(intent, outcome);
+				const notice = outcomeNotice(intent, outcome, metadata.read().binding !== bindingAtSend);
 				if (notice !== null) showRefusal(notice);
 				return outcome;
 			},
@@ -322,7 +329,11 @@ function createLink(
 	};
 	return {
 		link,
-		inbound: { session: applySession, settings: applySettings, work: applyWork },
+		inbound: {
+			session: applySession,
+			settings: applySettings,
+			work: applyWork,
+		},
 	};
 }
 
