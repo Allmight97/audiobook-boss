@@ -20,6 +20,7 @@ fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
         tag_artist: None,
         chapters: Vec::new(),
         is_valid,
+        source_removed: false,
         error: None,
     }
 }

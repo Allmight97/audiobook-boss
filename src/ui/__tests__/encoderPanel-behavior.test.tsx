@@ -105,7 +105,15 @@ describe('encoder panel behavior controls', () => {
 	it('keeps default source hints independent of the selected title', async () => {
 		await renderEncoder(() => undefined);
 		engine.loadTitles(
-			[{ path: '/books/source.m4b', isValid: true, sampleRate: 44100, channels: 2 }],
+			[
+				{
+					path: '/books/source.m4b',
+					isValid: true,
+					sourceRemoved: false,
+					sampleRate: 44100,
+					channels: 2,
+				},
+			],
 			[0],
 		);
 

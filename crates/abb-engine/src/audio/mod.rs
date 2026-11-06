@@ -46,6 +46,8 @@ pub struct AudioFile {
     pub chapter_plan: Option<crate::metadata::ChapterPlan>,
     pub cue_source: Option<crate::metadata::CueSource>,
     pub is_valid: bool,
+    /// An exported download that ABB removed. The title is finished, not failed.
+    pub source_removed: bool,
     pub error: Option<String>,
 }
 
@@ -92,6 +94,7 @@ impl AudioFile {
             chapter_plan: None,
             cue_source: None,
             is_valid: false,
+            source_removed: false,
             error: None,
         }
     }

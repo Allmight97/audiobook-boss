@@ -21,6 +21,7 @@ export function AudioHandlingControl(props: {
 		dismissed = false;
 	const request = () => runtime.encoding.audioRequest(props.file);
 	const sources = () => runtime.input.sourcesFor(props.file);
+	const sourceRemoved = () => sources().some((source) => source.sourceRemoved);
 	const resolved = () => runtime.encoding.plan(props.file);
 	const plan = (): TitleAudioPlan | undefined => {
 		const current = resolved();
@@ -122,7 +123,7 @@ export function AudioHandlingControl(props: {
 		},
 	);
 	return (
-		<>
+		<Show when={!sourceRemoved()}>
 			<button
 				type="button"
 				ref={(el) => {
@@ -301,6 +302,6 @@ export function AudioHandlingControl(props: {
 					</div>
 				</Portal>
 			</Show>
-		</>
+		</Show>
 	);
 }

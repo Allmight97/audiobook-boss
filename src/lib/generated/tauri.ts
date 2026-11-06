@@ -202,6 +202,8 @@ export type AudioFile = {
 	chapterPlan: ChapterPlan | null,
 	cueSource: CueSource | null,
 	isValid: boolean,
+	/**  An exported download that ABB removed. The title is finished, not failed. */
+	sourceRemoved: boolean,
 	error: string | null,
 };
 

@@ -553,3 +553,24 @@ fn a_tag_write_moves_a_chapter_plan_only_when_the_file_was_as_inspected() {
         "a file changed outside ABB before the write stays caught"
     );
 }
+
+#[test]
+fn a_removed_download_stays_as_finished_history_and_leaves_other_rows_alone() {
+    let mut set = set_with(&["a", "b", "c"]);
+    set.select_file(0, NO_MODIFIERS);
+    set.select_file(2, MULTI);
+    assert!(set.group_selected());
+
+    set.sources_removed(&[PathBuf::from("/books/c"), PathBuf::from("/books/b")]);
+
+    let snapshot = set.titles(0);
+    let removed = |file: &AudioFile| (file.is_valid, file.source_removed, file.error.is_some());
+    assert_eq!(removed(&snapshot.files[1]), (false, true, true));
+    let sources = &snapshot.title_sources_by_identity["a"];
+    assert_eq!(removed(&sources[0]), (true, false, false));
+    assert_eq!(removed(&sources[1]), (false, true, true));
+    assert_eq!(
+        sources[1].error.as_deref(),
+        Some("Exported. Its download was removed to save space; acquire it again to export it again.")
+    );
+}

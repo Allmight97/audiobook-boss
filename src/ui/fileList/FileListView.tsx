@@ -11,11 +11,16 @@ import { coverSrc } from '../../lib/tauri/coverSrc';
 import { Button, CoverImage } from '../foundation';
 import { createSignal, createEffect, Show, For, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
+import type { AudioFile } from '../../types/audio';
 
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 import { TitleSources } from './TitleSources';
 import { AudioHandlingControl } from './AudioHandlingControl';
 import './fileList.css';
+
+function isFailedSource(source: AudioFile): boolean {
+	return !source.isValid && !source.sourceRemoved;
+}
 
 function isInteractiveListTarget(target: EventTarget | null): boolean {
 	return (
@@ -197,7 +202,9 @@ export function FileListView(props: {
 							const [expanded, setExpanded] = createSignal(false);
 							const sources = () => input.sourcesFor(file);
 							const grouped = () => sources().length > 1;
-							const invalidSource = () => sources().find((source) => !source.isValid);
+							const failedSource = () => sources().find(isFailedSource);
+							const unusableSource = () =>
+								failedSource() ?? sources().find((source) => !source.isValid);
 							return (
 								// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the listbox owns the keyboard; rows are not tab stops.
 								<div
@@ -205,8 +212,8 @@ export function FileListView(props: {
 									class={[
 										'file-list-item',
 										{
-											valid: !invalidSource(),
-											invalid: !!invalidSource(),
+											valid: !failedSource(),
+											invalid: !!failedSource(),
 											selected: isSelected(index()),
 											dragging: drag().draggedIndex === index(),
 											'drag-over': drag().hoveredIndex === index(),
@@ -248,9 +255,9 @@ export function FileListView(props: {
 											/>
 										</div>
 										<div
-											class={`file-status ${!invalidSource() ? 'file-status-valid' : 'file-status-invalid'}`}
+											class={`file-status ${!failedSource() ? 'file-status-valid' : 'file-status-invalid'}`}
 										>
-											{!invalidSource() ? '✓' : '✗'}
+											{!failedSource() ? '✓' : '✗'}
 										</div>
 										<div class="file-info">
 											<div class="file-name-row">
@@ -312,8 +319,8 @@ export function FileListView(props: {
 											</div>
 											<div class="file-details">
 												{grouped()
-													? invalidSource()
-														? formatFileDetails(invalidSource() ?? file)
+													? unusableSource()
+														? formatFileDetails(unusableSource() ?? file)
 														: formatFileDetails(
 																{
 																	...file,

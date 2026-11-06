@@ -39,6 +39,7 @@ function importedFile(): AudioFile {
 		tagTitle: 'Dune (old tags)',
 		tagArtist: 'Old Author',
 		isValid: true,
+		sourceRemoved: false,
 	};
 }
 

@@ -38,6 +38,9 @@ export function formatFileDetails(
 	if (file.isValid && file.duration && file.size) {
 		return `${artistPrefix}${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}${chapterSuffix}`;
 	}
+	if (file.sourceRemoved) {
+		return file.error ?? '';
+	}
 	return `Error: ${file.error || 'Invalid file'}`;
 }
 

@@ -51,6 +51,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
+                "sourceRemoved": false,
                 "tagArtist": "Ann Author",
                 "tagTitle": "Alpha"
               },
@@ -77,6 +78,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
+                "sourceRemoved": false,
                 "tagArtist": "  Ann Author  ",
                 "tagTitle": "Beta"
               },
@@ -97,6 +99,7 @@
                 "sampleRate": null,
                 "selectedDecoder": null,
                 "size": 20.0,
+                "sourceRemoved": false,
                 "tagArtist": null,
                 "tagTitle": null
               }
@@ -971,6 +974,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
+                "sourceRemoved": false,
                 "tagArtist": "Ann Author",
                 "tagTitle": "Alpha"
               },
@@ -997,6 +1001,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
+                "sourceRemoved": false,
                 "tagArtist": "  Ann Author  ",
                 "tagTitle": "Beta"
               },
@@ -1023,6 +1028,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
+                "sourceRemoved": false,
                 "tagArtist": "Gus Writer",
                 "tagTitle": "Gamma"
               }
@@ -1226,6 +1232,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
+                "sourceRemoved": false,
                 "tagArtist": "  Ann Author  ",
                 "tagTitle": "Beta"
               },
@@ -1252,6 +1259,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
+                "sourceRemoved": false,
                 "tagArtist": "Gus Writer",
                 "tagTitle": "Gamma"
               }
@@ -1575,6 +1583,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
+                "sourceRemoved": false,
                 "tagArtist": "Ann Author",
                 "tagTitle": "Alpha"
               }
@@ -1635,6 +1644,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
+                "sourceRemoved": false,
                 "tagArtist": "Ann Author",
                 "tagTitle": "Alpha"
               }
@@ -1698,6 +1708,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
+                "sourceRemoved": false,
                 "tagArtist": "Ann Author",
                 "tagTitle": "Alpha"
               },
@@ -1724,6 +1735,7 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
+                "sourceRemoved": false,
                 "tagArtist": "  Ann Author  ",
                 "tagTitle": "Beta"
               }

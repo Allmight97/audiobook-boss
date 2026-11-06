@@ -72,6 +72,7 @@ export function audioFile(path: string, overrides: Partial<AudioFile> = {}): Aud
 		duration: 60,
 		format: 'm4b',
 		isValid: true,
+		sourceRemoved: false,
 		chapters: [],
 		...overrides,
 	};

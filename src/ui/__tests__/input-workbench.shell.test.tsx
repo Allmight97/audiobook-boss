@@ -24,6 +24,7 @@ function analyzedFile(path: string, overrides: Partial<AudioFile> = {}): AudioFi
 	return {
 		path,
 		isValid: true,
+		sourceRemoved: false,
 		duration: 1,
 		size: 1000,
 		format: 'mp3',
@@ -48,6 +49,9 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 		...overrides,
 	};
 }
+
+const REMOVED_NOTICE =
+	'Exported. Its download was removed to save space; acquire it again to export it again.';
 
 let engine: FakeEngine;
 
@@ -257,6 +261,66 @@ describe('Solid input workbench', () => {
 			const row = screen.getByRole('option', { name: 'valid.m4b' });
 			expect(row).toHaveClass('invalid');
 			expect(row).toHaveTextContent('Broken audio source');
+		});
+	});
+
+	it('shows an exported title whose download was removed as finished, not as an error', async () => {
+		const removed = analyzedFile('/books/done.m4b', {
+			isValid: false,
+			sourceRemoved: true,
+			error: REMOVED_NOTICE,
+		});
+		runtime = runtimeFor({ files: [removed] });
+		await renderApp(runtime);
+		await runtime.input.importIntent({ type: 'importPaths', paths: [removed.path] });
+		const row = await screen.findByRole('option', { name: 'done.m4b' });
+		engine.seedTitleAudio(removed.path, titleAudioRequest(), {
+			plan: { kind: 'failed', message: 'Source is not valid', field: null },
+			estimate: null,
+		});
+		await waitFor(() => expect(row).toHaveTextContent(REMOVED_NOTICE));
+		expect(row.querySelector('.file-status')).toHaveClass('file-status-valid');
+		expect(row.querySelector('.file-status')).toHaveTextContent('✓');
+		expect(row).not.toHaveClass('invalid');
+		expect(row).not.toHaveTextContent('Error:');
+		expect(row).not.toHaveTextContent('Choose audio');
+		expect(screen.queryByRole('button', { name: 'Audio plan for done.m4b' })).toBeNull();
+		expect(screen.queryByTitle('Estimated output size')).toBeNull();
+	});
+
+	it('shows a grouped title of removed downloads as finished but keeps a broken source failed', async () => {
+		const gone = analyzedFile('/books/gone.m4b', {
+			isValid: false,
+			sourceRemoved: true,
+			error: REMOVED_NOTICE,
+		});
+		const goneToo = analyzedFile('/books/gone-too.m4b', {
+			isValid: false,
+			sourceRemoved: true,
+			error: REMOVED_NOTICE,
+		});
+		const broken = analyzedFile('/books/broken.m4b', {
+			isValid: false,
+			error: 'Broken audio source',
+		});
+		runtime = runtimeFor({ files: [gone, goneToo, broken] });
+		await renderApp(runtime);
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: [gone.path, goneToo.path, broken.path],
+		});
+		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(3));
+		engine.seedGroup([gone, goneToo]);
+		const finished = await screen.findByRole('option', { name: 'gone.m4b' });
+		expect(finished.querySelector('.file-status')).toHaveClass('file-status-valid');
+		expect(finished).toHaveTextContent(REMOVED_NOTICE);
+		expect(finished).not.toHaveTextContent('Error:');
+
+		engine.seedGroup([gone, broken]);
+		await waitFor(() => {
+			const row = screen.getByRole('option', { name: 'gone.m4b' });
+			expect(row.querySelector('.file-status')).toHaveClass('file-status-invalid');
+			expect(row).toHaveTextContent('Error: Broken audio source');
 		});
 	});
 
