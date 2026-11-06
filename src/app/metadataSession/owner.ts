@@ -22,13 +22,7 @@ import {
 	type CoverArtMessage,
 	type CoverUiState,
 } from './cover';
-import {
-	fieldForActionId,
-	fieldForInputId,
-	toFormState,
-	type MetadataFieldAction,
-	type MetadataFormState,
-} from './fields';
+import { toFormState, type MetadataFieldAction, type MetadataFormState } from './fields';
 
 type MetadataView = {
 	readonly form: MetadataFormState;
@@ -40,9 +34,9 @@ type MetadataView = {
 
 export type MetadataOwner = {
 	readonly view: Accessor<MetadataView>;
-	setFieldValue: (command: { readonly inputId: string; readonly value: string }) => void;
+	setFieldValue: (command: { readonly field: MetadataField; readonly value: string }) => void;
 	setFieldAction: (command: {
-		readonly actionId: string;
+		readonly field: MetadataField;
 		readonly action: MetadataFieldAction;
 	}) => void;
 	setCoverHovered: (hovered: boolean) => void;
@@ -214,29 +208,20 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 
 	return {
 		view,
-		setFieldValue(command) {
-			const field = fieldForInputId(command.inputId);
-			if (!field) return;
+		setFieldValue({ field, value }) {
 			const intent: SessionIntent = {
 				kind: 'setField',
 				binding: link.metadata().binding,
 				field,
-				value: command.value,
+				value,
 			};
-			typed.show(field, command.value, () =>
+			typed.show(field, value, () =>
 				link.send(intent).catch((error: unknown) => link.refuse(intent, error)),
 			);
 		},
-		setFieldAction(command) {
-			const field = fieldForActionId(command.actionId);
-			if (!field) return;
+		setFieldAction({ field, action }) {
 			typed.drop(field);
-			link.post({
-				kind: 'setFieldAction',
-				binding: link.metadata().binding,
-				field,
-				action: command.action,
-			});
+			link.post({ kind: 'setFieldAction', binding: link.metadata().binding, field, action });
 		},
 		setCoverHovered(hovered) {
 			isHovered = hovered;

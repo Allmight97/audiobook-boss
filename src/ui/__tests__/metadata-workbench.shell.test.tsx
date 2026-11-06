@@ -122,6 +122,32 @@ describe('metadata workbench shell', () => {
 		);
 	});
 
+	it('sends each form control to the engine field it edits', async () => {
+		const engine = engineWithTaggedBooks();
+		runtime = createAppRuntime({ input: fakeInput(), engine });
+		await renderApp(runtime);
+		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
+		await waitFor(() => {
+			expect((document.getElementById('meta-title') as HTMLInputElement).value).toBe('Alpha');
+		});
+		engine.respond = () => undefined;
+		engine.change((state) => {
+			state.metadata.form = { ...state.metadata.form, mode: 'multi' };
+		});
+
+		await userEvent.type(document.getElementById('meta-year') as HTMLInputElement, '2');
+		await userEvent.type(document.getElementById('meta-description') as HTMLTextAreaElement, 'D');
+		await userEvent.selectOptions(await screen.findByTestId('meta-series-part-action'), 'blank');
+
+		await waitFor(() =>
+			expect(lastIntents(engine, 3)).toEqual([
+				{ kind: 'setField', binding: 0, field: 'date', value: '2' },
+				{ kind: 'setField', binding: 0, field: 'description', value: 'D' },
+				{ kind: 'setFieldAction', binding: 0, field: 'seriesPart', action: 'blank' },
+			]),
+		);
+	});
+
 	it('saves from the global shortcut', async () => {
 		const engine = engineWithTaggedBooks();
 		runtime = createAppRuntime({ input: fakeInput(), engine });

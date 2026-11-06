@@ -35,8 +35,8 @@ describe('metadata owner', () => {
 				? new Promise<SessionOutcome>((resolve) => replies.push(resolve))
 				: undefined;
 
-		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Al' });
-		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Alp' });
+		app.metadata.setFieldValue({ field: 'title', value: 'Al' });
+		app.metadata.setFieldValue({ field: 'title', value: 'Alp' });
 
 		expect(title(app)).toMatchObject({ value: 'Alp', dirty: true });
 		await vi.waitFor(() => expect(replies).toHaveLength(2));
@@ -66,7 +66,7 @@ describe('metadata owner', () => {
 					}
 				: undefined;
 
-		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Typed' });
+		app.metadata.setFieldValue({ field: 'title', value: 'Typed' });
 		expect(title(app).value).toBe('Typed');
 
 		await vi.waitFor(() => expect(app.engine.refusal()).toBe('That title cannot be edited now.'));
@@ -91,23 +91,6 @@ describe('metadata owner', () => {
 		expect(app.metadata.save()).toBeUndefined();
 
 		await vi.waitFor(() => expect(app.engine.refusal()).toBe('Nothing to save.'));
-	});
-
-	it('maps each form control to the engine field it edits', async () => {
-		const app = await open();
-
-		app.metadata.setFieldValue({ inputId: 'meta-year', value: '2020' });
-		app.metadata.setFieldValue({ inputId: 'meta-narrator', value: 'Reader' });
-		app.metadata.setFieldAction({ actionId: 'meta-series-part-action', action: 'blank' });
-		app.metadata.setFieldValue({ inputId: 'not-a-field', value: 'ignored' });
-
-		await vi.waitFor(() =>
-			expect(engine.sessionIntents.slice(-3)).toEqual([
-				{ kind: 'setField', binding: 0, field: 'date', value: '2020' },
-				{ kind: 'setField', binding: 0, field: 'narrator', value: 'Reader' },
-				{ kind: 'setFieldAction', binding: 0, field: 'seriesPart', action: 'blank' },
-			]),
-		);
 	});
 
 	it('words what the engine reports about the form and the last save', async () => {
@@ -162,7 +145,7 @@ describe('metadata owner', () => {
 		engine.respond = (intent) =>
 			intent.kind === 'setField' ? new Promise<SessionOutcome>(() => undefined) : undefined;
 
-		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Typed for alpha' });
+		app.metadata.setFieldValue({ field: 'title', value: 'Typed for alpha' });
 		expect(title(app).value).toBe('Typed for alpha');
 
 		engine.change((state) => {
@@ -177,8 +160,8 @@ describe('metadata owner', () => {
 			state.metadata.binding = 7;
 		});
 
-		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Typed' });
-		app.metadata.setFieldAction({ actionId: 'meta-author-action', action: 'blank' });
+		app.metadata.setFieldValue({ field: 'title', value: 'Typed' });
+		app.metadata.setFieldAction({ field: 'author', action: 'blank' });
 
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents.slice(-2)).toEqual([
@@ -205,7 +188,7 @@ describe('metadata owner', () => {
 		await vi.waitFor(() => expect(app.metadata.view().cover.imageSrc).not.toBeNull());
 		expect(app.metadata.view().cover.imageSrc).toBe(coverSrc('session/1/'));
 		const shown = app.metadata.view().cover.imageSrc;
-		app.metadata.setFieldValue({ inputId: 'meta-genre', value: 'Mystery' });
+		app.metadata.setFieldValue({ field: 'genre', value: 'Mystery' });
 		await vi.waitFor(() => expect(app.metadata.view().form.fields['meta-genre'].dirty).toBe(true));
 		expect(app.metadata.view().cover.imageSrc).toBe(shown);
 

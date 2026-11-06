@@ -129,7 +129,6 @@ type MetadataFieldState = {
 	readonly action: MetadataFieldAction;
 	readonly dirty: boolean;
 	readonly mixed: boolean;
-	readonly placeholder: string;
 };
 
 type MetadataWarningState = {
@@ -195,7 +194,6 @@ export function toFormState(
 			action: reported?.action ?? 'keep',
 			dirty: pending !== undefined || (reported?.dirty ?? false),
 			mixed: pending === undefined && (reported?.mixed ?? false),
-			placeholder: definition.placeholder,
 		};
 	}
 	return {
@@ -205,12 +203,4 @@ export function toFormState(
 		seriesPartWarning: seriesPartWarningText(snapshot.seriesPartWarning),
 		subseriesPartWarning: subseriesPartWarningText(snapshot.subseriesPartWarning),
 	};
-}
-
-export function fieldForInputId(inputId: string): MetadataField | undefined {
-	return METADATA_FIELD_DEFINITIONS.find((definition) => definition.inputId === inputId)?.field;
-}
-
-export function fieldForActionId(actionId: string): MetadataField | undefined {
-	return METADATA_FIELD_DEFINITIONS.find((definition) => definition.actionId === actionId)?.field;
 }
