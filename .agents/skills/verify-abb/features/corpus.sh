@@ -6,10 +6,7 @@
 set -euo pipefail
 source "$(dirname "$0")/../lib.sh"
 
-if [[ -z "${ABB_CORPUS_DIR:-}" ]]; then
-	printf 'SKIP: set ABB_CORPUS_DIR to a folder of audiobooks to run this feature\n'
-	exit 77
-fi
+[[ -n "${ABB_CORPUS_DIR:-}" ]] || fail "set ABB_CORPUS_DIR to a folder of audiobooks to run the corpus feature"
 [[ -d "${ABB_CORPUS_DIR}" ]] || fail "ABB_CORPUS_DIR is not a folder: ${ABB_CORPUS_DIR}"
 
 corpus_listing() {

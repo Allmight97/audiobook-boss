@@ -22,7 +22,9 @@ proves them.
 Rules:
 
 - Inputs are synthesized with the FFmpeg 9 CLI. Never point abb-dev at the
-  owner's library or production state; every call gets its own `--state-dir`.
+  owner's library or production state; every call gets its own `--state-dir`,
+  except `crash`, which reuses one on purpose to relaunch after `kill -9`.
+  `corpus` is the one feature that reads the owner's files, and only copies.
 - Audible decrypt is proved by `bash scripts/verify.sh decrypt` (synthetic
   AAX/AAXC fixtures through the published helper), not by this skill.
 - Remote Audible download is blocked: it needs a real account, and this skill
@@ -30,8 +32,9 @@ Rules:
 - `corpus` is opt-in and not in `run.sh`'s default list: set
   `ABB_CORPUS_DIR=<folder of the owner's audiobooks>` and run
   `run.sh corpus`. It copies each file, so it never writes into the folder,
-  and runs import, encode, Preserve, and re-import against the copy, comparing
-  title, chapters, and length. Unset, it prints `SKIP` (exit 77). Names are
-  copied byte for byte: NFC and NFD forms stay distinct.
+  and runs import, encode, and re-import against the copy, plus Preserve for
+  MP3, M4B, and M4A, comparing title, chapters, and length. Unset, it fails
+  and names `ABB_CORPUS_DIR`. Names are copied byte for byte: NFC and NFD
+  forms stay distinct.
 - A new feature is a new `features/<name>.sh` added to `run.sh`'s list; check
   the result with ffprobe or the JSON, not with abb-dev's exit code alone.
