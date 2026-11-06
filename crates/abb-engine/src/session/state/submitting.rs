@@ -220,15 +220,15 @@ impl SessionState {
         title_id: &str,
         revision: u64,
     ) -> Option<ExportLink> {
-        let link = self
-            .exports
-            .offered(
-                title_id,
-                revision,
-                self.output.naming_directory().as_ref(),
-                &self.output.naming(),
-            )
-            .ok()?;
+        let Ok(link) = self.exports.offered(
+            title_id,
+            revision,
+            self.output.naming_directory().as_ref(),
+            &self.output.naming(),
+        ) else {
+            self.refuse_submission(SubmitRefusal::RestartStale);
+            return None;
+        };
         self.exports.acknowledge_prompt(title_id, revision);
         self.keeping_locations += 1;
         Some(link)

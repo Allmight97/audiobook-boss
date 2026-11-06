@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Choosing "Keep location" on an out-of-date restart offer now says the offer no longer
+  matches, as Restart does, instead of doing nothing.
 - A rejected naming template and a Browse button that cannot open the folder dialog now
   show the reason in the notice, instead of only logging it.
 - Opening an unsupported file with ABB from the OS now shows the same "no supported files"

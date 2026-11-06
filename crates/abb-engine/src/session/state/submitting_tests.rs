@@ -240,6 +240,12 @@ fn restart_questions_wait_for_answer_work_and_answered_offers_stay_retryable() {
     desk.state.output.set_directory("/elsewhere".into());
     assert!(desk.state.output_snapshot(0).restart_prompt.is_none());
     assert!(desk.state.begin_keep_location("alpha", revision).is_none());
+    assert_eq!(
+        desk.state.output_snapshot(0).submission,
+        Some(SubmissionStatus::Refused {
+            reason: SubmitRefusal::RestartStale
+        })
+    );
 }
 
 #[test]
