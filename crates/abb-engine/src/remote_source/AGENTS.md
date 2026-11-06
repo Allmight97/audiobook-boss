@@ -160,7 +160,8 @@ job's size at any library size and cannot drop a crossing selection change. Snap
   connection lease spans gaps between requests; Save, Reset, and lane
   replacement are refused until it finishes, and a connection Save and a search
   refuse each other the same way. A refused Reset says to wait; no outcome or
-  retry row is lost. A release sent since the last search or Save is not sent
+  retry row is lost. An admitted Reset (`reset_lease`) refuses a new Search or
+  Grab until it ends, however it ends. A release sent since the last search or Save is not sent
   again (the grab answers "Already sent").
 - The draft starts from the saved settings; Load reads only whether a key is
   stored for the saved URL. An applied Reset replaces the draft, clears its

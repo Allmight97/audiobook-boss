@@ -178,6 +178,7 @@ pub(super) struct UiState {
     connection_loading: bool,
     connection_loaded: bool,
     connection_saving: bool,
+    connection_resetting: bool,
     test_request: u64,
     search_request: u64,
     save_request: u64,
@@ -224,6 +225,7 @@ impl Default for UiState {
             connection_loading: false,
             connection_loaded: false,
             connection_saving: false,
+            connection_resetting: false,
             test_request: 0,
             search_request: 0,
             save_request: 0,
@@ -820,6 +822,7 @@ impl UiState {
     fn indexer_available(&self) -> Result<()> {
         if self.snapshot.lane != ProviderId::Indexer
             || self.connection_saving
+            || self.connection_resetting
             || self.snapshot.indexer.searching
             || self.snapshot.indexer.grabbing
         {

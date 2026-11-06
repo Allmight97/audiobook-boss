@@ -567,7 +567,9 @@ async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryab
     );
     let (batch, ()) = tokio::join!(batch.finish(), async {
         second_is_sending.await.expect("the second release is sent");
-        let refused = runtime.reset_lease().expect_err("a Reset waits");
+        let Err(refused) = runtime.reset_lease() else {
+            panic!("a Reset waits");
+        };
         assert!(
             matches!(&refused, AppError::InvalidInput(message) if message.contains("before resetting settings")),
             "{refused}"
@@ -733,4 +735,94 @@ async fn a_save_with_a_key_stores_it_when_the_config_folder_cannot_be_written() 
     assert!(runtime.ui_snapshot().connection.api_key_configured);
     std::fs::remove_file(root.path()).expect("remove the blocking file");
     std::fs::create_dir_all(root.path()).expect("restore the config folder");
+}
+
+fn search() -> RemoteUiIntent {
+    RemoteUiIntent::SearchReleases {
+        author: "Author".into(),
+        title: String::new(),
+    }
+}
+
+#[tokio::test]
+async fn an_admitted_reset_refuses_a_new_search_or_grab_until_it_ends() {
+    let root = TempDir::new().expect("temp root");
+    let runtime = test_runtime(&root);
+    save(&runtime, "https://indexer.test", Some("key"))
+        .await
+        .expect("saved");
+    run(
+        &runtime,
+        RemoteUiIntent::SelectLane {
+            lane: ProviderId::Indexer,
+        },
+    )
+    .await
+    .expect("lane");
+    {
+        let mut state = runtime.ui();
+        let request = state.search_request;
+        state.searched(
+            request,
+            &Ok(RemoteReleaseSearchResponse {
+                provider_id: ProviderId::Indexer,
+                releases: vec![release(1)],
+                diagnostics: vec![],
+            }),
+        );
+    }
+    run(
+        &runtime,
+        RemoteUiIntent::SelectRelease {
+            indexer_id: 1,
+            guid: "shared-guid".into(),
+            multi: false,
+        },
+    )
+    .await
+    .expect("select");
+
+    let reservation = runtime.reset_lease().expect("an idle Indexer");
+    assert!(runtime.ui().begin(search()).is_err());
+    assert!(runtime.ui().begin(RemoteUiIntent::GrabSelected).is_err());
+    drop(reservation);
+
+    assert!(
+        runtime.ui().begin(RemoteUiIntent::GrabSelected).is_ok(),
+        "dropping the reservation admits a Grab"
+    );
+    runtime.ui().snapshot.indexer.grabbing = false;
+    assert!(runtime.ui().begin(search()).is_ok());
+}
+
+#[tokio::test]
+async fn a_refused_reset_leaves_search_and_grab_admitted() {
+    let root = TempDir::new().expect("temp root");
+    let runtime = test_runtime(&root);
+    run(
+        &runtime,
+        RemoteUiIntent::SelectLane {
+            lane: ProviderId::Indexer,
+        },
+    )
+    .await
+    .expect("lane");
+    assert!(runtime.ui().begin(search()).is_ok(), "a Search is accepted");
+    assert!(
+        runtime.reset_lease().is_err(),
+        "a Reset waits for the Search"
+    );
+    runtime.ui().snapshot.indexer.searching = false;
+    assert!(
+        runtime.ui().begin(search()).is_ok(),
+        "the refused Reset reserved nothing"
+    );
+    runtime.ui().snapshot.indexer.searching = false;
+
+    let reservation = runtime
+        .reset_lease()
+        .expect("the refused Reset kept neither the lease nor the reservation");
+    drop(reservation);
+
+    assert!(runtime.ui().begin(search()).is_ok());
 }

@@ -1,4 +1,6 @@
 use super::{IndexerWorkSnapshot, RemoteDraftStatus, RemoteUiResult, UiAction, UiState};
+use std::sync::{Arc, Mutex, PoisonError};
+
 use crate::app_settings::{IndexerConnection, SettingsOutcome, SettingsRun};
 use crate::errors::{AppError, Result};
 use crate::remote_source::{IndexerProvider, ProviderId, RemoteSourceRuntime};
@@ -18,6 +20,22 @@ pub(super) struct IndexerSave {
     previous: IndexerConnection,
     settings: SettingsRun,
     write: tokio::sync::OwnedRwLockWriteGuard<()>,
+}
+
+/// An admitted Reset: the Indexer write lease, and the fact on the UI state
+/// that refuses a new Search or Grab until it is dropped.
+pub(crate) struct ResetReservation {
+    ui: Arc<Mutex<UiState>>,
+    _lease: tokio::sync::OwnedRwLockWriteGuard<()>,
+}
+
+impl Drop for ResetReservation {
+    fn drop(&mut self) {
+        self.ui
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .connection_resetting = false;
+    }
 }
 
 impl UiState {
@@ -103,11 +121,13 @@ impl RemoteSourceRuntime {
     }
 
     /// Reset replaces the saved connection, so it is refused while the Indexer
-    /// works or saves, as a Save is. Hold the returned lease until
-    /// [`Self::saved_connection_replaced`] has run.
-    pub(crate) fn reset_lease(&self) -> Result<tokio::sync::OwnedRwLockWriteGuard<()>> {
+    /// works or saves, as a Save is, and once admitted it refuses a new Search
+    /// or Grab. Hold the returned reservation until
+    /// [`Self::saved_connection_replaced`] has run; dropping it, however the
+    /// Reset ends, admits Search and Grab again.
+    pub(crate) fn reset_lease(&self) -> Result<ResetReservation> {
         let lease = self.indexer_write_lease("resetting settings")?;
-        let state = self.ui();
+        let mut state = self.ui();
         if state.connection_saving
             || state.snapshot.indexer.searching
             || state.snapshot.indexer.grabbing
@@ -117,8 +137,12 @@ impl RemoteSourceRuntime {
                     .into(),
             ));
         }
+        state.connection_resetting = true;
         drop(state);
-        Ok(lease)
+        Ok(ResetReservation {
+            ui: Arc::clone(&self.inner.ui),
+            _lease: lease,
+        })
     }
 
     pub(super) async fn finish_indexer_save(&self, save: IndexerSave) -> Result<RemoteUiResult> {
