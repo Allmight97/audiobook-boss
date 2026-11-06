@@ -11,14 +11,6 @@ pub enum ProviderId {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct AccountRef {
-    pub provider_id: ProviderId,
-    pub account_id: String,
-    pub display_name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
 pub struct RemoteSourceProviderCapabilities {
     pub provider_id: ProviderId,
     pub label: String,
@@ -37,7 +29,6 @@ pub enum RemoteAccountStatus {
 pub struct RemoteSourceAccountState {
     pub provider_id: ProviderId,
     pub status: RemoteAccountStatus,
-    pub account: Option<AccountRef>,
     pub message: Option<String>,
 }
 

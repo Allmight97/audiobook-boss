@@ -6,7 +6,7 @@ use secrecy::SecretString;
 use crate::app_settings::IndexerConnection;
 use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
-    AccountRef, ProviderId, RemoteAccountStatus, RemoteIndexerConnectionUpdate, RemoteRelease,
+    ProviderId, RemoteAccountStatus, RemoteIndexerConnectionUpdate, RemoteRelease,
     RemoteReleaseGrabRequest, RemoteReleaseGrabResponse, RemoteReleaseSearchRequest,
     RemoteReleaseSearchResponse, RemoteSourceAccountState, RemoteSourceProviderCapabilities,
 };
@@ -38,7 +38,6 @@ impl IndexerProvider {
             return Ok(RemoteSourceAccountState {
                 provider_id: ProviderId::Indexer,
                 status: RemoteAccountStatus::NeedsAuth,
-                account: None,
                 message: account_message(
                     Some("Configure Indexer URL and API key in Settings before searching."),
                     survives,
@@ -49,11 +48,6 @@ impl IndexerProvider {
         Ok(RemoteSourceAccountState {
             provider_id: ProviderId::Indexer,
             status: RemoteAccountStatus::Connected,
-            account: Some(AccountRef {
-                provider_id: ProviderId::Indexer,
-                account_id: "indexer".to_string(),
-                display_name: connection.base_url.clone().unwrap_or_default(),
-            }),
             message: account_message(None, survives),
         })
     }

@@ -188,7 +188,6 @@ it('restores cached library rows and selections during accepted acquisition with
 		state.remote.account = {
 			providerId: 'audible',
 			status: 'connected',
-			account: null,
 			message: null,
 		};
 		state.remote.selectedTitleIds = [title.titleId];

@@ -52,12 +52,6 @@ export type AacDecoder =
  */
 "faad";
 
-export type AccountRef = {
-	providerId: ProviderId,
-	accountId: string,
-	displayName: string,
-};
-
 export type AcquisitionHandoff = { kind: "imported"; count: number } |
 /**  Nothing was imported, so the engine removes the staged files. */
 { kind: "removed"; reason: HandoffRefusal };
@@ -943,7 +937,6 @@ export type RemoteReleaseProtocol = "usenet" | "torrent" | "unknown";
 export type RemoteSourceAccountState = {
 	providerId: ProviderId,
 	status: RemoteAccountStatus,
-	account: AccountRef | null,
 	message: string | null,
 };
 

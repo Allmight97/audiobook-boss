@@ -842,11 +842,6 @@ fn connected_audible() -> super::super::RemoteSourceAccountState {
     super::super::RemoteSourceAccountState {
         provider_id: ProviderId::Audible,
         status: super::super::RemoteAccountStatus::Connected,
-        account: Some(super::super::AccountRef {
-            provider_id: ProviderId::Audible,
-            account_id: "audible-us".into(),
-            display_name: "Listener".into(),
-        }),
         message: None,
     }
 }

@@ -64,7 +64,6 @@ fn connected(provider_id: ProviderId, message: &str) -> Option<RemoteSourceAccou
     Some(RemoteSourceAccountState {
         provider_id,
         status: RemoteAccountStatus::Connected,
-        account: None,
         message: Some(message.into()),
     })
 }
@@ -298,7 +297,6 @@ fn an_account_that_is_not_connected_still_shows_its_message() {
     ui.snapshot.account = Some(RemoteSourceAccountState {
         provider_id: ProviderId::Audible,
         status: RemoteAccountStatus::NeedsAuth,
-        account: None,
         message: Some("Connect Audible.".into()),
     });
     assert_eq!(message(&ui), "Connect Audible.");

@@ -77,7 +77,7 @@ async function openConnected(
 	fakeEngine().change((state) => {
 		state.remote.lane = lane;
 		state.remote.providers = providerCapabilities();
-		state.remote.account = { providerId: lane, status: 'connected', account: null, message: null };
+		state.remote.account = { providerId: lane, status: 'connected', message: null };
 		state.remoteLibrary.titles = [remoteTitle()];
 	});
 	await runtime.remoteSource.open({ lane });
@@ -226,7 +226,6 @@ describe('RemoteSourceAcquireView', () => {
 						providerId: 'indexer',
 						status: 'needsAuth',
 						message: 'Configure Indexer URL and API key in Settings before searching.',
-						account: null,
 					};
 				});
 			}
@@ -256,7 +255,6 @@ describe('RemoteSourceAcquireView', () => {
 			state.remote.account = {
 				providerId: 'audible',
 				status: 'needsAuth',
-				account: null,
 				message: null,
 			};
 			state.remote.busy = true;
@@ -425,7 +423,6 @@ describe('RemoteSourceAcquireView during a download', () => {
 			state.remote.account = {
 				providerId: 'audible',
 				status: 'connected',
-				account: null,
 				message: null,
 			};
 			state.remote.selectedTitleIds = [titles[1].titleId];
@@ -561,7 +558,6 @@ describe('RemoteSourceAcquireView during a download', () => {
 			state.remote.account = {
 				providerId: 'indexer',
 				status: 'connected',
-				account: null,
 				message: null,
 			};
 			state.remote.indexer.releases = Array.from({ length: 40 }, (_, index) => ({

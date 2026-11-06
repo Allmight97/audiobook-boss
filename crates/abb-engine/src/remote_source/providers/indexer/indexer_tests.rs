@@ -54,10 +54,6 @@ fn account_state_requires_both_url_and_current_host_key() {
             IndexerProvider::account_state(&connection, &vault).expect("read account state");
         assert_eq!(state.provider_id, ProviderId::Indexer);
         assert_eq!(state.status, expected);
-        assert_eq!(
-            state.account.is_some(),
-            expected == RemoteAccountStatus::Connected
-        );
     }
 }
 
