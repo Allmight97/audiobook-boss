@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::audio::{AudiobookFormat, EncoderSettings, OutputAudio, SampleRateConfig};
+use crate::audio::{
+    AudiobookFormat, EncoderSettings, OutputAudio, SampleRateConfig, TitleAudioPlan,
+};
 use crate::metadata::CueSource;
 
 fn source(name: &str, seconds: f64, bytes: f64) -> AudioFile {
@@ -178,4 +180,71 @@ fn a_failure_one_audio_setting_causes_names_that_setting() {
         message: String::new(),
     });
     assert_eq!(resolve(&cue).field, None);
+}
+
+fn saved(source: &AudioFile) -> AudioFile {
+    let mut saved = source.clone();
+    saved.label = "Saved Title".to_string();
+    saved.artist = Some("Saved Author".to_string());
+    saved.size = Some(9_999.0);
+    if let Some(plan) = saved.chapter_plan.as_mut() {
+        plan.source_fingerprint = "after the write".to_string();
+    }
+    saved
+}
+
+fn resolved_plan() -> TitleAudioPlan {
+    TitleAudioPlan {
+        format: AudiobookFormat::M4b,
+        handling: AudioHandling::Preserve,
+        sample_rate: 44_100,
+        channels: 2,
+        source_codec: "AAC".to_string(),
+        reason: None,
+    }
+}
+
+#[test]
+fn a_saved_tag_leaves_a_resolved_plan_resolved_with_no_new_ticket() {
+    let request = request(AudioIntent::Auto, cbr(64));
+    let mut source = source("alpha", 60.0, 1_000.0);
+    source.chapter_plan = Some(chapter_plan(false));
+    let mut plans = Plans::default();
+    let tickets = plans.refresh([input(&request, &source)]);
+    plans.finish(&tickets[0], Ok(resolved_plan()));
+
+    assert!(plans.refresh([input(&request, &saved(&source))]).is_empty());
+    assert!(matches!(plans.plan("alpha"), TitlePlan::Resolved { .. }));
+
+    let mut resampled = saved(&source);
+    resampled.sample_rate = Some(22_050);
+    assert_eq!(plans.refresh([input(&request, &resampled)]).len(), 1);
+    assert_eq!(plans.plan("alpha"), TitlePlan::Pending);
+}
+
+#[test]
+fn a_plan_read_across_a_tag_write_is_dropped_and_read_again() {
+    let request = request(AudioIntent::Auto, cbr(64));
+    let mut source = source("alpha", 60.0, 1_000.0);
+    source.chapter_plan = Some(chapter_plan(false));
+    let mut plans = Plans::default();
+    let across_the_write = plans.refresh([input(&request, &source)]).remove(0);
+
+    let again = plans.refresh([input(&request, &saved(&source))]);
+    assert_eq!(again.len(), 1);
+
+    let stale = PlanFailure::from("Audio changed since chapter inspection.".to_string());
+    plans.finish(&across_the_write, Err(stale.clone()));
+    assert_eq!(plans.plan("alpha"), TitlePlan::Pending);
+
+    plans.finish(&again[0], Err(stale));
+    assert!(matches!(plans.plan("alpha"), TitlePlan::Failed { .. }));
+    let settled = saved(&source);
+    assert!(plans.refresh([input(&request, &settled)]).is_empty());
+
+    let mut rewritten = settled;
+    if let Some(plan) = rewritten.chapter_plan.as_mut() {
+        plan.source_fingerprint = "after a later write".to_string();
+    }
+    assert_eq!(plans.refresh([input(&request, &rewritten)]).len(), 1);
 }

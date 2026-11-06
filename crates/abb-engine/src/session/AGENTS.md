@@ -192,7 +192,10 @@ one host attachment.
   unresolved, with the plan problem. A mixed field reads plain Auto and still
   carries the plan problem. Each title carries the same readings for itself.
 - **Title plans.** Each title's plan resolves in the background whenever its
-  request or sources change; a stale result is dropped (`plans.rs`). A CUE
+  request or what a plan reads from its sources changes; a stale result is
+  dropped (`plans.rs`). A tag Save changes nothing a plan reads, so a resolved
+  plan stays resolved; any other plan is read again, since it may have read the
+  file during the write. A CUE
   awaiting confirmation, or CUE chapters on a merged title, fails the plan with
   a reason.
 - **Output.** The output part carries the directory, naming, the naming
