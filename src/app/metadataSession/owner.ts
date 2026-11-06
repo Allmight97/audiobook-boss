@@ -46,6 +46,7 @@ export type MetadataOwner = {
 	clearCoverArt: () => void;
 	loadCoverArtFromPicker: () => Promise<void>;
 	loadCoverArtFromUrl: (rawInput: string) => void;
+	rejectPastedCoverText: () => void;
 	applyCoverArtDrop: (paths: ReadonlyArray<string>) => Promise<boolean>;
 	save: () => void;
 	reset: () => void;
@@ -266,6 +267,9 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				changed();
 			}
 			link.post({ kind: 'loadCoverFromUrl', url });
+		},
+		rejectPastedCoverText() {
+			showLocalMessage({ kind: 'error', text: 'The pasted text is not an image URL.' });
 		},
 		async applyCoverArtDrop(paths) {
 			try {

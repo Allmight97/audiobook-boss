@@ -25,6 +25,7 @@ export function CoverArtView(): JSX.Element {
 	const loadFromPicker = metadata.loadCoverArtFromPicker;
 	const loadFromUrl = metadata.loadCoverArtFromUrl;
 	const clearCover = metadata.clearCoverArt;
+	const rejectPastedText = metadata.rejectPastedCoverText;
 
 	function handleAreaKeyDown(event: KeyboardEvent): void {
 		if (event.key === 'Enter' || event.key === ' ') {
@@ -51,7 +52,7 @@ export function CoverArtView(): JSX.Element {
 			setUrlInput(pastedUrl);
 			loadFromUrl(pastedUrl);
 		} catch {
-			return;
+			rejectPastedText();
 		}
 	}
 

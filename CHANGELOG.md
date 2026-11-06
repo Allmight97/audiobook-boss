@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Pasting text that is not a URL while the pointer is over the cover now says "The pasted
+  text is not an image URL." instead of doing nothing.
 - Choosing "Keep location" on an out-of-date restart offer now says the offer no longer
   matches, as Restart does, instead of doing nothing.
 - A rejected naming template and a Browse button that cannot open the folder dialog now
