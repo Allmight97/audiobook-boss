@@ -204,3 +204,36 @@ async fn reset_supersedes_an_acquired_handoff_waiting_for_an_earlier_import() {
         .files
         .is_empty());
 }
+
+#[tokio::test]
+async fn a_reset_while_a_download_waits_for_the_unlock_removes_it_and_lists_nothing() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+    rig.lock_order(true);
+    let session = rig.session.clone();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by a_reset_while_a_download_waits_for_the_unlock_removes_it_and_lists_nothing"
+    )]
+    let handoff =
+        tokio::spawn(async move { session.import_acquired(acquired("job-1", &audio)).await });
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(!handoff.is_finished(), "the download waits for the list");
+
+    rig.send(SessionIntent::Reset).await;
+    assert_eq!(
+        handoff.await.expect("handoff"),
+        crate::remote_source::AcquisitionHandoff::Removed {
+            reason: HandoffRefusal::NothingAdded
+        }
+    );
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+    assert!(rig
+        .session
+        .snapshot()
+        .titles
+        .expect("titles")
+        .files
+        .is_empty());
+}

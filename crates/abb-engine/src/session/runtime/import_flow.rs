@@ -6,6 +6,7 @@ use crate::audio;
 use crate::audio::AudioFile;
 use crate::errors::{AppErrorEnvelope, Result};
 use crate::session::intent::SessionOutcome;
+use crate::session::state::SessionState;
 use crate::session::working_set::InputNotice;
 
 impl Session {
@@ -112,6 +113,26 @@ impl Session {
         skipped: Vec<audio::SkippedImportPath>,
         resets: u64,
     ) -> Option<Bound> {
+        self.when_list_unlocked(resets, |state| {
+            let default_audio = state.audio.request();
+            state
+                .working_set
+                .append_analyzed(std::mem::take(&mut files), &default_audio);
+            if !skipped.is_empty() {
+                state.working_set.set_notice(InputNotice::SkippedPaths {
+                    skipped: skipped.clone(),
+                });
+            }
+            Bound::rebind(state)
+        })
+        .await
+    }
+
+    pub(super) async fn when_list_unlocked<T>(
+        &self,
+        resets: u64,
+        mut apply: impl FnMut(&mut SessionState) -> T,
+    ) -> Option<T> {
         loop {
             let unlocked = self.inner.list_unlocked.notified();
             tokio::pin!(unlocked);
@@ -123,19 +144,10 @@ impl Session {
                 if state.working_set.order_locked() {
                     return None;
                 }
-                let default_audio = state.audio.request();
-                state
-                    .working_set
-                    .append_analyzed(std::mem::take(&mut files), &default_audio);
-                if !skipped.is_empty() {
-                    state.working_set.set_notice(InputNotice::SkippedPaths {
-                        skipped: skipped.clone(),
-                    });
-                }
-                Some(Some(Bound::rebind(state)))
+                Some(Some(apply(state)))
             });
-            if let Some(bound) = attempt {
-                return bound;
+            if let Some(result) = attempt {
+                return result;
             }
             unlocked.await;
         }

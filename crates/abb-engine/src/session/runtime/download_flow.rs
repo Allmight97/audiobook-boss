@@ -74,27 +74,12 @@ impl Session {
             }
         };
         let titles = staged_titles(job);
-        let listed = loop {
-            let unlocked = self.inner.list_unlocked.notified();
-            tokio::pin!(unlocked);
-            unlocked.as_mut().enable();
-            if self.inner.resets.load(Ordering::SeqCst) != resets {
-                return removed(HandoffRefusal::NothingAdded);
-            }
-            let attempt = self.transition(|state| {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    return Some(Err(HandoffRefusal::NothingAdded));
-                }
-                if state.working_set.order_locked() {
-                    return None;
-                }
-                Some(list_acquired(state, job, analyzed.clone(), &titles))
-            });
-            match attempt {
-                Some(listed) => break listed,
-                None => unlocked.await,
-            }
-        };
+        let listed = self
+            .when_list_unlocked(resets, |state| {
+                list_acquired(state, job, analyzed.clone(), &titles)
+            })
+            .await
+            .unwrap_or(Err(HandoffRefusal::NothingAdded));
         match listed {
             Ok((bound, count)) => {
                 self.complete_reads(bound).await;
