@@ -13,6 +13,7 @@ use crate::metadata_lookup::{
 use crate::output_artifact::NamingPreset;
 use crate::power::PowerManager;
 use crate::processing::JobRegistry;
+use crate::remote_source::HandoffRefusal;
 use crate::session::audio_choice::AudioEdit;
 use crate::session::cover_address::{self, tests::host_request};
 use crate::session::lookup::LookupSnapshot;
@@ -20,6 +21,7 @@ use crate::session::lookup::LookupSource;
 use crate::session::metadata_form::MetadataField;
 use crate::session::state::MetadataSnapshot;
 use crate::session::submission::SubmissionStatus;
+use crate::session::working_set::InputNotice;
 
 type SearchReply = Result<MetadataLookupResponse>;
 /// A search as the provider saw it: the query and the sources asked.
@@ -464,58 +466,6 @@ async fn a_rejected_selection_reports_why_and_leaves_the_selection() {
 }
 
 #[tokio::test]
-async fn importing_a_folder_with_no_audio_explains_what_is_supported() {
-    let rig = rig();
-    let empty = tempfile::TempDir::new().expect("temp dir");
-
-    rig.send(SessionIntent::Import {
-        paths: vec![empty.path().to_string_lossy().into_owned()],
-    })
-    .await;
-
-    let titles = rig.session.snapshot().titles.expect("titles part");
-    assert!(titles.files.is_empty());
-    assert!(matches!(
-        titles.notice,
-        Some(InputNotice::NoSupportedFiles { .. })
-    ));
-}
-
-#[tokio::test]
-async fn importing_lists_what_it_read_and_names_what_it_skipped() {
-    let rig = rig();
-    let folder = tempfile::TempDir::new().expect("temp dir");
-    let book = staged_wav(folder.path(), "book");
-    let missing = folder.path().join("missing.wav");
-
-    rig.send(SessionIntent::Import {
-        paths: vec![
-            book.to_string_lossy().into_owned(),
-            missing.to_string_lossy().into_owned(),
-        ],
-    })
-    .await;
-
-    let titles = rig.session.snapshot().titles.expect("titles part");
-    assert_eq!(
-        rig.listed_paths(),
-        vec![book.canonicalize().expect("canonical book")]
-    );
-    let Some(InputNotice::SkippedPaths { skipped }) = titles.notice else {
-        panic!("expected the skipped path notice, got {:?}", titles.notice);
-    };
-    assert_eq!(skipped.len(), 1);
-    assert_eq!(skipped[0].path, missing.display().to_string());
-    assert!(
-        skipped[0]
-            .reason
-            .starts_with("File validation failed: Cannot read it:"),
-        "the path is listed beside the reason, not inside it: {}",
-        skipped[0].reason
-    );
-}
-
-#[tokio::test]
 async fn a_cover_url_is_required_before_anything_loads() {
     let rig = rig();
     rig.load(&["alpha"]);
@@ -607,51 +557,6 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
 }
 
 #[tokio::test]
-async fn opened_files_wait_for_unlock_without_a_host_request() {
-    let rig = rig();
-    let folder = tempfile::TempDir::new().expect("temp dir");
-    let opened = staged_wav(folder.path(), "opened");
-    rig.lock_order(true);
-    rig.session
-        .import_opened(vec![opened.clone(), opened.clone()])
-        .expect("opened files admitted");
-    tokio::task::yield_now().await;
-    assert!(rig.listed_paths().is_empty());
-    rig.lock_order(false);
-    rig.session.sources_released();
-    rig.wait_for_titles(1).await;
-    assert_eq!(
-        rig.listed_paths(),
-        vec![opened.canonicalize().expect("canonical opened path")]
-    );
-
-    rig.session
-        .import_opened(vec![opened])
-        .expect("opened again");
-    rig.wait_for_notice(InputNotice::DuplicatesOnly).await;
-    assert_eq!(rig.listed_paths().len(), 1);
-}
-
-#[tokio::test]
-async fn a_reset_drops_opened_files_still_waiting_and_closing_refuses_them() {
-    let rig = rig();
-    let folder = tempfile::TempDir::new().expect("temp dir");
-    let opened = staged_wav(folder.path(), "opened");
-    rig.lock_order(true);
-    rig.session
-        .import_opened(vec![opened.clone()])
-        .expect("opened files admitted");
-    rig.send(SessionIntent::Reset).await;
-    rig.lock_order(false);
-    rig.session.sources_released();
-    rig.session.inner.deps.tasks.close();
-    rig.session.inner.deps.tasks.wait().await;
-    assert!(rig.listed_paths().is_empty(), "the reset dropped them");
-
-    assert!(rig.session.import_opened(vec![opened]).is_err());
-}
-
-#[tokio::test]
 async fn repeated_removal_targets_one_title_and_preserves_its_neighbours_edits() {
     let rig = rig();
     rig.load(&["alpha", "beta"]);
@@ -719,20 +624,6 @@ async fn a_host_that_attached_mid_intent_learns_its_result_from_an_event() {
         .expect("a lookup event");
     assert!(latest.revision > attached.lookup.expect("lookup").revision);
     assert_eq!(latest.results.len(), 1);
-}
-
-#[tokio::test]
-async fn an_import_that_fails_after_a_reset_leaves_the_new_session_alone() {
-    let rig = rig();
-    let empty = tempfile::TempDir::new().expect("temp dir");
-    let import = rig.session.begin(SessionIntent::Import {
-        paths: vec![empty.path().to_string_lossy().into_owned()],
-    });
-    rig.send(SessionIntent::Reset).await;
-
-    assert_eq!(import.finish().await.outcome, SessionOutcome::Superseded);
-    let titles = rig.session.snapshot().titles.expect("titles part");
-    assert_eq!(titles.notice, None);
 }
 
 #[tokio::test]
@@ -865,211 +756,6 @@ fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::Acqu
     }
 }
 
-impl Rig {
-    async fn removed_jobs(&self) -> Vec<String> {
-        tokio::time::timeout(std::time::Duration::from_secs(30), async {
-            loop {
-                let removed = self.removed.lock().expect("removed").clone();
-                if !removed.is_empty() && !self.session.inner.sweeping.load(Ordering::SeqCst) {
-                    return removed;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .expect("a download is removed")
-    }
-}
-
-#[tokio::test]
-async fn an_acquired_title_is_listed_with_its_companions_and_its_download_goes_when_it_leaves() {
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let audio = staged_wav(staging.path(), "book");
-
-    let handoff = rig.session.import_acquired(acquired("job-1", &audio)).await;
-
-    assert_eq!(
-        handoff,
-        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
-    );
-    let titles = rig.session.snapshot().titles.expect("titles");
-    let input_id = titles.files[0].input_id.clone();
-    assert_eq!(titles.companions[&input_id], ["Guide.pdf"]);
-    assert!(rig.removed.lock().expect("removed").is_empty());
-
-    rig.send(SessionIntent::ClearAll).await;
-    assert_eq!(rig.removed_jobs().await, ["job-1"]);
-    assert!(rig
-        .session
-        .snapshot()
-        .titles
-        .expect("titles")
-        .companions
-        .is_empty());
-}
-
-#[tokio::test]
-async fn a_download_with_an_unreadable_file_is_not_listed_at_all() {
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let audio = staged_wav(staging.path(), "book");
-    let mut job = acquired("job-1", &audio);
-    let mut missing = job.materialized_files[0].clone();
-    missing.path = staging.path().join("part 2.wav");
-    job.materialized_files.push(missing);
-
-    let handoff = rig.session.import_acquired(job).await;
-
-    assert!(
-        matches!(
-            handoff,
-            crate::remote_source::AcquisitionHandoff::Removed {
-                reason: crate::remote_source::HandoffRefusal::ImportFailed { .. }
-            }
-        ),
-        "{handoff:?}"
-    );
-    assert!(rig.listed_paths().is_empty());
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_failed_removal_waits_out_the_retry_delay_before_the_next_change_retries_it() {
-    let rig = rig();
-    rig.failing_removals
-        .store(1, std::sync::atomic::Ordering::SeqCst);
-    let staging = tempfile::TempDir::new().expect("staging");
-    let audio = staged_wav(staging.path(), "book");
-    rig.session.import_acquired(acquired("job-1", &audio)).await;
-    let attempts = || rig.removed.lock().expect("removed").len();
-
-    rig.send(SessionIntent::ClearAll).await;
-    assert_eq!(rig.removed_jobs().await, ["job-1"]);
-    rig.send(SessionIntent::SetOutputDirectory {
-        directory: "/library".to_string(),
-    })
-    .await;
-    tokio::time::sleep(crate::session::staged::RETRY_DELAY / 2).await;
-    rig.send(SessionIntent::ClearAll).await;
-    assert_eq!(attempts(), 1);
-
-    tokio::time::sleep(crate::session::staged::RETRY_DELAY).await;
-    rig.send(SessionIntent::ClearAll).await;
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        while !rig.session.lock().staged.is_empty() {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the change after the delay retries the removal");
-    assert_eq!(attempts(), 2);
-}
-
-#[tokio::test]
-async fn a_download_goes_once_its_title_is_exported() {
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let output = tempfile::TempDir::new().expect("output");
-    let audio = staged_wav(staging.path(), "book");
-    rig.session.import_acquired(acquired("job-1", &audio)).await;
-    assert!(rig.removed.lock().expect("removed").is_empty());
-
-    rig.send(SessionIntent::SetOutputDirectory {
-        directory: output.path().to_string_lossy().into_owned(),
-    })
-    .await;
-    rig.type_into(MetadataField::Title, "Book").await;
-    rig.send(SessionIntent::Submit).await;
-    assert!(
-        matches!(
-            rig.session.snapshot().output.expect("output").submission,
-            Some(SubmissionStatus::Submitted { .. })
-        ),
-        "{:?}",
-        rig.session.snapshot().output.expect("output").submission
-    );
-    assert_eq!(rig.removed_jobs().await, ["job-1"]);
-    assert_eq!(
-        rig.session.snapshot().titles.expect("titles").files.len(),
-        1
-    );
-}
-
-#[tokio::test]
-async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks() {
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    let draft = rig
-        .session
-        .transition(|state| {
-            state.output.set_directory("/library".to_string());
-            state.begin_submission(false)
-        })
-        .expect("a submission locks the list");
-
-    let audio = staged_wav(staging.path(), "book");
-    let session = rig.session.clone();
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks"
-    )]
-    let handoff =
-        tokio::spawn(async move { session.import_acquired(acquired("job-1", &audio)).await });
-    for _ in 0..20 {
-        tokio::task::yield_now().await;
-    }
-    assert!(!handoff.is_finished(), "the download waits for the list");
-
-    rig.session
-        .end_submission(&draft, SubmissionStatus::Cancelled);
-    assert_eq!(
-        handoff.await.expect("handoff"),
-        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
-    );
-    assert!(rig.removed.lock().expect("removed").is_empty());
-}
-
-#[tokio::test]
-async fn reset_supersedes_an_acquired_handoff_waiting_for_an_earlier_import() {
-    use std::future::Future;
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let audio = staged_wav(staging.path(), "book");
-    let in_order = rig
-        .session
-        .inner
-        .imports
-        .wait(rig.session.inner.imports.take())
-        .await;
-    let mut handoff = Box::pin(
-        rig.session
-            .import_acquired(acquired("job-before-reset", &audio)),
-    );
-    std::future::poll_fn(|cx| {
-        assert!(handoff.as_mut().poll(cx).is_pending());
-        std::task::Poll::Ready(())
-    })
-    .await;
-    rig.send(SessionIntent::Reset).await;
-    drop(in_order);
-    assert_eq!(
-        handoff.await,
-        crate::remote_source::AcquisitionHandoff::Removed {
-            reason: HandoffRefusal::NothingAdded
-        }
-    );
-    assert_eq!(rig.removed_jobs().await, ["job-before-reset"]);
-    assert!(rig
-        .session
-        .snapshot()
-        .titles
-        .expect("titles")
-        .files
-        .is_empty());
-}
-
 #[tokio::test]
 async fn an_unsupported_cover_drop_publishes_the_ingestion_diagnostic() {
     let rig = rig();
@@ -1167,8 +853,12 @@ async fn moves_name_the_title_so_a_second_click_moves_the_same_title_again() {
 mod audio;
 #[path = "runtime/defaults_flow_tests.rs"]
 mod defaults_flow;
+#[path = "runtime/download_flow_tests.rs"]
+mod download_flow;
 #[path = "runtime_field_edit_tests.rs"]
 mod field_edit;
+#[path = "runtime/import_flow_tests.rs"]
+mod import_flow;
 #[path = "runtime/lookup_flow_tests.rs"]
 mod lookup_flow;
 #[path = "runtime/preview_flow_tests.rs"]

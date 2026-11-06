@@ -13,19 +13,15 @@ use super::plans::PlanTicket;
 use super::state::{GateBlock, SavePlan, SessionState, SessionUpdate};
 use super::submission::{Draft, SubmitRefusal};
 use super::tag_cache::ReadTicket;
-use super::working_set::{InputNotice, SelectionModifiers, WorkingSet};
+use super::working_set::{SelectionModifiers, WorkingSet};
 use crate::app_settings::{SettingsIntent, SettingsRun, SettingsRuntime};
-use crate::audio::{self, AudioFile};
+use crate::audio::{self};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::host::{EngineEvent, Host};
 use crate::metadata::AudiobookMetadata;
 use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource};
 use crate::output_artifact::CollisionPolicy;
-use crate::processing::SupplementalProcessingAsset;
-use crate::remote_source::{
-    AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal, RemoteRevisions, RemoteUiResult,
-};
-use crate::work_runtime::OperationSnapshot;
+use crate::remote_source::{RemoteRevisions, RemoteUiResult};
 use crate::work_runtime::WorkRuntime;
 use crate::ManagedJobRegistry;
 
@@ -301,59 +297,6 @@ impl Session {
             self.sweep_staged();
         }
         value
-    }
-
-    fn sweep_due(&self, state: &SessionState) -> bool {
-        !state.staged.is_empty()
-            && !self.inner.sweeping.load(Ordering::SeqCst)
-            && !state
-                .removable_staged(&self.inner.deps.work.sources_held(), now())
-                .is_empty()
-    }
-
-    fn sweep_staged(&self) {
-        if tokio::runtime::Handle::try_current().is_err()
-            || self.inner.sweeping.swap(true, Ordering::SeqCst)
-        {
-            return;
-        }
-        let session = self.clone();
-        self.inner.deps.tasks.spawn(async move {
-            loop {
-                let jobs = session.transition(|state| {
-                    let held = session.inner.deps.work.sources_held();
-                    let jobs = state.begin_staged_removal(&held, now());
-                    if jobs.is_empty() {
-                        session.inner.sweeping.store(false, Ordering::SeqCst);
-                    }
-                    jobs
-                });
-                if jobs.is_empty() {
-                    return;
-                }
-                for job_id in jobs {
-                    let remove = Arc::clone(&session.inner.deps.remove_staged);
-                    let id = job_id.clone();
-                    let removed = blocking(move || remove(&id)).await;
-                    if let Err(error) = &removed {
-                        log::warn!("Failed to remove staged download job_id={job_id}: {error}");
-                    }
-                    let bound = session.transition(|state| {
-                        let reads = state.finish_staged_removal(&job_id, removed.is_ok(), now());
-                        Bound {
-                            reads,
-                            binding: state.binding,
-                        }
-                    });
-                    session.complete_reads(bound).await;
-                }
-                session.publish();
-            }
-        });
-    }
-
-    fn export_finished(&self, snapshot: &OperationSnapshot) {
-        self.transition(|state| state.staged.finish_export(&snapshot.children));
     }
 
     fn resolve_plans(&self, tickets: Vec<PlanTicket>) {
@@ -712,242 +655,6 @@ impl Session {
         self.transition(|state| state.finish_reads(bound.binding, reads));
     }
 
-    fn import_failed(&self, notice: InputNotice) -> SessionOutcome {
-        self.transition(|state| state.working_set.set_notice(notice));
-        SessionOutcome::Applied
-    }
-
-    fn begin_import(&self, paths: Vec<String>) -> Rest {
-        if self.lock().working_set.order_locked() {
-            return Rest::Done(self.import_failed(InputNotice::OrderLocked));
-        }
-        Rest::Import {
-            paths,
-            resets: self.inner.resets.load(Ordering::SeqCst),
-            turn: self.inner.imports.take(),
-        }
-    }
-
-    pub(crate) fn import_opened(&self, paths: Vec<PathBuf>) -> Result<()> {
-        let paths = paths
-            .into_iter()
-            .map(|path| path.to_string_lossy().into_owned())
-            .collect();
-        self.inner.deps.tasks.admit(|| {
-            let rest = Rest::Import {
-                paths,
-                resets: self.inner.resets.load(Ordering::SeqCst),
-                turn: self.inner.imports.take(),
-            };
-            let session = self.clone();
-            self.inner.deps.tasks.spawn(async move {
-                session.complete(rest).await;
-            });
-        })
-    }
-
-    async fn import(
-        &self,
-        paths: Vec<String>,
-        resets: u64,
-        turn: super::import_order::Turn,
-    ) -> SessionOutcome {
-        let _in_order = self.inner.imports.wait(turn).await;
-        let superseded = || self.inner.resets.load(Ordering::SeqCst) != resets;
-        let failed = |notice| {
-            if superseded() {
-                SessionOutcome::Superseded
-            } else {
-                self.import_failed(notice)
-            }
-        };
-
-        let inputs: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
-        let discovery =
-            match blocking(move || Ok(audio::discover_audio_import_paths(&inputs))).await {
-                Ok(discovery) => discovery,
-                Err(error) => {
-                    return failed(InputNotice::AnalysisFailed {
-                        error: AppErrorEnvelope::from(&error),
-                    })
-                }
-            };
-        let discovered = discovery.paths;
-        let skipped: Vec<_> = discovery
-            .skipped
-            .iter()
-            .map(|(path, error)| audio::SkippedImportPath::new(path, error))
-            .collect();
-        if discovered.is_empty() {
-            return failed(if skipped.is_empty() {
-                InputNotice::NoSupportedFiles {
-                    formats_text: audio::supported_audio_import_formats_text(),
-                }
-            } else {
-                InputNotice::SkippedPaths { skipped }
-            });
-        }
-        let aac_decoder = self.inner.deps.settings.aac_decoder();
-        let analyzed =
-            match blocking(move || audio::get_file_list_info(&discovered, aac_decoder)).await {
-                Ok(analyzed) => analyzed,
-                Err(error) => {
-                    return failed(InputNotice::AnalysisFailed {
-                        error: AppErrorEnvelope::from(&error),
-                    })
-                }
-            };
-
-        if superseded() {
-            return SessionOutcome::Superseded;
-        }
-        let Some(bound) = self.list_imported(analyzed.files, skipped, resets).await else {
-            return SessionOutcome::Superseded;
-        };
-        self.complete_reads(bound).await;
-        SessionOutcome::Applied
-    }
-
-    /// Analysis can overlap a submission: wait before changing its locked list.
-    async fn list_imported(
-        &self,
-        mut files: Vec<AudioFile>,
-        skipped: Vec<audio::SkippedImportPath>,
-        resets: u64,
-    ) -> Option<Bound> {
-        loop {
-            let unlocked = self.inner.list_unlocked.notified();
-            tokio::pin!(unlocked);
-            unlocked.as_mut().enable();
-            let attempt = self.transition(|state| {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    return Some(None);
-                }
-                if state.working_set.order_locked() {
-                    return None;
-                }
-                let default_audio = state.audio.request();
-                state
-                    .working_set
-                    .append_analyzed(std::mem::take(&mut files), &default_audio);
-                if !skipped.is_empty() {
-                    state.working_set.set_notice(InputNotice::SkippedPaths {
-                        skipped: skipped.clone(),
-                    });
-                }
-                Some(Some(Bound {
-                    reads: state.rebind(),
-                    binding: state.binding,
-                }))
-            });
-            if let Some(bound) = attempt {
-                return bound;
-            }
-            unlocked.await;
-        }
-    }
-
-    async fn import_acquired(&self, job: AcquisitionJob) -> AcquisitionHandoff {
-        let handoff = self.import_acquired_files(&job).await;
-        if matches!(handoff, AcquisitionHandoff::Removed { .. }) {
-            let paths = job
-                .materialized_files
-                .iter()
-                .map(|file| &file.path)
-                .chain(job.supplemental_assets.iter().map(|asset| &asset.path))
-                .map(|path| std::fs::canonicalize(path).unwrap_or_else(|_| path.clone()))
-                .collect();
-            self.transition(|state| state.staged.register_unimported(&job.job_id, paths));
-        }
-        handoff
-    }
-
-    async fn import_acquired_files(&self, job: &AcquisitionJob) -> AcquisitionHandoff {
-        let resets = self.inner.resets.load(Ordering::SeqCst);
-        let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
-        let removed = |reason| AcquisitionHandoff::Removed { reason };
-        if self.inner.resets.load(Ordering::SeqCst) != resets {
-            return removed(HandoffRefusal::NothingAdded);
-        }
-        let paths: Vec<PathBuf> = job
-            .materialized_files
-            .iter()
-            .map(|file| file.path.clone())
-            .collect();
-        let aac_decoder = self.inner.deps.settings.aac_decoder();
-        let analyzed = blocking(move || {
-            let discovery = audio::discover_audio_import_paths(&paths);
-            if let Some((_, error)) = discovery.skipped.into_iter().next() {
-                return Err(error);
-            }
-            audio::get_file_list_info(&discovery.paths, aac_decoder)
-        })
-        .await;
-        let analyzed = match analyzed {
-            Ok(analyzed) => analyzed.files,
-            Err(error) => {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    return removed(HandoffRefusal::NothingAdded);
-                }
-                return removed(HandoffRefusal::ImportFailed {
-                    error: AppErrorEnvelope::from(&error),
-                });
-            }
-        };
-        let titles = staged_titles(job);
-        let listed = loop {
-            let unlocked = self.inner.list_unlocked.notified();
-            tokio::pin!(unlocked);
-            unlocked.as_mut().enable();
-            if self.inner.resets.load(Ordering::SeqCst) != resets {
-                return removed(HandoffRefusal::NothingAdded);
-            }
-            let attempt = self.transition(|state| {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    return Some(Err(HandoffRefusal::NothingAdded));
-                }
-                if state.working_set.order_locked() {
-                    return None;
-                }
-                Some(list_acquired(state, job, analyzed.clone(), &titles))
-            });
-            match attempt {
-                Some(listed) => break listed,
-                None => unlocked.await,
-            }
-        };
-        match listed {
-            Ok((bound, count)) => {
-                self.complete_reads(bound).await;
-                self.publish();
-                if self.inner.resets.load(Ordering::SeqCst) == resets {
-                    AcquisitionHandoff::Imported { count }
-                } else {
-                    removed(HandoffRefusal::NothingAdded)
-                }
-            }
-            Err(reason) => {
-                self.publish();
-                removed(reason)
-            }
-        }
-    }
-
-    pub(crate) fn handoff(&self) -> Handoff {
-        let session = Arc::downgrade(&self.inner);
-        Arc::new(move |job| {
-            let session = session.upgrade().map(|inner| Session { inner });
-            Box::pin(async move {
-                match session {
-                    Some(session) => session.import_acquired(job).await,
-                    None => AcquisitionHandoff::Removed {
-                        reason: HandoffRefusal::NothingAdded,
-                    },
-                }
-            })
-        })
-    }
-
     fn sources_released(&self) {
         self.inner.sources_freed.notify_one();
         self.inner.list_unlocked.notify_waiters();
@@ -1003,70 +710,6 @@ enum CoverSource {
     Url(String),
 }
 
-fn list_acquired(
-    state: &mut SessionState,
-    job: &AcquisitionJob,
-    analyzed: Vec<crate::audio::AudioFile>,
-    titles: &[(String, PathBuf)],
-) -> std::result::Result<(Bound, usize), HandoffRefusal> {
-    let before = state.working_set.source_paths();
-    let default_audio = state.audio.request();
-    state.working_set.append_analyzed(analyzed, &default_audio);
-    let mut count = 0;
-    for file in state.working_set.files().to_vec() {
-        if before.contains(&file.path) {
-            continue;
-        }
-        let Some((title_id, _)) = titles.iter().find(|(_, path)| *path == file.path) else {
-            continue;
-        };
-        let assets = job
-            .supplemental_assets
-            .iter()
-            .filter(|asset| &asset.title_id == title_id)
-            .map(|asset| SupplementalProcessingAsset {
-                asset_id: asset.asset_id.clone(),
-                input_id: file.input_id.clone(),
-                title_id: asset.title_id.clone(),
-                path: asset.path.clone(),
-                file_name: asset.file_name.clone(),
-                size_bytes: asset.size_bytes,
-                sha256: asset.sha256.clone(),
-            })
-            .collect();
-        state
-            .staged
-            .register(&job.job_id, &file.input_id, file.path.clone(), assets);
-        count += 1;
-    }
-    if count == 0 {
-        return Err(HandoffRefusal::NothingAdded);
-    }
-    Ok((
-        Bound {
-            reads: state.rebind(),
-            binding: state.binding,
-        },
-        count,
-    ))
-}
-
-fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
-    job.materialized_files
-        .iter()
-        .map(|file| {
-            let path = std::fs::canonicalize(&file.path).unwrap_or_else(|_| file.path.clone());
-            (file.title_id.clone(), path)
-        })
-        .collect()
-}
-
-/// The time staged-download retries are measured in: tokio's clock, so a
-/// paused test runtime can move it.
-fn now() -> std::time::Instant {
-    tokio::time::Instant::now().into_std()
-}
-
 #[expect(clippy::disallowed_methods, reason = "joined by blocking")]
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T> + Send + 'static,
@@ -1111,6 +754,8 @@ async fn read_all(tickets: Vec<ReadTicket>) -> Vec<(ReadTicket, Result<Audiobook
 mod cover_request;
 
 mod defaults_flow;
+mod download_flow;
+mod import_flow;
 mod lookup_flow;
 mod preview_flow;
 mod save_flow;

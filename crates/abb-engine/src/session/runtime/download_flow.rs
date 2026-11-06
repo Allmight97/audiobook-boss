@@ -1,0 +1,231 @@
+use std::path::PathBuf;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
+use super::{blocking, Bound, Session};
+use crate::audio;
+use crate::errors::AppErrorEnvelope;
+use crate::processing::SupplementalProcessingAsset;
+use crate::remote_source::{AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal};
+use crate::session::state::SessionState;
+use crate::work_runtime::OperationSnapshot;
+
+impl Session {
+    pub(crate) fn handoff(&self) -> Handoff {
+        let session = Arc::downgrade(&self.inner);
+        Arc::new(move |job| {
+            let session = session.upgrade().map(|inner| Session { inner });
+            Box::pin(async move {
+                match session {
+                    Some(session) => session.import_acquired(job).await,
+                    None => AcquisitionHandoff::Removed {
+                        reason: HandoffRefusal::NothingAdded,
+                    },
+                }
+            })
+        })
+    }
+
+    pub(super) async fn import_acquired(&self, job: AcquisitionJob) -> AcquisitionHandoff {
+        let handoff = self.import_acquired_files(&job).await;
+        if matches!(handoff, AcquisitionHandoff::Removed { .. }) {
+            let paths = job
+                .materialized_files
+                .iter()
+                .map(|file| &file.path)
+                .chain(job.supplemental_assets.iter().map(|asset| &asset.path))
+                .map(|path| std::fs::canonicalize(path).unwrap_or_else(|_| path.clone()))
+                .collect();
+            self.transition(|state| state.staged.register_unimported(&job.job_id, paths));
+        }
+        handoff
+    }
+
+    async fn import_acquired_files(&self, job: &AcquisitionJob) -> AcquisitionHandoff {
+        let resets = self.inner.resets.load(Ordering::SeqCst);
+        let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
+        let removed = |reason| AcquisitionHandoff::Removed { reason };
+        if self.inner.resets.load(Ordering::SeqCst) != resets {
+            return removed(HandoffRefusal::NothingAdded);
+        }
+        let paths: Vec<PathBuf> = job
+            .materialized_files
+            .iter()
+            .map(|file| file.path.clone())
+            .collect();
+        let aac_decoder = self.inner.deps.settings.aac_decoder();
+        let analyzed = blocking(move || {
+            let discovery = audio::discover_audio_import_paths(&paths);
+            if let Some((_, error)) = discovery.skipped.into_iter().next() {
+                return Err(error);
+            }
+            audio::get_file_list_info(&discovery.paths, aac_decoder)
+        })
+        .await;
+        let analyzed = match analyzed {
+            Ok(analyzed) => analyzed.files,
+            Err(error) => {
+                if self.inner.resets.load(Ordering::SeqCst) != resets {
+                    return removed(HandoffRefusal::NothingAdded);
+                }
+                return removed(HandoffRefusal::ImportFailed {
+                    error: AppErrorEnvelope::from(&error),
+                });
+            }
+        };
+        let titles = staged_titles(job);
+        let listed = loop {
+            let unlocked = self.inner.list_unlocked.notified();
+            tokio::pin!(unlocked);
+            unlocked.as_mut().enable();
+            if self.inner.resets.load(Ordering::SeqCst) != resets {
+                return removed(HandoffRefusal::NothingAdded);
+            }
+            let attempt = self.transition(|state| {
+                if self.inner.resets.load(Ordering::SeqCst) != resets {
+                    return Some(Err(HandoffRefusal::NothingAdded));
+                }
+                if state.working_set.order_locked() {
+                    return None;
+                }
+                Some(list_acquired(state, job, analyzed.clone(), &titles))
+            });
+            match attempt {
+                Some(listed) => break listed,
+                None => unlocked.await,
+            }
+        };
+        match listed {
+            Ok((bound, count)) => {
+                self.complete_reads(bound).await;
+                self.publish();
+                if self.inner.resets.load(Ordering::SeqCst) == resets {
+                    AcquisitionHandoff::Imported { count }
+                } else {
+                    removed(HandoffRefusal::NothingAdded)
+                }
+            }
+            Err(reason) => {
+                self.publish();
+                removed(reason)
+            }
+        }
+    }
+
+    pub(super) fn sweep_due(&self, state: &SessionState) -> bool {
+        !state.staged.is_empty()
+            && !self.inner.sweeping.load(Ordering::SeqCst)
+            && !state
+                .removable_staged(&self.inner.deps.work.sources_held(), now())
+                .is_empty()
+    }
+
+    pub(super) fn sweep_staged(&self) {
+        if tokio::runtime::Handle::try_current().is_err()
+            || self.inner.sweeping.swap(true, Ordering::SeqCst)
+        {
+            return;
+        }
+        let session = self.clone();
+        self.inner.deps.tasks.spawn(async move {
+            loop {
+                let jobs = session.transition(|state| {
+                    let held = session.inner.deps.work.sources_held();
+                    let jobs = state.begin_staged_removal(&held, now());
+                    if jobs.is_empty() {
+                        session.inner.sweeping.store(false, Ordering::SeqCst);
+                    }
+                    jobs
+                });
+                if jobs.is_empty() {
+                    return;
+                }
+                for job_id in jobs {
+                    let remove = Arc::clone(&session.inner.deps.remove_staged);
+                    let id = job_id.clone();
+                    let removed = blocking(move || remove(&id)).await;
+                    if let Err(error) = &removed {
+                        log::warn!("Failed to remove staged download job_id={job_id}: {error}");
+                    }
+                    let bound = session.transition(|state| {
+                        let reads = state.finish_staged_removal(&job_id, removed.is_ok(), now());
+                        Bound {
+                            reads,
+                            binding: state.binding,
+                        }
+                    });
+                    session.complete_reads(bound).await;
+                }
+                session.publish();
+            }
+        });
+    }
+
+    pub(super) fn export_finished(&self, snapshot: &OperationSnapshot) {
+        self.transition(|state| state.staged.finish_export(&snapshot.children));
+    }
+}
+
+fn list_acquired(
+    state: &mut SessionState,
+    job: &AcquisitionJob,
+    analyzed: Vec<crate::audio::AudioFile>,
+    titles: &[(String, PathBuf)],
+) -> std::result::Result<(Bound, usize), HandoffRefusal> {
+    let before = state.working_set.source_paths();
+    let default_audio = state.audio.request();
+    state.working_set.append_analyzed(analyzed, &default_audio);
+    let mut count = 0;
+    for file in state.working_set.files().to_vec() {
+        if before.contains(&file.path) {
+            continue;
+        }
+        let Some((title_id, _)) = titles.iter().find(|(_, path)| *path == file.path) else {
+            continue;
+        };
+        let assets = job
+            .supplemental_assets
+            .iter()
+            .filter(|asset| &asset.title_id == title_id)
+            .map(|asset| SupplementalProcessingAsset {
+                asset_id: asset.asset_id.clone(),
+                input_id: file.input_id.clone(),
+                title_id: asset.title_id.clone(),
+                path: asset.path.clone(),
+                file_name: asset.file_name.clone(),
+                size_bytes: asset.size_bytes,
+                sha256: asset.sha256.clone(),
+            })
+            .collect();
+        state
+            .staged
+            .register(&job.job_id, &file.input_id, file.path.clone(), assets);
+        count += 1;
+    }
+    if count == 0 {
+        return Err(HandoffRefusal::NothingAdded);
+    }
+    Ok((
+        Bound {
+            reads: state.rebind(),
+            binding: state.binding,
+        },
+        count,
+    ))
+}
+
+fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
+    job.materialized_files
+        .iter()
+        .map(|file| {
+            let path = std::fs::canonicalize(&file.path).unwrap_or_else(|_| file.path.clone());
+            (file.title_id.clone(), path)
+        })
+        .collect()
+}
+
+/// The time staged-download retries are measured in: tokio's clock, so a
+/// paused test runtime can move it.
+fn now() -> std::time::Instant {
+    tokio::time::Instant::now().into_std()
+}
