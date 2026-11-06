@@ -76,7 +76,7 @@ describe('app runtime', () => {
 		expect(first.lookup.view().titleQuery).toBe('stale lookup');
 		expect(second.lookup.view().titleQuery).toBe('');
 		expect(first.processing.status().stepText).toBe('Error: Processing failed: Disk full');
-		expect(second.processing.status().stepText).toBe('Current Step: Waiting for files...');
+		expect(second.processing.status().stepText).toBe('Current Step: Nothing running');
 		expect(first.remoteSource.view().isOpen).toBe(true);
 		expect(second.remoteSource.view().isOpen).toBe(false);
 		expect(second.remoteSource.view().statusMessage).toBe('');
@@ -84,7 +84,7 @@ describe('app runtime', () => {
 		first.dispose();
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(second.processing.status().stepText).toBe('Current Step: Waiting for files...');
+		expect(second.processing.status().stepText).toBe('Current Step: Nothing running');
 		expect(second.remoteSource.view().isOpen).toBe(false);
 
 		const third = await createAppRuntime();
@@ -95,7 +95,7 @@ describe('app runtime', () => {
 		expect(third.settings.dialog().isOpen).toBe(false);
 		expect(third.lookup.view().titleQuery).toBe('');
 		expect(third.encoding.view().effectiveFlavor).toBe('native_aac');
-		expect(third.processing.status().stepText).toBe('Current Step: Waiting for files...');
+		expect(third.processing.status().stepText).toBe('Current Step: Nothing running');
 		expect(third.remoteSource.view().isOpen).toBe(false);
 	});
 
