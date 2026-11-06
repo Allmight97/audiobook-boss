@@ -149,14 +149,15 @@ without a bullet has none. Engine paths name the owner of the truth.
 - `workOperations` (`crates/abb-engine/src/work_runtime/AGENTS.md`): WorkRuntime
   snapshots are the only progress source for accepted background operations.
   Terminal status comes from `abb_processing_core::classify_run_terminal`.
-  `model.ts` applies two rules: keep the newest snapshot per operation, and show
-  operations in the engine's order. `reset` invalidates pending responses.
+  Operations come from the link (Engine Link, above); the owner keeps only
+  cancel-pending state and error wording. After `reset`, a late cancel or
+  reveal reply changes nothing.
   `isWorkRunning` decides which work shows motion (running or cancelling), for
   the Work Center and the preview bar alike.
   `view()` changes with every progress tick, and Work Center rows read it: no
   narrower accessor exists. Only whole-operation cancels track pending state
   (the Cancel button disables while one is in flight); repeating any cancel
-  returns the current snapshot.
+  is harmless.
 
 ## Tests
 
