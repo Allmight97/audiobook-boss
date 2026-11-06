@@ -137,7 +137,7 @@ without a bullet has none. Engine paths name the owner of the truth.
   no busy rule lives here. Status stays with its originating provider, and a
   new request refusal shows even when an older job has a retained message.
   Filtering and sorting keep the engine's
-  selection. Release rows key on `(indexerId, guid)`, including Grab and Retry.
+  selection. Release rows key on the engine's `RemoteRelease.key`, including Grab and Retry; the Grab button reads `remote.indexer.canGrabSelection`.
   Sent means the provider accepted, not that the download finished. `view()`
   changes with every remote update, a download tick included; the other
   `RemoteSourceOwner` accessors change only with their own fact. Filtered and

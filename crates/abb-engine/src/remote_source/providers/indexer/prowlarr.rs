@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
-    ProviderId, RemoteAcquisitionFailureKind, RemoteRelease, RemoteReleaseCategory,
+    release_key, ProviderId, RemoteAcquisitionFailureKind, RemoteRelease, RemoteReleaseCategory,
     RemoteReleaseProtocol, RemoteReleaseSearchRequest, RemoteSourceDiagnostic,
 };
 
@@ -343,6 +343,7 @@ fn map_release(
     Some(RemoteRelease {
         detail_url: release_detail_url(raw.info_url.as_deref(), raw.comment_url.as_deref()),
         provider_id: ProviderId::Indexer,
+        key: release_key(raw.indexer_id, &raw.guid),
         guid: raw.guid,
         indexer_id: raw.indexer_id,
         title: raw.title,

@@ -304,9 +304,10 @@ describe('RemoteSourceAcquireView', () => {
 		expect(runAction).toHaveBeenCalledWith({ type: 'searchReleases' });
 	});
 
-	it('sends the clicked indexer identity and renders the engine’s selected and failed rows', async () => {
+	it('sends the clicked release key and renders the engine’s selected and failed rows', async () => {
 		const releases: RemoteRelease[] = [7, 8].map((indexerId) => ({
 			providerId: 'indexer',
+			key: `release-${indexerId}`,
 			guid: 'same-guid',
 			indexerId,
 			title: `Release from ${indexerId}`,
@@ -332,11 +333,11 @@ describe('RemoteSourceAcquireView', () => {
 		await vi.waitFor(() =>
 			expect(fakeEngine().sessionIntents).toContainEqual({
 				kind: 'remote',
-				intent: { kind: 'selectRelease', indexerId: 8, guid: 'same-guid', multi: false },
+				intent: { kind: 'selectRelease', key: 'release-8', multi: false },
 			}),
 		);
 		fakeEngine().change((state) => {
-			state.remote.indexer.selectedReleaseKeys = ['[8,"same-guid"]'];
+			state.remote.indexer.selectedReleaseKeys = ['release-8'];
 		});
 		flush();
 		expect(screen.getByRole('button', { name: /^Select Release from 8/ })).toHaveAttribute(
@@ -349,12 +350,12 @@ describe('RemoteSourceAcquireView', () => {
 		await vi.waitFor(() =>
 			expect(fakeEngine().sessionIntents).toContainEqual({
 				kind: 'remote',
-				intent: { kind: 'grabRelease', indexerId: 8, guid: 'same-guid' },
+				intent: { kind: 'grabRelease', key: 'release-8' },
 			}),
 		);
 		fakeEngine().change((state) => {
 			state.remote.indexer.releaseGrabs = {
-				'[8,"same-guid"]': { status: 'error', message: 'Downloader unavailable' },
+				'release-8': { status: 'error', message: 'Downloader unavailable' },
 			};
 		});
 		flush();
@@ -548,6 +549,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 			state.remote.account = { providerId: 'indexer', status: 'connected' };
 			state.remote.indexer.releases = Array.from({ length: 40 }, (_, index) => ({
 				providerId: 'indexer' as const,
+				key: `guid-${index}`,
 				guid: `guid-${index}`,
 				indexerId: 1,
 				title: `Release ${index}`,

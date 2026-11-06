@@ -1,5 +1,7 @@
 use super::*;
-use crate::remote_source::types::{RemoteTitleAvailability, RemoteTitleAvailabilityStatus};
+use crate::remote_source::types::{
+    release_key, RemoteTitleAvailability, RemoteTitleAvailabilityStatus,
+};
 
 fn title(id: &str, acquirable: bool, pdf: bool) -> RemoteTitle {
     RemoteTitle {
@@ -44,6 +46,7 @@ fn configured() -> IndexerConnection {
 fn release(indexer_id: i64) -> RemoteRelease {
     RemoteRelease {
         provider_id: ProviderId::Indexer,
+        key: release_key(indexer_id, "shared-guid"),
         guid: "shared-guid".into(),
         indexer_id,
         title: format!("Book {indexer_id}"),
@@ -55,6 +58,36 @@ fn release(indexer_id: i64) -> RemoteRelease {
         categories: vec![],
     }
 }
+#[test]
+fn grab_is_offered_while_a_selected_release_is_unsent() {
+    let mut ui = UiState::default();
+    ui.snapshot.indexer.releases = vec![release(1), release(2)];
+    assert!(!ui.snapshot().indexer.can_grab_selection);
+
+    ui.begin(RemoteUiIntent::SelectRelease {
+        key: release_key(1, "shared-guid"),
+        multi: false,
+    })
+    .expect("select");
+    assert!(ui.snapshot().indexer.can_grab_selection);
+
+    ui.snapshot.indexer.release_grabs.insert(
+        release_key(1, "shared-guid"),
+        ReleaseGrabSnapshot {
+            status: ReleaseGrabStatus::Sent,
+            message: "Sent".into(),
+        },
+    );
+    assert!(!ui.snapshot().indexer.can_grab_selection);
+
+    ui.begin(RemoteUiIntent::SelectRelease {
+        key: release_key(2, "shared-guid"),
+        multi: true,
+    })
+    .expect("select");
+    assert!(ui.snapshot().indexer.can_grab_selection);
+}
+
 #[test]
 fn old_tests_cannot_replace_newer_drafts_or_expose_the_key() {
     let mut ui = UiState::default();
@@ -243,8 +276,7 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
     for indexer_id in [1, 2] {
         runtime
             .ui_begin(RemoteUiIntent::SelectRelease {
-                indexer_id,
-                guid: "shared-guid".into(),
+                key: release_key(indexer_id, "shared-guid"),
                 multi: true,
             })
             .finish()
@@ -436,13 +468,6 @@ fn a_category_edit_that_chooses_none_is_refused_and_the_draft_keeps_its_categori
     let connection = ui.snapshot().connection;
     assert_eq!(connection.category_ids, [3000, 3030]);
     assert!(!connection.empty_categories_refused);
-}
-
-#[test]
-fn release_keys_keep_the_format_the_frontend_builds() {
-    // `src/app/remoteSource/selection.ts` builds the same key with
-    // `JSON.stringify([indexerId, guid])` to look rows up.
-    assert_eq!(release_key(8, "same-guid"), r#"[8,"same-guid"]"#);
 }
 
 struct VaultGate {

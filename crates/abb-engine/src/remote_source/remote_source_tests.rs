@@ -363,6 +363,7 @@ fn release(guid: &str) -> types::RemoteReleaseGrabRequest {
     types::RemoteReleaseGrabRequest {
         release: types::RemoteRelease {
             provider_id: RemoteProviderId::Indexer,
+            key: types::release_key(7, guid),
             guid: guid.to_string(),
             indexer_id: 7,
             title: "Example".to_string(),
@@ -380,7 +381,9 @@ fn release(guid: &str) -> types::RemoteReleaseGrabRequest {
 async fn a_release_sent_in_this_search_is_not_sent_again() {
     let root = TempDir::new().expect("temp root");
     let runtime = test_runtime(&root);
-    runtime.sent_releases().insert((7, "release-1".to_string()));
+    runtime
+        .sent_releases()
+        .insert(types::release_key(7, "release-1"));
 
     let again = runtime
         .grab_release(release("release-1"))

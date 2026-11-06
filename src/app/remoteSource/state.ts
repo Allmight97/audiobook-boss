@@ -69,6 +69,7 @@ export function createRemoteSourceStateStore(
 			releases: remote.indexer.releases,
 			selectedReleaseKeys: selectedReleaseKeys(remote.indexer.selectedReleaseKeys),
 			releaseGrabs: remote.indexer.releaseGrabs,
+			canGrabSelection: remote.indexer.canGrabSelection,
 			isBusy: remote.busy,
 			statusMessage: errors[remote.lane] || laneMessage(remote, job),
 		};

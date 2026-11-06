@@ -469,6 +469,7 @@
     },
     "includePdfByTitleId": {},
     "indexer": {
+      "canGrabSelection": false,
       "grabbing": false,
       "message": "",
       "releaseGrabs": {},

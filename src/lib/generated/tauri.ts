@@ -499,6 +499,7 @@ export type IndexerDraftSnapshot = {
 export type IndexerWorkSnapshot = {
 	releases: RemoteRelease[],
 	selectedReleaseKeys: string[],
+	canGrabSelection: boolean,
 	releaseGrabs: { [key in string]: ReleaseGrabSnapshot },
 	searching: boolean,
 	grabbing: boolean,
@@ -928,6 +929,7 @@ export type RemoteLibrarySnapshot = {
 
 export type RemoteRelease = {
 	providerId: ProviderId,
+	key: string,
 	guid: string,
 	indexerId: number,
 	title: string,
@@ -993,7 +995,7 @@ export type RemoteUiIntent = { kind: "startAuth" } | { kind: "completeAuth"; res
  *  Disconnects the Audible sign-in; refused unless Audible is the lane on
  *  screen. The Indexer has no sign-in to remove.
  */
-{ kind: "disconnect" } | { kind: "refreshLibrary" } | { kind: "selectLane"; lane: ProviderId } | { kind: "toggleTitle"; titleId: string } | { kind: "clearTitles" } | { kind: "togglePdf"; titleId: string } | { kind: "acquireSelected" } | { kind: "cancelAcquisition"; jobId: string } | { kind: "searchReleases"; author: string; title: string } | { kind: "selectRelease"; indexerId: number; guid: string; multi: boolean } | { kind: "grabSelected" } | { kind: "grabRelease"; indexerId: number; guid: string } | { kind: "loadConnection" } | { kind: "editConnection"; baseUrl: string | null; categoryIds: number[] | null; apiKey: string | null } | { kind: "saveConnection" } | { kind: "testConnection" };
+{ kind: "disconnect" } | { kind: "refreshLibrary" } | { kind: "selectLane"; lane: ProviderId } | { kind: "toggleTitle"; titleId: string } | { kind: "clearTitles" } | { kind: "togglePdf"; titleId: string } | { kind: "acquireSelected" } | { kind: "cancelAcquisition"; jobId: string } | { kind: "searchReleases"; author: string; title: string } | { kind: "selectRelease"; key: string; multi: boolean } | { kind: "grabSelected" } | { kind: "grabRelease"; key: string } | { kind: "loadConnection" } | { kind: "editConnection"; baseUrl: string | null; categoryIds: number[] | null; apiKey: string | null } | { kind: "saveConnection" } | { kind: "testConnection" };
 
 export type RemoteUiSnapshot = {
 	revision: number,

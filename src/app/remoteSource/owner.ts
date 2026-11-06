@@ -10,7 +10,6 @@ import {
 import type { EngineLink } from '../engineLink';
 import { createRemoteSourceStateStore } from './state';
 import {
-	releaseKey,
 	selectedRemoteTitleSummaryText,
 	visibleRemoteReleases,
 	visibleRemoteTitles,
@@ -21,7 +20,7 @@ export type RemoteSourceAction =
 	| { readonly type: 'startAuth' | 'completeAuth' | 'logout' | 'loadLibrary' }
 	| { readonly type: 'searchReleases' }
 	| { readonly type: 'grabSelectedReleases' }
-	| { readonly type: 'grabRelease'; readonly release: Pick<RemoteRelease, 'guid' | 'indexerId'> }
+	| { readonly type: 'grabRelease'; readonly key: string }
 	| { readonly type: 'acquireSelected' }
 	| { readonly type: 'cancelActiveAcquisition' };
 
@@ -56,11 +55,7 @@ function actionIntent(
 		case 'grabSelectedReleases':
 			return { kind: 'grabSelected' };
 		case 'grabRelease':
-			return {
-				kind: 'grabRelease',
-				indexerId: action.release.indexerId,
-				guid: action.release.guid,
-			};
+			return { kind: 'grabRelease', key: action.key };
 		case 'acquireSelected':
 			return { kind: 'acquireSelected' };
 		case 'cancelActiveAcquisition':
@@ -69,8 +64,6 @@ function actionIntent(
 			return accountIntent(action.type, view.handoffPath);
 	}
 }
-
-type ReleaseIdentity = Pick<RemoteRelease, 'guid' | 'indexerId'>;
 
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
@@ -81,10 +74,8 @@ export type RemoteSourceOwner = {
 	isTitleSelected: (titleId: string) => boolean;
 	includesPdf: (titleId: string) => boolean;
 	readonly visibleReleases: Accessor<readonly RemoteRelease[]>;
-	isReleaseSelected: (release: ReleaseIdentity) => boolean;
-	releaseGrab: (release: ReleaseIdentity) => ReleaseGrabState | undefined;
-	/** Some selected release is not sent yet. */
-	readonly canGrabSelection: Accessor<boolean>;
+	isReleaseSelected: (key: string) => boolean;
+	releaseGrab: (key: string) => ReleaseGrabState | undefined;
 	readonly hiddenReleaseSelectionCount: Accessor<number>;
 	readonly acquisition: Accessor<AcquisitionJob | null>;
 	readonly acquisitionTitle: Accessor<RemoteTitle | undefined>;
@@ -110,10 +101,7 @@ export type RemoteSourceOwner = {
 	toggleTitle: (titleId: string) => void;
 	clearTitleSelection: () => void;
 	toggleSupplementalPdf: (titleId: string) => void;
-	selectRelease: (
-		release: Pick<RemoteRelease, 'guid' | 'indexerId'>,
-		options?: { multi: boolean },
-	) => void;
+	selectRelease: (key: string, options?: { multi: boolean }) => void;
 	runAction: (action: RemoteSourceAction) => Promise<void>;
 	loadIndexerConnectionSettings: () => Promise<void>;
 	patchIndexerConnectionSettings: (
@@ -179,9 +167,10 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			releaseSort: releaseSort(),
 		}),
 	);
-	const isReleaseSelected = (release: ReleaseIdentity) =>
-		selectedReleaseKeys().has(releaseKey(release));
-	const selectedReleases = createMemo(() => releases().filter(isReleaseSelected));
+	const isReleaseSelected = (key: string) => selectedReleaseKeys().has(key);
+	const selectedReleases = createMemo(() =>
+		releases().filter((release) => isReleaseSelected(release.key)),
+	);
 	const acquisition = () => deps.link.remoteAcquisition().job;
 
 	return {
@@ -195,12 +184,11 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		includesPdf: (titleId) => includePdfByTitleId()[titleId] === true,
 		visibleReleases,
 		isReleaseSelected,
-		releaseGrab: (release) => releaseGrabs()[releaseKey(release)],
-		canGrabSelection: createMemo(() =>
-			selectedReleases().some((release) => releaseGrabs()[releaseKey(release)]?.status !== 'sent'),
-		),
+		releaseGrab: (key) => releaseGrabs()[key],
 		hiddenReleaseSelectionCount: createMemo(
-			() => selectedReleases().length - visibleReleases().filter(isReleaseSelected).length,
+			() =>
+				selectedReleases().length -
+				visibleReleases().filter((release) => isReleaseSelected(release.key)).length,
 		),
 		acquisition,
 		acquisitionTitle: createMemo(() => {
@@ -247,15 +235,10 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		toggleSupplementalPdf(titleId) {
 			deps.link.post({ kind: 'remote', intent: { kind: 'togglePdf', titleId } });
 		},
-		selectRelease(identity, options) {
+		selectRelease(key, options) {
 			deps.link.post({
 				kind: 'remote',
-				intent: {
-					kind: 'selectRelease',
-					indexerId: identity.indexerId,
-					guid: identity.guid,
-					multi: options?.multi ?? false,
-				},
+				intent: { kind: 'selectRelease', key, multi: options?.multi ?? false },
 			});
 		},
 		async runAction(action) {

@@ -31,6 +31,7 @@ function remoteTitle(overrides: Partial<RemoteTitle> = {}): RemoteTitle {
 function release(overrides: Partial<RemoteRelease> = {}): RemoteRelease {
 	return {
 		providerId: 'indexer',
+		key: 'release-1',
 		guid: 'release-1',
 		indexerId: 1,
 		title: 'Example Release',
@@ -101,6 +102,7 @@ describe('remote source selection policy', () => {
 		const releases: RemoteRelease[] = [
 			{
 				providerId: 'indexer',
+				key: 'a',
 				guid: 'a',
 				indexerId: 1,
 				title: 'The Way of Kings',
@@ -112,6 +114,7 @@ describe('remote source selection policy', () => {
 			},
 			{
 				providerId: 'indexer',
+				key: 'b',
 				guid: 'b',
 				indexerId: 2,
 				title: 'Mistborn',

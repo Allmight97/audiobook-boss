@@ -72,8 +72,8 @@ struct RemoteSourceRuntimeInner {
     handoff: OnceLock<Handoff>,
     /// A connection Save or Reset holds this exclusively; searches and grabs share it.
     indexer_turn: Arc<tokio::sync::RwLock<()>>,
-    /// Releases sent since the last search, by `(indexer_id, guid)`.
-    sent_releases: Mutex<std::collections::HashSet<(i64, String)>>,
+    /// Releases sent since the last search, by `RemoteRelease::key`.
+    sent_releases: Mutex<std::collections::HashSet<String>>,
 }
 
 impl RemoteSourceRuntime {
@@ -259,7 +259,7 @@ impl RemoteSourceRuntime {
         request: types::RemoteReleaseGrabRequest,
     ) -> Result<types::RemoteReleaseGrabResponse> {
         let _turn = self.indexer_turn()?;
-        let key = (request.release.indexer_id, request.release.guid.clone());
+        let key = request.release.key.clone();
         if !self.sent_releases().insert(key.clone()) {
             return Ok(types::RemoteReleaseGrabResponse {
                 provider_id: RemoteProviderId::Indexer,
@@ -296,7 +296,7 @@ impl RemoteSourceRuntime {
         })
     }
 
-    fn sent_releases(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<(i64, String)>> {
+    fn sent_releases(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
         self.inner
             .sent_releases
             .lock()

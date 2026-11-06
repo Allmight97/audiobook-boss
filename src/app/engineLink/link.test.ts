@@ -132,6 +132,7 @@ describe('engine link', () => {
 	it('keeps unchanged remote choices and releases when another remote fact changes', async () => {
 		const release = (guid: string, seeders: number) => ({
 			providerId: 'indexer' as const,
+			key: guid,
 			guid,
 			indexerId: 1,
 			title: guid,

@@ -12,7 +12,7 @@ imports). Files in one folder import each other relatively.
 - `App.tsx` composes the views and owns the global key bindings (Cmd+S saves
   metadata, Cmd+, opens Settings).
 - A `<For>` over rows a snapshot rebuilds passes `keyed` a stable key
-  (`option.value`, `title.titleId`, `releaseKey`), so unchanged rows keep their
+  (`option.value`, `title.titleId`, `release.key`), so unchanged rows keep their
   DOM. Why: a recreated `<option>` resets its `<select>` to the first option.
 
 ## Styles

@@ -1,6 +1,6 @@
 use super::{
-    lane_status, ProviderId, RemoteAcquisitionSnapshot, RemoteAuthStatus, RemoteDraftStatus,
-    RemoteLibrarySnapshot, RemoteUiSnapshot,
+    lane_status, ProviderId, ReleaseGrabStatus, RemoteAcquisitionSnapshot, RemoteAuthStatus,
+    RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiSnapshot,
 };
 use crate::host::EngineEvent;
 use crate::remote_source::{RemoteRevisions, RemoteSourceRuntime};
@@ -88,6 +88,14 @@ impl super::UiState {
         if remote.lane == ProviderId::Indexer {
             snapshot.indexer.message = lane_status::indexer_message(remote);
         }
+        snapshot.indexer.can_grab_selection = remote.indexer.releases.iter().any(|release| {
+            remote.indexer.selected_release_keys.contains(&release.key)
+                && remote
+                    .indexer
+                    .release_grabs
+                    .get(&release.key)
+                    .is_none_or(|grab| grab.status != ReleaseGrabStatus::Sent)
+        });
         snapshot
     }
     pub(super) fn changed(&mut self) {

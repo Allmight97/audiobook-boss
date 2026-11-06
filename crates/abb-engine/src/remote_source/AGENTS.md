@@ -166,6 +166,10 @@ selection change. Snapshot `terminal` and `settled` facts belong here.
   Save is not sent again (the grab answers "Already sent"): it is claimed in
   `sent_releases` before the send and released again if the send is not
   accepted.
+- A release is identified by `RemoteRelease.key`, set once where the Indexer
+  adapter maps a hit. Select and Grab intents carry only that key; selection,
+  grab outcomes, and `sent_releases` all index by it. `indexer.canGrabSelection`
+  (some selected release is not Sent) is computed in `UiState::snapshot`.
 - The draft starts from the saved settings; Load reads only whether a key is
   stored for the saved URL. An applied Reset replaces the draft, clears its
   errors, failures, and search results, and rereads the account when the Indexer

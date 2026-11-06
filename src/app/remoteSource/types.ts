@@ -28,6 +28,7 @@ export type AcquisitionState = {
 	releaseSort: 'seeders' | 'size';
 	selectedReleaseKeys: ReadonlySet<string>;
 	releaseGrabs: Readonly<Record<string, ReleaseGrabState>>;
+	canGrabSelection: boolean;
 	statusMessage: string;
 };
 
@@ -43,7 +44,8 @@ type EngineFields =
 	| 'includePdfByTitleId'
 	| 'releases'
 	| 'selectedReleaseKeys'
-	| 'releaseGrabs';
+	| 'releaseGrabs'
+	| 'canGrabSelection';
 export type RemoteSourceLocalState = Omit<RemoteSourceView, EngineFields>;
 export type RemoteSourcePatch = Partial<RemoteSourceLocalState>;
 export function createInitialRemoteSourceState(): RemoteSourceLocalState {

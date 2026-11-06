@@ -45,15 +45,13 @@ pub enum RemoteUiIntent {
     },
     #[serde(rename_all = "camelCase")]
     SelectRelease {
-        indexer_id: i64,
-        guid: String,
+        key: String,
         multi: bool,
     },
     GrabSelected,
     #[serde(rename_all = "camelCase")]
     GrabRelease {
-        indexer_id: i64,
-        guid: String,
+        key: String,
     },
     LoadConnection,
     #[serde(rename_all = "camelCase")]
@@ -118,6 +116,7 @@ pub enum ReleaseGrabStatus {
 pub struct IndexerWorkSnapshot {
     pub releases: Vec<RemoteRelease>,
     pub selected_release_keys: Vec<String>,
+    pub can_grab_selection: bool,
     pub release_grabs: BTreeMap<String, ReleaseGrabSnapshot>,
     pub searching: bool,
     pub grabbing: bool,
@@ -289,19 +288,11 @@ impl UiState {
             RemoteUiIntent::SelectLane { lane } => return self.select_lane(lane),
 
             RemoteUiIntent::SearchReleases { author, title } => return self.search(author, title),
-            RemoteUiIntent::SelectRelease {
-                indexer_id,
-                guid,
-                multi,
-            } => {
-                self.select_release(release_key(indexer_id, &guid), multi)?;
-            }
+            RemoteUiIntent::SelectRelease { key, multi } => self.select_release(key, multi)?,
             RemoteUiIntent::GrabSelected => {
                 return self.grab(self.snapshot.indexer.selected_release_keys.clone());
             }
-            RemoteUiIntent::GrabRelease { indexer_id, guid } => {
-                return self.grab(vec![release_key(indexer_id, &guid)]);
-            }
+            RemoteUiIntent::GrabRelease { key } => return self.grab(vec![key]),
             RemoteUiIntent::ClearTitles => self.snapshot.selected_title_ids.clear(),
             RemoteUiIntent::ToggleTitle { title_id } => self.toggle_title(title_id)?,
             RemoteUiIntent::TogglePdf { title_id } => self.toggle_pdf(title_id)?,
@@ -520,9 +511,6 @@ impl UiState {
     }
 }
 
-fn release_key(indexer_id: i64, guid: &str) -> String {
-    serde_json::to_string(&(indexer_id, guid)).expect("release identity is serializable")
-}
 impl UiState {
     fn indexer_available(&self) -> Result<()> {
         if self.snapshot.lane != ProviderId::Indexer
@@ -567,7 +555,7 @@ impl UiState {
             .indexer
             .releases
             .iter()
-            .any(|release| release_key(release.indexer_id, &release.guid) == key)
+            .any(|release| release.key == key)
         {
             return Err(AppError::InvalidInput(
                 "Search again before selecting this release.".into(),
@@ -592,13 +580,12 @@ impl UiState {
             .releases
             .iter()
             .filter(|release| {
-                let key = release_key(release.indexer_id, &release.guid);
-                keys.contains(&key)
+                keys.contains(&release.key)
                     && !self
                         .snapshot
                         .indexer
                         .release_grabs
-                        .get(&key)
+                        .get(&release.key)
                         .is_some_and(|grab| grab.status == ReleaseGrabStatus::Sent)
             })
             .cloned()
@@ -610,7 +597,7 @@ impl UiState {
         }
         for release in &releases {
             self.snapshot.indexer.release_grabs.insert(
-                release_key(release.indexer_id, &release.guid),
+                release.key.clone(),
                 ReleaseGrabSnapshot {
                     status: ReleaseGrabStatus::Queued,
                     message: "Waiting to send.".into(),
@@ -717,9 +704,8 @@ impl RemoteSourceRuntime {
     async fn grab_ui_batch(&self, releases: Vec<RemoteRelease>) {
         let turn = self.indexer_turn();
         for release in &releases {
-            let key = release_key(release.indexer_id, &release.guid);
             self.ui().snapshot.indexer.release_grabs.insert(
-                key.clone(),
+                release.key.clone(),
                 ReleaseGrabSnapshot {
                     status: ReleaseGrabStatus::Sending,
                     message: "Sending to downloader via Indexer…".into(),
@@ -763,20 +749,14 @@ impl RemoteSourceRuntime {
                 .snapshot
                 .indexer
                 .release_grabs
-                .insert(key, outcome);
+                .insert(release.key.clone(), outcome);
             self.ui().changed();
             self.publish_ui();
         }
         let mut state = self.ui();
         let outcomes: Vec<_> = releases
             .iter()
-            .filter_map(|release| {
-                state
-                    .snapshot
-                    .indexer
-                    .release_grabs
-                    .get(&release_key(release.indexer_id, &release.guid))
-            })
+            .filter_map(|release| state.snapshot.indexer.release_grabs.get(&release.key))
             .collect();
         let sent = outcomes
             .iter()

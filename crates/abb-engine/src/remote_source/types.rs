@@ -114,6 +114,10 @@ pub enum RemoteReleaseProtocol {
     Unknown,
 }
 
+pub(crate) fn release_key(indexer_id: i64, guid: &str) -> String {
+    serde_json::to_string(&(indexer_id, guid)).expect("release identity is serializable")
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteReleaseCategory {
@@ -125,6 +129,7 @@ pub struct RemoteReleaseCategory {
 #[serde(rename_all = "camelCase")]
 pub struct RemoteRelease {
     pub provider_id: ProviderId,
+    pub key: String,
     pub guid: String,
     pub indexer_id: i64,
     pub title: String,

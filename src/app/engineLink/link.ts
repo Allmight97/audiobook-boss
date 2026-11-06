@@ -211,6 +211,7 @@ function emptyRemote(): RemoteUiSnapshot {
 		indexer: {
 			releases: [],
 			selectedReleaseKeys: [],
+			canGrabSelection: false,
 			releaseGrabs: {},
 			searching: false,
 			grabbing: false,
@@ -294,12 +295,12 @@ function shareUnchangedRemote(
 ): RemoteUiSnapshot {
 	const known = new Map(
 		previous.indexer.releases.map((release) => [
-			`${release.indexerId}\u0000${release.guid}`,
+			release.key,
 			{ release, content: JSON.stringify(release) },
 		]),
 	);
 	const releases = next.indexer.releases.map((release) => {
-		const existing = known.get(`${release.indexerId}\u0000${release.guid}`);
+		const existing = known.get(release.key);
 		return existing && existing.content === JSON.stringify(release) ? existing.release : release;
 	});
 	const previousReleases = previous.indexer.releases;

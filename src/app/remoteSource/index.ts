@@ -8,5 +8,4 @@ export {
 	progressTitleLabel,
 	releaseProtocolLabel,
 } from './display';
-export { releaseKey } from './selection';
 export type { RemoteSourceView } from './types';

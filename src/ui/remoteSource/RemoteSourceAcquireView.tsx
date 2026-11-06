@@ -11,7 +11,6 @@ import {
 	isTitleAcquirable,
 	progressPercent,
 	progressTitleLabel,
-	releaseKey,
 	releaseProtocolLabel,
 	type RemoteSourceView,
 } from '../../app/remoteSource';
@@ -269,7 +268,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						</div>
 						<div class="remote-source-toolbar-field remote-source-toolbar-button">
 							<Button
-								disabled={view().isBusy || !remoteSource.canGrabSelection()}
+								disabled={view().isBusy || !view().canGrabSelection}
 								onClick={() => void runAction({ type: 'grabSelectedReleases' })}
 							>
 								{view().selectedReleaseKeys.size > 1 ? 'Grab All' : 'Grab'}
@@ -421,16 +420,16 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						aria-label="Indexer releases"
 						data-testid="remote-release-list"
 					>
-						<For each={remoteSource.visibleReleases()} keyed={releaseKey}>
+						<For each={remoteSource.visibleReleases()} keyed={(release) => release.key}>
 							{(release) => (
 								<ReleaseRow
 									release={release()}
-									selected={remoteSource.isReleaseSelected(release())}
-									grabState={remoteSource.releaseGrab(release())}
+									selected={remoteSource.isReleaseSelected(release().key)}
+									grabState={remoteSource.releaseGrab(release().key)}
 									busy={remoteSource.isBusy()}
-									onGrab={() => void runAction({ type: 'grabRelease', release: release() })}
+									onGrab={() => void runAction({ type: 'grabRelease', key: release().key })}
 									onSelect={(event) =>
-										remoteSource.selectRelease(release(), {
+										remoteSource.selectRelease(release().key, {
 											multi: event.metaKey || event.ctrlKey,
 										})
 									}

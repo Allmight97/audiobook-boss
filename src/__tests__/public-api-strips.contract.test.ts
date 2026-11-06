@@ -78,7 +78,6 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 			'isTitleAcquirable',
 			'progressPercent',
 			'progressTitleLabel',
-			'releaseKey',
 			'releaseProtocolLabel',
 		],
 	],

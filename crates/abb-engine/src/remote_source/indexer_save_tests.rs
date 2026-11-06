@@ -1,7 +1,8 @@
-use super::super::{release_key, ReleaseGrabSnapshot, ReleaseGrabStatus, RemoteUiIntent};
+use super::super::{ReleaseGrabSnapshot, ReleaseGrabStatus, RemoteUiIntent};
 use super::*;
 use crate::app_settings::SettingsIntent;
 use crate::remote_source::tests::{test_runtime, test_runtime_with, MemoryVault};
+use crate::remote_source::types::release_key;
 use crate::remote_source::types::RemoteReleaseSearchResponse;
 use secrecy::ExposeSecret;
 use tempfile::TempDir;
@@ -432,6 +433,7 @@ async fn a_reset_clears_an_old_save_failure() {
 fn release(indexer_id: i64) -> crate::remote_source::types::RemoteRelease {
     crate::remote_source::types::RemoteRelease {
         provider_id: ProviderId::Indexer,
+        key: release_key(indexer_id, "shared-guid"),
         guid: "shared-guid".into(),
         indexer_id,
         title: format!("Book {indexer_id}"),
@@ -540,8 +542,7 @@ async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryab
         run(
             &runtime,
             RemoteUiIntent::SelectRelease {
-                indexer_id,
-                guid: "shared-guid".into(),
+                key: release_key(indexer_id, "shared-guid"),
                 multi: true,
             },
         )
@@ -639,8 +640,7 @@ async fn connection_save_persists_the_accepted_draft_and_invalidates_old_release
     }
     runtime
         .ui_begin(RemoteUiIntent::SelectRelease {
-            indexer_id: 1,
-            guid: "shared-guid".into(),
+            key: release_key(1, "shared-guid"),
             multi: false,
         })
         .finish()
@@ -774,8 +774,7 @@ async fn an_admitted_reset_refuses_a_new_search_or_grab_until_it_ends() {
     run(
         &runtime,
         RemoteUiIntent::SelectRelease {
-            indexer_id: 1,
-            guid: "shared-guid".into(),
+            key: release_key(1, "shared-guid"),
             multi: false,
         },
     )
