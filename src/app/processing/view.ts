@@ -27,7 +27,7 @@ export const DEFAULT_STATUS_VIEW: StatusView = {
 	jobItems: [],
 	progressPercentage: 0,
 	statusText: 'Idle',
-	stepText: 'Current Step: Nothing running',
+	stepText: 'Current Step: Ready',
 	stepColor: 'var(--text-primary)',
 	concurrencyText: '',
 	progressActive: false,

@@ -6,7 +6,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
-- With nothing running, the status line reads "Nothing running" instead of
+- With nothing running in this window, the step line reads "Ready" instead of
   "Waiting for files...", which it showed even with files loaded.
 - A CUE sheet that ABB ignored or could not read no longer shows a "chapters from"
   line in the file list.
