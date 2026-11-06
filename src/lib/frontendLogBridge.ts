@@ -63,6 +63,17 @@ function forward(scope: string, message: string): void {
 	sendLogFrontend('error', scope, message);
 }
 
+function summarizeFailure(cause: unknown): string {
+	if (isAppErrorEnvelope(cause)) return `code=${cause.code} category=${cause.category}`;
+	const { name, message } = summarizeRejectionReason(cause);
+	return `${name}: ${message}`;
+}
+
+export function logFrontendFailure(scope: string, cause: unknown): void {
+	if (!installed) return;
+	forward(scope, summarizeFailure(cause));
+}
+
 function handleWindowError(event: ErrorEvent): void {
 	const { name, message } = summarizeErrorEvent(event);
 	forward(`window.error:${name}`, message);

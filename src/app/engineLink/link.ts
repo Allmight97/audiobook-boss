@@ -1,4 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
+import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
 import { liveEngineCapability, type EngineCapability } from '../../lib/tauri/capabilities/engine';
 import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../types/appSettings';
@@ -241,7 +242,7 @@ function createLink(
 
 	function refuse(intent: SessionIntent, error: unknown): void {
 		if (disposed || isCancellation(error)) return;
-		console.error(`Session intent ${intent.kind} failed:`, error);
+		logFrontendFailure(`engineLink.${intent.kind}`, error);
 		refusal = toUserMessage(error, {
 			fallback: "That change couldn't be applied.",
 		});

@@ -9,6 +9,7 @@ vi.mock('./tauri/client', () => ({
 import {
 	disposeFrontendErrorLogBridgeForTests,
 	initFrontendErrorLogBridge,
+	logFrontendFailure,
 } from './frontendLogBridge';
 
 function rejectionEvent(reason: unknown): PromiseRejectionEvent {
@@ -70,5 +71,31 @@ describe('frontend error log bridge', () => {
 			scope: 'window.unhandledrejection:Error',
 			message: 'boom',
 		});
+	});
+
+	it('forwards a scoped failure with only the code and category of an app error', () => {
+		logFrontendFailure('Scope', {
+			code: 'x',
+			category: 'io',
+			message: '/Users/me/secret.m4b',
+			detail: 'token=sk-abc',
+		});
+		expect(logFrontendMock).toHaveBeenCalledWith({
+			level: 'error',
+			scope: 'Scope',
+			message: 'code=x category=io',
+		});
+	});
+
+	it('forwards a scoped failure under the shared rate limit', () => {
+		const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(0);
+		for (let i = 0; i < 25; i++) logFrontendFailure('Scope', new Error(`e-${i}`));
+		expect(logFrontendMock).toHaveBeenCalledTimes(20);
+		expect(logFrontendMock.mock.calls[0][0]).toEqual({
+			level: 'error',
+			scope: 'Scope',
+			message: 'Error: e-0',
+		});
+		nowSpy.mockRestore();
 	});
 });

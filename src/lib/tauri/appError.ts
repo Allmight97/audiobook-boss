@@ -107,13 +107,3 @@ export function toUserMessage(
 export function isCancellation(cause: unknown): boolean {
 	return normalizeAppError(cause).category === ('cancellation' satisfies WireErrorCategory);
 }
-
-/**
- * Log a normalized error with a consistent `code=/category=` shape. The
- * message and detail stay out of the console line because they can carry paths
- * or provider text.
- */
-export function logAppError(scope: string, cause: unknown): void {
-	const error = normalizeAppError(cause);
-	console.error(`${scope} code=${error.code} category=${error.category}`);
-}

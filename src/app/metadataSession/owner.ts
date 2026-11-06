@@ -8,6 +8,7 @@ import type {
 	SessionMetadata,
 } from '../../types/session';
 import { coverSrc } from '../../lib/tauri/coverSrc';
+import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { toUserMessage } from '../../lib/tauri/appError';
 import {
 	liveMetadataCapability,
@@ -249,7 +250,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 					filters: [{ name: 'Image Files', extensions: [...COVER_ART_IMAGE_EXTENSION_HINTS] }],
 				});
 			} catch (error) {
-				console.error('Failed to open the image picker:', error);
+				logFrontendFailure('metadataSession.openImagePicker', error);
 				showLocalMessage({
 					kind: 'error',
 					text: toUserMessage(error, { fallback: 'Unable to open the image picker.' }),

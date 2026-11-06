@@ -1,6 +1,7 @@
 import type { RemoteAcquisitionSnapshot, RemoteUiSnapshot } from '../../types/session';
 import type { ProviderId } from '../../types/remoteSource';
-import { logAppError, toUserMessage } from '../../lib/tauri/appError';
+import { logFrontendFailure } from '../../lib/frontendLogBridge';
+import { toUserMessage } from '../../lib/tauri/appError';
 import {
 	createInitialRemoteSourceState,
 	type RemoteSourcePatch,
@@ -98,7 +99,7 @@ export function createRemoteSourceStateStore(
 			changed();
 		},
 		setAcquisitionError(cause, fallback, providerId) {
-			logAppError(fallback, cause);
+			logFrontendFailure(fallback, cause);
 			errors[providerId] = toUserMessage(cause, { fallback, suppressUnknown: true });
 			changed();
 		},
