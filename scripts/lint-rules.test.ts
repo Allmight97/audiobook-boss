@@ -56,6 +56,9 @@ const awaited =
 	'async function work(): Promise<void> {}\n\nexport function run(): void {\n\tvoid work();\n}\n';
 const nonNull =
 	'export function first(values: string[]): string {\n\treturn values.find(Boolean)!;\n}\n';
+const emptyCatch =
+	'export function parse(text: string): void {\n\ttry {\n\t\tJSON.parse(text);\n\t} catch {}\n}\n';
+const consoleCall = "export function report(): void {\n\tconsole.log('x');\n}\n";
 const kinds = "type Kind = 'a' | 'b';\n\n";
 
 const OXLINT_CASES: Case[] = [
@@ -212,6 +215,30 @@ const OXLINT_CASES: Case[] = [
 		name: 'a non-null assertion passes in a test',
 		file: 'src/lib/probe/nonNull.test.ts',
 		source: nonNull,
+		rule: null,
+	},
+	{
+		name: 'an empty catch fails',
+		file: 'src/lib/probe/emptyCatch.ts',
+		source: emptyCatch,
+		rule: 'eslint(no-empty)',
+	},
+	{
+		name: 'the console fails in src',
+		file: 'src/lib/probe/console.ts',
+		source: consoleCall,
+		rule: 'eslint(no-console)',
+	},
+	{
+		name: 'the console passes in a test',
+		file: 'src/lib/probe/console.test.ts',
+		source: consoleCall,
+		rule: null,
+	},
+	{
+		name: 'the console passes in scripts',
+		file: 'scripts/probe-console.ts',
+		source: consoleCall,
 		rule: null,
 	},
 	{

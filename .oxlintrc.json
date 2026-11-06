@@ -48,6 +48,8 @@
 				]
 			}
 		],
+		// A failure is handled, reported, or returned; an empty block drops it.
+		"eslint/no-empty": ["error", { "allowEmptyCatch": false }],
 		"import/no-cycle": "error",
 		"typescript/no-explicit-any": "error",
 		"typescript/no-floating-promises": "error",
@@ -90,14 +92,17 @@
 			// The app runs in a WebView, which has no Node built-ins.
 			"files": ["src/**"],
 			"rules": {
-				"import/no-nodejs-modules": "error"
+				"import/no-nodejs-modules": "error",
+				// Production code reports through the log bridge or a visible state, not the console.
+				"eslint/no-console": "error"
 			}
 		},
 		{
-			// Tests assert on values they just built.
+			// Tests assert on values they just built and may print.
 			"files": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**/*.ts"],
 			"rules": {
-				"typescript/no-non-null-assertion": "off"
+				"typescript/no-non-null-assertion": "off",
+				"eslint/no-console": "off"
 			}
 		},
 		{

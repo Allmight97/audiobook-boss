@@ -26,6 +26,8 @@ recorded tool versions still invalidate it.
 
 - Frontend (`frontend`). `knip` fails on an unused export, including one in a
   `scripts/*.ts` entry file.
+  `lint:check` also fails on an empty block (a swallowed `catch`) and on a
+  `console` call in `src/` outside tests; report through the log bridge.
 - A core crate (`core`).
 - Engine rules, session, settings, metadata intent: `core` for complexity,
   then `engine`. The doctests guard which engine internals hosts can reach.
