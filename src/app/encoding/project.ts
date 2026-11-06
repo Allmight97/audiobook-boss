@@ -1,4 +1,4 @@
-import type { AudioChoice, AudioChoiceFacts, AudioEdit, TitlePlan } from '../../types/session';
+import type { AudioChoice, AudioChoiceFacts, AudioEdit, AutoReading } from '../../types/session';
 import type {
 	AudiobookFormat,
 	AudioIntent,
@@ -28,6 +28,7 @@ export type EncodingOption = {
 export type EncodingView = {
 	readonly format: AudiobookFormat;
 	readonly intent: AudioIntent;
+	readonly encodeOffered: boolean;
 	readonly flavor: string;
 	readonly effectiveFlavor: string;
 	readonly flavorOptions: ReadonlyArray<EncodingOption>;
@@ -62,7 +63,12 @@ export type EncodingSource = {
 	readonly choice: AudioChoice;
 	readonly facts: AudioChoiceFacts;
 	readonly capabilities: EncoderSettingsCapabilities | null;
-	readonly plans: readonly TitlePlan[] | null;
+	readonly auto: EncodingAuto | null;
+};
+
+export type EncodingAuto = {
+	readonly sampleRate: AutoReading;
+	readonly channels: AutoReading;
 };
 
 const ENCODER_PROFILES: Record<EncoderType, string> = {
@@ -125,15 +131,16 @@ function channelLabel(value: string): string {
 	}
 }
 
-function autoLabel(
-	plans: readonly TitlePlan[] | null,
-	auto: boolean,
-	value: (plan: Extract<TitlePlan, { kind: 'resolved' }>['plan']) => string,
-): string {
-	if (plans === null) return 'Auto · Source audio';
-	if (!auto || plans.length === 0 || plans.some((plan) => plan.kind !== 'resolved')) return 'Auto';
-	const values = new Set(plans.map((plan) => (plan.kind === 'resolved' ? value(plan.plan) : '')));
-	return values.size === 1 ? `Auto · ${[...values][0]}` : 'Auto · Differs by title';
+function autoLabel(reading: AutoReading | undefined, value: (count: number) => string): string {
+	if (reading === undefined) return 'Auto · Source audio';
+	switch (reading.outcome.kind) {
+		case 'value':
+			return `Auto · ${value(reading.outcome.value)}`;
+		case 'differs':
+			return 'Auto · Differs by title';
+		case 'unresolved':
+			return 'Auto';
+	}
 }
 
 function kHz(sampleRate: number): string {
@@ -144,25 +151,15 @@ function channelCount(channels: number): string {
 	return channels === 1 ? 'Mono' : channels === 2 ? 'Stereo' : `${channels} channels`;
 }
 
-function planProblem(
-	plans: readonly TitlePlan[] | null,
-	field: 'sampleRate' | 'channels',
-): string | null {
-	for (const plan of plans ?? []) {
-		if (plan.kind === 'failed' && plan.field === field) return plan.message;
-	}
-	return null;
-}
-
 function sampleRateHint(source: EncodingSource): string | null {
 	const { choice, facts, capabilities } = source;
 	if (choice.sampleRate !== 'auto' && capabilities && !facts.sampleRateSupported)
 		return 'Choose a supported sample rate for this encoder.';
-	return planProblem(source.plans, 'sampleRate');
+	return source.auto?.sampleRate.problem ?? null;
 }
 
 function channelsHint(source: EncodingSource): string | null {
-	const problem = planProblem(source.plans, 'channels');
+	const problem = source.auto?.channels.problem;
 	if (problem) return problem;
 	return source.facts.downmixWarning ? 'Surround downmix omits bass effects (LFE).' : null;
 }
@@ -185,25 +182,20 @@ export function projectView(source: EncodingSource): EncodingView {
 				...capabilities.explicitSampleRates.map(String),
 			].map((value) => ({
 				value,
-				label:
-					value === 'auto'
-						? autoLabel(source.plans, choice.sampleRate === 'auto', (plan) => kHz(plan.sampleRate))
-						: sampleRateLabel(value),
+				label: value === 'auto' ? autoLabel(source.auto?.sampleRate, kHz) : sampleRateLabel(value),
 				disabled: value !== 'auto' && !facts.allowedSampleRates.includes(Number(value)),
 			}))
 		: [];
 	const channelOptions = (capabilities?.channelOptions ?? []).map((value) => ({
 		value,
-		label:
-			value === 'auto'
-				? autoLabel(source.plans, choice.channels === 'auto', (plan) => channelCount(plan.channels))
-				: channelLabel(value),
+		label: value === 'auto' ? autoLabel(source.auto?.channels, channelCount) : channelLabel(value),
 	}));
 	const showQuality = facts.bitrateMode.mode === 'vbr';
 
 	return {
 		format: choice.format,
 		intent: choice.intent,
+		encodeOffered: facts.encodeOffered,
 		flavor: isOpus ? 'opus' : choice.encoder,
 		effectiveFlavor: facts.effectiveEncoder,
 		flavorOptions,

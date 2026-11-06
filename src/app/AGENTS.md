@@ -86,7 +86,10 @@ without a bullet has none. Engine paths name the owner of the truth.
 - `encoding` (session AGENTS): `project.ts` disables an option because the
   engine's facts say so. `editFor` turns a control value into an `AudioEdit`;
   a value no control offers sends nothing. What Auto resolves to comes from the
-  title's engine plan, never from source facts. Defaults describe future
+  title's engine plan, never from source facts; for a selection it comes from
+  the engine's `autoSampleRate` and `autoChannels` readings, which are plain
+  Auto while the field is mixed. Whether User Preference is offered comes from
+  `facts.encodeOffered`, never from the format. Defaults describe future
   imports and name no source; existing titles change only through Apply App
   Settings. `selectionView` and `refusal` render engine facts and combine no
   titles.

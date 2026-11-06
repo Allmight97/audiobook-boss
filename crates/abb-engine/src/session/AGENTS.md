@@ -165,7 +165,10 @@ one host attachment.
   recorded in the settings; a title edit is not. A settings reset returns the
   defaults and output choices to the reset settings; loaded titles keep their
   choices. `audio.selection` combines the selected titles: the first one's
-  choice, only the options every one accepts, and the fields that differ.
+  choice, only the options every one accepts (User Preference is offered only
+  when no selected title is MP3), the fields that differ, and what Auto
+  resolves to for sample rate and channels: one value, `differs`, or
+  unresolved, with the plan problem. A mixed field reads plain Auto.
 - **Title plans.** Each title's plan resolves in the background whenever its
   request or sources change; a stale result is dropped (`plans.rs`). A CUE
   awaiting confirmation, or CUE chapters on a merged title, fails the plan with

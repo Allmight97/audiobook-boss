@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- With an MP3 title anywhere in a selection, Audio handling no longer offers
+  User Preference, and the Auto sample rate and channels options no longer read
+  "Differs by title" when only some of the selected titles use Auto.
 - A title made of several files with no chapters now shows the chapters ABB
   sends to the output, one per file, instead of no chapter count.
 - A keystroke typed into the blank form just as an import selects a title no

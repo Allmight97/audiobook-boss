@@ -5,7 +5,10 @@ use serde::Serialize;
 use super::audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, EditResult};
 use super::plans::{SizeEstimate, TitlePlan};
 use crate::app_settings::EncoderDefaults;
-use crate::audio::{AudiobookFormat, EncoderSettingsCapabilities, TitleAudioRequest};
+use crate::audio::{
+    AudioPlanField, AudiobookFormat, ChannelConfig, EncoderSettingsCapabilities, SampleRateConfig,
+    TitleAudioRequest,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -51,6 +54,26 @@ pub struct SelectionAudio {
     /// Only what every selected title accepts is offered.
     pub facts: AudioChoiceFacts,
     pub mixed: Vec<AudioField>,
+    pub auto_sample_rate: AutoReading,
+    pub auto_channels: AutoReading,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoReading {
+    pub outcome: AutoOutcome,
+    pub problem: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum AutoOutcome {
+    #[default]
+    Unresolved,
+    Value {
+        value: u32,
+    },
+    Differs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
@@ -88,16 +111,58 @@ pub(crate) fn selection_audio(titles: &[(&String, &TitleAudio)]) -> Option<Selec
     for (_, title) in rest {
         share(&mut facts, &title.facts);
     }
-    let mixed = FIELDS
+    let mixed: Vec<AudioField> = FIELDS
         .into_iter()
         .filter(|field| rest.iter().any(|(_, title)| differs(*field, first, title)))
         .collect();
+    let audio: Vec<&TitleAudio> = titles.iter().map(|(_, title)| *title).collect();
     Some(SelectionAudio {
         title_ids: titles.iter().map(|(id, _)| (*id).clone()).collect(),
         choice: first.choice.clone(),
         facts,
+        auto_sample_rate: auto_reading(AudioField::SampleRate, &mixed, &audio),
+        auto_channels: auto_reading(AudioField::Channels, &mixed, &audio),
         mixed,
     })
+}
+
+fn auto_reading(field: AudioField, mixed: &[AudioField], titles: &[&TitleAudio]) -> AutoReading {
+    if mixed.contains(&field) {
+        return AutoReading::default();
+    }
+    let (plan_field, on_auto): (_, fn(&AudioChoice) -> bool) = match field {
+        AudioField::SampleRate => (AudioPlanField::SampleRate, |choice| {
+            choice.sample_rate == SampleRateConfig::Auto
+        }),
+        _ => (AudioPlanField::Channels, |choice| {
+            choice.channels == ChannelConfig::Auto
+        }),
+    };
+    let problem = titles.iter().find_map(|title| match &title.plan {
+        TitlePlan::Failed {
+            message,
+            field: Some(failed),
+        } if *failed == plan_field => Some(message.clone()),
+        _ => None,
+    });
+    let values: Option<Vec<u32>> = titles
+        .iter()
+        .map(|title| match &title.plan {
+            TitlePlan::Resolved { plan } if on_auto(&title.choice) => Some(match plan_field {
+                AudioPlanField::SampleRate => plan.sample_rate,
+                AudioPlanField::Channels => u32::from(plan.channels),
+            }),
+            _ => None,
+        })
+        .collect();
+    let outcome = match values {
+        Some(values) if values.iter().all(|value| *value == values[0]) => {
+            AutoOutcome::Value { value: values[0] }
+        }
+        Some(_) => AutoOutcome::Differs,
+        None => AutoOutcome::Unresolved,
+    };
+    AutoReading { outcome, problem }
 }
 
 const FIELDS: [AudioField; 10] = [
@@ -121,6 +186,7 @@ fn share(facts: &mut AudioChoiceFacts, other: &AudioChoiceFacts) {
             .any(|theirs| theirs.encoder == option.encoder && theirs.available);
     }
     facts.encoder_locked |= other.encoder_locked;
+    facts.encode_offered &= other.encode_offered;
     facts.downmix_warning |= other.downmix_warning;
     facts.bitrate_kbps_min = facts.bitrate_kbps_min.max(other.bitrate_kbps_min);
     facts.bitrate_kbps_max = facts.bitrate_kbps_max.min(other.bitrate_kbps_max);
@@ -234,3 +300,7 @@ impl AudioDefaults {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "audio_tests.rs"]
+mod tests;

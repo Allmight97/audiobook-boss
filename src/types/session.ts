@@ -31,6 +31,7 @@ export type {
 	AudioEdit,
 	AudioField,
 	AudioRefusal,
+	AutoReading,
 	SelectionAudio,
 	CoverNotice,
 	CoverSnapshot,

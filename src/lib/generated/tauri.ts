@@ -143,6 +143,7 @@ export type AudioChoiceFacts = {
 	effectiveEncoder: EncoderType,
 	encoderOptions: EncoderOption[],
 	encoderLocked: boolean,
+	encodeOffered: boolean,
 	downmixWarning: boolean,
 	bitrateMode: BitrateMode,
 	bitrateKbpsMin: number,
@@ -247,6 +248,13 @@ export type AudioSnapshot = {
 };
 
 export type AudiobookFormat = "m4b" | "mp3" | "m4aOpus" | "mkaOpus";
+
+export type AutoOutcome = { kind: "unresolved" } | { kind: "value"; value: number } | { kind: "differs" };
+
+export type AutoReading = {
+	outcome: AutoOutcome,
+	problem: string | null,
+};
 
 export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "abr" } | { mode: "vbr"; value: number } |
 /**  Variable bitrate driven by target kbps (Opus). */
@@ -1038,6 +1046,8 @@ export type SelectionAudio = {
 	/**  Only what every selected title accepts is offered. */
 	facts: AudioChoiceFacts,
 	mixed: AudioField[],
+	autoSampleRate: AutoReading,
+	autoChannels: AutoReading,
 };
 
 export type SelectionModifiers = {

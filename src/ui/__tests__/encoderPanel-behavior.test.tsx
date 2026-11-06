@@ -38,6 +38,20 @@ describe('encoder panel behavior controls', () => {
 		return engine.sessionIntents.filter((intent) => intent.kind === 'setDefaultAudio');
 	}
 
+	it('disables User Preference when the engine does not offer it', async () => {
+		await renderEncoder((defaults) => {
+			defaults.facts.encodeOffered = false;
+		});
+
+		await vi.waitFor(() => {
+			const intent = screen.getByLabelText('Audio handling') as HTMLSelectElement;
+			expect(Array.from(intent.options).find((option) => option.value === 'encode')?.disabled).toBe(
+				true,
+			);
+			expect(screen.queryByLabelText('Encoder')).toBeNull();
+		});
+	});
+
 	it('hides encoder controls for Default and Keep original audio', async () => {
 		await renderEncoder(() => undefined);
 		await vi.waitFor(() => expect(screen.getByLabelText('Encoder')).toBeTruthy());
@@ -163,7 +177,10 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() =>
 			expect(sent()).toEqual([
 				{ kind: 'setDefaultAudio', edit: { field: 'quality', value: 50 } },
-				{ kind: 'setDefaultAudio', edit: { field: 'rateControl', value: 'abr' } },
+				{
+					kind: 'setDefaultAudio',
+					edit: { field: 'rateControl', value: 'abr' },
+				},
 			]),
 		);
 	});

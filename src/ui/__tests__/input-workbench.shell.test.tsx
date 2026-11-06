@@ -160,6 +160,8 @@ describe('Solid input workbench', () => {
 				choice: first.choice,
 				facts: first.facts,
 				mixed: ['faacProfile', 'channels'],
+				autoSampleRate: { outcome: { kind: 'unresolved' }, problem: null },
+				autoChannels: { outcome: { kind: 'unresolved' }, problem: null },
 			};
 		});
 		const selectionAnswers = [

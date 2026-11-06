@@ -260,6 +260,7 @@
         },
         "downmixWarning": false,
         "effectiveEncoder": "native_aac",
+        "encodeOffered": true,
         "encoderLocked": false,
         "encoderOptions": [
           {

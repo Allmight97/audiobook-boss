@@ -1,8 +1,14 @@
 import type { Accessor } from 'solid-js';
-import type { AudioFile, TitleAudioRequest } from '../../types/audio';
+import type { AudioFile, TitleAudioPlan, TitleAudioRequest } from '../../types/audio';
 import type { AudioChoiceView, TitlePlan } from '../../types/session';
 import type { EngineLink } from '../engineLink';
-import { editFor, projectView, type EncodingField, type EncodingView } from './project';
+import {
+	editFor,
+	projectView,
+	type EncodingAuto,
+	type EncodingField,
+	type EncodingView,
+} from './project';
 
 export type { EncodingField, EncodingView } from './project';
 
@@ -13,9 +19,7 @@ export type EncodingOwner = {
 	titleView: (file: AudioFile) => EncodingView;
 	/** The selected titles' audio as the engine combines it; `null` with
 	 * nothing selected. */
-	selectionView: (
-		files: readonly AudioFile[],
-	) => (EncodingView & { mixedFields: readonly EncodingField[] }) | null;
+	selectionView: () => (EncodingView & { mixedFields: readonly EncodingField[] }) | null;
 	/** Why the latest edit of `files`' audio changed nothing, worded. */
 	refusal: (files: readonly AudioFile[]) => string | null;
 	selectTitles: (files: readonly AudioFile[], field: EncodingField, value: string) => void;
@@ -49,18 +53,33 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 
 	function display(
 		view: Pick<AudioChoiceView, 'choice' | 'facts'>,
-		titles: readonly AudioFile[],
+		auto: EncodingAuto | null,
 	): EncodingView {
 		return projectView({
 			choice: view.choice,
 			facts: view.facts,
 			capabilities: link.audio().capabilities,
-			plans: titles.length === 0 ? null : titles.map(plan),
+			auto,
 		});
 	}
 
 	function titleView(file: AudioFile): EncodingView {
-		return display(titleChoice(file), [file]);
+		const view = titleChoice(file);
+		const current = plan(file);
+		const reading = (
+			field: 'sampleRate' | 'channels',
+			pick: (audio: TitleAudioPlan) => number,
+		) => ({
+			outcome:
+				view.choice[field] === 'auto' && current.kind === 'resolved'
+					? ({ kind: 'value', value: pick(current.plan) } as const)
+					: ({ kind: 'unresolved' } as const),
+			problem: current.kind === 'failed' && current.field === field ? current.message : null,
+		});
+		return display(view, {
+			sampleRate: reading('sampleRate', (audio) => audio.sampleRate),
+			channels: reading('channels', (audio) => audio.channels),
+		});
 	}
 
 	function selectTitles(files: readonly AudioFile[], field: EncodingField, value: string): void {
@@ -79,11 +98,14 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			selectTitles([file], field, value);
 		},
 		selectTitles,
-		selectionView(files) {
+		selectionView() {
 			const selection = link.audio().selection;
 			if (!selection) return null;
 			return {
-				...display(selection, files),
+				...display(selection, {
+					sampleRate: selection.autoSampleRate,
+					channels: selection.autoChannels,
+				}),
 				mixedFields: selection.mixed,
 			};
 		},
@@ -102,7 +124,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			if (files.length === 0) return;
 			link.post({ kind: 'applyDefaultAudio', titleIds: files.map(titleId) });
 		},
-		view: () => display(link.audio().defaults, []),
+		view: () => display(link.audio().defaults, null),
 		select(field, value) {
 			const edit = editFor(field, value);
 			if (edit) link.post({ kind: 'setDefaultAudio', edit });

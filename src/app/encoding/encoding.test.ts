@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../runtime';
-import type { TitlePlan } from '../../types/session';
+import type { SelectionAudio, TitlePlan } from '../../types/session';
 import type { EncodingView } from './project';
 
 describe('encoding owner', () => {
@@ -41,9 +41,18 @@ describe('encoding owner', () => {
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents.filter((intent) => intent.kind === 'setDefaultAudio')).toEqual([
 				{ kind: 'setDefaultAudio', edit: { field: 'bitrate', value: 96 } },
-				{ kind: 'setDefaultAudio', edit: { field: 'sampleRate', value: { explicit: 48000 } } },
-				{ kind: 'setDefaultAudio', edit: { field: 'sampleRate', value: 'auto' } },
-				{ kind: 'setDefaultAudio', edit: { field: 'rateControl', value: 'vbr' } },
+				{
+					kind: 'setDefaultAudio',
+					edit: { field: 'sampleRate', value: { explicit: 48000 } },
+				},
+				{
+					kind: 'setDefaultAudio',
+					edit: { field: 'sampleRate', value: 'auto' },
+				},
+				{
+					kind: 'setDefaultAudio',
+					edit: { field: 'rateControl', value: 'vbr' },
+				},
 			]),
 		);
 	});
@@ -93,7 +102,10 @@ describe('encoding owner', () => {
 			view[field].find((option) => option.value === 'auto')?.label;
 		engine.change((state) => {
 			const plan = (id: string, value: TitlePlan) => {
-				state.audio.titles[id] = { ...structuredClone(state.audio.titles[id]), plan: value };
+				state.audio.titles[id] = {
+					...structuredClone(state.audio.titles[id]),
+					plan: value,
+				};
 			};
 			plan(alpha.inputId ?? '', {
 				kind: 'resolved',
@@ -142,12 +154,53 @@ describe('encoding owner', () => {
 				choice: first.choice,
 				facts: { ...first.facts, downmixWarning: true },
 				mixed: ['channels'],
+				autoSampleRate: { outcome: { kind: 'unresolved' }, problem: null },
+				autoChannels: { outcome: { kind: 'unresolved' }, problem: null },
 			};
 		});
 
-		const view = app.encoding.selectionView([alpha, beta]);
+		const view = app.encoding.selectionView();
 		expect(view?.mixedFields).toEqual(['channels']);
 		expect(view?.channelsHint).toBe('Surround downmix omits bass effects (LFE).');
+	});
+	it("words a selection's Auto from the engine's reading of its titles", async () => {
+		const app = await open();
+		const [alpha, beta] = titles(app);
+		const autoLabel = (view: EncodingView | null, field: 'sampleRateOptions' | 'channelOptions') =>
+			view?.[field].find((option) => option.value === 'auto')?.label;
+		const select = (
+			autoSampleRate: SelectionAudio['autoSampleRate'],
+			autoChannels: SelectionAudio['autoChannels'],
+		) =>
+			engine.change((state) => {
+				const first = state.audio.titles[alpha.inputId!];
+				state.audio.selection = {
+					titleIds: [alpha.inputId!, beta.inputId!],
+					choice: first.choice,
+					facts: first.facts,
+					mixed: [],
+					autoSampleRate,
+					autoChannels,
+				};
+			});
+
+		select(
+			{ outcome: { kind: 'value', value: 48000 }, problem: null },
+			{
+				outcome: { kind: 'differs' },
+				problem: 'Choose Mono or Stereo to downmix.',
+			},
+		);
+		const view = app.encoding.selectionView();
+		expect(autoLabel(view, 'sampleRateOptions')).toBe('Auto · 48 kHz');
+		expect(autoLabel(view, 'channelOptions')).toBe('Auto · Differs by title');
+		expect(view?.channelsHint).toBe('Choose Mono or Stereo to downmix.');
+
+		select(
+			{ outcome: { kind: 'unresolved' }, problem: null },
+			{ outcome: { kind: 'unresolved' }, problem: null },
+		);
+		expect(autoLabel(app.encoding.selectionView(), 'sampleRateOptions')).toBe('Auto');
 	});
 	it('names the titles that refused an edit, and says when the list is locked', async () => {
 		const app = await open();

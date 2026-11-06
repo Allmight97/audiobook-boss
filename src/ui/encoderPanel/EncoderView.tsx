@@ -6,7 +6,9 @@ import type { AudioFile } from '../../types/audio';
 import type { EncodingField, EncodingView } from '../../app/encoding';
 import './encoderView.css';
 
-type PanelView = EncodingView & { readonly mixedFields: readonly EncodingField[] };
+type PanelView = EncodingView & {
+	readonly mixedFields: readonly EncodingField[];
+};
 
 export function EncoderView(
 	props: { title?: AudioFile; titles?: readonly AudioFile[] } = {},
@@ -14,7 +16,7 @@ export function EncoderView(
 	const runtime = useAppRuntime();
 	const view = createMemo((): PanelView | null =>
 		props.titles
-			? runtime.encoding.selectionView(props.titles)
+			? runtime.encoding.selectionView()
 			: {
 					...(props.title ? runtime.encoding.titleView(props.title) : runtime.encoding.view()),
 					mixedFields: [],
@@ -107,7 +109,7 @@ function EncoderPanel(props: {
 						</Show>
 						<option value="auto">Default</option>
 						<option value="preserve">Keep original audio</option>
-						<option value="encode" disabled={view().format === 'mp3'}>
+						<option value="encode" disabled={!view().encodeOffered}>
 							User Preference
 						</option>
 					</select>
@@ -120,7 +122,7 @@ function EncoderPanel(props: {
 						!mixed('format') &&
 						!mixed('intent') &&
 						view().intent === 'encode' &&
-						view().format !== 'mp3'
+						view().encodeOffered
 					}
 				>
 					<details class="encoder-conversion" open={!editingTitles()}>

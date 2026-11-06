@@ -179,6 +179,7 @@ function emptyAudio(): SessionAudio {
 				effectiveEncoder: 'native_aac',
 				encoderOptions: [],
 				encoderLocked: true,
+				encodeOffered: true,
 				downmixWarning: false,
 				bitrateMode: { mode: 'cbr' },
 				bitrateKbpsMin: 1,
