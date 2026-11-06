@@ -22,10 +22,12 @@ second copy of owner state.
 - `engineLink` is the one connection to the engine. It keeps the newest copy of
   each snapshot part (titles, selection, metadata, lookup, audio, output,
   remote, remote library, remote acquisition, settings) by revision, and sends
-  intents. Adapters read the link. `workOperations` is the exception: it reads
-  WorkRuntime through `tauriClient`. The link listens before it attaches, so no
+  intents. Adapters read the link. The link listens before it attaches, so no
   update published in between is missed; part revisions make applying one twice
-  harmless.
+  harmless. WorkRuntime operations come with the attach reply and then as
+  `work-operations-update` events, merged by `workOperations.ts` (newest
+  snapshot per operation, newest order). A cancel's change arrives as one of
+  those events; its reply carries nothing.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
   for intents whose outcome and completion nobody awaits; its refusal shows as
   the link's `refusal` (`RefusedChangeNotice`). A `send` caller with its own

@@ -1,3 +1,2 @@
-export { createWorkOperationsOwner } from './owner';
-export { isWorkRunning } from './model';
+export { createWorkOperationsOwner, isWorkRunning } from './owner';
 export type { WorkOperationsOwner } from './owner';

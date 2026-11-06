@@ -31,7 +31,7 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			const lookup = createMetadataLookupOwner({ link });
 			const remoteSource = createRemoteSourceOwner({ link, ...capabilities.remoteSource });
 			const processing = createProcessingOwner({ link, settings });
-			const workOperations = createWorkOperationsOwner();
+			const workOperations = createWorkOperationsOwner({ link });
 			function initialize(): Promise<void> {
 				return link.ready().catch((error: unknown) => {
 					if (!disposed) throw error;

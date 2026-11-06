@@ -56,6 +56,7 @@ fn session_and_settings_round_trip_through_the_real_invoke_handler() {
     assert_eq!(attached["client"], 1);
     assert!(attached["session"]["revision"].is_number());
     assert!(attached["settings"]["settings"].is_object());
+    assert!(attached["workOperations"]["operations"].is_array());
 
     let applied = call(
         &webview,

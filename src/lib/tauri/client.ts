@@ -14,11 +14,7 @@ import {
 import type { SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { SessionIntent } from '../../types/session';
-import type {
-	OperationId,
-	OperationSnapshot,
-	WorkOperationsSnapshot,
-} from '../../types/workRuntime';
+import type { OperationId } from '../../types/workRuntime';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import {
 	normalizeWorkOperationsUpdate,
@@ -139,12 +135,9 @@ export const tauriClient = {
 		intent: SettingsIntent,
 	): Promise<CommandResult<'settings_dispatch'>> =>
 		commandSpecs.settings_dispatch({ client, sequence, intent }),
-	listWorkOperations: (): Promise<WorkOperationsSnapshot> => commandSpecs.list_work_operations(),
 	/** Cancels the whole operation, or only the title named by `childJobId`. */
-	cancelWorkOperation: (
-		operationId: OperationId,
-		childJobId?: string,
-	): Promise<OperationSnapshot> => commandSpecs.cancel_work_operation({ operationId, childJobId }),
+	cancelWorkOperation: (operationId: OperationId, childJobId?: string): Promise<void> =>
+		commandSpecs.cancel_work_operation({ operationId, childJobId }).then(() => undefined),
 	logFrontend: (entry: FrontendLogEntry): Promise<void> =>
 		commandSpecs.log_frontend({ entry }).then(() => undefined),
 	listen,

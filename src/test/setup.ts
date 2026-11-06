@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { audioFile, fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
-import type { WorkOperationsSnapshot } from '../lib/generated/tauri';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
 const eventListeners = new Map<string, Set<TestEventHandler>>();
@@ -39,12 +38,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 					engineArgs.sequence,
 					engineArgs.intent,
 				);
-			case 'list_work_operations':
-				return Promise.resolve({
-					revision: 0,
-					order: [],
-					operations: [],
-				} satisfies WorkOperationsSnapshot);
 			default:
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);
 		}

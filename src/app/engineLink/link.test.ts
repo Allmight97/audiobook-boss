@@ -1,8 +1,26 @@
 import { createRoot } from 'solid-js';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import type { SessionUpdate } from '../../types/session';
+import type { OperationSnapshot } from '../../types/workRuntime';
 import { createEngineLink, type EngineLink } from './link';
+
+function operation(operationId: string): OperationSnapshot {
+	return {
+		operationId,
+		sequence: 1,
+		revision: 1,
+		kind: 'processingBatch',
+		status: 'running',
+		title: 'Listed',
+		cancellable: true,
+		cancelRequested: false,
+		sourceInputIds: [],
+		progress: { stage: 'converting', percentage: 10, message: 'Working.' },
+		children: [],
+		logTail: [],
+	};
+}
 
 describe('engine link', () => {
 	let dispose: (() => void) | undefined;
@@ -190,6 +208,40 @@ describe('engine link', () => {
 		await expect(link.ready()).rejects.toThrow('disposed');
 		expect(attachments).toBe(0);
 		expect(stopped).toBe(true);
+	});
+
+	it("shows the attach reply's operations and keeps an update that arrived before it", async () => {
+		const engine = createFakeEngine();
+		const listed = operation('listed');
+		engine.publishOperation(listed);
+		const attach = engine.attach.bind(engine);
+		let reply: (() => void) | undefined;
+		engine.attach = async () => {
+			const attachment = await attach();
+			await new Promise<void>((resolve) => {
+				reply = resolve;
+			});
+			return attachment;
+		};
+		const link = linkTo(engine);
+		await vi.waitFor(() => expect(reply).toBeDefined());
+
+		engine.publishOperation({ ...listed, revision: 2, title: 'From the event' });
+		reply?.();
+		await link.ready();
+
+		expect(link.workOperations().map((item) => item.title)).toEqual(['From the event']);
+	});
+
+	it('stops following operations once disposed', async () => {
+		const engine = createFakeEngine();
+		const link = linkTo(engine);
+		await link.ready();
+		link.dispose();
+
+		engine.publishOperation(operation('late'));
+
+		expect(link.workOperations()).toEqual([]);
 	});
 
 	it('reports a refused attach through the intent that needed it', async () => {

@@ -10,7 +10,6 @@ pub fn builder<R: tauri::Runtime>() -> Builder<R> {
             crate::commands::session_dispatch,
             crate::commands::open_preview_output::<tauri::Wry>,
             crate::commands::settings_dispatch,
-            crate::commands::list_work_operations,
             crate::commands::cancel_work_operation,
             crate::commands::log_frontend,
         ])

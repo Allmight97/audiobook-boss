@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { OperationSnapshot } from '../../../types/workRuntime';
-import {
-	applyOperationSnapshot,
-	applyWorkOperations,
-	emptyWorkCenterModel,
-	visibleOperations,
-} from '../model';
+import type { OperationSnapshot } from '../../types/workRuntime';
+import { applyWorkOperations, emptyWorkCenterModel, visibleOperations } from './workOperations';
 
 function operation(id: string, sequence: number, childCount = 1): OperationSnapshot {
 	const children = Array.from({ length: childCount }, (_, index) => ({
@@ -104,19 +99,6 @@ describe('work center model', () => {
 		});
 		model = applyWorkOperations(model, { revision: 2, order: ['a'], operations: [at(a, 1)] });
 
-		expect(ids(model)).toEqual(['a@3']);
-	});
-
-	it('applies a cancel reply only when it is newer than what is shown', () => {
-		const a = operation('a', 1);
-		let model = applyWorkOperations(emptyWorkCenterModel(), {
-			revision: 1,
-			order: ['a'],
-			changed: at(a, 2),
-		});
-		expect(applyOperationSnapshot(model, at(a, 1))).toBe(model);
-
-		model = applyOperationSnapshot(model, at(a, 3));
 		expect(ids(model)).toEqual(['a@3']);
 	});
 });

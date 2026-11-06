@@ -10,7 +10,6 @@ const EXPECTED_COMMAND_NAMES = [
 	'open_preview_output',
 	'settings_dispatch',
 	'cancel_work_operation',
-	'list_work_operations',
 	'log_frontend',
 ] as const;
 
@@ -27,7 +26,6 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'settingsDispatch',
 	'cancelWorkOperation',
 	'listen',
-	'listWorkOperations',
 	'logFrontend',
 	'openDirectory',
 	'openFile',

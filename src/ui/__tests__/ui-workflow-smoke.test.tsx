@@ -13,8 +13,6 @@ const native = vi.hoisted(() => ({
 	openDirectory: vi.fn(),
 	listen: vi.fn(),
 	openFile: vi.fn(),
-	listWorkOperations: vi.fn(),
-	cancelWorkOperation: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({ tauriClient: native }));
@@ -68,7 +66,6 @@ describe('UI workflow intents', () => {
 		native.openFiles.mockResolvedValue([INPUT_PATH]);
 		native.openDirectory.mockResolvedValue(OUTPUT_DIRECTORY);
 		native.listen.mockResolvedValue(() => undefined);
-		native.listWorkOperations.mockResolvedValue({ revision: 0, order: [], operations: [] });
 
 		const engine = createFakeEngine();
 		engine.analyze = () => [importedFile()];

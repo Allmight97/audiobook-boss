@@ -10,6 +10,8 @@ const neverAttaching: EngineCapability = {
 	settingsDispatch: () => Promise.reject(new Error('not attached')),
 	listenSessionUpdates: () => Promise.resolve(() => undefined),
 	listenSettingsUpdates: () => Promise.resolve(() => undefined),
+	listenWorkOperations: () => Promise.resolve(() => undefined),
+	cancelWorkOperation: () => Promise.reject(new Error('not attached')),
 };
 
 describe('the first frame before the engine attaches', () => {

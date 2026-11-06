@@ -18,6 +18,13 @@ import type {
 	SessionTitles,
 	SessionUpdate,
 } from '../../types/session';
+import type {
+	OperationId,
+	OperationSnapshot,
+	WorkOperationsSnapshot,
+	WorkOperationsUpdate,
+} from '../../types/workRuntime';
+import { applyWorkOperations, emptyWorkCenterModel, visibleOperations } from './workOperations';
 
 export type EngineLink = {
 	readonly titles: Accessor<SessionTitles>;
@@ -30,6 +37,11 @@ export type EngineLink = {
 	readonly remoteLibrary: Accessor<RemoteLibrarySnapshot>;
 	readonly remoteAcquisition: Accessor<RemoteAcquisitionSnapshot>;
 	readonly settings: Accessor<SettingsSnapshot>;
+	/** WorkRuntime's operations in the engine's display order. */
+	readonly workOperations: Accessor<ReadonlyArray<OperationSnapshot>>;
+	/** Cancels an operation, or only the title named by `childJobId`; the
+	 * change arrives in `workOperations`. */
+	cancelWork: (operationId: OperationId, childJobId?: string) => Promise<void>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
 	send: (intent: SessionIntent) => Promise<SessionOutcome>;
 	openPreview: (runId: string) => Promise<SessionOutcome>;
@@ -377,8 +389,11 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		job: null,
 	});
 	let settings = emptySettings();
+	let work = emptyWorkCenterModel();
+	let operations: ReadonlyArray<OperationSnapshot> = [];
 	const part = () => createSignal(0, { ownedWrite: true });
 	const [settingsRev, bumpSettings] = part();
+	const [workRev, bumpWork] = part();
 	const [refusalRev, bumpRefusal] = part();
 	const [attachmentRev, bumpAttachment] = part();
 	let refusal: string | null = null;
@@ -407,9 +422,19 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		if (!disposed) bumpSettings((n) => n + 1);
 	}
 
+	function applyWork(incoming: WorkOperationsSnapshot | WorkOperationsUpdate): void {
+		if (disposed) return;
+		const next = applyWorkOperations(work, incoming);
+		if (next === work) return;
+		work = next;
+		operations = visibleOperations(work);
+		bumpWork((n) => n + 1);
+	}
+
 	const attached = Promise.all([
 		capability.listenSessionUpdates(applySession),
 		capability.listenSettingsUpdates(applySettings),
+		capability.listenWorkOperations(applyWork),
 	])
 		.then((stops) => {
 			const stop = () => {
@@ -425,6 +450,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		.then((ready) => {
 			applySession(ready.session);
 			applySettings(ready.settings);
+			applyWork(ready.workOperations);
 			setAttachment({ kind: 'ready' });
 			return ready.client;
 		});
@@ -482,6 +508,11 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 			settingsRev();
 			return settings;
 		},
+		workOperations: () => {
+			workRev();
+			return operations;
+		},
+		cancelWork: capability.cancelWorkOperation,
 		send,
 		openPreview: (runId) =>
 			dispatch((client, sequence) => capability.openPreviewOutput(client, sequence, runId)),

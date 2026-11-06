@@ -6,19 +6,13 @@ import type {
 	SettingsReply as GeneratedSettingsReply,
 	SettingsSnapshot as GeneratedSettingsSnapshot,
 	ProcessCommandResult as GeneratedProcessCommandResult,
-	WorkOperationsSnapshot as GeneratedWorkOperationsSnapshot,
 	WorkOperationsUpdate as GeneratedWorkOperationsUpdate,
-	OperationSnapshot as GeneratedOperationSnapshot,
 } from '../generated/tauri';
 import type { ProcessCommandResult } from '../../types/audio';
 import type { SettingsReply, SettingsSnapshot } from '../../types/appSettings';
 import type { SessionReply, SessionUpdate, SubmissionStatus } from '../../types/session';
 import type { NullToOptionalDeep } from '../../types/ipc';
-import type {
-	OperationSnapshot,
-	WorkOperationsSnapshot,
-	WorkOperationsUpdate,
-} from '../../types/workRuntime';
+import type { WorkOperationsSnapshot, WorkOperationsUpdate } from '../../types/workRuntime';
 import { normalizeAppError } from './appError';
 
 type PlainRecord = Record<string, unknown>;
@@ -168,11 +162,13 @@ export function normalizeFrontendAttachment(attachment: GeneratedFrontendAttachm
 	client: number;
 	session: SessionUpdate;
 	settings: SettingsSnapshot;
+	workOperations: WorkOperationsSnapshot;
 } {
 	return {
 		client: attachment.client,
 		session: normalizeSessionUpdate(attachment.session),
 		settings: normalizeSettingsSnapshot(attachment.settings),
+		workOperations: normalizeNullish(attachment.workOperations),
 	};
 }
 
@@ -185,16 +181,6 @@ function normalizeProcessResult(result: GeneratedProcessCommandResult): ProcessC
 			error: entry.error == null ? undefined : normalizeAppError(entry.error),
 		})),
 	};
-}
-
-export function normalizeOperationSnapshot(payload: GeneratedOperationSnapshot): OperationSnapshot {
-	return normalizeNullish(payload);
-}
-
-export function normalizeWorkOperationsSnapshot(
-	payload: GeneratedWorkOperationsSnapshot,
-): WorkOperationsSnapshot {
-	return normalizeNullish(payload);
 }
 
 export function normalizeWorkOperationsUpdate(

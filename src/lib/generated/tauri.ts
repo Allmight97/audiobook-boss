@@ -22,8 +22,7 @@ export const commands = {
 	 *  Settings intents run one at a time in `sequence` order.
 	 */
 	settingsDispatch: (client: number, sequence: number, intent: SettingsIntent) => typedError<SettingsReply, AppErrorEnvelope>(__TAURI_INVOKE("settings_dispatch", { client, sequence, intent })),
-	listWorkOperations: () => typedError<WorkOperationsSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
-	cancelWorkOperation: (operationId: OperationId, childJobId: string | null) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId, childJobId })),
+	cancelWorkOperation: (operationId: OperationId, childJobId: string | null) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId, childJobId })),
 	logFrontend: (entry: FrontendLogEntry) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("log_frontend", { entry })),
 };
 
@@ -440,6 +439,7 @@ export type FrontendAttachment = {
 	client: number,
 	session: SessionUpdate,
 	settings: SettingsSnapshot,
+	workOperations: WorkOperationsSnapshot,
 };
 
 export type FrontendLogEntry = {

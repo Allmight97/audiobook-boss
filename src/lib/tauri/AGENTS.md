@@ -19,8 +19,8 @@
   (`sessionDispatch`, `settingsDispatch`) after `attachFrontend`;
   `openPreviewOutput` also takes a numbered session turn
   (`src-tauri/AGENTS.md`). The
-  `session-update` and `settings-update` events carry engine changes between
-  replies. Auth-start replies supply the one-time URL; the `remoteSource` owner
+  `session-update`, `settings-update`, and `work-operations-update` events
+  carry engine changes between replies. Auth-start replies supply the one-time URL; the `remoteSource` owner
   opens it with `tauriClient.openUrl`. A view opens only a link the user
   clicked (`src/ui/AGENTS.md`).
 - A plugin or event function needs its permission in

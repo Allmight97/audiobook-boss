@@ -27,6 +27,7 @@ import type {
 	TitleAudio,
 	TitlePlan,
 } from '../../types/session';
+import type { OperationId, OperationSnapshot, WorkOperationsUpdate } from '../../types/workRuntime';
 
 const FORM_FIELDS: readonly MetadataField[] = [
 	'title',
@@ -85,6 +86,11 @@ export type FakeEngine = EngineCapability & {
 	readonly sessionIntents: SessionIntent[];
 	readonly settingsIntents: SettingsIntent[];
 	readonly openedPreviews: string[];
+	readonly cancelledWork: { operationId: OperationId; childJobId?: string }[];
+	/** Answers a cancel; a rejection fails it. */
+	respondCancel?: () => Promise<void>;
+	/** Adds or replaces an operation and tells every listener. */
+	publishOperation(operation: OperationSnapshot): void;
 	analyze: (paths: readonly string[]) => AudioFile[];
 	/**
 	 * Answers a session intent. A reply of `undefined`, at once or later, is
@@ -129,6 +135,9 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	let revision = 0;
 	const listeners = new Set<(update: SessionUpdate) => void>();
 	const settingsListeners = new Set<(snapshot: SettingsSnapshot) => void>();
+	const workListeners = new Set<(update: WorkOperationsUpdate) => void>();
+	const operations = new Map<OperationId, OperationSnapshot>();
+	let workRevision = 0;
 	const state = freshSession();
 	let settingsSnapshot: SettingsSnapshot = {
 		...structuredClone(recordedFresh.settings),
@@ -205,6 +214,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		sessionIntents: [],
 		settingsIntents: [],
 		openedPreviews: [],
+		cancelledWork: [],
 		analyze: (paths) => paths.map((path) => audioFile(path)),
 		async attach() {
 			nextSessionSequence = 0;
@@ -213,6 +223,11 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				client: 1,
 				session: settle(),
 				settings: structuredClone(settingsSnapshot),
+				workOperations: structuredClone({
+					revision: workRevision,
+					order: [...operations.keys()],
+					operations: [...operations.values()],
+				}),
 			};
 		},
 		async sessionDispatch(_client, sequence, intent) {
@@ -250,6 +265,24 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		async listenSettingsUpdates(handler) {
 			settingsListeners.add(handler);
 			return () => settingsListeners.delete(handler);
+		},
+		async listenWorkOperations(handler) {
+			workListeners.add(handler);
+			return () => workListeners.delete(handler);
+		},
+		async cancelWorkOperation(operationId, childJobId) {
+			engine.cancelledWork.push({ operationId, childJobId });
+			await engine.respondCancel?.();
+		},
+		publishOperation(operation) {
+			operations.set(operation.operationId, structuredClone(operation));
+			workRevision += 1;
+			const update = {
+				revision: workRevision,
+				order: [...operations.keys()],
+				changed: operation,
+			};
+			for (const listener of workListeners) listener(structuredClone(update));
 		},
 		seedSettings(patch) {
 			settingsSnapshot = {

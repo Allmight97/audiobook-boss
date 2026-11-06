@@ -22,13 +22,11 @@ export function App(): JSX.Element {
 	const runtime = useAppRuntime();
 	const saveMetadata = runtime.metadata.save;
 	const openSettings = runtime.settings.openDialog;
-	const initializeWork = runtime.workOperations.initialize;
 
 	onSettled(() => {
 		void runtime.initialize().catch((error: unknown) => {
 			console.warn('Could not load startup defaults:', error);
 		});
-		void initializeWork();
 
 		function handleGlobalKeyDown(event: KeyboardEvent): void {
 			if ((event.metaKey || event.ctrlKey) && event.key === 's') {

@@ -14,8 +14,6 @@ import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
 	denormalizeNullish,
 	normalizeFrontendAttachment,
-	normalizeWorkOperationsSnapshot,
-	normalizeOperationSnapshot,
 	normalizeSessionReply,
 	normalizeSettingsReply,
 } from './normalizers';
@@ -104,12 +102,9 @@ export const commandSpecs = {
 			),
 			normalizeSettingsReply,
 		),
-	list_work_operations: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.listWorkOperations(), normalizeWorkOperationsSnapshot),
 	cancel_work_operation: (args: { operationId: OperationId; childJobId?: string }) =>
 		runGeneratedCommand(
 			generatedCommands.cancelWorkOperation(args.operationId, args.childJobId ?? null),
-			normalizeOperationSnapshot,
 		),
 	log_frontend: (args: { entry: FrontendLogEntry }) =>
 		runGeneratedCommand(generatedCommands.logFrontend(args.entry)),

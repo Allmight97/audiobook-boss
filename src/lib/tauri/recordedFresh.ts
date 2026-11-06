@@ -8,5 +8,6 @@ export const recordedFresh = normalizeFrontendAttachment({
 	client: 1,
 	session: sessionFresh,
 	settings: settingsFresh,
+	workOperations: { revision: 0, order: [], operations: [] },
 } as FrontendAttachment);
 /* oxlint-enable typescript/no-unsafe-type-assertion */

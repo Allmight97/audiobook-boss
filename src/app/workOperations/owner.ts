@@ -1,46 +1,90 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { OperationId } from '../../types/workRuntime';
-import {
-	createWorkOperationsSession,
-	emptyWorkOperationsView,
-	type WorkOperationsView,
-} from './runtime';
+import type { EngineLink } from '../engineLink';
+import { toUserMessage } from '../../lib/tauri/appError';
+import { tauriClient } from '../../lib/tauri/client';
+import type { OperationId, OperationSnapshot } from '../../types/workRuntime';
+
+export type WorkOperationsView = {
+	readonly operations: ReadonlyArray<OperationSnapshot>;
+	readonly cancelPendingByOperationId: Readonly<Partial<Record<string, boolean>>>;
+	readonly errorMessage: string | null;
+};
 
 export type WorkOperationsOwner = {
 	readonly view: Accessor<WorkOperationsView>;
-	initialize: () => Promise<void>;
 	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancel: (operationId: OperationId, childJobId?: string) => Promise<void>;
 	revealOutput: (child: { outputPath?: string | null }) => Promise<void>;
 	reset: () => void;
 };
 
-export function createWorkOperationsOwner(): WorkOperationsOwner {
-	let snapshot = emptyWorkOperationsView();
+const CANCEL_ERROR_PREFIX = 'Failed to cancel';
+
+/** Work runs now, a cancel included until it lands; only running work shows motion. */
+export function isWorkRunning(status: OperationSnapshot['status']): boolean {
+	return status === 'running' || status === 'cancelling';
+}
+
+export function createWorkOperationsOwner(deps: {
+	readonly link: EngineLink;
+}): WorkOperationsOwner {
+	let cancelPendingByOperationId: Readonly<Partial<Record<string, boolean>>> = {};
+	let errorMessage: string | null = null;
+	let disposed = false;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	function publish(next: WorkOperationsView): void {
-		snapshot = next;
+
+	function showError(message: string | null): void {
+		if (disposed) return;
+		errorMessage = message;
 		bump((n) => n + 1);
 	}
-	const session = createWorkOperationsSession(publish);
+
+	function setCancelPending(operationId: OperationId, pending: boolean): void {
+		if (disposed) return;
+		const { [operationId]: _removed, ...others } = cancelPendingByOperationId;
+		cancelPendingByOperationId = pending ? { ...others, [operationId]: true } : others;
+		bump((n) => n + 1);
+	}
+
+	async function sendCancel(operationId: OperationId, childJobId?: string): Promise<void> {
+		try {
+			await deps.link.cancelWork(operationId, childJobId);
+			if (errorMessage?.startsWith(CANCEL_ERROR_PREFIX)) showError(null);
+		} catch (error) {
+			showError(
+				`${CANCEL_ERROR_PREFIX} ${childJobId ? 'title' : 'operation'}: ${toUserMessage(error)}`,
+			);
+		}
+	}
 
 	return {
 		view: () => {
 			rev();
-			return snapshot;
+			return {
+				operations: deps.link.workOperations(),
+				cancelPendingByOperationId,
+				errorMessage,
+			};
 		},
-		initialize() {
-			return session.initialize();
+		async cancel(operationId, childJobId) {
+			if (childJobId !== undefined) {
+				await sendCancel(operationId, childJobId);
+				return;
+			}
+			setCancelPending(operationId, true);
+			await sendCancel(operationId);
+			setCancelPending(operationId, false);
 		},
-		cancel(operationId, childJobId) {
-			return session.cancel(operationId, childJobId);
-		},
-		revealOutput(child) {
-			return session.revealOutput(child);
+		async revealOutput(child) {
+			if (!child.outputPath) return;
+			try {
+				await tauriClient.revealPath(child.outputPath);
+			} catch (error) {
+				showError(`Failed to show the exported file: ${toUserMessage(error)}`);
+			}
 		},
 		reset() {
-			session.dispose();
-			publish(emptyWorkOperationsView());
+			disposed = true;
 		},
 	};
 }
