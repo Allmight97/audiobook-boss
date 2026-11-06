@@ -60,9 +60,6 @@ simpler design.
   with typed diagnostics; hard-fail when the selected contract cannot be met.
   Every IPC, metadata, path, and lifecycle boundary behaves explicitly, with
   no silent or caller-side substitute.
-- A failure never disappears. When ABB cannot do what the user asked or tried,
-  the user sees a signal. A failure with no user action behind it reaches a log
-  or diagnostic, so it can be fixed or designed away.
 
 ## Environment
 
@@ -109,18 +106,13 @@ runs; their commands live only in `verify.sh`.
   carry it.
 - Public API Strip tests list their expected surface by hand, independent of
   the registries and generated sources they guard.
-- Delete dead code when you find it, whatever its age or owner: production code
-  nothing in production reaches, including code only tests reach. Keep it only
-  when removal breaks something, and name what. Report each deletion and why in
-  one line. Why: kept code costs every later reader, and its tests prove nothing.
 - Report suspicious seams with evidence and classify each `fix` or `reject` with
   impact and owner. Fix trivial mechanical drift and name it.
 
 ## Testing And Proof
 
 - Slow, opaque, or false-green proof is a `fix` finding when measured.
-- A test names a plausible regression at its owning boundary. Prefer a
-  failing-first test for a bug fix; skip it for trivial work.
+- A test names a plausible regression at its owning boundary.
 - Pick the lowest tier that proves the behavior deterministically:
   1. pure domain logic: its `abb-*-core` crate;
   2. session, settings, job lifecycle, file and network workflows, error
@@ -166,7 +158,7 @@ another CI run.
   marked ready. Each layer above stays a draft until the one below merges,
   then retarget it onto `main` and mark it ready. Why: proof against a base
   that will still move cannot establish the final integration.
-- Merge commits only. Merge a stack with `gh stack merge --merge` or the
+- Merge a stack with `gh stack merge --merge` or the
   async merge API (`merge_method: merge`). `gh pr merge` cannot merge a
   stack, and stack auto-merge is not ready to rely on. Link the stack with
   `gh stack` or `POST /repos/{owner}/{repo}/stacks`.
