@@ -16,8 +16,6 @@ language.
   owner stylesheet.
 - A primitive stays only if deleting it redistributes real behavior across
   owners.
-- `SplitButton.disabled` disables both triggers and hides an open menu, so an
-  engine refusal state leaves no second submission path.
 - Theme follows `prefers-color-scheme`.
 - `Dialog` `unmountWhenClosed` mounts content only while open or fading out;
   the fade lasts the backdrop's declared transition (`dialogs.css`), so a
