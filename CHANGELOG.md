@@ -4,6 +4,47 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- The Indexer URL and categories now live in `settings.toml` with every other
+  setting. A damaged connection is kept and named in the recovery notice instead
+  of being overwritten, and a failed save is retried. `indexer.toml` is no longer
+  read, so enter the connection once more.
+- Credentials are stored under a new service name, so sign in to Audible and
+  enter the Indexer API key once more. The old entries stay in the system
+  credential store until you remove them.
+- Reset all settings also clears the Indexer URL and categories and keeps the
+  API key. It is refused while an Indexer search, grab, or save is running.
+- MP3 exports write the album sort as a real TSOA frame. ABB still reads the
+  older `sort_album` tag.
+
+### Fixed
+
+- An exported title whose Audible download was removed reads as finished, not
+  as an error.
+- Blanking a field on an MKA, or an upper-case series tag on an MP3, removes it.
+  Before, the job said Completed and the tag stayed.
+- Restarting a title that is still queued removes its empty folders before the
+  restart finishes.
+- After you remove a title above the Shift-click anchor, the next Shift-click
+  extends from the right title.
+- An Audible book with no decryption key fails before the download, not after
+  the whole book has downloaded.
+- The Audible lookup fallback keeps the series.
+
+### Removed
+
+- The Audible PDF live probe, and Indexer Disconnect, which no screen offered.
+
+### Maintenance
+
+- A full test audit removed about 155 tests that protected nothing and added
+  end-to-end proof that every output route, edit, Save, setting, and cleanup
+  path reaches real files. UI tests now replay replies recorded from the real
+  engine.
+- Guidance and code comments were audited against the code, and more of their
+  rules are enforced by checks.
+
 ## [1.17.0] - 2026-11-05
 
 ### Added
