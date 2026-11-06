@@ -3,9 +3,8 @@ use std::sync::Arc;
 
 /// Synchronous cancellation checker for use in tight processing loops.
 ///
-/// Cancellation is title-scoped: accepted background work carries its title's
-/// flag, which title cancel or whole-operation cancel sets. Direct previews
-/// carry none and cannot be cancelled by the backend.
+/// Cancellation is title-scoped: a title carries its flag, which title cancel,
+/// preview cancel, or whole-operation cancel sets.
 #[derive(Debug)]
 pub struct CancellationChecker {
     cancel_flag: Option<Arc<AtomicBool>>,

@@ -12,9 +12,10 @@ engine does not offer, add it to the engine's host interface.
   generated TypeScript bindings follow it.
 - **Intent ordering.** The webview can deliver requests out of order. The
   frontend numbers each session and settings intent, and `intent_order.rs` runs
-  each one after all earlier ones. An intent from a replaced frontend is
-  refused. An intent that arrives after a later one has run is refused, never
-  applied out of order.
+  each one after all earlier ones, except that a number still missing after
+  `MISSING_INTENT_WAIT` is skipped with a warning. An intent from a replaced
+  frontend is refused. An intent that arrives after a later one has run is
+  refused, never applied out of order.
 - **Second copy.** When `Engine::start` fails with `AlreadyRunning`, setup
   hides the window, shows the message in a native dialog, and exits on OK
   without an engine. `Quit` and `FrontendLink` are managed before the engine
@@ -56,5 +57,5 @@ and the real invoke handler (`ipc_contract::builder::<MockRuntime>()`, so
 argument and reply names the webview sees, the error envelope for a refused
 intent number, and the managed state a command needs. It does not cover the
 capability file, `setup`, or the cover protocol. Send a numbered intent only
-after the one before it: `IntentOrder` waits for a missing number, and the test
-then blocks.
+after the one before it: a gap stalls the test for `MISSING_INTENT_WAIT`, then
+`IntentOrder` skips the number and refuses it as late.

@@ -165,9 +165,10 @@ job's size at any library size and cannot drop a crossing selection change. Snap
   again (the grab answers "Already sent").
 - The draft starts from the saved settings; Load reads only whether a key is
   stored for the saved URL. An applied Reset replaces the draft, clears its
-  errors, failures, and search results, and refreshes the account
-  (`saved_connection_replaced`). A Test that finishes after it changes nothing.
-  Reset waits for a Save, so no Save finishes after it. Old Test/Search
+  errors, failures, and search results, and rereads the account when the
+  Indexer lane is shown (`saved_connection_replaced`). A Test that finishes
+  after it changes nothing. A Save refuses Reset (`reset_lease`), so no Save
+  finishes after it. Old Test/Search
   results cannot replace newer requests or changed lanes. API keys stay private; snapshots report only
   configured/entered facts. The HTTP client initializes on first use, so a
   session that never uses Indexer pays no network setup cost.

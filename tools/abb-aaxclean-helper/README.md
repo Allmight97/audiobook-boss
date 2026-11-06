@@ -20,7 +20,7 @@ dotnet test tools/abb-aaxclean-helper
 bun run aaxclean-helper:publish
 ```
 
-`global.json` pins SDK 10.0.401. The publish script picks the RID and Rust
+`global.json` selects SDK 10.0.401 or a later patch of that band. The publish script picks the RID and Rust
 triple from the host (`osx-arm64` / `linux-x64` / `linux-arm64`) and writes
 `src-tauri/binaries/abb-aaxclean-helper-<triple>`.
 

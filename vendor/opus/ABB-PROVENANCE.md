@@ -6,8 +6,8 @@ FFmpeg build records the package version and archive content hash in
 `abb-build-inputs`; replacing the archive invalidates the cache.
 
 Upstream: https://opus-codec.org/ and https://github.com/xiph/opus.
-The accompanying BSD license is from libopus 1.6.1, verified in the macOS
-implementation lane. Opus's patent grants are at https://opus-codec.org/license/.
+The accompanying BSD license is from libopus 1.6.1. Opus's patent grants are at
+https://opus-codec.org/license/.
 The linked library's license and this provenance file ship in app resources.
 No Opus implementation source is copied into ABB.
 

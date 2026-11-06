@@ -38,8 +38,8 @@ export default defineConfig(async () => ({
 		},
 	},
 	build: {
-		// Split chunks created a logic <-> outputPanel import cycle; WebKit rejects it under
-		// tauri://localhost. Dev mode serves source modules over http://localhost instead.
+		// One bundle: WebKit under tauri://localhost rejects an import cycle between chunks.
+		// Dev mode serves source modules over http://localhost.
 		modulePreload: false,
 		rolldownOptions: {
 			output: {

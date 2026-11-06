@@ -6,8 +6,8 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
 
 ## Public API Strip
 
-- Audio is the Audio Engine Deep Module. Callers import from `crate::audio`;
-  child modules are private and the compiler enforces it.
+- Callers import from `crate::audio`; child modules are private, so the
+  compiler enforces it.
 - Inspection owns source preservation capability; the title planner owns the
   recommendation.
 - Per-encoder bitrate, mode, rate, and FAAC-profile facts live in

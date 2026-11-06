@@ -350,10 +350,9 @@ impl WorkRuntimeState {
         Ok(snapshot)
     }
 
-    /// Terminalize a command-driven inline operation (metadata save) from its
-    /// raw result summary plus per-child terminal facts. Operation status maps
-    /// through the same canonical classifier as the processing path; children
-    /// match by `input_index` (inline operations carry no per-child `job_id`).
+    /// Terminalizes an inline operation (a metadata save) from its raw result
+    /// summary and per-child terminal facts. Status maps through the same
+    /// classifier as processing; children match by `input_index`.
     pub(crate) fn complete_from_summary(
         &mut self,
         operation_id: &OperationId,

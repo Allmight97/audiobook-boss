@@ -78,7 +78,7 @@ the session records reaches hosts as `EngineEvent::Settings`.
 - A user's saved choice keeps its meaning across releases. A change that
   removes or narrows a saved value either keeps every sample in `samples/`
   loading with every choice it holds, or maps each old value in `storage.rs`,
-  with the owner's approval and a one-time notice. A new saved field needs a
+  with the owner's approval. A new saved field needs a
   default so earlier samples still load, and a new sample of the new shape.
   `scripts/check-known-mistakes.ts` rejects a changed, renamed, or deleted sample.
 - Encoder format and copy/encode validation stay Audio-owned; App Settings

@@ -140,7 +140,7 @@ one host attachment.
   the path the first selected (or first valid) title would get with the values
   on screen. Output choices are recorded in the settings; template typing is
   recorded once it pauses.
-- **Preview.** `output.previewRun` owns stable identity from acceptance through
+- **Preview.** `output.preview_run` owns stable identity from acceptance through
   terminal state. `CancelPreview` sets actual per-title cancellation flags even
   during preparation/review/scheduler wait; cancellation survives a dropped host
   reply and never grants an output for opening. Accepted custom cover or

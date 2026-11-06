@@ -49,8 +49,7 @@ simpler design.
   rule added there would be rewritten for every future host. Tiers:
   `crates/AGENTS.md`.
 - The engine builds metadata intent from the session's field edits;
-  validation and normalization route through the Rust Metadata Outcome
-  boundary.
+  `crate::metadata` and `abb-metadata-core` validate and normalize it.
 - Greenfield: internal payloads and aliases change freely. Interoperability
   with real-world external audiobook files and tag variants is preserved.
 - External provider partial failure is handled at the owning engine module
@@ -179,14 +178,14 @@ another CI run.
   async merge API (`merge_method: merge`). `gh pr merge` cannot merge a
   stack, and stack auto-merge is not ready to rely on. Link the stack with
   `gh stack` or `POST /repos/{owner}/{repo}/stacks`.
-- J Star gives one yes per stack or PR. After that, agents mark each layer
+- The owner gives one yes per stack or PR. After that, agents mark each layer
   ready, wait for `gate`, and merge it, and come back only when something
   fails or the story changes.
 - Work beyond the request (a new issue, PR, or follow-up after a merge)
-  waits for J Star's yes; steps inside an approved PR do not.
+  waits for the owner's yes; steps inside an approved PR do not.
 - These rules beat another bot's request for a tiny standalone PR: push back
   and deliver the work this way.
-- Roadmaps are J Star's call, announced case by case. Link an issue when one
+- Roadmaps are the owner's call, announced case by case. Link an issue when one
   exists; one is not required. A story-first PR body (why, outcome, which
   user, developer, or agent story, and what each layer unlocks) is a habit,
   not a rule.

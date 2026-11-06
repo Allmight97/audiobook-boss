@@ -6,14 +6,12 @@ app, a test, and the `abb-dev` tool drive the same code
 
 ## Host Interface
 
-- A host builds one `Engine` from `EngineConfig` (`engine.rs` documents each
-  field). `Engine::start` clears working files a previous run abandoned (it
-  logs and continues on failure). Before that it takes an OS lock on
-  `<cache_dir>/engine.lock` and holds it for the engine's life; a second start
-  on the same folder fails with `AppError::AlreadyRunning` and touches
-  nothing. Why: the second engine's cleanup would delete the first one's live
-  exports and downloads. A folder that cannot be locked (a filesystem without
-  `flock`) logs and starts unlocked.
+- A host builds one `Engine` from `EngineConfig`. `Engine::start` holds an OS
+  lock on `<cache_dir>/engine.lock` for the engine's life, then clears working
+  files a previous run abandoned; a second start on the same folder fails with
+  `AppError::AlreadyRunning` and touches nothing (rustdoc in `engine.rs`). Why:
+  the second engine's cleanup would delete the first one's live exports and
+  downloads.
 - A host calls `Engine` methods and receives `EngineEvent`s; `engine.rs` lists
   the methods. Remote account, auth, library, and acquisition work uses
   session intents and snapshots; its vocabulary is in
@@ -28,8 +26,9 @@ app, a test, and the `abb-dev` tool drive the same code
 - Before exiting or reusing the engine's folders, a host awaits
   `Engine::shutdown`. A quit never stops work the user was not asked about:
   `running_work` and `close_for_quit` enforce that (rustdoc in `engine.rs`).
-- `clippy.toml` `disallowed-methods` routes every spawn through the one
-  `EngineTasks` owner over a `TaskTracker`, so shutdown can wait for it.
+- `clippy.toml` `disallowed-methods` routes spawns through the one
+  `EngineTasks` owner over a `TaskTracker`, so shutdown can wait for them; a
+  child joined by a tracked parent is the one exception.
   Admission and shutdown share one lock: registering visible work and its
   cancellation handles finishes before shutdown enumerates work to stop.
 - An accepted intent belongs to the engine. `SessionRun::finish` and settings

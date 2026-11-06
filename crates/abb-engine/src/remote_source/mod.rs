@@ -70,7 +70,7 @@ struct RemoteSourceRuntimeInner {
     indexer_adapter: ReqwestProwlarrAdapter,
     tasks: crate::engine::EngineTasks,
     handoff: OnceLock<Handoff>,
-    /// A connection save holds this exclusively; searches and grabs share it.
+    /// A connection Save or Reset holds this exclusively; searches and grabs share it.
     indexer_turn: Arc<tokio::sync::RwLock<()>>,
     /// Releases sent since the last search, by `(indexer_id, guid)`.
     sent_releases: Mutex<std::collections::HashSet<(i64, String)>>,

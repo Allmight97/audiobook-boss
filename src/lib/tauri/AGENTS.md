@@ -19,8 +19,8 @@
   `openPreviewOutput` also takes a numbered session turn
   (`src-tauri/AGENTS.md`). The
   `session-update` and `settings-update` events carry engine changes between
-  replies. Auth-start replies supply the one-time URL the host opens in a
-  browser.
+  replies. Auth-start replies supply the one-time URL; the `remoteSource` owner
+  opens it with `tauriClient.openUrl`.
 - A plugin or event function needs its permission in
   `src-tauri/capabilities/default.json`; `scripts/tauri-contract.test.ts`
   derives each one from the imports, since jsdom mocks cannot catch a gap.

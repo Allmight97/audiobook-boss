@@ -274,8 +274,8 @@ impl SettingsRuntime {
         self.enqueue(Change::Intent(intent), None, tasks)
     }
 
-    /// Reserves the turn for an Indexer Save. It is not a `SettingsIntent`:
-    /// only the Save that also moves the API key may change the connection.
+    /// Reserves the turn for an Indexer Save. It is not a `SettingsIntent`: the
+    /// connection changes only with its API key (a Save) or through Reset.
     pub(crate) fn set_indexer_connection(
         &self,
         connection: IndexerConnection,

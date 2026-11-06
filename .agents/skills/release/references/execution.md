@@ -67,9 +67,9 @@ result, then stop before tagging or publishing.
 
 1. Use the selected version and accepted change's impact.
 2. Write the matching `CHANGELOG.md` section and run the version bump script.
-3. For a build containing statically linked FAAC, verify the release provides
-   matching FAAC and ABB source/build materials that let recipients modify FAAC
-   and rebuild the app, alongside its license and usage notice. Use
+3. For a build containing statically linked FAAC and FAAD3, verify the release
+   provides matching source and build materials that let recipients modify
+   them and rebuild the app, alongside their license and usage notice. Use
    `vendor/faac-sys/ABB-PROVENANCE.md` and `upstream/COPYING` there for the
    shipped source identity and distribution terms. The app bundle currently
    includes license/provenance only; verify the corresponding release source

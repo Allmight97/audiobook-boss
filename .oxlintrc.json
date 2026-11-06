@@ -21,7 +21,7 @@
 				"paths": [
 					{
 						"name": "typescript",
-						"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+						"message": "TypeScript 7 has no stable compiler API; parse without importing typescript (scripts/AGENTS.md)."
 					}
 				],
 				"patterns": [
@@ -139,7 +139,7 @@
 						"paths": [
 							{
 								"name": "typescript",
-								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+								"message": "TypeScript 7 has no stable compiler API; parse without importing typescript (scripts/AGENTS.md)."
 							}
 						],
 						"patterns": [
@@ -178,7 +178,7 @@
 						"paths": [
 							{
 								"name": "typescript",
-								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+								"message": "TypeScript 7 has no stable compiler API; parse without importing typescript (scripts/AGENTS.md)."
 							}
 						],
 						"patterns": [
@@ -222,7 +222,7 @@
 						"paths": [
 							{
 								"name": "typescript",
-								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+								"message": "TypeScript 7 has no stable compiler API; parse without importing typescript (scripts/AGENTS.md)."
 							}
 						],
 						"patterns": [
@@ -265,7 +265,7 @@
 						"paths": [
 							{
 								"name": "typescript",
-								"message": "TypeScript 7 has no compiler API; parse without importing typescript (scripts/AGENTS.md)."
+								"message": "TypeScript 7 has no stable compiler API; parse without importing typescript (scripts/AGENTS.md)."
 							}
 						],
 						"patterns": [

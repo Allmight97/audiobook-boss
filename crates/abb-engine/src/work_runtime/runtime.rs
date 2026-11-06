@@ -240,12 +240,9 @@ impl WorkRuntime {
         title.settled().await
     }
 
-    /// Begin a command-driven inline metadata-save operation: register the
-    /// snapshot + operation cancel flag, emit it, and mark it running. The
-    /// command then drives the save loop and terminalizes via
-    /// `record_metadata_save_progress` + `finish_metadata_save_operation`.
-    /// Returns the operation id and its cancel flag (wire into the registry
-    /// cancellation checker so `cancel_work_operation` reaches the save loop).
+    /// Registers a metadata-save operation, emits it, and marks it running.
+    /// Returns the operation id and the cancel flag the caller wires into the
+    /// job registry so `cancel_operation` reaches the save loop.
     pub(crate) fn begin_metadata_save_operation(
         &self,
         host: &Host,
@@ -278,8 +275,8 @@ impl WorkRuntime {
         Ok((operation_id, cancel_flag))
     }
 
-    /// Apply a metadata-save progress event to its operation (Work Center
-    /// renders the live snapshot). Events are piped by `input_index`.
+    /// Applies a metadata-save progress event to its operation; events match
+    /// children by `input_index`.
     pub(crate) fn record_metadata_save_progress(
         &self,
         host: &Host,

@@ -37,9 +37,9 @@ Other harnesses use the same verifier and evidence files.
 - Apple AAC (`apple`, macOS only).
 - Audible decrypt helper (`decrypt`). Fixtures are synthesized at test time.
   A wrong AAXC key is not the negative case.
-- Host or IPC types (`host`). Then the Vitest contract tests under `src/lib/`
-  that name the changed surface. Boundary rules: `src-tauri/AGENTS.md` and
-  `src/lib/tauri/AGENTS.md`.
+- Host or IPC types (`host`). Then the `*.contract.test.ts` Vitest files under
+  `src/` that name the changed surface. Boundary rules: `src-tauri/AGENTS.md`
+  and `src/lib/tauri/AGENTS.md`.
 - Workflows, shell scripts, and guidance (`tooling`): actionlint, zizmor
   (`scripts/check-workflows.sh`), shellcheck, and `scripts/check-guidance.ts`,
   which fails when guidance copies a command, names a missing package script,
@@ -90,8 +90,6 @@ Traps:
   engine behavior changes, regenerate; `recordedFresh.contract.test.ts` and
   `recordedWorkflows.contract.test.ts` then fail where the UI disagrees.
 - Each git worktree holds its own `target/`. Remove finished worktrees.
-- `bun run build` may still print the known DEP0205 and Vite plugin-timing
-  warnings.
 
 A change to CI or validation speed quotes before and after numbers from
 `bun run ci:timing` in its PR body, so every comparison uses one recipe.
@@ -107,8 +105,9 @@ A change to CI or validation speed quotes before and after numbers from
 - `bun run app:dev:log` runs Tauri dev with captured logs. Read
   `.logs/tauri-dev-summary.md` for the session verdict, then
   `.logs/tauri-dev.log` for raw evidence, before asking for pasted terminal
-  output. The five newest runs stay under `.logs/runs/<run-id>/`. Log-level
-  switches: header of `scripts/dev-tauri-log.sh`.
+  output. The five newest runs stay under `.logs/runs/<run-id>/`.
+  `ABB_DEV_RUST_LOG` sets the log level; `ABB_DEV_USE_EXISTING_RUST_LOG=1`
+  keeps `RUST_LOG`.
 - `bash scripts/abb-dev.sh --help` drives an engine session without a
   window (header of `scripts/abb-dev.sh`).
 - Release artifacts: use `.agents/skills/release`. `bundled-ffmpeg` always
@@ -120,8 +119,9 @@ A change to CI or validation speed quotes before and after numbers from
 
 - A new script enforces a live repo invariant or simplifies a build or release
   workflow, and has a package script or a usage header.
-- The runtime-boundary scanner stays a text scan until TypeScript 7 ships a
-  programmatic API (Oxlint bans importing `typescript`).
+- The runtime-boundary scanner stays a text scan until TypeScript has a stable
+  programmatic API; 7.0 offers only `typescript/unstable/*` (Oxlint bans
+  importing `typescript`).
 - Oxfmt formats JS, TS, JSON, and CSS. Markdown, YAML, and TOML stay
   unformatted: a formatter would rewrite `vendor/` sources and hand-wrapped
   guidance.
