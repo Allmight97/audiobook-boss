@@ -24,10 +24,46 @@ fn chapterless_sources_synthesize_one_chapter_per_file() {
 }
 
 #[test]
+fn a_source_that_cannot_be_opened_is_named_in_the_warnings() {
+    let passthrough = extract_passthrough_metadata(&[PassthroughSource {
+        chapters: None,
+        path: std::path::PathBuf::from("/books/missing.m4b"),
+        duration: Some(60.0),
+        is_valid: true,
+    }]);
+
+    assert_eq!(
+        passthrough.warnings,
+        ["Chapters and cover art could not be read from missing.m4b, so they were left out."]
+    );
+}
+
+#[test]
+fn a_source_with_no_length_is_named_because_it_shifts_later_chapters() {
+    let source = |path: &str, duration: Option<f64>| PassthroughSource {
+        chapters: None,
+        path: std::path::PathBuf::from(path),
+        duration,
+        is_valid: true,
+    };
+
+    let passthrough = extract_passthrough_metadata(&[
+        source("/books/one.m4b", None),
+        source("/books/two.m4b", Some(90.0)),
+    ]);
+
+    assert!(passthrough.warnings.contains(
+        &"one.m4b has no known length, so the chapters after it may start too early.".to_string()
+    ));
+    assert_eq!(passthrough.chapters.len(), 1);
+}
+
+#[test]
 fn dropping_the_cover_leaves_nothing_when_only_the_cover_was_passed_through() {
     let passthrough = PassthroughMetadata {
         chapters: Vec::new(),
         cover_art: Some(vec![1, 2, 3]),
+        ..Default::default()
     };
 
     assert!(passthrough.without_cover_art().is_none());
@@ -43,6 +79,7 @@ fn cover_art_passthrough_policy_drops_only_cover_art_after_explicit_clear() {
             end_ms: 1_000,
         }],
         cover_art: Some(vec![1, 2, 3]),
+        ..Default::default()
     };
 
     let effective = CoverArtPassthroughPolicy::SuppressAfterExplicitClear
@@ -58,6 +95,7 @@ fn a_source_cover_fills_only_a_missing_cover() {
     let passthrough = PassthroughMetadata {
         chapters: Vec::new(),
         cover_art: Some(vec![1, 2, 3]),
+        ..Default::default()
     };
 
     let missing = merge_passthrough_cover_art(
@@ -106,6 +144,7 @@ fn prepare_output_cover_art_drops_passthrough_cover_after_adopting_jpeg() {
             end_ms: 1_000,
         }],
         cover_art: Some(jpeg.clone()),
+        ..Default::default()
     };
 
     let (metadata, passthrough, warning) =

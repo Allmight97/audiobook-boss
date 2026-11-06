@@ -19,6 +19,9 @@ pub use super::ChapterSpec;
 pub struct PassthroughMetadata {
     pub chapters: Vec<ChapterSpec>,
     pub cover_art: Option<Vec<u8>>,
+    /// Sources whose chapters or cover could not be read, or whose chapter
+    /// offsets are off; Work Center shows them with the finished title.
+    pub warnings: Vec<String>,
 }
 
 impl PassthroughMetadata {
@@ -102,8 +105,16 @@ pub(crate) fn prepare_output_cover_art(
     Ok((metadata, passthrough, None))
 }
 
-fn synthesize_chapters_from_files(files: &[PassthroughSource]) -> Vec<ChapterSpec> {
+fn source_name(path: &std::path::Path) -> String {
+    path.file_name().map_or_else(
+        || path.display().to_string(),
+        |name| name.to_string_lossy().into_owned(),
+    )
+}
+
+fn synthesize_chapters_from_files(files: &[PassthroughSource]) -> (Vec<ChapterSpec>, Vec<String>) {
     let mut chapters = Vec::new();
+    let mut unmeasured = Vec::new();
     let mut offset_ms: i64 = 0;
 
     for file in files.iter().filter(|f| f.is_valid) {
@@ -112,6 +123,7 @@ fn synthesize_chapters_from_files(files: &[PassthroughSource]) -> Vec<ChapterSpe
                 "Skipping synthetic chapter for {} due to missing duration",
                 file.path.display()
             );
+            unmeasured.push(source_name(&file.path));
             continue;
         };
         let duration_ms = (duration * 1000.0).round() as i64;
@@ -129,7 +141,7 @@ fn synthesize_chapters_from_files(files: &[PassthroughSource]) -> Vec<ChapterSpe
         offset_ms += duration_ms;
     }
 
-    chapters
+    (chapters, unmeasured)
 }
 
 /// Extract chapters and original cover art from all valid input files.
@@ -169,6 +181,10 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
                     file.path.display(),
                     e
                 );
+                passthrough.warnings.push(format!(
+                    "Chapters and cover art could not be read from {}, so they were left out.",
+                    source_name(&file.path)
+                ));
             }
         }
 
@@ -190,7 +206,12 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
 
     let valid_file_count = files.iter().filter(|f| f.is_valid).count();
     if super::synthesizes_chapter_per_source(valid_file_count, passthrough.chapters.len()) {
-        let synthetic = synthesize_chapters_from_files(files);
+        let (synthetic, unmeasured) = synthesize_chapters_from_files(files);
+        passthrough
+            .warnings
+            .extend(unmeasured.into_iter().map(|name| {
+                format!("{name} has no known length, so the chapters after it may start too early.")
+            }));
         if !synthetic.is_empty() {
             log::info!(
                 "Synthesized {} chapters from input file order (no source chapters present)",

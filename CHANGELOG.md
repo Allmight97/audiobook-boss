@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- A title whose source could not be opened for its chapters or cover, or whose length was
+  unknown so later chapters shift, now finishes with a warning in Work Center instead of
+  reporting Done with nothing said.
 - When a selected file's tags cannot be read, the status line now names the file and says
   the fields shown are not its tags, so a Save no longer writes over tags you could not see
   without warning.

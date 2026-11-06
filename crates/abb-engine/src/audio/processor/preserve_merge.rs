@@ -267,9 +267,9 @@ pub(super) fn execute(
             }]);
         }
     }
-    let passthrough = cover_policy.apply_to_passthrough(
-        crate::metadata::extract_passthrough_metadata(&sources).into_option(),
-    );
+    let mut extracted = crate::metadata::extract_passthrough_metadata(&sources);
+    let passthrough_warnings = std::mem::take(&mut extracted.warnings);
+    let passthrough = cover_policy.apply_to_passthrough(extracted.into_option());
     let (metadata, passthrough, cover_warning) =
         crate::metadata::prepare_output_cover_art(metadata, passthrough, cover_policy)?;
     context
@@ -278,7 +278,10 @@ pub(super) fn execute(
     crate::metadata::finalize_artifact_metadata(&staged, metadata.as_ref(), passthrough.as_ref())?;
     Ok(super::AudioRunOutcome {
         message: super::finalize::complete_staged_output(&context, staged, &mut cleanup)?,
-        warnings: cover_warning.into_iter().collect(),
+        warnings: passthrough_warnings
+            .into_iter()
+            .chain(cover_warning)
+            .collect(),
     })
 }
 

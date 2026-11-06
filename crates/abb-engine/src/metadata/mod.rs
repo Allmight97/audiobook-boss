@@ -251,6 +251,7 @@ pub(crate) fn remux_preserved_audio_container(
     let passthrough = PassthroughMetadata {
         chapters: chapters.to_vec(),
         cover_art,
+        ..Default::default()
     };
     let plan = MetadataWritePlan::from_metadata(metadata.clone());
     remux::rewrite_metadata_with_ffmpeg_plan_as(
