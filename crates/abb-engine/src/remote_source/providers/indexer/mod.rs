@@ -110,8 +110,7 @@ impl IndexerProvider {
             .grab(
                 &connection.base_url,
                 &connection.api_key,
-                &request.release.guid,
-                request.release.indexer_id,
+                &request.release,
                 &request_id.to_string(),
             )
             .await;

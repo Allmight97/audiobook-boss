@@ -43,9 +43,11 @@ session files, Supplemental Assets, and staging cleanup.
   rename has no fallback here.
 - Indexer grabs create no acquisition jobs and materialize no files into Input.
   Grab logging correlates start, HTTP response, and outcome with a request ID
-  and keeps credentials, release GUIDs/URLs, and raw response bodies out of the
-  entries. Release detail URLs are optional source-provided HTTP(S) links
-  without embedded credentials, never inferred from a release GUID.
+  and keeps credentials and release GUIDs/URLs out of the entries; only a
+  failed grab also logs Prowlarr's raw status and body (2,000 characters), and
+  its row shows one line naming the side that is down. Release detail URLs are
+  optional source-provided HTTP(S) links without embedded credentials, never
+  inferred from a release GUID.
 - The Indexer URL and categories are App Settings' `IndexerConnection`, whose
   `validate` rejects embedded credentials on save and draft testing.
   `remote_source` reads them with `SettingsRuntime::indexer_connection` and

@@ -326,7 +326,7 @@ fn serve_grab_batch(listener: tokio::net::TcpListener) -> tokio::task::JoinHandl
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     tokio::spawn(async move {
         let mut ids = Vec::new();
-        for response_status in ["200 OK", "500 Internal Server Error", "200 OK"] {
+        for response_status in ["200 OK", "409 Conflict", "200 OK"] {
             let (mut stream, _) = listener.accept().await.expect("fixture step succeeded");
             let mut request = Vec::new();
             loop {

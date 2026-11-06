@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use reqwest::header::{HeaderMap, HeaderName};
-use reqwest::{Client, StatusCode, Url};
+use reqwest::{Client, Method, StatusCode, Url};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 
@@ -14,6 +14,8 @@ use crate::remote_source::types::{
 
 pub(super) const PROWLARR_USER_AGENT: &str = "audiobook-boss/indexer";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+const DIAGNOSIS_TIMEOUT: Duration = Duration::from_secs(10);
+const LOGGED_BODY_CHARS: usize = 2000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ProwlarrSearchParams {
@@ -120,30 +122,150 @@ impl ReqwestProwlarrAdapter {
         &self,
         base_url: &str,
         api_key: &SecretString,
-        guid: &str,
-        indexer_id: i64,
+        release: &RemoteRelease,
         request_id: &str,
     ) -> Result<ProwlarrGrabOutcome> {
         let url = join_api_path(base_url, "/api/v1/search")?;
         let body = serde_json::json!({
-            "guid": guid,
-            "indexerId": indexer_id,
+            "guid": release.guid,
+            "indexerId": release.indexer_id,
         });
-        let response = self
+        let sent = self
             .client()?
             .post(url)
             .headers(api_key_headers(api_key)?)
             .json(&body)
             .send()
-            .await
-            .map_err(|error| AppError::General(format!("Indexer grab request failed: {error}")))?;
+            .await;
+        let response = match sent {
+            Ok(response) => response,
+            Err(error) => {
+                log::warn!(
+                    "remote_source indexer_grab request_id={} stage=prowlarr_unreachable error={}",
+                    request_id,
+                    error.without_url()
+                );
+                return Ok(grab_failed(PROWLARR_NOT_RESPONDING));
+            }
+        };
 
+        let status = response.status();
         log::info!(
             "remote_source indexer_grab request_id={} stage=prowlarr_response http_status={}",
             request_id,
-            response.status().as_u16()
+            status.as_u16()
         );
-        parse_grab_response(response).await
+        let body = response.text().await.map_err(|error| {
+            AppError::General(format!("Indexer grab response unreadable: {error}"))
+        })?;
+
+        if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+            return Ok(ProwlarrGrabOutcome {
+                accepted: false,
+                message: "Indexer rejected the API key.".to_string(),
+                diagnostics: vec![RemoteSourceDiagnostic {
+                    kind: RemoteAcquisitionFailureKind::AuthRequired,
+                    title_id: None,
+                    message: "Indexer rejected the API key.".to_string(),
+                }],
+            });
+        }
+
+        if !status.is_success() {
+            log::warn!(
+                "remote_source indexer_grab request_id={} stage=prowlarr_failure http_status={} body={:?}",
+                request_id,
+                status.as_u16(),
+                truncated(&body, LOGGED_BODY_CHARS)
+            );
+            let line = match status_failure_line(status, &indexer_label(release)) {
+                Some(line) => line,
+                None => {
+                    let facts = self
+                        .downloader_facts(base_url, api_key, release, request_id)
+                        .await;
+                    downloader_failure_line(&release.protocol, facts.as_ref())
+                }
+            };
+            return Ok(grab_failed(&line));
+        }
+
+        Ok(ProwlarrGrabOutcome {
+            accepted: true,
+            message: "Release sent to downloader.".to_string(),
+            diagnostics: Vec::new(),
+        })
+    }
+
+    async fn downloader_facts(
+        &self,
+        base_url: &str,
+        api_key: &SecretString,
+        release: &RemoteRelease,
+        request_id: &str,
+    ) -> Option<DownloaderFacts> {
+        let facts = async {
+            let clients: Vec<ProwlarrDownloadClient> = self
+                .diagnosis_call(
+                    Method::GET,
+                    base_url,
+                    api_key,
+                    "/api/v1/downloadclient",
+                    false,
+                )
+                .await?;
+            let tests = if matching_clients(&release.protocol, &clients).is_empty() {
+                Vec::new()
+            } else {
+                self.diagnosis_call(
+                    Method::POST,
+                    base_url,
+                    api_key,
+                    "/api/v1/downloadclient/testall",
+                    true,
+                )
+                .await?
+            };
+            Ok::<_, AppError>(DownloaderFacts { clients, tests })
+        }
+        .await;
+        match facts {
+            Ok(facts) => Some(facts),
+            Err(error) => {
+                log::warn!(
+                    "remote_source indexer_grab request_id={request_id} stage=downloader_check_failed error={error}"
+                );
+                None
+            }
+        }
+    }
+
+    async fn diagnosis_call<T: serde::de::DeserializeOwned>(
+        &self,
+        method: Method,
+        base_url: &str,
+        api_key: &SecretString,
+        path: &str,
+        bad_request_carries_result: bool,
+    ) -> Result<T> {
+        let response = self
+            .client()?
+            .request(method, join_api_path(base_url, path)?)
+            .headers(api_key_headers(api_key)?)
+            .timeout(DIAGNOSIS_TIMEOUT)
+            .send()
+            .await
+            .map_err(|error| AppError::General(error.without_url().to_string()))?;
+        let status = response.status();
+        let readable = status.is_success()
+            || (bad_request_carries_result && status == StatusCode::BAD_REQUEST);
+        if !readable {
+            return Err(AppError::General(format!("{path} answered {status}")));
+        }
+        response
+            .json()
+            .await
+            .map_err(|error| AppError::General(error.without_url().to_string()))
     }
 }
 
@@ -293,40 +415,6 @@ async fn parse_search_response(response: reqwest::Response) -> Result<ProwlarrSe
     })
 }
 
-async fn parse_grab_response(response: reqwest::Response) -> Result<ProwlarrGrabOutcome> {
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|error| AppError::General(format!("Indexer grab response unreadable: {error}")))?;
-
-    if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-        return Ok(ProwlarrGrabOutcome {
-            accepted: false,
-            message: "Indexer rejected the API key.".to_string(),
-            diagnostics: vec![RemoteSourceDiagnostic {
-                kind: RemoteAcquisitionFailureKind::AuthRequired,
-                title_id: None,
-                message: "Indexer rejected the API key.".to_string(),
-            }],
-        });
-    }
-
-    if !status.is_success() {
-        return Ok(ProwlarrGrabOutcome {
-            accepted: false,
-            message: "Indexer did not accept the grab.".to_string(),
-            diagnostics: vec![grab_failed_diagnostic(status, &body)],
-        });
-    }
-
-    Ok(ProwlarrGrabOutcome {
-        accepted: true,
-        message: "Release sent to downloader.".to_string(),
-        diagnostics: Vec::new(),
-    })
-}
-
 fn map_release(
     raw: ProwlarrReleaseRaw,
     diagnostics: &mut Vec<RemoteSourceDiagnostic>,
@@ -425,19 +513,121 @@ fn search_failed_diagnostic(status: StatusCode, body: &str) -> RemoteSourceDiagn
     }
 }
 
-fn grab_failed_diagnostic(status: StatusCode, body: &str) -> RemoteSourceDiagnostic {
-    RemoteSourceDiagnostic {
-        kind: RemoteAcquisitionFailureKind::ReleaseGrabFailed,
-        title_id: None,
-        message: format!(
-            "Indexer grab failed with status {status}: {}",
-            trim_body(body)
+const PROWLARR_NOT_RESPONDING: &str =
+    "Prowlarr is not responding. Check that it is running, then Retry.";
+
+fn grab_failed(line: &str) -> ProwlarrGrabOutcome {
+    ProwlarrGrabOutcome {
+        accepted: false,
+        message: line.to_string(),
+        diagnostics: vec![RemoteSourceDiagnostic {
+            kind: RemoteAcquisitionFailureKind::ReleaseGrabFailed,
+            title_id: None,
+            message: line.to_string(),
+        }],
+    }
+}
+
+fn indexer_label(release: &RemoteRelease) -> String {
+    let name = release.indexer.trim();
+    if name.is_empty() {
+        format!("Indexer {}", release.indexer_id)
+    } else {
+        name.to_string()
+    }
+}
+
+fn status_failure_line(status: StatusCode, indexer: &str) -> Option<String> {
+    match status {
+        StatusCode::NOT_FOUND => Some("This search result has expired. Search again.".to_string()),
+        StatusCode::CONFLICT => Some(format!(
+            "{indexer} did not provide this release. Retry, or pick another release."
+        )),
+        _ => None,
+    }
+}
+
+fn matching_clients<'a>(
+    protocol: &RemoteReleaseProtocol,
+    clients: &'a [ProwlarrDownloadClient],
+) -> Vec<&'a ProwlarrDownloadClient> {
+    let mut matching: Vec<_> = clients
+        .iter()
+        .filter(|client| {
+            client.enable
+                && match protocol {
+                    RemoteReleaseProtocol::Torrent => {
+                        client.protocol.eq_ignore_ascii_case("torrent")
+                    }
+                    RemoteReleaseProtocol::Usenet => client.protocol.eq_ignore_ascii_case("usenet"),
+                    RemoteReleaseProtocol::Unknown => true,
+                }
+        })
+        .collect();
+    matching.sort_by_key(|client| client.priority);
+    matching
+}
+
+fn downloader_failure_line(
+    protocol: &RemoteReleaseProtocol,
+    facts: Option<&DownloaderFacts>,
+) -> String {
+    let Some(facts) = facts else {
+        return "Prowlarr could not send this release. Details are in the log.".to_string();
+    };
+    let clients = matching_clients(protocol, &facts.clients);
+    let Some(first) = clients.first() else {
+        return match protocol {
+            RemoteReleaseProtocol::Torrent => "Prowlarr has no torrent downloader set up.",
+            RemoteReleaseProtocol::Usenet => "Prowlarr has no usenet downloader set up.",
+            RemoteReleaseProtocol::Unknown => "Prowlarr has no downloader set up.",
+        }
+        .to_string();
+    };
+    match clients.iter().find(|client| {
+        facts
+            .tests
+            .iter()
+            .any(|test| test.id == client.id && !test.is_valid)
+    }) {
+        Some(failing) => format!(
+            "{} is not responding. Check that it is running, then Retry.",
+            failing.name
+        ),
+        None => format!(
+            "Prowlarr could not send this release, but {} is responding now. Retry.",
+            first.name
         ),
     }
 }
 
 fn trim_body(body: &str) -> String {
-    body.chars().take(240).collect()
+    truncated(body, 240)
+}
+
+fn truncated(text: &str, limit: usize) -> String {
+    text.chars().take(limit).collect()
+}
+
+#[derive(Debug, Deserialize)]
+struct ProwlarrDownloadClient {
+    id: i64,
+    name: String,
+    enable: bool,
+    protocol: String,
+    priority: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProwlarrClientTest {
+    id: i64,
+    #[serde(rename = "isValid")]
+    is_valid: bool,
+}
+
+struct DownloaderFacts {
+    clients: Vec<ProwlarrDownloadClient>,
+    tests: Vec<ProwlarrClientTest>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -401,8 +401,7 @@ async fn grab_posts_guid_and_indexer_id() {
         .grab(
             &format!("http://{host}"),
             &SecretString::from("secret-key".to_string()),
-            "release-guid",
-            42,
+            &release("Example", RemoteReleaseProtocol::Torrent),
             "test-grab",
         )
         .await
@@ -419,33 +418,367 @@ async fn grab_posts_guid_and_indexer_id() {
     assert!(outcome.accepted);
 }
 
+async fn serve_in_order(listener: &TcpListener, responses: &[Vec<u8>]) -> Vec<CapturedRequest> {
+    let mut requests = Vec::new();
+    for response in responses {
+        requests.push(serve_one(listener, response).await);
+    }
+    requests
+}
+
+fn http_response(status: &str, body: &str) -> Vec<u8> {
+    format!(
+        "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{body}",
+        body.len()
+    )
+    .into_bytes()
+}
+
+async fn no_further_request(listener: &TcpListener) -> bool {
+    timeout(Duration::from_millis(150), listener.accept())
+        .await
+        .is_err()
+}
+
+fn release(indexer: &str, protocol: RemoteReleaseProtocol) -> RemoteRelease {
+    RemoteRelease {
+        provider_id: ProviderId::Indexer,
+        key: release_key(42, "release-guid"),
+        guid: "release-guid".to_string(),
+        indexer_id: 42,
+        title: "Book".to_string(),
+        indexer: indexer.to_string(),
+        detail_url: None,
+        size_bytes: 1,
+        protocol,
+        seeders: None,
+        categories: Vec::new(),
+    }
+}
+
+fn downloader_facts(clients: &str, tests: &str) -> DownloaderFacts {
+    DownloaderFacts {
+        clients: serde_json::from_str(clients).expect("clients fixture"),
+        tests: serde_json::from_str(tests).expect("tests fixture"),
+    }
+}
+
+const TORRENT_CLIENT_LIST: &str = r#"[
+    {"id":1,"name":"qBittorrent","implementation":"QBittorrent","enable":true,"protocol":"torrent","priority":1},
+    {"id":2,"name":"SABnzbd","implementation":"Sabnzbd","enable":true,"protocol":"usenet","priority":1}
+]"#;
+
+#[test]
+fn grab_status_decides_the_line_before_any_downloader_check() {
+    for (status, expected) in [
+        (
+            StatusCode::NOT_FOUND,
+            Some("This search result has expired. Search again."),
+        ),
+        (
+            StatusCode::CONFLICT,
+            Some("Example did not provide this release. Retry, or pick another release."),
+        ),
+        (StatusCode::INTERNAL_SERVER_ERROR, None),
+        (StatusCode::BAD_GATEWAY, None),
+        (StatusCode::BAD_REQUEST, None),
+    ] {
+        assert_eq!(
+            status_failure_line(status, "Example").as_deref(),
+            expected,
+            "{status}"
+        );
+    }
+}
+
+#[test]
+fn a_release_with_no_indexer_name_is_named_by_its_indexer_id() {
+    let torrent = RemoteReleaseProtocol::Torrent;
+    assert_eq!(indexer_label(&release("  ", torrent.clone())), "Indexer 42");
+    assert_eq!(indexer_label(&release(" Example ", torrent)), "Example");
+}
+
+#[test]
+fn the_downloader_line_names_the_side_that_is_down() {
+    let torrent = RemoteReleaseProtocol::Torrent;
+    let two_torrent = r#"[
+        {"id":1,"name":"Second","enable":true,"protocol":"torrent","priority":2},
+        {"id":2,"name":"First","enable":true,"protocol":"torrent","priority":1},
+        {"id":3,"name":"Off","enable":false,"protocol":"torrent","priority":0}
+    ]"#;
+    let pass = |id: i64| format!(r#"{{"id":{id},"isValid":true,"validationFailures":[]}}"#);
+    let fail = |id: i64| {
+        format!(
+            r#"{{"id":{id},"isValid":false,"validationFailures":[{{"errorMessage":"Unable to connect"}}]}}"#
+        )
+    };
+    let usenet_only =
+        r#"[{"id":2,"name":"SABnzbd","enable":true,"protocol":"usenet","priority":1}]"#;
+    let torrent_off = r#"[{"id":3,"name":"Off","enable":false,"protocol":"torrent","priority":1}]"#;
+
+    for (protocol, clients, tests, expected) in [
+        (
+            &torrent,
+            TORRENT_CLIENT_LIST,
+            format!("[{}]", fail(1)),
+            "qBittorrent is not responding. Check that it is running, then Retry.",
+        ),
+        (
+            &torrent,
+            TORRENT_CLIENT_LIST,
+            format!("[{},{}]", pass(1), fail(2)),
+            "Prowlarr could not send this release, but qBittorrent is responding now. Retry.",
+        ),
+        (
+            &RemoteReleaseProtocol::Usenet,
+            TORRENT_CLIENT_LIST,
+            format!("[{},{}]", fail(1), fail(2)),
+            "SABnzbd is not responding. Check that it is running, then Retry.",
+        ),
+        (
+            &torrent,
+            two_torrent,
+            format!("[{},{}]", fail(1), fail(2)),
+            "First is not responding. Check that it is running, then Retry.",
+        ),
+        (
+            &torrent,
+            two_torrent,
+            format!("[{},{}]", fail(1), pass(2)),
+            "Second is not responding. Check that it is running, then Retry.",
+        ),
+        (
+            &torrent,
+            two_torrent,
+            format!("[{},{}]", pass(1), pass(2)),
+            "Prowlarr could not send this release, but First is responding now. Retry.",
+        ),
+        (
+            &torrent,
+            usenet_only,
+            "[]".to_string(),
+            "Prowlarr has no torrent downloader set up.",
+        ),
+        (
+            &torrent,
+            torrent_off,
+            "[]".to_string(),
+            "Prowlarr has no torrent downloader set up.",
+        ),
+        (
+            &RemoteReleaseProtocol::Usenet,
+            "[]",
+            "[]".to_string(),
+            "Prowlarr has no usenet downloader set up.",
+        ),
+        (
+            &RemoteReleaseProtocol::Unknown,
+            "[]",
+            "[]".to_string(),
+            "Prowlarr has no downloader set up.",
+        ),
+    ] {
+        let facts = downloader_facts(clients, &tests);
+        assert_eq!(
+            downloader_failure_line(protocol, Some(&facts)),
+            expected,
+            "{protocol:?} {clients} {tests}"
+        );
+    }
+
+    assert_eq!(
+        downloader_failure_line(&torrent, None),
+        "Prowlarr could not send this release. Details are in the log."
+    );
+}
+
 #[tokio::test]
-async fn grab_returns_failure_diagnostic_for_server_error() {
+async fn a_server_error_grab_asks_prowlarr_which_downloader_is_down() {
     let (listener, addr) = start_listener().await;
     let host = "prowlarr.test";
-    let response = b"HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nerror";
+    let responses = vec![
+        http_response(
+            "500 Internal Server Error",
+            r#"{ "message": "Unable to connect to qBittorrent", "description": "System.Net.Http.HttpRequestException ..." }"#,
+        ),
+        http_response("200 OK", TORRENT_CLIENT_LIST),
+        http_response(
+            "400 Bad Request",
+            r#"[{"id":1,"isValid":false,"validationFailures":[{"errorMessage":"Unable to connect"}]}]"#,
+        ),
+    ];
     #[expect(
         clippy::disallowed_methods,
-        reason = "joined by grab_returns_failure_diagnostic_for_server_error"
+        reason = "joined by a_server_error_grab_asks_prowlarr_which_downloader_is_down"
     )]
-    let _server = tokio::spawn(async move {
-        serve_one(&listener, response).await;
-    });
+    let server = tokio::spawn(async move { serve_in_order(&listener, &responses).await });
 
     let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, addr));
     let outcome = adapter
         .grab(
             &format!("http://{host}"),
             &SecretString::from("secret-key".to_string()),
-            "release-guid",
-            42,
+            &release("Example", RemoteReleaseProtocol::Torrent),
+            "test-grab",
+        )
+        .await
+        .expect("grab");
+
+    let requests = server.await.expect("server");
+    let seen: Vec<_> = requests
+        .iter()
+        .map(|request| (request.method.as_str(), request.path_and_query.as_str()))
+        .collect();
+    assert_eq!(
+        seen,
+        [
+            ("POST", "/api/v1/search"),
+            ("GET", "/api/v1/downloadclient"),
+            ("POST", "/api/v1/downloadclient/testall"),
+        ]
+    );
+    assert!(requests
+        .iter()
+        .all(|request| request.api_key.as_deref() == Some("secret-key")));
+    assert!(!outcome.accepted);
+    let line = "qBittorrent is not responding. Check that it is running, then Retry.";
+    assert_eq!(outcome.message, line);
+    assert_eq!(outcome.diagnostics.len(), 1);
+    assert_eq!(
+        outcome.diagnostics[0].kind,
+        RemoteAcquisitionFailureKind::ReleaseGrabFailed
+    );
+    assert_eq!(outcome.diagnostics[0].message, line);
+}
+
+#[tokio::test]
+async fn a_grab_that_cannot_ask_prowlarr_about_its_downloaders_points_to_the_log() {
+    let (listener, addr) = start_listener().await;
+    let host = "prowlarr.test";
+    let responses = vec![
+        http_response("500 Internal Server Error", "{}"),
+        http_response("503 Service Unavailable", "{}"),
+    ];
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by a_grab_that_cannot_ask_prowlarr_about_its_downloaders_points_to_the_log"
+    )]
+    let server = tokio::spawn(async move { serve_in_order(&listener, &responses).await });
+
+    let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, addr));
+    let outcome = adapter
+        .grab(
+            &format!("http://{host}"),
+            &SecretString::from("secret-key".to_string()),
+            &release("Example", RemoteReleaseProtocol::Torrent),
+            "test-grab",
+        )
+        .await
+        .expect("grab");
+
+    server.await.expect("server");
+    assert!(!outcome.accepted);
+    assert_eq!(
+        outcome.message,
+        "Prowlarr could not send this release. Details are in the log."
+    );
+}
+
+#[tokio::test]
+async fn grab_failures_that_name_their_own_side_ask_nothing_more() {
+    for (status, expected) in [
+        (
+            "404 Not Found",
+            "This search result has expired. Search again.",
+        ),
+        (
+            "409 Conflict",
+            "Example did not provide this release. Retry, or pick another release.",
+        ),
+        ("401 Unauthorized", "Indexer rejected the API key."),
+        ("403 Forbidden", "Indexer rejected the API key."),
+    ] {
+        let (listener, addr) = start_listener().await;
+        let response = http_response(status, r#"{"message":"raw"}"#);
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "joined by grab_failures_that_name_their_own_side_ask_nothing_more"
+        )]
+        let server = tokio::spawn(async move {
+            serve_one(&listener, &response).await;
+            no_further_request(&listener).await
+        });
+
+        let adapter = ReqwestProwlarrAdapter::with_client(local_client("prowlarr.test", addr));
+        let outcome = adapter
+            .grab(
+                "http://prowlarr.test",
+                &SecretString::from("secret-key".to_string()),
+                &release("Example", RemoteReleaseProtocol::Torrent),
+                "test-grab",
+            )
+            .await
+            .expect("grab");
+
+        assert!(
+            server.await.expect("server"),
+            "{status} must not trigger a downloader check"
+        );
+        assert!(!outcome.accepted);
+        assert_eq!(outcome.message, expected, "{status}");
+    }
+}
+
+#[tokio::test]
+async fn an_accepted_grab_never_asks_about_downloaders() {
+    let (listener, addr) = start_listener().await;
+    let response = http_response("200 OK", "{}");
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by an_accepted_grab_never_asks_about_downloaders"
+    )]
+    let server = tokio::spawn(async move {
+        serve_one(&listener, &response).await;
+        no_further_request(&listener).await
+    });
+
+    let adapter = ReqwestProwlarrAdapter::with_client(local_client("prowlarr.test", addr));
+    let outcome = adapter
+        .grab(
+            "http://prowlarr.test",
+            &SecretString::from("secret-key".to_string()),
+            &release("Example", RemoteReleaseProtocol::Torrent),
+            "test-grab",
+        )
+        .await
+        .expect("grab");
+
+    assert!(server.await.expect("server"), "no second request");
+    assert!(outcome.accepted);
+    assert_eq!(outcome.message, "Release sent to downloader.");
+}
+
+#[tokio::test]
+async fn a_grab_to_a_prowlarr_that_does_not_answer_says_so() {
+    let (listener, addr) = start_listener().await;
+    drop(listener);
+
+    let adapter = ReqwestProwlarrAdapter::with_client(local_client("prowlarr.test", addr));
+    let outcome = adapter
+        .grab(
+            "http://prowlarr.test",
+            &SecretString::from("secret-key".to_string()),
+            &release("Example", RemoteReleaseProtocol::Torrent),
             "test-grab",
         )
         .await
         .expect("grab");
 
     assert!(!outcome.accepted);
-    assert_eq!(outcome.diagnostics.len(), 1);
+    assert_eq!(
+        outcome.message,
+        "Prowlarr is not responding. Check that it is running, then Retry."
+    );
     assert_eq!(
         outcome.diagnostics[0].kind,
         RemoteAcquisitionFailureKind::ReleaseGrabFailed
@@ -469,7 +802,12 @@ async fn a_stored_api_key_that_cannot_be_sent_fails_every_request_without_sendin
         adapter.search(base_url, &key, &params).await.err(),
         adapter.system_status(base_url, &key).await.err(),
         adapter
-            .grab(base_url, &key, "guid", 7, "request")
+            .grab(
+                base_url,
+                &key,
+                &release("Example", RemoteReleaseProtocol::Torrent),
+                "request",
+            )
             .await
             .err(),
     ];

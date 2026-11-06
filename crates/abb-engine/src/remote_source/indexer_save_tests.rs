@@ -461,10 +461,7 @@ fn serve_grabs_pausing_on_the_second(
     tokio::spawn(async move {
         let (mut arrived, mut gate) = (Some(arrived), Some(gate));
         let mut ids = Vec::new();
-        for (index, status) in ["200 OK", "500 Internal Server Error", "200 OK"]
-            .into_iter()
-            .enumerate()
-        {
+        for (index, status) in ["200 OK", "409 Conflict", "200 OK"].into_iter().enumerate() {
             let (mut stream, _) = listener.accept().await.expect("accept a grab");
             let mut request = Vec::new();
             let body = loop {
