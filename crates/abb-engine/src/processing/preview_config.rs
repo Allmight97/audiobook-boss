@@ -13,7 +13,7 @@ impl PreviewConfig {
     }
 
     /// How long a title's preview runs, its files' excerpts end to end.
-    pub fn title_seconds(&self, file_count: usize) -> f64 {
+    pub(crate) fn title_seconds(&self, file_count: usize) -> f64 {
         self.per_file_seconds(file_count) * file_count as f64
     }
 
