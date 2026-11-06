@@ -10,7 +10,6 @@ pub fn builder<R: tauri::Runtime>() -> Builder<R> {
             crate::commands::session_dispatch,
             crate::commands::open_preview_output::<tauri::Wry>,
             crate::commands::settings_dispatch,
-            crate::commands::get_supported_audio_import_metadata,
             crate::commands::list_work_operations,
             crate::commands::cancel_work_operation,
             crate::commands::log_frontend,
@@ -20,6 +19,14 @@ pub fn builder<R: tauri::Runtime>() -> Builder<R> {
             crate::events::SessionUpdateEvent,
             crate::events::SettingsUpdateEvent,
         ])
+        .constant(
+            "SUPPORTED_AUDIO_IMPORT_EXTENSIONS",
+            abb_engine::audio::supported_audio_import_extensions(),
+        )
+        .constant(
+            "SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT",
+            abb_engine::audio::supported_audio_import_support_text(),
+        )
         .error_handling(ErrorHandlingMode::Result)
         // ABB's JSON IPC contract uses numbers for bounded byte sizes, timestamps,
         // counts, indices, and sequence values. They remain below JavaScript's exact

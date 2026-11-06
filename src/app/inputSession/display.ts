@@ -2,6 +2,7 @@ import {
 	formatDuration,
 	formatFileSize,
 	formatAudioBitrate,
+	SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
 	type AudioFile,
 } from '../../types/audio';
 import { toUserMessage } from '../../lib/tauri/appError';
@@ -58,7 +59,6 @@ export function toInputView(
 	local: {
 		readonly errorMessage: string;
 		readonly isDragOver: boolean;
-		readonly supportText: string;
 	},
 ): InputView {
 	const files = titles.files;
@@ -80,7 +80,7 @@ export function toInputView(
 		orderLocked: locked,
 		errorMessage: local.errorMessage || inputNoticeText(titles.notice),
 		isDragOver: local.isDragOver,
-		supportText: local.supportText,
+		supportText: SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
 		sortDirection: titles.sortDirection,
 		sortLabel: titles.sortDirection === 'descending' ? 'Sort: Z-A' : 'Sort: A-Z',
 		orderDiffersFromImport: titles.orderDiffersFromImport,

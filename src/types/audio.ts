@@ -24,7 +24,6 @@ import type {
 	ProcessResultEntry as GeneratedProcessResultEntry,
 	ProcessResultStatus as GeneratedProcessResultStatus,
 	SampleRateConfig as GeneratedSampleRateConfig,
-	SupportedAudioImportMetadata as GeneratedSupportedAudioImportMetadata,
 } from '../lib/generated/tauri';
 import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
@@ -56,7 +55,6 @@ export type EncoderSettings = GeneratedEncoderSettings;
 export type EncoderSettingsCapabilities = NullToOptionalDeep<GeneratedEncoderSettingsCapabilities>;
 export type MaxConcurrentJobsCapabilities =
 	NullToOptionalDeep<GeneratedMaxConcurrentJobsCapabilities>;
-export type SupportedAudioImportMetadata = GeneratedSupportedAudioImportMetadata;
 
 export type OutputNamingConfig = NullToOptionalDeep<GeneratedOutputNamingConfig>;
 
@@ -119,4 +117,9 @@ export type {
 	AudioIntent,
 	TitleAudioRequest,
 	TitleAudioPlan,
+} from '../lib/generated/tauri';
+
+export {
+	SUPPORTED_AUDIO_IMPORT_EXTENSIONS,
+	SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
 } from '../lib/generated/tauri';

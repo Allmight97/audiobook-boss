@@ -19,7 +19,6 @@ export function FileImportView(): JSX.Element {
 	const remoteSource = runtime.remoteSource;
 	const defaultAcquisitionLane = runtime.settings.defaultAcquisitionLane;
 	const applyCoverArtDrop = runtime.metadata.applyCoverArtDrop;
-	const hydrateSupportText = runtime.input.hydrateSupportText;
 	const setDragOver = runtime.input.setDragOver;
 	let fileManagementContainer: HTMLElement | null = null;
 
@@ -28,7 +27,6 @@ export function FileImportView(): JSX.Element {
 	}
 
 	onSettled(() => {
-		void hydrateSupportText();
 		const subscriptions = createSubscriptionGroup();
 		void subscriptions.add(
 			capability().listenDragEnter(() => {

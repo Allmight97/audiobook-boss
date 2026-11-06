@@ -896,7 +896,7 @@ impl Session {
         if discovered.is_empty() {
             return failed(if skipped.is_empty() {
                 InputNotice::NoSupportedFiles {
-                    formats_text: audio::supported_audio_import_metadata().formats_text,
+                    formats_text: audio::supported_audio_import_formats_text(),
                 }
             } else {
                 InputNotice::SkippedPaths { skipped }

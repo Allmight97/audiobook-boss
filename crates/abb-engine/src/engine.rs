@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use crate::app_settings::{
     SettingsIntent, SettingsOutcome, SettingsReply, SettingsRuntime, SettingsSnapshot,
 };
-use crate::audio::{self, SupportedAudioImportMetadata};
+use crate::audio;
 use crate::errors::{AppError, Result};
 use crate::host::{EventSink, Host};
 use crate::metadata::AudiobookMetadata;
@@ -406,10 +406,6 @@ impl Engine {
             .tasks
             .until_closing(self.inner.session.cover(request))
             .await
-    }
-
-    pub fn supported_audio_import_metadata(&self) -> SupportedAudioImportMetadata {
-        audio::supported_audio_import_metadata()
     }
 
     /// Imports files the operating system asked ABB to open; no window has

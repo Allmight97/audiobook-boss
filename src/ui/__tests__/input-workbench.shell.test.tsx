@@ -2,19 +2,16 @@ import { mp3AudioRequest, titleAudioRequest } from '../../test/fixtures/titleAud
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AudioFile, SupportedAudioImportMetadata } from '../../types/audio';
+import {
+	SUPPORTED_AUDIO_IMPORT_EXTENSIONS,
+	SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
+	type AudioFile,
+} from '../../types/audio';
 import type { SessionOutcome } from '../../types/session';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
 import { App } from '../App';
-
-const metadata: SupportedAudioImportMetadata = {
-	formats: [{ extension: 'm4b', label: 'M4B' }],
-	extensions: ['mp3', 'm4a', 'm4b', 'aac', 'wav', 'flac'],
-	formatsText: 'MP3, M4A/M4B, AAC, WAV, and FLAC',
-	supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
-};
 
 const listeners: {
 	drop?: (payload: NativeDropPayload) => void;
@@ -38,7 +35,6 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 	return {
 		openFiles: vi.fn(async () => []),
 		openDirectory: vi.fn(async () => null),
-		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
 		listenDragDrop: vi.fn(async (handler) => {
 			listeners.drop = handler;
 			return () => {
@@ -121,6 +117,20 @@ describe('Solid input workbench', () => {
 		expect(runtime.input.view().files).toHaveLength(1);
 		expect(screen.getByRole('button', { name: 'Group as one title' })).toBeDisabled();
 		expect(runtime.input.view().selectedIndices).toEqual([0]);
+	});
+
+	it('opens the picker with the engine import formats and shows the engine support text', async () => {
+		const user = userEvent.setup();
+		const openFiles = vi.fn(async () => []);
+		runtime = runtimeFor({ input: { openFiles } });
+		await renderApp(runtime);
+
+		expect(runtime.input.view().supportText).toBe(SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT);
+		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
+
+		expect(openFiles).toHaveBeenCalledWith({
+			filters: [{ name: 'Audio Files', extensions: [...SUPPORTED_AUDIO_IMPORT_EXTENSIONS] }],
+		});
 	});
 
 	it('edits only selected titles through one mixed-value audio editor', async () => {

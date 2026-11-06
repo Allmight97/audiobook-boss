@@ -22,7 +22,6 @@ export const commands = {
 	 *  Settings intents run one at a time in `sequence` order.
 	 */
 	settingsDispatch: (client: number, sequence: number, intent: SettingsIntent) => typedError<SettingsReply, AppErrorEnvelope>(__TAURI_INVOKE("settings_dispatch", { client, sequence, intent })),
-	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
 	listWorkOperations: () => typedError<WorkOperationsSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	cancelWorkOperation: (operationId: OperationId, childJobId: string | null) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId, childJobId })),
 	logFrontend: (entry: FrontendLogEntry) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("log_frontend", { entry })),
@@ -34,6 +33,11 @@ export const events = {
 	settingsUpdate: makeEvent<SettingsUpdateEvent>("settings-update"),
 	workOperationsUpdate: makeEvent<WorkOperationsUpdateEvent>("work-operations-update"),
 };
+
+/* Constants */
+export const SUPPORTED_AUDIO_IMPORT_EXTENSIONS = ["mka","mp3","m4a","m4b","aac","wav","flac"] as const;
+
+export const SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT = "Supports MKA, MP3, M4A/M4B, AAC, WAV, and FLAC audio files" as const;
 
 /* Types */
 /**
@@ -1304,18 +1308,6 @@ export type SupplementalAsset = {
 	fileName: string,
 	sizeBytes: number,
 	sha256: string,
-};
-
-export type SupportedAudioImportFormat = {
-	extension: string,
-	label: string,
-};
-
-export type SupportedAudioImportMetadata = {
-	formats: SupportedAudioImportFormat[],
-	extensions: string[],
-	formatsText: string,
-	supportText: string,
 };
 
 /**

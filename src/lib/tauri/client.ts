@@ -139,9 +139,6 @@ export const tauriClient = {
 		intent: SettingsIntent,
 	): Promise<CommandResult<'settings_dispatch'>> =>
 		commandSpecs.settings_dispatch({ client, sequence, intent }),
-	getSupportedAudioImportMetadata: (): Promise<
-		CommandResult<'get_supported_audio_import_metadata'>
-	> => commandSpecs.get_supported_audio_import_metadata(),
 	listWorkOperations: (): Promise<WorkOperationsSnapshot> => commandSpecs.list_work_operations(),
 	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancelWorkOperation: (

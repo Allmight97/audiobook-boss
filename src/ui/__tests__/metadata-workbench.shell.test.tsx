@@ -1,7 +1,6 @@
 import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SupportedAudioImportMetadata } from '../../types/audio';
 import type { MetadataField } from '../../types/session';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
@@ -9,18 +8,10 @@ import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { App } from '../App';
 
-const support: SupportedAudioImportMetadata = {
-	formats: [{ extension: 'm4b', label: 'M4B' }],
-	extensions: ['m4b'],
-	formatsText: 'M4B',
-	supportText: 'Supports M4B audio files',
-};
-
 function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 	return {
 		openFiles: vi.fn(async () => ['/books/alpha.m4b']),
 		openDirectory: vi.fn(async () => null),
-		getSupportedAudioImportMetadata: vi.fn(async () => support),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),

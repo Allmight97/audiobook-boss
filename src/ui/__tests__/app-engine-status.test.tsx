@@ -10,12 +10,6 @@ function fakeInput(): InputCapability {
 	return {
 		openFiles: vi.fn(async () => null),
 		openDirectory: vi.fn(async () => null),
-		getSupportedAudioImportMetadata: vi.fn(async () => ({
-			formats: [],
-			extensions: [],
-			formatsText: '',
-			supportText: '',
-		})),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),

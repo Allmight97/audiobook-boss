@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- The file list shows the full list of supported audio formats from the first moment.
+  Before, it read "Supports audio files" until a background lookup finished.
 - After a finished Audible download, the status line now shows later library
   loads and failures, sign-in guidance, and the sign-in warning instead of
   keeping the old download result. A running download also shows its progress

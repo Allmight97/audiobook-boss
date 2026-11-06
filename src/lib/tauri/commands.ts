@@ -104,8 +104,6 @@ export const commandSpecs = {
 			),
 			normalizeSettingsReply,
 		),
-	get_supported_audio_import_metadata: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.getSupportedAudioImportMetadata()),
 	list_work_operations: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.listWorkOperations(), normalizeWorkOperationsSnapshot),
 	cancel_work_operation: (args: { operationId: OperationId; childJobId?: string }) =>

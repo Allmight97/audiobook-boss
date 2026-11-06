@@ -11,7 +11,6 @@ import { App } from '../App';
 const native = vi.hoisted(() => ({
 	openFiles: vi.fn(),
 	openDirectory: vi.fn(),
-	getSupportedAudioImportMetadata: vi.fn(),
 	listen: vi.fn(),
 	openFile: vi.fn(),
 	listWorkOperations: vi.fn(),
@@ -67,12 +66,6 @@ describe('UI workflow intents', () => {
 	it('sends the lookup, cover, audio, and output choices the user made, then submits', async () => {
 		native.openFiles.mockResolvedValue([INPUT_PATH]);
 		native.openDirectory.mockResolvedValue(OUTPUT_DIRECTORY);
-		native.getSupportedAudioImportMetadata.mockResolvedValue({
-			formats: [{ extension: 'm4b', label: 'M4B' }],
-			extensions: ['m4b'],
-			formatsText: 'M4B',
-			supportText: 'Supports M4B audio files',
-		});
 		native.listen.mockResolvedValue(() => undefined);
 		native.listWorkOperations.mockResolvedValue({ revision: 0, order: [], operations: [] });
 

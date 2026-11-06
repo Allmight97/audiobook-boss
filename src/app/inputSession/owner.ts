@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile } from '../../types/audio';
+import { SUPPORTED_AUDIO_IMPORT_EXTENSIONS, type AudioFile } from '../../types/audio';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
 import type { SessionIntent, TitleTotals } from '../../types/session';
@@ -7,7 +7,6 @@ import type { EngineLink } from '../engineLink';
 import { companionSummary, type CompanionSummary } from './companions';
 import { toInputView } from './display';
 import {
-	DEFAULT_SUPPORT_TEXT,
 	fileIdentityKey,
 	type ImportIntent,
 	type InputView,
@@ -27,7 +26,6 @@ export type InputOwner = {
 	companionSummary: (inputIds: ReadonlyArray<string | undefined>) => CompanionSummary;
 	/** Resolves once the picker closes and the import is sent, before it lands. */
 	importIntent: (intent: ImportIntent) => Promise<void>;
-	hydrateSupportText: () => Promise<void>;
 	/** Resolves true when the selection changed and its tags have loaded. */
 	selectFile: (command: {
 		readonly index: number;
@@ -58,7 +56,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	let localError = '';
 	let isDragOver = false;
-	let supportText = DEFAULT_SUPPORT_TEXT;
 	function changed(): void {
 		bump((n) => n + 1);
 	}
@@ -68,7 +65,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		return toInputView(link.titles(), link.selection(), {
 			errorMessage: localError,
 			isDragOver,
-			supportText,
 		});
 	};
 
@@ -109,12 +105,15 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	async function runImport(intent: ImportIntent): Promise<void> {
 		switch (intent.type) {
 			case 'pickFiles': {
-				const selected = await pick(async () => {
-					const supported = await capabilityValue.getSupportedAudioImportMetadata();
-					return capabilityValue.openFiles({
-						filters: [{ name: 'Audio Files', extensions: [...supported.extensions] }],
-					});
-				}, 'Failed to open file dialog. Please try again.');
+				const selected = await pick(
+					() =>
+						capabilityValue.openFiles({
+							filters: [
+								{ name: 'Audio Files', extensions: [...SUPPORTED_AUDIO_IMPORT_EXTENSIONS] },
+							],
+						}),
+					'Failed to open file dialog. Please try again.',
+				);
 				if (selected?.length) importPaths(selected);
 				return;
 			}
@@ -169,13 +168,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 			}
 			await runImport(intent);
 		},
-		async hydrateSupportText() {
-			try {
-				const supported = await capabilityValue.getSupportedAudioImportMetadata();
-				supportText = supported.supportText || supportText;
-				changed();
-			} catch {}
-		},
 		selectFile(command) {
 			const file = link.titles().files[command.index];
 			if (!file) return Promise.resolve(false);
@@ -229,7 +221,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		reset() {
 			localError = '';
 			isDragOver = false;
-			supportText = DEFAULT_SUPPORT_TEXT;
 			changed();
 		},
 	};
