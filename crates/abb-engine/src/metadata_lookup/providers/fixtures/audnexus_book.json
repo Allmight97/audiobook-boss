@@ -1,0 +1,17 @@
+{
+	"asin": "B002V1OF70",
+	"title": "Dune",
+	"subtitle": "Book One of the Dune Chronicles",
+	"authors": [{ "asin": "B000AQ0842", "name": "Frank Herbert" }],
+	"narrators": [{ "name": "Scott Brick" }, { "name": "Orlagh Cassidy" }],
+	"seriesPrimary": { "asin": "B000SERIES", "name": "Dune", "position": "1" },
+	"seriesSecondary": { "asin": "B000SEQUEL", "name": "The Dune Sequence", "position": "Book 12" },
+	"summary": "<p>The short summary.</p>",
+	"description": "<p>The long description.</p>",
+	"releaseDate": "2007-01-30T00:00:00.000Z",
+	"runtimeLengthMin": 1262,
+	"image": "https://m.media-amazon.com/images/I/fixture-cover.jpg",
+	"language": "english",
+	"formatType": "unabridged",
+	"rating": "4.7"
+}

@@ -58,7 +58,10 @@ app, a test, and the `abb-dev` tool drive the same code
 - Online metadata search belongs to `crate::metadata_lookup`. A provider that
   fails while others answer leaves the usable results plus typed diagnostics;
   the search fails only when no selected source can answer
-  (`metadata_lookup/service.rs`).
+  (`metadata_lookup/service.rs`). Reply mapping is pinned by small scrubbed
+  replies in `metadata_lookup/providers/fixtures/`; a fixture holds no account
+  data. The Audible fallback maps its `series` list the way Audnexus does, so
+  a fallback result keeps the book's series.
 - The settings in effect, their validation, storage, and durability belong to
   `crate::app_settings`; it consults runtime owners for accept/reject rules.
 - Remote provider registry, secrets, acquisition, and staged files belong to
