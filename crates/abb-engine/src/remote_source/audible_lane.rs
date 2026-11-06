@@ -14,6 +14,7 @@ impl UiState {
         self.snapshot.account_status = RemoteDraftStatus::Idle;
         self.snapshot.library_status = RemoteDraftStatus::Idle;
         self.snapshot.auth = RemoteAuthStatus::Starting;
+        self.settled_job_line = None;
         Ok(UiAction::StartAuth)
     }
 
@@ -109,6 +110,7 @@ impl UiState {
     pub(super) fn begin_library(&mut self) -> u64 {
         self.library_request += 1;
         self.snapshot.library_status = RemoteDraftStatus::Running;
+        self.settled_job_line = None;
         self.changed();
         self.library_request
     }
@@ -146,6 +148,7 @@ impl UiState {
         self.snapshot.library_status = RemoteDraftStatus::Idle;
         self.sign_in_rejected = false;
         self.snapshot.auth = RemoteAuthStatus::Idle;
+        self.settled_job_line = None;
         self.set_acquisition(|acquisition| acquisition.job = None);
         self.library_loaded(Vec::new());
     }
@@ -203,6 +206,7 @@ impl UiState {
         self.snapshot.account_status = RemoteDraftStatus::Idle;
         self.snapshot.library_status = RemoteDraftStatus::Idle;
         self.snapshot.auth = RemoteAuthStatus::Completing;
+        self.settled_job_line = None;
         Ok(UiAction::CompleteAuth(response_url_handoff_path))
     }
 

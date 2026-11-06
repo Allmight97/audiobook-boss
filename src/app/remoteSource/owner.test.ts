@@ -56,7 +56,7 @@ it('renders acquisition progress from the attached session and Close leaves it r
 		intent: { kind: 'cancelAcquisition', jobId: job.jobId },
 	});
 });
-it('words the engine handoff and keeps Indexer status independent of an Audible result', async () => {
+it('shows the engine line for a settled job and keeps Indexer status independent of it', async () => {
 	const { owner, engine } = await open();
 	engine.change((state) => {
 		state.remoteAcquisition.job = {
@@ -66,6 +66,7 @@ it('words the engine handoff and keeps Indexer status independent of an Audible 
 			status: 'importedToFileList',
 			handoff: { kind: 'imported', count: 2 },
 		};
+		state.remote.audibleMessage = '2 acquired titles imported.';
 	});
 	expect(owner.view().statusMessage).toBe('2 acquired titles imported.');
 	await owner.selectLane('indexer');
@@ -111,6 +112,19 @@ it('passes title, PDF, search, and batch choices as intents while showing engine
 	});
 	expect([...owner.view().selectedTitleIds]).toEqual(['book-1']);
 	expect(owner.view().includePdfByTitleId['book-1']).toBe(false);
+});
+it('shows a running job over the Audible line but not on the Indexer lane', async () => {
+	const { owner, engine } = await open();
+	engine.change((state) => {
+		state.remoteAcquisition.job = job;
+		state.remote.audibleMessage = 'Old line';
+		state.remote.indexer.message = 'Indexer ready';
+	});
+	expect(owner.view().statusMessage).toBe('Downloading audiobook.');
+	engine.change((state) => {
+		state.remote.lane = 'indexer';
+	});
+	expect(owner.view().statusMessage).toBe('Indexer ready');
 });
 it('routes opening and lane selection only through the lane intent', async () => {
 	const { owner, engine } = await open();
@@ -204,13 +218,9 @@ it('routes authentication, library refresh, and disconnect intents and opens the
 		{ kind: 'remote', intent: { kind: 'refreshLibrary' } },
 		{ kind: 'remote', intent: { kind: 'disconnect' } },
 	]);
-	engine.change((state) => {
-		state.remote.auth = { kind: 'awaitingHandoff' };
-	});
 	runtime.dispose();
-	const replacement = await open(engine, openAuthorizationUrl);
+	await open(engine, openAuthorizationUrl);
 	expect(openAuthorizationUrl).toHaveBeenCalledTimes(1);
-	expect(replacement.owner.view().statusMessage).toContain('authorization');
 });
 
 it('does not open a late authorization reply after the runtime is disposed', async () => {
@@ -242,25 +252,6 @@ it('does not open a late authorization reply after the runtime is disposed', asy
 	expect(openAuthorizationUrl).not.toHaveBeenCalled();
 });
 
-it('keeps Audible auth and library failures out of the Indexer lane', async () => {
-	const { engine, owner } = await open();
-	engine.change((state) => {
-		state.remote.lane = 'indexer';
-		state.remote.auth = {
-			kind: 'failed',
-			error: {
-				category: 'resource',
-				message: 'Audible auth failed',
-				code: 'io_error',
-				detail: null,
-			},
-		};
-		state.remote.libraryStatus = { kind: 'running' };
-		state.remote.indexer.message = 'Indexer ready';
-	});
-	expect(owner.view().statusMessage).toBe('Indexer ready');
-});
-
 it('clears a previous frontend account-read failure when reopening retries the lane intent', async () => {
 	const { owner, engine } = await open();
 	engine.respond = () => ({
@@ -277,39 +268,4 @@ it('clears a previous frontend account-read failure when reopening retries the l
 	engine.respond = () => undefined;
 	await owner.open();
 	expect(owner.view().statusMessage).toBe('');
-});
-
-it('keeps an ephemeral sign-in warning visible after Audible and Indexer are connected', async () => {
-	const warning = "Sign-in won't be remembered after a restart.";
-	const { owner, engine } = await open();
-	engine.change((state) => {
-		state.remote.account = {
-			providerId: 'audible',
-			status: 'connected',
-			account: {
-				providerId: 'audible',
-				accountId: 'audible-us',
-				displayName: 'Listener',
-			},
-			message: warning,
-		};
-		state.remote.libraryStatus = { kind: 'succeeded' };
-	});
-	expect(owner.view().statusMessage).toBe(`0 Audible titles loaded. ${warning}`);
-
-	engine.change((state) => {
-		state.remote.lane = 'indexer';
-		state.remote.account = {
-			providerId: 'indexer',
-			status: 'connected',
-			account: {
-				providerId: 'indexer',
-				accountId: 'indexer',
-				displayName: 'http://indexer.test',
-			},
-			message: warning,
-		};
-		state.remote.indexer.message = 'Indexer ready';
-	});
-	expect(owner.view().statusMessage).toBe(`Indexer ready ${warning}`);
 });

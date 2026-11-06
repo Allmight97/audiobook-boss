@@ -1,49 +1,4 @@
-import { toUserMessage } from '../../lib/tauri/appError';
 import type { AcquisitionJob, AcquisitionProgress, RemoteTitle } from '../../types/remoteSource';
-
-export type RemoteSourceDiagnostic = AcquisitionJob['diagnostics'][number];
-
-const STAGED_FILES_REMOVED_SUFFIX = 'Staged remote files were removed.';
-
-export function handoffMessage(job: AcquisitionJob): string | null {
-	const handoff = job.handoff;
-	if (!handoff) {
-		if (job.status === 'failed' || job.status === 'cancelled') return null;
-		return (
-			uniqueDiagnosticMessage(job.diagnostics) ||
-			'Audible acquisition did not materialize an importable file.'
-		);
-	}
-	if (handoff.kind === 'imported') {
-		return `${handoff.count} acquired title${handoff.count === 1 ? '' : 's'} imported.`;
-	}
-	const reason = handoff.reason;
-	switch (reason.kind) {
-		case 'importFailed':
-			return `${toUserMessage(reason.error)} ${STAGED_FILES_REMOVED_SUFFIX}`;
-		case 'nothingAdded':
-			return `Acquired titles were not added to the input session. ${STAGED_FILES_REMOVED_SUFFIX}`;
-	}
-}
-
-export function uniqueDiagnosticMessage(diagnostics: RemoteSourceDiagnostic[]): string {
-	const uniqueMessages: string[] = [];
-	const seenMessages = new Set<string>();
-	for (const diagnostic of diagnostics) {
-		const message = diagnostic.message.trim();
-		if (!message || seenMessages.has(message)) continue;
-		seenMessages.add(message);
-		uniqueMessages.push(message);
-	}
-	return uniqueMessages.join(' ');
-}
-
-export function statusFromAcquisitionJob(job: AcquisitionJob): string {
-	const diagnostics = uniqueDiagnosticMessage(job.diagnostics);
-	if (job.progress?.terminal && diagnostics) return diagnostics;
-	if (job.progress?.message) return job.progress.message;
-	return diagnostics || 'Audible acquisition is running.';
-}
 
 export function progressPercent(job: AcquisitionJob): number {
 	return Math.max(0, Math.min(100, job.progress?.percentage ?? 0));

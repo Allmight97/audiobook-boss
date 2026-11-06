@@ -124,8 +124,7 @@ pub struct IndexerWorkSnapshot {
     pub message: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RemoteAuthStatus {
     Idle,
     Starting,
@@ -151,8 +150,11 @@ pub struct RemoteUiSnapshot {
     pub lane: ProviderId,
     pub providers: Vec<super::RemoteSourceProviderCapabilities>,
     pub account: Option<super::RemoteSourceAccountState>,
+    #[serde(skip)]
     pub account_status: RemoteDraftStatus,
+    #[serde(skip)]
     pub auth: RemoteAuthStatus,
+    #[serde(skip)]
     pub library_status: RemoteDraftStatus,
     pub selected_title_ids: Vec<String>,
     pub include_pdf_by_title_id: BTreeMap<String, bool>,
@@ -160,6 +162,8 @@ pub struct RemoteUiSnapshot {
     pub connection: IndexerDraftSnapshot,
     /// The shown lane refuses new work now; hosts disable its actions.
     pub busy: bool,
+    /// The Audible lane's status line while no job is running.
+    pub audible_message: String,
 }
 
 pub(super) struct UiState {
@@ -171,6 +175,7 @@ pub(super) struct UiState {
     /// Audible refused the saved sign-in; the account shows NeedsAuth until
     /// a sign-in or disconnect, whatever a later keychain read says.
     sign_in_rejected: bool,
+    settled_job_line: Option<String>,
     api_key: Option<String>,
     edit_revision: u64,
     connection_loading: bool,
@@ -212,12 +217,14 @@ impl Default for UiState {
                     test_result: None,
                 },
                 busy: false,
+                audible_message: String::new(),
             }),
             library: parts::Part::default(),
             acquisition: parts::Part::default(),
             account_request: 0,
             disconnecting: false,
             sign_in_rejected: false,
+            settled_job_line: None,
             api_key: None,
             edit_revision: 0,
             connection_loading: false,
@@ -905,6 +912,9 @@ mod parts;
 
 #[path = "audible_lane.rs"]
 mod audible_lane;
+
+#[path = "lane_status.rs"]
+mod lane_status;
 
 #[path = "indexer_save.rs"]
 mod indexer_save;

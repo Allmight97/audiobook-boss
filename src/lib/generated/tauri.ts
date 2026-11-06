@@ -913,8 +913,6 @@ export type RemoteAuthStartResponse = {
 	message: string,
 };
 
-export type RemoteAuthStatus = { kind: "idle" } | { kind: "starting" } | { kind: "awaitingHandoff" } | { kind: "completing" } | { kind: "failed"; error: AppErrorEnvelope };
-
 export type RemoteDraftStatus = { kind: "idle" } | { kind: "running" } | { kind: "succeeded" } | { kind: "failed"; error: AppErrorEnvelope };
 
 export type RemoteIndexerConnectionTestResult = {
@@ -1002,15 +1000,14 @@ export type RemoteUiSnapshot = {
 	lane: ProviderId,
 	providers: RemoteSourceProviderCapabilities[],
 	account: RemoteSourceAccountState | null,
-	accountStatus: RemoteDraftStatus,
-	auth: RemoteAuthStatus,
-	libraryStatus: RemoteDraftStatus,
 	selectedTitleIds: string[],
 	includePdfByTitleId: { [key in string]: boolean },
 	indexer: IndexerWorkSnapshot,
 	connection: IndexerDraftSnapshot,
 	/**  The shown lane refuses new work now; hosts disable its actions. */
 	busy: boolean,
+	/**  The Audible lane's status line while no job is running. */
+	audibleMessage: string,
 };
 
 export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer" | "metadataWrite" | "outputCommit" | "analysis";

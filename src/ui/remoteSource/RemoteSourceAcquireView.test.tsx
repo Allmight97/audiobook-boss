@@ -77,7 +77,6 @@ async function openConnected(
 		state.remote.lane = lane;
 		state.remote.providers = providerCapabilities();
 		state.remote.account = { providerId: lane, status: 'connected' };
-		state.remote.libraryStatus = { kind: 'succeeded' };
 		state.remoteLibrary.titles = [remoteTitle()];
 	});
 	await runtime.remoteSource.open({ lane });
@@ -253,7 +252,6 @@ describe('RemoteSourceAcquireView', () => {
 		fakeEngine().change((state) => {
 			state.remote.providers = providerCapabilities();
 			state.remote.account = { providerId: 'audible', status: 'needsAuth' };
-			state.remote.auth = { kind: 'starting' };
 			state.remote.busy = true;
 		});
 		await runtime.remoteSource.open();
@@ -264,15 +262,7 @@ describe('RemoteSourceAcquireView', () => {
 		});
 		flush();
 		fakeEngine().change((state) => {
-			state.remote.auth = {
-				kind: 'failed',
-				error: {
-					category: 'io',
-					code: 'io_error',
-					message: 'Authorization failed; retry.',
-					detail: null,
-				},
-			};
+			state.remote.audibleMessage = 'Authorization failed; retry.';
 			state.remote.busy = false;
 		});
 		flush();
@@ -422,7 +412,6 @@ describe('RemoteSourceAcquireView during a download', () => {
 			state.remote.lane = 'audible';
 			state.remote.providers = providerCapabilities();
 			state.remote.account = { providerId: 'audible', status: 'connected' };
-			state.remote.libraryStatus = { kind: 'succeeded' };
 			state.remote.selectedTitleIds = [titles[1].titleId];
 			state.remote.includePdfByTitleId = Object.fromEntries(
 				titles.map((title) => [title.titleId, title.supplementalPdfAvailable]),

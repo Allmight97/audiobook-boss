@@ -116,6 +116,14 @@ selection change. Snapshot `terminal` and `settled` facts belong here.
   title and PDF choices; `indexer_save.rs` owns the Indexer Save and Reset
   effects on the draft. Accepted runs execute on `EngineTasks`
   through the session, whether or not a host awaits the reply.
+- `lane_status.rs` words each lane's status line, called in `UiState::snapshot`
+  as `busy` is. `audibleMessage` is a pure ladder over auth, account, library,
+  and `settled_job_line`, the one ordering fact: a job's line stays until a
+  library load, a sign-in, or a disconnect replaces it, and only the settle
+  writes it. A running job's text stays on the acquisition part. On the Indexer
+  lane the snapshot's `indexer.message` adds the account failure and connected
+  note to the stored last-event line. `auth`, `accountStatus`, and
+  `libraryStatus` are engine inputs and never reach the wire.
 - SelectLane reads the selected account and, for connected Audible outside an
   acquisition/handoff, its library; repeated entry coalesces pending reads.
   Account and library requests carry generations: replaced lanes and accepted

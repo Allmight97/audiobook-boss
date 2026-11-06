@@ -31,27 +31,20 @@ export type AcquisitionState = {
 	statusMessage: string;
 };
 
-export type RemoteSourceState = Omit<AcquisitionState, 'statusMessage'> & {
-	isOpen: boolean;
-	statusByProvider: Record<ProviderId, string>;
-};
-
-export type RemoteSourceView = Omit<RemoteSourceState, 'statusByProvider'> & {
-	statusMessage: string;
-};
+export type RemoteSourceView = AcquisitionState & { isOpen: boolean };
 
 type EngineFields =
 	| 'isBusy'
 	| 'providerId'
 	| 'providers'
 	| 'accountState'
-	| 'statusByProvider'
+	| 'statusMessage'
 	| 'selectedTitleIds'
 	| 'includePdfByTitleId'
 	| 'releases'
 	| 'selectedReleaseKeys'
 	| 'releaseGrabs';
-export type RemoteSourceLocalState = Omit<RemoteSourceState, EngineFields>;
+export type RemoteSourceLocalState = Omit<RemoteSourceView, EngineFields>;
 export type RemoteSourcePatch = Partial<RemoteSourceLocalState>;
 export function createInitialRemoteSourceState(): RemoteSourceLocalState {
 	return {
@@ -65,9 +58,4 @@ export function createInitialRemoteSourceState(): RemoteSourceLocalState {
 		releaseSort: 'seeders',
 		isOpen: false,
 	};
-}
-
-export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourceView {
-	const { statusByProvider, ...view } = state;
-	return { ...view, statusMessage: statusByProvider[state.providerId] };
 }

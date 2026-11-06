@@ -130,13 +130,13 @@ without a bullet has none. Engine paths name the owner of the truth.
   form shows the engine's default connection. Close
   leaves accepted work running. Disposal invalidates pending
   authorization-browser replies. An authorization URL occurs only in the
-  initiating intent outcome; snapshots never reopen a browser. Render
-  `settled` and `handoff` facts and infer no terminal precedence. `isBusy` is
-  the engine's `remote.busy`; no busy rule lives here. Status stays
-  with its originating provider, and a new request refusal shows even when an
-  older job has a retained message. A connected account message stays on the
-  idle status line, including after the library loads, so an ephemeral sign-in
-  stays visible. Filtering and sorting keep the engine's
+  initiating intent outcome; snapshots never reopen a browser. The
+  status line is a local refusal, else a running job's progress message, else
+  the lane's engine line (`remote.audibleMessage`, `remote.indexer.message`);
+  the engine orders every other state. `isBusy` is the engine's `remote.busy`;
+  no busy rule lives here. Status stays with its originating provider, and a
+  new request refusal shows even when an older job has a retained message.
+  Filtering and sorting keep the engine's
   selection. Release rows key on `(indexerId, guid)`, including Grab and Retry.
   Sent means the provider accepted, not that the download finished. `view()`
   changes with every remote update, a download tick included; the other

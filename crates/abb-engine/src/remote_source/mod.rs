@@ -16,7 +16,7 @@ mod ui;
 const AUTH_REGISTRATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 pub use ui::{
     IndexerDraftSnapshot, IndexerWorkSnapshot, ReleaseGrabSnapshot, ReleaseGrabStatus,
-    RemoteAuthStatus, RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiIntent, RemoteUiSnapshot,
+    RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiIntent, RemoteUiSnapshot,
 };
 pub(crate) use ui::{RemoteUiResult, RemoteUiRun};
 mod vault;

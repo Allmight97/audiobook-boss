@@ -1,5 +1,5 @@
 use super::{
-    ProviderId, RemoteAcquisitionSnapshot, RemoteAuthStatus, RemoteDraftStatus,
+    lane_status, ProviderId, RemoteAcquisitionSnapshot, RemoteAuthStatus, RemoteDraftStatus,
     RemoteLibrarySnapshot, RemoteUiSnapshot,
 };
 use crate::host::EngineEvent;
@@ -80,10 +80,15 @@ impl<T> std::ops::DerefMut for Part<T> {
 
 impl super::UiState {
     pub(in crate::remote_source) fn snapshot(&self) -> RemoteUiSnapshot {
-        RemoteUiSnapshot {
-            busy: self.lane_busy(),
-            ..(*self.snapshot).clone()
+        let remote = &*self.snapshot;
+        let mut snapshot = remote.clone();
+        snapshot.busy = self.lane_busy();
+        snapshot.audible_message =
+            lane_status::audible_message(remote, &self.library, self.settled_job_line.as_deref());
+        if remote.lane == ProviderId::Indexer {
+            snapshot.indexer.message = lane_status::indexer_message(remote);
         }
+        snapshot
     }
     pub(super) fn changed(&mut self) {
         self.snapshot.bump();
@@ -132,6 +137,14 @@ impl super::UiState {
         {
             self.reject_sign_in();
             self.changed();
+        }
+        let already_settled = self
+            .acquisition
+            .job
+            .as_ref()
+            .is_some_and(|known| known.settled && known.job_id == job.job_id);
+        if job.settled() && !already_settled {
+            self.settled_job_line = Some(lane_status::settled_job_line(&job));
         }
         self.set_acquisition(|acquisition| acquisition.job = Some(Box::new(job.into())));
         let remote_moved = self.snapshot.current() != remote_before;

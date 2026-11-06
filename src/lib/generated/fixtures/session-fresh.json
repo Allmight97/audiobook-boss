@@ -447,12 +447,7 @@
   },
   "remote": {
     "account": null,
-    "accountStatus": {
-      "kind": "idle"
-    },
-    "auth": {
-      "kind": "idle"
-    },
+    "audibleMessage": "",
     "busy": false,
     "connection": {
       "apiKeyConfigured": false,
@@ -482,9 +477,6 @@
       "selectedReleaseKeys": []
     },
     "lane": "audible",
-    "libraryStatus": {
-      "kind": "idle"
-    },
     "providers": [
       {
         "label": "Audible",

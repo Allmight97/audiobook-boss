@@ -6,6 +6,10 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- After a finished Audible download, the status line now shows later library
+  loads and failures, sign-in guidance, and the sign-in warning instead of
+  keeping the old download result. A running download also shows its progress
+  over an older sign-in or account failure.
 - With an MP3 title anywhere in a selection, Audio handling no longer offers
   User Preference, and the Auto sample rate and channels options no longer read
   "Differs by title" when only some of the selected titles use Auto.

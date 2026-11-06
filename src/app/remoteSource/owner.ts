@@ -15,7 +15,7 @@ import {
 	visibleRemoteReleases,
 	visibleRemoteTitles,
 } from './selection';
-import type { ReleaseGrabState, RemoteSourceState, RemoteSourceView } from './types';
+import type { ReleaseGrabState, RemoteSourceView } from './types';
 
 export type RemoteSourceAction =
 	| { readonly type: 'startAuth' | 'completeAuth' | 'logout' | 'loadLibrary' }
@@ -43,7 +43,7 @@ function accountIntent(
 
 function actionIntent(
 	action: RemoteSourceAction,
-	view: RemoteSourceState,
+	view: RemoteSourceView,
 	job: AcquisitionJob | null,
 ): RemoteUiIntent | null {
 	switch (action.type) {
@@ -138,7 +138,6 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 	const state = createRemoteSourceStateStore(
 		() => bumpView((revision) => revision + 1),
 		() => deps.link.remote(),
-		() => deps.link.remoteLibrary(),
 		() => deps.link.remoteAcquisition(),
 	);
 	const indexerConnection = createIndexerConnectionSettings(deps.link);
