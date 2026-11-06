@@ -184,6 +184,22 @@ describe('metadata lookup dialog', () => {
 		});
 	});
 
+	it.each([
+		['auto', 'No online matches found across Audnexus and OpenLibrary.'],
+		['audnexus', 'No online matches found on Audnexus.'],
+		['openlibrary', 'No online matches found on OpenLibrary.'],
+	] as const)('words an empty %s search by the sources it searched', async (source, line) => {
+		await openLookupOverTwoTitles({
+			lookupOpen: queued(0, {
+				source,
+				results: [],
+				status: { kind: 'found', count: 0, partial: false, after: null },
+			}),
+		});
+
+		await waitFor(() => expect(document.body.textContent ?? '').toContain(line));
+	});
+
 	it('shows a failed search as a failure, not as no matches', async () => {
 		await openLookupOverTwoTitles({
 			lookupOpen: queued(0, {
