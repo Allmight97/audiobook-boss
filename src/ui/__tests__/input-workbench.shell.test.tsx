@@ -424,11 +424,11 @@ describe('Solid input workbench', () => {
 		engine.respond = (intent) => {
 			if (intent.kind !== 'applyDefaultAudio') return undefined;
 			engine.change((state) => {
-				state.titles.audioChoiceRequired = [];
+				state.audio.titles[files[0].path].plan = { kind: 'pending' };
 			});
 			return { kind: 'applied' };
 		};
-		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0])).toBe(true));
+		await waitFor(() => expect(runtime!.encoding.plan(files[0]).kind).toBe('choiceRequired'));
 		const indicator = screen.getByRole('button', {
 			name: 'Audio plan for part1.mp3',
 		});
@@ -438,7 +438,7 @@ describe('Solid input workbench', () => {
 		expect(popup.parentElement).toBe(document.body);
 		await user.click(indicator);
 		await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
-		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0])).toBe(false));
+		await waitFor(() => expect(runtime!.encoding.plan(files[0]).kind).not.toBe('choiceRequired'));
 		expect(engine.sessionIntents).toContainEqual({
 			kind: 'applyDefaultAudio',
 			titleIds: [files[0].path],

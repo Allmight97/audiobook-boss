@@ -277,15 +277,15 @@ fn grouping_titles_with_different_audio_choices_requires_an_explicit_choice() {
     set.set_audio_request("b", request(AudioIntent::Preserve));
     set.select_all();
     assert!(set.group_selected());
-    assert_eq!(set.titles(0).audio_choice_required, ["a"]);
+    assert_eq!(set.audio_choice_required(), ["a"]);
 
     set.set_audio_request("a", request(AudioIntent::Encode));
-    assert!(set.titles(0).audio_choice_required.is_empty());
+    assert!(set.audio_choice_required().is_empty());
 
     let mut same = set_with(&["a", "b"]);
     same.select_all();
     assert!(same.group_selected());
-    assert!(same.titles(0).audio_choice_required.is_empty());
+    assert!(same.audio_choice_required().is_empty());
 }
 
 #[test]
@@ -502,7 +502,7 @@ proptest! {
             // Group records and pending audio choices exist only for loaded titles.
             let ids: HashSet<&str> = snapshot.files.iter().map(|f| f.input_id.as_str()).collect();
             prop_assert!(snapshot.title_sources_by_identity.keys().all(|id| ids.contains(id.as_str())));
-            prop_assert!(snapshot.audio_choice_required.iter().all(|id| ids.contains(id.as_str())));
+            prop_assert!(set.audio_choice_required().iter().all(|id| ids.contains(id.as_str())));
         }
     }
 }

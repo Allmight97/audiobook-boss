@@ -30,8 +30,7 @@ export function AudioHandlingControl(props: {
 		const current = resolved();
 		return current.kind === 'failed' ? current.message : '';
 	};
-	const needsChoice = () =>
-		runtime.input.audioChoiceRequired(props.file) || resolved().kind === 'choiceRequired';
+	const needsChoice = () => resolved().kind === 'choiceRequired';
 	const kept = () => plan()?.handling === 'preserve';
 	const guidanceId = () => `audio-plan-${props.index}`;
 	const format = () =>

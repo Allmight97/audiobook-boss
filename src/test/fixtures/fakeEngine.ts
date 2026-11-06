@@ -337,7 +337,14 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				...titles.titleSourcesByIdentity,
 				[id]: sources,
 			};
-			if (options.choiceRequired) titles.audioChoiceRequired = [...titles.audioChoiceRequired, id];
+			if (options.choiceRequired)
+				state.audio.titles = {
+					...state.audio.titles,
+					[id]: {
+						...(state.audio.titles[id] ?? titleFromDefaults()),
+						plan: { kind: 'choiceRequired' },
+					},
+				};
 			select([titles.files.findIndex((file) => file.path === anchor.path)]);
 			publish();
 		},

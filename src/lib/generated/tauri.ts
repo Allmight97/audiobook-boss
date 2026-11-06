@@ -1356,8 +1356,6 @@ export type TitlesSnapshot = {
 	files: AudioFile[],
 	/**  Ordered sources for grouped titles, keyed by the title's identity. */
 	titleSourcesByIdentity: { [key in string]: AudioFile[] },
-	/**  Grouped titles whose sources disagreed on audio handling. */
-	audioChoiceRequired: string[],
 	/**  What each title sends to the output, keyed by the title's identity. */
 	titleTotals: { [key in string]: TitleTotals },
 	/**  Bytes of every valid source in the list. */

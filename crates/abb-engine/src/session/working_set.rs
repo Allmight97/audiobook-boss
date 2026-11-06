@@ -81,8 +81,6 @@ pub struct TitlesSnapshot {
     pub files: Vec<AudioFile>,
     /// Ordered sources for grouped titles, keyed by the title's identity.
     pub title_sources_by_identity: BTreeMap<String, Vec<AudioFile>>,
-    /// Grouped titles whose sources disagreed on audio handling.
-    pub audio_choice_required: Vec<String>,
     /// What each title sends to the output, keyed by the title's identity.
     pub title_totals: BTreeMap<String, TitleTotals>,
     /// Bytes of every valid source in the list.
@@ -134,7 +132,6 @@ impl WorkingSet {
             revision,
             files: self.files.clone(),
             title_sources_by_identity: self.title_sources.clone(),
-            audio_choice_required: self.audio_choice_required.clone(),
             title_totals: totals.by_title,
             total_size_bytes: totals.total_size_bytes,
             preview_length: totals.preview_length,

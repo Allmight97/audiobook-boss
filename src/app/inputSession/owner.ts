@@ -21,7 +21,6 @@ export type InputOwner = {
 	groupSelected: () => void;
 	ungroup: (file: AudioFile) => void;
 	reorderSources: (file: AudioFile, from: number, to: number) => void;
-	audioChoiceRequired: (file: AudioFile) => boolean;
 	hasCompanions: (inputId: string | undefined) => boolean;
 	companionSummary: (inputIds: ReadonlyArray<string | undefined>) => CompanionSummary;
 	/** Resolves once the picker closes and the import is sent, before it lands. */
@@ -133,9 +132,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	return {
 		sourcesFor,
 		totalsFor,
-		audioChoiceRequired(file) {
-			return link.titles().audioChoiceRequired.includes(fileIdentityKey(file));
-		},
 		hasCompanions(inputId) {
 			return Boolean(inputId && link.titles().companions[inputId]?.length);
 		},
