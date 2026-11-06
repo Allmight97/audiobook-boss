@@ -74,6 +74,7 @@ pub struct Normalizer {
 }
 
 const MACHINE_JOBS: u64 = 4;
+const IO_ERROR_MESSAGE: &str = "IO operation failed: <operating system error>";
 
 impl Normalizer {
     pub fn new(root: &Path) -> Self {
@@ -148,8 +149,13 @@ impl Normalizer {
 
 /// `aac_at` exists only in a macOS FFmpeg, so the recorded availability is
 /// pinned to what the owner's Mac reports. The automatic job count follows
-/// the machine's cores.
+/// the machine's cores. The operating system words an I/O error ("File
+/// exists", its error number) differ per platform, so they are replaced.
 fn pin_machine_values(map: &mut Map<String, Value>) {
+    if map.get("code") == Some(&Value::from("io_error")) && map.contains_key("detail") {
+        map.insert("detail".into(), Value::from(""));
+        map.insert("message".into(), Value::from(IO_ERROR_MESSAGE));
+    }
     if map.contains_key("aacAtAvailable") {
         map.insert("aacAtAvailable".into(), Value::Bool(true));
     }

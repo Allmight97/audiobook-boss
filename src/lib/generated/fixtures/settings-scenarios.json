@@ -706,8 +706,8 @@
           "saveError": {
             "category": "io",
             "code": "io_error",
-            "detail": "File exists (os error 17)",
-            "message": "IO operation failed: File exists (os error 17)"
+            "detail": "",
+            "message": "IO operation failed: <operating system error>"
           },
           "settings": {
             "aacDecoder": "auto",
@@ -814,8 +814,8 @@
           "saveError": {
             "category": "io",
             "code": "io_error",
-            "detail": "File exists (os error 17)",
-            "message": "IO operation failed: File exists (os error 17)"
+            "detail": "",
+            "message": "IO operation failed: <operating system error>"
           },
           "settings": {
             "aacDecoder": "auto",
