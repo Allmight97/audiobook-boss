@@ -47,9 +47,11 @@ simpler design.
   contract change updates its owner, callers, and focused proof; pause when a
   consequential choice or data-loss risk is unresolved.
 - Working-session and settings truth live in `abb-engine`, and new product
-  rules go there. Hosts and the frontend send intents and render snapshots; a
-  rule added there would be rewritten for every future host. Tiers:
-  `crates/AGENTS.md`.
+  rules go there. The Tauri host and the frontend send intents and render
+  snapshots; a rule added there is a second copy no engine test can prove.
+  Tiers: `crates/AGENTS.md`.
+- ABB ships one Tauri host and this UI, for macOS and Linux. Windows users run
+  it under WSL. No native UI is planned.
 - The engine builds metadata intent from the session's field edits;
   `crate::metadata` and `abb-metadata-core` validate and normalize it.
 - Greenfield: internal payloads and aliases change freely. Interoperability
@@ -58,6 +60,9 @@ simpler design.
   with typed diagnostics; hard-fail when the selected contract cannot be met.
   Every IPC, metadata, path, and lifecycle boundary behaves explicitly, with
   no silent or caller-side substitute.
+- A failure never disappears. When ABB cannot do what the user asked or tried,
+  the user sees a signal. A failure with no user action behind it reaches a log
+  or diagnostic, so it can be fixed or designed away.
 
 ## Environment
 
@@ -104,10 +109,12 @@ runs; their commands live only in `verify.sh`.
   carry it.
 - Public API Strip tests list their expected surface by hand, independent of
   the registries and generated sources they guard.
-- Report pre-existing dead code and suspicious seams with evidence; fix them in
-  the same change only inside the active owner and when they affect its
-  invariant or proof. Fix trivial mechanical drift and name it. Classify the
-  rest `fix` or `reject` with impact and owner.
+- Delete dead code when you find it, whatever its age or owner: production code
+  nothing in production reaches, including code only tests reach. Keep it only
+  when removal breaks something, and name what. Report each deletion and why in
+  one line. Why: kept code costs every later reader, and its tests prove nothing.
+- Report suspicious seams with evidence and classify each `fix` or `reject` with
+  impact and owner. Fix trivial mechanical drift and name it.
 
 ## Testing And Proof
 
