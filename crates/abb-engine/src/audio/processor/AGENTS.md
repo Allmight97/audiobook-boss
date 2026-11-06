@@ -17,7 +17,7 @@ execution pipeline. Final artifact commit policy lives in `output_artifact/`.
   cached import validity does not authorize reopening a replaced path. Compare
   the inspected size/modified-time fingerprint against the opened source handle
   before creating the staged copy.
-- `preserve_merge` owns compatibility and packet-copy joining of AAC or MP3
+- `preserve_merge` owns compatibility and packet-copy joining of AAC
   titles: matching configuration/rate/channels/time base, complete contiguous
   frames, and no per-source priming/trimming. Unsupported joins fail explicitly
   without falling back to an encoder. Preflight scans timing; execution repeats

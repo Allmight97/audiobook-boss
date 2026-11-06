@@ -101,7 +101,6 @@ pub struct AudioChoiceFacts {
     pub effective_encoder: EncoderType,
     pub encoder_options: Vec<EncoderOption>,
     pub encoder_locked: bool,
-    pub encode_offered: bool,
     pub downmix_warning: bool,
     pub bitrate_mode: BitrateMode,
     pub bitrate_kbps_min: u16,
@@ -133,9 +132,7 @@ impl AudioChoice {
 
     pub(crate) fn for_title(&self, request: &TitleAudioRequest) -> Self {
         let mut choice = self.clone();
-        if let Some(settings) = request.output.encoder_settings() {
-            choice.take_settings(settings);
-        }
+        choice.take_settings(request.output.encoder_settings());
         choice.format = request.format();
         choice.intent = request.intent;
         choice.sample_rate = request.sample_rate;
@@ -234,24 +231,8 @@ impl AudioChoice {
 
     fn apply(&mut self, edit: AudioEdit, caps: Option<&EncoderSettingsCapabilities>) -> EditResult {
         match edit {
-            AudioEdit::Format(format) => {
-                let same = self.format == format;
-                self.format = format;
-                if format == AudiobookFormat::Mp3 {
-                    self.intent = AudioIntent::Preserve;
-                }
-                if same {
-                    EditResult::Same
-                } else {
-                    EditResult::Changed
-                }
-            }
-            AudioEdit::Intent(intent) => {
-                if self.format == AudiobookFormat::Mp3 && intent == AudioIntent::Encode {
-                    return EditResult::Refused;
-                }
-                set(&mut self.intent, intent)
-            }
+            AudioEdit::Format(format) => set(&mut self.format, format),
+            AudioEdit::Intent(intent) => set(&mut self.intent, intent),
             AudioEdit::Encoder(encoder) => {
                 let available = encoder_available(encoder, caps);
                 if encoder == EncoderType::Opus || !available {
@@ -453,7 +434,6 @@ impl AudioChoice {
                     .collect()
             }),
             encoder_locked: self.format.is_opus() || caps.is_none(),
-            encode_offered: self.format != AudiobookFormat::Mp3,
             downmix_warning: false,
             bitrate_mode,
             bitrate_kbps_min: config.map_or(1, |config| config.bitrate_kbps_min),

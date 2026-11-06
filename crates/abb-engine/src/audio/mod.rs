@@ -174,8 +174,7 @@ pub(crate) use settings::{
 pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
     if !file.is_valid || !file.preservation.is_some_and(|value| value.can_preserve) {
         return Err(AppError::InvalidInput(
-            "Source audio is not a supported AAC, MP3, or Opus container for preservation."
-                .to_string(),
+            "Source audio is not a supported AAC or Opus container for preservation.".to_string(),
         ));
     }
     Ok(())

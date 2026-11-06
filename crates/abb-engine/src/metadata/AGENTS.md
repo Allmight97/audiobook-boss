@@ -84,8 +84,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Cover intent comes only from cover actions (load, drop, clear). A text edit
   or Lookup apply that keeps the cover leaves cover intent absent, so a save
   does not rewrite unchanged art.
-- Processed outputs carry the album sort (the ID3 `TSOA` frame in MP3, the
-  sort-album atom in the MP4 family) from `processing_album_sort`:
+- Processed outputs carry the album sort (the sort-album atom in the MP4
+  family, `SORT_ALBUM` in Matroska) from `processing_album_sort`:
   derived from series, book # and title when possible (fractions kept, so
   novellas sort between books), else the source's own; explicit album-sort
   intent wins. Every processing route takes it from `plan_metadata_outcome`

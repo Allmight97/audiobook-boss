@@ -16,7 +16,7 @@ async fn preserve_registration_accepts_supported_extensions() {
     let existing = temp_dir.path().join(".audiobook_boss_write_test");
     std::fs::write(&existing, b"existing library file").expect("existing file");
     let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(1));
-    for extension in ["m4b", "m4a", "mp3"] {
+    for extension in ["m4b", "m4a", "mka"] {
         let output = temp_dir.path().join(format!("output.{extension}"));
         let registered =
             register_job_and_validate_output(&registry, &output, None, log_context(), true)

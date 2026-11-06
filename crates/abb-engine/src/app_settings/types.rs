@@ -251,9 +251,7 @@ impl ConcurrencyPreference {
 
 impl EncoderDefaults {
     pub(super) fn validate(&mut self) -> Result<()> {
-        if self.format != AudiobookFormat::Mp3
-            && self.format.is_opus() != (self.settings.encoder_type == EncoderType::Opus)
-        {
+        if self.format.is_opus() != (self.settings.encoder_type == EncoderType::Opus) {
             return Err(AppError::InvalidInput(
                 "The default encoder must match the selected output format.".into(),
             ));

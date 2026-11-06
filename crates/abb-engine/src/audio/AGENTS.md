@@ -121,12 +121,11 @@ chapters.
 ## Title Audio Plan
 
 `output_plan` resolves one output format and audio intent per title. M4B/AAC is
-the default; MP3 is packet pass-through; Opus supports M4A (MP4 muxer) and MKA.
+the default; Opus supports M4A (MP4 muxer) and MKA. MP3 is an input only: an
+MP3 source always converts, and Explicit Preserve refuses it.
 Auto copies joinable, matching audio when every source has a known bitrate at or
 below `COMPACT_AUDIO_MAX_BITRATE`; otherwise it plans encoding. Explicit Preserve
-always copies. MP3 output stays copy-only
-regardless of bitrate: it has no encoder route and rejects incompatible copy
-boundaries. Strict source/packet validation applies to every copy. Default M4B
+always copies. Strict source/packet validation applies to every copy. Default M4B
 encoding uses the built-in AAC defaults (NMR 65 kbps target, source channels and
 automatic rate), independent of saved user preferences. Explicit Encode applies
 the settings.

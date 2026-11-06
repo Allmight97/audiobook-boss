@@ -41,9 +41,8 @@ fn connection(url: &str, categories: &[u32]) -> IndexerConnection {
     }
 }
 
-fn mp3_defaults() -> EncoderDefaults {
+fn kept_audio_defaults() -> EncoderDefaults {
     EncoderDefaults {
-        format: AudiobookFormat::Mp3,
         intent: AudioIntent::Preserve,
         ..EncoderDefaults::default()
     }
@@ -117,7 +116,7 @@ impl Drop for Rig {
 fn a_launch_starts_from_pinned_defaults_only_when_chosen_and_pinned() {
     let pinned = PinnedDefaults {
         max_concurrent_jobs: ConcurrencyPreference::Fixed(2),
-        encoder_defaults: mp3_defaults(),
+        encoder_defaults: kept_audio_defaults(),
         output_defaults: output_in("/pinned"),
     };
     let last_used = AppSettings {
@@ -383,7 +382,7 @@ async fn retry_writes_the_newest_accepted_defaults() {
     rig.send(remember_output("/first")).await;
     let reply = rig
         .send(SettingsIntent::Remember {
-            encoder_defaults: Some(mp3_defaults()),
+            encoder_defaults: Some(kept_audio_defaults()),
             output_defaults: Some(output_in("/second")),
             default_acquisition_lane: Some(AcquisitionLane::Indexer),
         })
@@ -400,7 +399,7 @@ async fn retry_writes_the_newest_accepted_defaults() {
     assert!(reply.snapshot.save_error.is_none());
     let saved = rig.on_disk();
     assert_eq!(saved.output_defaults, output_in("/second"));
-    assert_eq!(saved.encoder_defaults, mp3_defaults());
+    assert_eq!(saved.encoder_defaults, kept_audio_defaults());
     assert_eq!(saved.default_acquisition_lane, AcquisitionLane::Indexer);
 }
 
@@ -481,7 +480,7 @@ async fn pinning_captures_the_current_defaults() {
 #[tokio::test]
 async fn pinning_after_a_pinned_launch_keeps_the_defaults_on_screen() {
     let rig = start_with(AppSettingsPatch {
-        encoder_defaults: Some(mp3_defaults()),
+        encoder_defaults: Some(kept_audio_defaults()),
         output_defaults: Some(output_in("/last-used")),
         startup_behavior: Some(StartupBehavior::PinnedDefaults),
         pinned_defaults: Some(PinnedDefaults {

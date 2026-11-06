@@ -90,7 +90,6 @@ function EncoderPanel(props: {
 							</option>
 						</Show>
 						<option value="m4b">M4B · AAC</option>
-						<option value="mp3">MP3</option>
 						<option value="m4aOpus">M4A · Opus</option>
 						<option value="mkaOpus">MKA · Opus</option>
 					</select>
@@ -109,22 +108,13 @@ function EncoderPanel(props: {
 						</Show>
 						<option value="auto">Default</option>
 						<option value="preserve">Keep original audio</option>
-						<option value="encode" disabled={!view().encodeOffered}>
-							User Preference
-						</option>
+						<option value="encode">User Preference</option>
 					</select>
 				</div>
 				<Show when={mixed('format')}>
 					<p class="field-hint">Choose one output format to edit encoding settings together.</p>
 				</Show>
-				<Show
-					when={
-						!mixed('format') &&
-						!mixed('intent') &&
-						view().intent === 'encode' &&
-						view().encodeOffered
-					}
-				>
+				<Show when={!mixed('format') && !mixed('intent') && view().intent === 'encode'}>
 					<details class="encoder-conversion" open={!editingTitles()}>
 						<summary>
 							Encoding settings ·{' '}

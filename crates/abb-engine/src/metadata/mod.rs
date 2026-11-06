@@ -220,7 +220,6 @@ pub(crate) fn remux_preserved_audio_container(
     let target = match extension {
         "m4a" | "m4b" => "mp4",
         "mka" => "matroska",
-        "mp3" => "mp3",
         _ => {
             return Err(crate::errors::AppError::InvalidInput(
                 "Unsupported audiobook container.".into(),

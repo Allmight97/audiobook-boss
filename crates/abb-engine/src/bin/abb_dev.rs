@@ -36,7 +36,7 @@ Options:
                           series-part, subseries, subseries-part, genre,
                           description. An empty value clears the field.
   --save                  Write pending edits to the files.
-  --format <format>       Output format for every title: m4b, mp3, m4aOpus,
+  --format <format>       Output format for every title: m4b, m4aOpus,
                           or mkaOpus.
   --intent <intent>       Audio handling for every title: auto, preserve, or
                           encode.

@@ -23,9 +23,9 @@ fn encode_m4b() -> [AudioEdit; 3] {
     ]
 }
 
-fn preserve(format: AudiobookFormat) -> [AudioEdit; 2] {
+fn preserve() -> [AudioEdit; 2] {
     [
-        AudioEdit::Format(format),
+        AudioEdit::Format(AudiobookFormat::M4b),
         AudioEdit::Intent(AudioIntent::Preserve),
     ]
 }
@@ -241,19 +241,10 @@ async fn cleared_cover_export(
 
 #[tokio::test]
 async fn a_cleared_cover_stays_off_the_export_on_every_route() {
-    let cases: [(SourceKind, &str, Vec<AudioEdit>); 4] = [
+    let cases: [(SourceKind, &str, Vec<AudioEdit>); 3] = [
         (SourceKind::M4b, "encoded", encode_m4b().to_vec()),
-        (
-            SourceKind::M4b,
-            "kept",
-            preserve(AudiobookFormat::M4b).to_vec(),
-        ),
+        (SourceKind::M4b, "kept", preserve().to_vec()),
         (SourceKind::Mp3, "encoded", encode_m4b().to_vec()),
-        (
-            SourceKind::Mp3,
-            "kept",
-            preserve(AudiobookFormat::Mp3).to_vec(),
-        ),
     ];
     for (kind, folder, edits) in cases {
         let desk = Desk::new();
@@ -318,25 +309,9 @@ async fn ignoring_a_cue_sheet_keeps_its_chapters_out_of_the_export() {
         .input_id
         .clone();
     ignored
-        .send(SessionIntent::SetTitleAudio {
-            title_ids: vec![input_id.clone()],
-            edit: AudioEdit::Format(AudiobookFormat::Mp3),
-        })
-        .await;
-    ignored
-        .wait_until("an accepted CUE refuses MP3 output", |desk| {
-            matches!(desk.plan(), TitlePlan::Failed { .. })
-        })
-        .await;
-    ignored
         .send(SessionIntent::ChooseCue {
             input_id,
             choice: CueChoice::Ignore,
-        })
-        .await;
-    ignored
-        .wait_until("ignoring the CUE permits MP3 pass-through", |desk| {
-            matches!(desk.plan(), TitlePlan::Resolved { ref plan } if plan.handling.preserves())
         })
         .await;
     let out = export_to(&ignored, "ignored", &encode_m4b()).await;

@@ -83,23 +83,6 @@ fn fresh_defaults_are_m4b_auto_native_aac_at_65_kbps_constant() {
 }
 
 #[test]
-fn mp3_copies_its_source_and_carries_no_encoder_settings() {
-    let caps = caps();
-    let mut choice = AudioChoice::default();
-    choice.edit(AudioEdit::Format(AudiobookFormat::Mp3), Some(&caps), false);
-
-    let request = choice.request(Some(&caps));
-    assert_eq!(request.intent, AudioIntent::Preserve);
-    assert_eq!(request.output, crate::audio::OutputAudio::Mp3);
-    assert_eq!(
-        choice.edit(AudioEdit::Intent(AudioIntent::Encode), Some(&caps), false),
-        EditResult::Refused
-    );
-    choice.edit(AudioEdit::Format(AudiobookFormat::M4b), Some(&caps), false);
-    assert_eq!(choice.defaults(Some(&caps)).settings.bitrate_kbps, 65);
-}
-
-#[test]
 fn editing_how_audio_is_encoded_selects_encode() {
     let caps = caps();
     let mut choice = AudioChoice::default();
@@ -139,8 +122,7 @@ fn aac_and_opus_keep_their_own_bitrates_across_format_switches() {
         .request(Some(&caps))
         .output
         .encoder_settings()
-        .cloned()
-        .expect("opus settings");
+        .clone();
     assert_eq!(
         (opus.encoder_type, opus.bitrate_kbps, opus.bitrate_mode),
         (EncoderType::Opus, 40, BitrateMode::VbrTarget)
@@ -150,8 +132,7 @@ fn aac_and_opus_keep_their_own_bitrates_across_format_switches() {
         .request(Some(&caps))
         .output
         .encoder_settings()
-        .cloned()
-        .expect("aac settings");
+        .clone();
     assert_eq!(
         (aac.encoder_type, aac.bitrate_kbps),
         (EncoderType::NativeAac, 96)

@@ -18,7 +18,6 @@ type EncodingOption = {
 export type EncodingView = {
 	readonly format: AudiobookFormat;
 	readonly intent: AudioIntent;
-	readonly encodeOffered: boolean;
 	readonly effectiveFlavor: string;
 	readonly flavorOptions: ReadonlyArray<EncodingOption>;
 	readonly flavorDisabled: boolean;
@@ -168,7 +167,6 @@ export function projectView(source: EncodingSource): EncodingView {
 	return {
 		format: choice.format,
 		intent: choice.intent,
-		encodeOffered: facts.encodeOffered,
 		effectiveFlavor: facts.effectiveEncoder,
 		flavorOptions,
 		flavorDisabled: facts.encoderLocked,
@@ -225,7 +223,7 @@ export function editFor(field: EncodingField, value: string): AudioEdit | null {
 	const whole = value.trim() !== '' && Number.isInteger(number) && number >= 0;
 	switch (field) {
 		case 'format':
-			return oneOf(['m4b', 'mp3', 'm4aOpus', 'mkaOpus'] as const, value)
+			return oneOf(['m4b', 'm4aOpus', 'mkaOpus'] as const, value)
 				? { field: 'format', value }
 				: null;
 		case 'intent':

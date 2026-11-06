@@ -83,7 +83,7 @@ run_mode() {
 		return 1
 	}
 	local produced
-	produced="$(find "${out}" -type f \( -name '*.m4b' -o -name '*.mp3' \))"
+	produced="$(find "${out}" -type f -name '*.m4b')"
 	[[ -n "${produced}" && "$(printf '%s\n' "${produced}" | wc -l)" -eq 1 ]] || {
 		printf 'FAIL %s %s: expected one output, found: %s\n' "${n}" "${mode}" "${produced}"
 		return 1
@@ -125,7 +125,6 @@ while IFS= read -r -d '' original; do
 	run_mode "${n}" encode "${copy}" "${title}" ${title_args[@]+"${title_args[@]}"} --intent encode --format m4b ||
 		file_failed=1
 	case "${extension}" in
-	mp3) preserve_format=mp3 ;;
 	m4b | m4a) preserve_format=m4b ;;
 	*) preserve_format="" ;;
 	esac

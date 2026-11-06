@@ -220,7 +220,6 @@ fn share(facts: &mut AudioChoiceFacts, other: &AudioChoiceFacts) {
             .any(|theirs| theirs.encoder == option.encoder && theirs.available);
     }
     facts.encoder_locked |= other.encoder_locked;
-    facts.encode_offered &= other.encode_offered;
     facts.downmix_warning |= other.downmix_warning;
     facts.bitrate_kbps_min = facts.bitrate_kbps_min.max(other.bitrate_kbps_min);
     facts.bitrate_kbps_max = facts.bitrate_kbps_max.min(other.bitrate_kbps_max);
@@ -247,13 +246,7 @@ fn differs(field: AudioField, first: &TitleAudio, other: &TitleAudio) -> bool {
         AudioField::Quality => a.faac_quality != b.faac_quality,
         AudioField::NativeSpeed => a.native_speed != b.native_speed,
         AudioField::Bitrate => {
-            let kbps = |title: &TitleAudio| {
-                title
-                    .request
-                    .output
-                    .encoder_settings()
-                    .map(|settings| settings.bitrate_kbps)
-            };
+            let kbps = |title: &TitleAudio| title.request.output.encoder_settings().bitrate_kbps;
             kbps(first) != kbps(other)
         }
         AudioField::SampleRate => a.sample_rate != b.sample_rate,

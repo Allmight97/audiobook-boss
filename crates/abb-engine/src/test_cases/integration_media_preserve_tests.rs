@@ -6,9 +6,9 @@
 
 use super::integration_faac_execution_tests::faac_encoder_settings;
 use super::media_fixtures::{
-    audio_packet_bytes, chapters_of, decode_pcm_f32, ffmpeg, minimal_jpg_bytes, mux_chapters,
+    audio_packet_bytes, chapters_of, decode_pcm_f32, ffmpeg, minimal_jpg_bytes,
     native_encoder_settings, oversized_jpeg, preflight_payload, run_planned_title,
-    title_audio_request, write_sine_mp3, MediaLane,
+    title_audio_request, write_complete_frame_aac, write_sine_mp3, MediaLane,
 };
 use abb_engine::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
@@ -17,67 +17,50 @@ use abb_engine::audio::{
 use abb_engine::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
 use abb_engine::{read_metadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp};
 use std::fs;
-use std::path::Path;
 use std::sync::Arc;
 use tempfile::TempDir;
 
-const PREVIEW_REFUSAL: &str = "Encoding previews are available with M4B or Opus output";
+const PREVIEW_REFUSAL: &str = "Previews need encoded audio";
 
-fn write_chaptered_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
-    let audio = path.with_file_name("chapter-source.mp3");
-    write_sine_mp3(&audio, seconds, freq_hz);
-    mux_chapters(&audio, &[("Opening", 0, 450), ("Closing", 450, 900)], path);
+#[tokio::test]
+async fn preserve_copies_a_supported_m4b_without_mutating_source_bytes() {
+    let lane = MediaLane::with_fixtures(&[1.0]);
+    let source = lane.process(None).await;
+    let lane = MediaLane::for_inputs(vec![source.clone()]);
+    let destination = lane.tmp.path().join("preserved.m4b");
+    let source_bytes = fs::read(&source).expect("read preserve source");
+    let info =
+        get_file_list_info(std::slice::from_ref(&source), AacDecoder::Auto).expect("probe source");
+    assert!(
+        info.files[0]
+            .preservation
+            .expect("preservation facts")
+            .can_preserve
+    );
+    let context = ProcessingContext::new_headless_with_workspace_root(
+        Arc::new(ProcessingSession::new()),
+        SampleRateConfig::Auto,
+        OutputConfig::new(&destination),
+        lane.workspace_root(),
+    );
+    execute_audio_engine(AudioExecutionRequest::new(
+        context,
+        info,
+        None,
+        CoverArtPassthroughPolicy::Preserve,
+        abb_engine::processing::AudioHandling::Preserve,
+    ))
+    .await
+    .expect("preserve execution succeeds");
+    assert_eq!(
+        fs::read(&destination).expect("read preserved output"),
+        source_bytes
+    );
+    assert_eq!(fs::read(&source).expect("re-read source"), source_bytes);
+    assert!(lane.residual_workspace_dirs().is_empty());
 }
 
 #[tokio::test]
-async fn preserve_copies_supported_m4b_and_mp3_without_mutating_source_bytes() {
-    let m4b_lane = MediaLane::with_fixtures(&[1.0]);
-    let m4b_source = m4b_lane.process(None).await;
-    let mp3_tmp = TempDir::new().expect("mp3 preserve fixture tempdir");
-    let mp3_source = mp3_tmp.path().join("source.mp3");
-    write_sine_mp3(&mp3_source, 1.0, 440.0);
-
-    for (source, extension) in [(m4b_source, "m4b"), (mp3_source, "mp3")] {
-        let lane = MediaLane::for_inputs(vec![source.clone()]);
-        let destination = lane.tmp.path().join(format!("preserved.{extension}"));
-        let source_bytes = fs::read(&source).expect("read preserve source");
-        let info = get_file_list_info(std::slice::from_ref(&source), AacDecoder::Auto)
-            .expect("probe source");
-        assert!(
-            info.files[0]
-                .preservation
-                .expect("preservation facts")
-                .can_preserve
-        );
-        let context = ProcessingContext::new_headless_with_workspace_root(
-            Arc::new(ProcessingSession::new()),
-            SampleRateConfig::Auto,
-            OutputConfig::new(&destination),
-            lane.workspace_root(),
-        );
-        execute_audio_engine(AudioExecutionRequest::new(
-            context,
-            info,
-            None,
-            CoverArtPassthroughPolicy::Preserve,
-            abb_engine::processing::AudioHandling::Preserve,
-        ))
-        .await
-        .expect("preserve execution succeeds");
-        assert_eq!(
-            fs::read(&destination).expect("read preserved output"),
-            source_bytes
-        );
-        assert_eq!(fs::read(&source).expect("re-read source"), source_bytes);
-        assert!(lane.residual_workspace_dirs().is_empty());
-    }
-}
-
-#[tokio::test]
-#[expect(
-    clippy::too_many_lines,
-    reason = "Sequential source/output readbacks prove preservation of audio and cover together"
-)]
 async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
     let source_lane = MediaLane::with_fixtures(&[0.8, 0.7]).with_encoder(EncoderSettings {
         bitrate_kbps: 128,
@@ -137,66 +120,6 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
     assert_eq!(
         fs::read(&source).expect("source remains unchanged"),
         source_bytes
-    );
-
-    let mp3_tmp = TempDir::new().expect("mp3 metadata fixture tempdir");
-    let mp3_source = mp3_tmp.path().join("source.mp3");
-    write_chaptered_sine_mp3(&mp3_source, 0.9, 523.0);
-    let mp3_source_bytes = fs::read(&mp3_source).expect("read MP3 source");
-    let mp3_pcm = decode_pcm_f32(&mp3_source);
-    let mp3_source_chapters = chapters_of(&mp3_source);
-    assert_eq!(
-        mp3_source_chapters,
-        vec![
-            (Some("Opening".into()), 0, 450),
-            (Some("Closing".into()), 450, 900),
-        ],
-        "fixture must expose its independent FFmpeg-authored MP3 chapters"
-    );
-    let mp3_lane = MediaLane::for_inputs(vec![mp3_source.clone()]);
-    let mp3_destination = mp3_lane.tmp.path().join("retagged.mp3");
-    let mp3_info =
-        get_file_list_info(std::slice::from_ref(&mp3_source), AacDecoder::Auto).expect("probe MP3");
-    let mp3_context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
-        SampleRateConfig::Auto,
-        OutputConfig::new(&mp3_destination),
-        mp3_lane.workspace_root(),
-    );
-    execute_audio_engine(
-        AudioExecutionRequest::new(
-            mp3_context,
-            mp3_info,
-            None,
-            CoverArtPassthroughPolicy::Preserve,
-            abb_engine::processing::AudioHandling::Preserve,
-        )
-        .with_metadata_intent(Some(MetadataIntentPatch {
-            title: Some(PatchOp::Set("Preserved MP3 title".into())),
-            cover_art: Some(PatchOp::Set(minimal_jpg_bytes())),
-            ..Default::default()
-        })),
-    )
-    .await
-    .expect("preserve MP3 retagging succeeds");
-    assert_eq!(
-        read_metadata(&mp3_destination)
-            .expect("read preserved MP3 metadata")
-            .title
-            .as_deref(),
-        Some("Preserved MP3 title")
-    );
-    assert_eq!(
-        read_metadata(&mp3_destination)
-            .expect("fixture value")
-            .cover_art,
-        Some(minimal_jpg_bytes())
-    );
-    assert_eq!(chapters_of(&mp3_destination), mp3_source_chapters);
-    assert_eq!(decode_pcm_f32(&mp3_destination), mp3_pcm);
-    assert_eq!(
-        fs::read(&mp3_source).expect("MP3 source remains unchanged"),
-        mp3_source_bytes
     );
 }
 
@@ -301,56 +224,42 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
 
 #[tokio::test]
 async fn joined_title_drops_an_unpreparable_source_cover_but_not_a_chosen_one() {
-    use abb_engine::audio::{AudioIntent, TitleAudioRequest};
     let tmp = TempDir::new().expect("cover workspace");
     let cover = tmp.path().join("cover.jpg");
     let cover_bytes = oversized_jpeg();
     fs::write(&cover, &cover_bytes).expect("write oversized cover");
-    let paths = ["first.mp3", "second.mp3"].map(|name| tmp.path().join(name));
-    for (index, path) in paths.iter().enumerate() {
-        let source = format!(
-            "sine=frequency={}:sample_rate=44100:duration=0.31",
-            440 + index * 440
-        );
-        let mut args = vec!["-v", "error", "-y", "-f", "lavfi", "-i", &source];
-        if index == 0 {
-            args.extend([
-                "-i",
-                cover.to_str().expect("utf8 path"),
-                "-map",
-                "0:a",
-                "-map",
-                "1",
-                "-c:v",
-                "copy",
-                "-disposition:v",
-                "attached_pic",
-                "-id3v2_version",
-                "3",
-            ]);
-        }
-        args.extend([
-            "-c:a",
-            "libmp3lame",
-            "-b:a",
-            "96k",
-            "-write_xing",
-            "0",
-            path.to_str().expect("utf8 path"),
-        ]);
-        ffmpeg(args);
-    }
+    let paths = ["first.m4a", "second.m4a"].map(|name| tmp.path().join(name));
+    let bare = tmp.path().join("bare.m4a");
+    write_complete_frame_aac(&bare, 440);
+    write_complete_frame_aac(&paths[1], 880);
+    ffmpeg([
+        "-v",
+        "error",
+        "-y",
+        "-i",
+        bare.to_str().expect("utf8 path"),
+        "-i",
+        cover.to_str().expect("utf8 path"),
+        "-map",
+        "0:a",
+        "-map",
+        "1",
+        "-c",
+        "copy",
+        "-disposition:v",
+        "attached_pic",
+        paths[0].to_str().expect("utf8 path"),
+    ]);
     let payload = |output: &str| -> abb_engine::processing::ProcessPayload {
         let output_dir = tmp.path().join(output);
         fs::create_dir_all(&output_dir).expect("output folder");
         serde_json::from_value(serde_json::json!({
             "inputFiles": [&paths[0]],
             "titleSources": {paths[0].to_str().expect("utf8 path"): paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
-            "audioRequests": [TitleAudioRequest {
-                output: abb_engine::audio::OutputAudio::Mp3,
-                intent: AudioIntent::Preserve,
-                sample_rate: SampleRateConfig::Auto,
-            }],
+            "audioRequests": [title_audio_request(
+                abb_engine::audio::AudioIntent::Preserve,
+                native_encoder_settings(),
+            )],
             "outputDir": output_dir,
             "aacDecoder": "auto"
         }))
@@ -422,7 +331,7 @@ async fn preserved_title_rejects_interior_priming_without_publishing() {
 }
 
 #[test]
-fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
+fn mp3_stack_encodes_to_m4b_but_cannot_be_kept_unchanged() {
     use abb_engine::processing::ProcessPayload;
     let tmp = TempDir::new().expect("MP3 stack workspace");
     let output_dir = tmp.path().join("out");
@@ -442,15 +351,15 @@ fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
     let plan = preflight_payload(payload.clone(), None, false).expect("encoding accepts MP3 stack");
     assert_eq!(plan.outputs.len(), 1);
     assert!(plan.outputs[0].resolved_path.ends_with(".m4b"));
-    let mut preserved = payload;
-    preserved.audio_requests[0].output = abb_engine::audio::OutputAudio::Mp3;
-    preserved.audio_requests[0].intent = abb_engine::audio::AudioIntent::Auto;
-    let error = preflight_payload(preserved, None, false)
-        .expect_err("interior MP3 priming requires encoding");
-    let message = error.to_string();
+    let mut automatic = payload.clone();
+    automatic.audio_requests[0].intent = abb_engine::audio::AudioIntent::Auto;
+    preflight_payload(automatic, None, false).expect("Default converts an MP3 stack");
+    let mut kept = payload;
+    kept.audio_requests[0].intent = abb_engine::audio::AudioIntent::Preserve;
+    let error = preflight_payload(kept, None, false).expect_err("MP3 cannot be kept in an M4B");
     assert!(
-        message.contains("priming") || message.contains("shifted"),
-        "{message}"
+        error.to_string().contains("cannot be kept unchanged"),
+        "{error}"
     );
     assert_eq!(
         fs::read_dir(&output_dir)
@@ -463,7 +372,7 @@ fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
 
 #[tokio::test]
 async fn default_audio_plan_reduces_large_aac_but_explicit_keep_never_encodes() {
-    use abb_engine::audio::{resolve_title_audio, AudioIntent, OutputAudio};
+    use abb_engine::audio::{resolve_title_audio, AudioIntent};
     let lane = MediaLane::with_fixtures(&[1.5]);
     let source = lane.process(None).await;
     let probed = get_file_list_info(&[&source], AacDecoder::Auto).expect("fixture value");
@@ -516,11 +425,6 @@ async fn default_audio_plan_reduces_large_aac_but_explicit_keep_never_encodes() 
     request.intent = AudioIntent::Preserve;
     let kept = resolve_title_audio(&request, &info, false).expect("fixture value");
     assert_eq!(kept.handling, AudioHandling::Preserve);
-    request.output = OutputAudio::Mp3;
-    assert!(resolve_title_audio(&request, &info, false)
-        .expect_err("fixture must reject")
-        .to_string()
-        .contains("MP3 source audio"));
     let refusal =
         resolve_title_audio(&request, &info, true).expect_err("a preview never copies audio");
     assert!(refusal.to_string().contains(PREVIEW_REFUSAL));

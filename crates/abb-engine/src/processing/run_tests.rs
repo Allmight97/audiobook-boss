@@ -27,7 +27,6 @@ fn request_settings(request: &mut crate::audio::TitleAudioRequest) -> &mut Encod
         crate::audio::OutputAudio::M4b { settings }
         | crate::audio::OutputAudio::M4aOpus { settings }
         | crate::audio::OutputAudio::MkaOpus { settings } => settings,
-        crate::audio::OutputAudio::Mp3 => panic!("MP3 requests carry no encoder settings"),
     }
 }
 

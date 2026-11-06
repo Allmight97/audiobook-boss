@@ -122,8 +122,8 @@ pub struct TagPreview {
     pub series_part: String,
     pub subseries: String,
     pub subseries_part: String,
-    /// The album sort processing would write: the TSOA frame in MP3, the
-    /// sort-album atom in the MP4 family.
+    /// The album sort processing would write: the sort-album atom in the MP4
+    /// family.
     pub album_sort: String,
     pub year: String,
     pub genre: String,

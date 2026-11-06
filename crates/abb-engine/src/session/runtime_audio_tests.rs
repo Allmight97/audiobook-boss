@@ -21,11 +21,11 @@ async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
 
     rig.send(SessionIntent::SetTitleAudio {
         title_ids: vec!["alpha".to_string()],
-        edit: AudioEdit::Format(AudiobookFormat::Mp3),
+        edit: AudioEdit::Format(AudiobookFormat::M4aOpus),
     })
     .await;
     let titles = audio(&rig).titles;
-    assert_eq!(titles["alpha"].choice.intent, AudioIntent::Preserve);
+    assert_eq!(titles["alpha"].choice.format, AudiobookFormat::M4aOpus);
     assert_eq!(titles["beta"].choice.format, AudiobookFormat::M4b);
 
     rig.lock_order(true);
@@ -35,7 +35,7 @@ async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
     .await;
     assert_eq!(
         audio(&rig).titles["alpha"].choice.format,
-        AudiobookFormat::Mp3
+        AudiobookFormat::M4aOpus
     );
 
     rig.lock_order(false);

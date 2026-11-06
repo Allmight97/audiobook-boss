@@ -141,7 +141,6 @@ export type AudioChoiceFacts = {
 	effectiveEncoder: EncoderType,
 	encoderOptions: EncoderOption[],
 	encoderLocked: boolean,
-	encodeOffered: boolean,
 	downmixWarning: boolean,
 	bitrateMode: BitrateMode,
 	bitrateKbpsMin: number,
@@ -234,7 +233,7 @@ export type AudioSnapshot = {
 	refusal: AudioRefusal | null,
 };
 
-export type AudiobookFormat = "m4b" | "mp3" | "m4aOpus" | "mkaOpus";
+export type AudiobookFormat = "m4b" | "m4aOpus" | "mkaOpus";
 
 export type AutoOutcome = { kind: "unresolved" } | { kind: "value"; value: number } | { kind: "differs" };
 
@@ -689,7 +688,7 @@ export type OperationTerminalSummary = {
 	message: string,
 };
 
-export type OutputAudio = { format: "m4b"; settings: EncoderSettings } | { format: "mp3" } | { format: "m4aOpus"; settings: EncoderSettings } | { format: "mkaOpus"; settings: EncoderSettings };
+export type OutputAudio = { format: "m4b"; settings: EncoderSettings } | { format: "m4aOpus"; settings: EncoderSettings } | { format: "mkaOpus"; settings: EncoderSettings };
 
 export type OutputCollisionInfo = {
 	kind: OutputCollisionKind,
@@ -1298,8 +1297,8 @@ export type TagPreview = {
 	subseries: string,
 	subseriesPart: string,
 	/**
-	 *  The album sort processing would write: the TSOA frame in MP3, the
-	 *  sort-album atom in the MP4 family.
+	 *  The album sort processing would write: the sort-album atom in the MP4
+	 *  family.
 	 */
 	albumSort: string,
 	year: string,

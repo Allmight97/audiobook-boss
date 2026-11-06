@@ -46,9 +46,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   loads and failures, sign-in guidance, and the sign-in warning instead of
   keeping the old download result. A running download also shows its progress
   over an older sign-in or account failure.
-- With an MP3 title anywhere in a selection, Audio handling no longer offers
-  User Preference, and the Auto sample rate and channels options no longer read
-  "Differs by title" when only some of the selected titles use Auto.
+- The Auto sample rate and channels options no longer read "Differs by title"
+  when only some of the selected titles use Auto.
 - A title made of several files with no chapters now shows the chapters ABB
   sends to the output, one per file, instead of no chapter count.
 - A keystroke typed into the blank form just as an import selects a title no
@@ -59,6 +58,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   it kept the old name until the file was imported again.
 - Saving a cover on one file now refreshes only that file's thumbnail in the
   list. Before, every thumbnail faded and reloaded.
+
+### Removed
+
+- MP3 is no longer an output format. MP3 files still import, and export to M4B or
+  another output format.
 
 ## [1.17.1] - 2026-11-05
 

@@ -7,8 +7,7 @@
 use super::media_fixtures::{
     assert_auto_merge_stereo, audio_duration_ts, audio_stream_timing, chapters_of, decode_pcm_f32,
     ffmpeg, ffprobe, find_atom, minimal_jpg_bytes, native_encoder_settings, next_atom, parse_mdhd,
-    timed_text_chapter_track, write_sine_mp3, write_sine_wav, write_stereo_sine_wav, MediaLane,
-    SAMPLE_RATE,
+    timed_text_chapter_track, write_sine_wav, write_stereo_sine_wav, MediaLane, SAMPLE_RATE,
 };
 use abb_engine::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, ChannelConfig,
@@ -348,8 +347,8 @@ async fn a_pre_cancelled_run_publishes_nothing_and_leaves_the_source_alone() {
     let tmp = TempDir::new().expect("cancel fixture tempdir");
     let wav = tmp.path().join("source.wav");
     write_sine_wav(&wav, 1.0, 440.0);
-    let mp3 = tmp.path().join("source.mp3");
-    write_sine_mp3(&mp3, 1.0, 440.0);
+    let m4b_lane = MediaLane::with_fixtures(&[1.0]);
+    let m4b = m4b_lane.process(None).await;
     let registry = JobRegistry::new(1);
     for (source, name, handling) in [
         (
@@ -359,7 +358,7 @@ async fn a_pre_cancelled_run_publishes_nothing_and_leaves_the_source_alone() {
                 settings: native_encoder_settings(),
             },
         ),
-        (mp3, "cancelled.mp3", AudioHandling::Preserve),
+        (m4b, "cancelled-kept.m4b", AudioHandling::Preserve),
     ] {
         let source_bytes = fs::read(&source).expect("read cancellation source");
         let destination = tmp.path().join(name);

@@ -644,11 +644,7 @@ pub(crate) fn assess_preservation(
         && matches!(codec_id, ff::codec::Id::AAC | ff::codec::Id::OPUS))
         || (extension == "mka"
             && container_name.split(',').any(|name| name == "matroska")
-            && codec_id == ff::codec::Id::OPUS)
-        || (extension == "mp3"
-            && !mp4_container
-            && container_name.split(',').any(|name| name == "mp3")
-            && codec_id == ff::codec::Id::MP3);
+            && codec_id == ff::codec::Id::OPUS);
     AudioPreservation {
         can_preserve: supported_container_codec,
     }

@@ -135,7 +135,7 @@ async fn a_launch_from_pinned_defaults_ignores_the_values_last_used_before_quitt
     .await;
     settings(&desk, SettingsIntent::PinCurrentDefaults).await;
 
-    choose_format_and_bitrate(&desk, AudiobookFormat::Mp3, 64).await;
+    choose_format_and_bitrate(&desk, AudiobookFormat::M4aOpus, 64).await;
     desk.send(SessionIntent::SetOutputDirectory {
         directory: last_used_folder.to_string_lossy().into_owned(),
     })
@@ -156,7 +156,7 @@ async fn a_launch_from_pinned_defaults_ignores_the_values_last_used_before_quitt
     .await;
     assert_eq!(
         before_quit.settings.encoder_defaults.format,
-        AudiobookFormat::Mp3,
+        AudiobookFormat::M4aOpus,
         "the last-used values are in effect until the next launch"
     );
     quit(&desk).await;

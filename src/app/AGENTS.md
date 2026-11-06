@@ -96,8 +96,7 @@ without a bullet has none. Engine paths name the owner of the truth.
   a value no control offers sends nothing. What Auto resolves to comes from the
   engine's `autoSampleRate` and `autoChannels` readings on the title or the
   selection, never from source facts or a plan; a selection's are plain Auto
-  while the field is mixed. Whether User Preference is offered comes from
-  `facts.encodeOffered`, never from the format. Defaults describe future
+  while the field is mixed. Defaults describe future
   imports and name no source; existing titles change only through Apply App
   Settings. `selectionView` and `refusal` render engine facts and combine no
   titles.

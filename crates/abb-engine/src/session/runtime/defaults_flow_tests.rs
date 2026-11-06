@@ -21,12 +21,12 @@ async fn the_output_preview_follows_the_form_the_directory_and_the_format() {
     rig.type_into(MetadataField::Title, "Dune").await;
     rig.send(SessionIntent::SetTitleAudio {
         title_ids: vec!["alpha".to_string()],
-        edit: AudioEdit::Format(AudiobookFormat::Mp3),
+        edit: AudioEdit::Format(AudiobookFormat::M4aOpus),
     })
     .await;
     let renamed = preview_path(&rig);
     assert!(
-        renamed.contains("Dune") && renamed.ends_with(".mp3"),
+        renamed.contains("Dune") && renamed.ends_with(".m4a"),
         "{renamed}"
     );
 }

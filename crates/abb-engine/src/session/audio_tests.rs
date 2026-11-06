@@ -43,26 +43,6 @@ fn select(titles: &[&TitleAudio]) -> SelectionAudio {
     selection_audio(&pairs).expect("a selection")
 }
 
-fn mp3() -> TitleAudio {
-    let choice = AudioChoice {
-        format: AudiobookFormat::Mp3,
-        intent: crate::audio::AudioIntent::Preserve,
-        ..AudioChoice::default()
-    };
-    title(choice, TitlePlan::Pending)
-}
-
-#[test]
-fn mp3_anywhere_in_the_selection_withdraws_user_preference() {
-    let m4b = on_auto(TitlePlan::Pending);
-    let mp3 = mp3();
-
-    assert!(select(&[&m4b]).facts.encode_offered);
-    assert!(!select(&[&mp3]).facts.encode_offered);
-    assert!(!select(&[&m4b, &mp3]).facts.encode_offered);
-    assert!(!select(&[&mp3, &m4b]).facts.encode_offered);
-}
-
 #[test]
 fn auto_reads_one_value_when_every_title_resolves_the_same() {
     let a = on_auto(resolved(44_100, 2));

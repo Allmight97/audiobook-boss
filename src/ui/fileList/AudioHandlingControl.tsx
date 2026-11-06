@@ -33,8 +33,7 @@ export function AudioHandlingControl(props: {
 	const needsChoice = () => resolved().kind === 'choiceRequired';
 	const kept = () => plan()?.handling === 'preserve';
 	const guidanceId = () => `audio-plan-${props.index}`;
-	const format = () =>
-		({ m4b: 'M4B', mp3: 'MP3', m4aOpus: 'M4A', mkaOpus: 'MKA' })[request().format];
+	const format = () => ({ m4b: 'M4B', m4aOpus: 'M4A', mkaOpus: 'MKA' })[request().format];
 	const opus = () => request().format === 'm4aOpus' || request().format === 'mkaOpus';
 	function show() {
 		if (dismissed) return;

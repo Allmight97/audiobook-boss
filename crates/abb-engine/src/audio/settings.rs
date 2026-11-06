@@ -118,9 +118,9 @@ pub fn validate_preserved_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
         .map(str::to_ascii_lowercase)
         .as_deref()
     {
-        Some("m4b" | "m4a" | "mp3" | "mka") => Ok(()),
+        Some("m4b" | "m4a" | "mka") => Ok(()),
         Some(extension) => Err(AppError::InvalidInput(format!(
-            "Preserved output must be .m4b, .m4a, .mka or .mp3, got: .{extension}"
+            "Preserved output must be .m4b, .m4a or .mka, got: .{extension}"
         ))),
         None => Err(AppError::InvalidInput(
             "Preserved output must have a supported audio extension".to_string(),

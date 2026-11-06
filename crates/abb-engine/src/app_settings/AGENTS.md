@@ -78,6 +78,9 @@ session records reaches hosts as `EngineEvent::Settings`.
   with the owner's approval. A new saved field needs a
   default so earlier samples still load, and a new sample of the new shape.
   `scripts/check-known-mistakes.ts` rejects a changed, renamed, or deleted sample.
+  MP3 output was removed with the owner's approval and no mapping: a saved
+  `format = "mp3"` resets the audio defaults only, and the three samples that
+  hold it load with that unit reset.
 - Encoder format and copy/encode validation stay Audio-owned; App Settings
   checks durable choices with the owning runtime APIs and leaves encoder and
   JobRegistry rules to them.

@@ -5,32 +5,21 @@ use crate::processing::{
     AudioHandling, CancellationChecker, JobRegistry, OutputConfig, ProcessingContext,
     ProcessingSession,
 };
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-
-/// Writes `frames` silent MPEG-1 Layer III mono frames at 128 kbps / 44.1 kHz.
-/// Zero side information means no bit-reservoir dependency and no priming, so
-/// the sources are joinable by stream copy.
-fn write_silent_mp3(path: &Path, frames: usize) {
-    const FRAME_BYTES: usize = 417;
-    let mut frame = vec![0_u8; FRAME_BYTES];
-    frame[..4].copy_from_slice(&[0xFF, 0xFB, 0x90, 0xC0]);
-    std::fs::write(path, frame.repeat(frames)).expect("write MP3 fixture");
-}
 
 #[tokio::test]
 async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_residue() {
     let tmp = tempfile::tempdir().expect("join fixture");
-    let sources = [tmp.path().join("part-1.mp3"), tmp.path().join("part-2.mp3")];
-    for source in &sources {
-        write_silent_mp3(source, 40);
+    let sources = [tmp.path().join("part-1.m4a"), tmp.path().join("part-2.m4a")];
+    for (source, frequency) in sources.iter().zip([440, 880]) {
+        crate::test_cases::media_fixtures::write_complete_frame_aac(source, frequency);
     }
     let original_bytes: Vec<_> = sources
         .iter()
         .map(|source| std::fs::read(source).expect("read source"))
         .collect();
-    let destination = tmp.path().join("out").join("Joined.mp3");
+    let destination = tmp.path().join("out").join("Joined.m4b");
     std::fs::create_dir_all(destination.parent().expect("output parent")).expect("output dir");
     let workspace = tmp.path().join("workspace");
     let registry = JobRegistry::new(1);
@@ -55,8 +44,8 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
         }
     }));
     let file_info =
-        crate::audio::get_file_list_info(&sources, AacDecoder::Auto).expect("probe MP3 fixtures");
-    assert_eq!(file_info.invalid_count, 0, "fixtures probe as valid MP3");
+        crate::audio::get_file_list_info(&sources, AacDecoder::Auto).expect("probe AAC fixtures");
+    assert_eq!(file_info.invalid_count, 0, "fixtures probe as valid AAC");
 
     let error = crate::audio::execute_audio_engine(AudioExecutionRequest::new(
         context,
