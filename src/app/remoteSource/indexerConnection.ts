@@ -1,5 +1,6 @@
 import { createEffect, createSignal, type Accessor } from 'solid-js';
 import { toUserMessage } from '../../lib/tauri/appError';
+import type { RemoteUiIntent } from '../../types/session';
 import type { EngineLink } from '../engineLink';
 
 export type IndexerConnectionSettingsView = {
@@ -43,11 +44,11 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			}
 		},
 	);
-	async function send(kind: 'loadConnection' | 'saveConnection' | 'testConnection') {
+	async function send(intent: RemoteUiIntent) {
 		localError = '';
 		changed();
 		try {
-			return await link.send({ kind: 'remote', intent: { kind } });
+			return await link.send({ kind: 'remote', intent });
 		} catch (error) {
 			localError = toUserMessage(error);
 			changed();
@@ -93,7 +94,7 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			};
 		},
 		async load() {
-			await send('loadConnection');
+			await send({ kind: 'loadConnection' });
 		},
 		patch(patch) {
 			const echo = {
@@ -130,10 +131,10 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 				});
 		},
 		async save() {
-			await send('saveConnection');
+			await send({ kind: 'saveConnection' });
 		},
 		async testConnection() {
-			await send('testConnection');
+			await send({ kind: 'testConnection' });
 		},
 		reset() {
 			typed = null;

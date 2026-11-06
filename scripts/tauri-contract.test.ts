@@ -101,7 +101,7 @@ describe('Tauri contract between the frontend and src-tauri', () => {
 			intentKinds(generated, union)
 				.filter(
 					(kind) =>
-						!new RegExp(`['"]${kind}['"]`).test(frontend) &&
+						!new RegExp(`\\bkind:\\s*['"]${kind}['"]`).test(frontend) &&
 						!new RegExp(`\\b${union}::${pascal(kind)}\\b`).test(host),
 				)
 				.map((kind) => `${union}.${kind}`),
