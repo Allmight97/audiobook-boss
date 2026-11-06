@@ -8,10 +8,8 @@ import { toUserMessage } from '../../lib/tauri/appError';
 import type { InputNotice, SessionSelection, SessionTitles } from '../../types/session';
 import { fileIdentityKey, type InputView } from './types';
 
-/** The chapters a file converts with: its accepted plan once the engine made
- * one (repaired embedded or CUE chapters), else its embedded chapters. */
 export function acceptedChapterCount(file: AudioFile): number {
-	return (file.chapterPlan?.chapters ?? file.chapters ?? []).length;
+	return file.chapterPlan?.chapters.length ?? 0;
 }
 
 export function formatFileDetails(
@@ -89,6 +87,8 @@ export function toInputView(
 		showSortButton: files.length > 1,
 		showClearButton: files.length > 0,
 		showRestoreImportOrder: titles.orderDiffersFromImport && !locked,
+		totalSizeBytes: titles.totalSizeBytes ?? 0,
+		canGroup: selection.canGroup,
 		totalDurationSeconds: sourceFiles.reduce((sum, file) => sum + (file.duration ?? 0), 0),
 	};
 }

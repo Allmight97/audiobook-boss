@@ -146,7 +146,36 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		};
 	}
 
+	function deriveTotals(): void {
+		const { titles, selection } = state;
+		let totalSize = 0;
+		titles.titleTotals = Object.fromEntries(
+			titles.files.map((file) => {
+				const id = file.inputId ?? file.path;
+				const sources = titles.titleSourcesByIdentity[id] ?? [file];
+				totalSize += sources.reduce(
+					(sum, source) => sum + (source.isValid ? (source.size ?? 0) : 0),
+					0,
+				);
+				return [
+					id,
+					{
+						chapterCount: sources.reduce(
+							(sum, source) => sum + (source.chapterPlan?.chapters.length ?? 0),
+							0,
+						),
+						durationSeconds: sources.reduce((sum, source) => sum + (source.duration ?? 0), 0),
+						sizeBytes: sources.reduce((sum, source) => sum + (source.size ?? 0), 0),
+					},
+				];
+			}),
+		);
+		titles.totalSizeBytes = totalSize;
+		selection.canGroup = !titles.orderLocked && selection.selectedIndices.length >= 2;
+	}
+
 	function settle(): SessionUpdate {
+		deriveTotals();
 		revision += 1;
 		for (const part of Object.values(state)) part.revision = revision;
 		return structuredClone({ revision, ...state });

@@ -16,6 +16,8 @@ mod staged;
 mod state;
 mod submission;
 mod tag_cache;
+mod title_totals;
+pub use title_totals::TitleTotals;
 mod working_set;
 
 pub use audio::{

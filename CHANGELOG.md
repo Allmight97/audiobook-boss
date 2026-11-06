@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- A title made of several files with no chapters now shows the chapters ABB
+  sends to the output, one per file, instead of no chapter count.
 - A keystroke typed into the blank form just as an import selects a title no
   longer lands on that title as an unsaved edit.
 - Text typed during an export is no longer wiped when ABB removes the finished
@@ -1967,7 +1969,7 @@ tests now prove that behavior instead of masking it.
   fires.
 
 ### Removed
- 
+
 ## [1.0.4] - 2026-04-16
 
 Internal state-shape tightening release that continued the "make impossible

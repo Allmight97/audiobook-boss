@@ -58,13 +58,16 @@ export type {
 	RemoteDraftStatus,
 	TitleAudio,
 	TitlePlan,
+	TitleTotals,
 } from '../lib/generated/tauri';
 
 export type SessionIntent = GeneratedSessionIntent;
 export type SessionOutcome = GeneratedSessionOutcome;
 export type RemoteUiSnapshot = Omit<GeneratedRemoteUiSnapshot, 'indexer' | 'account'> & {
 	account: RemoteSourceAccountState | null;
-	indexer: Omit<GeneratedRemoteUiSnapshot['indexer'], 'releases'> & { releases: RemoteRelease[] };
+	indexer: Omit<GeneratedRemoteUiSnapshot['indexer'], 'releases'> & {
+		releases: RemoteRelease[];
+	};
 };
 
 export type RemoteAcquisitionSnapshot = Omit<GeneratedRemoteAcquisitionSnapshot, 'job'> & {

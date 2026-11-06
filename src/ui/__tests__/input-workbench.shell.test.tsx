@@ -171,10 +171,18 @@ describe('Solid input workbench', () => {
 			if (intent.kind !== 'selectFile') return undefined;
 			return selectionAnswers.shift()?.();
 		};
-		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
-		await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });
+		await runtime.input.selectFile({
+			index: 0,
+			modifiers: { multi: false, range: false },
+		});
+		await runtime.input.selectFile({
+			index: 1,
+			modifiers: { multi: true, range: false },
+		});
 		await user.click(screen.getByRole('button', { name: 'Audio settings · 2 titles' }));
-		const editor = screen.getByRole('dialog', { name: 'Audio settings for 2 selected titles' });
+		const editor = screen.getByRole('dialog', {
+			name: 'Audio settings for 2 selected titles',
+		});
 		await user.click(within(editor).getByText(/Encoding settings/));
 		expect(within(editor).getByLabelText('Channels')).toHaveValue('');
 		expect(within(editor).getByLabelText('Profile')).toHaveValue('');
@@ -203,7 +211,10 @@ describe('Solid input workbench', () => {
 		expect(runtime.input.view().selectedIndices).toEqual([0, 1]);
 		await user.keyboard('{Escape}');
 		await user.click(screen.getByRole('button', { name: 'Audio settings · 2 titles' }));
-		await runtime.input.selectFile({ index: 2, modifiers: { multi: false, range: false } });
+		await runtime.input.selectFile({
+			index: 2,
+			modifiers: { multi: false, range: false },
+		});
 		expect(screen.queryByRole('dialog', { name: /Audio settings for/ })).not.toBeInTheDocument();
 	});
 
@@ -212,8 +223,13 @@ describe('Solid input workbench', () => {
 		const file = analyzedFile('/books/estimate.m4b');
 		runtime = runtimeFor({ files: [file] });
 		await renderApp(runtime);
-		await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
-		const indicator = await screen.findByRole('button', { name: 'Audio plan for estimate.m4b' });
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: [file.path],
+		});
+		const indicator = await screen.findByRole('button', {
+			name: 'Audio plan for estimate.m4b',
+		});
 		expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
 
 		await user.click(indicator);
@@ -238,7 +254,11 @@ describe('Solid input workbench', () => {
 		expect(screen.getByTitle('Estimated output size')).toHaveTextContent('1000.0 B');
 
 		engine.seedTitleAudio(file.path, titleAudioRequest(), {
-			plan: { kind: 'failed', message: 'Sources cannot be joined', field: null },
+			plan: {
+				kind: 'failed',
+				message: 'Sources cannot be joined',
+				field: null,
+			},
 			estimate: null,
 		});
 		await waitFor(() => expect(popup).toHaveTextContent('Sources cannot be joined'));
@@ -248,7 +268,10 @@ describe('Solid input workbench', () => {
 	it('shows an invalid source in the grouped title status', async () => {
 		const files = [
 			analyzedFile('/books/valid.m4b'),
-			analyzedFile('/books/broken.m4b', { isValid: false, error: 'Broken audio source' }),
+			analyzedFile('/books/broken.m4b', {
+				isValid: false,
+				error: 'Broken audio source',
+			}),
 		];
 		runtime = runtimeFor({ files });
 		await renderApp(runtime);
@@ -273,7 +296,10 @@ describe('Solid input workbench', () => {
 		});
 		runtime = runtimeFor({ files: [removed] });
 		await renderApp(runtime);
-		await runtime.input.importIntent({ type: 'importPaths', paths: [removed.path] });
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: [removed.path],
+		});
 		const row = await screen.findByRole('option', { name: 'done.m4b' });
 		engine.seedTitleAudio(removed.path, titleAudioRequest(), {
 			plan: { kind: 'failed', message: 'Source is not valid', field: null },
@@ -344,10 +370,39 @@ describe('Solid input workbench', () => {
 		});
 	});
 
+	it("shows a grouped title's chapter total from the engine", async () => {
+		const chapter = { title: 'One', startMs: 0, endMs: 1000 };
+		const files = ['part1.mp3', 'part2.mp3'].map((name) =>
+			analyzedFile(`/books/${name}`, {
+				chapterPlan: {
+					chapters: [chapter],
+					fromCue: false,
+					sourceFingerprint: '',
+				},
+			}),
+		);
+		runtime = runtimeFor({ files });
+		await renderApp(runtime);
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: files.map((file) => file.path),
+		});
+		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
+		engine.seedGroup(files);
+		await waitFor(() => {
+			const row = screen.getByRole('option', { name: 'part1.mp3' });
+			expect(row).toHaveTextContent('2 chapters');
+		});
+	});
+
 	it('edits one stack through its audio popover', async () => {
 		const user = userEvent.setup();
 		const files = ['part1.mp3', 'part2.mp3', 'other.m4b'].map((name) =>
-			analyzedFile(`/books/${name}`, { sampleRate: 44100, channels: 1, codecLabel: 'MP3' }),
+			analyzedFile(`/books/${name}`, {
+				sampleRate: 44100,
+				channels: 1,
+				codecLabel: 'MP3',
+			}),
 		);
 		runtime = runtimeFor({ files });
 		await renderApp(runtime);
@@ -366,7 +421,9 @@ describe('Solid input workbench', () => {
 			return { kind: 'applied' };
 		};
 		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0])).toBe(true));
-		const indicator = screen.getByRole('button', { name: 'Audio plan for part1.mp3' });
+		const indicator = screen.getByRole('button', {
+			name: 'Audio plan for part1.mp3',
+		});
 		await user.hover(indicator);
 		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
 		expect(popup).toHaveTextContent('Choose this title’s audio');
@@ -470,7 +527,10 @@ describe('Solid input workbench', () => {
 		});
 		expect(engine.analyze).not.toHaveBeenCalled();
 
-		listeners.drop?.({ position: { x: 200, y: 200 }, paths: ['/tmp/file1.wav'] });
+		listeners.drop?.({
+			position: { x: 200, y: 200 },
+			paths: ['/tmp/file1.wav'],
+		});
 		await waitFor(() => {
 			expect(engine.analyze).toHaveBeenCalledWith(['/tmp/file1.wav']);
 		});

@@ -263,10 +263,11 @@ pub(super) fn execute(
         return Err(AppError::cancelled());
     }
     let mut sources = super::passthrough_sources_from_audio_files(&copies);
-    if sources
+    let chapter_total = sources
         .iter()
-        .all(|source| source.chapters.as_ref().is_none_or(Vec::is_empty))
-    {
+        .map(|source| source.chapters.as_ref().map_or(0, Vec::len))
+        .sum();
+    if crate::metadata::synthesizes_chapter_per_source(sources.len(), chapter_total) {
         for (source, original) in sources.iter_mut().zip(&file_info.files) {
             source.chapters = Some(vec![crate::metadata::ChapterSpec {
                 title: original

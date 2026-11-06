@@ -509,6 +509,7 @@
   },
   "revision": 1,
   "selection": {
+    "canGroup": false,
     "revision": 0,
     "selectedAnchor": null,
     "selectedIndices": []
@@ -522,6 +523,8 @@
     "orderLocked": false,
     "revision": 0,
     "sortDirection": "none",
-    "titleSourcesByIdentity": {}
+    "titleSourcesByIdentity": {},
+    "titleTotals": {},
+    "totalSizeBytes": 0.0
   }
 }

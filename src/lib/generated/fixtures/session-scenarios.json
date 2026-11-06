@@ -111,7 +111,25 @@
             "orderLocked": false,
             "revision": 2,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-1": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              },
+              "title-2": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88324.0
+              },
+              "title-3": {
+                "chapterCount": 0,
+                "durationSeconds": 0.0,
+                "sizeBytes": 20.0
+              }
+            },
+            "totalSizeBytes": 176644.0
           }
         }
       },
@@ -244,6 +262,7 @@
           "remoteLibrary": null,
           "revision": 3,
           "selection": {
+            "canGroup": false,
             "revision": 3,
             "selectedAnchor": 0,
             "selectedIndices": [
@@ -382,6 +401,7 @@
           "remoteLibrary": null,
           "revision": 4,
           "selection": {
+            "canGroup": true,
             "revision": 4,
             "selectedAnchor": 1,
             "selectedIndices": [
@@ -516,6 +536,7 @@
           "remoteLibrary": null,
           "revision": 5,
           "selection": {
+            "canGroup": true,
             "revision": 5,
             "selectedAnchor": 0,
             "selectedIndices": [
@@ -911,6 +932,7 @@
           "remoteLibrary": null,
           "revision": 8,
           "selection": {
+            "canGroup": false,
             "revision": 8,
             "selectedAnchor": null,
             "selectedIndices": []
@@ -1038,7 +1060,25 @@
             "orderLocked": false,
             "revision": 2,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-1": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              },
+              "title-2": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88324.0
+              },
+              "title-3": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              }
+            },
+            "totalSizeBytes": 264964.0
           }
         }
       },
@@ -1171,6 +1211,7 @@
           "remoteLibrary": null,
           "revision": 3,
           "selection": {
+            "canGroup": false,
             "revision": 3,
             "selectedAnchor": 2,
             "selectedIndices": [
@@ -1197,6 +1238,7 @@
           "remoteLibrary": null,
           "revision": 4,
           "selection": {
+            "canGroup": false,
             "revision": 4,
             "selectedAnchor": 1,
             "selectedIndices": [
@@ -1269,7 +1311,20 @@
             "orderLocked": false,
             "revision": 4,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-2": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88324.0
+              },
+              "title-3": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              }
+            },
+            "totalSizeBytes": 176644.0
           }
         }
       },
@@ -1397,6 +1452,7 @@
           "remoteLibrary": null,
           "revision": 5,
           "selection": {
+            "canGroup": false,
             "revision": 5,
             "selectedAnchor": null,
             "selectedIndices": []
@@ -1410,7 +1466,9 @@
             "orderLocked": false,
             "revision": 5,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {},
+            "totalSizeBytes": 0.0
           }
         }
       }
@@ -1546,6 +1604,7 @@
           "remoteLibrary": null,
           "revision": 2,
           "selection": {
+            "canGroup": false,
             "revision": 2,
             "selectedAnchor": 0,
             "selectedIndices": [
@@ -1590,7 +1649,15 @@
             "orderLocked": false,
             "revision": 2,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-1": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              }
+            },
+            "totalSizeBytes": 88320.0
           }
         }
       },
@@ -1653,7 +1720,15 @@
             "orderLocked": false,
             "revision": 3,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-1": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              }
+            },
+            "totalSizeBytes": 88320.0
           }
         }
       },
@@ -1743,7 +1818,20 @@
             "orderLocked": false,
             "revision": 4,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-1": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              },
+              "title-2": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88324.0
+              }
+            },
+            "totalSizeBytes": 176644.0
           }
         }
       }

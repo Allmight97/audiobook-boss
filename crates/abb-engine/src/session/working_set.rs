@@ -16,6 +16,8 @@ use crate::errors::AppErrorEnvelope;
 use crate::metadata::{CueStatus, MetadataIntentPatch, PatchOp};
 use crate::metadata_save::Rewrite;
 
+use super::title_totals::{title_totals, TitleTotals};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum SortDirection {
@@ -81,6 +83,10 @@ pub struct TitlesSnapshot {
     pub title_sources_by_identity: BTreeMap<String, Vec<AudioFile>>,
     /// Grouped titles whose sources disagreed on audio handling.
     pub audio_choice_required: Vec<String>,
+    /// What each title sends to the output, keyed by the title's identity.
+    pub title_totals: BTreeMap<String, TitleTotals>,
+    /// Bytes of every valid source in the list.
+    pub total_size_bytes: f64,
     pub sort_direction: SortDirection,
     pub order_locked: bool,
     pub notice: Option<InputNotice>,
@@ -96,6 +102,7 @@ pub struct SelectionSnapshot {
     pub revision: u64,
     pub selected_indices: Vec<usize>,
     pub selected_anchor: Option<usize>,
+    pub can_group: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -121,11 +128,14 @@ fn identity(file: &AudioFile) -> &str {
 
 impl WorkingSet {
     pub(crate) fn titles(&self, revision: u64) -> TitlesSnapshot {
+        let totals = title_totals(&self.files, &self.title_sources);
         TitlesSnapshot {
             revision,
             files: self.files.clone(),
             title_sources_by_identity: self.title_sources.clone(),
             audio_choice_required: self.audio_choice_required.clone(),
+            title_totals: totals.by_title,
+            total_size_bytes: totals.total_size_bytes,
             sort_direction: self.sort_direction,
             order_locked: self.order_locked,
             notice: self.notice.clone(),
@@ -139,7 +149,12 @@ impl WorkingSet {
             revision,
             selected_indices: self.selected_indices.clone(),
             selected_anchor: self.selected_anchor,
+            can_group: self.can_group(),
         }
+    }
+
+    fn can_group(&self) -> bool {
+        !self.order_locked && self.selected_indices.len() >= 2
     }
 
     /// Advances whenever the titles, their order, or their settings change.
@@ -565,7 +580,7 @@ impl WorkingSet {
     /// title. Conflicting audio choices require an explicit choice afterward.
     /// Returns whether a group was formed.
     pub(crate) fn group_selected(&mut self) -> bool {
-        if self.order_locked || self.selected_indices.len() < 2 {
+        if !self.can_group() {
             return false;
         }
         let mut indices = self.selected_indices.clone();

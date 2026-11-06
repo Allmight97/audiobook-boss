@@ -90,9 +90,11 @@ without a bullet has none. Engine paths name the owner of the truth.
   imports and name no source; existing titles change only through Apply App
   Settings. `selectionView` and `refusal` render engine facts and combine no
   titles.
-- `inputSession` (session AGENTS): chapter counts come from
-  `acceptedChapterCount`: the plan the file converts with, else its embedded
-  chapters. Why: a CUE plan replaces the embedded chapters.
+- `inputSession` (session AGENTS): a title's chapters, duration, and size
+  come from the engine's `titleTotals`; the combined size and Group as one
+  title availability come from `totalSizeBytes` and `canGroup`. A source row's
+  own count is `acceptedChapterCount`, the plan the file converts with. Why: a
+  CUE plan replaces the embedded chapters.
 - `metadataLookup` (session AGENTS): query text binds to its queued path and
   metadata `binding`. Advancing or rebinding drops the previous title's echo at
   once. Apply sends the lookup part revision the snapshot holds.

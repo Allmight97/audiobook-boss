@@ -614,3 +614,16 @@ fn a_saved_title_and_author_rename_the_listed_source_and_clearing_returns_the_fi
     );
     assert_eq!(listed(&set, "dune.m4b"), ("dune.m4b".to_string(), None));
 }
+
+#[test]
+fn grouping_is_offered_for_two_selected_titles_while_the_order_is_open() {
+    let mut set = set_with(&["a", "b", "c"]);
+    set.select_file(0, NO_MODIFIERS);
+    assert!(!set.selection(0).can_group);
+
+    set.select_file(1, MULTI);
+    assert!(set.selection(0).can_group);
+
+    set.set_order_locked(true);
+    assert!(!set.selection(0).can_group);
+}

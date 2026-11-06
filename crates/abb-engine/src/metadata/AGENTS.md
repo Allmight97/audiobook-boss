@@ -6,7 +6,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 
 - Import metadata boundary symbols from `crate::metadata`; the strip is the
   `pub use` list in `metadata/mod.rs`. `passthrough` and `mp4ameta_bridge` stay
-  private.
+  private. `chapter_count` holds the one rule for when a multi-source output
+  gets one synthesized chapter per source; the session count and both
+  synthesis sites call it.
 - The app reads tags from session snapshots and changes them through session
   intents; `abb-dev` reads through `Engine::read_audio_metadata`. Real file
   saves route through `save_metadata_intent`, so series validation can see

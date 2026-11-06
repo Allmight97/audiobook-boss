@@ -1050,6 +1050,7 @@ export type SelectionSnapshot = {
 	revision: number,
 	selectedIndices: number[],
 	selectedAnchor: number | null,
+	canGroup: boolean,
 };
 
 /**  Non-blocking advice about the book number. Hosts word these. */
@@ -1363,6 +1364,13 @@ export type TitlePlan = { kind: "pending" } | { kind: "resolved"; plan: TitleAud
 /**  Grouped sources disagree about their audio; the user must choose. */
 { kind: "choiceRequired" };
 
+export type TitleTotals = {
+	/**  The chapters ABB sends to the output for this title. */
+	chapterCount: number,
+	durationSeconds: number | null,
+	sizeBytes: number | null,
+};
+
 /**
  *  The output titles as a host sees them. Selection travels separately
  *  because it changes far more often than the titles do.
@@ -1374,6 +1382,10 @@ export type TitlesSnapshot = {
 	titleSourcesByIdentity: { [key in string]: AudioFile[] },
 	/**  Grouped titles whose sources disagreed on audio handling. */
 	audioChoiceRequired: string[],
+	/**  What each title sends to the output, keyed by the title's identity. */
+	titleTotals: { [key in string]: TitleTotals },
+	/**  Bytes of every valid source in the list. */
+	totalSizeBytes: number | null,
 	sortDirection: SortDirection,
 	orderLocked: boolean,
 	notice: InputNotice | null,

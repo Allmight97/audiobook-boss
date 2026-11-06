@@ -189,7 +189,7 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
     }
 
     let valid_file_count = files.iter().filter(|f| f.is_valid).count();
-    if passthrough.chapters.is_empty() && valid_file_count > 1 {
+    if super::synthesizes_chapter_per_source(valid_file_count, passthrough.chapters.len()) {
         let synthetic = synthesize_chapters_from_files(files);
         if !synthetic.is_empty() {
             log::info!(

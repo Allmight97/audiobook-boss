@@ -62,6 +62,8 @@ function emptyTitles(): SessionTitles {
 		files: [],
 		titleSourcesByIdentity: {},
 		audioChoiceRequired: [],
+		titleTotals: {},
+		totalSizeBytes: 0,
 		sortDirection: 'none',
 		orderLocked: false,
 		notice: null,
@@ -249,7 +251,10 @@ function emptySettings(): SettingsSnapshot {
 function shareUnchangedFiles(previous: SessionTitles, next: SessionTitles): SessionTitles {
 	const known = new Map<string, { file: AudioFile; content: string }>();
 	const remember = (file: AudioFile) =>
-		known.set(file.inputId ?? file.path, { file, content: JSON.stringify(file) });
+		known.set(file.inputId ?? file.path, {
+			file,
+			content: JSON.stringify(file),
+		});
 	previous.files.forEach(remember);
 	Object.values(previous.titleSourcesByIdentity).flat().forEach(remember);
 	const share = (file: AudioFile): AudioFile => {
@@ -327,7 +332,10 @@ function shareUnchangedRemote(
 	};
 }
 
-type Part<T> = { readonly read: () => T; apply(next: T | null | undefined): void };
+type Part<T> = {
+	readonly read: () => T;
+	apply(next: T | null | undefined): void;
+};
 
 function sessionPart<T extends { readonly revision: number }>(
 	initial: T,
@@ -354,6 +362,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		revision: UNATTACHED,
 		selectedIndices: [],
 		selectedAnchor: null,
+		canGroup: false,
 	});
 	const metadata = sessionPart(emptyMetadata());
 	const lookup = sessionPart(emptyLookup(), shareUnchangedResults);
@@ -425,7 +434,9 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	attached.catch((error: unknown) => {
 		setAttachment({
 			kind: 'failed',
-			message: toUserMessage(error, { fallback: 'ABB could not reach its engine.' }),
+			message: toUserMessage(error, {
+				fallback: 'ABB could not reach its engine.',
+			}),
 		});
 	});
 
@@ -454,7 +465,9 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	function refuse(intent: SessionIntent, error: unknown): void {
 		if (disposed || isCancellation(error)) return;
 		console.error(`Session intent ${intent.kind} failed:`, error);
-		refusal = toUserMessage(error, { fallback: "That change couldn't be applied." });
+		refusal = toUserMessage(error, {
+			fallback: "That change couldn't be applied.",
+		});
 		bumpRefusal((n) => n + 1);
 	}
 

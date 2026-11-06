@@ -2,7 +2,7 @@ import { createSignal, type Accessor } from 'solid-js';
 import type { AudioFile } from '../../types/audio';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
-import type { SessionIntent } from '../../types/session';
+import type { SessionIntent, TitleTotals } from '../../types/session';
 import type { EngineLink } from '../engineLink';
 import { companionSummary, type CompanionSummary } from './companions';
 import { toInputView } from './display';
@@ -18,6 +18,7 @@ export type InputOwner = {
 	readonly view: Accessor<InputView>;
 	readonly capability: Accessor<InputCapability>;
 	sourcesFor: (file: AudioFile) => ReadonlyArray<AudioFile>;
+	totalsFor: (file: AudioFile) => TitleTotals | undefined;
 	groupSelected: () => void;
 	ungroup: (file: AudioFile) => void;
 	reorderSources: (file: AudioFile, from: number, to: number) => void;
@@ -75,6 +76,10 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		return link.titles().titleSourcesByIdentity[fileIdentityKey(file)] ?? [file];
 	}
 
+	function totalsFor(file: AudioFile): TitleTotals | undefined {
+		return link.titles().titleTotals[fileIdentityKey(file)];
+	}
+
 	async function applied(intent: SessionIntent): Promise<boolean> {
 		try {
 			return (await link.send(intent)).kind === 'applied';
@@ -128,6 +133,7 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 
 	return {
 		sourcesFor,
+		totalsFor,
 		audioChoiceRequired(file) {
 			return link.titles().audioChoiceRequired.includes(fileIdentityKey(file));
 		},
@@ -144,7 +150,12 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 			link.post({ kind: 'ungroup', titleId: fileIdentityKey(file) });
 		},
 		reorderSources(file, from, to) {
-			link.post({ kind: 'reorderSources', titleId: fileIdentityKey(file), from, to });
+			link.post({
+				kind: 'reorderSources',
+				titleId: fileIdentityKey(file),
+				from,
+				to,
+			});
 		},
 		view,
 		capability,
@@ -203,7 +214,11 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		reorderFiles(command) {
 			const file = link.titles().files[command.fromIndex];
 			if (!file) return;
-			link.post({ kind: 'reorderFiles', titleId: fileIdentityKey(file), to: command.toIndex });
+			link.post({
+				kind: 'reorderFiles',
+				titleId: fileIdentityKey(file),
+				to: command.toIndex,
+			});
 		},
 		toggleSort() {
 			link.post({ kind: 'toggleSort' });

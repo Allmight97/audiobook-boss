@@ -12,6 +12,7 @@ pub(crate) use cue::{
     inspect_chapter_source, source_fingerprint, validate_chapter_plan, validate_source_fingerprint,
 };
 pub use cue::{ChapterPlan, CueSource, CueStatus};
+mod chapter_count;
 mod cover_art;
 mod embedded_cover;
 mod ffi;
@@ -34,6 +35,7 @@ pub use abb_metadata_core::{
     MetadataIntentValidationField, MetadataIntentValidationResult, NamingMetadata, PatchOp,
 };
 pub(crate) use abb_metadata_core::{AlbumSortWriteAction, MetadataWritePlan};
+pub(crate) use chapter_count::{output_chapter_count, synthesizes_chapter_per_source};
 pub use intent_plan::CoverArtPassthroughPolicy;
 pub(crate) use intent_plan::{
     plan_metadata_outcome, plan_metadata_outcome_from, plan_metadata_write_for_path,

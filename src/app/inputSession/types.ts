@@ -25,6 +25,8 @@ export type InputView = {
 	readonly showSortButton: boolean;
 	readonly showClearButton: boolean;
 	readonly showRestoreImportOrder: boolean;
+	readonly totalSizeBytes: number;
+	readonly canGroup: boolean;
 	readonly totalDurationSeconds: number;
 };
 

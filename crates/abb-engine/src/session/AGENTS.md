@@ -105,6 +105,13 @@ one host attachment.
   is listed with its reason and the rest is added; the `SkippedPaths` notice
   is set in the transition that lists the titles, after `append_analyzed`
   (which clears the notice).
+- **Title totals.** `titles.titleTotals` (by title id), `titles.totalSizeBytes`,
+  and `selection.canGroup` are computed in `title_totals.rs` and `WorkingSet`,
+  and the list renders them. A title's chapter count is the chapters ABB sends
+  to the output: the sources' accepted chapters, or one per source when a
+  multi-source title has none (`metadata/chapter_count.rs`, shared with the
+  merge and passthrough writers). Per-source rows keep their own count. These
+  are packaging facts, not a statement that every container keeps them.
 - **Cover.** A cover change applies only when exactly one valid title is
   selected. A later cover choice or Clear supersedes a load still running.
 - **Save targets.** Save covers every pending edit on a valid single-source
