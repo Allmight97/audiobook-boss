@@ -42,7 +42,7 @@ one host attachment.
   last written, and no entry is dropped, so an address never names two images.
   A grouped title's sources take no revision from a write that finishes after
   grouping. `Engine::cover` serves the addresses a session offered through
-  `cover_request.rs` and refuses anything else. Loading is
+  `runtime/cover_flow.rs` and refuses anything else. Loading is
   `crate::cover_service`'s. Reasons and statuses are typed; the host words them.
 
 ## Where A Rule Goes

@@ -4,6 +4,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+use cover_flow::CoverSource;
 use lookup_flow::ChosenResult;
 
 use super::exports::ExportLink;
@@ -659,55 +660,6 @@ impl Session {
         self.inner.sources_freed.notify_one();
         self.inner.list_unlocked.notify_waiters();
     }
-
-    fn begin_cover_load(&self, source: CoverSource) -> Rest {
-        let from_url = matches!(source, CoverSource::Url(_));
-        if let CoverSource::Url(url) = &source {
-            if url.trim().is_empty() {
-                self.transition(SessionState::cover_url_required);
-                return Rest::Done(SessionOutcome::CoverLoadFailed);
-            }
-        }
-        let started = self.transition(|state| {
-            let request = state.begin_cover_request(from_url);
-            (state.epoch, state.binding, request)
-        });
-        Rest::CoverLoad { source, started }
-    }
-
-    async fn load_cover(&self, source: CoverSource, started: (u64, u64, u64)) -> SessionOutcome {
-        let from_url = matches!(source, CoverSource::Url(_));
-        if from_url {
-            self.publish();
-        }
-        let result = match source {
-            CoverSource::File(path) => crate::cover_source::load_cover_art_file(path).await,
-            CoverSource::Url(url) => self
-                .inner
-                .network
-                .covers
-                .remote_full(url.trim())
-                .await
-                .map(|cover| cover.to_vec()),
-        };
-        self.transition(|state| {
-            if (state.epoch, state.binding, state.cover_request()) != started {
-                return SessionOutcome::Superseded;
-            }
-            let loaded = result.is_ok();
-            state.cover_load_finished(from_url, result);
-            if loaded {
-                SessionOutcome::Applied
-            } else {
-                SessionOutcome::CoverLoadFailed
-            }
-        })
-    }
-}
-
-enum CoverSource {
-    File(String),
-    Url(String),
 }
 
 #[expect(clippy::disallowed_methods, reason = "joined by blocking")]
@@ -750,9 +702,7 @@ async fn read_all(tickets: Vec<ReadTicket>) -> Vec<(ReadTicket, Result<Audiobook
     finished
 }
 
-#[path = "cover_request.rs"]
-mod cover_request;
-
+mod cover_flow;
 mod defaults_flow;
 mod download_flow;
 mod import_flow;

@@ -389,7 +389,7 @@ impl Engine {
     }
 
     /// A cover a view shows, named by the request path of its cover address
-    /// (`session/cover_request.rs`); `None` when its source has no cover.
+    /// (`session/runtime/cover_flow.rs`); `None` when its source has no cover.
     /// Only covers the session handed out are served. Stops at closing.
     pub async fn cover(&self, request: &str) -> Result<Option<std::sync::Arc<[u8]>>> {
         self.inner

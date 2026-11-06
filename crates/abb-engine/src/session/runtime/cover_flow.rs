@@ -1,13 +1,63 @@
-//! Serves the covers the session offers, by the request a host passes on
-//! unchanged (`cover_address.rs` owns the format).
+//! Loads a chosen cover and serves the covers the session offers, by the
+//! request a host passes on unchanged (`cover_address.rs` owns the format).
 
-use super::super::cover_address::{self, unknown, CoverRequest};
-use super::super::preview::PreviewArtwork;
-use super::Session;
+use super::{Rest, Session};
 use crate::cover_service::Cover;
 use crate::errors::{AppError, Result};
+use crate::session::cover_address::{self, unknown, CoverRequest};
+use crate::session::intent::SessionOutcome;
+use crate::session::preview::PreviewArtwork;
+use crate::session::state::SessionState;
 
 impl Session {
+    pub(super) fn begin_cover_load(&self, source: CoverSource) -> Rest {
+        let from_url = matches!(source, CoverSource::Url(_));
+        if let CoverSource::Url(url) = &source {
+            if url.trim().is_empty() {
+                self.transition(SessionState::cover_url_required);
+                return Rest::Done(SessionOutcome::CoverLoadFailed);
+            }
+        }
+        let started = self.transition(|state| {
+            let request = state.begin_cover_request(from_url);
+            (state.epoch, state.binding, request)
+        });
+        Rest::CoverLoad { source, started }
+    }
+
+    pub(super) async fn load_cover(
+        &self,
+        source: CoverSource,
+        started: (u64, u64, u64),
+    ) -> SessionOutcome {
+        let from_url = matches!(source, CoverSource::Url(_));
+        if from_url {
+            self.publish();
+        }
+        let result = match source {
+            CoverSource::File(path) => crate::cover_source::load_cover_art_file(path).await,
+            CoverSource::Url(url) => self
+                .inner
+                .network
+                .covers
+                .remote_full(url.trim())
+                .await
+                .map(|cover| cover.to_vec()),
+        };
+        self.transition(|state| {
+            if (state.epoch, state.binding, state.cover_request()) != started {
+                return SessionOutcome::Superseded;
+            }
+            let loaded = result.is_ok();
+            state.cover_load_finished(from_url, result);
+            if loaded {
+                SessionOutcome::Applied
+            } else {
+                SessionOutcome::CoverLoadFailed
+            }
+        })
+    }
+
     pub(crate) async fn cover(&self, request: &str) -> Result<Option<Cover>> {
         let request = CoverRequest::parse(request).inspect_err(|_| {
             log::warn!("cover_load outcome=refused reason=malformed_address");
@@ -72,4 +122,9 @@ impl Session {
             }
         }
     }
+}
+
+pub(super) enum CoverSource {
+    File(String),
+    Url(String),
 }
