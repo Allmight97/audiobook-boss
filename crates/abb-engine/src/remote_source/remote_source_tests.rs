@@ -81,17 +81,14 @@ pub(crate) fn offer_library_title(runtime: &RemoteSourceRuntime, title_id: &str)
         title: title_id.into(),
         authors: Vec::new(),
         narrators: Vec::new(),
-        duration_seconds: None,
         cover: None,
         supplemental_pdf_available: false,
-        acquired: false,
         availability: RemoteTitleAvailability {
             status: RemoteTitleAvailabilityStatus::Available,
             acquirable: true,
             label: "Available".into(),
             detail: None,
         },
-        unsupported_reasons: Vec::new(),
     }]);
 }
 

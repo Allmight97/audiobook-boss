@@ -8,8 +8,6 @@ import type { AcquisitionLane } from '../../types/appSettings';
 import {
 	bytesLabel,
 	formatReleaseSizeBytes,
-	isTitleAcquirable,
-	progressPercent,
 	progressTitleLabel,
 	releaseProtocolLabel,
 	type RemoteSourceView,
@@ -26,8 +24,8 @@ function RemoteTitleCover(props: { readonly title: RemoteTitle }): JSX.Element {
 				src={props.title.cover ? coverSrc(props.title.cover) : null}
 				alt={`${props.title.title} cover art`}
 				testId="remote-title-cover-image"
-				missing={<span data-testid="remote-title-cover-missing">No Art</span>}
-				failed={<span data-testid="remote-title-cover-error">Preview failed</span>}
+				missing={<span>No Art</span>}
+				failed={<span>Preview failed</span>}
 			/>
 		</CoverThumb>
 	);
@@ -179,7 +177,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 									onInput={(event) => editSearch({ titleFilter: event.currentTarget.value })}
 								/>
 							</div>
-							<div class="remote-source-toolbar-field remote-source-toolbar-toggle remote-source-pdf-filter">
+							<div class="remote-source-toolbar-field remote-source-toolbar-toggle">
 								<label class="checkbox-label tight">
 									<input
 										type="checkbox"
@@ -191,7 +189,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 									<span class="option-label">Supplemental PDF only</span>
 								</label>
 							</div>
-							<div class="remote-source-toolbar-field remote-source-toolbar-toggle remote-source-availability-filter">
+							<div class="remote-source-toolbar-field remote-source-toolbar-toggle">
 								<label class="checkbox-label tight">
 									<input
 										type="checkbox"
@@ -244,7 +242,6 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							<label for="remote-source-release-filter">Filter</label>
 							<input
 								id="remote-source-release-filter"
-								data-testid="remote-source-release-filter"
 								type="search"
 								placeholder="Filter loaded releases"
 								value={view().releaseFilter}
@@ -292,9 +289,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 				</Show>
 
 				<Show when={view().statusMessage}>
-					<Dialog.Status class="remote-source-status" live="polite">
-						{view().statusMessage}
-					</Dialog.Status>
+					<Dialog.Status live="polite">{view().statusMessage}</Dialog.Status>
 				</Show>
 
 				<Show when={isIndexerLane() && view().accountState?.status !== 'connected'}>
@@ -332,32 +327,28 @@ export function RemoteSourceAcquireView(): JSX.Element {
 
 				<Show when={isAudibleLane() && remoteSource.acquisition()}>
 					{(job) => (
-						<Show when={job().progress}>
-							{(progress) => (
-								<div class="remote-progress">
-									<Progress
-										value={progressPercent(job())}
-										label="Acquisition progress"
-										active={!job().terminal}
-									/>
-									<div class="remote-progress-copy">
-										<span>{progressTitleLabel(progress(), remoteSource.acquisitionTitle())}</span>
-										<span>{Math.round(progressPercent(job()))}%</span>
-									</div>
-									<Show when={bytesLabel(progress())}>
-										{(label) => <p class="remote-progress-bytes">{label()}</p>}
-									</Show>
-									<Show when={!job().terminal}>
-										<Button
-											class="remote-progress-cancel"
-											onClick={() => void runAction({ type: 'cancelActiveAcquisition' })}
-										>
-											Cancel Acquisition
-										</Button>
-									</Show>
-								</div>
-							)}
-						</Show>
+						<div class="remote-progress">
+							<Progress
+								value={job().progress.percentage}
+								label="Acquisition progress"
+								active={!job().terminal}
+							/>
+							<div class="remote-progress-copy">
+								<span>{progressTitleLabel(job().progress, remoteSource.acquisitionTitle())}</span>
+								<span>{Math.round(job().progress.percentage)}%</span>
+							</div>
+							<Show when={bytesLabel(job().progress)}>
+								{(label) => <p class="remote-progress-bytes">{label()}</p>}
+							</Show>
+							<Show when={!job().terminal}>
+								<Button
+									class="remote-progress-cancel"
+									onClick={() => void runAction({ type: 'cancelActiveAcquisition' })}
+								>
+									Cancel Acquisition
+								</Button>
+							</Show>
+						</div>
 					)}
 				</Show>
 
@@ -372,22 +363,22 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						<For each={remoteSource.visibleTitles()} keyed={(title) => title.titleId}>
 							{(title) => (
 								<div
-									class={`remote-title-row${remoteSource.isTitleSelected(title().titleId) ? ' selected' : ''}${!isTitleAcquirable(title()) ? ' unavailable' : ''}`}
+									class={`remote-title-row${remoteSource.isTitleSelected(title().titleId) ? ' selected' : ''}${!title().availability.acquirable ? ' unavailable' : ''}`}
 									role="option"
 									tabindex={-1}
 									aria-selected={remoteSource.isTitleSelected(title().titleId) ? 'true' : 'false'}
-									aria-disabled={!isTitleAcquirable(title()) ? 'true' : undefined}
+									aria-disabled={!title().availability.acquirable ? 'true' : undefined}
 								>
 									<RemoteTitleCover title={title()} />
 									<button
 										type="button"
 										class="remote-title-button"
-										disabled={!isTitleAcquirable(title())}
+										disabled={!title().availability.acquirable}
 										onClick={() => remoteSource.toggleTitle(title().titleId)}
 									>
 										<span class="remote-title-name">{title().title}</span>
 										<span class="remote-title-meta">{title().authors.join(', ')}</span>
-										<Show when={!isTitleAcquirable(title())}>
+										<Show when={!title().availability.acquirable}>
 											<span class="remote-title-availability">{title().availability.label}</span>
 											<Show when={title().availability.detail}>
 												{(detail) => (
@@ -400,7 +391,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 										<label class="remote-pdf-toggle">
 											<input
 												type="checkbox"
-												disabled={!isTitleAcquirable(title())}
+												disabled={!title().availability.acquirable}
 												checked={remoteSource.includesPdf(title().titleId)}
 												onChange={() => remoteSource.toggleSupplementalPdf(title().titleId)}
 											/>
@@ -494,7 +485,7 @@ function ReleaseRow(props: {
 					<span class={`remote-release-tag remote-release-tag-${props.release.protocol}`}>
 						{releaseProtocolLabel(props.release.protocol)}
 					</span>
-					<For each={props.release.categories ?? []}>
+					<For each={props.release.categories}>
 						{(category) => (
 							<span class="remote-release-tag remote-release-tag-category">{category.name}</span>
 						)}

@@ -64,7 +64,7 @@ describe('app runtime', () => {
 		first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
 		await first.processing.start();
-		void first.remoteSource.open();
+		void first.remoteSource.open({ lane: 'audible' });
 		first.remoteSource.editSearch({ titleFilter: 'first runtime only' });
 
 		expect(first.settings.dialog().isOpen).toBe(true);

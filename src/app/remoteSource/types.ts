@@ -1,14 +1,10 @@
+import type { RemoteUiSnapshot } from '../../types/session';
 import type {
 	ProviderId,
 	RemoteRelease,
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
 } from '../../types/remoteSource';
-
-export type ReleaseGrabState = {
-	status: 'queued' | 'sending' | 'sent' | 'error';
-	message: string;
-};
 
 type AcquisitionState = {
 	isBusy: boolean;
@@ -27,7 +23,7 @@ type AcquisitionState = {
 	releaseFilter: string;
 	releaseSort: 'seeders' | 'size';
 	selectedReleaseKeys: ReadonlySet<string>;
-	releaseGrabs: Readonly<Record<string, ReleaseGrabState>>;
+	releaseGrabs: Readonly<RemoteUiSnapshot['indexer']['releaseGrabs']>;
 	canGrabSelection: boolean;
 	statusMessage: string;
 };

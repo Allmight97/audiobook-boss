@@ -30,7 +30,7 @@ async function open(
 	const runtime = createAppRuntime({ engine, remoteSource: { openAuthorizationUrl } });
 	runtimes.push(runtime);
 	await runtime.initialize();
-	await runtime.remoteSource.open();
+	await runtime.remoteSource.open({ lane: 'audible' });
 	return { runtime, engine, openAuthorizationUrl, owner: runtime.remoteSource };
 }
 it('renders acquisition progress from the attached session and Close leaves it running', async () => {
@@ -169,9 +169,7 @@ const title = {
 	authors: ['Writer'],
 	narrators: [],
 	supplementalPdfAvailable: false,
-	acquired: false,
 	availability: { status: 'available' as const, acquirable: true, label: 'Available' },
-	unsupportedReasons: [],
 };
 
 it('restores cached library rows and selections during accepted acquisition without requesting a library load', async () => {
@@ -199,8 +197,6 @@ it('routes authentication, library refresh, and disconnect intents and opens the
 	const authorization = {
 		providerId: 'audible' as const,
 		authorizationUrl: 'https://auth.test',
-		handoffPathHint: '/handoff',
-		message: 'Authorize Audible',
 	};
 	engine.respond = (intent) =>
 		intent.kind === 'remote' && intent.intent.kind === 'startAuth'
@@ -240,8 +236,6 @@ it('does not open a late authorization reply after the runtime is disposed', asy
 		authorization: {
 			providerId: 'audible',
 			authorizationUrl: 'https://auth.test',
-			handoffPathHint: '',
-			message: 'Authorize',
 		},
 	});
 	const pending = owner.runAction({ type: 'startAuth' });
@@ -263,9 +257,9 @@ it('clears a previous frontend account-read failure when reopening retries the l
 			detail: null,
 		},
 	});
-	await owner.open();
+	await owner.open({ lane: 'audible' });
 	expect(owner.view().statusMessage).toBe('Account read failed');
 	engine.respond = () => undefined;
-	await owner.open();
+	await owner.open({ lane: 'audible' });
 	expect(owner.view().statusMessage).toBe('');
 });

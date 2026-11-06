@@ -46,8 +46,6 @@ pub struct RemoteSourceAccountState {
 pub struct RemoteAuthStartResponse {
     pub provider_id: ProviderId,
     pub authorization_url: String,
-    pub handoff_path_hint: String,
-    pub message: String,
 }
 
 impl std::fmt::Debug for RemoteAuthStartResponse {
@@ -71,13 +69,10 @@ pub struct RemoteTitle {
     pub title: String,
     pub authors: Vec<String>,
     pub narrators: Vec<String>,
-    pub duration_seconds: Option<u32>,
     /// The address of this title's cover.
     pub cover: Option<String>,
     pub supplemental_pdf_available: bool,
-    pub acquired: bool,
     pub availability: RemoteTitleAvailability,
-    pub unsupported_reasons: Vec<RemoteAcquisitionFailureKind>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -138,7 +133,6 @@ pub struct RemoteRelease {
     pub size_bytes: u64,
     pub protocol: RemoteReleaseProtocol,
     pub seeders: Option<u32>,
-    #[serde(default)]
     pub categories: Vec<RemoteReleaseCategory>,
 }
 

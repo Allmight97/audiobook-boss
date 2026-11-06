@@ -75,8 +75,6 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 			'bytesLabel',
 			'createRemoteSourceOwner',
 			'formatReleaseSizeBytes',
-			'isTitleAcquirable',
-			'progressPercent',
 			'progressTitleLabel',
 			'releaseProtocolLabel',
 		],

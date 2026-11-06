@@ -22,8 +22,7 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			Pick<IndexerConnectionSettingsView, 'baseUrlDraft' | 'categoryIdsDraft' | 'apiKeyDraft'>
 		>,
 	): void;
-	isSaving(): boolean;
-	save(): Promise<boolean>;
+	save(): Promise<void>;
 	testConnection(): Promise<void>;
 	reset(): void;
 } {
@@ -125,9 +124,8 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 					}
 				});
 		},
-		isSaving: () => link.remote().connection.save.kind === 'running',
 		async save() {
-			return (await send('saveConnection'))?.kind === 'remoteSaved';
+			await send('saveConnection');
 		},
 		async testConnection() {
 			await send('testConnection');

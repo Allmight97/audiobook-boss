@@ -13,17 +13,14 @@ function remoteTitle(overrides: Partial<RemoteTitle> = {}): RemoteTitle {
 		title: 'Example Book',
 		authors: ['Example Author'],
 		narrators: ['Example Narrator'],
-		durationSeconds: 3600,
 		cover: undefined,
 		supplementalPdfAvailable: false,
-		acquired: false,
 		availability: {
 			status: 'available',
 			acquirable: true,
 			label: 'Available',
 			detail: undefined,
 		},
-		unsupportedReasons: [],
 		...overrides,
 	};
 }
@@ -58,7 +55,6 @@ describe('remote source selection policy', () => {
 				label: 'Audible catalog title',
 				detail: 'Audible reports this title is not downloadable for this account.',
 			},
-			unsupportedReasons: ['protectedUnsupported'],
 		});
 		const availablePdfTitle = remoteTitle({
 			titleId: 'B000000003',

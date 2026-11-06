@@ -10,17 +10,14 @@ fn title(id: &str, acquirable: bool, pdf: bool) -> RemoteTitle {
         title: id.into(),
         authors: vec![],
         narrators: vec![],
-        duration_seconds: None,
         cover: None,
         supplemental_pdf_available: pdf,
-        acquired: false,
         availability: RemoteTitleAvailability {
             status: RemoteTitleAvailabilityStatus::Available,
             acquirable,
             label: "Available".into(),
             detail: None,
         },
-        unsupported_reasons: vec![],
     }
 }
 fn library(titles: Vec<RemoteTitle>) -> super::super::RemoteLibraryResponse {

@@ -14,7 +14,7 @@ import {
 	visibleRemoteReleases,
 	visibleRemoteTitles,
 } from './selection';
-import type { ReleaseGrabState, RemoteSourceView } from './types';
+import type { RemoteSourceView } from './types';
 
 type RemoteSourceAction =
 	| { readonly type: 'startAuth' | 'completeAuth' | 'logout' | 'loadLibrary' }
@@ -75,12 +75,12 @@ export type RemoteSourceOwner = {
 	includesPdf: (titleId: string) => boolean;
 	readonly visibleReleases: Accessor<readonly RemoteRelease[]>;
 	isReleaseSelected: (key: string) => boolean;
-	releaseGrab: (key: string) => ReleaseGrabState | undefined;
+	releaseGrab: (key: string) => RemoteSourceView['releaseGrabs'][string] | undefined;
 	readonly hiddenReleaseSelectionCount: Accessor<number>;
 	readonly acquisition: Accessor<AcquisitionJob | null>;
 	readonly acquisitionTitle: Accessor<RemoteTitle | undefined>;
 	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
-	open: (options?: { readonly lane?: AcquisitionLane }) => Promise<void>;
+	open: (options: { readonly lane: AcquisitionLane }) => Promise<void>;
 	selectLane: (lane: AcquisitionLane) => Promise<void>;
 	close: () => void;
 	editSearch: (
@@ -196,11 +196,10 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			return titleId ? titleById().get(titleId) : undefined;
 		}),
 		indexerConnection: indexerConnection.view,
-		async open(options) {
+		async open({ lane }) {
 			if (disposed) return;
 			const started = generation;
 			state.patch({ isOpen: true });
-			const lane = options?.lane ?? deps.link.remote().lane;
 			state.clearError(lane);
 			try {
 				await deps.link.send({ kind: 'remote', intent: { kind: 'selectLane', lane } });
@@ -270,8 +269,6 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			indexerConnection.patch(patch);
 		},
 		async saveIndexerConnectionSettings() {
-			if (indexerConnection.isSaving()) return;
-
 			await indexerConnection.save();
 		},
 		testIndexerConnection() {

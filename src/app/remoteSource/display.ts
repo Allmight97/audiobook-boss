@@ -1,8 +1,4 @@
-import type { AcquisitionJob, AcquisitionProgress, RemoteTitle } from '../../types/remoteSource';
-
-export function progressPercent(job: AcquisitionJob): number {
-	return Math.max(0, Math.min(100, job.progress?.percentage ?? 0));
-}
+import type { AcquisitionProgress, RemoteTitle } from '../../types/remoteSource';
 
 export function formatReleaseSizeBytes(sizeBytes: number): string {
 	if (sizeBytes <= 0) return 'Unknown size';
@@ -46,8 +42,4 @@ export function progressTitleLabel(
 	const context = [ordinal, titleLabel].filter(Boolean).join(' - ');
 	if (!context) return progress.message;
 	return `${progress.message.replace(/\.$/, '')}: ${context}`;
-}
-
-export function isTitleAcquirable(title: RemoteTitle): boolean {
-	return title.availability.acquirable;
 }

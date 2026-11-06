@@ -154,10 +154,6 @@ impl RemoteSourceRuntime {
                 Ok(RemoteAuthStart {
                     provider_id,
                     authorization_url,
-                    handoff_path_hint:
-                        "Paste the final Amazon URL or use $TMPDIR/abb-audible-auth-response-url.txt / ABB_AUDIBLE_AUTH_RESPONSE_URL_PATH"
-                            .to_string(),
-                    message: "Open the authorization URL externally, sign in, then paste the final Amazon URL or save it to a local handoff file and complete auth from ABB.".to_string(),
                 })
             }
             RemoteProviderId::Indexer => Err(AppError::InvalidInput(

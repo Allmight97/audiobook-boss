@@ -56,15 +56,12 @@ function remoteTitle(): RemoteTitle {
 		title: 'Example Book',
 		authors: ['Example Author'],
 		narrators: [],
-		durationSeconds: 3600,
 		supplementalPdfAvailable: false,
-		acquired: false,
 		availability: {
 			status: 'available',
 			acquirable: true,
 			label: 'Available',
 		},
-		unsupportedReasons: [],
 	};
 }
 
@@ -254,7 +251,7 @@ describe('RemoteSourceAcquireView', () => {
 			state.remote.account = { providerId: 'audible', status: 'needsAuth' };
 			state.remote.busy = true;
 		});
-		await runtime.remoteSource.open();
+		await runtime.remoteSource.open({ lane: 'audible' });
 		expect(screen.getByRole('button', { name: 'Connect Audible' })).toBeDisabled();
 		expect(screen.getByRole('button', { name: 'Complete Auth' })).toBeDisabled();
 		fireEvent.input(screen.getByLabelText('Auth Handoff'), {

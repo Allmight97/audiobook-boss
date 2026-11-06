@@ -914,8 +914,6 @@ export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" |
 export type RemoteAuthStartResponse = {
 	providerId: ProviderId,
 	authorizationUrl: string,
-	handoffPathHint: string,
-	message: string,
 };
 
 export type RemoteDraftStatus = { kind: "idle" } | { kind: "running" } | { kind: "succeeded" } | { kind: "failed"; error: AppErrorEnvelope };
@@ -942,7 +940,7 @@ export type RemoteRelease = {
 	sizeBytes: number,
 	protocol: RemoteReleaseProtocol,
 	seeders: number | null,
-	categories?: RemoteReleaseCategory[],
+	categories: RemoteReleaseCategory[],
 };
 
 export type RemoteReleaseCategory = {
@@ -976,13 +974,10 @@ export type RemoteTitle = {
 	title: string,
 	authors: string[],
 	narrators: string[],
-	durationSeconds: number | null,
 	/**  The address of this title's cover. */
 	cover: string | null,
 	supplementalPdfAvailable: boolean,
-	acquired: boolean,
 	availability: RemoteTitleAvailability,
-	unsupportedReasons: RemoteAcquisitionFailureKind[],
 };
 
 export type RemoteTitleAvailability = {

@@ -2,8 +2,7 @@ use abb_audible_core::find_first_string_for_key;
 use serde_json::Value;
 
 use crate::remote_source::{
-    ProviderId, RemoteAcquisitionFailureKind, RemoteTitle, RemoteTitleAvailability,
-    RemoteTitleAvailabilityStatus,
+    ProviderId, RemoteTitle, RemoteTitleAvailability, RemoteTitleAvailabilityStatus,
 };
 
 pub(super) fn parse_library_titles(payload: &Value) -> Vec<RemoteTitle> {
@@ -34,16 +33,11 @@ fn parse_title(value: &Value) -> Option<RemoteTitle> {
         title,
         authors: collect_person_names(value, "authors"),
         narrators: collect_person_names(value, "narrators"),
-        duration_seconds: find_first_u64_for_key(value, "runtime_length_min")
-            .map(|minutes| minutes.saturating_mul(60) as u32)
-            .or_else(|| find_first_u64_for_key(value, "duration").map(|duration| duration as u32)),
         cover: title_cover_url(value)
             .as_deref()
             .map(crate::session::cover_remote_address),
         supplemental_pdf_available: find_first_string_for_key(value, "pdf_url").is_some()
             || find_first_string_for_key(value, "pdfUrl").is_some(),
-        acquired: false,
-        unsupported_reasons: unsupported_reasons_for_availability(&availability),
         availability,
     })
 }
@@ -94,16 +88,6 @@ fn title_availability(value: &Value) -> RemoteTitleAvailability {
         acquirable: true,
         label: "Available".to_string(),
         detail: None,
-    }
-}
-
-fn unsupported_reasons_for_availability(
-    availability: &RemoteTitleAvailability,
-) -> Vec<RemoteAcquisitionFailureKind> {
-    if availability.acquirable {
-        Vec::new()
-    } else {
-        vec![RemoteAcquisitionFailureKind::ProtectedUnsupported]
     }
 }
 
@@ -172,22 +156,6 @@ fn product_image_url_from_value(value: &Value) -> Option<String> {
             .map(str::to_string)
             .or_else(|| map.values().find_map(product_image_url_from_value)),
         Value::Array(values) => values.iter().find_map(product_image_url_from_value),
-        _ => None,
-    }
-}
-
-fn find_first_u64_for_key(value: &Value, key: &str) -> Option<u64> {
-    match value {
-        Value::Object(map) => {
-            if let Some(found) = map.get(key).and_then(Value::as_u64) {
-                return Some(found);
-            }
-            map.values()
-                .find_map(|entry| find_first_u64_for_key(entry, key))
-        }
-        Value::Array(values) => values
-            .iter()
-            .find_map(|entry| find_first_u64_for_key(entry, key)),
         _ => None,
     }
 }
