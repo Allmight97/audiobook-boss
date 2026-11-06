@@ -122,7 +122,6 @@ pub struct ChildJobSnapshot {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationLogEntry {
-    pub timestamp_ms: i64,
     pub message: String,
     pub stage: Option<WorkProgressStage>,
     pub child_job_id: Option<String>,

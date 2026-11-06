@@ -376,11 +376,8 @@ impl WorkRuntime {
         operation_id: &OperationId,
         child_job_id: &str,
     ) -> Result<OperationSnapshot> {
-        let (snapshot, title_index) = lock_state(&self.inner.state)?.request_child_cancel(
-            operation_id,
-            child_job_id,
-            now_ms(),
-        )?;
+        let (snapshot, title_index) =
+            lock_state(&self.inner.state)?.request_child_cancel(operation_id, child_job_id)?;
         if let Some(index) = title_index {
             let flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
             if flags

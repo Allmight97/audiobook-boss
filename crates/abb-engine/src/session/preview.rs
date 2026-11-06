@@ -132,7 +132,7 @@ impl Preview {
         self.open_path = None;
         match child {
             Some(child) => {
-                let (_, index) = self.state.request_child_cancel(id, child, now_ms())?;
+                let (_, index) = self.state.request_child_cancel(id, child)?;
                 Ok(index.into_iter().collect())
             }
             None => {

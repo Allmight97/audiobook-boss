@@ -649,7 +649,6 @@ export type OperationKind = "processingBatch" | "metadataSave";
  *  lifecycle transitions) — the frontend never accumulates its own history.
  */
 export type OperationLogEntry = {
-	timestampMs: number,
 	message: string,
 	stage: WorkProgressStage | null,
 	childJobId: string | null,
