@@ -98,6 +98,12 @@ session files, Supplemental Assets, and staging cleanup.
 
 ## Handoff
 
+An acquisition's provider work, including the stored sign-in it needs, runs
+behind one `AcquireTitles` function in `session_lifecycle.rs`; the lifecycle
+takes it at construction. Why: a test replaces it with a fake that writes
+files, so `integration_audible_handoff_tests.rs` runs the chain from
+`AcquireSelected` to the session and back with no network and no keychain.
+
 A finished job hands its files to the session through the engine-set `Handoff`
 and records the outcome on the job. From then on the session decides when the
 download goes (`crate::session`, `staged.rs`) and calls `purge_session`, which

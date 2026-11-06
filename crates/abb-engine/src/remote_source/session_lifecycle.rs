@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use abb_remote_source_core::{
@@ -18,6 +20,55 @@ use super::{RemoteProviderId, RemoteSourceRuntime};
 
 const PROGRESS_EVENT_INTERVAL: Duration = Duration::from_millis(100);
 
+/// Everything one acquisition needs. Reaching the provider and the stored
+/// sign-in happens only behind [`AcquireTitles`], so a test that replaces it
+/// never touches the network or the keychain.
+pub(crate) struct AcquireRequest {
+    pub(crate) runtime: RemoteSourceRuntime,
+    pub(crate) plan: super::AcquisitionPlan,
+    pub(crate) job_id: String,
+    pub(crate) job_dir: PathBuf,
+}
+
+pub(crate) type AcquireTitles = Arc<
+    dyn Fn(AcquireRequest) -> Pin<Box<dyn Future<Output = Result<RemoteAcquisitionJob>> + Send>>
+        + Send
+        + Sync,
+>;
+
+pub(super) fn audible_acquire() -> AcquireTitles {
+    Arc::new(|request| {
+        Box::pin(async move {
+            let AcquireRequest {
+                runtime,
+                plan,
+                job_id,
+                job_dir,
+            } = request;
+            let lifecycle = &runtime.inner.lifecycle;
+            let auth = runtime
+                .vault_blocking(|runtime| {
+                    super::providers::audible::AudibleProvider::stored_auth(
+                        runtime.inner.vault.as_ref(),
+                    )
+                })
+                .await?;
+            super::providers::audible::AudibleProvider::acquire(
+                auth,
+                &lifecycle.materializer,
+                &plan,
+                &job_id,
+                &job_dir,
+                |progress| {
+                    lifecycle.update_job_progress(&job_id, progress);
+                },
+                || lifecycle.job_is_cancelled(&job_id),
+            )
+            .await
+        })
+    })
+}
+
 pub(super) struct RemoteAcquisitionLifecycle {
     pub(super) staging: RemoteSourceStaging,
     materializer: AaxcleanMaterializer,
@@ -26,6 +77,7 @@ pub(super) struct RemoteAcquisitionLifecycle {
     host: Host,
     ui: std::sync::Arc<Mutex<super::ui::UiState>>,
     progress_sent: Mutex<HashMap<String, Instant>>,
+    acquire: AcquireTitles,
 }
 
 impl RemoteAcquisitionLifecycle {
@@ -34,6 +86,7 @@ impl RemoteAcquisitionLifecycle {
         materializer: AaxcleanMaterializer,
         host: Host,
         ui: std::sync::Arc<Mutex<super::ui::UiState>>,
+        acquire: AcquireTitles,
     ) -> Self {
         Self {
             staging,
@@ -43,6 +96,7 @@ impl RemoteAcquisitionLifecycle {
             host,
             ui,
             progress_sent: Mutex::new(HashMap::new()),
+            acquire,
         }
     }
 
@@ -190,30 +244,13 @@ impl RemoteAcquisitionLifecycle {
         job_dir: PathBuf,
     ) {
         let _active_work = runtime.inner.power.begin();
-        let auth = runtime
-            .vault_blocking(|runtime| {
-                super::providers::audible::AudibleProvider::stored_auth(
-                    runtime.inner.vault.as_ref(),
-                )
-            })
-            .await;
-        let result = match auth {
-            Ok(auth) => {
-                super::providers::audible::AudibleProvider::acquire(
-                    auth,
-                    &self.materializer,
-                    &plan,
-                    &job_id,
-                    &job_dir,
-                    |progress| {
-                        self.update_job_progress(&job_id, progress);
-                    },
-                    || self.job_is_cancelled(&job_id),
-                )
-                .await
-            }
-            Err(error) => Err(error),
-        };
+        let result = (self.acquire)(AcquireRequest {
+            runtime: runtime.clone(),
+            plan,
+            job_id: job_id.clone(),
+            job_dir,
+        })
+        .await;
 
         self.remove_acquisition_task(&job_id);
 

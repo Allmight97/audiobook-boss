@@ -24,6 +24,8 @@ mod vault;
 use materializer::AaxcleanMaterializer;
 use providers::audible::{AudibleProvider, PendingAudibleAuth};
 use providers::indexer::{IndexerProvider, ReqwestProwlarrAdapter};
+#[cfg(test)]
+pub(crate) use session_lifecycle::AcquireTitles;
 use session_lifecycle::RemoteAcquisitionLifecycle;
 use staging::RemoteSourceStaging;
 use types::{
@@ -93,6 +95,7 @@ impl RemoteSourceRuntime {
                     AaxcleanMaterializer::new_for_helper(config.aaxclean_helper),
                     config.host,
                     ui,
+                    session_lifecycle::audible_acquire(),
                 ),
                 pending_audible_auth: Mutex::new(None),
                 indexer_adapter: ReqwestProwlarrAdapter::new(),

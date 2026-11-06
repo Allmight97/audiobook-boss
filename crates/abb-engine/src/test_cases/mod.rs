@@ -1,3 +1,5 @@
+#[path = "integration_audible_handoff_tests.rs"]
+mod integration_audible_handoff_tests;
 #[path = "integration_collision_review_tests.rs"]
 mod integration_collision_review_tests;
 #[path = "integration_estimated_length_tests.rs"]

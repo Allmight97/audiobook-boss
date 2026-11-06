@@ -47,14 +47,52 @@ pub(super) fn test_runtime_with(
         root.path().to_path_buf(),
         crate::power::PowerManager::default(),
     );
-    build_runtime(root, settings, vault, events)
+    build_runtime(root, settings, vault, events, None)
 }
 
 pub(crate) fn test_runtime_over(
     root: &TempDir,
     settings: crate::app_settings::SettingsRuntime,
 ) -> RemoteSourceRuntime {
-    build_runtime(root, settings, None, None)
+    build_runtime(root, settings, None, None, None)
+}
+
+/// A runtime whose acquisitions come from `acquire` and whose vault holds
+/// nothing, so no test reaches the provider or the keychain.
+pub(crate) fn test_runtime_acquiring(
+    root: &TempDir,
+    settings: crate::app_settings::SettingsRuntime,
+    acquire: AcquireTitles,
+) -> RemoteSourceRuntime {
+    build_runtime(root, settings, None, None, Some(acquire))
+}
+
+/// The acquisition jobs the runtime still keeps a record of.
+pub(crate) fn recorded_job_ids(runtime: &RemoteSourceRuntime) -> Vec<String> {
+    let jobs = runtime.inner.lifecycle.jobs.lock().expect("job records");
+    jobs.keys().cloned().collect()
+}
+
+/// Offers one available Audible title in the library, as a loaded library does.
+pub(crate) fn offer_library_title(runtime: &RemoteSourceRuntime, title_id: &str) {
+    runtime.ui().library_loaded(vec![RemoteTitle {
+        provider_id: RemoteProviderId::Audible,
+        title_id: title_id.into(),
+        title: title_id.into(),
+        authors: Vec::new(),
+        narrators: Vec::new(),
+        duration_seconds: None,
+        cover_url: None,
+        supplemental_pdf_available: false,
+        acquired: false,
+        availability: RemoteTitleAvailability {
+            status: RemoteTitleAvailabilityStatus::Available,
+            acquirable: true,
+            label: "Available".into(),
+            detail: None,
+        },
+        unsupported_reasons: Vec::new(),
+    }]);
 }
 
 fn build_runtime(
@@ -62,6 +100,7 @@ fn build_runtime(
     settings: crate::app_settings::SettingsRuntime,
     vault: Option<Box<dyn vault::SecretVault>>,
     events: Option<Arc<dyn crate::EventSink>>,
+    acquire: Option<AcquireTitles>,
 ) -> RemoteSourceRuntime {
     let host = crate::host::Host::new(
         events.unwrap_or_else(|| Arc::new(crate::DiscardEvents)),
@@ -82,6 +121,7 @@ fn build_runtime(
                 AaxcleanMaterializer::new_for_helper(Some(PathBuf::from("abb-aaxclean-helper"))),
                 host,
                 ui,
+                acquire.unwrap_or_else(session_lifecycle::audible_acquire),
             ),
             pending_audible_auth: Mutex::new(None),
             indexer_adapter: ReqwestProwlarrAdapter::new(),
