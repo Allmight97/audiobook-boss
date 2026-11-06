@@ -158,13 +158,6 @@ impl Preview {
                     .cancel(id, "Preview cancelled.".into(), now_ms())
                     .expect("registered preview");
             }
-            SubmissionStatus::Failed { error }
-                if error.category == crate::errors::AppErrorCategory::Cancellation =>
-            {
-                self.state
-                    .cancel(id, error.message.clone(), now_ms())
-                    .expect("registered preview");
-            }
             SubmissionStatus::Failed { error } => {
                 self.state
                     .fail(id, error.message.clone(), now_ms())

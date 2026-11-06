@@ -1,9 +1,8 @@
-import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
+import { toUserMessage } from '../../lib/tauri/appError';
 import type { SubmissionStatus, SubmitRefusal } from '../../types/session';
 
 export interface SubmissionDisplay {
 	showCompleted: (message: string) => void;
-	handleCancellation: () => void;
 	resetToIdle: () => void;
 	showError: (message: string) => void;
 }
@@ -70,10 +69,6 @@ export function renderSubmission(
 			display.showError(status.message);
 			return;
 		case 'failed':
-			if (isCancellation(status.error)) {
-				display.handleCancellation();
-				return;
-			}
 			display.resetToIdle();
 			display.showError(
 				`Processing failed: ${toUserMessage(status.error, { fallback: 'Processing failed.' })}`,

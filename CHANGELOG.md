@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Cancelling an export while it is being prepared no longer reports "Preview was
+  cancelled."
 - After a Save, the file list shows each file's new size, and a saved title's
   audio plan no longer drops back to checking.
 - The Preview Audio tooltip names the sample length ABB renders. A title of more

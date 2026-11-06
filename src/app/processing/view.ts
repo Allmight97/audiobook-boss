@@ -47,7 +47,6 @@ export type StatusViewStore = {
 	setConcurrencyText: (value: string) => void;
 	setProgressActive: (active: boolean) => void;
 	showError: (message: string) => void;
-	showInfo: (message: string) => void;
 };
 
 export function createStatusViewStore(): StatusViewStore {
@@ -99,10 +98,6 @@ export function createStatusViewStore(): StatusViewStore {
 		showError(message) {
 			store.setStepText(`Error: ${message}`);
 			store.setStepColor('var(--text-error, #ef4444)');
-		},
-		showInfo(message) {
-			store.setStepText(message);
-			store.setStepColor(DEFAULT_STATUS_VIEW.stepColor);
 		},
 	};
 

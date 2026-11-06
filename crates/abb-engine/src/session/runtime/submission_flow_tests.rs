@@ -1,4 +1,5 @@
 use super::*;
+use crate::session::runtime::submission_flow::failed;
 
 #[tokio::test(flavor = "current_thread")]
 async fn reset_during_preflight_drops_the_review_and_unlocks_the_list() {
@@ -51,4 +52,16 @@ async fn reset_during_preflight_drops_the_review_and_unlocks_the_list() {
         output(&rig).collision_review
     );
     assert!(!output(&rig).submission_in_progress);
+}
+
+#[test]
+fn a_cancelled_run_ends_as_cancelled_and_any_other_error_as_failed() {
+    assert!(matches!(
+        failed(&AppError::cancelled()),
+        SubmissionStatus::Cancelled
+    ));
+    assert!(matches!(
+        failed(&AppError::General("disk full".to_string())),
+        SubmissionStatus::Failed { .. }
+    ));
 }

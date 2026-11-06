@@ -49,7 +49,6 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 		showError: (message: string) => statusView.showError(message),
 		showCompleted: (message: string) =>
 			renderStatus(statusView, { stage: 'complete', percentage: 100, message }),
-		handleCancellation: () => statusView.showInfo('Preview was cancelled.'),
 		resetToIdle: () => {
 			if (!deps.link.output().previewRun) statusView.reset();
 		},

@@ -210,6 +210,28 @@ describe('engine preview adapter', () => {
 		expect(screen.getByText('Cancelling')).toBeVisible();
 	});
 
+	it('leaves the engine line on a cancelled preview and reports no failure', async () => {
+		const engine = createFakeEngine();
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		const cancelled = preview();
+		cancelled.operation.status = 'cancelled';
+		cancelled.operation.progress = {
+			stage: 'cancelled',
+			percentage: 42,
+			message: 'Preview cancelled.',
+			etaSeconds: null,
+		};
+		engine.change((state) => {
+			state.output.previewRun = cancelled;
+			state.output.submission = { kind: 'cancelled' };
+		});
+		await vi.waitFor(() =>
+			expect(app.processing.status().stepText).toBe('Current Step: Preview cancelled.'),
+		);
+		expect(app.processing.status().statusText).toBe('Cancelled');
+	});
+
 	it('keeps a title row and its Cancel across a progress tick', async () => {
 		const engine = createFakeEngine();
 		engine.change((state) => {

@@ -331,7 +331,10 @@ pub(super) fn closing() -> SubmissionStatus {
 }
 
 pub(super) fn failed(error: &AppError) -> SubmissionStatus {
-    SubmissionStatus::Failed {
-        error: AppErrorEnvelope::from(error),
+    match error {
+        AppError::Cancellation(_) => SubmissionStatus::Cancelled,
+        error => SubmissionStatus::Failed {
+            error: AppErrorEnvelope::from(error),
+        },
     }
 }

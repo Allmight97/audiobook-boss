@@ -52,22 +52,4 @@ describe('submission snapshot adapter', () => {
 			{ kind: 'restartTitle', titleId: 'alpha', revision: 3 },
 		]);
 	});
-
-	it('words backend cancellation without reporting failure', async () => {
-		const engine = createFakeEngine();
-		const app = await createAppRuntime({ engine });
-		runtimes.push(app);
-		engine.change((state) => {
-			state.output.submission = {
-				kind: 'failed',
-				error: {
-					code: 'processing_cancelled',
-					category: 'cancellation',
-					message: 'Processing was cancelled.',
-					detail: null,
-				},
-			};
-		});
-		await vi.waitFor(() => expect(app.processing.status().stepText).toBe('Preview was cancelled.'));
-	});
 });
