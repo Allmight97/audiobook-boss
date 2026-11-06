@@ -254,7 +254,7 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
             },
         })
     );
-    assert_eq!(metadata.waiting_writes.len(), 1);
+    assert_eq!(desk.engine.running_work().waiting_writes, 1);
 
     desk.wait_until("the waiting write is applied", |desk| {
         desk.metadata().status
@@ -309,7 +309,7 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
             },
         })
     );
-    assert!(metadata.waiting_writes.is_empty());
+    assert_eq!(desk.engine.running_work().waiting_writes, 0);
 
     desk.wait_until("the export finishes", |desk| {
         finished(desk.export_status(&export))

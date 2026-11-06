@@ -74,7 +74,6 @@ describe('tauriClient', () => {
 								kind: 'final',
 								requestedPath: '/out.m4b',
 								resolvedPath: '/out.m4b',
-								renameCandidate: null,
 								collision: null,
 								action: 'review_required',
 								review: null,

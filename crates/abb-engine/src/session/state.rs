@@ -89,8 +89,6 @@ pub struct CoverSnapshot {
     pub image: Option<String>,
     /// The user replaced the cover and has not saved or staged it yet.
     pub custom: bool,
-    #[serde(skip)]
-    pub removal_requested: bool,
     pub loading: bool,
     pub notice: Option<CoverNotice>,
     /// Advances with every notice, so a repeated notice is still new.
@@ -111,9 +109,6 @@ pub struct MetadataSnapshot {
     pub save_in_progress: bool,
     pub status: Option<MetadataStatus>,
     pub has_pending_edits: bool,
-    /// Files with a Save waiting for the exports reading them to finish.
-    #[serde(skip)]
-    pub waiting_writes: Vec<PathBuf>,
 }
 
 /// The tags the values on screen become. Title is also the album; author is

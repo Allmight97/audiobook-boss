@@ -11,11 +11,6 @@ pub(crate) fn new_processing_snapshot(
     input_files: &[String],
     input_ids: Option<&[Option<String>]>,
 ) -> OperationSnapshot {
-    let source_input_ids = input_ids
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|value| value.clone())
-        .collect();
     let children = input_files
         .iter()
         .enumerate()
@@ -44,7 +39,6 @@ pub(crate) fn new_processing_snapshot(
         finished_at_ms: None,
         cancellable: true,
         cancel_requested: false,
-        source_input_ids,
         progress: ProgressSnapshot::pending("Accepted for background processing."),
         children,
         terminal_summary: None,
@@ -86,7 +80,6 @@ pub(crate) fn new_metadata_save_snapshot(
         finished_at_ms: None,
         cancellable: true,
         cancel_requested: false,
-        source_input_ids: Vec::new(),
         progress: ProgressSnapshot::pending("Queued for metadata save."),
         children,
         terminal_summary: None,

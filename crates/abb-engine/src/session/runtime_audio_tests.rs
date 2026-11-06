@@ -101,7 +101,6 @@ async fn a_batch_audio_edit_applies_to_every_title_or_none() {
 
     rig.select(&[0, 1]).await;
     let selection = audio(&rig).selection.expect("selection audio");
-    assert_eq!(selection.title_ids, both);
     assert!(!selection.facts.allowed_sample_rates.contains(&only_lc));
     assert!(selection.facts.allowed_sample_rates.contains(&44_100));
     assert!(selection.mixed.contains(&AudioField::FaacProfile));

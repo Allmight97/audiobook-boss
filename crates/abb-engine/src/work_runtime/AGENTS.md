@@ -41,7 +41,7 @@
   cancelling a finished title, returns the current snapshot. Child
   `cancellable` is the authority for offering title cancel; the Work Center
   adds only that the operation has more than one title.
-- Each output title is one child. Operation and child `source_input_ids` retain
+- Each output title is one child. A child's `source_input_ids` retain
   all source identities, so a grouped title's downloads settle together at its
   terminal outcome, including in mixed-success batches.
 - A child copies `supplemental_warning` and `warnings` from

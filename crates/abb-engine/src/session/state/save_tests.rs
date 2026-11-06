@@ -54,7 +54,7 @@ fn save_on_a_local_source_in_flight_waits_for_every_export_reading_it() {
 
     assert_eq!((plan.immediate.len(), plan.waiting, plan.held), (0, 1, 0));
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Fantasy"));
-    assert_eq!(desk.metadata().waiting_writes, [path("alpha")]);
+    assert_eq!(desk.state.waiting_write_paths(), [path("alpha")]);
 
     desk.exports_now_reading(&reading);
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Fantasy"));
@@ -70,7 +70,7 @@ fn save_on_a_local_source_in_flight_waits_for_every_export_reading_it() {
         })
     );
     assert!(!metadata.has_pending_edits);
-    assert!(metadata.waiting_writes.is_empty());
+    assert!(desk.state.waiting_write_paths().is_empty());
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn save_on_a_temporary_source_in_flight_writes_no_file_and_keeps_the_edit() {
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Fantasy"));
     assert!(desk.written.is_empty());
     assert_eq!(desk.pending("alpha"), Some(genre_patch()));
-    assert!(desk.metadata().waiting_writes.is_empty());
+    assert!(desk.state.waiting_write_paths().is_empty());
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn a_later_save_replaces_the_edit_a_waiting_write_will_apply() {
     desk.type_into(MetadataField::Author, "Edited Author");
     desk.save_during(&reading, &[], &[]);
 
-    assert_eq!(desk.metadata().waiting_writes, [path("alpha")]);
+    assert_eq!(desk.state.waiting_write_paths(), [path("alpha")]);
     desk.exports_now_reading(&HashSet::new());
 
     let on_disk = &desk.disk[&path("alpha")];
@@ -182,7 +182,7 @@ fn a_save_while_a_waiting_write_runs_never_writes_the_file_alongside_it() {
     let on_disk = &desk.disk[&path("alpha")];
     assert_eq!(on_disk.genre.as_deref(), Some("Mystery"));
     assert_eq!(on_disk.artist.as_deref(), Some("Second"));
-    assert!(desk.metadata().waiting_writes.is_empty());
+    assert!(desk.state.waiting_write_paths().is_empty());
 }
 
 #[test]

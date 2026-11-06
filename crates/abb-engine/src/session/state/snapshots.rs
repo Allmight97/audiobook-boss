@@ -39,7 +39,6 @@ impl Parts {
                 cover: CoverSnapshot {
                     image: None,
                     custom: false,
-                    removal_requested: false,
                     loading: false,
                     notice: None,
                     notice_serial: 0,
@@ -48,7 +47,6 @@ impl Parts {
                 save_in_progress: false,
                 status: None,
                 has_pending_edits: false,
-                waiting_writes: Vec::new(),
             },
             lookup: lookup.snapshot(0),
             audio: AudioSnapshot {
@@ -232,7 +230,6 @@ impl SessionState {
             cover: CoverSnapshot {
                 image: self.displayed_cover_address(),
                 custom: self.cover.custom,
-                removal_requested: self.cover.removal_requested,
                 loading: self.cover.loading,
                 notice: self.cover.notice.clone(),
                 notice_serial: self.cover.notice_serial,
@@ -241,7 +238,6 @@ impl SessionState {
             save_in_progress: self.writes.save_running(),
             status: self.status.clone(),
             has_pending_edits: self.tags.has_pending(),
-            waiting_writes: self.waiting_write_paths(),
         }
     }
 

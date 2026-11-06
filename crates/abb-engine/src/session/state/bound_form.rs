@@ -70,7 +70,6 @@ impl SessionState {
         match self.stage_bound_form() {
             StageOutcome::Staged => {
                 self.cover.custom = false;
-                self.cover.removal_requested = false;
                 Ok(())
             }
             StageOutcome::NoTarget => Ok(()),

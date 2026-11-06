@@ -12,7 +12,6 @@ use crate::session::tag_cache::ReadTicket;
 #[derive(Debug, Default)]
 pub(super) struct Cover {
     pub(super) custom: bool,
-    pub(super) removal_requested: bool,
     pub(super) loading: bool,
     pub(super) notice: Option<CoverNotice>,
     pub(super) notice_serial: u64,
@@ -197,7 +196,6 @@ impl SessionState {
             },
         );
         self.cover.custom = true;
-        self.cover.removal_requested = false;
         true
     }
 
@@ -211,7 +209,6 @@ impl SessionState {
                 },
             );
         }
-        self.cover.removal_requested = true;
         self.cover.custom = false;
         self.cover.notice = None;
         self.cover.loading = false;

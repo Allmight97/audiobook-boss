@@ -70,9 +70,6 @@ pub struct AudioSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectionAudio {
-    /// The titles this describes, in list order.
-    #[serde(skip)]
-    pub title_ids: Vec<String>,
     /// The first title's choice; `mixed` names where the others differ.
     pub choice: AudioChoice,
     /// Only what every selected title accepts is offered.
@@ -144,7 +141,6 @@ pub(crate) fn selection_audio(titles: &[(&String, &TitleAudio)]) -> Option<Selec
         .map(|(_, title)| (&title.choice, &title.plan))
         .collect();
     Some(SelectionAudio {
-        title_ids: titles.iter().map(|(id, _)| (*id).clone()).collect(),
         choice: first.choice.clone(),
         facts,
         auto_sample_rate: auto_reading(AudioField::SampleRate, &mixed, &audio),

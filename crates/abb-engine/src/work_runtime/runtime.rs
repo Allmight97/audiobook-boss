@@ -110,10 +110,6 @@ impl WorkRuntime {
             &request.payload.input_files,
             input_ids,
         );
-        snapshot.source_input_ids = (0..request.payload.input_files.len())
-            .flat_map(|index| request.payload.sources_for(index))
-            .filter_map(|source| source.input_id)
-            .collect();
         for child in &mut snapshot.children {
             if let Some(index) = child.input_index {
                 child.source_input_ids = request

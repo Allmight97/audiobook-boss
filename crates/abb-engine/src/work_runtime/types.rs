@@ -155,8 +155,6 @@ pub struct OperationSnapshot {
     pub finished_at_ms: Option<i64>,
     pub cancellable: bool,
     pub cancel_requested: bool,
-    #[serde(skip)]
-    pub source_input_ids: Vec<String>,
     pub progress: ProgressSnapshot,
     pub children: Vec<ChildJobSnapshot>,
     #[serde(skip)]

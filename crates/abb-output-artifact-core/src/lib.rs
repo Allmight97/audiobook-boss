@@ -90,8 +90,6 @@ pub struct PlannedOutput {
     pub kind: OutputKind,
     pub requested_path: String,
     pub resolved_path: String,
-    #[serde(skip)]
-    pub rename_candidate: Option<String>,
     pub collision: Option<OutputCollisionInfo>,
     pub review: Option<OutputReviewRequirement>,
     pub action: PlannedOutputAction,
@@ -260,10 +258,6 @@ impl ResolvedOutputPlan {
             kind: self.kind,
             requested_path: self.requested_path.display().to_string(),
             resolved_path: self.resolved_path.display().to_string(),
-            rename_candidate: self
-                .rename_candidate
-                .as_ref()
-                .map(|value| value.display().to_string()),
             collision: self.collision.as_ref().map(OutputCollision::to_public),
             review: output_review_requirement(self),
             action: self.action,

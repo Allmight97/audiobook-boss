@@ -234,7 +234,7 @@ async fn cleared_cover_export(
     .await;
     desk.send(SessionIntent::ClearCover).await;
     let cover = desk.metadata().cover;
-    assert!(cover.removal_requested && cover.image.is_none());
+    assert!(cover.image.is_none());
     let out = export_to(desk, folder, edits).await;
     (src, out, before)
 }

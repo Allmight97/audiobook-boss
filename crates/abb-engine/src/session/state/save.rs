@@ -117,7 +117,6 @@ impl SessionState {
                 .is_some_and(|pending| pending.patch.cover_art.is_some());
             if cover_was_submitted && !cover_still_pending && owner.as_ref() == Some(&item.path) {
                 self.cover.custom = false;
-                self.cover.removal_requested = false;
             }
         }
         if !written.is_empty() {

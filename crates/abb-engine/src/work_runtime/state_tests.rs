@@ -100,7 +100,6 @@ fn accepted_operation_preserves_immutable_child_identity() {
         .expect("snapshot");
 
     assert_eq!(snapshot.status, WorkOperationStatus::Accepted);
-    assert_eq!(snapshot.source_input_ids, ["input-1", "input-2"]);
     assert_eq!(snapshot.children.len(), 2);
     assert_eq!(snapshot.children[0].input_id.as_deref(), Some("input-1"));
     assert_eq!(snapshot.children[0].label, "first.m4b");
