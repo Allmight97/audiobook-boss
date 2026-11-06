@@ -176,6 +176,8 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			...structuredClone(state.audio.defaults),
 			plan: { kind: 'pending' },
 			estimate: null,
+			autoSampleRate: { outcome: { kind: 'unresolved' }, problem: null },
+			autoChannels: { outcome: { kind: 'unresolved' }, problem: null },
 		};
 	}
 

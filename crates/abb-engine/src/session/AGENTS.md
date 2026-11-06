@@ -190,7 +190,7 @@ one host attachment.
   when no selected title is MP3), the fields that differ, and what Auto
   resolves to for sample rate and channels: one value, `differs`, or
   unresolved, with the plan problem. A mixed field reads plain Auto and still
-  carries the plan problem.
+  carries the plan problem. Each title carries the same readings for itself.
 - **Title plans.** Each title's plan resolves in the background whenever its
   request or sources change; a stale result is dropped (`plans.rs`). A CUE
   awaiting confirmation, or CUE chapters on a merged title, fails the plan with

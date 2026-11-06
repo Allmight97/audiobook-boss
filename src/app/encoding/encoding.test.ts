@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../runtime';
-import type { SelectionAudio, TitlePlan } from '../../types/session';
+import type { AutoReading, SelectionAudio } from '../../types/session';
 import type { EncodingView } from './project';
 
 describe('encoding owner', () => {
@@ -94,41 +94,28 @@ describe('encoding owner', () => {
 		expect(options.auto).toBe(false);
 	});
 
-	it("words Auto from each title's engine plan, never from source facts", async () => {
+	it("words Auto from each title's engine reading, never from source facts", async () => {
 		const app = await open();
 		const [alpha, beta] = titles(app);
 		const autoLabel = (view: EncodingView, field: 'sampleRateOptions' | 'channelOptions') =>
 			view[field].find((option) => option.value === 'auto')?.label;
+		const unresolved = { outcome: { kind: 'unresolved' }, problem: null } as const;
 		engine.change((state) => {
-			const plan = (id: string, value: TitlePlan) => {
+			const readings = (id: string, autoSampleRate: AutoReading, autoChannels: AutoReading) => {
 				state.audio.titles[id] = {
 					...structuredClone(state.audio.titles[id]),
-					plan: value,
+					autoSampleRate,
+					autoChannels,
 				};
 			};
-			plan(alpha.inputId ?? '', {
-				kind: 'resolved',
-				plan: {
-					format: 'm4b',
-					handling: 'encode',
-					settings: {
-						encoderType: 'native_aac',
-						bitrateKbps: 65,
-						bitrateMode: { mode: 'cbr' },
-						channels: 'stereo',
-						nativeAacSpeed: 0,
-						faacProfile: 'auto',
-					},
-					sampleRate: 48000,
-					channels: 2,
-					sourceCodec: 'AAC',
-					reason: null,
-				},
-			});
-			plan(beta.inputId ?? '', {
-				kind: 'failed',
-				message: 'Choose Mono or Stereo to downmix.',
-				field: 'channels',
+			readings(
+				alpha.inputId ?? '',
+				{ outcome: { kind: 'value', value: 48000 }, problem: null },
+				{ outcome: { kind: 'value', value: 2 }, problem: null },
+			);
+			readings(beta.inputId ?? '', unresolved, {
+				outcome: { kind: 'unresolved' },
+				problem: 'Choose Mono or Stereo to downmix.',
 			});
 		});
 

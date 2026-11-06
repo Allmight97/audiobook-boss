@@ -4,13 +4,12 @@ use crate::processing::AudioHandling;
 use crate::session::audio_choice::AudioChoice;
 
 fn title(choice: AudioChoice, plan: TitlePlan) -> TitleAudio {
-    TitleAudio {
+    let view = AudioChoiceView {
         facts: choice.facts(None),
         request: choice.request(None),
         choice,
-        plan,
-        estimate: None,
-    }
+    };
+    TitleAudio::new(view, plan, None)
 }
 
 fn resolved(sample_rate: u32, channels: u8) -> TitlePlan {
@@ -156,4 +155,31 @@ fn a_plan_problem_is_reported_whether_or_not_the_field_is_mixed() {
     };
     let channel_problem = title(stereo, failed(AudioPlanField::Channels));
     assert!(select(&[&channel_problem]).auto_channels.problem.is_some());
+}
+
+#[test]
+fn a_title_reads_its_own_auto_values_and_problem() {
+    let reads = on_auto(resolved(44_100, 1));
+    assert_eq!(
+        reads.auto_sample_rate.outcome,
+        AutoOutcome::Value { value: 44_100 }
+    );
+    assert_eq!(reads.auto_channels.outcome, AutoOutcome::Value { value: 1 });
+
+    let explicit = at_rate(48_000, resolved(48_000, 2));
+    assert_eq!(explicit.auto_sample_rate, AutoReading::default());
+    assert_eq!(
+        explicit.auto_channels.outcome,
+        AutoOutcome::Value { value: 2 }
+    );
+
+    let failed = on_auto(TitlePlan::Failed {
+        message: "48000 Hz is not available".to_string(),
+        field: Some(AudioPlanField::SampleRate),
+    });
+    assert_eq!(
+        failed.auto_sample_rate.problem.as_deref(),
+        Some("48000 Hz is not available")
+    );
+    assert_eq!(failed.auto_channels, AutoReading::default());
 }

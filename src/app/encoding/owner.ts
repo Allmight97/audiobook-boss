@@ -1,6 +1,6 @@
 import type { Accessor } from 'solid-js';
-import type { AudioFile, TitleAudioPlan, TitleAudioRequest } from '../../types/audio';
-import type { AudioChoiceView, TitlePlan } from '../../types/session';
+import type { AudioFile, TitleAudioRequest } from '../../types/audio';
+import type { AudioChoiceView, AutoReading, TitlePlan } from '../../types/session';
 import type { EngineLink } from '../engineLink';
 import {
 	editFor,
@@ -34,6 +34,8 @@ export type EncodingOwnerDeps = {
 	readonly link: EngineLink;
 };
 
+const UNRESOLVED: AutoReading = { outcome: { kind: 'unresolved' }, problem: null };
+
 function titleId(file: AudioFile): string {
 	return file.inputId;
 }
@@ -63,21 +65,10 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 	}
 
 	function titleView(file: AudioFile): EncodingView {
-		const view = titleChoice(file);
-		const current = plan(file);
-		const reading = (
-			field: 'sampleRate' | 'channels',
-			pick: (audio: TitleAudioPlan) => number,
-		) => ({
-			outcome:
-				view.choice[field] === 'auto' && current.kind === 'resolved'
-					? ({ kind: 'value', value: pick(current.plan) } as const)
-					: ({ kind: 'unresolved' } as const),
-			problem: current.kind === 'failed' && current.field === field ? current.message : null,
-		});
-		return display(view, {
-			sampleRate: reading('sampleRate', (audio) => audio.sampleRate),
-			channels: reading('channels', (audio) => audio.channels),
+		const audio = link.audio().titles[titleId(file)];
+		return display(titleChoice(file), {
+			sampleRate: audio?.autoSampleRate ?? UNRESOLVED,
+			channels: audio?.autoChannels ?? UNRESOLVED,
 		});
 	}
 

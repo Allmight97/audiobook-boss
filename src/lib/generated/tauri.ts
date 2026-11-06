@@ -1312,6 +1312,8 @@ export type TitleAudio = {
 	plan: TitlePlan,
 	/**  Absent until the size can be estimated. */
 	estimate: SizeEstimate | null,
+	autoSampleRate: AutoReading,
+	autoChannels: AutoReading,
 };
 
 export type TitleAudioPlan = {

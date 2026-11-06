@@ -27,16 +27,7 @@ impl SessionState {
                     self.working_set.sources_for(file),
                     view.facts.estimate_kbps,
                 );
-                Some((
-                    id.clone(),
-                    TitleAudio {
-                        choice: view.choice,
-                        facts: view.facts,
-                        request: view.request,
-                        plan,
-                        estimate,
-                    },
-                ))
+                Some((id.clone(), TitleAudio::new(view, plan, estimate)))
             })
             .collect::<std::collections::BTreeMap<_, _>>();
         let files = self.working_set.files();

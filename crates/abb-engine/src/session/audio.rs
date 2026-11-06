@@ -27,6 +27,29 @@ pub struct TitleAudio {
     pub plan: TitlePlan,
     /// Absent until the size can be estimated.
     pub estimate: Option<SizeEstimate>,
+    pub auto_sample_rate: AutoReading,
+    pub auto_channels: AutoReading,
+}
+
+impl TitleAudio {
+    pub(crate) fn new(
+        view: AudioChoiceView,
+        plan: TitlePlan,
+        estimate: Option<SizeEstimate>,
+    ) -> Self {
+        let title = [(&view.choice, &plan)];
+        let auto_sample_rate = auto_reading(AudioField::SampleRate, &[], &title);
+        let auto_channels = auto_reading(AudioField::Channels, &[], &title);
+        Self {
+            choice: view.choice,
+            facts: view.facts,
+            request: view.request,
+            plan,
+            estimate,
+            auto_sample_rate,
+            auto_channels,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
@@ -116,7 +139,10 @@ pub(crate) fn selection_audio(titles: &[(&String, &TitleAudio)]) -> Option<Selec
         .into_iter()
         .filter(|field| rest.iter().any(|(_, title)| differs(*field, first, title)))
         .collect();
-    let audio: Vec<&TitleAudio> = titles.iter().map(|(_, title)| *title).collect();
+    let audio: Vec<_> = titles
+        .iter()
+        .map(|(_, title)| (&title.choice, &title.plan))
+        .collect();
     Some(SelectionAudio {
         title_ids: titles.iter().map(|(id, _)| (*id).clone()).collect(),
         choice: first.choice.clone(),
@@ -127,7 +153,11 @@ pub(crate) fn selection_audio(titles: &[(&String, &TitleAudio)]) -> Option<Selec
     })
 }
 
-fn auto_reading(field: AudioField, mixed: &[AudioField], titles: &[&TitleAudio]) -> AutoReading {
+fn auto_reading(
+    field: AudioField,
+    mixed: &[AudioField],
+    titles: &[(&AudioChoice, &TitlePlan)],
+) -> AutoReading {
     let (plan_field, on_auto): (_, fn(&AudioChoice) -> bool) = match field {
         AudioField::SampleRate => (AudioPlanField::SampleRate, |choice| {
             choice.sample_rate == SampleRateConfig::Auto
@@ -136,7 +166,7 @@ fn auto_reading(field: AudioField, mixed: &[AudioField], titles: &[&TitleAudio])
             choice.channels == ChannelConfig::Auto
         }),
     };
-    let problem = titles.iter().find_map(|title| match &title.plan {
+    let problem = titles.iter().find_map(|(_, plan)| match plan {
         TitlePlan::Failed {
             message,
             field: Some(failed),
@@ -151,8 +181,8 @@ fn auto_reading(field: AudioField, mixed: &[AudioField], titles: &[&TitleAudio])
     }
     let values: Option<Vec<u32>> = titles
         .iter()
-        .map(|title| match &title.plan {
-            TitlePlan::Resolved { plan } if on_auto(&title.choice) => Some(match plan_field {
+        .map(|(choice, plan)| match plan {
+            TitlePlan::Resolved { plan } if on_auto(choice) => Some(match plan_field {
                 AudioPlanField::SampleRate => plan.sample_rate,
                 AudioPlanField::Channels => u32::from(plan.channels),
             }),
