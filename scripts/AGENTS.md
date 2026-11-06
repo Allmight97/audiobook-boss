@@ -73,14 +73,16 @@ Traps:
   candidate untouched. `bun run bindings:generate` intentionally updates it.
   Both also cover every file in `src/lib/generated/fixtures/` and fail on a
   file missing from either side. `settings-fresh.json` and
-  `session-fresh.json` record a fresh engine
-  (`src-tauri/src/bin/export_bindings/recording.rs`). The recorder pins or
-  renames each value that differs between machines, since the check runs on
-  macOS and Linux: `aac_at` availability, the temp root, title ids, source
-  fingerprints. A new platform-dependent value in a snapshot makes the other
-  OS report a stale fixture; add its line to `normalize`. After an engine
-  default changes, regenerate; `recordedFresh.contract.test.ts` then fails if
-  the engine link's first frame disagrees.
+  `session-fresh.json` record a fresh engine; `session-scenarios.json` and
+  `settings-scenarios.json` record the real engine's replies to the intent
+  sequences in `src-tauri/src/bin/export_bindings/scenarios.json`
+  (`recording.rs`, `scenarios.rs`). The recorder pins or renames each value
+  that differs between runs or machines, since the check runs on macOS and
+  Linux: `aac_at` availability, the automatic job count, the temp root, title
+  ids, source fingerprints. A new platform-dependent value in a snapshot makes
+  the other OS report a stale fixture; add its line to `Normalizer`. After an
+  engine behavior changes, regenerate; `recordedFresh.contract.test.ts` and
+  `recordedWorkflows.contract.test.ts` then fail where the UI disagrees.
 - Each git worktree holds its own `target/`. Remove finished worktrees.
 - `bun run build` may still print the known DEP0205 and Vite plugin-timing
   warnings.

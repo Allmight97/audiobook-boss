@@ -2,6 +2,10 @@ use std::path::PathBuf;
 
 #[path = "export_bindings/recording.rs"]
 mod recording;
+#[path = "export_bindings/scenarios.rs"]
+mod scenarios;
+#[path = "export_bindings/wav.rs"]
+mod wav;
 
 fn main() {
     let output = std::env::args_os()
@@ -16,6 +20,6 @@ fn main() {
         .parent()
         .expect("bindings output has a parent folder")
         .join("fixtures");
-    recording::export_settings_fresh(&fixtures);
-    recording::export_session_fresh(&fixtures);
+    recording::export_fresh(&fixtures);
+    scenarios::export_scenarios(&fixtures);
 }

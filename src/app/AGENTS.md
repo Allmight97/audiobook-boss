@@ -149,7 +149,16 @@ without a bullet has none. Engine paths name the owner of the truth.
 
 - The owner has one source of truth, one Public API Strip, and one disposal
   path.
-- Tests run against `src/test/fixtures/fakeEngine.ts`. It records intents and
-  holds no product rule. Seed the engine's answer; add no rule there.
+- Tests run against `src/test/fixtures/fakeEngine.ts`. It starts from the
+  recorded fresh session and settings (`src/lib/generated/fixtures/`), records
+  intents, answers `applied`, and appends imported files. It holds no product
+  rule: seed the engine's answer on the intent that asks for it (`respond`,
+  `respondSettings`, `seedForm`, `seedSettings`, `change`) and add no rule
+  there. What the real engine answers to a sequence of intents is proved in
+  `runtime/recordedWorkflows.contract.test.ts`, which replays the recorded
+  scenarios (`session-scenarios.json`, `settings-scenarios.json`) through the
+  real client and owners with `src/test/fixtures/recordedInvoke.ts`. A new
+  engine-owned behavior a view depends on becomes a scenario in
+  `src-tauri/src/bin/export_bindings/scenarios.json`, not a rule in the fake.
 - Add App Runtime two-instance proof when isolation changes.
 - Record a non-obvious owner invariant as one bullet under Owners.

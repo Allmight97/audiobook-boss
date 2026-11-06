@@ -10,10 +10,18 @@ pub struct FixtureEngine {
 }
 
 impl FixtureEngine {
-    pub fn start() -> Self {
-        let root =
-            std::env::temp_dir().join(format!("abb-contract-fixture-{}", std::process::id()));
+    pub fn start(name: &str, settings_toml: Option<&str>) -> Self {
+        let root = std::env::temp_dir().join(format!(
+            "abb-contract-fixture-{}-{name}",
+            std::process::id()
+        ));
         let _ = std::fs::remove_dir_all(&root);
+        if let Some(toml) = settings_toml {
+            std::fs::create_dir_all(root.join("config"))
+                .expect("failed to create the config folder");
+            std::fs::write(root.join("config/settings.toml"), toml)
+                .expect("failed to write settings.toml");
+        }
         let engine = Engine::start(EngineConfig {
             cache_dir: root.join("cache"),
             config_dir: root.join("config"),
@@ -40,52 +48,107 @@ pub fn write_fixture(fixtures: &Path, name: &str, value: &Value) {
         .unwrap_or_else(|error| panic!("failed to write {name}: {error}"));
 }
 
-pub fn export_settings_fresh(fixtures: &Path) {
-    let fixture = FixtureEngine::start();
-    let snapshot = tauri::async_runtime::block_on(fixture.engine.settings_snapshot());
-    let mut value = serde_json::to_value(&snapshot).expect("settings snapshot serializes");
-    value["concurrency"]
-        .as_object_mut()
-        .expect("snapshot has concurrency")
-        .remove("effective");
-    value["concurrency"]["capabilities"]
-        .as_object_mut()
-        .expect("concurrency has capabilities")
-        .remove("autoEffective");
-    write_fixture(fixtures, "settings-fresh.json", &value);
+pub fn export_fresh(fixtures: &Path) {
+    let fixture = FixtureEngine::start("fresh", None);
+    let mut normalizer = Normalizer::new(&fixture.root);
+    let mut settings = serde_json::to_value(tauri::async_runtime::block_on(
+        fixture.engine.settings_snapshot(),
+    ))
+    .expect("settings snapshot serializes");
+    normalizer.apply(&mut settings);
+    write_fixture(fixtures, "settings-fresh.json", &settings);
+    let mut session = serde_json::to_value(fixture.engine.session_snapshot())
+        .expect("session snapshot serializes");
+    normalizer.apply(&mut session);
+    write_fixture(fixtures, "session-fresh.json", &session);
     fixture.finish();
 }
 
-pub fn export_session_fresh(fixtures: &Path) {
-    let fixture = FixtureEngine::start();
-    let snapshot = fixture.engine.session_snapshot();
-    let mut value = serde_json::to_value(&snapshot).expect("session snapshot serializes");
-    normalize(&mut value, &fixture.root, &mut Vec::new());
-    write_fixture(fixtures, "session-fresh.json", &value);
-    fixture.finish();
-}
-
-/// Title ids are random per run. They are named `title-N` in the order the
+/// Rewrites what differs between runs or machines in a recorded snapshot.
+/// Title ids are random per run; they are named `title-N` in the order the
 /// titles first appear in a `titles.files` list, so the name does not depend
-/// on map order; `known` carries that numbering from one step to the next.
-pub fn normalize(value: &mut Value, root: &Path, known: &mut Vec<String>) {
-    register_titles(value, known);
-    rewrite(value, &root.to_string_lossy(), known);
+/// on map order. The numbering carries from one snapshot to the next.
+pub struct Normalizer {
+    roots: Vec<String>,
+    titles: Vec<String>,
 }
 
-fn register_titles(value: &Value, known: &mut Vec<String>) {
-    let Some(Value::Array(files)) = value.pointer("/titles/files") else {
-        return;
-    };
-    for id in files.iter().filter_map(|file| file["inputId"].as_str()) {
-        if !known.iter().any(|existing| existing == id) {
-            known.push(id.to_string());
+const MACHINE_JOBS: u64 = 4;
+
+impl Normalizer {
+    pub fn new(root: &Path) -> Self {
+        let mut roots = Vec::new();
+        if let Ok(canonical) = root.canonicalize() {
+            roots.push(canonical.to_string_lossy().into_owned());
         }
+        roots.push(root.to_string_lossy().into_owned());
+        Self {
+            roots,
+            titles: Vec::new(),
+        }
+    }
+
+    pub fn apply(&mut self, value: &mut Value) {
+        self.register_titles(value);
+        self.rewrite(value);
+    }
+
+    pub fn real_title_ids(&self) -> &[String] {
+        &self.titles
+    }
+
+    fn register_titles(&mut self, value: &Value) {
+        let Some(Value::Array(files)) = value.pointer("/titles/files") else {
+            return;
+        };
+        for id in files.iter().filter_map(|file| file["inputId"].as_str()) {
+            if !self.titles.iter().any(|known| known == id) {
+                self.titles.push(id.to_string());
+            }
+        }
+    }
+
+    fn rewrite(&self, value: &mut Value) {
+        match value {
+            Value::String(text) => *text = self.rewrite_text(text),
+            Value::Array(items) => {
+                for item in items {
+                    self.rewrite(item);
+                }
+            }
+            Value::Object(map) => {
+                pin_machine_values(map);
+                let entries: Vec<(String, Value)> = std::mem::take(map).into_iter().collect();
+                for (key, mut entry) in entries {
+                    let key = self.rewrite_text(&key);
+                    self.rewrite(&mut entry);
+                    map.insert(key, entry);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn rewrite_text(&self, text: &str) -> String {
+        if is_uuid(text) {
+            let position = self
+                .titles
+                .iter()
+                .position(|known| known == text)
+                .unwrap_or_else(|| {
+                    panic!("title id {text} is in a snapshot but not in a titles list")
+                });
+            return format!("title-{}", position + 1);
+        }
+        self.roots.iter().fold(text.to_string(), |text, root| {
+            text.replace(root, "/fixture")
+        })
     }
 }
 
 /// `aac_at` exists only in a macOS FFmpeg, so the recorded availability is
-/// pinned to what the owner's Mac reports.
+/// pinned to what the owner's Mac reports. The automatic job count follows
+/// the machine's cores.
 fn pin_machine_values(map: &mut Map<String, Value>) {
     if map.contains_key("aacAtAvailable") {
         map.insert("aacAtAvailable".into(), Value::Bool(true));
@@ -96,42 +159,14 @@ fn pin_machine_values(map: &mut Map<String, Value>) {
     if map.contains_key("sourceFingerprint") {
         map.insert("sourceFingerprint".into(), Value::from("fixture"));
     }
-}
-
-fn rewrite(value: &mut Value, root: &str, ids: &[String]) {
-    match value {
-        Value::String(text) => *text = rewrite_text(text, root, ids),
-        Value::Array(items) => {
-            for item in items {
-                rewrite(item, root, ids);
-            }
-        }
-        Value::Object(map) => {
-            pin_machine_values(map);
-            let entries: Vec<(String, Value)> = std::mem::take(map).into_iter().collect();
-            for (key, mut entry) in entries {
-                let key = rewrite_text(&key, root, ids);
-                rewrite(&mut entry, root, ids);
-                map.insert(key, entry);
-            }
-        }
-        _ => {}
+    if map.contains_key("autoEffective") {
+        map.insert("autoEffective".into(), Value::from(MACHINE_JOBS));
     }
-}
-
-fn rewrite_text(text: &str, root: &str, ids: &[String]) -> String {
-    if is_uuid(text) {
-        return title_name(text, ids);
+    if map.contains_key("effective")
+        && map.get("preference") == Some(&serde_json::json!({"mode": "auto"}))
+    {
+        map.insert("effective".into(), Value::from(MACHINE_JOBS));
     }
-    text.replace(root, "/fixture")
-}
-
-fn title_name(uuid: &str, ids: &[String]) -> String {
-    let position = ids
-        .iter()
-        .position(|known| known == uuid)
-        .unwrap_or_else(|| panic!("title id {uuid} is in the snapshot but not in a titles list"));
-    format!("title-{}", position + 1)
 }
 
 fn is_uuid(text: &str) -> bool {
