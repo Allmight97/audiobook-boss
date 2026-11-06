@@ -105,6 +105,18 @@ fn a_mixed_field_reads_plain_auto_in_either_selection_order() {
 }
 
 #[test]
+fn a_field_that_differs_only_in_a_later_title_is_mixed() {
+    let auto = on_auto(resolved(44_100, 2));
+    let also_auto = on_auto(resolved(44_100, 2));
+    let explicit = at_rate(48_000, resolved(48_000, 2));
+
+    let selection = select(&[&auto, &also_auto, &explicit]);
+
+    assert_eq!(selection.mixed, [AudioField::SampleRate]);
+    assert_eq!(selection.auto_sample_rate, AutoReading::default());
+}
+
+#[test]
 fn an_explicit_field_has_no_auto_value() {
     let a = at_rate(48_000, resolved(48_000, 2));
     let b = at_rate(48_000, resolved(48_000, 2));
