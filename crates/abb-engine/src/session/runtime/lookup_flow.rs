@@ -125,10 +125,7 @@ impl Session {
                 state
                     .working_set
                     .select_file(index, SelectionModifiers::default());
-                Some(Bound {
-                    reads: state.rebind(),
-                    binding: state.binding,
-                })
+                Some(Bound::rebind(state))
             })())
         })?;
         let Some(bound) = bound else {

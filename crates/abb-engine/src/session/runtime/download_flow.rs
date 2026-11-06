@@ -205,13 +205,7 @@ fn list_acquired(
     if count == 0 {
         return Err(HandoffRefusal::NothingAdded);
     }
-    Ok((
-        Bound {
-            reads: state.rebind(),
-            binding: state.binding,
-        },
-        count,
-    ))
+    Ok((Bound::rebind(state), count))
 }
 
 fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {

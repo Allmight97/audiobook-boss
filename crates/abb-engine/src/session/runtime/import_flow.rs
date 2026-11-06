@@ -132,10 +132,7 @@ impl Session {
                         skipped: skipped.clone(),
                     });
                 }
-                Some(Some(Bound {
-                    reads: state.rebind(),
-                    binding: state.binding,
-                }))
+                Some(Some(Bound::rebind(state)))
             });
             if let Some(bound) = attempt {
                 return bound;

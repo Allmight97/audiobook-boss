@@ -97,6 +97,16 @@ struct Bound {
     reads: Vec<ReadTicket>,
 }
 
+impl Bound {
+    fn rebind(state: &mut SessionState) -> Self {
+        let reads = state.rebind();
+        Self {
+            binding: state.binding,
+            reads,
+        }
+    }
+}
+
 /// A disposable reply to work the engine has already accepted and started.
 pub struct SessionRun {
     session: Session,
@@ -518,20 +528,12 @@ impl Session {
             }
             state.gate()?;
             state.working_set.select_title(&title_id, modifiers);
-            Ok(Some(Bound {
-                reads: state.rebind(),
-                binding: state.binding,
-            }))
+            Ok(Some(Bound::rebind(state)))
         });
         match bound {
             Ok(None) => Rest::Done(SessionOutcome::Applied),
             Ok(Some(bound)) => Rest::Reads(bound),
-            Err(GateBlock::SaveInProgress) => {
-                Rest::Done(SessionOutcome::DraftRejected { message: None })
-            }
-            Err(GateBlock::Invalid(message)) => Rest::Done(SessionOutcome::DraftRejected {
-                message: Some(message),
-            }),
+            Err(block) => Rest::Done(draft_rejected(block)),
         }
     }
 
@@ -539,19 +541,11 @@ impl Session {
         let bound = self.transition(|state| {
             state.gate()?;
             change(&mut state.working_set);
-            Ok(Bound {
-                reads: state.rebind(),
-                binding: state.binding,
-            })
+            Ok(Bound::rebind(state))
         });
         match bound {
             Ok(bound) => Rest::Reads(bound),
-            Err(GateBlock::SaveInProgress) => {
-                Rest::Done(SessionOutcome::DraftRejected { message: None })
-            }
-            Err(GateBlock::Invalid(message)) => Rest::Done(SessionOutcome::DraftRejected {
-                message: Some(message),
-            }),
+            Err(block) => Rest::Done(draft_rejected(block)),
         }
     }
 
@@ -586,6 +580,15 @@ async fn blocking<T: Send + 'static>(
     tokio::task::spawn_blocking(work)
         .await
         .map_err(|error| AppError::General(format!("Background task failed: {error}")))?
+}
+
+fn draft_rejected(block: GateBlock) -> SessionOutcome {
+    match block {
+        GateBlock::SaveInProgress => SessionOutcome::DraftRejected { message: None },
+        GateBlock::Invalid(message) => SessionOutcome::DraftRejected {
+            message: Some(message),
+        },
+    }
 }
 
 fn read_tags(path: &Path) -> Result<AudiobookMetadata> {
