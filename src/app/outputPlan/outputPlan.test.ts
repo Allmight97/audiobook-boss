@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SessionOutcome } from '../../types/session';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { titleAudioRequest } from '../../test/fixtures/titleAudio';
+import { tauriClient } from '../../lib/tauri/client';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 
 describe('output plan owner', () => {
@@ -67,6 +68,43 @@ describe('output plan owner', () => {
 			{ kind: 'setNamingTemplate', template: '{author}' },
 			{ kind: 'setNamingTemplate', template: '{author}/{title}' },
 		]);
+	});
+
+	it('shows why the engine refused a naming template', async () => {
+		const app = await open();
+		engine.respond = (intent): SessionOutcome | undefined =>
+			intent.kind === 'setNamingTemplate'
+				? {
+						kind: 'rejected',
+						error: {
+							code: 'invalid_input',
+							category: 'validation',
+							message: 'The template needs a {title}.',
+							detail: null,
+						},
+					}
+				: undefined;
+
+		app.output.editNamingTemplate('{author}');
+
+		await vi.waitFor(() => expect(app.engine.refusal()).toBe('The template needs a {title}.'));
+	});
+
+	it('shows a directory picker that failed to open', async () => {
+		const app = await open();
+		vi.spyOn(tauriClient, 'openDirectory').mockRejectedValueOnce({
+			code: 'dialog_failed',
+			category: 'io',
+			message: 'The folder dialog could not open.',
+			detail: null,
+		});
+
+		await app.output.browseDirectory();
+
+		expect(app.engine.refusal()).toBe('The folder dialog could not open.');
+		expect(engine.sessionIntents.some((intent) => intent.kind === 'setOutputDirectory')).toBe(
+			false,
+		);
 	});
 
 	it('words each title estimate from the engine', async () => {

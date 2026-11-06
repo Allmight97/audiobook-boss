@@ -217,7 +217,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				value,
 			};
 			typed.show(field, value, () =>
-				link.send(intent).catch((error: unknown) => link.refuse(intent, error)),
+				link.send(intent).catch((error: unknown) => link.refuse(intent.kind, error)),
 			);
 		},
 		setFieldAction({ field, action }) {

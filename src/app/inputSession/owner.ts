@@ -79,7 +79,7 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		try {
 			return (await link.send(intent)).kind === 'applied';
 		} catch (error) {
-			link.refuse(intent, error);
+			link.refuse(intent.kind, error);
 			return false;
 		}
 	}

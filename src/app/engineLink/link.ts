@@ -44,8 +44,9 @@ export type EngineLink = {
 	/** Sends an intent whose outcome the caller does not need. A refusal is
 	 * kept as `refusal` until dismissed. */
 	post: (intent: SessionIntent) => void;
-	/** Keeps a `send` caller's refusal as `refusal`, the way `post` does. */
-	refuse: (intent: SessionIntent, error: unknown) => void;
+	/** Keeps a `send` caller's refusal as `refusal`, the way `post` does.
+	 * `scope` names what failed in the log: an intent kind, or the step. */
+	refuse: (scope: string, error: unknown) => void;
 	/** Why the latest posted intent was refused, worded for the user. */
 	readonly refusal: Accessor<string | null>;
 	dismissRefusal: () => void;
@@ -271,9 +272,9 @@ function createLink(
 		);
 	}
 
-	function refuse(intent: SessionIntent, error: unknown): void {
+	function refuse(scope: string, error: unknown): void {
 		if (disposed || isCancellation(error)) return;
-		logFrontendFailure(`engineLink.${intent.kind}`, error);
+		logFrontendFailure(`engineLink.${scope}`, error);
 		showRefusal(toUserMessage(error, { fallback: "That change couldn't be applied." }));
 	}
 
@@ -297,7 +298,7 @@ function createLink(
 		openPreview: (runId) =>
 			dispatch((id, sequence) => capability.openPreviewOutput(id, sequence, runId)),
 		post(intent) {
-			send(intent).catch((error: unknown) => refuse(intent, error));
+			send(intent).catch((error: unknown) => refuse(intent.kind, error));
 		},
 		refuse,
 		refusal: () => {

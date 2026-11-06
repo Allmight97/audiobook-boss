@@ -1,7 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type { AudioFile, CollisionPolicy } from '../../types/audio';
 import { formatFileSize } from '../../types/audio';
-import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { tauriClient } from '../../lib/tauri/client';
 import type { NamingPreset } from '../../lib/generated/tauri';
 import type { OutputPreview } from '../../types/session';
@@ -78,7 +77,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 				const directory = await tauriClient.openDirectory({ title: 'Select Output Directory' });
 				if (directory) link.post({ kind: 'setOutputDirectory', directory });
 			} catch (cause) {
-				logFrontendFailure('outputPlan.selectDirectory', cause);
+				link.refuse('openOutputDirectoryPicker', cause);
 			}
 		},
 		selectNamingPreset(value) {
@@ -92,7 +91,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			typed.show('template', template, () =>
 				link
 					.send({ kind: 'setNamingTemplate', template })
-					.catch((error: unknown) => logFrontendFailure('outputPlan.setNamingTemplate', error)),
+					.catch((error: unknown) => link.refuse('setNamingTemplate', error)),
 			);
 		},
 		chooseCollisionPolicy(reviewId, policy) {

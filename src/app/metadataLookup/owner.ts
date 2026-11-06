@@ -64,7 +64,7 @@ export function createMetadataLookupOwner(deps: {
 				? { kind: 'lookupSetTitleQuery', value }
 				: { kind: 'lookupSetAuthorQuery', value };
 		typed.show(key, value, () =>
-			link.send(intent).catch((error: unknown) => link.refuse(intent, error)),
+			link.send(intent).catch((error: unknown) => link.refuse(intent.kind, error)),
 		);
 	}
 
@@ -81,7 +81,7 @@ export function createMetadataLookupOwner(deps: {
 			try {
 				await link.send(intent);
 			} catch (error) {
-				link.refuse(intent, error);
+				link.refuse(intent.kind, error);
 				return;
 			}
 			if (action.type === 'manualEntry') {
