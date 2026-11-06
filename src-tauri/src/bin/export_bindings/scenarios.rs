@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::time::{Duration, Instant};
 
 use abb_engine::app_settings::SettingsIntent;
 use abb_engine::session::SessionIntent;
@@ -11,18 +10,16 @@ use crate::recording::{write_fixture, FixtureEngine, Normalizer};
 use crate::wav::{write_tagged, write_truncated, Tags};
 
 const SCENARIOS: &str = include_str!("scenarios.json");
-const SESSION_PARTS: [&str; 9] = [
+const SESSION_PARTS: [&str; 8] = [
     "titles",
     "selection",
     "metadata",
     "lookup",
-    "audio",
     "output",
     "remote",
     "remoteLibrary",
     "remoteAcquisition",
 ];
-const PLAN_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Deserialize)]
 struct Scenarios {
@@ -137,33 +134,6 @@ fn without_revision(part: &Value) -> Value {
     copy
 }
 
-fn plans_pending(snapshot: &Value) -> bool {
-    snapshot
-        .pointer("/audio/titles")
-        .and_then(Value::as_object)
-        .is_some_and(|titles| {
-            titles
-                .values()
-                .any(|title| title.pointer("/plan/kind") == Some(&json!("pending")))
-        })
-}
-
-fn settled_snapshot(engine: &Engine) -> Value {
-    let started = Instant::now();
-    loop {
-        let snapshot =
-            serde_json::to_value(engine.session_snapshot()).expect("session snapshot serializes");
-        if !plans_pending(&snapshot) {
-            return snapshot;
-        }
-        assert!(
-            started.elapsed() < PLAN_TIMEOUT,
-            "title plans stayed pending"
-        );
-        std::thread::sleep(Duration::from_millis(25));
-    }
-}
-
 /// Each reply carries only the parts that changed since the step before,
 /// stamped with the step's number plus one, which is above every revision in
 /// the fresh snapshot. Background timing never reaches the file.
@@ -181,7 +151,8 @@ fn record_session(scenario: &Scenario) -> Value {
         let intent: SessionIntent =
             serde_json::from_value(real).expect("the step is a session intent");
         let reply = tauri::async_runtime::block_on(fixture.engine.session_dispatch(intent));
-        let mut snapshot = settled_snapshot(&fixture.engine);
+        let mut snapshot = serde_json::to_value(fixture.engine.session_snapshot())
+            .expect("session snapshot serializes");
         normalizer.apply(&mut snapshot);
         let mut outcome = serde_json::to_value(&reply.outcome).expect("outcome serializes");
         normalizer.apply(&mut outcome);
