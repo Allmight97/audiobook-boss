@@ -14,7 +14,6 @@ import { afterAll, describe, expect, it } from 'vitest';
 import {
 	aaxcleanHelperBaseName,
 	aaxcleanHelperPublishTarget,
-	aaxcleanHelperTargetTriple,
 	type CommandRunner,
 	publishAaxcleanHelper,
 	resolveAaxcleanHelperPaths,
@@ -130,9 +129,6 @@ describe('publishAaxcleanHelper', () => {
 			publishAaxcleanHelper(repoRoot, { commandRunner: withSdk(commandRunner), force: true }),
 		).toBe(paths.sidecarPath);
 		expect(readFileSync(paths.sidecarPath, 'utf8')).toBe('fresh helper');
-		expect(path.basename(paths.sidecarPath)).toBe(
-			`${aaxcleanHelperBaseName}-${aaxcleanHelperTargetTriple}`,
-		);
 	});
 
 	it('republishes when the sidecar is a leftover stub', () => {

@@ -36,8 +36,6 @@ export function aaxcleanHelperPublishTarget(
 	);
 }
 
-export const aaxcleanHelperTargetTriple = aaxcleanHelperPublishTarget().triple;
-
 interface AaxcleanHelperPaths {
 	projectPath: string;
 	publishDir: string;
