@@ -268,7 +268,7 @@ function median(values: number[]): number {
 	return sorted.length % 2 === 1 ? upper : Math.round((lower + upper) / 2);
 }
 
-export function summarize(runs: RunReport[]): SummaryRow[] {
+function summarize(runs: RunReport[]): SummaryRow[] {
 	const groups = new Map<string, { kind: RunKind; os: string; jobs: JobReport[] }>();
 	for (const run of runs) {
 		for (const job of run.jobs) {

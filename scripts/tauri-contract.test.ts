@@ -8,7 +8,7 @@ const read = (file: string) => readFileSync(path.join(repoRoot, file), 'utf8');
 
 const kebab = (name: string) => name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 
-export function requiredPermissions(source: string): string[] {
+function requiredPermissions(source: string): string[] {
 	const imports = source.matchAll(
 		/import\s*\{([^}]*)\}\s*from\s*'@tauri-apps\/(?:plugin-([a-z-]+)|api\/(event))'/g,
 	);

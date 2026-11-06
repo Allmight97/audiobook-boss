@@ -24,7 +24,8 @@ the lanes still unproven, from these receipts. PATH is not part of a receipt's
 environment, so a pass recorded in one harness's shell counts in another; the
 recorded tool versions still invalidate it.
 
-- Frontend (`frontend`).
+- Frontend (`frontend`). `knip` fails on an unused export, including one in a
+  `scripts/*.ts` entry file.
 - A core crate (`core`).
 - Engine rules, session, settings, metadata intent: `core` for complexity,
   then `engine`. The doctests guard which engine internals hosts can reach.

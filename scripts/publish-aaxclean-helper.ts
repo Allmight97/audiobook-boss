@@ -59,7 +59,7 @@ interface PublishAaxcleanHelperOptions {
 	force?: boolean;
 }
 
-export function resolveDotnetCommand(): string {
+function resolveDotnetCommand(): string {
 	if (process.env.DOTNET_CLI && process.env.DOTNET_CLI.length > 0) {
 		return process.env.DOTNET_CLI;
 	}
