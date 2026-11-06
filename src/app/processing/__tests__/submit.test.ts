@@ -18,6 +18,8 @@ describe('submission snapshot adapter', () => {
 		await vi.waitFor(() =>
 			expect(app.processing.status().stepText).toBe('Current Step: Submitted to Work Center.'),
 		);
+		expect(app.processing.status().statusText).toBe('Idle');
+		expect(app.processing.status().progressPercentage).toBe(0);
 		engine.change((state) => {
 			state.output.submission = { kind: 'refused', reason: { kind: 'noOutputDirectory' } };
 			state.output.submissionInProgress = true;
@@ -31,6 +33,20 @@ describe('submission snapshot adapter', () => {
 			state.output.submissionInProgress = false;
 		});
 		await vi.waitFor(() => expect(app.settings.concurrency().controlsEnabled).toBe(true));
+	});
+
+	it('shows work that finished before its restart as completed', async () => {
+		const engine = createFakeEngine();
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		engine.change((state) => {
+			state.output.submission = {
+				kind: 'finishedBeforeRestart',
+				outputs: { updated: 1, elsewhere: 0, restartOffered: 0, failed: 0 },
+			};
+		});
+		await vi.waitFor(() => expect(app.processing.status().statusText).toBe('Completed'));
+		expect(app.processing.status().progressPercentage).toBe(100);
 	});
 
 	it('sends export, preview and targeted restart intents without building or continuing work', async () => {

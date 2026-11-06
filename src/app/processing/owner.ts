@@ -47,6 +47,10 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	});
 	const context = {
 		showError: (message: string) => statusView.showError(message),
+		showStep: (message: string) => {
+			statusView.setStepText(`Current Step: ${message}`);
+			statusView.setStepColor('var(--text-primary)');
+		},
 		showCompleted: (message: string) =>
 			renderStatus(statusView, { stage: 'complete', percentage: 100, message }),
 		resetToIdle: () => {

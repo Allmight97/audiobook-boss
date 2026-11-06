@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- After you start an export, the status line reads "Submitted to Work Center." without
+  a Completed stage or 100% bar, since the work has only been accepted.
 - The Audible status shows it is busy while the library loads after an account
   check, instead of reading idle until the load ends.
 - The metadata lookup queue names each title as the file list does, by its title

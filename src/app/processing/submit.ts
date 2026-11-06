@@ -2,6 +2,7 @@ import { toUserMessage } from '../../lib/tauri/appError';
 import type { SubmissionStatus, SubmitRefusal } from '../../types/session';
 
 export interface SubmissionDisplay {
+	showStep: (message: string) => void;
 	showCompleted: (message: string) => void;
 	resetToIdle: () => void;
 	showError: (message: string) => void;
@@ -51,7 +52,7 @@ export function renderSubmission(
 		case 'reviewRequired':
 			return;
 		case 'submitted':
-			display.showCompleted('Submitted to Work Center.');
+			display.showStep('Submitted to Work Center.');
 			return;
 		case 'finishedBeforeRestart':
 			display.showCompleted(
