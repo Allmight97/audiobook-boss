@@ -243,7 +243,7 @@ fn disconnecting_audible_clears_the_job_with_a_newer_acquisition_revision() {
         crate::remote_source::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
     ));
     let before = ui.acquisition.revision;
-    ui.disconnected(ProviderId::Audible);
+    ui.disconnected();
     assert!(ui.acquisition.job.is_none());
     assert!(ui.acquisition.revision > before);
 }

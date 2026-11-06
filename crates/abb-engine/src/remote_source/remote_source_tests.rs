@@ -457,42 +457,6 @@ async fn no_credential_read_starts_once_the_engine_is_closing() {
 }
 
 #[test]
-fn disconnecting_the_indexer_leaves_audible_downloads_and_records() {
-    let root = TempDir::new().expect("temp root");
-    let runtime = test_runtime(&root);
-    let job_id = "audible-download";
-    let job_dir = runtime
-        .inner
-        .lifecycle
-        .staging
-        .create_job_dir(job_id)
-        .expect("job dir");
-    runtime
-        .inner
-        .lifecycle
-        .jobs
-        .lock()
-        .expect("jobs lock")
-        .insert(
-            job_id.to_string(),
-            acquisition_job(job_id, types::RemoteAcquisitionStatus::Acquiring),
-        );
-
-    runtime
-        .disconnect_credentials(RemoteProviderId::Indexer)
-        .expect("indexer disconnect");
-
-    assert!(job_dir.exists());
-    assert!(runtime
-        .inner
-        .lifecycle
-        .jobs
-        .lock()
-        .expect("jobs lock")
-        .contains_key(job_id));
-}
-
-#[test]
 fn releasing_a_download_forgets_its_job() {
     let root = TempDir::new().expect("temp root");
     let runtime = test_runtime(&root);
@@ -576,9 +540,7 @@ async fn logout_keeps_materialized_handoff_sessions_but_purges_unmaterialized_se
     }
 
     runtime
-        .ui_begin(RemoteUiIntent::Disconnect {
-            provider: ProviderId::Audible,
-        })
+        .ui_begin(RemoteUiIntent::Disconnect)
         .finish()
         .await
         .expect("logout should preserve handoff session");

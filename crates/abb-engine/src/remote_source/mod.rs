@@ -223,34 +223,26 @@ impl RemoteSourceRuntime {
         }
     }
 
-    fn disconnect_credentials(&self, provider_id: RemoteProviderId) -> Result<RemoteAccountState> {
-        match provider_id {
-            RemoteProviderId::Audible => AudibleProvider::logout(self.inner.vault.as_ref())?,
-            RemoteProviderId::Indexer => IndexerProvider::logout(
-                &self.inner.settings.indexer_connection(),
-                self.inner.vault.as_ref(),
-            )?,
-        }
+    fn disconnect_credentials(&self) -> Result<RemoteAccountState> {
+        AudibleProvider::logout(self.inner.vault.as_ref())?;
         // Once credentials are removed, reflect disconnection even if a
-        // staging cleanup fails. Only this provider's jobs are cleaned up;
-        // startup's abandoned-session sweep is the cleanup backstop.
-        let account = self.account_state(provider_id);
+        // staging cleanup fails. Startup's abandoned-session sweep is the
+        // cleanup backstop.
+        let account = self.account_state(RemoteProviderId::Audible);
         {
             let mut state = self.ui();
-            state.disconnected(provider_id);
+            state.disconnected();
             state.account_disconnected(account.as_ref().ok().cloned());
         }
-        if provider_id == RemoteProviderId::Audible {
-            *self
-                .inner
-                .pending_audible_auth
-                .lock()
-                .map_err(|_| AppError::General("Remote auth state lock failed".into()))? = None;
-        }
+        *self
+            .inner
+            .pending_audible_auth
+            .lock()
+            .map_err(|_| AppError::General("Remote auth state lock failed".into()))? = None;
         self.inner
             .lifecycle
-            .cleanup_logout_sessions_without_handoff(provider_id)?;
-        self.inner.lifecycle.clear_jobs(provider_id)?;
+            .cleanup_logout_sessions_without_handoff(RemoteProviderId::Audible)?;
+        self.inner.lifecycle.clear_jobs(RemoteProviderId::Audible)?;
         account
     }
 

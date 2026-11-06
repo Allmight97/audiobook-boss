@@ -1,23 +1,20 @@
-use super::{
-    IndexerWorkSnapshot, RemoteDraftStatus, RemoteUiIntent, RemoteUiResult, UiAction, UiState,
-};
+use super::{IndexerWorkSnapshot, RemoteDraftStatus, RemoteUiResult, UiAction, UiState};
 use crate::app_settings::{IndexerConnection, SettingsOutcome, SettingsRun};
 use crate::errors::{AppError, Result};
 use crate::remote_source::{IndexerProvider, ProviderId, RemoteSourceRuntime};
 
-/// An accepted Save: the validated connection, the key typed with it, and
-/// what it holds until it finishes (`T`).
-pub(super) struct IndexerSave<T = SaveTurn> {
+/// The validated connection and the key typed with it, as a Save was
+/// accepted against the draft.
+pub(super) struct AcceptedSave {
     pub(super) revision: u64,
-    pub(super) request: u64,
     pub(super) connection: IndexerConnection,
     pub(super) api_key: Option<String>,
-    pub(super) turn: T,
 }
 
-/// The Indexer write guard and the reserved settings turn, taken together
-/// when a Save is accepted.
-pub(super) struct SaveTurn {
+/// An accepted Save and what it holds until it finishes: the previous
+/// connection, the reserved settings turn, and the Indexer write guard.
+pub(super) struct IndexerSave {
+    pub(super) accepted: AcceptedSave,
     previous: IndexerConnection,
     settings: SettingsRun,
     write: tokio::sync::OwnedRwLockWriteGuard<()>,
@@ -30,10 +27,7 @@ impl UiState {
         state
     }
 
-    pub(super) fn save_connection<T>(
-        &mut self,
-        reserve: impl FnOnce(&IndexerConnection) -> T,
-    ) -> Result<IndexerSave<T>> {
+    pub(super) fn save_connection(&mut self) -> Result<AcceptedSave> {
         self.ensure_draft_usable()?;
         if self.connection_saving
             || self.snapshot.indexer.searching
@@ -61,10 +55,8 @@ impl UiState {
         self.snapshot.connection.test = RemoteDraftStatus::Idle;
         self.snapshot.connection.test_result = None;
         self.snapshot.connection.save = RemoteDraftStatus::Running;
-        Ok(IndexerSave {
+        Ok(AcceptedSave {
             revision: self.edit_revision,
-            request: self.save_request,
-            turn: reserve(&connection),
             connection,
             api_key: self.api_key.clone(),
         })
@@ -79,40 +71,20 @@ impl UiState {
 }
 
 impl RemoteSourceRuntime {
-    pub(super) fn begin_ui(&self, intent: RemoteUiIntent) -> Result<UiAction> {
-        if matches!(intent, RemoteUiIntent::SaveConnection) {
-            return self.begin_save();
-        }
-        let mut state = self.ui();
-        if matches!(
-            intent,
-            RemoteUiIntent::Disconnect {
-                provider: ProviderId::Audible
-            }
-        ) && self.inner.lifecycle.has_unsettled_acquisition()
-        {
-            Err(AppError::InvalidInput(
-                "Wait for the Audible acquisition and handoff before disconnecting.".into(),
-            ))
-        } else {
-            state.begin(intent)
-        }
-    }
-
-    fn begin_save(&self) -> Result<UiAction> {
+    pub(super) fn begin_save(&self) -> Result<UiAction> {
         let write = self.indexer_write_lease("saving the Indexer connection")?;
         let mut state = self.ui();
         state.accept()?;
-        state
-            .save_connection(|connection| SaveTurn {
-                previous: self.inner.settings.indexer_connection(),
-                settings: self
-                    .inner
-                    .settings
-                    .set_indexer_connection(connection.clone(), &self.inner.tasks),
-                write,
-            })
-            .map(UiAction::Save)
+        let accepted = state.save_connection()?;
+        Ok(UiAction::Save(IndexerSave {
+            previous: self.inner.settings.indexer_connection(),
+            settings: self
+                .inner
+                .settings
+                .set_indexer_connection(accepted.connection.clone(), &self.inner.tasks),
+            accepted,
+            write,
+        }))
     }
 
     /// The Indexer connection changes only while no search, grab, or Save
@@ -151,16 +123,15 @@ impl RemoteSourceRuntime {
 
     pub(super) async fn finish_indexer_save(&self, save: IndexerSave) -> Result<RemoteUiResult> {
         let IndexerSave {
-            revision,
-            request,
-            connection,
-            api_key,
-            turn:
-                SaveTurn {
-                    previous,
-                    settings,
-                    write,
+            accepted:
+                AcceptedSave {
+                    revision,
+                    connection,
+                    api_key,
                 },
+            previous,
+            settings,
+            write,
         } = save;
         self.forget_sent_releases();
         let reply = settings.finish().await;
@@ -175,26 +146,16 @@ impl RemoteSourceRuntime {
             }
             SettingsOutcome::Rejected { error } => Err(AppError::General(error.message)),
         };
-        let superseded = self.ui().save_request != request;
-        let key_fact = if superseded || (applied && result.is_err() && connection != previous) {
+        let key_fact = if applied && result.is_err() && connection != previous {
             Some(self.indexer_api_key_configured().await.unwrap_or(false))
         } else {
             None
         };
         let refresh = {
-            let saved = self.inner.settings.indexer_connection();
             let mut state = self.ui();
-            if state.save_request == request {
-                state.saved(revision, &connection, &result);
-                if let Some(fact) = key_fact {
-                    state.snapshot.connection.api_key_configured = fact;
-                }
-            } else {
-                state.connection_saving = false;
-                state.snapshot.connection.save = RemoteDraftStatus::Idle;
-                state.apply_connection(&saved);
-                state.snapshot.connection.api_key_configured = key_fact.unwrap_or(false);
-                state.changed();
+            state.saved(revision, &connection, &result);
+            if let Some(fact) = key_fact {
+                state.snapshot.connection.api_key_configured = fact;
             }
             if state.snapshot.lane == ProviderId::Indexer {
                 state.account_request += 1;

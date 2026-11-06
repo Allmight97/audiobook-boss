@@ -109,9 +109,9 @@ and records the outcome on the job. From then on the session decides when the
 download goes (`crate::session`, `staged.rs`) and calls `purge_session`, which
 also drops the job's record. Cancel does nothing to a job that already
 finished, so it cannot remove files the session holds. Materialized handoff
-files stay usable after provider logout. An Audible disconnect refuses
-unfinished acquisition/handoff; an Indexer disconnect neither waits for nor
-cleans up Audible jobs. Job changes update `SessionUpdate.remote_acquisition`
+files stay usable after provider logout. A Disconnect is Audible's only (the
+Indexer has no sign-in to remove; its key stays in the credential store under
+its URL) and refuses unfinished acquisition/handoff. Job changes update `SessionUpdate.remote_acquisition`
 (admission `acquiring` and the current job), a part with its own revision;
 download progress is published at most every 100 ms, a stage change at once,
 and a progress tick carries no other part. The change that settles the job
@@ -151,8 +151,7 @@ job's size at any library size and cannot drop a crossing selection change. Snap
   work outside the guard; account_status Running exposes that pending work.
   Credential deletion failure preserves account/library choices and reports
   Failed. Successful deletion updates account truth before staging cleanup, so
-  cleanup failure cannot leave a Connected account. Cleanup covers only the
-  disconnected provider's jobs. Failed unmaterialized jobs remain in the
+  cleanup failure cannot leave a Connected account. Failed unmaterialized jobs remain in the
   lifecycle registry; startup abandoned-session cleanup retries their paths.
   Materialized handoff files remain session-owned.
 - Available PDFs start included; refresh preserves explicit exclusion while
@@ -167,10 +166,8 @@ job's size at any library size and cannot drop a crossing selection change. Snap
   stored for the saved URL. An applied Reset replaces the draft, clears its
   errors, failures, and search results, and refreshes the account
   (`saved_connection_replaced`). A Test that finishes after it changes nothing.
-  A Save that finishes after it, or whose settings turn ran after the Reset,
-  changes the draft only to show the connection now in effect, with the key
-  fact read again. Old Test/Search results cannot replace newer requests or
-  changed lanes. API keys stay private; snapshots report only
+  Reset waits for a Save, so no Save finishes after it. Old Test/Search
+  results cannot replace newer requests or changed lanes. API keys stay private; snapshots report only
   configured/entered facts. The HTTP client initializes on first use, so a
   session that never uses Indexer pays no network setup cost.
 - Acquisition admission and disconnect share the remote UI guard. A late library

@@ -18,10 +18,9 @@ pub enum RemoteUiIntent {
     CompleteAuth {
         response_url_handoff_path: Option<String>,
     },
-    /// Disconnects `provider`; refused unless it is the lane on screen.
-    Disconnect {
-        provider: ProviderId,
-    },
+    /// Disconnects the Audible sign-in; refused unless Audible is the lane on
+    /// screen. The Indexer has no sign-in to remove.
+    Disconnect,
     RefreshLibrary,
     SelectLane {
         lane: ProviderId,
@@ -240,7 +239,7 @@ impl UiState {
                 "Indexer uses connection settings instead of browser auth.".into(),
             ));
         }
-        self.disconnect_allowed(ProviderId::Audible)
+        self.disconnect_allowed()
     }
 
     fn account_reply(
@@ -351,7 +350,7 @@ impl UiState {
         self.library_request
     }
 
-    pub(super) fn disconnect_allowed(&self, provider: ProviderId) -> Result<()> {
+    pub(super) fn disconnect_allowed(&self) -> Result<()> {
         if self.disconnecting
             || matches!(
                 self.snapshot.auth,
@@ -362,18 +361,9 @@ impl UiState {
                 "Wait for the current account change to finish.".into(),
             ));
         }
-        if provider == ProviderId::Audible && self.acquisition.busy() {
+        if self.acquisition.busy() {
             return Err(AppError::InvalidInput(
                 "Wait for the Audible acquisition and handoff before disconnecting.".into(),
-            ));
-        }
-        if provider == ProviderId::Indexer
-            && (self.connection_saving
-                || self.snapshot.indexer.searching
-                || self.snapshot.indexer.grabbing)
-        {
-            return Err(AppError::InvalidInput(
-                "Wait for the current Indexer work before disconnecting.".into(),
             ));
         }
         Ok(())
@@ -387,28 +377,14 @@ impl UiState {
         self.changed();
     }
 
-    pub(super) fn disconnected(&mut self, provider: ProviderId) {
+    pub(super) fn disconnected(&mut self) {
         self.library_request += 1;
         self.account_request += 1;
         self.snapshot.library_status = RemoteDraftStatus::Idle;
-        if provider == ProviderId::Audible {
-            self.sign_in_rejected = false;
-            self.snapshot.auth = RemoteAuthStatus::Idle;
-            self.set_acquisition(|acquisition| acquisition.job = None);
-            self.library_loaded(Vec::new());
-        }
-        if provider == ProviderId::Indexer {
-            self.save_request += 1;
-            self.test_request += 1;
-            self.connection_loaded = false;
-            self.api_key = None;
-            self.snapshot.connection.api_key_entered = false;
-            self.snapshot.connection.api_key_configured = false;
-            self.snapshot.connection.save = RemoteDraftStatus::Idle;
-            self.snapshot.connection.test = RemoteDraftStatus::Idle;
-            self.snapshot.connection.test_result = None;
-            self.snapshot.indexer = IndexerWorkSnapshot::default();
-        }
+        self.sign_in_rejected = false;
+        self.snapshot.auth = RemoteAuthStatus::Idle;
+        self.set_acquisition(|acquisition| acquisition.job = None);
+        self.library_loaded(Vec::new());
     }
 
     pub(super) fn library_loaded(&mut self, titles: Vec<RemoteTitle>) {
@@ -475,7 +451,7 @@ impl UiState {
                 response_url_handoff_path,
             } => return self.begin_auth_completion(response_url_handoff_path),
 
-            RemoteUiIntent::Disconnect { provider } => return self.begin_disconnect(provider),
+            RemoteUiIntent::Disconnect => return self.begin_disconnect(),
 
             RemoteUiIntent::RefreshLibrary => return self.refresh_library(),
 
@@ -519,9 +495,7 @@ impl UiState {
                 self.edit_connection(base_url, category_ids, api_key)?;
             }
             RemoteUiIntent::SaveConnection => {
-                return Err(AppError::General(
-                    "A Save is accepted with its settings turn.".into(),
-                ))
+                unreachable!("ui_begin routes a Save through begin_save")
             }
             RemoteUiIntent::TestConnection => {
                 self.ensure_draft_usable()?;
@@ -619,19 +593,19 @@ impl UiState {
         Ok(UiAction::Library(request))
     }
 
-    fn begin_disconnect(&mut self, provider: ProviderId) -> Result<UiAction> {
-        if provider != self.snapshot.lane {
+    fn begin_disconnect(&mut self) -> Result<UiAction> {
+        if self.snapshot.lane != ProviderId::Audible {
             return Err(AppError::InvalidInput(
                 "That account is no longer the one shown. Try again.".into(),
             ));
         }
-        self.disconnect_allowed(provider)?;
+        self.disconnect_allowed()?;
         self.disconnecting = true;
         self.account_request += 1;
         self.library_request += 1;
         self.snapshot.account_status = RemoteDraftStatus::Running;
         self.snapshot.library_status = RemoteDraftStatus::Idle;
-        Ok(UiAction::Disconnect(provider))
+        Ok(UiAction::Disconnect)
     }
 
     fn toggle_title(&mut self, title_id: String) -> Result<()> {
@@ -969,7 +943,7 @@ enum UiAction {
     Done,
     StartAuth,
     CompleteAuth(Option<String>),
-    Disconnect(ProviderId),
+    Disconnect,
     Account {
         lane: ProviderId,
         request: u64,
@@ -1019,7 +993,17 @@ impl RemoteSourceRuntime {
             .any(|title| title.cover_url.as_deref() == Some(url))
     }
     pub(crate) fn ui_begin(&self, intent: RemoteUiIntent) -> RemoteUiRun {
-        let action = self.begin_ui(intent);
+        let action = if matches!(intent, RemoteUiIntent::SaveConnection) {
+            self.begin_save()
+        } else if matches!(intent, RemoteUiIntent::Disconnect)
+            && self.inner.lifecycle.has_unsettled_acquisition()
+        {
+            Err(AppError::InvalidInput(
+                "Wait for the Audible acquisition and handoff before disconnecting.".into(),
+            ))
+        } else {
+            self.ui().begin(intent)
+        };
         self.publish_ui();
         RemoteUiRun {
             runtime: self.clone(),
@@ -1191,12 +1175,12 @@ impl RemoteSourceRuntime {
         Ok(())
     }
 
-    async fn disconnect_ui(&self, provider: ProviderId) -> Result<()> {
+    async fn disconnect_ui(&self) -> Result<()> {
         // Admission keeps disconnecting set while the blocking vault operation
         // runs, so no acquisition can be admitted during credential deletion.
         let runtime = self.clone();
         #[expect(clippy::disallowed_methods, reason = "joined by disconnect_ui")]
-        let result = tokio::task::spawn_blocking(move || runtime.disconnect_credentials(provider))
+        let result = tokio::task::spawn_blocking(move || runtime.disconnect_credentials())
             .await
             .map_err(|_| AppError::General("Account disconnect failed.".into()))
             .and_then(|result| result);
@@ -1241,8 +1225,8 @@ impl RemoteUiRun {
                 .complete_ui_auth(path)
                 .await
                 .map(|_| RemoteUiResult::Applied),
-            UiAction::Disconnect(provider) => runtime
-                .disconnect_ui(provider)
+            UiAction::Disconnect => runtime
+                .disconnect_ui()
                 .await
                 .map(|_| RemoteUiResult::Applied),
             // Indexer reads have nothing to save: shutdown drops them rather

@@ -1,4 +1,4 @@
-use super::super::{release_key, ReleaseGrabStatus};
+use super::super::{release_key, ReleaseGrabStatus, RemoteUiIntent};
 use super::*;
 use crate::app_settings::SettingsIntent;
 use crate::remote_source::tests::{test_runtime, test_runtime_with, MemoryVault};
@@ -166,25 +166,23 @@ async fn a_rejected_settings_turn_writes_nothing_to_the_vault() {
         base_url: Some("https://user:secret@indexer.test".into()),
         category_ids: vec![3030],
     };
-    let turn = SaveTurn {
+    let save = IndexerSave {
+        accepted: AcceptedSave {
+            revision: 1,
+            connection: refused.clone(),
+            api_key: Some("key".into()),
+        },
         previous: runtime.inner.settings.indexer_connection(),
         settings: runtime
             .inner
             .settings
-            .set_indexer_connection(refused.clone(), &runtime.inner.tasks),
+            .set_indexer_connection(refused, &runtime.inner.tasks),
         write: runtime
             .inner
             .indexer_turn
             .clone()
             .try_write_owned()
             .expect("no search or grab holds the guard"),
-    };
-    let save = IndexerSave {
-        revision: 1,
-        request: runtime.ui().save_request,
-        connection: refused,
-        api_key: Some("key".into()),
-        turn,
     };
 
     let result = runtime.finish_indexer_save(save).await;
@@ -298,18 +296,16 @@ async fn reset_settings(runtime: &RemoteSourceRuntime) {
 }
 
 #[tokio::test]
-async fn a_save_or_test_that_finishes_after_a_reset_cannot_write_the_old_connection_back() {
+async fn a_test_that_finishes_after_a_reset_cannot_write_the_old_connection_back() {
     let root = TempDir::new().expect("temp root");
     let runtime = test_runtime(&root);
     run(&runtime, edit("http://127.0.0.1:1", Some("first-key")))
         .await
         .expect("edit");
-    let saving = runtime.ui_begin(RemoteUiIntent::SaveConnection);
     let testing = runtime.ui_begin(RemoteUiIntent::TestConnection);
     reset_settings(&runtime).await;
     runtime.saved_connection_replaced().await;
 
-    saving.finish().await.expect("the Save still finishes");
     assert!(testing.finish().await.is_err(), "nothing listens there");
 
     let connection = runtime.ui_snapshot().connection;
@@ -371,28 +367,6 @@ async fn a_vault_failure_on_a_changed_url_shows_the_key_fact_of_the_new_url() {
         .expect("the key write fails");
 
     assert!(!runtime.ui_snapshot().connection.api_key_configured);
-}
-
-#[tokio::test]
-async fn a_save_whose_settings_turn_runs_after_a_reset_shows_the_connection_in_effect() {
-    let root = TempDir::new().expect("temp root");
-    let runtime = test_runtime(&root);
-    run(&runtime, edit("https://indexer.test", Some("first-key")))
-        .await
-        .expect("edit");
-    let saving = runtime.ui_begin(RemoteUiIntent::SaveConnection);
-    runtime.saved_connection_replaced().await;
-    assert_eq!(runtime.ui_snapshot().connection.base_url, "");
-
-    saving.finish().await.expect("the Save still finishes");
-
-    let saved = runtime.inner.settings.indexer_connection();
-    assert_eq!(saved.base_url.as_deref(), Some("https://indexer.test"));
-    let connection = runtime.ui_snapshot().connection;
-    assert_eq!(connection.base_url, "https://indexer.test");
-    assert_eq!(connection.category_ids, [3030, 3040]);
-    assert!(connection.api_key_configured);
-    assert_eq!(connection.save, RemoteDraftStatus::Idle);
 }
 
 #[tokio::test]
@@ -592,7 +566,7 @@ async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryab
     );
     let (batch, ()) = tokio::join!(batch.finish(), async {
         second_is_sending.await.expect("the second release is sent");
-        let refused = runtime.reset_lease().err().expect("a Reset waits");
+        let refused = runtime.reset_lease().expect_err("a Reset waits");
         assert!(
             matches!(&refused, AppError::InvalidInput(message) if message.contains("before resetting settings")),
             "{refused}"
