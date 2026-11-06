@@ -19,6 +19,7 @@ use crate::session::lookup::LookupSnapshot;
 use crate::session::lookup::LookupSource;
 use crate::session::metadata_form::MetadataField;
 use crate::session::state::MetadataSnapshot;
+use crate::session::submission::SubmissionStatus;
 
 type SearchReply = Result<MetadataLookupResponse>;
 /// A search as the provider saw it: the query and the sources asked.
@@ -1025,59 +1026,6 @@ async fn a_download_goes_once_its_title_is_exported() {
     );
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn reset_during_preflight_drops_the_review_and_unlocks_the_list() {
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let out = tempfile::TempDir::new().expect("output");
-    let audio = staged_wav(staging.path(), "book");
-    rig.session.import_acquired(acquired("job-1", &audio)).await;
-    rig.send(SessionIntent::SetOutputDirectory {
-        directory: out.path().to_string_lossy().into_owned(),
-    })
-    .await;
-    rig.type_into(MetadataField::Title, "Book").await;
-    let dest = preview_path(&rig);
-    if let Some(parent) = std::path::Path::new(&dest).parent() {
-        std::fs::create_dir_all(parent).expect("output parent");
-    }
-    std::fs::write(&dest, b"already there").expect("colliding output");
-
-    rig.send(SessionIntent::Submit).await;
-    assert!(
-        matches!(
-            output(&rig).submission,
-            Some(SubmissionStatus::ReviewRequired)
-        ),
-        "this output must collide so hold_for_review is reached: {:?}",
-        output(&rig).submission
-    );
-    let review_id = output(&rig)
-        .collision_review
-        .expect("held review")
-        .review_id;
-    rig.send(SessionIntent::CancelCollisionReview { review_id })
-        .await;
-    assert!(!rig.session.snapshot().titles.expect("titles").order_locked);
-
-    let submitting = rig.session.begin(SessionIntent::Submit);
-    let _reset = rig.session.begin(SessionIntent::Reset);
-    submitting.finish().await;
-
-    let titles = rig.session.snapshot().titles.expect("titles");
-    assert!(titles.files.is_empty());
-    assert!(
-        !titles.order_locked,
-        "a reset during preflight unlocks the list"
-    );
-    assert!(
-        output(&rig).collision_review.is_none(),
-        "a reset during preflight does not hold a review: {:?}",
-        output(&rig).collision_review
-    );
-    assert!(!output(&rig).submission_in_progress);
-}
-
 #[tokio::test]
 async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks() {
     let rig = rig();
@@ -1154,94 +1102,6 @@ async fn reset_supersedes_an_acquired_handoff_waiting_for_an_earlier_import() {
 }
 
 #[tokio::test]
-async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply() {
-    let rig = rig();
-    let lane = crate::test_cases::media_fixtures::MediaLane::with_fixtures(&[0.2]);
-    let source = lane
-        .process(Some(AudiobookMetadata {
-            title: Some("Preview".to_string()),
-            ..Default::default()
-        }))
-        .await;
-    std::fs::create_dir_all(rig._config.path().join("previews")).expect("preview folder");
-    rig.send(SessionIntent::Import {
-        paths: vec![source.to_string_lossy().into_owned()],
-    })
-    .await;
-    rig.send(SessionIntent::SetOutputDirectory {
-        directory: rig
-            ._config
-            .path()
-            .join("previews")
-            .to_string_lossy()
-            .into_owned(),
-    })
-    .await;
-    let custom = rig._config.path().join("custom.png");
-    image::RgbImage::from_pixel(1, 1, image::Rgb([180, 20, 90]))
-        .save(&custom)
-        .expect("custom cover");
-    rig.send(SessionIntent::LoadCoverFromFile {
-        path: custom.to_string_lossy().into_owned(),
-    })
-    .await;
-    let cover = rig.cover_shown().await.expect("accepted normalized cover");
-    let jobs = &rig.session.inner.deps.jobs;
-    let (first, first_permit) = jobs.register_job().await.expect("hold first slot");
-    let (second, second_permit) = jobs.register_job().await.expect("hold second slot");
-    let run = rig.session.begin(SessionIntent::Preview);
-    drop(run);
-    let id = output(&rig)
-        .preview_run
-        .expect("accepted preview")
-        .operation
-        .operation_id;
-    wait_preview(&rig, crate::work_runtime::WorkOperationStatus::Running).await;
-    let offered = output(&rig)
-        .preview_run
-        .and_then(|run| run.cover)
-        .expect("the running preview offers its artwork");
-    let shown = rig
-        .session
-        .cover(&host_request(&offered))
-        .await
-        .expect("the running preview's artwork")
-        .expect("a custom cover");
-    assert_eq!(
-        shown.to_vec(),
-        crate::metadata::render_display_thumbnail(&cover).expect("thumbnail")
-    );
-    assert_eq!(
-        rig.send(SessionIntent::CancelPreview {
-            run_id: id.to_string(),
-            child_job_id: None
-        })
-        .await,
-        SessionOutcome::Applied
-    );
-    let preview = wait_preview(&rig, crate::work_runtime::WorkOperationStatus::Cancelled).await;
-    assert!(preview.operation.cancel_requested);
-    assert!(!preview.open_ready);
-    assert!(preview
-        .operation
-        .children
-        .iter()
-        .all(|child| child.output_path.is_none()
-            && child.progress.stage == crate::work_runtime::WorkProgressStage::Cancelled));
-    assert_eq!(
-        rig.send(SessionIntent::TakePreviewOutput {
-            run_id: id.to_string()
-        })
-        .await,
-        SessionOutcome::PreviewOutput { path: None }
-    );
-    assert!(!rig.session.snapshot().titles.expect("titles").order_locked);
-    jobs.complete_job(first).await;
-    jobs.complete_job(second).await;
-    drop((first_permit, second_permit));
-}
-
-#[tokio::test]
 async fn an_unsupported_cover_drop_publishes_the_ingestion_diagnostic() {
     let rig = rig();
     rig.load(&["alpha"]);
@@ -1310,28 +1170,6 @@ async fn an_accepted_indexer_save_finishes_when_the_host_drops_its_reply() {
         .expect("key fact for the saved URL"));
 }
 
-async fn wait_preview(
-    rig: &Rig,
-    status: crate::work_runtime::WorkOperationStatus,
-) -> super::super::preview::PreviewSnapshot {
-    tokio::time::timeout(Duration::from_secs(5), async {
-        loop {
-            let preview = output(rig).preview_run.expect("retained preview");
-            if preview.operation.status == status {
-                return preview;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .unwrap_or_else(|error| {
-        panic!(
-            "preview did not reach {status:?}: {error}; {:?}",
-            output(rig).preview_run
-        )
-    })
-}
-
 #[tokio::test]
 async fn moves_name_the_title_so_a_second_click_moves_the_same_title_again() {
     let rig = rig();
@@ -1364,3 +1202,7 @@ mod defaults_flow;
 mod field_edit;
 #[path = "runtime/lookup_flow_tests.rs"]
 mod lookup_flow;
+#[path = "runtime/preview_flow_tests.rs"]
+mod preview_flow;
+#[path = "runtime/submission_flow_tests.rs"]
+mod submission_flow;

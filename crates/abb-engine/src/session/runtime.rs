@@ -11,7 +11,7 @@ use super::intent::{SessionIntent, SessionOutcome, SessionReply};
 use super::lookup::{QueueStep, RESULT_LIMIT};
 use super::plans::PlanTicket;
 use super::state::{GateBlock, MetadataStatus, SaveItem, SavePlan, SessionState, SessionUpdate};
-use super::submission::{plan_verdict, Draft, PlanVerdict, SubmissionStatus, SubmitRefusal};
+use super::submission::{Draft, SubmitRefusal};
 use super::tag_cache::ReadTicket;
 use super::working_set::{InputNotice, SelectionModifiers, WorkingSet};
 use crate::app_settings::{SettingsIntent, SettingsRun, SettingsRuntime};
@@ -21,17 +21,14 @@ use crate::host::{EngineEvent, Host};
 use crate::metadata::AudiobookMetadata;
 use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource};
 use crate::output_artifact::CollisionPolicy;
-use crate::processing::run::{
-    inspect_processing_plan, process_inspected_with_options, ProcessingRunOptions,
-};
 use crate::processing::title_output::UpdateReply;
 use crate::processing::SupplementalProcessingAsset;
 use crate::processing::{OutputUpdate, OutputUpdateStatus};
 use crate::remote_source::{
     AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal, RemoteRevisions, RemoteUiResult,
 };
+use crate::work_runtime::OperationSnapshot;
 use crate::work_runtime::WorkRuntime;
-use crate::work_runtime::{OperationSnapshot, SubmitProcessingOperationRequest};
 use crate::ManagedJobRegistry;
 
 const READ_CONCURRENCY: usize = 8;
@@ -75,18 +72,6 @@ pub(crate) struct SessionDeps {
 }
 
 pub(crate) type RemoveStaged = Arc<dyn Fn(&str) -> Result<()> + Send + Sync>;
-
-fn closing() -> SubmissionStatus {
-    SubmissionStatus::Refused {
-        reason: SubmitRefusal::Closing,
-    }
-}
-
-fn failed(error: &AppError) -> SubmissionStatus {
-    SubmissionStatus::Failed {
-        error: AppErrorEnvelope::from(error),
-    }
-}
 
 #[derive(Clone)]
 pub(crate) struct Session {
@@ -460,10 +445,6 @@ impl Session {
         let mut snapshot = self.lock().update_since(None);
         self.inner.deps.remote.add_ui_parts(&mut snapshot, None);
         snapshot
-    }
-
-    pub(crate) fn export_in_preparation(&self) -> Option<crate::work_runtime::OperationId> {
-        self.lock().export_in_preparation().cloned()
     }
 
     pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
@@ -973,282 +954,9 @@ impl Session {
         })
     }
 
-    fn begin_submission(&self, preview: bool) -> Rest {
-        let draft = self.transition(|state| state.begin_submission(preview));
-        match draft {
-            Some(draft) => Rest::Submit {
-                draft: Box::new(self.capture_decoder(draft)),
-                resets: self.inner.resets.load(Ordering::SeqCst),
-            },
-            None => Rest::Done(SessionOutcome::Applied),
-        }
-    }
-
-    fn capture_decoder(&self, mut draft: Draft) -> Draft {
-        draft.payload.aac_decoder = Some(self.inner.deps.settings.aac_decoder());
-        draft
-    }
-
-    async fn submit(&self, draft: Draft, resets: u64) -> SessionOutcome {
-        self.publish();
-        let checking = draft.clone();
-        let plan = blocking(move || {
-            inspect_processing_plan(
-                &checking.payload,
-                checking.metadata.as_ref(),
-                checking.preview,
-            )
-        })
-        .await;
-        let plan = match plan {
-            Ok(plan) => plan,
-            Err(error) => return self.end_submission(&draft, failed(&error)),
-        };
-        if draft
-            .preview_id()
-            .is_some_and(|id| self.lock().preview.cancelled(id))
-        {
-            return self.end_submission(&draft, SubmissionStatus::Cancelled);
-        }
-        let public = plan.plan.to_public();
-        let collided: Vec<_> = public
-            .outputs
-            .iter()
-            .filter(|output| output.collision.is_some())
-            .cloned()
-            .collect();
-        let unreviewed = draft.reviewed.as_ref().is_some_and(|reviewed| {
-            crate::session::submission::collisions(&collided)
-                .iter()
-                .any(|collision| !reviewed.contains(collision))
-        });
-        match plan_verdict(&public) {
-            PlanVerdict::Blocked(message) => {
-                self.end_submission(&draft, SubmissionStatus::Blocked { message })
-            }
-            PlanVerdict::Review(outputs) if draft.payload.collision_policy.is_none() => {
-                self.hold_for_review(draft, outputs, resets)
-            }
-            _ if unreviewed => self.hold_for_review(draft, collided, resets),
-            PlanVerdict::Review(_) | PlanVerdict::Proceed => {
-                self.accept(
-                    draft.approved(public.collision_policy, public.plan_signature),
-                    plan,
-                )
-                .await
-            }
-        }
-    }
-
-    fn hold_for_review(
-        &self,
-        draft: Draft,
-        outputs: Vec<crate::output_artifact::PlannedOutput>,
-        resets: u64,
-    ) -> SessionOutcome {
-        let closing_draft = draft.clone();
-        match self.inner.deps.tasks.admit(|| {
-            self.transition(|state| {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    state.finish_submission(&draft, SubmissionStatus::Cancelled);
-                    return true;
-                }
-                state.await_review(draft, outputs);
-                false
-            })
-        }) {
-            Ok(true) => {
-                self.sources_released();
-                SessionOutcome::Applied
-            }
-            Ok(false) => SessionOutcome::Applied,
-            Err(_) => {
-                self.transition(|state| state.finish_submission(&closing_draft, closing()));
-                self.sources_released();
-                SessionOutcome::Applied
-            }
-        }
-    }
-
-    async fn accept(
-        &self,
-        draft: Draft,
-        inspected: crate::processing::plan::InspectedProcessingPlan,
-    ) -> SessionOutcome {
-        let deps = &self.inner.deps;
-        if draft.preview {
-            return self.run_preview(draft, inspected).await;
-        }
-        let submitted = deps
-            .work
-            .submit_processing_operation(
-                deps.host.clone(),
-                deps.jobs.clone(),
-                deps.workspace_root.clone(),
-                SubmitProcessingOperationRequest {
-                    operation_id: draft.operation_id.clone(),
-                    payload: draft.payload.clone(),
-                    metadata: draft.metadata.clone(),
-                    title: draft.title.clone(),
-                },
-                Some(Box::new({
-                    let session = self.clone();
-                    move |snapshot| session.export_finished(&snapshot)
-                })),
-                inspected,
-            )
-            .await;
-        let status = match submitted {
-            Ok(accepted) => {
-                self.transition(|state| {
-                    state.link_exports(&draft, &accepted.operation_id, &accepted.titles);
-                });
-                let linked: Vec<String> = draft
-                    .payload
-                    .input_ids
-                    .iter()
-                    .flatten()
-                    .flatten()
-                    .cloned()
-                    .collect();
-                self.catch_up_outputs(&linked).await;
-                SubmissionStatus::Submitted {
-                    operation_id: accepted.operation_id,
-                    title: draft.title.clone(),
-                }
-            }
-            Err(AppError::Closing) => closing(),
-            Err(error) => failed(&error),
-        };
-        self.end_submission(&draft, status)
-    }
-
-    async fn run_preview(
-        &self,
-        draft: Draft,
-        inspected: crate::processing::plan::InspectedProcessingPlan,
-    ) -> SessionOutcome {
-        let deps = &self.inner.deps;
-        let _active_run = deps.jobs.hold_run();
-        let cancels: Vec<Arc<AtomicBool>> = (0..draft.payload.input_files.len())
-            .map(|_| Arc::default())
-            .collect();
-        let id = draft.operation_id.clone();
-        *self.preview_cancels() = cancels.clone();
-        if let Some(preview) = self.lock().preview.snapshot() {
-            for child in &preview.operation.children {
-                if child.cancel_requested {
-                    if let Some(flag) = child.input_index.and_then(|index| cancels.get(index)) {
-                        flag.store(true, Ordering::SeqCst);
-                    }
-                }
-            }
-        }
-        let artwork = super::preview::PreviewArtwork::from_plan(&inspected);
-        if self
-            .inner
-            .deps
-            .tasks
-            .admit(|| {
-                self.transition(|state| {
-                    state.preview.artwork = artwork;
-                    state.start_preview(&id);
-                });
-            })
-            .is_err()
-        {
-            return self.end_submission(&draft, closing());
-        }
-        self.publish();
-        let result = process_inspected_with_options(
-            &_active_run,
-            deps.host.clone(),
-            deps.jobs.clone(),
-            deps.workspace_root.clone(),
-            draft.payload.clone(),
-            inspected,
-            ProcessingRunOptions {
-                operation_id: Some(id.to_string()),
-                title_cancels: cancels,
-                progress_listener: Some(Arc::new({
-                    let session = self.clone();
-                    let id = id.clone();
-                    move |event| {
-                        session.transition(|state| state.preview.progress(&id, event));
-                        session.publish();
-                    }
-                })),
-                ..ProcessingRunOptions::default()
-            },
-        )
-        .await;
-        self.preview_cancels().clear();
-        let status = match result {
-            Ok(result) => SubmissionStatus::PreviewFinished { result },
-            Err(error) => failed(&error),
-        };
-        self.end_submission(&draft, status)
-    }
-
-    fn preview_cancels(&self) -> std::sync::MutexGuard<'_, Vec<Arc<AtomicBool>>> {
-        self.inner
-            .preview_cancels
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-    }
-
-    fn cancel_preview_run(&self, run_id: &str, child: Option<&str>) -> SessionOutcome {
-        let flags = self.preview_cancels();
-        let indexes = self.transition(|state| {
-            let indexes = state.preview.cancel(run_id, child)?;
-            if child.is_none() && state.preview.matches(run_id) {
-                state.cancel_preview_review();
-            }
-            Ok::<_, AppError>(indexes)
-        });
-        match indexes {
-            Ok(indexes) => {
-                for index in indexes {
-                    if let Some(flag) = flags.get(index) {
-                        flag.store(true, Ordering::SeqCst);
-                    }
-                }
-                self.sources_released();
-                SessionOutcome::Applied
-            }
-            Err(error) => SessionOutcome::Rejected {
-                error: (&error).into(),
-            },
-        }
-    }
-
-    pub(crate) fn cancel_preview(&self) {
-        let id = self
-            .lock()
-            .preview
-            .snapshot()
-            .map(|preview| preview.operation.operation_id);
-        if let Some(id) = id {
-            self.cancel_preview_run(id.as_str(), None);
-        }
-    }
-
-    pub(crate) fn cancel_review(&self) {
-        self.transition(SessionState::cancel_review);
-        self.sources_released();
-    }
-
     fn sources_released(&self) {
         self.inner.sources_freed.notify_one();
         self.inner.list_unlocked.notify_waiters();
-    }
-
-    /// Ends a submission; its sources stay reserved until WorkRuntime has
-    /// registered them.
-    fn end_submission(&self, draft: &Draft, status: SubmissionStatus) -> SessionOutcome {
-        self.transition(|state| state.finish_submission(draft, status));
-        self.sources_released();
-        SessionOutcome::Applied
     }
 
     fn begin_cover_load(&self, source: CoverSource) -> Rest {
@@ -1293,44 +1001,6 @@ impl Session {
                 SessionOutcome::CoverLoadFailed
             }
         })
-    }
-
-    async fn keep_location(
-        &self,
-        title_id: String,
-        revision: u64,
-        link: ExportLink,
-    ) -> SessionOutcome {
-        let published = match link.title.keep_location(revision) {
-            Ok(published) => published,
-            Err(error) => {
-                return SessionOutcome::Rejected {
-                    error: AppErrorEnvelope::from(&error),
-                }
-            }
-        };
-        if published {
-            let title = Arc::clone(&link.title);
-            if let Err(error) = blocking(move || {
-                title.apply_published();
-                Ok(())
-            })
-            .await
-            {
-                return SessionOutcome::Rejected {
-                    error: AppErrorEnvelope::from(&error),
-                };
-            }
-        }
-        self.transition(|state| state.kept_location(&title_id, revision));
-        match link.title.update_state().map(|update| update.status) {
-            Some(crate::processing::OutputUpdateStatus::Failed { message }) => {
-                SessionOutcome::Rejected {
-                    error: AppErrorEnvelope::from(&AppError::General(message)),
-                }
-            }
-            _ => SessionOutcome::Applied,
-        }
     }
 
     fn begin_save(&self) -> Rest {
@@ -1471,41 +1141,6 @@ impl Session {
         });
         self.update_outputs(edits).await;
     }
-
-    fn begin_restart(&self, title_id: &str, revision: u64) -> Rest {
-        let started = self.transition(|state| state.begin_restart(title_id, revision));
-        match started {
-            Some((draft, link)) => Rest::Restart {
-                draft: Box::new(self.capture_decoder(draft)),
-                link: Box::new(link),
-                resets: self.inner.resets.load(Ordering::SeqCst),
-            },
-            None => Rest::Done(SessionOutcome::Applied),
-        }
-    }
-
-    async fn restart(&self, draft: Draft, link: ExportLink, resets: u64) -> SessionOutcome {
-        self.publish();
-        let deps = &self.inner.deps;
-        let published = deps
-            .work
-            .stop_title(&deps.host, &link.operation_id, link.index, &link.title)
-            .await;
-        if !published {
-            return self.submit(draft, resets).await;
-        }
-        let edits = self.transition(|state| {
-            let tags = &state.tags;
-            state
-                .exports
-                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
-                .into_iter()
-                .filter(|edit| edit.title_id == draft_title_id(&draft))
-                .collect()
-        });
-        let outputs = self.update_outputs(edits).await;
-        self.end_submission(&draft, SubmissionStatus::FinishedBeforeRestart { outputs })
-    }
 }
 
 enum CoverSource {
@@ -1571,15 +1206,6 @@ fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
         .collect()
 }
 
-fn draft_title_id(draft: &Draft) -> String {
-    draft
-        .payload
-        .input_ids
-        .as_ref()
-        .and_then(|ids| ids.first().cloned().flatten())
-        .unwrap_or_default()
-}
-
 /// The time staged-download retries are measured in: tokio's clock, so a
 /// paused test runtime can move it.
 fn now() -> std::time::Instant {
@@ -1631,7 +1257,9 @@ mod cover_request;
 
 mod defaults_flow;
 mod lookup_flow;
+mod preview_flow;
 mod save_flow;
+mod submission_flow;
 
 #[cfg(test)]
 #[path = "runtime_tests.rs"]
