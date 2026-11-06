@@ -12,12 +12,12 @@ import type {
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { EngineLink } from '../engineLink';
 
-export type SettingsDurability = {
+type SettingsDurability = {
 	readonly state: 'saved' | 'saving' | 'error';
 	readonly message: string;
 };
 
-export type ConcurrencyView = {
+type ConcurrencyView = {
 	readonly errorMessage: string;
 	readonly selection: string;
 	readonly effective: number;
@@ -28,9 +28,9 @@ export type ConcurrencyView = {
 	readonly fixedOptions: ReadonlyArray<number>;
 };
 
-export type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
+type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
-export type AppSettingsDialogState = {
+type AppSettingsDialogState = {
 	isOpen: boolean;
 	settings: AppSettings | null;
 	saveState: SettingsSaveState;

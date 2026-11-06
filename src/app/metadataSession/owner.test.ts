@@ -204,7 +204,6 @@ describe('metadata owner', () => {
 		});
 		await vi.waitFor(() => expect(app.metadata.view().cover.imageSrc).not.toBeNull());
 		expect(app.metadata.view().cover.imageSrc).toBe(coverSrc('session/1/'));
-		expect(app.metadata.view().cover.hasCustomCoverArt).toBe(true);
 		const shown = app.metadata.view().cover.imageSrc;
 		app.metadata.setFieldValue({ inputId: 'meta-genre', value: 'Mystery' });
 		await vi.waitFor(() => expect(app.metadata.view().form.fields['meta-genre'].dirty).toBe(true));

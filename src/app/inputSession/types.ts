@@ -27,7 +27,6 @@ export type InputView = {
 	readonly showRestoreImportOrder: boolean;
 	readonly totalSizeBytes: number;
 	readonly canGroup: boolean;
-	readonly totalDurationSeconds: number;
 };
 
 export type ImportIntent =

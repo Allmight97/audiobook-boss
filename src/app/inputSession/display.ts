@@ -89,7 +89,6 @@ export function toInputView(
 		showRestoreImportOrder: titles.orderDiffersFromImport && !locked,
 		totalSizeBytes: titles.totalSizeBytes ?? 0,
 		canGroup: selection.canGroup,
-		totalDurationSeconds: sourceFiles.reduce((sum, file) => sum + (file.duration ?? 0), 0),
 	};
 }
 

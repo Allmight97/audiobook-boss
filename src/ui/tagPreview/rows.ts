@@ -1,7 +1,7 @@
-import type { TagField } from '../../app/metadataSession';
+import type { TagPreview } from '../../types/session';
 
 export type TagRow = {
-	field: TagField;
+	field: keyof TagPreview;
 	label: string;
 	title: string;
 };
@@ -44,7 +44,7 @@ export const rightRows: TagRow[] = [
 			'Series name tag (series). Written to freeform SERIES (----:com.apple.iTunes:SERIES) for ABS/Plex-compatible scanners.',
 	},
 	{
-		field: 'part',
+		field: 'seriesPart',
 		label: 'SERIES-PART (Book #)',
 		title:
 			'Series number tag (series-part). Written to freeform SERIES-PART (----:com.apple.iTunes:SERIES-PART) for ABS/Plex-compatible scanners.',
@@ -55,12 +55,12 @@ export const rightRows: TagRow[] = [
 		title: 'Secondary series name. Stored as the second entry in the SERIES list for ABS/Plex.',
 	},
 	{
-		field: 'subpart',
+		field: 'subseriesPart',
 		label: 'SERIES-PART (Sub-series #)',
 		title: 'Secondary series number. Stored as the second entry in SERIES-PART for ABS/Plex.',
 	},
 	{
-		field: 'tsoa',
+		field: 'albumSort',
 		label: 'TSOA (Title Sort Order)',
 		title: 'Auto-generated sort key. Forces Plex to sort by series, then book number, then title.',
 	},
@@ -98,7 +98,7 @@ export const compactRows: TagRow[] = [
 		title: 'Series name used for library grouping.',
 	},
 	{
-		field: 'part',
+		field: 'seriesPart',
 		label: 'Book #',
 		title: 'Series number used for sorting.',
 	},

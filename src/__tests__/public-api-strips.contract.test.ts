@@ -60,7 +60,6 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 			'formatFileDetails',
 			'interpretFileListKeyDown',
 			'nativeDropTargetAtPoint',
-			'toInputView',
 			'toInspectorViewFromInput',
 		],
 	],

@@ -8,7 +8,7 @@ import {
 	type MetadataLookupState,
 } from './state';
 
-export type MetadataLookupAction =
+type MetadataLookupAction =
 	| { type: 'applyResult'; index: number }
 	| { type: 'close' }
 	| { type: 'manualEntry' }

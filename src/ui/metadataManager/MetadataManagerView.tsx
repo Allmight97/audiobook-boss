@@ -19,7 +19,7 @@ export function MetadataManagerView(): JSX.Element {
 			<div
 				id="metadata-selection-count"
 				class="muted-text metadata-selection-count"
-				hidden={snapshot().mode !== 'multi' || snapshot().selectionCount <= 1}
+				hidden={snapshot().selectionCount <= 1}
 			>
 				{snapshot().selectionCount} titles selected
 			</div>

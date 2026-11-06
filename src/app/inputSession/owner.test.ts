@@ -30,7 +30,6 @@ describe('input owner', () => {
 		expect(engine.sessionIntents).toContainEqual({ kind: 'import', paths: ['/books/a.m4b'] });
 		const view = app.input.view();
 		expect(view.files.map((file) => file.path)).toEqual(['/books/a.m4b']);
-		expect(view.totalDurationSeconds).toBe(60);
 	});
 
 	it('words the reason an import added nothing', async () => {

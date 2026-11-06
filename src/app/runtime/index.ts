@@ -11,7 +11,7 @@ import { createRemoteSourceOwner } from '../remoteSource';
 import { createWorkOperationsOwner } from '../workOperations';
 import type { AppRuntime, RuntimeCapabilities } from './types';
 
-export type { AppRuntime, EngineStatus, RuntimeCapabilities } from './types';
+export type { AppRuntime } from './types';
 
 export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRuntime {
 	let disposeRoot = (): void => {};

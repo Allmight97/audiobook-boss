@@ -45,14 +45,14 @@ export function FileImportView(): JSX.Element {
 					return;
 				}
 				const coverArea = document.getElementById('cover-art-area');
-				const coverHit = nativeDropTargetAtPoint(payload.position, coverArea, null) === 'cover';
-				const filesHit =
-					nativeDropTargetAtPoint(payload.position, null, fileManagementContainer) === 'files';
-				if (coverHit) {
+				const target = nativeDropTargetAtPoint(
+					payload.position,
+					coverArea,
+					fileManagementContainer,
+				);
+				if (target === 'cover') {
 					void applyCoverArtDrop([...payload.paths]);
-					return;
-				}
-				if (filesHit) {
+				} else if (target === 'files') {
 					void importIntent({ type: 'importPaths', paths: [...payload.paths] });
 				}
 			}),

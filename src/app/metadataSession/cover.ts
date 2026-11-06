@@ -13,8 +13,6 @@ export type CoverUiState = {
 	readonly isHovered: boolean;
 	readonly isDragOver: boolean;
 	readonly urlInputValue: string;
-	readonly hasCustomCoverArt: boolean;
-	readonly coverArtRemovalRequested: boolean;
 };
 
 export const HIDDEN_COVER_MESSAGE: CoverArtMessage = { kind: 'hidden' };

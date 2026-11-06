@@ -4,6 +4,7 @@ import type {
 	MetadataStatus,
 	OutputEdits,
 	SessionIntent,
+	TagPreview,
 	SessionMetadata,
 } from '../../types/session';
 import { coverSrc } from '../../lib/tauri/coverSrc';
@@ -28,19 +29,17 @@ import {
 	type MetadataFieldAction,
 	type MetadataFormState,
 } from './fields';
-import { tagPreviewValues, type TagPreviewValues } from './tags';
 
-export type MetadataView = {
+type MetadataView = {
 	readonly form: MetadataFormState;
 	readonly cover: CoverUiState;
-	readonly tags: TagPreviewValues;
+	readonly tags: TagPreview;
 	readonly saveInProgress: boolean;
 	readonly statusMessage: string;
 };
 
 export type MetadataOwner = {
 	readonly view: Accessor<MetadataView>;
-	readonly capability: Accessor<MetadataCapability>;
 	setFieldValue: (command: { readonly inputId: string; readonly value: string }) => void;
 	setFieldAction: (command: {
 		readonly actionId: string;
@@ -131,7 +130,6 @@ function statusText(status: MetadataStatus | null): string {
 export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	const { link } = deps;
 	const capabilityValue = deps.capability ?? liveMetadataCapability;
-	const capability: Accessor<MetadataCapability> = () => capabilityValue;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	let isHovered = false;
 	let isDragOver = false;
@@ -195,10 +193,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				isHovered,
 				isDragOver,
 				urlInputValue,
-				hasCustomCoverArt: metadata.cover.custom,
-				coverArtRemovalRequested: metadata.cover.removalRequested,
 			},
-			tags: tagPreviewValues(metadata.tags),
+			tags: metadata.tags,
 			saveInProgress: metadata.saveInProgress,
 			statusMessage: statusText(metadata.status) || (metadata.form.validationMessage ?? ''),
 		};
@@ -218,7 +214,6 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 
 	return {
 		view,
-		capability,
 		setFieldValue(command) {
 			const field = fieldForInputId(command.inputId);
 			if (!field) return;

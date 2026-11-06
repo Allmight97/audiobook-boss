@@ -358,7 +358,7 @@ fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) 
         });
 }
 
-#[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+#[cfg(target_os = "macos")]
 fn open_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
     let paths = urls
         .into_iter()
@@ -373,7 +373,6 @@ fn open_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
     }
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
@@ -430,7 +429,7 @@ pub fn run() {
             } if hold_quit(app) => {
                 api.prevent_close();
             }
-            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+            #[cfg(target_os = "macos")]
             tauri::RunEvent::Opened { urls } => open_urls(app, urls),
             _ => {}
         });

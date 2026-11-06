@@ -161,7 +161,6 @@ export function FileListView(props: {
 						style={{
 							display: view().showRestoreImportOrder ? 'block' : 'none',
 						}}
-						disabled={view().orderLocked}
 						onClick={() => restoreImportOrder()}
 					>
 						Restore import order
