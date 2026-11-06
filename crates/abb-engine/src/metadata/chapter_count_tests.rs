@@ -17,3 +17,9 @@ fn a_single_chapterless_source_gets_no_chapter() {
     assert!(!synthesizes_chapter_per_source(1, 0));
     assert_eq!(output_chapter_count(&[0]), 0);
 }
+
+#[test]
+fn one_real_chapter_among_chapterless_sources_is_the_only_chapter() {
+    assert!(!synthesizes_chapter_per_source(2, 1));
+    assert_eq!(output_chapter_count(&[1, 0]), 1);
+}
