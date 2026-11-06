@@ -1,10 +1,11 @@
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 const APP_ID: &str = "com.audiobook-boss";
 pub const CURRENT_LOG: &str = "abb.log";
 pub const PREVIOUS_LOG: &str = "abb.previous.log";
+pub const MAX_LOG_BYTES: u64 = 5 * 1024 * 1024;
 
 pub fn log_dir(home: Option<PathBuf>, xdg_data_home: Option<PathBuf>) -> Option<PathBuf> {
     if cfg!(target_os = "macos") {
@@ -27,13 +28,13 @@ pub fn default_log_dir() -> Option<PathBuf> {
     clippy::disallowed_methods,
     reason = "the previous log is disposable; a crash mid-rename loses only a log"
 )]
-pub fn open_fresh_log(dir: &Path) -> io::Result<File> {
+pub fn open_log(dir: &Path) -> io::Result<File> {
     fs::create_dir_all(dir)?;
     let current = dir.join(CURRENT_LOG);
-    if current.exists() {
+    if fs::metadata(&current).is_ok_and(|log| log.len() > MAX_LOG_BYTES) {
         fs::rename(&current, dir.join(PREVIOUS_LOG))?;
     }
-    File::create(current)
+    OpenOptions::new().create(true).append(true).open(current)
 }
 
 pub struct StderrAndFile {
@@ -72,7 +73,7 @@ pub fn init_logger() {
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
     let open_error = match default_log_dir()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no home folder"))
-        .and_then(|dir| open_fresh_log(&dir))
+        .and_then(|dir| open_log(&dir))
     {
         Ok(file) => {
             builder.target(env_logger::Target::Pipe(Box::new(StderrAndFile::new(file))));

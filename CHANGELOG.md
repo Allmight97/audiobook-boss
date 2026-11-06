@@ -24,6 +24,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   cannot be read.
 - A queue Apply whose chosen cover failed to load still says so when the next title has no
   search text or cannot be selected, instead of dropping the cover failure.
+- Opening a second copy of ABB no longer moves the running copy's log aside, so the next
+  launch no longer loses it. The log now grows across launches, and moves to
+  `abb.previous.log` only at a launch that finds it over 5 MB.
 - Keep original audio on a source no output format can keep (MP3) now says "This audio cannot
   be kept unchanged in any output format. Choose encoding settings." instead of advising a
   format change that cannot help.

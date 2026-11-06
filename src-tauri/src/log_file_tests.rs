@@ -2,7 +2,7 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
-use super::{log_dir, open_fresh_log, StderrAndFile, CURRENT_LOG, PREVIOUS_LOG};
+use super::{log_dir, open_log, StderrAndFile, CURRENT_LOG, MAX_LOG_BYTES, PREVIOUS_LOG};
 
 fn scratch_dir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("abb-log-file-{name}-{}", std::process::id()));
@@ -47,19 +47,37 @@ fn no_home_folder_means_no_log_folder() {
 }
 
 #[test]
-fn each_launch_keeps_only_the_last_two_logs() {
-    let dir = scratch_dir("rotate");
-    for launch in ["first", "second", "third"] {
-        let mut file = open_fresh_log(&dir).expect("open log");
-        file.write_all(launch.as_bytes()).expect("write log");
-    }
+fn a_second_copy_adds_to_the_log_the_first_copy_is_writing() {
+    let dir = scratch_dir("second-copy");
+    let mut first = open_log(&dir).expect("open first log");
+    first.write_all(b"first copy\n").expect("write log");
+    let mut second = open_log(&dir).expect("open second log");
+    second.write_all(b"second copy\n").expect("write log");
+    first.write_all(b"first again\n").expect("write log");
     assert_eq!(
         fs::read_to_string(dir.join(CURRENT_LOG)).expect("test io"),
-        "third"
+        "first copy\nsecond copy\nfirst again\n"
+    );
+    assert!(!dir.join(PREVIOUS_LOG).exists());
+    fs::remove_dir_all(&dir).expect("test io");
+}
+
+#[test]
+fn a_log_over_the_limit_moves_aside_at_launch() {
+    let dir = scratch_dir("rotate");
+    fs::create_dir_all(&dir).expect("test io");
+    let big = fs::File::create(dir.join(CURRENT_LOG)).expect("test io");
+    big.set_len(MAX_LOG_BYTES + 1).expect("test io");
+    drop(big);
+    let mut file = open_log(&dir).expect("open log");
+    file.write_all(b"new launch\n").expect("write log");
+    assert_eq!(
+        fs::read_to_string(dir.join(CURRENT_LOG)).expect("test io"),
+        "new launch\n"
     );
     assert_eq!(
-        fs::read_to_string(dir.join(PREVIOUS_LOG)).expect("test io"),
-        "second"
+        fs::metadata(dir.join(PREVIOUS_LOG)).expect("test io").len(),
+        MAX_LOG_BYTES + 1
     );
     fs::remove_dir_all(&dir).expect("test io");
 }
@@ -70,14 +88,14 @@ fn a_log_folder_that_cannot_be_made_is_an_error() {
     fs::create_dir_all(&dir).expect("test io");
     let blocker = dir.join("file");
     fs::write(&blocker, "x").expect("test io");
-    assert!(open_fresh_log(&blocker.join("logs")).is_err());
+    assert!(open_log(&blocker.join("logs")).is_err());
     fs::remove_dir_all(&dir).expect("test io");
 }
 
 #[test]
 fn the_tee_writer_puts_every_byte_in_the_file() {
     let dir = scratch_dir("tee");
-    let file = open_fresh_log(&dir).expect("open log");
+    let file = open_log(&dir).expect("open log");
     let mut writer = StderrAndFile::new(file);
     writer.write_all(b"one line\n").expect("test io");
     writer.flush().expect("test io");
