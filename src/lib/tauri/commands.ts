@@ -1,18 +1,10 @@
-import {
-	commands as generatedCommands,
-	type EncoderDefaults as GeneratedEncoderDefaults,
-	type OutputDefaults as GeneratedOutputDefaults,
-	type SettingsIntent as GeneratedSettingsIntent,
-	type OutputNamingConfig as GeneratedOutputNamingConfig,
-} from '../generated/tauri';
-import type { OutputNamingConfig } from '../../types/audio';
-import type { AppSettings, SettingsIntent } from '../../types/appSettings';
+import { commands as generatedCommands } from '../generated/tauri';
+import type { SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { SessionIntent } from '../../types/session';
 import type { OperationId } from '../../types/workRuntime';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
-	denormalizeNullish,
 	normalizeFrontendAttachment,
 	normalizeSessionReply,
 	normalizeSettingsReply,
@@ -37,49 +29,6 @@ async function runGeneratedCommand<T, R>(
 	}
 }
 
-function toGeneratedRequiredOutputNamingConfig(
-	outputNaming: OutputNamingConfig,
-): GeneratedOutputNamingConfig {
-	const denormalized = denormalizeNullish(outputNaming);
-	return {
-		preset: denormalized.preset,
-		includeYear: denormalized.includeYear,
-		customTemplate: denormalized.customTemplate ?? null,
-	};
-}
-
-function toGeneratedEncoderDefaults(
-	defaults: AppSettings['encoderDefaults'],
-): GeneratedEncoderDefaults {
-	return {
-		settings: defaults.settings,
-		sampleRate: defaults.sampleRate,
-		format: defaults.format,
-		intent: defaults.intent,
-	};
-}
-
-function toGeneratedOutputDefaults(
-	defaults: AppSettings['outputDefaults'],
-): GeneratedOutputDefaults {
-	return {
-		outputDirectory: defaults.outputDirectory ?? null,
-		outputNaming: toGeneratedRequiredOutputNamingConfig(defaults.outputNaming),
-	};
-}
-
-function toGeneratedSettingsIntent(intent: SettingsIntent): GeneratedSettingsIntent {
-	if (intent.kind !== 'remember') return intent;
-	return {
-		kind: 'remember',
-		encoderDefaults: intent.encoderDefaults
-			? toGeneratedEncoderDefaults(intent.encoderDefaults)
-			: null,
-		outputDefaults: intent.outputDefaults ? toGeneratedOutputDefaults(intent.outputDefaults) : null,
-		defaultAcquisitionLane: intent.defaultAcquisitionLane ?? null,
-	};
-}
-
 export const commandSpecs = {
 	attach_frontend: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.attachFrontend(), normalizeFrontendAttachment),
@@ -95,11 +44,7 @@ export const commandSpecs = {
 		),
 	settings_dispatch: (args: { client: number; sequence: number; intent: SettingsIntent }) =>
 		runGeneratedCommand(
-			generatedCommands.settingsDispatch(
-				args.client,
-				args.sequence,
-				toGeneratedSettingsIntent(args.intent),
-			),
+			generatedCommands.settingsDispatch(args.client, args.sequence, args.intent),
 			normalizeSettingsReply,
 		),
 	cancel_work_operation: (args: { operationId: OperationId; childJobId?: string }) =>

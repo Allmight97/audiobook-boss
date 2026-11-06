@@ -2,6 +2,7 @@ import { createSignal, type Accessor } from 'solid-js';
 import type { AudioFile, CollisionPolicy } from '../../types/audio';
 import { formatFileSize } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
+import type { NamingPreset } from '../../lib/generated/tauri';
 import type { OutputPreview } from '../../types/session';
 import { createTypingEcho, type EngineLink } from '../engineLink';
 import { collisionView, type CollisionView } from './collision';
@@ -85,8 +86,8 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			}
 		},
 		selectNamingPreset(value) {
-			const preset = value === 'customTemplate' ? 'customTemplate' : 'absDefault';
-			link.post({ kind: 'setNamingPreset', preset });
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the select offers only NamingPreset values.
+			link.post({ kind: 'setNamingPreset', preset: value as NamingPreset });
 		},
 		setAbsIncludeYear(includeYear) {
 			link.post({ kind: 'setIncludeYear', includeYear });

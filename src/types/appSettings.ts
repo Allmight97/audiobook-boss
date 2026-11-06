@@ -45,13 +45,6 @@ export type SettingsSnapshot = Omit<
 	startupDefaults?: PinnedDefaults;
 };
 
-export type SettingsIntent =
-	| Exclude<GeneratedSettingsIntent, { kind: 'remember' }>
-	| {
-			kind: 'remember';
-			encoderDefaults?: EncoderDefaults;
-			outputDefaults?: OutputDefaults;
-			defaultAcquisitionLane?: AcquisitionLane;
-	  };
+export type SettingsIntent = GeneratedSettingsIntent;
 export type SettingsOutcome = GeneratedSettingsOutcome;
 export type SettingsReply = { outcome: SettingsOutcome; snapshot: SettingsSnapshot };

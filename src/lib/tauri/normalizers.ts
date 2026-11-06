@@ -52,26 +52,6 @@ function normalizeNullish<T>(value: T): NullToOptionalDeep<T> {
 	}
 	return value;
 }
-
-export function denormalizeNullish<T>(value: T): T {
-	if (value === undefined) {
-		return null as T;
-	}
-	if (Array.isArray(value)) {
-		if (isScalarArrayWithoutNullish(value)) {
-			return value as T;
-		}
-		return value.map((entry) => denormalizeNullish(entry)) as T;
-	}
-	if (isPlainRecord(value)) {
-		const normalized: PlainRecord = {};
-		for (const [key, entryValue] of Object.entries(value)) {
-			normalized[key] = denormalizeNullish(entryValue);
-		}
-		return normalized as T;
-	}
-	return value;
-}
 /* oxlint-enable typescript/no-unsafe-type-assertion */
 
 /**

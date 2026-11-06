@@ -8,7 +8,7 @@ describe('tauriClient', () => {
 		vi.clearAllMocks();
 	});
 
-	it('sends absent remembered defaults as null and returns the settings in effect', async () => {
+	it('sends a settings intent as written and returns the settings in effect', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const { tauriClient } = await import('./client');
 		vi.mocked(invoke).mockResolvedValueOnce({
@@ -29,6 +29,8 @@ describe('tauriClient', () => {
 
 		const reply = await tauriClient.settingsDispatch(7, 2, {
 			kind: 'remember',
+			encoderDefaults: null,
+			outputDefaults: null,
 			defaultAcquisitionLane: 'indexer',
 		});
 

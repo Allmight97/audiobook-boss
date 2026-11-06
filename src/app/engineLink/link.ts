@@ -388,11 +388,10 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		acquiring: false,
 		job: null,
 	});
-	let settings = emptySettings();
+	const settings = sessionPart(emptySettings());
 	let work = emptyWorkCenterModel();
 	let operations: ReadonlyArray<OperationSnapshot> = [];
 	const part = () => createSignal(0, { ownedWrite: true });
-	const [settingsRev, bumpSettings] = part();
 	const [workRev, bumpWork] = part();
 	const [refusalRev, bumpRefusal] = part();
 	const [attachmentRev, bumpAttachment] = part();
@@ -417,9 +416,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	}
 
 	function applySettings(snapshot: SettingsSnapshot): void {
-		if (snapshot.revision <= settings.revision) return;
-		settings = snapshot;
-		if (!disposed) bumpSettings((n) => n + 1);
+		if (!disposed) settings.apply(snapshot);
 	}
 
 	function applyWork(incoming: WorkOperationsSnapshot | WorkOperationsUpdate): void {
@@ -504,10 +501,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		remoteAcquisition: remoteAcquisition.read,
 		output: output.read,
 		lookup: lookup.read,
-		settings: () => {
-			settingsRev();
-			return settings;
-		},
+		settings: settings.read,
 		workOperations: () => {
 			workRev();
 			return operations;

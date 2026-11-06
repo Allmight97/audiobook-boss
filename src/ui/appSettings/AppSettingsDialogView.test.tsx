@@ -161,6 +161,8 @@ describe('AppSettingsDialogView', () => {
 		await vi.waitFor(() => expect(runtime!.settings.defaultAcquisitionLane()).toBe('indexer'));
 		expect(engine.settingsIntents).toContainEqual({
 			kind: 'remember',
+			encoderDefaults: null,
+			outputDefaults: null,
 			defaultAcquisitionLane: 'indexer',
 		});
 	});

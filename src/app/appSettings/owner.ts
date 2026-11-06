@@ -62,7 +62,6 @@ export type SettingsOwner = {
 	saveCurrentSettingsAsPinnedDefaults: () => Promise<void>;
 	setStartupBehavior: (behavior: StartupBehavior) => Promise<void>;
 	resetAllAppSettings: () => Promise<void>;
-	reset: () => void;
 };
 
 export type SettingsOwnerDeps = {
@@ -121,14 +120,12 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	let concurrencyError = '';
 	let controlsEnabled = true;
 	let writesInFlight = 0;
-	let resetGeneration = 0;
 
 	function changed(): void {
 		bump((n) => n + 1);
 	}
 
-	function updateDialog(started: number, patch: Partial<DialogProgress>): void {
-		if (started !== resetGeneration) return;
+	function updateDialog(patch: Partial<DialogProgress>): void {
 		dialog = { ...dialog, ...patch };
 		changed();
 	}
@@ -146,11 +143,9 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	}
 
 	async function runDialogAction(key: ProgressKey, intent: SettingsIntent): Promise<boolean> {
-		const started = resetGeneration;
-		updateDialog(started, { [`${key}State`]: 'saving', [`${key}Error`]: '' });
+		updateDialog({ [`${key}State`]: 'saving', [`${key}Error`]: '' });
 		const error = failure(await send(intent));
 		updateDialog(
-			started,
 			error === null
 				? { [`${key}State`]: 'saved' }
 				: { [`${key}State`]: 'error', [`${key}Error`]: error },
@@ -212,33 +207,34 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			return { ...dialog, settings: link.settings().settings ?? null };
 		},
 		async setConcurrencySelection(value) {
-			const started = resetGeneration;
 			const error = failure(
 				await send({ kind: 'setConcurrency', preference: preferenceFromSelection(value) }),
 			);
-			if (started !== resetGeneration) return;
 			concurrencyError = error ?? '';
 			changed();
 		},
 		async setDefaultAcquisitionLane(defaultAcquisitionLane) {
-			await runDialogAction('laneSave', { kind: 'remember', defaultAcquisitionLane });
+			await runDialogAction('laneSave', {
+				kind: 'remember',
+				encoderDefaults: null,
+				outputDefaults: null,
+				defaultAcquisitionLane,
+			});
 		},
 		setControlsEnabled(enabled) {
 			controlsEnabled = enabled;
 			changed();
 		},
 		openDialog() {
-			updateDialog(resetGeneration, { ...idleDialog(), isOpen: true });
+			updateDialog({ ...idleDialog(), isOpen: true });
 		},
 		closeDialog() {
-			updateDialog(resetGeneration, { isOpen: false });
+			updateDialog({ isOpen: false });
 		},
 		async setKeepAwakeWhileWorking(enabled) {
-			if (dialog.powerSaveState === 'saving') return;
 			await runDialogAction('powerSave', { kind: 'setKeepAwake', enabled });
 		},
 		async setAacDecoder(decoder) {
-			if (dialog.decoderSaveState === 'saving') return;
 			await runDialogAction('decoderSave', { kind: 'setAacDecoder', decoder });
 		},
 		async saveCurrentSettingsAsPinnedDefaults() {
@@ -248,19 +244,10 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			await runDialogAction('startupSave', { kind: 'setStartupBehavior', behavior });
 		},
 		async resetAllAppSettings() {
-			const started = resetGeneration;
-			if (!(await runDialogAction('save', { kind: 'reset' })) || started !== resetGeneration)
-				return;
+			if (!(await runDialogAction('save', { kind: 'reset' }))) return;
 			concurrencyError = '';
 			changed();
 			deps.onAppliedReset();
-		},
-		reset() {
-			resetGeneration += 1;
-			dialog = idleDialog();
-			concurrencyError = '';
-			controlsEnabled = true;
-			changed();
 		},
 	};
 }
