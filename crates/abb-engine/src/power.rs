@@ -40,7 +40,6 @@ impl PowerManager {
     }
 
     fn lock(&self) -> MutexGuard<'_, PowerState> {
-        // Releasing a native hold must also work during panic unwinding.
         self.0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)

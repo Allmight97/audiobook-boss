@@ -123,15 +123,14 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	let concurrencyError = '';
 	let controlsEnabled = true;
 	let writesInFlight = 0;
-	// Advances on reset; a reply from before it changes nothing here.
-	let generation = 0;
+	let resetGeneration = 0;
 
 	function changed(): void {
 		bump((n) => n + 1);
 	}
 
 	function updateDialog(started: number, patch: Partial<DialogProgress>): void {
-		if (started !== generation) return;
+		if (started !== resetGeneration) return;
 		dialog = { ...dialog, ...patch };
 		changed();
 	}
@@ -149,7 +148,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	}
 
 	async function runDialogAction(key: ProgressKey, intent: SettingsIntent): Promise<boolean> {
-		const started = generation;
+		const started = resetGeneration;
 		updateDialog(started, { [`${key}State`]: 'saving', [`${key}Error`]: '' });
 		const error = failure(await send(intent));
 		updateDialog(
@@ -216,11 +215,11 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			return { ...dialog, settings: link.settings().settings ?? null };
 		},
 		async setConcurrencySelection(value) {
-			const started = generation;
+			const started = resetGeneration;
 			const error = failure(
 				await send({ kind: 'setConcurrency', preference: preferenceFromSelection(value) }),
 			);
-			if (started !== generation) return;
+			if (started !== resetGeneration) return;
 			concurrencyError = error ?? '';
 			changed();
 		},
@@ -232,13 +231,13 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			changed();
 		},
 		openDialog() {
-			updateDialog(generation, { ...idleDialog(), isOpen: true });
+			updateDialog(resetGeneration, { ...idleDialog(), isOpen: true });
 		},
 		closeDialog() {
-			updateDialog(generation, { isOpen: false });
+			updateDialog(resetGeneration, { isOpen: false });
 		},
 		setDialogOpen(open) {
-			updateDialog(generation, { isOpen: open });
+			updateDialog(resetGeneration, { isOpen: open });
 		},
 		async setKeepAwakeWhileWorking(enabled) {
 			if (dialog.powerSaveState === 'saving') return;
@@ -255,14 +254,15 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			await runDialogAction('startupSave', { kind: 'setStartupBehavior', behavior });
 		},
 		async resetAllAppSettings() {
-			const started = generation;
-			if (!(await runDialogAction('save', { kind: 'reset' })) || started !== generation) return;
+			const started = resetGeneration;
+			if (!(await runDialogAction('save', { kind: 'reset' })) || started !== resetGeneration)
+				return;
 			concurrencyError = '';
 			changed();
 			deps.onAppliedReset();
 		},
 		reset() {
-			generation += 1;
+			resetGeneration += 1;
 			dialog = idleDialog();
 			concurrencyError = '';
 			controlsEnabled = true;

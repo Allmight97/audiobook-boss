@@ -37,10 +37,6 @@ fn debug_validate_frame_contract(
 }
 
 /// Encodes frame and writes packets to output.
-///
-/// Note: F32 sample sanitization (NaN/Inf → 0, clamp to [-1,1]) is handled upstream
-/// in `buffer.rs` `drain_one_f32_planar()`. AAC-AT uses I16 format which doesn't
-/// need float sanitization.
 pub(super) fn encode_and_write_frame(
     encoder: &mut ff::codec::encoder::audio::Encoder,
     frame: &ff::frame::Audio,

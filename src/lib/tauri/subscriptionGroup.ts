@@ -1,15 +1,9 @@
 import type { UnlistenFn } from '@tauri-apps/api/event';
 
 /**
- * A lifecycle-owned collection of Tauri event unlisteners.
- *
- * Centralizes the dispose / late-arrival race that UI islands otherwise
- * re-implement per subscription: if the group is disposed before a pending
- * `listen` promise resolves, the resolved unlisten is invoked immediately so the
- * listener cannot leak; otherwise it is collected and invoked once on `dispose()`.
- *
- * This is a deliberate frontend utility surface (see `AGENTS.md`); it is not a
- * `tauriClient` IPC method.
+ * A lifecycle-owned collection of Tauri event unlisteners. If the group is
+ * disposed before a pending `listen` promise resolves, the resolved unlisten
+ * runs at once; otherwise `dispose()` runs it once.
  */
 export interface SubscriptionGroup {
 	/**

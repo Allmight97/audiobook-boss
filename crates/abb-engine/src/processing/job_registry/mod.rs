@@ -236,7 +236,6 @@ impl JobRegistry {
     }
 
     fn admission(&self) -> MutexGuard<'_, Admission> {
-        // Admission holds no invariant a panicking holder could half-apply.
         self.admission
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())

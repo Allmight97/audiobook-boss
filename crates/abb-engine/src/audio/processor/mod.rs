@@ -261,9 +261,6 @@ pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<Audi
     settings.resolve_encoder(encoder_type);
     let metadata = request.metadata;
     let cover_art_passthrough = request.cover_art_passthrough;
-    // The pipeline (prepare -> encode -> finalize) is synchronous, CPU-bound
-    // work. Run it on a blocking thread so it never occupies an async runtime
-    // worker; progress emission and the atomic cancel flag work off the runtime.
     tokio::task::spawn_blocking(move || {
         process_audiobook_with_context(context, settings, files, metadata, cover_art_passthrough)
     })
@@ -275,7 +272,7 @@ pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<Audi
 
 pub(crate) struct ProcessingWorkflow {
     pub(crate) temp_dir: std::path::PathBuf,
-    /// Total duration (seconds) of all valid input files (pre‑computed)
+    /// Seconds, summed over the valid inputs.
     pub(crate) total_duration: f64,
 }
 
@@ -328,7 +325,7 @@ fn process_audiobook_with_context(
         effective_metadata,
         passthrough_metadata.as_ref(),
     )?;
-    let _ = workflow_cleanup.remove_path(&workflow_temp_dir);
+    let _ = workflow_cleanup.forget_path(&workflow_temp_dir);
     Ok(AudioRunOutcome {
         message,
         warnings: cover_warning.into_iter().collect(),

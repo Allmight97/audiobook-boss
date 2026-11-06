@@ -159,8 +159,6 @@ impl TagCache {
     }
 
     pub(crate) fn clear(&mut self) {
-        // Tokens and revisions keep counting so nothing issued before the
-        // reset can match afterward.
         self.known.clear();
         self.pending.clear();
         self.read.clear();

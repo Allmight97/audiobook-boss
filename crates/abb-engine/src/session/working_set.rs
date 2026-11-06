@@ -720,8 +720,6 @@ impl WorkingSet {
         }
         self.audio_requests.insert(title_id.to_string(), request);
         self.audio_changes += 1;
-        // Requests travel in the audio part; the titles part changes only
-        // when a pending choice is settled.
         let required = self.audio_choice_required.len();
         self.audio_choice_required.retain(|id| id != title_id);
         if self.audio_choice_required.len() != required {

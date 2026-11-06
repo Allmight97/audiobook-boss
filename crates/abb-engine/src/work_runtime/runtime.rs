@@ -98,8 +98,6 @@ impl WorkRuntime {
         on_finished: Option<OnFinished>,
     ) -> Result<WorkSubmissionAccepted> {
         let (titles, inspected) = planned;
-        // Concurrency stays fixed from acceptance until the export ends,
-        // including between titles when no job is registered.
         let active_run = registry.hold_run();
         let operation_id = request.operation_id.clone();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
@@ -131,8 +129,6 @@ impl WorkRuntime {
         let title_cancels = cancel_flags.titles();
         let title_sources = title_source_paths(&request.payload);
 
-        // Recorded before the operation becomes visible, so a file is never
-        // reported free between acceptance and the first read.
         self.title_sources()
             .insert(operation_id.0.clone(), title_sources);
         let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
@@ -492,8 +488,6 @@ impl WorkRuntime {
         self.title_sources().remove(operation_id.as_str());
     }
 
-    /// The map is replaced or edited in one step, so it stays usable after a
-    /// panic elsewhere; skipping it would hide sources from Save.
     fn title_sources(&self) -> MutexGuard<'_, TitleSources> {
         self.inner
             .title_sources

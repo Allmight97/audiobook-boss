@@ -48,8 +48,9 @@ function audibleStatus(
 	library: RemoteLibrarySnapshot,
 	job: RemoteAcquisitionSnapshot['job'],
 ): string {
-	// A download outranks an earlier library-load failure; the rows it came from are still shown.
-	if (job && remote.auth.kind !== 'failed' && remote.accountStatus.kind !== 'failed')
+	const downloadOutranksLibraryFailure =
+		job && remote.auth.kind !== 'failed' && remote.accountStatus.kind !== 'failed';
+	if (downloadOutranksLibraryFailure)
 		return (job.settled ? handoffMessage(job) : null) || statusFromAcquisitionJob(job);
 	const failure = requestFailure(remote);
 	if (failure) return failure;

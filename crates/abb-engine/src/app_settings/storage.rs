@@ -200,7 +200,7 @@ struct General {
     keep_awake_while_working: bool,
     max_concurrent_jobs: AutoOr<usize>,
     default_acquisition_lane: AcquisitionLane,
-    /// Added after the first saved shape; files without it load as Auto.
+    /// Absent from files saved by earlier releases; loads as Auto.
     #[serde(default)]
     aac_decoder: AacDecoder,
 }

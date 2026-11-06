@@ -700,8 +700,7 @@ fn a_save_without_cover_intent_keeps_every_attached_picture() {
 
     let opus = write_two_picture_fixture(dir.path(), "opus");
     let before = fs::read(&opus).expect("read opus");
-    // The Ogg muxer refuses picture streams, so this Save fails as it did
-    // before; the original must stay intact.
+    // The Ogg muxer refuses picture streams, so this Save fails and the original stays intact.
     save_metadata_intent(&opus, &retitle).expect_err("Ogg cannot carry a picture stream");
     assert_eq!(fs::read(&opus).expect("reread opus"), before);
 }

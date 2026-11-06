@@ -67,7 +67,6 @@ pub enum RemoteUiIntent {
     TestConnection,
 }
 
-// An intent can contain an entered key or a URL not yet validated.
 impl std::fmt::Debug for RemoteUiIntent {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("RemoteUiIntent (payload redacted)")
@@ -1017,7 +1016,6 @@ impl RemoteSourceRuntime {
 
 impl RemoteSourceRuntime {
     async fn grab_ui_batch(&self, releases: Vec<RemoteRelease>) {
-        // One turn covers every item, including the gap between two HTTP requests.
         let turn = self.indexer_turn();
         for release in &releases {
             let key = release_key(release.indexer_id, &release.guid);
@@ -1030,7 +1028,6 @@ impl RemoteSourceRuntime {
             );
             self.ui().changed();
             self.publish_ui();
-            // Shutdown stops a batch before its next release is sent.
             let result = match &turn {
                 Ok(_) => {
                     self.grab_release(RemoteReleaseGrabRequest {
@@ -1123,11 +1120,7 @@ impl RemoteSourceRuntime {
     }
 
     async fn refresh_ui_account(&self, lane: ProviderId, request: u64) -> Result<RemoteUiResult> {
-        // A keychain read can wait on a system prompt; one started now would
-        // hold shutdown behind it.
         let runtime = self.clone();
-        // Once the keychain read starts, await its blocking worker so shutdown
-        // cannot return while it still uses the vault.
         let result = self
             .inner
             .tasks
@@ -1179,8 +1172,6 @@ impl RemoteSourceRuntime {
     }
 
     async fn disconnect_ui(&self) -> Result<()> {
-        // Admission keeps disconnecting set while the blocking vault operation
-        // runs, so no acquisition can be admitted during credential deletion.
         let runtime = self.clone();
         #[expect(clippy::disallowed_methods, reason = "joined by disconnect_ui")]
         let result = tokio::task::spawn_blocking(move || runtime.disconnect_credentials())
@@ -1232,8 +1223,6 @@ impl RemoteUiRun {
                 .disconnect_ui()
                 .await
                 .map(|_| RemoteUiResult::Applied),
-            // Indexer reads have nothing to save: shutdown drops them rather
-            // than waiting out a slow server.
             UiAction::Load { request } => {
                 let tasks = runtime.inner.tasks.clone();
                 let result = tasks

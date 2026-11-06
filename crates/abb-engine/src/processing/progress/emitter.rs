@@ -140,7 +140,6 @@ impl ProgressEmitter {
         self.emit_terminal_event(EventStage::Skipped, message);
     }
 
-    /// Emits cancelled event (special-case stage not represented in ProcessingStage enum)
     pub fn emit_cancelled(&self, message: &str) {
         self.emit_terminal_cancelled(message);
     }

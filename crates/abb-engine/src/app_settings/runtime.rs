@@ -228,7 +228,6 @@ impl SettingsRuntime {
         (runtime, jobs, startup)
     }
 
-    /// The AAC decoder in effect, for an import or a submission accepted now.
     pub(crate) fn aac_decoder(&self) -> AacDecoder {
         *self
             .inner
@@ -237,7 +236,6 @@ impl SettingsRuntime {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// The Indexer server and categories in effect now.
     pub(crate) fn indexer_connection(&self) -> IndexerConnection {
         self.inner
             .indexer_connection

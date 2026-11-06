@@ -6,9 +6,8 @@
  *   --run ID    report these run ids instead (repeatable)
  *   --json      print JSON instead of markdown
  *
- * Reads GitHub Actions through `gh api` for the current repository. A
- * `closed` run is a pull request's closed event; before the push-to-main
- * trigger it also re-ran the suite after a merge.
+ * Reads GitHub Actions through `gh api` for the current repository. A `closed`
+ * run is a pull request's closed event.
  */
 import { execFileSync } from 'node:child_process';
 import { parseArgs } from 'node:util';

@@ -36,8 +36,6 @@ pub(super) fn complete_staged_output(
         crate::diagnostics::artifact_id(&staged_output), crate::diagnostics::artifact_id(context.output.final_path()),
         crate::diagnostics::file_state(context.output.final_path()));
     let commit = || {
-        // Checked again here: publishing may first wait for the output's lock
-        // and write an edit, and a title cancelled meanwhile must not publish.
         ensure_not_cancelled_before_commit(context)?;
         crate::diagnostics::stage("publish", &staged_output, || {
             commit_output_artifact(commit_request, staged_output.clone(), cleanup_guard, || {
@@ -49,8 +47,6 @@ pub(super) fn complete_staged_output(
             (outcome, published)
         })
     };
-    // An export title publishes through its output record, which writes an
-    // edit accepted meanwhile to the staged file first.
     let outcome = match &context.title_output {
         Some(title) => title.publish(&staged_output, context.output.final_path(), commit)?,
         None => commit()?.0,

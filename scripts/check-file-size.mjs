@@ -26,10 +26,7 @@
  * SOFTWARE.
  *
  * ABB runs this copy with bun. `--against <rev>` ratchets HEAD against the
- * merge-base of that rev and HEAD. A pull-request checkout makes the index and
- * HEAD the same commit, so the staged comparison alone cannot gate the PR.
- * Staged checks compare with the merge-base of origin/main and HEAD when one
- * exists, else with HEAD, so a split commit makes room for the next commit.
+ * merge-base of that rev and HEAD.
  */
 import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';

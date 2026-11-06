@@ -23,21 +23,21 @@ pub struct AudioFile {
     /// Stable workbench/session identity for joins that must survive reorder/remove operations.
     pub input_id: String,
     pub path: PathBuf,
-    /// File size in bytes (None if unavailable)
+    /// Bytes.
     pub size: Option<f64>,
-    /// Duration in seconds (None if unavailable)
+    /// Seconds.
     pub duration: Option<f64>,
     pub format: Option<String>,
-    /// Source audio bitrate in bits per second (None if unavailable)
+    /// Bits per second.
     pub bitrate: Option<u32>,
-    /// Sample rate in Hz (None if unavailable)
+    /// Hz.
     pub sample_rate: Option<u32>,
     pub channels: Option<u32>,
     pub codec_label: Option<String>,
     /// Whether this source can be copied without re-encoding and whether the
     /// source meets the automatic low-bitrate recommendation.
     pub preservation: Option<AudioPreservation>,
-    /// Friendly selected decoder label for display only (None if unavailable)
+    /// Display only.
     pub selected_decoder: Option<String>,
     pub tag_title: Option<String>,
     pub tag_artist: Option<String>,

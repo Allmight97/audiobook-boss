@@ -254,8 +254,6 @@ pub(crate) fn prepare_inspected_execution(
         file_info,
     } = inspected;
     let inputs = build_processing_inputs(payload, true, plan.preview)?;
-    // Collision facts may change after review; refresh them without replacing
-    // the source inspection or resolving the audio and metadata a second time.
     let sources = file_info
         .files
         .iter()

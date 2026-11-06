@@ -229,8 +229,6 @@ fn plural(count: usize, one: &str, many: &str) -> String {
 }
 
 fn quit_prompt(running: &abb_engine::RunningWork) -> Option<(&'static str, String)> {
-    // Saves waiting only behind a review or preview are written while
-    // shutting down; the prompt says so before an early Quit Now can drop them.
     let waiting = (running.exports == 0 && running.waiting_writes > 0).then(|| {
         format!(
             "Metadata changes for {} wait to be saved. Quitting saves them first.",

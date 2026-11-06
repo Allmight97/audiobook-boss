@@ -29,10 +29,8 @@ chapter_lines() {
 		-show_entries chapter=start_time:chapter_tags=title -of csv=p=0 "$1"
 }
 
-# Codec priming and padding move a length by a few frames, not by seconds:
-# synthetic books of 1 minute to 1 hour (MP3, AAC, FLAC, WAV; encode and
-# Preserve) came out within 0.01 s of the source. 0.25 s allows 2112 AAC priming
-# samples at 22.05 kHz (0.1 s) with margin, and does not grow with the book.
+# 0.25 s allows 2112 AAC priming samples at 22.05 kHz (0.1 s) with margin, and
+# does not grow with the book.
 LENGTH_TOLERANCE_SECONDS=0.25
 
 same_length() {

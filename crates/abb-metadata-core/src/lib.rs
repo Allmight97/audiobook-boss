@@ -20,6 +20,8 @@ pub enum MetadataCoreError {
 
 pub type Result<T> = std::result::Result<T, MetadataCoreError>;
 
+pub const POSITION_CLEAR_NUMBER: u32 = 0;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct AudiobookMetadata {
     pub title: Option<String>,
@@ -779,8 +781,6 @@ fn apply_shared_metadata_patch_fields(
 
     apply_string(&patch.comment, &mut metadata.comment);
 
-    // Write-plan clear sentinel for positions is number 0, matching the
-    // runtime field-op planner (`push_position_op` clears on number == 0).
     for (op, slot) in [
         (&patch.track, &mut metadata.track),
         (&patch.disk, &mut metadata.disk),
@@ -788,7 +788,9 @@ fn apply_shared_metadata_patch_fields(
         match (op, semantics) {
             (Some(PatchOp::Set(position)), _) => *slot = Some(*position),
             (Some(PatchOp::Clear), PatchFieldSemantics::Processing) => *slot = None,
-            (Some(PatchOp::Clear), PatchFieldSemantics::WritePlan) => *slot = Some((0, None)),
+            (Some(PatchOp::Clear), PatchFieldSemantics::WritePlan) => {
+                *slot = Some((POSITION_CLEAR_NUMBER, None));
+            }
             (None, _) => {}
         }
     }

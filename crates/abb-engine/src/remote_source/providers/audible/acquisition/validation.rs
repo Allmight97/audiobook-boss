@@ -10,6 +10,8 @@ use crate::audio;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::remote_source::MaterializedSourceFile;
 
+const READABILITY_PROBE_DECODER: audio::AacDecoder = audio::AacDecoder::Auto;
+
 pub(super) async fn validate_materialized_audio(
     materialized_path: &Path,
     ctx: TitleAcquisitionCtx<'_>,
@@ -76,9 +78,7 @@ pub(super) fn materialized_file_from_path(
     let metadata = fs::metadata(path)?;
     let sha256 = sha256_file(path)?;
 
-    // This proves the download is readable audio; the session's import
-    // inspects it again with the AAC decoder setting.
-    match audio::get_file_list_info(std::slice::from_ref(&path), audio::AacDecoder::Auto) {
+    match audio::get_file_list_info(std::slice::from_ref(&path), READABILITY_PROBE_DECODER) {
         Ok(info) if info.valid_count == 1 => {
             let accepted_file = &info.files[0];
             Ok(MaterializedSourceFile {

@@ -10,7 +10,6 @@ pub struct MediaProcessingPlan {
     pub sample_rate: SampleRateConfig,
     pub input_file_paths: Vec<PathBuf>,
     pub total_duration: f64,
-    /// The decoder for AAC inputs.
     pub aac_decoder: AacDecoder,
 }
 

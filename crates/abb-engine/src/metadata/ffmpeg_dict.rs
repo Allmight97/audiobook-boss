@@ -11,7 +11,6 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
     apply_metadata_field_ops_to_ffmpeg_dict(&mut dict, metadata)?;
     dict.set("media_type", "2");
 
-    // Album sort is intentionally excluded from field ops and handled by write plans.
     if let Some(ref album_sort) = metadata.album_sort {
         if !album_sort.trim().is_empty() {
             dict.set("sort_album", album_sort);

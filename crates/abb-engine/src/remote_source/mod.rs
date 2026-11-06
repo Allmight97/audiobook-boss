@@ -173,8 +173,6 @@ impl RemoteSourceRuntime {
     ) -> Result<RemoteAccountState> {
         match request.provider_id {
             RemoteProviderId::Audible => {
-                // A handoff path that can't be read keeps the sign-in, so the
-                // user can correct the path without a new browser round trip.
                 let response_url = read_handoff_url(request.response_url_handoff_path)?;
                 let pending = self
                     .inner
@@ -187,8 +185,6 @@ impl RemoteSourceRuntime {
                             "Start Audible auth before completing the handoff.".to_string(),
                         )
                     })?;
-                // Registration has no timeout of its own; a stalled Amazon
-                // endpoint must not hold the remote surface until quit.
                 let registration = async {
                     tokio::time::timeout(
                         AUTH_REGISTRATION_TIMEOUT,
@@ -202,8 +198,6 @@ impl RemoteSourceRuntime {
                     })?
                 };
                 let auth = self.inner.tasks.until_closing(registration).await?;
-                // Registration is cancellable; the accepted durable write is
-                // awaited by EngineTasks and must finish once started.
                 let runtime = self.clone();
                 let write = self.inner.tasks.admit(|| {
                     #[expect(clippy::disallowed_methods, reason = "joined by complete_auth")]
@@ -225,9 +219,6 @@ impl RemoteSourceRuntime {
 
     fn disconnect_credentials(&self) -> Result<RemoteAccountState> {
         AudibleProvider::logout(self.inner.vault.as_ref())?;
-        // Once credentials are removed, reflect disconnection even if a
-        // staging cleanup fails. Startup's abandoned-session sweep is the
-        // cleanup backstop.
         let account = self.account_state(RemoteProviderId::Audible);
         {
             let mut state = self.ui();
@@ -269,8 +260,6 @@ impl RemoteSourceRuntime {
     ) -> Result<types::RemoteReleaseGrabResponse> {
         let _turn = self.indexer_turn()?;
         let key = (request.release.indexer_id, request.release.guid.clone());
-        // Claimed before sending, so an overlapping grab of the same release
-        // does not send it too; released again if the send is not accepted.
         if !self.sent_releases().insert(key.clone()) {
             return Ok(types::RemoteReleaseGrabResponse {
                 provider_id: RemoteProviderId::Indexer,

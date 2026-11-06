@@ -104,10 +104,9 @@ export function unwrapGeneratedResult<T>(
 }
 
 /**
- * Derive a user-facing message from any thrown cause. Centralizes the
- * `normalizeAppError(...).message` derivation the UI islands re-implement.
- * With `suppressUnknown`, an unclassified (`unknown_error`) cause collapses to
- * `fallback` instead of surfacing a raw/internal message.
+ * Derive a user-facing message from any thrown cause. With `suppressUnknown`,
+ * an unclassified (`unknown_error`) cause collapses to `fallback` instead of
+ * surfacing a raw message.
  */
 export function toUserMessage(
 	cause: unknown,

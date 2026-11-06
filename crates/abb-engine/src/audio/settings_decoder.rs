@@ -1,5 +1,3 @@
-//! Which decoder reads AAC sources.
-
 use serde::{Deserialize, Serialize};
 
 /// The AAC decoder for every AAC source: import inspection, previews, and

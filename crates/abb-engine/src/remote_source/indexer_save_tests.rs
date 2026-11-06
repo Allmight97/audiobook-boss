@@ -448,7 +448,7 @@ fn release(indexer_id: i64) -> crate::remote_source::types::RemoteRelease {
 /// reporting that it arrived, so a test can act while a batch is mid-flight.
 #[expect(
     clippy::disallowed_methods,
-    reason = "joined by the test that starts it"
+    reason = "joined by a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryable"
 )]
 fn serve_grabs_pausing_on_the_second(
     listener: tokio::net::TcpListener,

@@ -90,7 +90,6 @@ pub(super) fn copy_with_cancellation(
     context: &ProcessingContext,
     progress_range: std::ops::Range<f32>,
 ) -> Result<()> {
-    // A queued job may reopen the source long after preflight inspected it.
     let source = crate::audio::validate_input_audio_path(source)?;
     let mut input = std::fs::File::open(source)?;
     let source_metadata = input.metadata()?;

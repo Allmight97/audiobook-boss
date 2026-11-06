@@ -51,9 +51,9 @@
 		"import/no-cycle": "error",
 		"typescript/no-explicit-any": "error",
 		"typescript/no-floating-promises": "error",
-		// Solid ignores an event handler's return value, as Biome's noMisusedPromises did.
+		// Solid ignores an event handler's return value.
 		"typescript/no-misused-promises": ["error", { "checksVoidReturn": { "attributes": false } }],
-		// A default branch counts as exhaustive, as it did under Biome.
+		// A default branch counts as exhaustive.
 		"typescript/switch-exhaustiveness-check": [
 			"error",
 			{ "considerDefaultExhaustiveForUnions": true }

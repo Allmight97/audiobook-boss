@@ -61,7 +61,7 @@ fn push_position_op(ops: &mut Vec<MetadataOp>, value: Option<(u32, Option<u32>)>
         return;
     };
 
-    if number == 0 {
+    if number == abb_metadata_core::POSITION_CLEAR_NUMBER {
         ops.push(MetadataOp::Clear(field));
         return;
     }

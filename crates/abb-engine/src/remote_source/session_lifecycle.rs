@@ -109,7 +109,6 @@ impl RemoteAcquisitionLifecycle {
                 .ui
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            // A late terminal notification must not restore a disconnected job.
             let Some(job) = self
                 .jobs
                 .lock()

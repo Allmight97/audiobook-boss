@@ -51,10 +51,7 @@ sha2 = "0.11.1"
 audible_api = "0.1.0"
 
 # Platform-native OS credential stores, registered directly through keyring-core
-# (see remote_source/vault.rs). Replaces the `keyring` umbrella crate, whose
-# unconditional `db-keystore` backend dragged in turso + tantivy + memmap2 (a
-# SQLite rewrite and a full-text search engine) that ABB never used — it only
-# ever selects the native OS keychain.
+# (see remote_source/vault.rs).
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "1.0.0", features = ["keychain"] }
 

@@ -165,7 +165,6 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		});
 	}
 
-	// A cover notice hides itself after a moment; a request for a URL stays.
 	createEffect(
 		() => link.metadata().cover.noticeSerial,
 		(serial) => {

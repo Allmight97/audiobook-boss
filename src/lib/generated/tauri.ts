@@ -177,14 +177,14 @@ export type AudioFile = {
 	/**  Stable workbench/session identity for joins that must survive reorder/remove operations. */
 	inputId: string,
 	path: string,
-	/**  File size in bytes (None if unavailable) */
+	/**  Bytes. */
 	size: number | null,
-	/**  Duration in seconds (None if unavailable) */
+	/**  Seconds. */
 	duration: number | null,
 	format: string | null,
-	/**  Source audio bitrate in bits per second (None if unavailable) */
+	/**  Bits per second. */
 	bitrate: number | null,
-	/**  Sample rate in Hz (None if unavailable) */
+	/**  Hz. */
 	sampleRate: number | null,
 	channels: number | null,
 	codecLabel: string | null,
@@ -193,7 +193,7 @@ export type AudioFile = {
 	 *  source meets the automatic low-bitrate recommendation.
 	 */
 	preservation: AudioPreservation | null,
-	/**  Friendly selected decoder label for display only (None if unavailable) */
+	/**  Display only. */
 	selectedDecoder: string | null,
 	tagTitle: string | null,
 	tagArtist: string | null,

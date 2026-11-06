@@ -206,12 +206,17 @@ impl AppSettings {
         self.output_defaults.normalize();
         self.indexer_connection.validate()?;
         if let Some(pinned) = self.pinned_defaults.as_mut() {
-            // Same validators as the live values: a stale or hand-edited
-            // pinned snapshot must never brick launch hydration.
-            pinned.max_concurrent_jobs.validate()?;
-            pinned.encoder_defaults.validate()?;
-            pinned.output_defaults.normalize();
+            pinned.validate()?;
         }
+        Ok(())
+    }
+}
+
+impl PinnedDefaults {
+    fn validate(&mut self) -> Result<()> {
+        self.max_concurrent_jobs.validate()?;
+        self.encoder_defaults.validate()?;
+        self.output_defaults.normalize();
         Ok(())
     }
 }

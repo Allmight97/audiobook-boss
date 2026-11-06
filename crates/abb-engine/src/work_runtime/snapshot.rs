@@ -65,9 +65,7 @@ pub(crate) fn new_processing_snapshot(
 }
 
 /// Builds a metadata-save operation snapshot: one child per file, matched by
-/// `input_index` (no per-file `job_id` — progress is piped by index to avoid the
-/// shared-`job_id` cross-match in `apply_progress_event`), on the
-/// `MetadataWrite` lane rather than the processing encode lanes.
+/// `input_index`, on the `MetadataWrite` lane.
 pub(crate) fn new_metadata_save_snapshot(
     operation_id: OperationId,
     sequence: u64,

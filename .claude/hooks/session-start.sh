@@ -2,10 +2,7 @@
 set -euo pipefail
 
 # Claude Code cloud sessions start without node_modules and may carry a Bun
-# other than the one bun.lock resolves. `setup.sh frontend` installs that Bun,
-# Node at the pinned major, frontend deps, actionlint, and shellcheck. Rust
-# proof adds `rust` on demand
-# (scripts/AGENTS.md, Environment).
+# other than the one bun.lock resolves.
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
 	exit 0
 fi

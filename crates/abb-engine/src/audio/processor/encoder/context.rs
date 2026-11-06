@@ -17,8 +17,6 @@ pub(crate) fn create_audio_encoder(
 ) -> Result<ff::codec::encoder::audio::Encoder> {
     let resolved_encoder = encoder_settings.encoder_type;
 
-    // FAAC runs through its own bindings; refuse it here rather than silently
-    // opening a different encoder.
     if resolved_encoder == EncoderType::Faac {
         return Err(AppError::InvalidInput(
             "FAAC uses its own encoder path and cannot be opened as an FFmpeg encoder.".to_string(),
@@ -54,8 +52,6 @@ pub(crate) fn create_audio_encoder(
     opened.set_format(sample_format);
     opened.set_time_base(time_base);
 
-    // Build encoder-specific options Dictionary
-    // Options are passed to avcodec_open2 via open_as_with, which is how FFmpeg CLI does it
     let opts = match resolved_encoder {
         EncoderType::Opus => {
             opened.set_bit_rate(usize::from(encoder_settings.bitrate_kbps) * 1000);
@@ -89,8 +85,6 @@ pub(crate) fn create_audio_encoder(
         opened.set_flags(ff::codec::flag::Flags::GLOBAL_HEADER);
     }
 
-    // Open encoder with codec AND options dictionary
-    // This passes options to avcodec_open2, which correctly handles encoder-private options
     let enc_ctx = opened
         .open_as_with(codec, opts)
         .map_err(|e| AppError::General(format!("Final open encoder failed: {e}")))?;
@@ -176,8 +170,6 @@ pub(crate) fn setup_encoder(
     ost.set_parameters(enc_ctx.parameters()?);
     let ost_index = ost.index();
 
-    // Pre-header cover art stream attempt
-    // Prefer user-provided cover art; otherwise reuse passthrough cover art without reprocessing.
     let selected_cover = metadata
         .and_then(|m| m.cover_art.as_ref().map(|data| (data, "user")))
         .or_else(|| {

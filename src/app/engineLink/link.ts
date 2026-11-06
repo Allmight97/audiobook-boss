@@ -400,13 +400,9 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	function applySettings(snapshot: SettingsSnapshot): void {
 		if (snapshot.revision <= settings.revision) return;
 		settings = snapshot;
-		// A reply that lands after disposal is still the truth for whoever
-		// awaited it; only the views are gone.
 		if (!disposed) bumpSettings((n) => n + 1);
 	}
 
-	// Updates are heard before the attach reply, so nothing published in
-	// between is missed; part revisions make applying one twice harmless.
 	const attached = Promise.all([
 		capability.listenSessionUpdates(applySession),
 		capability.listenSettingsUpdates(applySettings),

@@ -341,10 +341,9 @@ impl SessionState {
 
     pub(crate) fn settle(&mut self) {
         self.refresh_displayed_cover();
-        // A refusal answers the titles and lock it was made for.
-        if self.working_set.order_locked() != self.parts.titles.order_locked
-            || self.working_set.selected_indices() != self.parts.selection.selected_indices
-        {
+        let refusal_is_outdated = self.working_set.order_locked() != self.parts.titles.order_locked
+            || self.working_set.selected_indices() != self.parts.selection.selected_indices;
+        if refusal_is_outdated {
             self.audio_refusal = None;
         }
         let next = self.parts.revision + 1;

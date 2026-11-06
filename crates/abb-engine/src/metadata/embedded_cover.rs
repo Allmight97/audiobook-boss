@@ -140,7 +140,6 @@ fn read_id3_cover(file: &mut File, start: u64, span_len: u64) -> Result<Option<V
     ))
 }
 
-// Container traversal and picture decoding retain the same checked span limits.
 fn id3_frame_fields(frame_header: &[u8; 10], version: u8) -> Result<(bool, u64, u16)> {
     Ok(if version == 2 {
         (

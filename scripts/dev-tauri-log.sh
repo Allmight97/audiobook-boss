@@ -211,18 +211,20 @@ write_summary() {
 	summary_written="true"
 }
 
+wait_for_tee_exit_within_ten_seconds() {
+	for _ in {1..100}; do
+		kill -0 "$tee_pid" 2>/dev/null || break
+		sleep 0.1
+	done
+}
+
 finish_run() {
 	local status="$?"
 	set +e
 	if [[ -n "${tee_pid:-}" ]]; then
 		# shellcheck disable=SC2261 # restores stdout, then stderr, on purpose
 		exec >&"$orig_stdout_fd" 2>&"$orig_stderr_fd"
-		# Bounded drain: an orphaned child still holding the pipe write end
-		# must degrade the verdict, not hang the exit trap.
-		for _ in {1..100}; do
-			kill -0 "$tee_pid" 2>/dev/null || break
-			sleep 0.1
-		done
+		wait_for_tee_exit_within_ten_seconds
 		# Later process substitutions make the pid unwaitable in bash, so
 		# liveness plus the exit-status sidecar is the drain signal: a tee
 		# that died from a write error must not pass as a clean drain.

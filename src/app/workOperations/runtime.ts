@@ -25,7 +25,6 @@ interface WorkCenterState {
 	errorMessage: string | null;
 }
 
-/** A later successful cancel clears an earlier cancel failure. */
 const CANCEL_ERROR_PREFIX = 'Failed to cancel';
 
 function emptyWorkCenterState(): WorkCenterState {

@@ -497,8 +497,6 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, Strin
         }
     }
 
-    // Waiting saves are written and background work settles before the
-    // state folder can be removed.
     shut_down(&engine).await;
     let session = engine.session_snapshot();
     if options.json {
