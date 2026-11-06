@@ -46,12 +46,15 @@ export function renderSubmission(
 ): void {
 	switch (status?.kind) {
 		case undefined:
-		case 'preparing':
 		case 'previewing':
 		case 'previewFinished':
 		case 'reviewRequired':
 			return;
+		case 'preparing':
+			display.resetToIdle();
+			return;
 		case 'submitted':
+			display.resetToIdle();
 			display.showStep('Submitted to Work Center.');
 			return;
 		case 'finishedBeforeRestart':

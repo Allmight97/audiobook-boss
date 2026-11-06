@@ -232,6 +232,64 @@ describe('engine preview adapter', () => {
 		expect(app.processing.status().statusText).toBe('Cancelled');
 	});
 
+	async function afterFailedPreview() {
+		const engine = createFakeEngine();
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		const failed = preview();
+		failed.operation.status = 'failed';
+		failed.operation.progress = {
+			stage: 'failed',
+			percentage: 100,
+			message: 'Preview failed.',
+			etaSeconds: null,
+		};
+		engine.change((state) => {
+			state.output.previewRun = failed;
+			state.output.submission = { kind: 'blocked', message: 'No room' };
+		});
+		await vi.waitFor(() => expect(app.processing.status().statusText).toBe('Failed'));
+		return { engine, app };
+	}
+
+	it('clears a finished preview from the status line once an export is prepared', async () => {
+		const { engine, app } = await afterFailedPreview();
+		engine.change((state) => {
+			state.output.previewRun = null;
+			state.output.submission = { kind: 'preparing', preview: false };
+		});
+		await vi.waitFor(() => expect(app.processing.status().statusText).toBe('Idle'));
+		expect(app.processing.status().progressPercentage).toBe(0);
+		expect(app.processing.status().coverArtSrc).toBeNull();
+		expect(app.processing.status().jobItems).toEqual([]);
+	});
+
+	it('reads the submitted line without the finished preview it replaced', async () => {
+		const { engine, app } = await afterFailedPreview();
+		engine.change((state) => {
+			state.output.previewRun = null;
+			state.output.submission = { kind: 'submitted', operationId: 'op-1', title: 'Alpha' };
+		});
+		await vi.waitFor(() =>
+			expect(app.processing.status().stepText).toBe('Current Step: Submitted to Work Center.'),
+		);
+		expect(app.processing.status().statusText).toBe('Idle');
+		expect(app.processing.status().progressPercentage).toBe(0);
+	});
+
+	it('reads a refusal after a finished preview as Idle with the error', async () => {
+		const { engine, app } = await afterFailedPreview();
+		engine.change((state) => {
+			state.output.previewRun = null;
+			state.output.submission = { kind: 'refused', reason: { kind: 'noOutputDirectory' } };
+		});
+		await vi.waitFor(() =>
+			expect(app.processing.status().stepText).toContain('Choose an output folder'),
+		);
+		expect(app.processing.status().statusText).toBe('Idle');
+		expect(app.processing.status().progressPercentage).toBe(0);
+	});
+
 	it('keeps a title row and its Cancel across a progress tick', async () => {
 		const engine = createFakeEngine();
 		engine.change((state) => {

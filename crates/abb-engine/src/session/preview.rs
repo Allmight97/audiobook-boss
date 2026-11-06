@@ -1,7 +1,7 @@
 use super::submission::{Draft, SubmissionStatus};
 use crate::processing::{ProcessResultStatus, ProgressEvent};
 use crate::work_runtime::{
-    new_processing_snapshot, now_ms, OperationId, OperationSnapshot, WorkRuntimeState,
+    is_terminal, new_processing_snapshot, now_ms, OperationId, OperationSnapshot, WorkRuntimeState,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -67,6 +67,17 @@ impl Preview {
             &draft.payload.input_files,
             draft.payload.input_ids.as_deref(),
         ));
+    }
+
+    pub(crate) fn end_finished(&mut self) {
+        let finished = self.id.as_ref().is_some_and(|id| {
+            self.state
+                .operation(id.as_str())
+                .is_some_and(|operation| is_terminal(operation.status))
+        });
+        if finished {
+            *self = Self::default();
+        }
     }
 
     pub(crate) fn snapshot(&self) -> Option<PreviewSnapshot> {

@@ -25,6 +25,7 @@ impl SessionState {
     }
 
     fn begin_submission_of(&mut self, preview: bool, only: Option<&str>) -> Option<Draft> {
+        self.preview.end_finished();
         match self.prepare_submission(preview, only) {
             Ok(draft) => {
                 self.preview.begin(&draft);

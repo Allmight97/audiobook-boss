@@ -237,3 +237,50 @@ fn restart_questions_wait_for_answer_work_and_answered_offers_stay_retryable() {
     assert!(desk.state.output_snapshot(0).restart_prompt.is_none());
     assert!(desk.state.begin_keep_location("alpha", revision).is_none());
 }
+
+#[test]
+fn a_finished_preview_ends_when_the_user_starts_the_next_submission() {
+    let finished = || {
+        let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+        desk.state.output.set_directory("/library".to_string());
+        let draft = desk.state.begin_submission(true).expect("preview");
+        desk.state.finish_submission(
+            &draft,
+            SubmissionStatus::Blocked {
+                message: "No room".to_string(),
+            },
+        );
+        assert!(desk.state.output_snapshot(0).preview_run.is_some());
+        desk
+    };
+
+    let mut accepted = finished();
+    assert!(accepted.state.begin_submission(false).is_some());
+    assert_eq!(accepted.state.output_snapshot(0).preview_run, None);
+
+    let mut refused = finished();
+    refused.act(MetadataField::Title, FieldAction::Blank);
+    assert!(refused.state.begin_submission(false).is_none());
+    assert_eq!(refused.state.output_snapshot(0).preview_run, None);
+}
+
+#[test]
+fn a_running_preview_survives_a_busy_refusal() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state.output.set_directory("/library".to_string());
+    let draft = desk.state.begin_submission(true).expect("preview");
+    let id = draft.operation_id.clone();
+    desk.state.start_preview(&id);
+
+    assert!(desk.state.begin_submission(false).is_none());
+
+    let output = desk.state.output_snapshot(0);
+    assert_eq!(
+        output.submission,
+        Some(SubmissionStatus::Refused {
+            reason: SubmitRefusal::Busy
+        })
+    );
+    let preview = output.preview_run.expect("the preview still runs");
+    assert_eq!(preview.operation.operation_id, id);
+}

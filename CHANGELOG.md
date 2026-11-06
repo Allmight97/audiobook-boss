@@ -24,6 +24,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   when an import or download finishes afterward.
 - A Save that only updates finished outputs no longer marks a later Save as done
   while that Save is still writing.
+- Pressing Start or Preview clears a finished preview's stage, bar, and cover from
+  the status header, so a failed preview no longer reads as the new export's status.
 - After you start an export, the status line reads "Submitted to Work Center." without
   a Completed stage or 100% bar, since the work has only been accepted.
 - The Audible status shows it is busy while the library loads after an account

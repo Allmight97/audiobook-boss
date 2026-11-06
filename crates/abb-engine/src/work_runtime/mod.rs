@@ -3,6 +3,7 @@ mod snapshot;
 mod state;
 pub(crate) use snapshot::new_processing_snapshot;
 pub(crate) use state::WorkRuntimeState;
+pub(crate) use terminal::is_terminal;
 #[cfg(test)]
 mod state_tests;
 mod terminal;
