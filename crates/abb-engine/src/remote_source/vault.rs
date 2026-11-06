@@ -4,8 +4,6 @@ use secrecy::{ExposeSecret, SecretString};
 
 use crate::errors::{AppError, Result};
 
-const PRODUCTION_SERVICE: &str = "audiobook-boss.remote-source";
-
 pub(super) trait SecretVault: Send + Sync {
     fn get_secret(&self, key: &str) -> Result<Option<SecretString>>;
     fn set_secret(&self, key: &str, value: SecretString) -> Result<()>;
@@ -44,11 +42,7 @@ pub(super) struct KeyringSecretVault {
 impl KeyringSecretVault {
     pub(super) fn for_app_identifier(identifier: &str) -> Self {
         Self {
-            service: if identifier == "com.audiobook-boss" {
-                PRODUCTION_SERVICE.to_string()
-            } else {
-                format!("{identifier}.remote-source")
-            },
+            service: format!("{identifier}.remote-source"),
         }
     }
 

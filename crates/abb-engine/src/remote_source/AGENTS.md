@@ -24,10 +24,9 @@ session files, Supplemental Assets, and staging cleanup.
 
 ## Provider and storage rules
 
-- Credential service names follow the app identifier so development identities
-  cannot read, replace, or delete production provider credentials. The
-  production identifier keeps its shipped service name; isolated profiles need
-  their own sign-in and keys.
+- Credential service names follow the app identifier (`<identifier>.remote-source`)
+  so development identities cannot read, replace, or delete production provider
+  credentials; isolated profiles need their own sign-in and keys.
 - ABB registers its Audible device itself (`providers/audible/registration.rs`)
   as the current Audible for iPhone app: a 40-character alphanumeric serial and
   the app, iOS, and software versions in that file. Why: since October 2026
@@ -92,11 +91,8 @@ session files, Supplemental Assets, and staging cleanup.
 
 ## Handoff
 
-An acquisition's provider work, including the stored sign-in it needs, runs
-behind one `AcquireTitles` function in `session_lifecycle.rs`; the lifecycle
-takes it at construction. Why: a test replaces it with a fake that writes
-files, so `integration_audible_handoff_tests.rs` runs the chain from
-`AcquireSelected` to the session and back with no network and no keychain.
+An acquisition's provider work runs behind one `AcquireTitles` function; see
+its rustdoc in `session_lifecycle.rs`.
 
 A finished job hands its files to the session through the engine-set `Handoff`
 and records the outcome on the job. From then on the session decides when the

@@ -150,12 +150,10 @@ without a bullet has none. Engine paths name the owner of the truth.
 
 Tests run against `src/test/fixtures/fakeEngine.ts`. It starts from the
 recorded fresh session and settings, records intents, answers `applied`, and
-appends imported files. It holds no product rule beyond one bookkeeping line
-(`seedTitleAudio` removes the title from `audioChoiceRequired`);
+appends imported files. It holds no product rule;
 `check-known-mistakes.ts` rejects an `intent.kind` branch in it other than
-`import`. Seed the
-engine's answer on the intent that asks for it (`respond`, `respondSettings`,
-`seedForm`, `seedSettings`, `change`). What the real engine answers to a
+`import`. Seed the engine's answer on the intent that asks for it (`respond`,
+`respondSettings`, `seedForm`, `seedSettings`, `change`). What the real engine answers to a
 sequence of intents is proved by `runtime/recordedWorkflows.contract.test.ts`;
 a new engine-owned behavior a view depends on becomes a scenario in
 `src-tauri/src/bin/export_bindings/scenarios.json`, not a rule in the fake.

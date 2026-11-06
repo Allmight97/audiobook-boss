@@ -295,9 +295,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			if (resolved.plan) view.plan = resolved.plan;
 			if (resolved.estimate !== undefined) view.estimate = resolved.estimate;
 			state.audio.titles = { ...state.audio.titles, [titleId]: view };
-			state.titles.audioChoiceRequired = state.titles.audioChoiceRequired.filter(
-				(id) => id !== titleId,
-			);
 			publish();
 		},
 		settings: () => structuredClone(settingsSnapshot),

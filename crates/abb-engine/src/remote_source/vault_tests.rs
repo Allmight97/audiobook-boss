@@ -1,11 +1,11 @@
 use super::*;
 
 #[test]
-fn app_identity_keeps_shipped_credentials_and_isolates_development_vaults() {
+fn each_app_identifier_gets_its_own_vault() {
     let production = KeyringSecretVault::for_app_identifier("com.audiobook-boss");
     let first = KeyringSecretVault::for_app_identifier("com.audiobook-boss.dev.first");
     let second = KeyringSecretVault::for_app_identifier("com.audiobook-boss.dev.second");
-    assert_eq!(production.service, "audiobook-boss.remote-source");
+    assert_eq!(production.service, "com.audiobook-boss.remote-source");
     assert_ne!(first.service, production.service);
     assert_ne!(first.service, second.service);
     assert_eq!(
