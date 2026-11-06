@@ -39,7 +39,9 @@ one host attachment.
   result, an Audible library title, the cover on screen, the preview.
   `cover_address.rs` builds every address and parses it back; a source's
   revision is the session-wide count of cover writes when its own cover was
-  last written, and no entry is dropped, so an address never names two images.
+  last written, and no entry is dropped, so ABB's own Saves never make an address
+  name two images. A file retagged outside ABB and imported again keeps its
+  address.
   A grouped title's sources take no revision from a write that finishes after
   grouping. `Engine::cover` serves the addresses a session offered through
   `runtime/cover_flow.rs` and refuses anything else. Loading is
