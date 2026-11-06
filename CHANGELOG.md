@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- A title joined from sources that already have chapters now warns in Work Center when a
+  source's length is unknown and the later chapters may start too early, as it already did
+  for sources without chapters.
 - An Indexer API key saved earlier that has a character that cannot be sent in a request now
   makes search, grab, and Test connection say so, instead of sending the request with no key.
 - Editing the title or author query, or the source, while a metadata lookup result is being

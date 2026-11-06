@@ -112,6 +112,10 @@ fn source_name(path: &std::path::Path) -> String {
     )
 }
 
+fn no_length_warning(name: &str) -> String {
+    format!("{name} has no known length, so the chapters after it may start too early.")
+}
+
 fn synthesize_chapters_from_files(files: &[PassthroughSource]) -> (Vec<ChapterSpec>, Vec<String>) {
     let mut chapters = Vec::new();
     let mut unmeasured = Vec::new();
@@ -153,7 +157,8 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
     let mut passthrough = PassthroughMetadata::default();
     let mut cumulative_offset_ms: i64 = 0;
 
-    for file in files.iter().filter(|f| f.is_valid) {
+    let valid: Vec<&PassthroughSource> = files.iter().filter(|f| f.is_valid).collect();
+    for (position, file) in valid.iter().enumerate() {
         match ff::format::input(&file.path) {
             Ok(ictx) => {
                 if file.chapters.is_none() && ictx.nb_chapters() > 0 {
@@ -199,19 +204,25 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
         }
 
         // Rounded like the synthetic-chapter math so both paths agree.
-        if let Some(duration) = file.duration {
-            cumulative_offset_ms += (duration * 1000.0).round() as i64;
+        match file.duration {
+            Some(duration) => cumulative_offset_ms += (duration * 1000.0).round() as i64,
+            None if position + 1 < valid.len() => {
+                passthrough
+                    .warnings
+                    .push(no_length_warning(&source_name(&file.path)));
+            }
+            None => {}
         }
     }
 
-    let valid_file_count = files.iter().filter(|f| f.is_valid).count();
-    if super::synthesizes_chapter_per_source(valid_file_count, passthrough.chapters.len()) {
+    if super::synthesizes_chapter_per_source(valid.len(), passthrough.chapters.len()) {
         let (synthetic, unmeasured) = synthesize_chapters_from_files(files);
-        passthrough
-            .warnings
-            .extend(unmeasured.into_iter().map(|name| {
-                format!("{name} has no known length, so the chapters after it may start too early.")
-            }));
+        for name in unmeasured {
+            let warning = no_length_warning(&name);
+            if !passthrough.warnings.contains(&warning) {
+                passthrough.warnings.push(warning);
+            }
+        }
         if !synthetic.is_empty() {
             log::info!(
                 "Synthesized {} chapters from input file order (no source chapters present)",
