@@ -48,29 +48,6 @@ pub fn find_nearest_non_empty_string_for_keys(value: &Value, keys: &[&str]) -> O
     }
 }
 
-pub fn has_non_empty_object_for_keys(value: &Value, keys: &[&str]) -> bool {
-    match value {
-        Value::Object(map) => {
-            for key in keys {
-                if let Some(found @ Value::Object(object)) = map.get(*key) {
-                    if !object.is_empty() {
-                        return true;
-                    }
-                    if has_non_empty_object_for_keys(found, keys) {
-                        return true;
-                    }
-                }
-            }
-            map.values()
-                .any(|entry| has_non_empty_object_for_keys(entry, keys))
-        }
-        Value::Array(values) => values
-            .iter()
-            .any(|entry| has_non_empty_object_for_keys(entry, keys)),
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 #[path = "json_probe_tests.rs"]
 mod tests;

@@ -7,6 +7,13 @@ async fn job_after_license_reply(status: u16) -> AcquisitionJob {
 }
 
 async fn job_after_license_body(status: u16, body: &str) -> AcquisitionJob {
+    job_and_staging_after_license_body(status, body).await.0
+}
+
+async fn job_and_staging_after_license_body(
+    status: u16,
+    body: &str,
+) -> (AcquisitionJob, tempfile::TempDir) {
     use crate::remote_source::providers::audible::http::stub::{signing_auth, stub_api};
     let (api, server) = stub_api(vec![
         (200, r#"{"item":{"title":"Book"}}"#.to_string()),
@@ -52,7 +59,7 @@ async fn job_after_license_body(status: u16, body: &str) -> AcquisitionJob {
         "{requests:?}"
     );
     assert_eq!(job.diagnostics.len(), 1);
-    job
+    (job, root)
 }
 
 #[tokio::test]
@@ -120,6 +127,44 @@ async fn a_denied_license_names_its_reasons() {
         "{:?}",
         job.diagnostics[0]
     );
+}
+
+#[tokio::test]
+async fn an_aaxc_license_with_no_usable_material_fails_before_any_download() {
+    let (job, staging) = job_and_staging_after_license_body(
+        200,
+        r#"{"content_license":{"status_code":"Granted","drm_type":"Mpeg","content_metadata":{"content_url":{"offline_url":"https://cdn.invalid/book.aaxc"}}}}"#,
+    )
+    .await;
+
+    assert_eq!(
+        job.diagnostics[0].kind,
+        RemoteAcquisitionFailureKind::ProtectedUnsupported
+    );
+    assert!(
+        job.diagnostics[0].message.contains("key needed to decrypt"),
+        "{:?}",
+        job.diagnostics[0]
+    );
+    assert!(job.materialized_files.is_empty());
+    let staged_files: Vec<_> = files_under(staging.path());
+    assert!(staged_files.is_empty(), "{staged_files:?}");
+}
+
+fn files_under(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut files = Vec::new();
+    let mut folders = vec![root.to_path_buf()];
+    while let Some(folder) = folders.pop() {
+        for entry in std::fs::read_dir(folder).expect("read staging") {
+            let path = entry.expect("entry").path();
+            if path.is_dir() {
+                folders.push(path);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files
 }
 
 #[test]
@@ -262,16 +307,8 @@ fn helper_lane_follows_voucher_key_shape_not_content_url_extension() {
         None,
     )
     .expect("aaxc-shaped material");
-    let lane = LicenseLane {
-        content_url: "https://cdn.example.test/book.aax".to_string(),
-        strategy: AcquisitionStrategy::DownloadThenDecryptAax,
-        decryption_material: Some(material),
-        supplemental_pdf_url: None,
-        denial: None,
-    };
 
-    let (helper_lane, secret) =
-        helper_material_from_audible_material(&lane).expect("helper material");
+    let (helper_lane, secret) = helper_material_from_audible_material(&material);
 
     assert_eq!(helper_lane, AaxcleanLane::Aaxc);
     match secret {

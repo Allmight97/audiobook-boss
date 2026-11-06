@@ -6,8 +6,6 @@ use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
 use super::acquisition::{
     staged_materialized_path, title_progress, with_title_progress, TitleAcquisitionCtx,
 };
-use super::license::{strategy_label, LicenseLane};
-use super::provider_private_failure;
 use crate::errors::{AppError, Result};
 use crate::remote_source::materializer::{
     AaxcleanLane, AaxcleanMaterializer, AaxcleanSecret, MaterializationRequest,
@@ -24,7 +22,7 @@ pub(super) async fn materialize_protected_download(
     materializer: &AaxcleanMaterializer,
     downloaded_path: &Path,
     title_name: Option<&str>,
-    lane: &LicenseLane,
+    material: &AudibleDecryptionMaterial,
     ctx: TitleAcquisitionCtx<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
@@ -36,16 +34,7 @@ pub(super) async fn materialize_protected_download(
         item_dir,
         progress_context,
     } = ctx;
-    let Some((helper_lane, secret)) = helper_material_from_audible_material(lane) else {
-        log::warn!(
-            "remote_source audible stage=materializer_failed job_id={} title_ref={} item_id={} category=decryption_material",
-            job_id,
-            title_ref(title_id),
-            item_id
-        );
-        remove_if_present(downloaded_path)?;
-        return Err(provider_private_failure("AAXClean decryption material"));
-    };
+    let (helper_lane, secret) = helper_material_from_audible_material(material);
     progress(title_progress(
         progress_context,
         AcquisitionStage::Decryption,
@@ -93,10 +82,10 @@ pub(super) async fn materialize_protected_download(
                 return Err(error);
             }
             log::warn!(
-                "remote_source audible stage=materialization_failed job_id={} title_ref={} lane={}",
+                "remote_source audible stage=materialization_failed job_id={} title_ref={} lane={:?}",
                 job_id,
                 title_ref(title_id),
-                strategy_label(lane.strategy)
+                helper_lane
             );
             Err(error)
         }
@@ -191,24 +180,24 @@ fn finalize_materialized_source(
 }
 
 pub(super) fn helper_material_from_audible_material(
-    lane: &LicenseLane,
-) -> Option<(AaxcleanLane, AaxcleanSecret)> {
-    match lane.decryption_material.as_ref()? {
+    material: &AudibleDecryptionMaterial,
+) -> (AaxcleanLane, AaxcleanSecret) {
+    match material {
         AudibleDecryptionMaterial::Aax {
             activation_bytes_hex,
-        } => Some((
+        } => (
             AaxcleanLane::Aax,
             AaxcleanSecret::Aax {
                 activation_bytes_hex: activation_bytes_hex.clone(),
             },
-        )),
-        AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => Some((
+        ),
+        AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => (
             AaxcleanLane::Aaxc,
             AaxcleanSecret::Aaxc {
                 key_hex: key_hex.clone(),
                 iv_hex: iv_hex.clone(),
             },
-        )),
+        ),
     }
 }
 

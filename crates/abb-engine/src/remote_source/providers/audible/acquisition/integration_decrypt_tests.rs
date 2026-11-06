@@ -19,8 +19,7 @@ use tempfile::TempDir;
 
 use super::{
     materialize_protected_download, staged_materialized_path, AaxcleanMaterializer,
-    AcquisitionStrategy, AudibleAcquisitionError, LicenseLane, TitleAcquisitionCtx,
-    TitleProgressContext,
+    AudibleAcquisitionError, TitleAcquisitionCtx, TitleProgressContext,
 };
 use crate::errors::AppError;
 use crate::remote_source::materializer::{AaxcleanLane, AaxcleanSecret, MaterializationRequest};
@@ -721,11 +720,12 @@ async fn run_protected_materialization(
         },
     };
     let materializer = AaxcleanMaterializer::new_for_helper(None);
+    let material = material_for_secret(secret);
     match materialize_protected_download(
         &materializer,
         downloaded_path,
         Some(title_name),
-        &license_lane_for_secret(secret),
+        &material,
         ctx,
         &mut |_| {},
         &|| false,
@@ -744,30 +744,19 @@ async fn run_protected_materialization(
     }
 }
 
-fn license_lane_for_secret(secret: &AaxcleanSecret) -> LicenseLane {
-    let (strategy, decryption_material) = match secret {
+fn material_for_secret(secret: &AaxcleanSecret) -> abb_audible_core::AudibleDecryptionMaterial {
+    match secret {
         AaxcleanSecret::Aax {
             activation_bytes_hex,
-        } => (
-            AcquisitionStrategy::DownloadThenDecryptAax,
-            abb_audible_core::AudibleDecryptionMaterial::Aax {
-                activation_bytes_hex: activation_bytes_hex.clone(),
-            },
-        ),
-        AaxcleanSecret::Aaxc { key_hex, iv_hex } => (
-            AcquisitionStrategy::DownloadThenDecryptAaxc,
+        } => abb_audible_core::AudibleDecryptionMaterial::Aax {
+            activation_bytes_hex: activation_bytes_hex.clone(),
+        },
+        AaxcleanSecret::Aaxc { key_hex, iv_hex } => {
             abb_audible_core::AudibleDecryptionMaterial::Aaxc {
                 key_hex: key_hex.clone(),
                 iv_hex: iv_hex.clone(),
-            },
-        ),
-    };
-    LicenseLane {
-        content_url: String::new(),
-        strategy,
-        decryption_material: Some(decryption_material),
-        supplemental_pdf_url: None,
-        denial: None,
+            }
+        }
     }
 }
 

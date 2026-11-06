@@ -238,23 +238,16 @@ async fn acquire_one(
         None,
         None,
     ));
-    let (materialized_path, purge_diagnostic) =
-        if lane.strategy == AcquisitionStrategy::DownloadImportReady {
-            (downloaded_path, None)
-        } else {
-            let materialized = materialize_protected_download(
-                materializer,
-                &downloaded_path,
-                title_name,
-                &lane,
-                ctx,
-                progress,
-                is_cancelled,
-            )
-            .await
-            .map_err(AudibleAcquisitionError::materialization)?;
-            (materialized.path, materialized.purge_diagnostic)
-        };
+    let (materialized_path, purge_diagnostic) = importable_source(
+        materializer,
+        downloaded_path,
+        title_name,
+        &lane,
+        ctx,
+        progress,
+        is_cancelled,
+    )
+    .await?;
     let mut title = finalize_acquired_title(
         FinalizeAcquisitionRequest {
             auth,
@@ -272,6 +265,36 @@ async fn acquire_one(
     // import-ready and the diagnostic rides along non-blocking (#393).
     title.diagnostics.extend(purge_diagnostic);
     Ok(title)
+}
+
+async fn importable_source(
+    materializer: &AaxcleanMaterializer,
+    downloaded_path: std::path::PathBuf,
+    title_name: Option<&str>,
+    lane: &LicenseLane,
+    ctx: TitleAcquisitionCtx<'_>,
+    progress: &mut impl FnMut(AcquisitionProgress),
+    is_cancelled: &impl Fn() -> bool,
+) -> AudibleAcquisitionResult<(std::path::PathBuf, Option<RemoteSourceDiagnostic>)> {
+    if lane.strategy == AcquisitionStrategy::DownloadImportReady {
+        return Ok((downloaded_path, None));
+    }
+    let material = lane
+        .decryption_material
+        .as_ref()
+        .expect("a protected lane without decryption material ended before the download");
+    let materialized = materialize_protected_download(
+        materializer,
+        &downloaded_path,
+        title_name,
+        material,
+        ctx,
+        progress,
+        is_cancelled,
+    )
+    .await
+    .map_err(AudibleAcquisitionError::materialization)?;
+    Ok((materialized.path, materialized.purge_diagnostic))
 }
 
 async fn finalize_acquired_title(
@@ -338,9 +361,32 @@ pub(super) fn unsupported_result_for_unmaterializable_lane(
     }
     let strategy = lane.strategy;
     match strategy {
-        AcquisitionStrategy::DownloadImportReady
-        | AcquisitionStrategy::DownloadThenDecryptAax
-        | AcquisitionStrategy::DownloadThenDecryptAaxc => None,
+        AcquisitionStrategy::DownloadImportReady => None,
+        AcquisitionStrategy::DownloadThenDecryptAax
+        | AcquisitionStrategy::DownloadThenDecryptAaxc
+            if lane.decryption_material.is_some() =>
+        {
+            None
+        }
+        AcquisitionStrategy::DownloadThenDecryptAax
+        | AcquisitionStrategy::DownloadThenDecryptAaxc => {
+            log::warn!(
+                "remote_source audible stage=license_classification job_id={} title_ref={} lane={} action=failed reason=missing_decryption_material",
+                job_id,
+                title_ref(title_id),
+                strategy_label(strategy)
+            );
+            Some(AcquiredTitle {
+                file: None,
+                assets: Vec::new(),
+                diagnostics: vec![RemoteSourceDiagnostic {
+                    kind: RemoteAcquisitionFailureKind::ProtectedUnsupported,
+                    title_id: Some(title_id.to_string()),
+                    message: "Audible's license reply for this title did not include the key needed to decrypt it."
+                        .to_string(),
+                }],
+            })
+        }
         AcquisitionStrategy::DownloadThenDecryptDash => {
             let lane = strategy_label(strategy);
             log::info!(

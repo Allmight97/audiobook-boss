@@ -191,7 +191,9 @@ title as `LicenseDenied`, and the message gives Audible's reason codes. A
 registration, so the message says to sign in again, then retry later. It is never reported as a missing URL. Acquisition success
 means real materialized files: manual-import fallback and placeholder sources
 do not exist. Dash/Widevine acquisition stays unsupported until ABB has its own
-CDM, MPD/PSSH, and content-key design. An Audible AAX or AAXC file is
+CDM, MPD/PSSH, and content-key design. An AAX or AAXC license reply with no
+usable decryption material fails as `ProtectedUnsupported` before any audio is
+downloaded; the key is the only thing that decides, not the reply's shape. An Audible AAX or AAXC file is
 materialized only when its output decodes as audio with FFmpeg's built-in
 decoder. A wrong key fails as `MaterializationFailed`, and the message names
 the decrypt. For AAXC, helper exit 0 is not that proof.

@@ -5,7 +5,7 @@ use abb_remote_source_core::{
 use serde_json::Value;
 use std::path::Path;
 
-use crate::json_probe::{find_nearest_non_empty_string_for_keys, has_non_empty_object_for_keys};
+use crate::json_probe::find_nearest_non_empty_string_for_keys;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LicenseFacts {
@@ -13,7 +13,6 @@ pub struct LicenseFacts {
     pub content_kind: MaterializedSourceKind,
     pub media_container: MediaContainerKind,
     pub media_protection: MediaProtectionKind,
-    pub decryption_material_present: bool,
     pub drm_kind: Option<String>,
     pub supplemental_pdf_url: Option<String>,
     pub denial: Option<LicenseDenial>,
@@ -92,31 +91,11 @@ pub fn license_facts_from_value(value: &Value) -> LicenseFacts {
     let content_kind = materialized_source_kind_for_container(media_container);
     let supplemental_pdf_url =
         find_nearest_non_empty_string_for_keys(value, &["pdf_url", "pdfUrl"]);
-    let decryption_material_present = find_nearest_non_empty_string_for_keys(
-        value,
-        &[
-            "voucher",
-            "license",
-            "license_response",
-            "licenseResponse",
-            "license_key",
-            "licenseKey",
-            "content_license",
-            "contentLicense",
-        ],
-    )
-    .is_some()
-        || has_non_empty_object_for_keys(
-            value,
-            &["voucher", "license", "content_license", "contentLicense"],
-        );
-
     LicenseFacts {
         content_url,
         content_kind,
         media_container,
         media_protection,
-        decryption_material_present,
         drm_kind,
         supplemental_pdf_url,
         denial: license_denial(value),
@@ -138,20 +117,12 @@ pub fn choose_acquisition_strategy(facts: &LicenseFacts) -> AcquisitionStrategy 
         {
             AcquisitionStrategy::DownloadImportReady
         }
-        MediaProtectionKind::AudibleAax if facts.decryption_material_present => {
-            AcquisitionStrategy::DownloadThenDecryptAax
+        MediaProtectionKind::AudibleAax => AcquisitionStrategy::DownloadThenDecryptAax,
+        MediaProtectionKind::AudibleAaxc => AcquisitionStrategy::DownloadThenDecryptAaxc,
+        MediaProtectionKind::AudibleDash => AcquisitionStrategy::DownloadThenDecryptDash,
+        MediaProtectionKind::Widevine | MediaProtectionKind::UnknownProtected => {
+            AcquisitionStrategy::ProtectedUnsupported
         }
-        MediaProtectionKind::AudibleAaxc if facts.decryption_material_present => {
-            AcquisitionStrategy::DownloadThenDecryptAaxc
-        }
-        MediaProtectionKind::AudibleDash if facts.decryption_material_present => {
-            AcquisitionStrategy::DownloadThenDecryptDash
-        }
-        MediaProtectionKind::AudibleAax
-        | MediaProtectionKind::AudibleAaxc
-        | MediaProtectionKind::AudibleDash
-        | MediaProtectionKind::Widevine
-        | MediaProtectionKind::UnknownProtected => AcquisitionStrategy::ProtectedUnsupported,
         MediaProtectionKind::None => AcquisitionStrategy::ProviderProtocolFailed,
     }
 }

@@ -76,7 +76,6 @@ fn license_response_facts_classify_content_protection_and_voucher() {
     assert_eq!(facts.media_container, MediaContainerKind::Aaxc);
     assert_eq!(facts.media_protection, MediaProtectionKind::AudibleAaxc);
     assert!(facts.content_url.is_some());
-    assert!(facts.decryption_material_present);
     assert_eq!(facts.drm_kind.as_deref(), Some("Mpeg"));
     assert!(facts.supplemental_pdf_url.is_some());
 }
@@ -139,7 +138,6 @@ fn license_facts_choose_acquisition_strategy() {
         content_kind: MaterializedSourceKind::ImportReadyM4b,
         media_container: MediaContainerKind::M4b,
         media_protection: MediaProtectionKind::None,
-        decryption_material_present: false,
         drm_kind: None,
         supplemental_pdf_url: None,
         denial: None,
@@ -154,7 +152,6 @@ fn license_facts_choose_acquisition_strategy() {
         content_kind: MaterializedSourceKind::EncryptedAax,
         media_container: MediaContainerKind::Aax,
         media_protection: MediaProtectionKind::AudibleAax,
-        decryption_material_present: true,
         drm_kind: Some("Mpeg".to_string()),
         supplemental_pdf_url: None,
         denial: None,
@@ -164,18 +161,17 @@ fn license_facts_choose_acquisition_strategy() {
         AcquisitionStrategy::DownloadThenDecryptAax
     );
 
-    let protected_without_decrypt_material = LicenseFacts {
+    let widevine_protected = LicenseFacts {
         content_url: Some("https://cdn.example.test/book.aaxc".to_string()),
         content_kind: MaterializedSourceKind::EncryptedAaxc,
         media_container: MediaContainerKind::Aaxc,
         media_protection: MediaProtectionKind::Widevine,
-        decryption_material_present: false,
         drm_kind: Some("Widevine".to_string()),
         supplemental_pdf_url: None,
         denial: None,
     };
     assert_eq!(
-        choose_acquisition_strategy(&protected_without_decrypt_material),
+        choose_acquisition_strategy(&widevine_protected),
         AcquisitionStrategy::ProtectedUnsupported
     );
 
@@ -184,7 +180,6 @@ fn license_facts_choose_acquisition_strategy() {
         content_kind: MaterializedSourceKind::Unsupported,
         media_container: MediaContainerKind::Unknown,
         media_protection: MediaProtectionKind::None,
-        decryption_material_present: false,
         drm_kind: None,
         supplemental_pdf_url: None,
         denial: None,
