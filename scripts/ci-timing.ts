@@ -111,7 +111,7 @@ function seconds(from: string, to: string): number {
 	return Math.round((millis(to) - millis(from)) / 1000);
 }
 
-export function ranJob(job: JobInfo): boolean {
+function ranJob(job: JobInfo): boolean {
 	return job.conclusion !== 'skipped' && job.started_at !== null && job.completed_at !== null;
 }
 
@@ -363,7 +363,7 @@ function rustDetail(job: JobReport): string[] {
 	];
 }
 
-export function renderRun(run: RunReport): string {
+function renderRun(run: RunReport): string {
 	return [
 		`## Run ${run.id}: ${run.kind} (${run.event}, ${run.createdAt}) ${run.title}`,
 		'',
@@ -375,7 +375,7 @@ export function renderRun(run: RunReport): string {
 	].join('\n');
 }
 
-export function renderSummary(summary: SummaryRow[]): string {
+function renderSummary(summary: SummaryRow[]): string {
 	return [
 		'## Summary: Rust job totals by run kind and OS',
 		'',
@@ -404,7 +404,7 @@ function ghJson<T>(path: string): T {
 	return JSON.parse(gh([path])) as T;
 }
 
-export const ghFetcher: Fetcher = {
+const ghFetcher: Fetcher = {
 	listRunIds(limit) {
 		const { workflow_runs } = ghJson<{
 			workflow_runs: { id: number; conclusion: string | null }[];
