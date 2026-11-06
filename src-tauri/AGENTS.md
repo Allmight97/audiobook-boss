@@ -49,3 +49,12 @@ engine does not offer, add it to the engine's host interface.
 
 A test of product behavior, including what a command reaches, belongs with the
 engine owner that decides it.
+
+`commands/session_invoke_tests.rs` sends commands through Tauri's mock runtime
+and the real invoke handler (`ipc_contract::builder::<MockRuntime>()`, so
+`open_preview_output` is generic over the runtime). It pins the camelCase
+argument and reply names the webview sees, the error envelope for a refused
+intent number, and the managed state a command needs. It does not cover the
+capability file, `setup`, or the cover protocol. Send a numbered intent only
+after the one before it: `IntentOrder` waits for a missing number, and the test
+then blocks.

@@ -77,8 +77,8 @@ pub async fn session_dispatch(
 /// opens it with the user's default app. The path never comes from the webview.
 #[tauri::command]
 #[specta::specta]
-pub async fn open_preview_output(
-    app: tauri::AppHandle,
+pub async fn open_preview_output<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     engine: EngineState<'_>,
     link: Link<'_>,
     client: u64,
@@ -137,3 +137,7 @@ pub async fn settings_dispatch(
 #[cfg(test)]
 #[path = "session_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "session_invoke_tests.rs"]
+mod invoke_tests;
