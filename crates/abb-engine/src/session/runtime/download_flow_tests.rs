@@ -66,6 +66,7 @@ async fn a_download_with_an_unreadable_file_is_not_listed_at_all() {
         "{handoff:?}"
     );
     assert!(rig.listed_paths().is_empty());
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
 }
 
 #[tokio::test(start_paused = true)]
@@ -164,76 +165,4 @@ async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_u
         crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
     );
     assert!(rig.removed.lock().expect("removed").is_empty());
-}
-
-#[tokio::test]
-async fn reset_supersedes_an_acquired_handoff_waiting_for_an_earlier_import() {
-    use std::future::Future;
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let audio = staged_wav(staging.path(), "book");
-    let in_order = rig
-        .session
-        .inner
-        .imports
-        .wait(rig.session.inner.imports.take())
-        .await;
-    let mut handoff = Box::pin(
-        rig.session
-            .import_acquired(acquired("job-before-reset", &audio)),
-    );
-    std::future::poll_fn(|cx| {
-        assert!(handoff.as_mut().poll(cx).is_pending());
-        std::task::Poll::Ready(())
-    })
-    .await;
-    rig.send(SessionIntent::Reset).await;
-    drop(in_order);
-    assert_eq!(
-        handoff.await,
-        crate::remote_source::AcquisitionHandoff::Removed {
-            reason: HandoffRefusal::NothingAdded
-        }
-    );
-    assert_eq!(rig.removed_jobs().await, ["job-before-reset"]);
-    assert!(rig
-        .session
-        .snapshot()
-        .titles
-        .expect("titles")
-        .files
-        .is_empty());
-}
-
-#[tokio::test]
-async fn a_reset_while_a_download_waits_for_the_unlock_removes_it_and_lists_nothing() {
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let audio = staged_wav(staging.path(), "book");
-    rig.lock_order(true);
-    let session = rig.session.clone();
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by a_reset_while_a_download_waits_for_the_unlock_removes_it_and_lists_nothing"
-    )]
-    let handoff =
-        tokio::spawn(async move { session.import_acquired(acquired("job-1", &audio)).await });
-    tokio::time::sleep(Duration::from_millis(300)).await;
-    assert!(!handoff.is_finished(), "the download waits for the list");
-
-    rig.send(SessionIntent::Reset).await;
-    assert_eq!(
-        handoff.await.expect("handoff"),
-        crate::remote_source::AcquisitionHandoff::Removed {
-            reason: HandoffRefusal::NothingAdded
-        }
-    );
-    assert_eq!(rig.removed_jobs().await, ["job-1"]);
-    assert!(rig
-        .session
-        .snapshot()
-        .titles
-        .expect("titles")
-        .files
-        .is_empty());
 }

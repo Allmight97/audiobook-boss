@@ -27,7 +27,7 @@ impl Session {
         }
         let started = self.transition(|state| {
             let request = state.begin_cover_request(from_url);
-            (state.epoch, state.binding, request)
+            (state.binding, request)
         });
         Rest::CoverLoad { source, started }
     }
@@ -35,7 +35,7 @@ impl Session {
     pub(super) async fn load_cover(
         &self,
         source: CoverSource,
-        started: (u64, u64, u64),
+        started: (u64, u64),
     ) -> SessionOutcome {
         let from_url = matches!(source, CoverSource::Url(_));
         if from_url {
@@ -52,7 +52,7 @@ impl Session {
                 .map(|cover| cover.to_vec()),
         };
         self.transition(|state| {
-            if (state.epoch, state.binding, state.cover_request()) != started {
+            if (state.binding, state.cover_request()) != started {
                 return SessionOutcome::Superseded;
             }
             let loaded = result.is_ok();

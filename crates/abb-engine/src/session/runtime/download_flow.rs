@@ -42,12 +42,8 @@ impl Session {
     }
 
     async fn import_acquired_files(&self, job: &AcquisitionJob) -> AcquisitionHandoff {
-        let resets = self.inner.resets.load(Ordering::SeqCst);
         let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
         let removed = |reason| AcquisitionHandoff::Removed { reason };
-        if self.inner.resets.load(Ordering::SeqCst) != resets {
-            return removed(HandoffRefusal::NothingAdded);
-        }
         let paths: Vec<PathBuf> = job
             .materialized_files
             .iter()
@@ -65,9 +61,6 @@ impl Session {
         let analyzed = match analyzed {
             Ok(analyzed) => analyzed.files,
             Err(error) => {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    return removed(HandoffRefusal::NothingAdded);
-                }
                 return removed(HandoffRefusal::ImportFailed {
                     error: AppErrorEnvelope::from(&error),
                 });
@@ -75,20 +68,13 @@ impl Session {
         };
         let titles = staged_titles(job);
         let listed = self
-            .when_list_unlocked(resets, |state| {
-                list_acquired(state, job, analyzed.clone(), &titles)
-            })
-            .await
-            .unwrap_or(Err(HandoffRefusal::NothingAdded));
+            .when_list_unlocked(|state| list_acquired(state, job, analyzed.clone(), &titles))
+            .await;
         match listed {
             Ok((bound, count)) => {
                 self.complete_reads(bound).await;
                 self.publish();
-                if self.inner.resets.load(Ordering::SeqCst) == resets {
-                    AcquisitionHandoff::Imported { count }
-                } else {
-                    removed(HandoffRefusal::NothingAdded)
-                }
+                AcquisitionHandoff::Imported { count }
             }
             Err(reason) => {
                 self.publish();

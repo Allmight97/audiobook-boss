@@ -79,34 +79,11 @@ async fn opened_files_wait_for_unlock_without_a_host_request() {
 }
 
 #[tokio::test]
-async fn a_reset_drops_opened_files_still_waiting_and_closing_refuses_them() {
+async fn closing_refuses_opened_files() {
     let rig = rig();
     let folder = tempfile::TempDir::new().expect("temp dir");
     let opened = staged_wav(folder.path(), "opened");
-    rig.lock_order(true);
-    rig.session
-        .import_opened(vec![opened.clone()])
-        .expect("opened files admitted");
-    rig.send(SessionIntent::Reset).await;
-    rig.lock_order(false);
-    rig.session.sources_released();
     rig.session.inner.deps.tasks.close();
-    rig.session.inner.deps.tasks.wait().await;
-    assert!(rig.listed_paths().is_empty(), "the reset dropped them");
 
     assert!(rig.session.import_opened(vec![opened]).is_err());
-}
-
-#[tokio::test]
-async fn an_import_that_fails_after_a_reset_leaves_the_new_session_alone() {
-    let rig = rig();
-    let empty = tempfile::TempDir::new().expect("temp dir");
-    let import = rig.session.begin(SessionIntent::Import {
-        paths: vec![empty.path().to_string_lossy().into_owned()],
-    });
-    rig.send(SessionIntent::Reset).await;
-
-    assert_eq!(import.finish().await.outcome, SessionOutcome::Superseded);
-    let titles = rig.session.snapshot().titles.expect("titles part");
-    assert_eq!(titles.notice, None);
 }

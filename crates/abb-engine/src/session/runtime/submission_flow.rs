@@ -1,4 +1,3 @@
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use super::{blocking, Rest, Session};
@@ -19,7 +18,6 @@ impl Session {
         match draft {
             Some(draft) => Rest::Submit {
                 draft: Box::new(self.capture_decoder(draft)),
-                resets: self.inner.resets.load(Ordering::SeqCst),
             },
             None => Rest::Done(SessionOutcome::Applied),
         }
@@ -30,7 +28,7 @@ impl Session {
         draft
     }
 
-    pub(super) async fn submit(&self, draft: Draft, resets: u64) -> SessionOutcome {
+    pub(super) async fn submit(&self, draft: Draft) -> SessionOutcome {
         self.publish();
         let checking = draft.clone();
         let plan = blocking(move || {
@@ -68,9 +66,9 @@ impl Session {
                 self.end_submission(&draft, SubmissionStatus::Blocked { message })
             }
             PlanVerdict::Review(outputs) if draft.payload.collision_policy.is_none() => {
-                self.hold_for_review(draft, outputs, resets)
+                self.hold_for_review(draft, outputs)
             }
-            _ if unreviewed => self.hold_for_review(draft, collided, resets),
+            _ if unreviewed => self.hold_for_review(draft, collided),
             PlanVerdict::Review(_) | PlanVerdict::Proceed => {
                 self.accept(
                     draft.approved(public.collision_policy, public.plan_signature),
@@ -85,24 +83,15 @@ impl Session {
         &self,
         draft: Draft,
         outputs: Vec<crate::output_artifact::PlannedOutput>,
-        resets: u64,
     ) -> SessionOutcome {
         let closing_draft = draft.clone();
-        match self.inner.deps.tasks.admit(|| {
-            self.transition(|state| {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    state.finish_submission(&draft, SubmissionStatus::Cancelled);
-                    return true;
-                }
-                state.await_review(draft, outputs);
-                false
-            })
-        }) {
-            Ok(true) => {
-                self.sources_released();
-                SessionOutcome::Applied
-            }
-            Ok(false) => SessionOutcome::Applied,
+        match self
+            .inner
+            .deps
+            .tasks
+            .admit(|| self.transition(|state| state.await_review(draft, outputs)))
+        {
+            Ok(()) => SessionOutcome::Applied,
             Err(_) => {
                 self.transition(|state| state.finish_submission(&closing_draft, closing()));
                 self.sources_released();
@@ -182,7 +171,6 @@ impl Session {
             Some(draft) => Rest::Reviewed {
                 draft: Box::new(draft),
                 policy,
-                resets: self.inner.resets.load(Ordering::SeqCst),
             },
             None => Rest::Done(SessionOutcome::Superseded),
         }
@@ -192,10 +180,9 @@ impl Session {
         &self,
         mut draft: Draft,
         policy: CollisionPolicy,
-        resets: u64,
     ) -> SessionOutcome {
         draft.payload.collision_policy = Some(policy);
-        self.submit(draft, resets).await
+        self.submit(draft).await
     }
 
     pub(super) fn cancel_collision_review(&self, review_id: u64) -> Rest {
@@ -238,18 +225,12 @@ impl Session {
             Some((draft, link)) => Rest::Restart {
                 draft: Box::new(self.capture_decoder(draft)),
                 link: Box::new(link),
-                resets: self.inner.resets.load(Ordering::SeqCst),
             },
             None => Rest::Done(SessionOutcome::Applied),
         }
     }
 
-    pub(super) async fn restart(
-        &self,
-        draft: Draft,
-        link: ExportLink,
-        resets: u64,
-    ) -> SessionOutcome {
+    pub(super) async fn restart(&self, draft: Draft, link: ExportLink) -> SessionOutcome {
         self.publish();
         let deps = &self.inner.deps;
         let published = deps
@@ -257,7 +238,7 @@ impl Session {
             .stop_title(&deps.host, &link.operation_id, link.index, &link.title)
             .await;
         if !published {
-            return self.submit(draft, resets).await;
+            return self.submit(draft).await;
         }
         let edits = self.transition(|state| {
             let tags = &state.tags;

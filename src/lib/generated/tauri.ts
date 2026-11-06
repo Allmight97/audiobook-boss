@@ -1057,7 +1057,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  *  Moves a title one place. Named by identity, so a second click sent
  *  before the first is answered moves the same title again.
  */
-{ kind: "moveFile"; titleId: string; direction: MoveDirection } | { kind: "reorderFiles"; titleId: string; to: number } | { kind: "toggleSort" } | { kind: "restoreImportOrder" } | { kind: "groupSelected" } | { kind: "ungroup"; titleId: string } | { kind: "reorderSources"; titleId: string; from: number; to: number } | { kind: "chooseCue"; inputId: string; choice: CueChoice } | { kind: "reset" } |
+{ kind: "moveFile"; titleId: string; direction: MoveDirection } | { kind: "reorderFiles"; titleId: string; to: number } | { kind: "toggleSort" } | { kind: "restoreImportOrder" } | { kind: "groupSelected" } | { kind: "ungroup"; titleId: string } | { kind: "reorderSources"; titleId: string; from: number; to: number } | { kind: "chooseCue"; inputId: string; choice: CueChoice } |
 /**  Exports every valid title. */
 { kind: "submit" } |
 /**
@@ -1112,7 +1112,7 @@ export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } | { k
  */
 { kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } | { kind: "previewOutput"; path: string | null } |
 /**
- *  A newer request, a reset, or a change of the form it was typed into
+ *  A newer request or a change of the form it was typed into
  *  replaced this one before it finished.
  */
 { kind: "superseded" };

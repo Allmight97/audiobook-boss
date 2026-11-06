@@ -13,7 +13,6 @@ use crate::metadata_lookup::{
 use crate::output_artifact::NamingPreset;
 use crate::power::PowerManager;
 use crate::processing::JobRegistry;
-use crate::remote_source::HandoffRefusal;
 use crate::session::audio_choice::AudioEdit;
 use crate::session::cover_address::{self, tests::host_request};
 use crate::session::lookup::LookupSnapshot;
@@ -466,13 +465,13 @@ async fn a_rejected_selection_reports_why_and_leaves_the_selection() {
 }
 
 #[tokio::test]
-async fn reset_empties_the_session() {
+async fn clear_all_empties_the_session() {
     let rig = rig();
     rig.load(&["alpha"]);
     rig.select(&[0]).await;
     rig.type_into(MetadataField::Genre, "Mystery").await;
 
-    rig.send(SessionIntent::Reset).await;
+    rig.send(SessionIntent::ClearAll).await;
 
     let snapshot = rig.session.snapshot();
     assert!(snapshot.titles.expect("titles").files.is_empty());

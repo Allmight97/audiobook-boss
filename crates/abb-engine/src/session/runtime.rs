@@ -78,7 +78,6 @@ struct SessionInner {
     deps: SessionDeps,
     network: Network,
     imports: super::import_order::ImportOrder,
-    resets: AtomicU64,
     /// The revision the last event carried.
     published: AtomicU64,
     deferred_writer_running: AtomicBool,
@@ -121,23 +120,19 @@ enum Rest {
     Reads(Bound),
     Import {
         paths: Vec<String>,
-        resets: u64,
         turn: super::import_order::Turn,
     },
     Remember(SettingsRun),
     Submit {
         draft: Box<Draft>,
-        resets: u64,
     },
     Reviewed {
         draft: Box<Draft>,
         policy: CollisionPolicy,
-        resets: u64,
     },
     Restart {
         draft: Box<Draft>,
         link: Box<ExportLink>,
-        resets: u64,
     },
     Save {
         epoch: u64,
@@ -150,7 +145,7 @@ enum Rest {
     },
     CoverLoad {
         source: CoverSource,
-        started: (u64, u64, u64),
+        started: (u64, u64),
     },
     LookupSearch {
         request: u64,
@@ -207,24 +202,12 @@ impl Session {
                 session.complete_reads(bound).await;
                 SessionOutcome::Applied
             }
-            Rest::Import {
-                paths,
-                resets,
-                turn,
-            } => session.import(paths, resets, turn).await,
+            Rest::Import { paths, turn } => session.import(paths, turn).await,
             Rest::Remember(run) => session.finish_remember(run).await,
-            Rest::Submit { draft, resets } => session.submit(*draft, resets).await,
-            Rest::Reviewed {
-                draft,
-                policy,
-                resets,
-            } => session.submit_reviewed(*draft, policy, resets).await,
+            Rest::Submit { draft } => session.submit(*draft).await,
+            Rest::Reviewed { draft, policy } => session.submit_reviewed(*draft, policy).await,
             Rest::Save { epoch, plan } => session.save(epoch, plan).await,
-            Rest::Restart {
-                draft,
-                link,
-                resets,
-            } => session.restart(*draft, *link, resets).await,
+            Rest::Restart { draft, link } => session.restart(*draft, *link).await,
             Rest::KeepLocation {
                 title_id,
                 revision,
@@ -256,7 +239,6 @@ impl Session {
                 deps,
                 network,
                 imports: super::import_order::ImportOrder::default(),
-                resets: AtomicU64::new(0),
                 published: AtomicU64::new(0),
                 deferred_writer_running: AtomicBool::new(false),
                 sources_freed: tokio::sync::Notify::new(),
@@ -447,7 +429,6 @@ impl Session {
                 self.transition(|state| state.apply_default_audio(&title_ids));
                 Rest::Done(SessionOutcome::Applied)
             }
-            I::Reset => self.begin_reset(),
             I::SetField {
                 binding,
                 field,
@@ -558,13 +539,6 @@ impl Session {
         self.publish();
         let reads = read_all(bound.reads).await;
         self.transition(|state| state.finish_reads(bound.binding, reads));
-    }
-
-    fn begin_reset(&self) -> Rest {
-        self.inner.resets.fetch_add(1, Ordering::SeqCst);
-        self.transition(SessionState::reset);
-        self.sources_released();
-        Rest::Done(SessionOutcome::Applied)
     }
 
     fn sources_released(&self) {

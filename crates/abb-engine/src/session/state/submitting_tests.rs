@@ -72,7 +72,7 @@ fn a_refused_second_submission_does_not_let_a_third_through() {
 }
 
 #[test]
-fn collision_answers_are_scoped_to_the_question_even_after_rereview_and_reset() {
+fn collision_answers_are_scoped_to_the_question_even_after_rereview_cancel_and_clear_all() {
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     desk.state.output.set_directory("/library".into());
     let draft = desk.state.begin_submission(false).expect("submission");
@@ -97,7 +97,11 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_and_reset() 
     assert!(!desk.state.cancel_review_named(old));
     assert!(desk.state.working_set.order_locked());
 
-    desk.state.reset();
+    assert!(desk.state.cancel_review_named(next));
+    desk.change(|set| {
+        set.clear_all();
+    })
+    .expect("clear all");
     assert!(desk.state.reserved.is_empty());
     assert!(!desk.state.output_snapshot(0).submission_in_progress);
     let request = desk.state.audio.request();

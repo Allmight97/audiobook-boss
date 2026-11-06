@@ -63,8 +63,6 @@ pub enum SessionIntent {
         input_id: String,
         choice: CueChoice,
     },
-    Reset,
-
     /// Exports every valid title.
     Submit,
     /// Renders a preview of each valid title, in the foreground: the start of
@@ -216,7 +214,7 @@ pub enum SessionOutcome {
     PreviewOutput {
         path: Option<String>,
     },
-    /// A newer request, a reset, or a change of the form it was typed into
+    /// A newer request or a change of the form it was typed into
     /// replaced this one before it finished.
     Superseded,
 }

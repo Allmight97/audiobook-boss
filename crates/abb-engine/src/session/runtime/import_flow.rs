@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 
 use super::{blocking, Bound, Rest, Session};
 use crate::audio;
@@ -21,7 +20,6 @@ impl Session {
         }
         Rest::Import {
             paths,
-            resets: self.inner.resets.load(Ordering::SeqCst),
             turn: self.inner.imports.take(),
         }
     }
@@ -34,7 +32,6 @@ impl Session {
         self.inner.deps.tasks.admit(|| {
             let rest = Rest::Import {
                 paths,
-                resets: self.inner.resets.load(Ordering::SeqCst),
                 turn: self.inner.imports.take(),
             };
             let session = self.clone();
@@ -47,25 +44,16 @@ impl Session {
     pub(super) async fn import(
         &self,
         paths: Vec<String>,
-        resets: u64,
         turn: crate::session::import_order::Turn,
     ) -> SessionOutcome {
         let _in_order = self.inner.imports.wait(turn).await;
-        let superseded = || self.inner.resets.load(Ordering::SeqCst) != resets;
-        let failed = |notice| {
-            if superseded() {
-                SessionOutcome::Superseded
-            } else {
-                self.import_failed(notice)
-            }
-        };
 
         let inputs: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
         let discovery =
             match blocking(move || Ok(audio::discover_audio_import_paths(&inputs))).await {
                 Ok(discovery) => discovery,
                 Err(error) => {
-                    return failed(InputNotice::AnalysisFailed {
+                    return self.import_failed(InputNotice::AnalysisFailed {
                         error: AppErrorEnvelope::from(&error),
                     })
                 }
@@ -77,7 +65,7 @@ impl Session {
             .map(|(path, error)| audio::SkippedImportPath::new(path, error))
             .collect();
         if discovered.is_empty() {
-            return failed(if skipped.is_empty() {
+            return self.import_failed(if skipped.is_empty() {
                 InputNotice::NoSupportedFiles {
                     formats_text: audio::supported_audio_import_formats_text(),
                 }
@@ -90,18 +78,13 @@ impl Session {
             match blocking(move || audio::get_file_list_info(&discovered, aac_decoder)).await {
                 Ok(analyzed) => analyzed,
                 Err(error) => {
-                    return failed(InputNotice::AnalysisFailed {
+                    return self.import_failed(InputNotice::AnalysisFailed {
                         error: AppErrorEnvelope::from(&error),
                     })
                 }
             };
 
-        if superseded() {
-            return SessionOutcome::Superseded;
-        }
-        let Some(bound) = self.list_imported(analyzed.files, skipped, resets).await else {
-            return SessionOutcome::Superseded;
-        };
+        let bound = self.list_imported(analyzed.files, skipped).await;
         self.complete_reads(bound).await;
         SessionOutcome::Applied
     }
@@ -111,9 +94,8 @@ impl Session {
         &self,
         mut files: Vec<AudioFile>,
         skipped: Vec<audio::SkippedImportPath>,
-        resets: u64,
-    ) -> Option<Bound> {
-        self.when_list_unlocked(resets, |state| {
+    ) -> Bound {
+        self.when_list_unlocked(|state| {
             let default_audio = state.audio.request();
             state
                 .working_set
@@ -130,21 +112,17 @@ impl Session {
 
     pub(super) async fn when_list_unlocked<T>(
         &self,
-        resets: u64,
         mut apply: impl FnMut(&mut SessionState) -> T,
-    ) -> Option<T> {
+    ) -> T {
         loop {
             let unlocked = self.inner.list_unlocked.notified();
             tokio::pin!(unlocked);
             unlocked.as_mut().enable();
             let attempt = self.transition(|state| {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    return Some(None);
-                }
                 if state.working_set.order_locked() {
                     return None;
                 }
-                Some(Some(apply(state)))
+                Some(apply(state))
             });
             if let Some(result) = attempt {
                 return result;

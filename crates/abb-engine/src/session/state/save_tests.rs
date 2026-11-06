@@ -395,121 +395,6 @@ fn no_download_is_removed_while_a_save_writes() {
 }
 
 #[test]
-fn a_save_still_writing_after_a_reset_keeps_its_file_busy() {
-    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
-    desk.state
-        .staged
-        .register("job-1", "alpha", path("alpha"), Vec::new());
-    desk.type_into(MetadataField::Genre, "Mystery");
-    let plan = desk
-        .state
-        .begin_save(&HashSet::new(), |_| false)
-        .expect("save");
-    let epoch = desk.state.epoch;
-
-    desk.state.reset();
-    desk.state.settle();
-    assert!(
-        desk.state
-            .begin_staged_removal(&HashSet::new(), Instant::now())
-            .is_empty(),
-        "the download is not removed under the write"
-    );
-    desk.import(&[("alpha", Some(alpha_tags()))]);
-    desk.select(&[0]).expect("select");
-    desk.state.output.set_directory("/library".to_string());
-    assert!(desk.state.begin_submission(false).is_none());
-    assert_eq!(
-        desk.state.output_snapshot(0).submission,
-        Some(SubmissionStatus::Refused {
-            reason: SubmitRefusal::SaveInProgress
-        })
-    );
-
-    desk.state.finish_save(
-        epoch,
-        &paths_of(&plan.immediate),
-        &plan.immediate,
-        MetadataStatus::SaveCancelled,
-    );
-    assert!(desk.state.begin_submission(false).is_some());
-}
-
-#[test]
-fn a_save_overtaken_by_a_reset_never_ends_the_save_running_after_it() {
-    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
-    desk.type_into(MetadataField::Genre, "Mystery");
-    let overtaken = desk
-        .state
-        .begin_save(&HashSet::new(), |_| false)
-        .expect("save");
-    let overtaken_epoch = desk.state.epoch;
-
-    desk.state.reset();
-    desk.import(&[("beta", Some(beta_tags()))]);
-    desk.select(&[0]).expect("select");
-    desk.type_into(MetadataField::Genre, "Thriller");
-    let running = desk
-        .state
-        .begin_save(&HashSet::new(), |_| false)
-        .expect("save");
-
-    desk.state.finish_save(
-        overtaken_epoch,
-        &paths_of(&overtaken.immediate),
-        &overtaken.immediate,
-        MetadataStatus::SaveCancelled,
-    );
-    assert!(desk.metadata().save_in_progress);
-    assert!(desk.state.begin_save(&HashSet::new(), |_| false).is_none());
-    assert_eq!(
-        desk.metadata().status,
-        Some(MetadataStatus::SaveAlreadyInProgress)
-    );
-
-    let epoch = desk.state.epoch;
-    desk.state.finish_save(
-        epoch,
-        &paths_of(&running.immediate),
-        &running.immediate,
-        MetadataStatus::SaveCancelled,
-    );
-    assert!(!desk.metadata().save_in_progress);
-}
-
-#[test]
-fn a_save_after_a_reset_waits_for_the_file_the_overtaken_save_still_writes() {
-    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
-    desk.type_into(MetadataField::Genre, "Mystery");
-    let overtaken = desk
-        .state
-        .begin_save(&HashSet::new(), |_| false)
-        .expect("save");
-    let overtaken_epoch = desk.state.epoch;
-
-    desk.state.reset();
-    desk.import(&[("alpha", Some(alpha_tags()))]);
-    desk.select(&[0]).expect("select");
-    desk.type_into(MetadataField::Genre, "Horror");
-    let plan = desk.save(&[]).expect("save");
-    assert_eq!((plan.immediate.len(), plan.waiting), (0, 1));
-    assert!(desk.begin_deferred(&HashSet::new()).is_empty());
-
-    desk.state.finish_save(
-        overtaken_epoch,
-        &paths_of(&overtaken.immediate),
-        &overtaken.immediate,
-        MetadataStatus::SaveCancelled,
-    );
-    let ready = desk.begin_deferred(&HashSet::new());
-    assert_eq!(ready.len(), 1);
-    assert_eq!(
-        ready[0].patch.genre,
-        Some(PatchOp::Set("Horror".to_string()))
-    );
-}
-
-#[test]
 fn a_failed_waiting_write_hands_its_edit_to_the_newer_write_waiting_on_the_same_file() {
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     let reading = HashSet::from([path("alpha")]);
@@ -593,4 +478,26 @@ fn a_save_with_nothing_to_write_never_ends_the_save_running_after_it() {
         MetadataStatus::SaveCancelled,
     );
     assert!(!desk.metadata().save_in_progress);
+}
+
+#[test]
+fn a_save_with_nothing_to_write_that_finishes_after_clear_all_leaves_the_empty_session_without_its_status(
+) {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.type_into(MetadataField::Genre, "Mystery");
+    let waiting = desk
+        .state
+        .begin_save(&HashSet::from([path("alpha")]), |_| false)
+        .expect("save");
+    assert!(waiting.immediate.is_empty());
+    let epoch = desk.state.epoch;
+
+    desk.change(|set| {
+        set.clear_all();
+    })
+    .expect("clear all");
+    desk.state
+        .finish_save(epoch, &[], &[], MetadataStatus::NoPendingChanges);
+
+    assert_eq!(desk.metadata().status, None);
 }

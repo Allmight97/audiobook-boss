@@ -111,7 +111,6 @@ describe('app runtime', () => {
 
 		const second = await createAppRuntime({ engine });
 		dispose = () => second.dispose();
-		expect(engine.sessionIntents).not.toContainEqual({ kind: 'reset' });
 		expect(second.input.view().isDragOver).toBe(false);
 		expect(second.input.view().fileCount).toBe(1);
 	});

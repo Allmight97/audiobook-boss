@@ -76,7 +76,7 @@ one host attachment.
 - With no tokio runtime (engine construction) plans stay pending until the next
   change. A download finishing while the list is locked waits for the unlock.
   Source paths are canonical, so match both spellings of the staged root.
-  Tag-cache tokens and revisions keep counting across a reset, so nothing
+  Tag-cache tokens and revisions keep counting across Clear All, so nothing
   issued earlier matches afterward.
 - A new rule belongs in the `state/` child that owns its concept, tested in
   that child's `_tests.rs` through the `Desk` harness in `state_tests.rs`. It
@@ -106,7 +106,7 @@ one host attachment.
 - **Known tags.** The form shows the file's known tags with pending intent
   applied (`tag_cache.rs`), so it never shows a value that Save or processing
   would not send, and never contradicts the file. A source read begun before a
-  save, a removal, or a reset cannot land afterward. Saved values without a
+  save, a removal, or Clear All cannot land afterward. Saved values without a
   source read are partial knowledge: an unknown source value cannot justify
   dropping a Blank.
 - **Titles.** A title is one or more ordered sources and keeps its identity
@@ -116,10 +116,9 @@ one host attachment.
   hidden sources survive grouping, and a grouped title's draft is kept for its
   output and never written into a source.
 - **Import.** One import runs at a time, in the order the imports were accepted
-  (`import_order.rs`), whatever order their tasks start. A Reset drops an import
-  still running, including its failure notice. While the list is locked, an
-  import (and analysis that overlaps a submission) waits and appends after
-  unlock. A path that discovery skips (`audio/AGENTS.md`, Import Discovery)
+  (`import_order.rs`), whatever order their tasks start. While the list is
+  locked, an import (and analysis that overlaps a submission) waits and
+  appends after unlock. A path that discovery skips (`audio/AGENTS.md`, Import Discovery)
   is listed with its reason and the rest is added; the `SkippedPaths` notice
   is set in the transition that lists the titles, after `append_analyzed`
   (which clears the notice).
@@ -145,10 +144,9 @@ one host attachment.
   one file never overlap.
 - **Collision review and restart offers.** `output.collision_review` is the held
   question, independent of a later request's refusal. Its `review_id` advances
-  for each review and survives Reset; choice and cancel intents name it, and
-  stale or duplicate answers are `Superseded`. A Reset during preflight, before
-  a review is held, drops that preflight and unlocks the list. Frontend teardown
-  is not a user cancellation. `output.submission_in_progress` owns the busy
+  for each review and survives Clear All; choice and cancel intents name it, and
+  stale or duplicate answers are `Superseded`. Frontend teardown is not a
+  user cancellation. `output.submission_in_progress` owns the busy
   fact; the frontend also locks the concurrency controls while it is set, and
   the engine refuses a concurrency change while jobs are active
   (`processing/job_registry`).

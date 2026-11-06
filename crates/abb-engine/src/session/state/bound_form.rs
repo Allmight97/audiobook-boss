@@ -179,7 +179,6 @@ impl SessionState {
             notice_serial: self.cover.notice_serial,
             ..Cover::default()
         };
-        self.writes.end_save();
         self.status = None;
     }
 

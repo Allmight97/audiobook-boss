@@ -217,20 +217,6 @@ impl Default for SessionState {
 }
 
 impl SessionState {
-    pub(crate) fn reset(&mut self) {
-        self.cancel_review();
-        self.working_set.reset();
-        self.audio_refusal = None;
-        if self.submitting.is_some() {
-            self.working_set.set_order_locked(true);
-        }
-        self.lookup = LookupState {
-            request: self.lookup.request + 1,
-            ..LookupState::default()
-        };
-        self.reset_metadata();
-    }
-
     pub(crate) fn pending_intents(&self, paths: &[PathBuf]) -> Vec<(PathBuf, MetadataIntentPatch)> {
         paths
             .iter()
