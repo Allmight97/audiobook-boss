@@ -9,7 +9,7 @@ fn title(id: &str, acquirable: bool, pdf: bool) -> RemoteTitle {
         authors: vec![],
         narrators: vec![],
         duration_seconds: None,
-        cover_url: None,
+        cover: None,
         supplemental_pdf_available: pdf,
         acquired: false,
         availability: RemoteTitleAvailability {

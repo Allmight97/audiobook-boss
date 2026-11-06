@@ -7,6 +7,7 @@ use proptest::prelude::*;
 use super::*;
 use crate::audio::{AudioFile, AudioIntent, TitleAudioRequest};
 use crate::metadata::PatchOp;
+use crate::session::cover_address::{tests::host_request, CoverRequest};
 use crate::session::metadata_form::{FieldAction, FieldSnapshot, SeriesPartWarning};
 use crate::session::staged::tests::exported;
 use crate::session::submission::SubmissionStatus;
@@ -197,8 +198,29 @@ impl Desk {
     }
 
     fn cover(&mut self) -> Option<Vec<u8>> {
-        let revision = self.metadata().cover.image_revision;
-        self.state.displayed_cover_at(revision)
+        let image = self.metadata().cover.image?;
+        match CoverRequest::parse(&host_request(&image)) {
+            Ok(CoverRequest::Session { revision }) => self.state.displayed_cover_at(revision),
+            other => panic!("the displayed cover is a session cover: {other:?}"),
+        }
+    }
+
+    fn source_covers(&mut self) -> Vec<(PathBuf, Option<String>)> {
+        self.state.settle();
+        let titles = self.state.update_since(None).titles.expect("titles part");
+        let sources = titles.title_sources_by_identity.into_values().flatten();
+        titles
+            .files
+            .into_iter()
+            .chain(sources)
+            .map(|file| (file.path, file.cover))
+            .collect()
+    }
+
+    fn source_cover(&mut self, name: &str) -> Option<String> {
+        let path = path(name);
+        let covers = self.source_covers();
+        covers.into_iter().find(|(source, _)| *source == path)?.1
     }
 
     /// Saves with no export running. `fail` names files whose write fails.
@@ -1250,6 +1272,9 @@ proptest! {
         mirror.apply(&run.desk.state);
 
         for step in steps {
+            let covers_before: HashMap<PathBuf, Option<String>> =
+                run.desk.source_covers().into_iter().collect();
+            let written_before = run.desk.written.len();
             let pending_before = pending_by_file(&run.desk);
             let losing = matches!(
                 step,
@@ -1262,6 +1287,31 @@ proptest! {
             );
             run.apply(step)?;
             let desk = &mut run.desk;
+
+            // A source's cover address changes exactly when a cover was written
+            // into it, except for the sources of a grouped title.
+            let wrote_cover: HashSet<PathBuf> = desk.written[written_before..]
+                .iter()
+                .filter(|(_, patch)| patch.cover_art.is_some())
+                .map(|(path, _)| path.clone())
+                .collect();
+            let grouped_sources: HashSet<PathBuf> = desk
+                .state
+                .working_set
+                .files()
+                .iter()
+                .map(|file| desk.state.working_set.sources_for(file))
+                .filter(|sources| sources.len() > 1)
+                .flatten()
+                .map(|source| source.path.clone())
+                .collect();
+            for (path, after) in desk.source_covers() {
+                let Some(before) = covers_before.get(&path) else {
+                    continue;
+                };
+                let expected = wrote_cover.contains(&path) && !grouped_sources.contains(&path);
+                prop_assert_eq!(*before != after, expected, "cover address of {:?}", path);
+            }
 
             // An accepted edit stays pending until a write or a removal takes it.
             if !losing {

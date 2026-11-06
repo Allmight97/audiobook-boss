@@ -22,7 +22,6 @@ vi.mock('../../lib/tauri/client', () => ({ tauriClient: native }));
 
 const INPUT_PATH = '/library/Dune.m4b';
 const OUTPUT_DIRECTORY = '/exports/audiobooks';
-const COVER_BYTES = [9, 8, 7, 6];
 
 function importedFile(): AudioFile {
 	return {
@@ -57,7 +56,7 @@ function lookupResult(): OnlineMetadataResult {
 		description: 'The desert planet Arrakis holds the spice.',
 		publishedDate: '1965-08',
 		durationSeconds: 3600,
-		coverUrl: 'https://covers.example.test/dune.jpg',
+		cover: 'remote/0/https%3A%2F%2Fcovers.example.test%2Fdune.jpg',
 		audibleOnly: false,
 	};
 }
@@ -83,7 +82,7 @@ describe('UI workflow intents', () => {
 			if (intent.kind === 'import') {
 				engine.loadTitles(engine.analyze(intent.paths), [0]);
 				engine.seedForm({ title: 'Dune (old tags)', author: 'Old Author' });
-				engine.seedCover([1, 1, 1]);
+				engine.seedCover();
 				return { kind: 'applied' };
 			}
 			if (intent.kind === 'lookupClose') {
@@ -123,7 +122,7 @@ describe('UI workflow intents', () => {
 			}
 			if (intent.kind === 'lookupApply') {
 				engine.seedForm({ title: 'Dune', author: 'Frank Herbert' });
-				engine.seedCover(COVER_BYTES);
+				engine.seedCover();
 				engine.change((state) => {
 					state.lookup = { ...state.lookup, status: { kind: 'applied', coverFailed: false } };
 				});

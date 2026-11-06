@@ -33,25 +33,91 @@ fn with_nothing_selected_the_first_valid_title_cover_shows() {
 }
 
 #[test]
-fn a_saved_cover_gives_source_covers_a_new_address_and_a_tag_edit_does_not() {
-    let covers_revision = |desk: &mut Desk| {
-        desk.state.settle();
-        desk.state
-            .update_since(None)
-            .titles
-            .expect("titles")
-            .covers_revision
-    };
-    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
-    let before = covers_revision(&mut desk);
+fn saving_one_cover_changes_only_that_source_address() {
+    let mut desk = Desk::open(
+        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
+        &[0],
+    );
+    let (alpha, beta) = (desk.source_cover("alpha"), desk.source_cover("beta"));
+    assert!(alpha.is_some() && beta.is_some());
 
     desk.type_into(MetadataField::Genre, "Mystery");
     desk.save(&[]).expect("tag save");
-    assert_eq!(covers_revision(&mut desk), before);
+    assert_eq!(desk.source_cover("alpha"), alpha);
 
     desk.state.apply_cover(vec![1]);
     desk.save(&[]).expect("cover save");
-    assert!(covers_revision(&mut desk) > before);
+    assert_ne!(desk.source_cover("alpha"), alpha);
+    assert_eq!(desk.source_cover("beta"), beta);
+}
+
+#[test]
+fn a_source_never_offers_an_address_it_offered_for_another_image() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    let mut offered = vec![desk.source_cover("alpha")];
+    for byte in [1, 2] {
+        desk.state.apply_cover(vec![byte]);
+        desk.save(&[]).expect("cover save");
+        offered.push(desk.source_cover("alpha"));
+    }
+
+    desk.change(|set| {
+        set.remove_file(0);
+    })
+    .expect("remove");
+    desk.import(&[("alpha", Some(alpha_tags()))]);
+    assert_eq!(
+        desk.source_cover("alpha"),
+        offered.last().cloned().flatten()
+    );
+
+    let distinct: HashSet<_> = offered.iter().collect();
+    assert_eq!(distinct.len(), offered.len());
+}
+
+#[test]
+fn a_cover_written_after_its_title_was_grouped_leaves_the_anchor_address_alone() {
+    let mut desk = Desk::open(
+        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
+        &[0],
+    );
+    desk.state.apply_cover(vec![1]);
+    let reading = HashSet::from([path("alpha")]);
+    desk.save_during(&reading, &[], &[]).expect("save waits");
+    desk.select(&[0, 1]).expect("select both");
+    desk.change(|set| {
+        set.group_selected();
+    })
+    .expect("group");
+    let anchor = desk.source_cover("alpha");
+
+    desk.exports_now_reading(&HashSet::new());
+
+    assert_eq!(desk.written.len(), 1, "the waiting write ran");
+    assert_eq!(desk.source_cover("alpha"), anchor);
+}
+
+#[test]
+fn the_offered_covers_parse_back_to_the_sources_and_the_cover_on_screen() {
+    let mut desk = Desk::open(
+        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
+        &[0],
+    );
+    desk.state.apply_cover(vec![1]);
+    desk.save(&[]).expect("cover save");
+
+    for (source, cover) in desk.source_covers() {
+        let request = CoverRequest::parse(&host_request(&cover.expect("a valid source")));
+        assert_eq!(
+            request.expect("parses"),
+            CoverRequest::Audio { path: source }
+        );
+    }
+    let image = desk.metadata().cover.image.expect("a cover shows");
+    assert!(matches!(
+        CoverRequest::parse(&host_request(&image)),
+        Ok(CoverRequest::Session { .. })
+    ));
 }
 
 #[test]

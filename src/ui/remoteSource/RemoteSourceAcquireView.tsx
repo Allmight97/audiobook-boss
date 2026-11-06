@@ -24,11 +24,7 @@ function RemoteTitleCover(props: { readonly title: RemoteTitle }): JSX.Element {
 	return (
 		<CoverThumb class="remote-title-cover" testId="remote-title-cover">
 			<CoverImage
-				src={
-					props.title.coverUrl
-						? coverSrc({ kind: 'remote', url: props.title.coverUrl, size: 'small' })
-						: null
-				}
+				src={props.title.cover ? coverSrc(props.title.cover) : null}
 				alt={`${props.title.title} cover art`}
 				testId="remote-title-cover-image"
 				missing={<span data-testid="remote-title-cover-missing">No Art</span>}

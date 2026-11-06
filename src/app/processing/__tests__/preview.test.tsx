@@ -8,6 +8,8 @@ import { createFakeEngine } from '../../../test/fixtures/fakeEngine';
 import type { SessionOutput } from '../../../types/session';
 import { createAppRuntime, type AppRuntime } from '../../runtime';
 
+const PREVIEW_COVER = 'preview/0/preview-1';
+
 function preview(): NonNullable<SessionOutput['previewRun']> {
 	const progress = {
 		stage: 'converting' as const,
@@ -21,7 +23,7 @@ function preview(): NonNullable<SessionOutput['previewRun']> {
 	};
 	return {
 		openReady: false,
-		artworkReady: true,
+		cover: PREVIEW_COVER,
 		operation: {
 			operationId: 'preview-1',
 			sequence: 0,
@@ -95,9 +97,7 @@ describe('engine preview adapter', () => {
 		expect(screen.getByRole('button', { name: /^Cancel$/ })).toBeEnabled();
 
 		await vi.waitFor(() =>
-			expect(first.processing.status().coverArtSrc).toBe(
-				coverSrc({ kind: 'preview', runId: 'preview-1' }),
-			),
+			expect(first.processing.status().coverArtSrc).toBe(coverSrc(PREVIEW_COVER)),
 		);
 		first.dispose();
 		const replacement = createAppRuntime({ engine });
@@ -156,7 +156,7 @@ describe('engine preview adapter', () => {
 		const complete = preview();
 		complete.operation.status = 'completed';
 		complete.openReady = true;
-		complete.artworkReady = false;
+		complete.cover = null;
 		engine.change((state) => {
 			state.output.previewRun = complete;
 		});
@@ -169,7 +169,7 @@ describe('engine preview adapter', () => {
 		cancelled.operation.operationId = 'preview-2';
 		cancelled.operation.status = 'cancelled';
 		cancelled.operation.cancelRequested = true;
-		cancelled.artworkReady = false;
+		cancelled.cover = null;
 		engine.change((state) => {
 			state.output.previewRun = cancelled;
 			state.output.submissionInProgress = false;

@@ -175,7 +175,7 @@ describe('metadata owner', () => {
 		const app = await open();
 		engine.respond = (intent) => {
 			if (intent.kind !== 'loadCoverFromDrop') return undefined;
-			engine.seedCover([1, 2, 3]);
+			engine.seedCover();
 			return { kind: 'applied' };
 		};
 
@@ -186,16 +186,14 @@ describe('metadata owner', () => {
 			paths: ['/art/readme.txt', '/art/cover.PNG'],
 		});
 		await vi.waitFor(() => expect(app.metadata.view().cover.imageSrc).not.toBeNull());
-		expect(app.metadata.view().cover.imageSrc).toMatch(
-			coverSrc({ kind: 'session', revision: 0 }).replace(/0%2F$/, ''),
-		);
+		expect(app.metadata.view().cover.imageSrc).toBe(coverSrc('session/1/'));
 		expect(app.metadata.view().cover.hasCustomCoverArt).toBe(true);
 		const shown = app.metadata.view().cover.imageSrc;
 		app.metadata.setFieldValue({ inputId: 'meta-genre', value: 'Mystery' });
 		await vi.waitFor(() => expect(app.metadata.view().form.fields['meta-genre'].dirty).toBe(true));
 		expect(app.metadata.view().cover.imageSrc).toBe(shown);
 
-		engine.seedCover([4, 5, 6]);
+		engine.seedCover();
 		await vi.waitFor(() => expect(app.metadata.view().cover.imageSrc).not.toBe(shown));
 	});
 
@@ -204,7 +202,7 @@ describe('metadata owner', () => {
 		vi.useFakeTimers();
 		engine.respond = (intent) => {
 			if (intent.kind !== 'loadCoverFromUrl') return undefined;
-			engine.seedCover([1, 2, 3], { kind: 'loadedFromUrl' });
+			engine.seedCover({ kind: 'loadedFromUrl' });
 			return { kind: 'applied' };
 		};
 

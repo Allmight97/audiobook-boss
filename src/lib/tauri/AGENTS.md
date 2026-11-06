@@ -52,7 +52,7 @@ own module test.
 - `subscriptionGroup.ts` (`createSubscriptionGroup`) owns Tauri event-unlisten
   teardown and the dispose and late-arrival race. Views collect unlisteners
   through a group.
-- `coverSrc.ts` builds the `abb-cover` address of every cover a view shows. The
-  host serves the scheme through `Engine::cover`, so covers never cross IPC as
-  bytes. Its path format mirrors `crates/abb-engine/src/session/cover_request.rs`
-  by hand; change both, with their tests, together.
+- `coverSrc.ts` turns a cover address the engine offers into the `abb-cover`
+  source an `<img>` loads; the scheme is the host's. The engine builds and
+  parses the address (`session/cover_address.rs`), the host serves the scheme
+  through `Engine::cover`, and covers never cross IPC as bytes.

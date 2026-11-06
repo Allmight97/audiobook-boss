@@ -144,7 +144,17 @@ impl LookupState {
                 total: self.queue.len(),
                 path: title.path.clone(),
             }),
-            results: self.results.clone(),
+            results: self
+                .results
+                .iter()
+                .map(|result| OnlineMetadataResult {
+                    cover: result
+                        .cover_url
+                        .as_deref()
+                        .map(super::cover_address::remote),
+                    ..result.clone()
+                })
+                .collect(),
             is_queue_mode: self.queue.len() > 1,
             has_searched: self.has_searched,
         }

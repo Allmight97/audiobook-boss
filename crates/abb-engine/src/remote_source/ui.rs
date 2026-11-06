@@ -987,12 +987,12 @@ impl RemoteSourceRuntime {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
-    pub(crate) fn library_offers_cover(&self, url: &str) -> bool {
+    pub(crate) fn library_offers_cover(&self, cover: &str) -> bool {
         self.ui()
             .library
             .titles
             .iter()
-            .any(|title| title.cover_url.as_deref() == Some(url))
+            .any(|title| title.cover.as_deref() == Some(cover))
     }
     pub(crate) fn ui_begin(&self, intent: RemoteUiIntent) -> RemoteUiRun {
         let action = if matches!(intent, RemoteUiIntent::SaveConnection) {

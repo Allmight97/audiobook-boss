@@ -63,6 +63,7 @@ fn a_result_supplies_only_the_fields_it_has() {
         published_date: Some("1965".to_string()),
         duration_seconds: None,
         cover_url: None,
+        cover: None,
         audible_only: None,
     };
 

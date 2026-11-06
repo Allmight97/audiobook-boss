@@ -44,7 +44,7 @@ function engineWithTaggedBooks({ cover = true } = {}): FakeEngine {
 		engine.seedForm(form);
 		if (cover)
 			engine.change((state) => {
-				state.metadata.cover.present = true;
+				state.metadata.cover.image = 'session/1/';
 			});
 		return { kind: 'applied' };
 	};

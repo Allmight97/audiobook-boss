@@ -32,12 +32,9 @@ async fn only(desk: &Desk, name: &str) {
     assert_eq!(outcome, SessionOutcome::Applied);
 }
 
-fn covers_revision(desk: &Desk) -> u64 {
-    desk.engine
-        .session_snapshot()
-        .titles
-        .expect("titles")
-        .covers_revision
+fn listed_cover(desk: &Desk) -> Option<String> {
+    let titles = desk.engine.session_snapshot().titles.expect("titles");
+    titles.files.into_iter().next().and_then(|file| file.cover)
 }
 
 fn tags(path: &Path) -> AudiobookMetadata {
@@ -169,7 +166,8 @@ async fn a_cover_loaded_and_then_cleared_through_the_session_is_on_and_then_off_
         .await;
     desk.import(&book).await;
     assert!(tags(&book).cover_art.is_none());
-    let before_cover = covers_revision(&desk);
+    let before_cover = listed_cover(&desk);
+    assert!(before_cover.is_some());
 
     let custom = desk.root.path().join("custom.png");
     image::RgbImage::from_pixel(1, 1, image::Rgb([180, 20, 90]))
@@ -188,9 +186,9 @@ async fn a_cover_loaded_and_then_cleared_through_the_session_is_on_and_then_off_
         tags(&book).cover_art.is_some(),
         "the chosen cover is in the file"
     );
-    let after_cover = covers_revision(&desk);
-    assert!(
-        after_cover > before_cover,
+    let after_cover = listed_cover(&desk);
+    assert_ne!(
+        after_cover, before_cover,
         "a saved cover moves the cover address"
     );
 
@@ -206,9 +204,10 @@ async fn a_cover_loaded_and_then_cleared_through_the_session_is_on_and_then_off_
         "the cleared cover is off the file"
     );
     assert_eq!(cleared.genre.as_deref(), Some("Mystery"));
-    assert!(!desk.metadata().cover.present);
-    assert!(
-        covers_revision(&desk) > after_cover,
+    assert!(desk.metadata().cover.image.is_none());
+    assert_ne!(
+        listed_cover(&desk),
+        after_cover,
         "a cleared cover moves the cover address"
     );
 }

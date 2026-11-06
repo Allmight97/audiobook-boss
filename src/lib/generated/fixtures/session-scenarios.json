@@ -26,7 +26,6 @@
           "titles": {
             "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
                 "bitrate": 705600,
@@ -38,6 +37,7 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Falpha.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
@@ -65,6 +65,7 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fbeta.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
@@ -88,6 +89,7 @@
                 "chapterPlan": null,
                 "chapters": [],
                 "codecLabel": null,
+                "cover": null,
                 "cueSource": null,
                 "duration": null,
                 "error": "FFmpeg error: Invalid data found when processing input",
@@ -131,11 +133,10 @@
             "binding": 1,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
               "noticeSerial": 0,
-              "present": false,
               "removalRequested": false
             },
             "form": {
@@ -270,11 +271,10 @@
             "binding": 2,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
               "noticeSerial": 0,
-              "present": false,
               "removalRequested": false
             },
             "form": {
@@ -405,11 +405,10 @@
             "binding": 3,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
               "noticeSerial": 0,
-              "present": false,
               "removalRequested": false
             },
             "form": {
@@ -543,11 +542,10 @@
             "binding": 3,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
               "noticeSerial": 0,
-              "present": false,
               "removalRequested": false
             },
             "form": {
@@ -673,11 +671,10 @@
             "binding": 3,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
               "noticeSerial": 0,
-              "present": false,
               "removalRequested": false
             },
             "form": {
@@ -801,11 +798,10 @@
             "binding": 4,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
               "noticeSerial": 0,
-              "present": false,
               "removalRequested": false
             },
             "form": {
@@ -949,7 +945,6 @@
           "titles": {
             "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
                 "bitrate": 705600,
@@ -961,6 +956,7 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Falpha.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
@@ -988,6 +984,7 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fbeta.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
@@ -1015,6 +1012,7 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fgamma.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
@@ -1060,11 +1058,10 @@
             "binding": 1,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
               "noticeSerial": 0,
-              "present": false,
               "removalRequested": false
             },
             "form": {
@@ -1207,7 +1204,6 @@
           "titles": {
             "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
                 "bitrate": 705600,
@@ -1219,6 +1215,7 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fbeta.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
@@ -1246,6 +1243,7 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fgamma.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
@@ -1286,11 +1284,10 @@
             "binding": 2,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
               "noticeSerial": 0,
-              "present": false,
               "removalRequested": false
             },
             "form": {
@@ -1405,7 +1402,6 @@
           "titles": {
             "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [],
             "notice": null,
             "orderDiffersFromImport": false,
@@ -1437,11 +1433,10 @@
             "binding": 1,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
               "noticeSerial": 0,
-              "present": false,
               "removalRequested": false
             },
             "form": {
@@ -1558,7 +1553,6 @@
           "titles": {
             "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
                 "bitrate": 705600,
@@ -1570,6 +1564,7 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Falpha.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
@@ -1619,7 +1614,6 @@
           "titles": {
             "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
                 "bitrate": 705600,
@@ -1631,6 +1625,7 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Falpha.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
@@ -1683,7 +1678,6 @@
           "titles": {
             "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
                 "bitrate": 705600,
@@ -1695,6 +1689,7 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Falpha.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
@@ -1722,6 +1717,7 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fbeta.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,

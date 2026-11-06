@@ -12,7 +12,7 @@ pub struct PreviewSnapshot {
     pub operation: OperationSnapshot,
     /// A successful single preview may be claimed for opening once, across hosts.
     pub open_ready: bool,
-    pub artwork_ready: bool,
+    pub cover: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -71,11 +71,14 @@ impl Preview {
     }
 
     pub(crate) fn snapshot(&self) -> Option<PreviewSnapshot> {
-        let operation = self.state.operation(self.id.as_ref()?.as_str())?.clone();
+        let id = self.id.as_ref()?;
+        let operation = self.state.operation(id.as_str())?.clone();
         Some(PreviewSnapshot {
             operation,
             open_ready: self.open_path.is_some(),
-            artwork_ready: self.artwork_ready,
+            cover: self
+                .artwork_ready
+                .then(|| super::cover_address::preview(id.as_str())),
         })
     }
 

@@ -241,15 +241,7 @@ export function FileListView(props: {
 										</button>
 										<div class="file-cover-thumbnail" aria-hidden="true">
 											<CoverImage
-												src={
-													file.isValid
-														? coverSrc({
-																kind: 'audio',
-																path: file.path,
-																revision: view().coversRevision,
-															})
-														: null
-												}
+												src={file.cover ? coverSrc(file.cover) : null}
 												alt=""
 												missing={<span>Art</span>}
 											/>

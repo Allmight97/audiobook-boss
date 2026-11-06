@@ -1,83 +1,11 @@
-//! The covers the session's views show, served by request. A host passes
-//! the request path on unchanged: `<kind>/<size>/<revision>/<value>`,
-//! percent-encoded as a whole and `value` again inside it. Only covers the
-//! session handed out are served: a lookup result's or a library title's
-//! URL, a listed source's embedded cover, the cover on screen, and the
-//! running preview's artwork.
+//! Serves the covers the session offers, by the request a host passes on
+//! unchanged (`cover_address.rs` owns the format).
 
-use std::path::PathBuf;
-
-use percent_encoding::percent_decode_str;
-
+use super::super::cover_address::{self, unknown, CoverRequest};
 use super::super::preview::PreviewArtwork;
 use super::Session;
 use crate::cover_service::Cover;
 use crate::errors::{AppError, Result};
-
-#[derive(Debug, PartialEq, Eq)]
-enum CoverRequest {
-    Remote { url: String, small: bool },
-    Audio { path: PathBuf },
-    Session { revision: u64 },
-    Preview { run_id: String },
-}
-
-impl CoverRequest {
-    fn parse(request: &str) -> Result<Self> {
-        let decoded = decode(request.trim_start_matches('/'))?;
-        let mut parts = decoded.splitn(4, '/');
-        let (Some(kind), Some(size), Some(revision), Some(value)) =
-            (parts.next(), parts.next(), parts.next(), parts.next())
-        else {
-            return Err(unknown());
-        };
-        let value = decode(value)?;
-        let small = match size {
-            "small" => true,
-            "full" => false,
-            _ => return Err(unknown()),
-        };
-        match (kind, small) {
-            ("remote", _) => Ok(Self::Remote { url: value, small }),
-            ("audio", true) => Ok(Self::Audio {
-                path: PathBuf::from(value),
-            }),
-            ("session", false) => Ok(Self::Session {
-                revision: revision.parse().map_err(|_| unknown())?,
-            }),
-            ("preview", true) => Ok(Self::Preview { run_id: value }),
-            _ => Err(unknown()),
-        }
-    }
-
-    /// The request for a log line: its kind, and a remote cover's origin
-    /// only, never a file path or a full address.
-    fn describe(&self) -> String {
-        match self {
-            Self::Remote { url, small } => {
-                let origin = reqwest::Url::parse(url)
-                    .map(|url| url.origin().ascii_serialization())
-                    .unwrap_or_else(|_| "invalid".into());
-                let size = if *small { "small" } else { "full" };
-                format!("remote_{size} origin={origin}")
-            }
-            Self::Audio { .. } => "audio_small".into(),
-            Self::Session { .. } => "session_full".into(),
-            Self::Preview { .. } => "preview_small".into(),
-        }
-    }
-}
-
-fn decode(text: &str) -> Result<String> {
-    percent_decode_str(text)
-        .decode_utf8()
-        .map(std::borrow::Cow::into_owned)
-        .map_err(|_| unknown())
-}
-
-fn unknown() -> AppError {
-    AppError::InvalidInput("That cover is not one ABB is showing.".into())
-}
 
 impl Session {
     pub(crate) async fn cover(&self, request: &str) -> Result<Option<Cover>> {
@@ -95,16 +23,11 @@ impl Session {
     async fn serve_cover(&self, request: &CoverRequest) -> Result<Option<Cover>> {
         let covers = &self.inner.network.covers;
         match request {
-            CoverRequest::Remote { url, small } => {
+            CoverRequest::Remote { url } => {
                 if !self.offers_remote_cover(url) {
                     return Err(unknown());
                 }
-                let cover = if *small {
-                    covers.remote_small(url).await?
-                } else {
-                    covers.remote_full(url).await?
-                };
-                Ok(Some(cover))
+                Ok(Some(covers.remote_small(url).await?))
             }
             CoverRequest::Audio { path } => {
                 let path = crate::audio::validate_input_audio_path(path)?;
@@ -121,7 +44,9 @@ impl Session {
     }
 
     fn offers_remote_cover(&self, url: &str) -> bool {
-        self.lock().lookup_offers_cover(url) || self.inner.deps.remote.library_offers_cover(url)
+        let address = cover_address::remote(url);
+        self.lock().lookup_offers_cover(url)
+            || self.inner.deps.remote.library_offers_cover(&address)
     }
 
     async fn preview_cover(&self, run_id: &str) -> Result<Option<Cover>> {
@@ -148,7 +73,3 @@ impl Session {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "cover_request_tests.rs"]
-mod tests;

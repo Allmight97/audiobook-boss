@@ -1,5 +1,8 @@
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
+use super::super::cover_address;
+use super::super::working_set::TitlesSnapshot;
 use super::{CoverNotice, SessionState};
 use crate::audio::AudioFile;
 use crate::errors::{AppError, AppErrorEnvelope};
@@ -16,6 +19,38 @@ pub(super) struct Cover {
     pub(super) displayed: Option<Vec<u8>>,
     pub(super) image_revision: u64,
     pub(super) request: u64,
+}
+
+/// The revision of every source's cover address. A Save that writes a cover
+/// into a source gives it the next number of one counter, and an entry is
+/// never dropped, so no address is offered twice for different images.
+#[derive(Debug, Default)]
+pub(super) struct SourceCovers {
+    written: u64,
+    published: u64,
+    revisions: HashMap<PathBuf, u64>,
+}
+
+impl SourceCovers {
+    pub(super) fn record_write(&mut self, path: &Path) {
+        self.written += 1;
+        self.revisions.insert(path.to_path_buf(), self.written);
+    }
+
+    pub(super) fn unpublished(&self) -> bool {
+        self.written != self.published
+    }
+
+    pub(super) fn publish(&mut self, titles: &mut TitlesSnapshot) {
+        self.published = self.written;
+        let sources = titles.title_sources_by_identity.values_mut().flatten();
+        for file in titles.files.iter_mut().chain(sources) {
+            file.cover = file.is_valid.then(|| {
+                let revision = self.revisions.get(&file.path).copied().unwrap_or(0);
+                cover_address::audio(&file.path, revision)
+            });
+        }
+    }
 }
 
 impl SessionState {
@@ -86,6 +121,23 @@ impl SessionState {
             .chain(self.working_set.files())
             .find(|file| file.is_valid)
             .map(|file| file.path.clone())
+    }
+
+    pub(super) fn cover_written(&mut self, path: &Path) {
+        let in_group = self.working_set.files().iter().any(|file| {
+            let sources = self.working_set.sources_for(file);
+            sources.len() > 1 && sources.iter().any(|source| source.path == path)
+        });
+        if !in_group {
+            self.source_covers.record_write(path);
+        }
+    }
+
+    pub(super) fn displayed_cover_address(&self) -> Option<String> {
+        self.cover
+            .displayed
+            .is_some()
+            .then(|| cover_address::session(self.cover.image_revision))
     }
 
     pub(crate) fn displayed_cover_at(&self, revision: u64) -> Option<Vec<u8>> {

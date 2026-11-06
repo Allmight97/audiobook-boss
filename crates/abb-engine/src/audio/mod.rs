@@ -49,6 +49,9 @@ pub struct AudioFile {
     /// An exported download that ABB removed. The title is finished, not failed.
     pub source_removed: bool,
     pub error: Option<String>,
+    /// The address of this source's embedded cover, set by the session on
+    /// the sources it lists; absent when the source is not valid.
+    pub cover: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
@@ -95,6 +98,7 @@ impl AudioFile {
             cue_source: None,
             is_valid: false,
             source_removed: false,
+            cover: None,
             error: None,
         }
     }

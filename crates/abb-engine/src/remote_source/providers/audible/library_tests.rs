@@ -27,8 +27,10 @@ fn parse_library_titles_extracts_pdf_availability_without_raw_payload_leak() {
     assert_eq!(title.narrators, vec!["Narrator One"]);
     assert_eq!(title.duration_seconds, Some(5_400));
     assert_eq!(
-        title.cover_url.as_deref(),
-        Some("https://example.test/cover.jpg")
+        title.cover,
+        Some(crate::session::cover_remote_address(
+            "https://example.test/cover.jpg"
+        ))
     );
     assert!(title.supplemental_pdf_available);
     assert_eq!(

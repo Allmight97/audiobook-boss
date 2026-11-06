@@ -28,7 +28,7 @@ function lookupResult(): OnlineMetadataResult {
 		publishedDate: '2020-07',
 		durationSeconds: 3600,
 		audibleOnly: false,
-		coverUrl: 'https://example.com/cover.jpg',
+		cover: 'remote/0/https%3A%2F%2Fexample.com%2Fcover.jpg',
 	};
 }
 

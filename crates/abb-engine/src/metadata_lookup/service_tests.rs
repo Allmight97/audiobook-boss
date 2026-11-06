@@ -20,6 +20,7 @@ fn make_result_with_authors(
         published_date: None,
         duration_seconds: None,
         cover_url: None,
+        cover: None,
         audible_only: None,
     }
 }

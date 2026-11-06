@@ -67,12 +67,9 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			renderPreview(statusView, preview, (child) => cancelPreview(child));
 			if (!preview) return;
 			const id = preview.operation.operationId;
-			const key = `${id}:${preview.artworkReady}`;
-			if (artworkKey !== key) {
-				artworkKey = key;
-				statusView.setCoverArtSrc(
-					preview.artworkReady ? coverSrc({ kind: 'preview', runId: id }) : null,
-				);
+			if (artworkKey !== preview.cover) {
+				artworkKey = preview.cover;
+				statusView.setCoverArtSrc(preview.cover ? coverSrc(preview.cover) : null);
 			}
 			if (preview.openReady && claiming !== id) {
 				claiming = id;

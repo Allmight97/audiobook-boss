@@ -52,8 +52,9 @@ One bullet per view. A view without a bullet has no trap beyond its owner.
   Native cover-art drops go to Metadata `applyCoverArtDrop`. The engine imports
   files the OS opens and files remote acquisition fetches.
 - `metadataLookup`: the dialog is a decision surface, so result covers load
-  eagerly (`CoverImage eager`). Covers load from `coverSrc` addresses; a
-  provider-controlled URL never goes into a DOM attribute.
+  eagerly (`CoverImage eager`). Covers load from the `cover` addresses the
+  engine offers, through `coverSrc`; a provider-controlled URL never goes into
+  a DOM attribute.
 - `remoteSource`: one dialog switches the Audible and Indexer lanes. Acquisition
   progress shows in the Audible lane only. Plain click replaces the selection;
   Cmd or Ctrl-click toggles one release. Grab All counts selections hidden by

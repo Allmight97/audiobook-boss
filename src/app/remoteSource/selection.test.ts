@@ -14,7 +14,7 @@ function remoteTitle(overrides: Partial<RemoteTitle> = {}): RemoteTitle {
 		authors: ['Example Author'],
 		narrators: ['Example Narrator'],
 		durationSeconds: 3600,
-		coverUrl: undefined,
+		cover: undefined,
 		supplementalPdfAvailable: false,
 		acquired: false,
 		availability: {

@@ -1,5 +1,7 @@
 mod audio;
 mod audio_choice;
+mod cover_address;
+pub(crate) use cover_address::remote as cover_remote_address;
 mod exports;
 mod import_order;
 mod intent;

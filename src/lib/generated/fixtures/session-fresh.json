@@ -318,11 +318,10 @@
     "binding": 0,
     "cover": {
       "custom": false,
-      "imageRevision": 0,
+      "image": null,
       "loading": false,
       "notice": null,
       "noticeSerial": 0,
-      "present": false,
       "removalRequested": false
     },
     "form": {
@@ -517,7 +516,6 @@
   "titles": {
     "audioChoiceRequired": [],
     "companions": {},
-    "coversRevision": 0,
     "files": [],
     "notice": null,
     "orderDiffersFromImport": false,

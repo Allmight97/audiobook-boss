@@ -18,7 +18,7 @@ function coverResult(source: 'audnexus' | 'openlibrary', name: string): OnlineMe
 		publishedDate: '2020-07',
 		durationSeconds: 3600,
 		audibleOnly: false,
-		coverUrl: `https://covers.example.com/${name}-cover.jpg`,
+		cover: `remote/0/${encodeURIComponent(`https://covers.example.com/${name}-cover.jpg`)}`,
 	};
 }
 
@@ -67,12 +67,8 @@ describe('MetadataLookup cover preview', () => {
 				'[data-testid="metadata-lookup-cover-image"]',
 			);
 			expect([...images].map((image) => image.getAttribute('src'))).toEqual(
-				['private', 'loopback'].map((name) =>
-					coverSrc({
-						kind: 'remote',
-						url: `https://covers.example.com/${name}-cover.jpg`,
-						size: 'small',
-					}),
+				[coverResult('audnexus', 'private'), coverResult('openlibrary', 'loopback')].map((result) =>
+					coverSrc(result.cover!),
 				),
 			);
 		});

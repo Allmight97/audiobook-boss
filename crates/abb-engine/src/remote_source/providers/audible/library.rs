@@ -37,7 +37,9 @@ fn parse_title(value: &Value) -> Option<RemoteTitle> {
         duration_seconds: find_first_u64_for_key(value, "runtime_length_min")
             .map(|minutes| minutes.saturating_mul(60) as u32)
             .or_else(|| find_first_u64_for_key(value, "duration").map(|duration| duration as u32)),
-        cover_url: title_cover_url(value),
+        cover: title_cover_url(value)
+            .as_deref()
+            .map(crate::session::cover_remote_address),
         supplemental_pdf_available: find_first_string_for_key(value, "pdf_url").is_some()
             || find_first_string_for_key(value, "pdfUrl").is_some(),
         acquired: false,

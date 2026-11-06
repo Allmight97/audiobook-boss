@@ -205,6 +205,11 @@ export type AudioFile = {
 	/**  An exported download that ABB removed. The title is finished, not failed. */
 	sourceRemoved: boolean,
 	error: string | null,
+	/**
+	 *  The address of this source's embedded cover, set by the session on
+	 *  the sources it lists; absent when the source is not valid.
+	 */
+	cover: string | null,
 };
 
 export type AudioHandling = { handling: "encode"; settings: EncoderSettings } | { handling: "preserve" };
@@ -317,12 +322,8 @@ export type ConcurrencySnapshot = {
 export type CoverNotice = { kind: "urlRequired" } | { kind: "loadedFromUrl" } | { kind: "loadFailed"; error: AppErrorEnvelope };
 
 export type CoverSnapshot = {
-	/**
-	 *  Advances whenever the displayed image changes; fetch the bytes with
-	 *  the session's cover query.
-	 */
-	imageRevision: number,
-	present: boolean,
+	/**  The address of the displayed image; absent when there is none. */
+	image: string | null,
 	/**  The user replaced the cover and has not saved or staged it yet. */
 	custom: boolean,
 	removalRequested: boolean,
@@ -634,7 +635,8 @@ export type OnlineMetadataResult = {
 	description: string | null,
 	publishedDate: string | null,
 	durationSeconds: number | null,
-	coverUrl: string | null,
+	/**  The address of this result's cover, set by the session that offers it. */
+	cover: string | null,
 	audibleOnly: boolean | null,
 };
 
@@ -804,7 +806,7 @@ export type PreviewSnapshot = {
 	operation: OperationSnapshot,
 	/**  A successful single preview may be claimed for opening once, across hosts. */
 	openReady: boolean,
-	artworkReady: boolean,
+	cover: string | null,
 };
 
 export type ProcessCommandResult = {
@@ -962,7 +964,8 @@ export type RemoteTitle = {
 	authors: string[],
 	narrators: string[],
 	durationSeconds: number | null,
-	coverUrl: string | null,
+	/**  The address of this title's cover. */
+	cover: string | null,
 	supplementalPdfAvailable: boolean,
 	acquired: boolean,
 	availability: RemoteTitleAvailability,
@@ -1368,11 +1371,6 @@ export type TitlesSnapshot = {
 	orderDiffersFromImport: boolean,
 	/**  Companion PDF names of downloaded titles, by input id. */
 	companions: { [key in string]: string[] },
-	/**
-	 *  Advances whenever a Save writes a cover into a source, so an address
-	 *  for a source's cover names its current image.
-	 */
-	coversRevision: number,
 };
 
 export type WorkOperationStatus = "accepted" | "running" | "cancelling" | "completed" | "cancelled" | "failed" | "mixed";

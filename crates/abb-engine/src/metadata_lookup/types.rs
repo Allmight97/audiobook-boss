@@ -45,6 +45,9 @@ pub struct OnlineMetadataResult {
     pub description: Option<String>,
     pub published_date: Option<String>,
     pub duration_seconds: Option<u32>,
+    #[serde(skip)]
     pub cover_url: Option<String>,
+    /// The address of this result's cover, set by the session that offers it.
+    pub cover: Option<String>,
     pub audible_only: Option<bool>,
 }

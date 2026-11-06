@@ -31,8 +31,15 @@ one host attachment.
 - The metadata part carries `binding`, which advances whenever the form binds
   to a different selection. A host shows typing the engine has not yet
   confirmed only on the form it was typed into.
-- Covers are not in a snapshot. `Engine::cover` serves the kinds
-  `cover_request.rs` lists and refuses anything else. Loading is
+- Covers are not in a snapshot as bytes. Each view that offers a cover
+  carries its address as an opaque string: a source on `AudioFile`, a lookup
+  result, an Audible library title, the cover on screen, the preview.
+  `cover_address.rs` builds every address and parses it back; a source's
+  revision is the session-wide count of cover writes when its own cover was
+  last written, and no entry is dropped, so an address never names two images.
+  A grouped title's sources take no revision from a write that finishes after
+  grouping. `Engine::cover` serves the addresses a session offered through
+  `cover_request.rs` and refuses anything else. Loading is
   `crate::cover_service`'s. Reasons and statuses are typed; the host words them.
 
 ## Where A Rule Goes

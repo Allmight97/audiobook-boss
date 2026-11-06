@@ -65,15 +65,17 @@ export function defaultAppSettings(): AppSettings {
 }
 
 export function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
+	const isValid = overrides.isValid ?? true;
 	return {
 		inputId: path,
 		path,
 		size: 1024,
 		duration: 60,
 		format: 'm4b',
-		isValid: true,
+		isValid,
 		sourceRemoved: false,
 		chapters: [],
+		cover: isValid ? `audio/0/${encodeURIComponent(path)}` : undefined,
 		...overrides,
 	};
 }
@@ -107,7 +109,7 @@ export type FakeEngine = EngineCapability & {
 			readonly selectionCount?: number;
 		},
 	): void;
-	seedCover(bytes: number[], notice?: CoverNotice): void;
+	seedCover(notice?: CoverNotice): void;
 	seedTitleAudio(
 		titleId: string,
 		request: TitleAudioRequest,
@@ -131,6 +133,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		...structuredClone(recordedFresh.settings),
 		settings: structuredClone(initialSettings),
 	};
+	let coverRevision = 0;
 	let nextSessionSequence = 0;
 	let nextSettingsSequence = 0;
 
@@ -264,13 +267,13 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			};
 			publish();
 		},
-		seedCover(bytes, notice) {
+		seedCover(notice) {
 			const cover = state.metadata.cover;
+			coverRevision += 1;
 			state.metadata.cover = {
 				...cover,
-				present: bytes.length > 0,
+				image: `session/${coverRevision}/`,
 				custom: true,
-				imageRevision: cover.imageRevision + 1,
 				notice: notice ?? cover.notice,
 				noticeSerial: notice ? cover.noticeSerial + 1 : cover.noticeSerial,
 			};

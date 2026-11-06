@@ -16,8 +16,6 @@ export type InputView = {
 	readonly fileCount: number;
 	readonly hasFiles: boolean;
 	readonly orderLocked: boolean;
-	/** Advances when a Save writes a cover into a source; part of its address. */
-	readonly coversRevision: number;
 	readonly errorMessage: string;
 	readonly isDragOver: boolean;
 	readonly supportText: string;

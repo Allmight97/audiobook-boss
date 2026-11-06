@@ -189,9 +189,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		return {
 			form,
 			cover: {
-				imageSrc: metadata.cover.present
-					? coverSrc({ kind: 'session', revision: metadata.cover.imageRevision })
-					: null,
+				imageSrc: metadata.cover.image ? coverSrc(metadata.cover.image) : null,
 				isLoading: metadata.cover.loading,
 				message: coverMessage(metadata),
 				isHovered,

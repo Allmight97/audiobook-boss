@@ -44,6 +44,7 @@ fn map_openlibrary_doc(doc: OpenLibraryDoc) -> OnlineMetadataResult {
         published_date: doc.first_publish_year.map(|year| year.to_string()),
         duration_seconds: None, // OpenLibrary doesn't have duration data
         cover_url,
+        cover: None,
         audible_only: Some(false),
     }
 }

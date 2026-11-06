@@ -46,15 +46,13 @@ function sourceLabel(result: OnlineMetadataResult): string {
 }
 
 function LookupCoverThumb(props: {
-	readonly coverUrl: string | null | undefined;
+	readonly cover: string | null | undefined;
 	readonly title: string;
 }): JSX.Element {
 	return (
 		<CoverThumb>
 			<CoverImage
-				src={
-					props.coverUrl ? coverSrc({ kind: 'remote', url: props.coverUrl, size: 'small' }) : null
-				}
+				src={props.cover ? coverSrc(props.cover) : null}
 				alt={`${props.title} cover art`}
 				testId="metadata-lookup-cover-image"
 				eager
@@ -237,7 +235,7 @@ export function MetadataLookupView(): JSX.Element {
 					<For each={view().results}>
 						{(result, index) => (
 							<div class="app-modal-result">
-								<LookupCoverThumb coverUrl={result.coverUrl} title={result.title} />
+								<LookupCoverThumb cover={result.cover} title={result.title} />
 								<div class="metadata-lookup-details">
 									<div class="metadata-lookup-title">{result.title}</div>
 									<div class="metadata-lookup-meta">

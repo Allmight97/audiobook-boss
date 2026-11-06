@@ -82,7 +82,7 @@ pub(crate) fn offer_library_title(runtime: &RemoteSourceRuntime, title_id: &str)
         authors: Vec::new(),
         narrators: Vec::new(),
         duration_seconds: None,
-        cover_url: None,
+        cover: None,
         supplemental_pdf_available: false,
         acquired: false,
         availability: RemoteTitleAvailability {

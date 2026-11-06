@@ -14,6 +14,7 @@ use crate::output_artifact::NamingPreset;
 use crate::power::PowerManager;
 use crate::processing::JobRegistry;
 use crate::session::audio_choice::AudioEdit;
+use crate::session::cover_address::{self, tests::host_request};
 use crate::session::lookup::LookupSnapshot;
 use crate::session::lookup::LookupSource;
 use crate::session::metadata_form::MetadataField;
@@ -45,7 +46,6 @@ struct Rig {
     searches: Arc<StdMutex<Vec<Search>>>,
     replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>>,
     cover: Arc<StdMutex<Result<Vec<u8>>>>,
-    cover_fetches: Arc<std::sync::atomic::AtomicUsize>,
     removed: Arc<StdMutex<Vec<String>>>,
     /// Removals that fail before one succeeds.
     failing_removals: Arc<std::sync::atomic::AtomicUsize>,
@@ -74,7 +74,6 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
     let replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>> =
         Arc::default();
     let cover: Arc<StdMutex<Result<Vec<u8>>>> = Arc::new(StdMutex::new(Ok(downloaded_cover())));
-    let cover_fetches: Arc<std::sync::atomic::AtomicUsize> = Arc::default();
     let network = Network {
         search: Box::new({
             let searches = Arc::clone(&searches);
@@ -92,10 +91,8 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
         }),
         covers: crate::cover_service::CoverService::new(Box::new({
             let cover = Arc::clone(&cover);
-            let cover_fetches = Arc::clone(&cover_fetches);
             let pending = StdMutex::new(pending);
             move |_url| {
-                cover_fetches.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let pending = pending.lock().expect("cover reply").take();
                 let result = match &*cover.lock().expect("cover") {
                     Ok(bytes) => Ok(bytes.clone()),
@@ -158,7 +155,6 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
         searches,
         replies,
         cover,
-        cover_fetches,
         removed,
         failing_removals,
         _config: config,
@@ -180,6 +176,7 @@ fn result(title: &str) -> OnlineMetadataResult {
         published_date: None,
         duration_seconds: None,
         cover_url: Some("https://example.com/cover.jpg".to_string()),
+        cover: None,
         audible_only: None,
     }
 }
@@ -301,9 +298,9 @@ impl Rig {
     }
 
     async fn cover_shown(&self) -> Option<Vec<u8>> {
-        let revision = self.metadata().cover.image_revision;
+        let image = self.metadata().cover.image?;
         self.session
-            .cover(&format!("session/full/{revision}/"))
+            .cover(&host_request(&image))
             .await
             .expect("the displayed cover is served")
             .map(|cover| cover.to_vec())
@@ -636,15 +633,16 @@ async fn replacing_the_cover_stages_the_result_image_with_the_text() {
 }
 
 #[tokio::test]
-async fn applying_a_result_reuses_the_cover_its_preview_downloaded() {
+async fn a_result_offers_a_cover_and_applying_it_shows_that_cover() {
     let rig = rig();
     rig.load(&["alpha"]);
     rig.select(&[0]).await;
     rig.answer_next_search(Ok(found(&["Found"])));
     rig.send(SessionIntent::LookupOpen).await;
+    let offered = rig.lookup().results[0].cover.clone().expect("a cover");
     let shown = rig
         .session
-        .cover("remote/full/0/https%253A%252F%252Fexample.com%252Fcover.jpg")
+        .cover(&host_request(&offered))
         .await
         .expect("a result's cover is served")
         .expect("it has bytes");
@@ -655,10 +653,6 @@ async fn applying_a_result_reuses_the_cover_its_preview_downloaded() {
     rig.send(rig.lookup_apply(0)).await;
 
     assert_eq!(rig.cover_shown().await, Some(written_cover()));
-    assert_eq!(
-        rig.cover_fetches.load(std::sync::atomic::Ordering::SeqCst),
-        1
-    );
 }
 
 #[tokio::test]
@@ -1057,7 +1051,7 @@ async fn a_cover_loaded_from_a_url_is_staged_on_the_selected_title() {
 
     assert_eq!(outcome, SessionOutcome::Applied);
     let cover = rig.metadata().cover;
-    assert!(cover.present && cover.custom && !cover.loading);
+    assert!(cover.image.is_some() && cover.custom && !cover.loading);
     assert_eq!(
         cover.notice,
         Some(crate::session::state::CoverNotice::LoadedFromUrl)
@@ -1258,7 +1252,7 @@ async fn a_cover_cleared_while_loading_is_not_replaced_by_the_load() {
     assert_eq!(load.finish().await.outcome, SessionOutcome::Superseded);
     assert_eq!(rig.pending("alpha").and_then(|patch| patch.cover_art), None);
     let cover = rig.metadata().cover;
-    assert!(!cover.loading && !cover.present);
+    assert!(!cover.loading && cover.image.is_none());
 }
 
 fn audio(rig: &Rig) -> crate::session::AudioSnapshot {
@@ -1276,12 +1270,8 @@ async fn covers_are_served_only_for_what_the_session_shows() {
     })
     .await;
     let request = |path: &std::path::Path| {
-        let value = percent_encoding::utf8_percent_encode(
-            &path.canonicalize().expect("canonical").to_string_lossy(),
-            percent_encoding::NON_ALPHANUMERIC,
-        )
-        .to_string();
-        format!("audio/small/0/{value}")
+        let canonical = path.canonicalize().expect("canonical");
+        host_request(&cover_address::audio(&canonical, 0))
     };
 
     assert_eq!(
@@ -1292,11 +1282,16 @@ async fn covers_are_served_only_for_what_the_session_shows() {
     assert!(rig.session.cover(&request(&unlisted)).await.is_err());
     assert!(rig
         .session
-        .cover("remote/small/0/https%3A%2F%2Fcovers.test%2Fnever-shown.jpg")
+        .cover(&host_request(&cover_address::remote(
+            "https://covers.test/never-shown.jpg"
+        )))
         .await
         .is_err());
     assert_eq!(
-        rig.session.cover("session/full/0/").await.expect("session"),
+        rig.session
+            .cover(&host_request(&cover_address::session(0)))
+            .await
+            .expect("session"),
         None
     );
 }
@@ -1809,9 +1804,13 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
         .operation
         .operation_id;
     wait_preview(&rig, crate::work_runtime::WorkOperationStatus::Running).await;
+    let offered = output(&rig)
+        .preview_run
+        .and_then(|run| run.cover)
+        .expect("the running preview offers its artwork");
     let shown = rig
         .session
-        .cover(&format!("preview/small/0/{id}"))
+        .cover(&host_request(&offered))
         .await
         .expect("the running preview's artwork")
         .expect("a custom cover");

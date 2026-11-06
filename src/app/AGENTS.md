@@ -107,8 +107,8 @@ without a bullet has none. Engine paths name the owner of the truth.
   Preview identity, progress, and terminal truth come from `output.previewRun`:
   render its snapshot and aggregate nothing. `cancelPreview` carries the run
   identity and an optional child identity; whole-preview cancel needs no native
-  job id, and disposal does not cancel. After `artworkReady` the artwork shows
-  from the run's `coverSrc` address. A finished preview opens through
+  job id, and disposal does not cancel. The artwork shows from the run's
+  `cover` address once the engine offers one. A finished preview opens through
   `link.openPreview(runId)`, even when the requesting frontend is disposed
   before the reply (host side: `src-tauri/AGENTS.md`). Submit and Cancel
   availability follow the engine preview state, including for a frontend that

@@ -135,7 +135,7 @@ async fn an_edited_grouped_title_exports_every_field_and_the_chosen_cover() {
     .await;
     desk.wait_until("the chosen cover shows", |desk| {
         let cover = desk.metadata().cover;
-        !cover.loading && cover.custom && cover.present
+        !cover.loading && cover.custom && cover.image.is_some()
     })
     .await;
 
@@ -221,7 +221,7 @@ async fn cleared_cover_export(
     let before = fs::read(&src).expect("read source");
     desk.import(&src).await;
     desk.wait_until("the source cover shows", |desk| {
-        desk.metadata().cover.present
+        desk.metadata().cover.image.is_some()
     })
     .await;
     assert_eq!(picture_codecs(&src), vec![ffmpeg_next::codec::Id::MJPEG]);
@@ -232,7 +232,7 @@ async fn cleared_cover_export(
     .await;
     desk.send(SessionIntent::ClearCover).await;
     let cover = desk.metadata().cover;
-    assert!(cover.removal_requested && !cover.present);
+    assert!(cover.removal_requested && cover.image.is_none());
     let out = export_to(desk, folder, edits).await;
     (src, out, before)
 }

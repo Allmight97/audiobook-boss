@@ -8,6 +8,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 - Text typed during an export is no longer wiped when ABB removes the finished
   Audible download. The form keeps it, and Save writes it to the exported file.
+- Saving a cover on one file now refreshes only that file's thumbnail in the
+  list. Before, every thumbnail faded and reloaded.
 
 ## [1.17.1] - 2026-11-05
 

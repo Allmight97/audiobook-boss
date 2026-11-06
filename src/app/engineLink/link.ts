@@ -67,7 +67,6 @@ function emptyTitles(): SessionTitles {
 		notice: null,
 		orderDiffersFromImport: false,
 		companions: {},
-		coversRevision: 0,
 	};
 }
 
@@ -84,8 +83,7 @@ function emptyMetadata(): SessionMetadata {
 			validationMessage: null,
 		},
 		cover: {
-			imageRevision: 0,
-			present: false,
+			image: null,
 			custom: false,
 			removalRequested: false,
 			loading: false,

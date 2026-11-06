@@ -26,7 +26,7 @@ use crate::processing::title_output::UpdateReply;
 use crate::work_runtime::OperationId;
 
 mod cover;
-use cover::Cover;
+use cover::{Cover, SourceCovers};
 
 /// Why the last metadata action ended the way it did. Hosts word these.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -76,10 +76,8 @@ pub enum CoverNotice {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverSnapshot {
-    /// Advances whenever the displayed image changes; fetch the bytes with
-    /// the session's cover query.
-    pub image_revision: u64,
-    pub present: bool,
+    /// The address of the displayed image; absent when there is none.
+    pub image: Option<String>,
     /// The user replaced the cover and has not saved or staged it yet.
     pub custom: bool,
     pub removal_requested: bool,
@@ -228,7 +226,7 @@ pub(crate) struct SessionState {
     review_serial: u64,
     submitting: Option<Submitting>,
     audio_refusal: Option<AudioRefusal>,
-    covers_written: u64,
+    source_covers: SourceCovers,
     keeping_locations: usize,
     reserved: Vec<PathBuf>,
     pub(crate) staged: StagedSources,
@@ -260,8 +258,7 @@ impl Default for SessionState {
                 binding: 0,
                 form: form.snapshot(),
                 cover: CoverSnapshot {
-                    image_revision: 0,
-                    present: false,
+                    image: None,
                     custom: false,
                     removal_requested: false,
                     loading: false,
@@ -301,7 +298,7 @@ impl Default for SessionState {
             review_serial: 0,
             submitting: None,
             audio_refusal: None,
-            covers_written: 0,
+            source_covers: SourceCovers::default(),
             keeping_locations: 0,
             reserved: Vec::new(),
             staged: StagedSources::default(),
@@ -351,14 +348,15 @@ impl SessionState {
         let companions = self.staged.companions();
         if self.working_set.titles_changes() != self.parts.titles_changes
             || companions != self.parts.titles.companions
-            || self.covers_written != self.parts.titles.covers_revision
+            || self.source_covers.unpublished()
         {
             self.parts.titles_changes = self.working_set.titles_changes();
-            self.parts.titles = TitlesSnapshot {
+            let mut titles = TitlesSnapshot {
                 companions,
-                covers_revision: self.covers_written,
                 ..self.working_set.titles(next)
             };
+            self.source_covers.publish(&mut titles);
+            self.parts.titles = titles;
             changed = true;
         }
         let selection = self.working_set.selection(self.parts.selection.revision);
@@ -882,8 +880,7 @@ impl SessionState {
             binding: self.binding,
             form: self.form.snapshot(),
             cover: CoverSnapshot {
-                image_revision: self.cover.image_revision,
-                present: self.cover.displayed.is_some(),
+                image: self.displayed_cover_address(),
                 custom: self.cover.custom,
                 removal_requested: self.cover.removal_requested,
                 loading: self.cover.loading,
@@ -1321,7 +1318,9 @@ impl SessionState {
         for item in saved {
             self.exports.acknowledge(&item.path, &item.patch);
             let cover_was_submitted = item.patch.cover_art.is_some();
-            self.covers_written += u64::from(cover_was_submitted);
+            if cover_was_submitted {
+                self.cover_written(&item.path);
+            }
             self.tags
                 .commit_saved(&item.path, &item.patch, item.revision);
             let cover_still_pending = self
@@ -1426,7 +1425,9 @@ impl SessionState {
             }
             if *written {
                 self.exports.acknowledge(&item.path, &item.patch);
-                self.covers_written += u64::from(item.patch.cover_art.is_some());
+                if item.patch.cover_art.is_some() {
+                    self.cover_written(&item.path);
+                }
             }
             if !loaded.contains(&item.path) {
             } else if *written {

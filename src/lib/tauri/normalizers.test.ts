@@ -31,7 +31,7 @@ describe('session update normalization', () => {
 						authors: [],
 						narrators: [],
 						durationSeconds: null,
-						coverUrl: null,
+						cover: null,
 						supplementalPdfAvailable: false,
 						acquired: false,
 						availability: {
@@ -48,7 +48,7 @@ describe('session update normalization', () => {
 		});
 		expect(update.remote?.account).toBeNull();
 		expect(update.remoteAcquisition?.job).toBeNull();
-		expect(update.remoteLibrary?.titles[0]).not.toHaveProperty('coverUrl');
+		expect(update.remoteLibrary?.titles[0]).not.toHaveProperty('cover');
 		expect(update.remoteLibrary?.titles[0].availability).not.toHaveProperty('detail');
 		expect(update.remoteLibrary?.diagnostics[0]).not.toHaveProperty('titleId');
 		const progressOnly = normalizeSessionUpdate({
