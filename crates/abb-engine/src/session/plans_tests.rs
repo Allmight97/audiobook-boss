@@ -248,3 +248,19 @@ fn a_plan_read_across_a_tag_write_is_dropped_and_read_again() {
     }
     assert_eq!(plans.refresh([input(&request, &rewritten)]).len(), 1);
 }
+
+#[test]
+fn an_invalid_source_has_no_size_estimate() {
+    let mut broken = source("alpha", 60.0, 1_000.0);
+    broken.is_valid = false;
+
+    for intent in [AudioIntent::Preserve, AudioIntent::Encode] {
+        let estimate = estimate_size(
+            &request(intent, cbr(64)),
+            &TitlePlan::Pending,
+            std::slice::from_ref(&broken),
+            Some(64),
+        );
+        assert_eq!(estimate, None, "{intent:?}");
+    }
+}

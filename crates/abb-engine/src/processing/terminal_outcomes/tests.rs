@@ -172,6 +172,26 @@ mod entry_tests {
     }
 
     #[test]
+    fn entries_that_wrote_nothing_carry_no_output_path() {
+        let error = AppErrorEnvelope::new(
+            AppErrorCode::InternalError,
+            AppErrorCategory::Internal,
+            "Processing failed".to_string(),
+            None,
+        );
+        let existing = output_plan(PlannedOutputAction::SkipExisting, "/tmp/existing.m4b");
+        let review = output_plan(PlannedOutputAction::ReviewRequired, "/tmp/review.m4b");
+        let entries = [
+            no_write_skipped_result(0, None, &existing).expect("skipped"),
+            no_write_skipped_result(1, None, &review).expect("skipped"),
+            terminal_cancelled_result(2, None, "Processing was cancelled"),
+            terminal_failure_result(3, None, error),
+        ];
+
+        assert!(entries.iter().all(|entry| entry.output_path.is_none()));
+    }
+
+    #[test]
     fn all_skip_existing_batch_builds_direct_skipped_result() {
         let plan = batch_plan(vec![
             planned_batch_job(0, PlannedOutputAction::SkipExisting),

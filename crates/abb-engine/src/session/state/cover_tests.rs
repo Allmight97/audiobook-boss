@@ -33,6 +33,17 @@ fn with_nothing_selected_the_first_valid_title_cover_shows() {
 }
 
 #[test]
+fn a_listed_invalid_source_publishes_no_cover_and_a_valid_one_an_address() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[]);
+    desk.state
+        .working_set
+        .append_analyzed(vec![audio_file("broken", false)], &audio_request());
+
+    assert!(desk.source_cover("alpha").is_some());
+    assert_eq!(desk.source_cover("broken"), None);
+}
+
+#[test]
 fn saving_one_cover_changes_only_that_source_address() {
     let mut desk = Desk::open(
         &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
