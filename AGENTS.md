@@ -92,8 +92,10 @@ field once. That setting is not in the repo.
   owning layer before extracting helpers. A rule several callers must each
   remember belongs in that owner.
 - Source files stay small enough to read whole (`scripts/check-file-size.mjs`).
-  A file over that budget, or a function on a complexity list, takes no new
-  code: put it in a new sibling, and name the split it needs in the PR.
+  An over-budget file may not grow (the ratchet fails it). New logic and
+  tests go in a sibling file. A function on a complexity list gains no logic;
+  one dispatch arm for a new intent is the only exception. The PR names the
+  split the file needs.
 - When merging code paths, name what each old path relied on (reads it
   skipped, state it left alone, ordering); keep each reliance or say which one
   the change drops.
