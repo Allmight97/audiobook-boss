@@ -16,7 +16,7 @@ corpus_listing() {
 # A raw ADTS stream has no length header; ffprobe estimates it from the bit
 # rate and was 1.1% short on a 5-minute probe, so that one is measured by decoding.
 duration_of() {
-	if [[ "$1" == *.aac ]]; then
+	if [[ "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" == *.aac ]]; then
 		ffmpeg -hide_banner -nostats -i "$1" -f null - 2>&1 |
 			awk -F'time=' '/time=/ { t = $2 } END { split(t, p, " "); split(p[1], h, ":"); print h[1] * 3600 + h[2] * 60 + h[3] }'
 	else
