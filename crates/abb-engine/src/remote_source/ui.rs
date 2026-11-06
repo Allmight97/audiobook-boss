@@ -4,7 +4,7 @@ use super::{
     RemoteIndexerConnectionUpdate, RemoteRelease, RemoteReleaseGrabRequest,
     RemoteReleaseSearchRequest, RemoteReleaseSearchResponse, RemoteSourceRuntime, RemoteTitle,
 };
-use crate::app_settings::{normalize_base_url, IndexerConnection};
+use crate::app_settings::{normalize_base_url, validate_api_key, IndexerConnection};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -394,10 +394,16 @@ impl UiState {
         category_ids: Option<Vec<u32>>,
         api_key: Option<String>,
     ) -> Result<()> {
-        let url = match base_url
+        let checked = base_url
             .map(|url| normalize_base_url(url).map(Option::unwrap_or_default))
             .transpose()
-        {
+            .and_then(|url| {
+                if let Some(key) = api_key.as_deref() {
+                    validate_api_key(key.trim())?;
+                }
+                Ok(url)
+            });
+        let url = match checked {
             Ok(url) => url,
             Err(error) => {
                 self.snapshot.connection.draft_error = Some(AppErrorEnvelope::from(&error));

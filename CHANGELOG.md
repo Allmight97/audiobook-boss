@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- An Indexer API key with a character that cannot be sent in a request is refused when you
+  enter it, instead of being sent as no key and read as a generic rejection.
 - Submitting with an invalid file in the list now says "Submitted to Work Center. 1 invalid
   file was left out." instead of only "Submitted to Work Center."
 - Pasting text that is not a URL while the pointer is over the cover now says "The pasted

@@ -14,6 +14,16 @@ impl IndexerConnection {
     }
 }
 
+pub(crate) fn validate_api_key(key: &str) -> Result<()> {
+    reqwest::header::HeaderValue::from_str(key).map_err(|_| {
+        AppError::InvalidInput(
+            "The Indexer API key has a character that cannot be sent in a request. Copy it again."
+                .to_string(),
+        )
+    })?;
+    Ok(())
+}
+
 fn chosen_category_ids(ids: Vec<u32>) -> Result<Vec<u32>> {
     let mut chosen: Vec<u32> = ids.into_iter().filter(|id| *id > 0).collect();
     chosen.sort_unstable();
