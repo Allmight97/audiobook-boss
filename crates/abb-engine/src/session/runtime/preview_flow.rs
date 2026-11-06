@@ -76,7 +76,7 @@ impl Session {
         self.end_submission(&draft, status)
     }
 
-    pub(super) fn preview_cancels(&self) -> std::sync::MutexGuard<'_, Vec<Arc<AtomicBool>>> {
+    fn preview_cancels(&self) -> std::sync::MutexGuard<'_, Vec<Arc<AtomicBool>>> {
         self.inner
             .preview_cancels
             .lock()

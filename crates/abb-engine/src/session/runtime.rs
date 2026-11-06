@@ -6,11 +6,11 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use lookup_flow::ChosenResult;
 
-use super::exports::{ExportLink, OutputEdit, OutputEdits};
+use super::exports::ExportLink;
 use super::intent::{SessionIntent, SessionOutcome, SessionReply};
 use super::lookup::{QueueStep, RESULT_LIMIT};
 use super::plans::PlanTicket;
-use super::state::{GateBlock, MetadataStatus, SaveItem, SavePlan, SessionState, SessionUpdate};
+use super::state::{GateBlock, SavePlan, SessionState, SessionUpdate};
 use super::submission::{Draft, SubmitRefusal};
 use super::tag_cache::ReadTicket;
 use super::working_set::{InputNotice, SelectionModifiers, WorkingSet};
@@ -21,9 +21,7 @@ use crate::host::{EngineEvent, Host};
 use crate::metadata::AudiobookMetadata;
 use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource};
 use crate::output_artifact::CollisionPolicy;
-use crate::processing::title_output::UpdateReply;
 use crate::processing::SupplementalProcessingAsset;
-use crate::processing::{OutputUpdate, OutputUpdateStatus};
 use crate::remote_source::{
     AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal, RemoteRevisions, RemoteUiResult,
 };
@@ -445,10 +443,6 @@ impl Session {
         let mut snapshot = self.lock().update_since(None);
         self.inner.deps.remote.add_ui_parts(&mut snapshot, None);
         snapshot
-    }
-
-    pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
-        self.lock().waiting_write_paths()
     }
 
     #[expect(
@@ -1001,145 +995,6 @@ impl Session {
                 SessionOutcome::CoverLoadFailed
             }
         })
-    }
-
-    fn begin_save(&self) -> Rest {
-        let staged = &self.inner.deps.temporary_root;
-        let staged_canonical = std::fs::canonicalize(staged).ok();
-        let is_temporary = |path: &Path| {
-            path.starts_with(staged)
-                || staged_canonical
-                    .as_ref()
-                    .is_some_and(|root| path.starts_with(root))
-        };
-        let plan = self.transition(|state| {
-            if state.working_set.files().is_empty() {
-                return None;
-            }
-            let in_use = self.inner.deps.work.sources_in_use();
-            let plan = state.begin_save(&in_use, is_temporary)?;
-            Some((state.epoch, plan))
-        });
-        match plan {
-            Some((epoch, plan)) => Rest::Save { epoch, plan },
-            None => Rest::Done(SessionOutcome::Applied),
-        }
-    }
-
-    async fn save(&self, epoch: u64, plan: SavePlan) -> SessionOutcome {
-        if plan.waiting > 0 {
-            self.ensure_deferred_writer();
-        }
-        let outputs = self.update_outputs(plan.outputs).await;
-
-        let mut saved = Vec::new();
-        let mut status = MetadataStatus::SaveComplete {
-            succeeded: 0,
-            failed: 0,
-            cancelled: 0,
-            waiting: plan.waiting,
-            held: plan.held,
-            outputs,
-        };
-        let nothing = plan.immediate.is_empty()
-            && plan.waiting == 0
-            && plan.held == 0
-            && outputs == OutputEdits::default();
-        if nothing {
-            status = if plan.grouped {
-                MetadataStatus::GroupedEditsKept
-            } else {
-                MetadataStatus::NoPendingChanges
-            };
-        }
-        let written_paths: Vec<PathBuf> = plan
-            .immediate
-            .iter()
-            .map(|item| item.path.clone())
-            .collect();
-        if !plan.immediate.is_empty() {
-            self.publish();
-            match self.write(&plan.immediate).await {
-                Ok(written) => {
-                    status = MetadataStatus::SaveComplete {
-                        succeeded: written.succeeded,
-                        failed: written.failed,
-                        cancelled: written.cancelled,
-                        waiting: plan.waiting,
-                        held: plan.held,
-                        outputs,
-                    };
-                    saved = plan
-                        .immediate
-                        .into_iter()
-                        .zip(written.items)
-                        .filter_map(|(item, written)| written.then_some(item))
-                        .collect();
-                }
-                Err(AppError::Cancellation(_)) => status = MetadataStatus::SaveCancelled,
-                Err(error) => {
-                    log::error!("Failed to save metadata: {error}");
-                    status = MetadataStatus::SaveFailed {
-                        error: AppErrorEnvelope::from(&error),
-                    };
-                }
-            }
-        }
-        self.transition(|state| state.finish_save(epoch, &written_paths, &saved, status));
-        self.sources_released();
-        SessionOutcome::Applied
-    }
-
-    async fn update_outputs(&self, edits: Vec<OutputEdit>) -> OutputEdits {
-        if edits.is_empty() {
-            return OutputEdits::default();
-        }
-        let mut replies = Vec::with_capacity(edits.len());
-        for edit in edits {
-            let mut reply = edit
-                .title
-                .update(edit.revision, &edit.intent)
-                .map_err(|error| error.to_string());
-            if matches!(
-                reply,
-                Ok(UpdateReply::Accepted {
-                    published: true,
-                    ..
-                })
-            ) {
-                let title = Arc::clone(&edit.title);
-                let _ = blocking(move || {
-                    title.apply_published();
-                    Ok(())
-                })
-                .await;
-                if let Some(OutputUpdate {
-                    status: OutputUpdateStatus::Failed { message },
-                    ..
-                }) = edit.title.update_state()
-                {
-                    reply = Err(message);
-                }
-            }
-            replies.push((edit, reply));
-        }
-        self.transition(|state| state.record_output_edits(replies))
-    }
-
-    /// Brings outputs linked by a just-accepted export up to the session's
-    /// edits: a Save made while the submission was being prepared did not
-    /// reach the export.
-    async fn catch_up_outputs(&self, title_ids: &[String]) {
-        let edits = self.transition(|state| {
-            let tags = &state.tags;
-            state
-                .exports
-                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
-                .into_iter()
-                .filter(|edit| title_ids.contains(&edit.title_id))
-                .collect::<Vec<_>>()
-        });
-        self.update_outputs(edits).await;
     }
 }
 

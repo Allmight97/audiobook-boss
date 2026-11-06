@@ -804,37 +804,6 @@ fn preview_path(rig: &Rig) -> String {
     }
 }
 
-#[tokio::test]
-async fn ending_a_submission_wakes_a_save_waiting_on_its_sources() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    let draft = rig
-        .session
-        .transition(|state| {
-            state.output.set_directory("/library".to_string());
-            state.begin_submission(false)
-        })
-        .expect("the submission is prepared");
-    rig.type_into(MetadataField::Genre, "Mystery").await;
-    rig.send(SessionIntent::Save).await;
-    assert_eq!(rig.session.waiting_write_paths(), [path("alpha")]);
-
-    for _ in 0..20 {
-        tokio::task::yield_now().await;
-    }
-    rig.session
-        .end_submission(&draft, SubmissionStatus::Cancelled);
-
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        while !rig.session.waiting_write_paths().is_empty() {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the waiting write is attempted once its source is free");
-}
-
 fn staged_wav(dir: &std::path::Path, name: &str) -> PathBuf {
     const SAMPLE_RATE: u32 = 44_100;
     let data_len = SAMPLE_RATE * 2;
@@ -1204,5 +1173,7 @@ mod field_edit;
 mod lookup_flow;
 #[path = "runtime/preview_flow_tests.rs"]
 mod preview_flow;
+#[path = "runtime/save_flow_tests.rs"]
+mod save_flow;
 #[path = "runtime/submission_flow_tests.rs"]
 mod submission_flow;
