@@ -61,7 +61,7 @@ impl SessionState {
     }
 
     pub(crate) fn gate(&mut self) -> Result<(), GateBlock> {
-        if self.save_in_progress {
+        if self.writes.save_running() {
             return Err(GateBlock::SaveInProgress);
         }
         if self.bound.is_empty() || !self.form.has_dirty_fields() {
@@ -181,7 +181,7 @@ impl SessionState {
             notice_serial: self.cover.notice_serial,
             ..Cover::default()
         };
-        self.save_in_progress = false;
+        self.writes.end_save();
         self.status = None;
     }
 
@@ -215,7 +215,10 @@ impl SessionState {
         cover: Option<Vec<u8>>,
     ) -> bool {
         let is_title = |titles: &[BoundTitle]| matches!(titles, [only] if only.path == title.path && only.input_id == title.title_id);
-        if self.save_in_progress || !is_title(&self.bound) || !is_title(&self.selected_titles()) {
+        if self.writes.save_running()
+            || !is_title(&self.bound)
+            || !is_title(&self.selected_titles())
+        {
             return false;
         }
         self.form.apply_lookup(metadata);

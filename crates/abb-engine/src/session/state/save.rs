@@ -3,17 +3,9 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use super::super::exports::OutputEdit;
-use super::{DeferredPhase, DeferredWrite, MetadataStatus, SessionState, StageOutcome};
-use crate::metadata::MetadataIntentPatch;
+use super::{MetadataStatus, SaveItem, SessionState, StageOutcome};
 
-#[derive(Debug, Clone)]
-pub(crate) struct SaveItem {
-    pub(crate) path: PathBuf,
-    pub(crate) patch: MetadataIntentPatch,
-    pub(crate) revision: u64,
-}
-
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct SavePlan {
     pub(crate) immediate: Vec<SaveItem>,
     pub(crate) waiting: usize,
@@ -28,7 +20,6 @@ impl SessionState {
             .iter()
             .chain(&self.reserved)
             .chain(&self.removing)
-            .chain(&self.writing)
             .cloned()
             .collect()
     }
@@ -48,7 +39,7 @@ impl SessionState {
         if self.working_set.files().is_empty() {
             return None;
         }
-        if self.save_in_progress {
+        if self.writes.save_running() {
             self.status = Some(MetadataStatus::SaveAlreadyInProgress);
             return None;
         }
@@ -88,40 +79,16 @@ impl SessionState {
             return None;
         }
 
-        let mut plan = SavePlan {
+        let routing = self.writes.route(items, in_use, is_temporary);
+        let plan = SavePlan {
+            immediate: routing.immediate,
+            waiting: routing.waiting,
+            held: routing.held,
             outputs,
             grouped,
-            ..SavePlan::default()
         };
-        for item in items {
-            let being_written = self
-                .deferred
-                .iter()
-                .any(|write| write.phase == DeferredPhase::Writing && write.item.path == item.path);
-            if is_temporary(&item.path) {
-                plan.held += 1;
-            } else if in_use.contains(&item.path) || being_written {
-                plan.waiting += 1;
-                self.defer(item);
-            } else {
-                self.deferred.retain(|write| write.item.path != item.path);
-                plan.immediate.push(item);
-            }
-        }
-        self.save_in_progress = !plan.immediate.is_empty();
-        self.writing
-            .extend(plan.immediate.iter().map(|item| item.path.clone()));
         self.status = Some(MetadataStatus::PreparingSave);
         Some(plan)
-    }
-
-    fn defer(&mut self, item: SaveItem) {
-        self.deferred
-            .retain(|write| write.item.path != item.path || write.phase == DeferredPhase::Writing);
-        self.deferred.push(DeferredWrite {
-            item,
-            phase: DeferredPhase::Waiting,
-        });
     }
 
     pub(crate) fn finish_save(
@@ -131,11 +98,7 @@ impl SessionState {
         saved: &[SaveItem],
         status: MetadataStatus,
     ) {
-        for path in written {
-            if let Some(index) = self.writing.iter().position(|writing| writing == path) {
-                self.writing.swap_remove(index);
-            }
-        }
+        self.writes.release(written);
         if epoch != self.epoch {
             return;
         }
@@ -157,84 +120,37 @@ impl SessionState {
                 self.cover.removal_requested = false;
             }
         }
-        self.save_in_progress = false;
+        self.writes.end_save();
         self.status = Some(status);
     }
 
     pub(crate) fn take_ready_deferred(&mut self, in_use: &HashSet<PathBuf>) -> Vec<SaveItem> {
         let in_use = &self.busy(in_use);
-        let writing: HashSet<PathBuf> = self
-            .deferred
-            .iter()
-            .filter(|write| write.phase == DeferredPhase::Writing)
-            .map(|write| write.item.path.clone())
-            .collect();
-        self.deferred
-            .iter_mut()
-            .filter(|write| {
-                write.phase == DeferredPhase::Waiting
-                    && !in_use.contains(&write.item.path)
-                    && !writing.contains(&write.item.path)
-            })
-            .map(|write| {
-                write.phase = DeferredPhase::Writing;
-                write.item.clone()
-            })
-            .collect()
+        self.writes.take_ready(in_use)
     }
 
     pub(crate) fn has_waiting_writes(&self) -> bool {
-        self.deferred
-            .iter()
-            .any(|write| write.phase == DeferredPhase::Waiting)
+        self.writes.has_waiting()
     }
 
     pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
-        let mut paths: Vec<PathBuf> = self
-            .deferred
-            .iter()
-            .filter(|write| write.phase != DeferredPhase::Failed)
-            .map(|write| write.item.path.clone())
-            .collect();
-        paths.sort();
-        paths.dedup();
-        paths
+        self.writes.waiting_paths()
     }
 
     pub(crate) fn finish_deferred(&mut self, results: &[(SaveItem, bool)]) {
         let loaded = self.working_set.source_paths();
         let mut written_count = 0;
         for (item, written) in results {
-            for write in &mut self.deferred {
-                if write.item.path != item.path {
-                    continue;
-                }
-                if write.phase == DeferredPhase::Writing
-                    && write.item.revision == item.revision
-                    && !written
-                {
-                    write.phase = DeferredPhase::Failed;
-                } else if write.phase == DeferredPhase::Waiting && !written {
-                    let mut patch = item.patch.clone();
-                    patch.merge(&write.item.patch);
-                    write.item.patch = patch;
-                }
-            }
-            if *written {
-                self.deferred.retain(|write| {
-                    write.item.path != item.path || write.item.revision != item.revision
-                });
-            }
+            self.writes.finish_write(item, *written);
             if *written {
                 self.exports.acknowledge(&item.path, &item.patch);
                 if item.patch.cover_art.is_some() {
                     self.cover_written(&item.path);
                 }
-            }
-            if !loaded.contains(&item.path) {
-            } else if *written {
-                self.tags
-                    .commit_saved(&item.path, &item.patch, item.revision);
+                if loaded.contains(&item.path) {
+                    self.tags
+                        .commit_saved(&item.path, &item.patch, item.revision);
+                }
             }
             written_count += usize::from(*written);
         }
@@ -256,28 +172,24 @@ impl SessionState {
 
     pub(super) fn restore_failed_writes(&mut self) {
         let loaded = self.working_set.source_paths();
-        for write in self.deferred.iter().filter(|write| {
-            write.phase == DeferredPhase::Failed && loaded.contains(&write.item.path)
-        }) {
-            let pending = self.tags.pending(&write.item.path);
-            let mut patch = write.item.patch.clone();
+        for item in self
+            .writes
+            .failed()
+            .filter(|item| loaded.contains(&item.path))
+        {
+            let pending = self.tags.pending(&item.path);
+            let mut patch = item.patch.clone();
             if let Some(pending) = pending {
                 patch.merge(&pending.patch);
             }
             if pending.is_none_or(|pending| pending.patch != patch) {
-                self.tags.stage(&write.item.path, &patch);
+                self.tags.stage(&item.path, &patch);
             }
         }
     }
 
     pub(crate) fn removable_staged(&self, in_use: &HashSet<PathBuf>, now: Instant) -> Vec<String> {
-        let writing = self.save_in_progress
-            || !self.writing.is_empty()
-            || self
-                .deferred
-                .iter()
-                .any(|write| write.phase == DeferredPhase::Writing);
-        if writing || self.staged.is_empty() {
+        if self.writes.is_writing() || self.staged.is_empty() {
             return Vec::new();
         }
         self.staged.removable(&self.busy(in_use), now)

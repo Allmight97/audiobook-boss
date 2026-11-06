@@ -47,7 +47,8 @@ one host attachment.
 
 ## Where A Rule Goes
 
-- `state.rs` and the modules it uses hold every rule and do no I/O; the one
+- `state.rs`, its `state/` children, and the modules they use hold every rule
+  and do no I/O; the one
   exception is `PlanTicket::resolve`, which reads sources on a blocking thread.
   Each method is one atomic transition. Work that needs a file or the network
   leaves as data (a `ReadTicket`, a `SavePlan`, a `PlanTicket`) and returns as a
@@ -71,9 +72,20 @@ one host attachment.
   Source paths are canonical, so match both spellings of the staged root.
   Tag-cache tokens and revisions keep counting across a reset, so nothing
   issued earlier matches afterward.
-- A new rule belongs in the state modules, tested beside the module that holds
-  it. It goes in `runtime.rs` only when it is about ordering between an intent
-  and its I/O.
+- A new rule belongs in the `state/` child that owns its concept, tested in
+  that child's `_tests.rs` through the `Desk` harness in `state_tests.rs`. It
+  goes in `runtime.rs` only when it is about ordering between an intent and
+  its I/O.
+  - `bound_form.rs`: the form bound to the selection and the draft gate.
+  - `save.rs`: where each pending edit goes and what a finished write changes.
+  - `write_queue.rs`: which files are being written or wait to be written.
+    Its fields are private; `save.rs` and `submitting.rs` ask it.
+  - `submitting.rs`: a submission in flight, collision review, restart answers.
+  - `cover.rs`: the cover on screen and each source's cover address.
+  - `title_audio.rs`: each title's audio choice and background plan.
+  - `snapshots.rs`: the published parts and their revisions.
+  Fields shared across children (`status`, `form`, `bound`, `submitting`,
+  `audio_refusal`) stay on `SessionState`; grep `state/` before changing one.
 
 ## Rules That Are Easy To Break
 
@@ -233,8 +245,9 @@ one host attachment.
 
 ## Proof
 
-- Rules: `state_tests.rs`, including its property test. Add a new sequence law
-  there as an assertion.
+- Rules: `state/<concept>_tests.rs` through the `Desk` harness in
+  `state_tests.rs`. The property test is `state/sequence_tests.rs`; add a new
+  sequence law there as an assertion.
 - Real files through `Engine`: `crates/abb-engine/src/test_cases/integration_session_tests.rs`
   and `integration_library_readback_tests.rs` (what a library reads from the export).
 - Saves through the session: `integration_session_save_tests.rs`.

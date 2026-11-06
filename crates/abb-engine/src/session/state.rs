@@ -21,12 +21,15 @@ mod save;
 mod snapshots;
 mod submitting;
 mod title_audio;
+mod write_queue;
 pub(crate) use bound_form::GateBlock;
 use bound_form::{BoundTitle, StageOutcome};
 use cover::{Cover, SourceCovers};
-pub(crate) use save::{SaveItem, SavePlan};
+pub(crate) use save::SavePlan;
 use snapshots::Parts;
 use submitting::Submitting;
+pub(crate) use write_queue::SaveItem;
+use write_queue::WriteQueue;
 
 /// Why the last metadata action ended the way it did. Hosts word these.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -144,19 +147,6 @@ pub struct SessionUpdate {
     pub remote_acquisition: Option<crate::remote_source::RemoteAcquisitionSnapshot>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DeferredPhase {
-    Waiting,
-    Writing,
-    Failed,
-}
-
-#[derive(Debug)]
-struct DeferredWrite {
-    item: SaveItem,
-    phase: DeferredPhase,
-}
-
 pub(crate) struct SessionState {
     pub(crate) epoch: u64,
     pub(crate) binding: u64,
@@ -184,10 +174,8 @@ pub(crate) struct SessionState {
     bound: Vec<BoundTitle>,
     selection_key: Vec<PathBuf>,
     cover: Cover,
-    save_in_progress: bool,
-    writing: Vec<PathBuf>,
+    writes: WriteQueue,
     status: Option<MetadataStatus>,
-    deferred: Vec<DeferredWrite>,
     parts: Parts,
 }
 
@@ -223,10 +211,8 @@ impl Default for SessionState {
             bound: Vec::new(),
             selection_key: Vec::new(),
             cover: Cover::default(),
-            save_in_progress: false,
-            writing: Vec::new(),
+            writes: WriteQueue::default(),
             status: None,
-            deferred: Vec::new(),
             parts,
         }
     }

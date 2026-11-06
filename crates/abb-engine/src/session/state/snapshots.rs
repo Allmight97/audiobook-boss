@@ -201,7 +201,7 @@ impl SessionState {
     }
 
     fn next_restart_prompt(&self) -> Option<RestartOffer> {
-        if self.submitting.is_some() || self.keeping_locations > 0 || self.save_in_progress {
+        if self.submitting.is_some() || self.keeping_locations > 0 || self.writes.save_running() {
             return None;
         }
         self.exports.next_prompt(
@@ -238,7 +238,7 @@ impl SessionState {
                 notice_serial: self.cover.notice_serial,
             },
             tags: self.tag_preview(),
-            save_in_progress: self.save_in_progress,
+            save_in_progress: self.writes.save_running(),
             status: self.status.clone(),
             has_pending_edits: self.tags.has_pending(),
             waiting_writes: self.waiting_write_paths(),

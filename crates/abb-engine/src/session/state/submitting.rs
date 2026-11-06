@@ -6,7 +6,7 @@ use super::super::submission::{
     build_draft, collisions, title_label, CollisionReview, Draft, DraftInputs, PendingReview,
     SubmissionStatus, SubmitRefusal, SubmittedTitle,
 };
-use super::{DeferredPhase, SessionState, StageOutcome};
+use super::{SessionState, StageOutcome};
 use crate::audio::AudioFile;
 use crate::metadata::PatchOp;
 use crate::output_artifact::PlannedOutput;
@@ -54,12 +54,7 @@ impl SessionState {
         if self.submitting.is_some() {
             return Err(SubmitRefusal::Busy);
         }
-        let writing = !self.writing.is_empty()
-            || self
-                .deferred
-                .iter()
-                .any(|write| write.phase == DeferredPhase::Writing);
-        if self.save_in_progress || writing {
+        if self.writes.is_writing() {
             return Err(SubmitRefusal::SaveInProgress);
         }
         if !self.working_set.files().is_empty() {
