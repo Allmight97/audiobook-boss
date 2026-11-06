@@ -1,7 +1,8 @@
-use super::super::{release_key, ReleaseGrabStatus, RemoteUiIntent};
+use super::super::{release_key, ReleaseGrabSnapshot, ReleaseGrabStatus, RemoteUiIntent};
 use super::*;
 use crate::app_settings::SettingsIntent;
 use crate::remote_source::tests::{test_runtime, test_runtime_with, MemoryVault};
+use crate::remote_source::types::RemoteReleaseSearchResponse;
 use secrecy::ExposeSecret;
 use tempfile::TempDir;
 
@@ -528,7 +529,7 @@ async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryab
         let request = state.search_request;
         state.searched(
             request,
-            &Ok(crate::remote_source::types::RemoteReleaseSearchResponse {
+            &Ok(RemoteReleaseSearchResponse {
                 provider_id: ProviderId::Indexer,
                 releases: vec![release(1), release(2)],
                 diagnostics: vec![],
@@ -606,4 +607,130 @@ async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryab
         runtime.reset_lease().is_ok(),
         "a Reset is accepted once the Indexer is idle"
     );
+}
+
+#[tokio::test]
+async fn connection_save_persists_the_accepted_draft_and_invalidates_old_release_selection() {
+    let root = TempDir::new().expect("temporary config");
+    let runtime = test_runtime(&root);
+    run(&runtime, edit("https://indexer.test", None))
+        .await
+        .expect("edit");
+    runtime
+        .ui_begin(RemoteUiIntent::SelectLane {
+            lane: ProviderId::Indexer,
+        })
+        .finish()
+        .await
+        .expect("indexer lane");
+    {
+        let mut ui = runtime.ui();
+        let request = ui.search_request;
+        ui.searched(
+            request,
+            &Ok(RemoteReleaseSearchResponse {
+                provider_id: ProviderId::Indexer,
+                releases: vec![release(1)],
+                diagnostics: vec![],
+            }),
+        );
+    }
+    runtime
+        .ui_begin(RemoteUiIntent::SelectRelease {
+            indexer_id: 1,
+            guid: "shared-guid".into(),
+            multi: false,
+        })
+        .finish()
+        .await
+        .expect("select release");
+    runtime.ui().snapshot.indexer.release_grabs.insert(
+        release_key(1, "shared-guid"),
+        ReleaseGrabSnapshot {
+            status: ReleaseGrabStatus::Error,
+            message: "Failed".into(),
+        },
+    );
+    let save = runtime.ui_begin(RemoteUiIntent::SaveConnection);
+    runtime
+        .ui_begin(RemoteUiIntent::EditConnection {
+            base_url: Some("https://next.test".into()),
+            api_key: None,
+            category_ids: None,
+        })
+        .finish()
+        .await
+        .expect("new draft");
+    save.finish().await.expect("finish accepted Save");
+    assert_eq!(
+        runtime
+            .inner
+            .settings
+            .indexer_connection()
+            .base_url
+            .as_deref(),
+        Some("https://indexer.test")
+    );
+    let snapshot = runtime.ui_snapshot();
+    assert_eq!(snapshot.connection.base_url, "https://next.test");
+    assert!(snapshot.indexer.releases.is_empty());
+    assert!(snapshot.indexer.selected_release_keys.is_empty());
+    assert!(snapshot.indexer.release_grabs.is_empty());
+    assert!(runtime
+        .ui_begin(RemoteUiIntent::GrabSelected)
+        .finish()
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn a_key_read_that_finishes_after_a_save_cannot_overwrite_the_saved_key_fact() {
+    for late in [Ok(false), Err(AppError::General("keychain locked".into()))] {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        let loading = runtime.ui_begin(RemoteUiIntent::LoadConnection);
+        let load_request = runtime.ui().save_request;
+        save(&runtime, "https://indexer.test", Some("typed-key"))
+            .await
+            .expect("saved while the key read waits");
+        let after_save = runtime.ui_snapshot().connection;
+        assert!(after_save.api_key_configured);
+        assert_eq!(after_save.save, RemoteDraftStatus::Succeeded);
+
+        runtime.ui().loaded(load_request, &late);
+
+        let connection = runtime.ui_snapshot().connection;
+        assert!(connection.api_key_configured, "{late:?}");
+        assert_eq!(connection.save, RemoteDraftStatus::Succeeded, "{late:?}");
+        drop(loading);
+    }
+}
+
+#[tokio::test]
+async fn a_save_with_a_key_stores_it_when_the_config_folder_cannot_be_written() {
+    let root = TempDir::new().expect("temp root");
+    let runtime = test_runtime(&root);
+    std::fs::remove_dir_all(root.path()).expect("remove the config folder");
+    std::fs::write(root.path(), b"").expect("a regular file where the config folder was");
+
+    let result = save(&runtime, "https://indexer.test", Some("typed-key")).await;
+
+    assert!(matches!(result, Ok(RemoteUiResult::Saved)));
+    assert!(runtime.inner.settings.snapshot().await.save_error.is_some());
+    assert_eq!(
+        runtime
+            .inner
+            .settings
+            .indexer_connection()
+            .base_url
+            .as_deref(),
+        Some("https://indexer.test")
+    );
+    assert_eq!(
+        key_for(&runtime, "https://indexer.test").as_deref(),
+        Some("typed-key")
+    );
+    assert!(runtime.ui_snapshot().connection.api_key_configured);
+    std::fs::remove_file(root.path()).expect("remove the blocking file");
+    std::fs::create_dir_all(root.path()).expect("restore the config folder");
 }
