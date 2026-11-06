@@ -4,9 +4,10 @@ use std::path::{Path, PathBuf};
 use abb_engine::output_artifact::CollisionPolicy;
 use abb_engine::session::{InputNotice, MetadataField, SessionIntent, SubmissionStatus};
 use abb_engine::work_runtime::{ChildJobStatus, OperationId, WorkOperationStatus};
+use abb_engine::ShutdownOutcome;
 
 use super::integration_session_desk::{collision_review, finished, submission, Desk};
-use super::media_fixtures::chapters_of;
+use super::media_fixtures::{chapters_of, duration_ms, mux_chapters, write_sine_mp3};
 use super::wav_fixture::write_wav;
 
 fn imported(desk: &Desk) -> Vec<abb_engine::audio::AudioFile> {
@@ -353,4 +354,45 @@ async fn two_titles_differing_only_by_unicode_form_never_overwrite_each_other() 
         seconds.windows(2).all(|pair| pair[0] != pair[1]),
         "no output holds another title's audio: {seconds:?}"
     );
+}
+
+#[tokio::test]
+async fn import_marks_a_file_with_unrepairable_chapters_and_keeps_the_rest() {
+    let desk = Desk::new();
+    let tmp = desk.root.path();
+    let audio = tmp.join("plain.mp3");
+    write_sine_mp3(&audio, 0.9, 440.0);
+    let end = duration_ms(&audio);
+    let good = tmp.join("good.mp3");
+    let bad = tmp.join("bad.mp3");
+    mux_chapters(&audio, &[("One", 0, 400), ("Two", 400, end + 30)], &good);
+    mux_chapters(
+        &audio,
+        &[("One", 0, 400), ("Epilogue", end + 500, end + 900)],
+        &bad,
+    );
+    desk.send(SessionIntent::Import {
+        paths: [&good, &bad]
+            .map(|path| path.to_string_lossy().into_owned())
+            .to_vec(),
+    })
+    .await;
+    let files = desk.engine.session_snapshot().titles.expect("titles").files;
+    assert_eq!(files.len(), 2, "{files:?}");
+    let good = files
+        .iter()
+        .find(|file| file.path.ends_with("good.mp3"))
+        .expect("good file listed");
+    assert!(good.is_valid, "{:?}", good.error);
+    let bad = files
+        .iter()
+        .find(|file| file.path.ends_with("bad.mp3"))
+        .expect("bad file listed");
+    assert!(!bad.is_valid);
+    let reason = bad.error.as_deref().expect("refusal reason");
+    assert!(
+        reason.contains("Chapter 2") && reason.contains("Epilogue") && !reason.contains("CUE"),
+        "{reason}"
+    );
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 }
