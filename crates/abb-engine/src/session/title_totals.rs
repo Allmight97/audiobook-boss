@@ -67,7 +67,11 @@ pub(super) fn title_totals(
             .collect();
         total_size_bytes += valid.iter().map(|source| size_of(source)).sum::<f64>();
         if !valid.is_empty() {
-            preview_seconds.push(PreviewConfig.title_seconds(valid.len()).round() as u32);
+            let durations: Vec<f64> = valid
+                .iter()
+                .map(|source| source.duration.unwrap_or_default())
+                .collect();
+            preview_seconds.push(PreviewConfig.title_seconds(&durations).round() as u32);
         }
         by_title.insert(
             file.input_id.clone(),

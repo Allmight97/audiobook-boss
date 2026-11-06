@@ -104,6 +104,23 @@ fn the_preview_length_spans_the_titles_in_the_list() {
 }
 
 #[test]
+fn a_source_shorter_than_its_share_shortens_the_preview_length() {
+    let (mut files, sources) = grouped(vec![
+        source("a.mp3", 10.0, 1.0, 0),
+        source("b.mp3", 600.0, 1.0, 0),
+    ]);
+    files.push(source("short.m4b", 12.0, 1.0, 0));
+
+    assert_eq!(
+        title_totals(&files, &sources).preview_length,
+        PreviewLength {
+            shortest_seconds: 12,
+            longest_seconds: 55,
+        }
+    );
+}
+
+#[test]
 fn an_empty_list_reports_the_standard_preview_length() {
     assert_eq!(
         title_totals(&[], &BTreeMap::new()).preview_length,

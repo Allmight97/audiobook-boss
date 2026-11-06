@@ -2,10 +2,16 @@ use super::PreviewConfig;
 
 #[test]
 fn a_title_past_eighteen_files_previews_longer_than_ninety_seconds() {
-    assert_eq!(PreviewConfig.title_seconds(1).round(), 90.0);
-    assert_eq!(PreviewConfig.title_seconds(7).round(), 90.0);
-    assert_eq!(PreviewConfig.title_seconds(18).round(), 90.0);
-    assert_eq!(PreviewConfig.title_seconds(30).round(), 150.0);
+    for (files, seconds) in [(1, 90.0), (7, 90.0), (18, 90.0), (30, 150.0)] {
+        let durations = vec![600.0; files];
+        assert_eq!(PreviewConfig.title_seconds(&durations).round(), seconds);
+    }
+}
+
+#[test]
+fn a_file_shorter_than_its_share_adds_only_its_own_length() {
+    assert_eq!(PreviewConfig.title_seconds(&[10.0]), 10.0);
+    assert_eq!(PreviewConfig.title_seconds(&[10.0, 600.0]), 55.0);
 }
 
 #[test]

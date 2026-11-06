@@ -12,9 +12,14 @@ impl PreviewConfig {
         (PREVIEW_SECONDS / file_count as f64).max(PREVIEW_MIN_SEGMENT_SECONDS)
     }
 
-    /// How long a title's preview runs, its files' excerpts end to end.
-    pub(crate) fn title_seconds(&self, file_count: usize) -> f64 {
-        self.per_file_seconds(file_count) * file_count as f64
+    /// How long a title's preview runs, its files' excerpts end to end. A file
+    /// shorter than its share adds only its own length.
+    pub(crate) fn title_seconds(&self, file_durations: &[f64]) -> f64 {
+        let share = self.per_file_seconds(file_durations.len());
+        file_durations
+            .iter()
+            .map(|duration| duration.min(share))
+            .sum()
     }
 
     /// Each file's excerpt length at the output rate; the frame pipeline cuts
