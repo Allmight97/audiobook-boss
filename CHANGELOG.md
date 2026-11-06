@@ -8,8 +8,6 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 - With nothing running, the status line reads "Nothing running" instead of
   "Waiting for files...", which it showed even with files loaded.
-- A metadata lookup limited to one source says no matches were found on that
-  source, instead of naming both.
 - A CUE sheet that ABB ignored or could not read no longer shows a "chapters from"
   line in the file list.
 - Screen readers announce a file-list row and its reorder button by the title

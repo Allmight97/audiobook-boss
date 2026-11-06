@@ -35,17 +35,6 @@ function formatSeriesSummary(result: OnlineMetadataResult): string {
 	return parts.length ? parts.join(' • ') : 'Series: —';
 }
 
-function searchedSources(source: 'auto' | OnlineMetadataResult['source']): string {
-	switch (source) {
-		case 'audnexus':
-			return 'on Audnexus';
-		case 'openlibrary':
-			return 'on OpenLibrary';
-		case 'auto':
-			return 'across Audnexus and OpenLibrary';
-	}
-}
-
 function sourceLabel(result: OnlineMetadataResult): string {
 	if (result.source === 'audnexus') {
 		return result.audibleOnly ? 'Audible-only' : 'Audnexus';
@@ -225,7 +214,7 @@ export function MetadataLookupView(): JSX.Element {
 				<div id="metadata-lookup-results" class="app-modal-results">
 					{view().hasSearched && view().results.length === 0 && (
 						<div class="app-modal-empty muted-text">
-							<p>No online matches found {searchedSources(view().source)}.</p>
+							<p>No online matches found.</p>
 							<p class="metadata-lookup-empty-hint">
 								Older CD-era or rare audiobook editions may not be indexed. Use manual entry to
 								finish metadata for this file.
