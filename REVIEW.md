@@ -26,8 +26,8 @@ this file says how to review against them.
 - **Nit**: Refactor Discipline targets, a test that does not earn keep,
   naming, or local clarity. Post at most five; fold the rest into the
   summary.
-- **Pre-existing**: report only in code the diff touches, classified `fix`,
-  `defer`, or `reject` as root `AGENTS.md` asks.
+- **Pre-existing**: report only in code the diff touches, classified `fix` or
+  `reject` as root `AGENTS.md` asks.
 
 ## Verification bar
 

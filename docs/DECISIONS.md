@@ -37,8 +37,3 @@ the ref and event name when there is no pull request. A pull request's closed
 run uses that same group, so it cancels that pull request's earlier runs
 before deleting their caches. On main, a push run cancels only an older push
 run, never the scheduled full run that keeps main's caches from expiring.
-
-- poteto, put the correction in the codebase first: https://x.com/poteto/status/2111133080526495985
-- Thorsten Ball, what a pull request is for: https://x.com/thorstenball/status/2111130129355481240
-- Geoffrey Huntley, structure gets replicated: https://x.com/geoffreyhuntley/status/2111161924683456867
-- jinjingliang, do not run checks on drafts: https://x.com/jinjingliang/status/2111211135542362334

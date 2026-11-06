@@ -63,7 +63,9 @@ result, then stop before tagging or publishing.
    `vendor/faac-sys/ABB-PROVENANCE.md` and `upstream/COPYING` there for the
    shipped source identity and distribution terms. The app bundle currently
    includes license/provenance only; verify the corresponding release source
-   and rebuild route before publishing.
+   and rebuild route before publishing. Add a line to the release notes naming
+   the AAXClean GPL-3.0 helper and its source, per
+   `tools/abb-aaxclean-helper/THIRD-PARTY-NOTICES.md`.
 4. Run `bun run audit` so both Rust and JavaScript dependency graphs report
    before public packaging; any failure blocks the release. Run additional
    validation selected by the changed owner. For release-only metadata,

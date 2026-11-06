@@ -78,7 +78,9 @@ closure, and low-battery sleep remain controlled by macOS.
 After clone, `bash scripts/setup.sh` then `bash scripts/verify.sh`. Setup
 prints the line that puts its tools on PATH, installs this repo's pre-commit
 hook, and never edits shell profiles. Lanes and owner mapping: root
-`AGENTS.md` Environment and `scripts/AGENTS.md`.
+`AGENTS.md` Environment and `scripts/AGENTS.md`. Codex cloud: paste
+`bash scripts/setup.sh` into the Codex environment settings field once; that
+setting is not in the repo.
 
 Linux is a tested target. The AAXClean helper also builds for `linux-arm64`;
 that build is not proven on real hardware.
@@ -87,24 +89,7 @@ one is running, so they survive a reboot. With no secret service, they last
 until the next restart, and the account view says sign-in will not be
 remembered
 ([#557](https://github.com/Allmight97/audiobook-boss/issues/557)).
-
-### Windows (WSL)
-
-Windows through WSL is not a supported launch yet. A real Windows machine
-still has to run the checks in
-[#557](https://github.com/Allmight97/audiobook-boss/issues/557). Until that
-run is recorded, the notes below are untested:
-
-- WSLg (Windows 11, or Windows 10 build 19044+ with the Microsoft Store WSL)
-  may be required. Install the Linux requirements inside the distro.
-- A blank window may need `WEBKIT_DISABLE_DMABUF_RENDERER=1`, then
-  `WEBKIT_DISABLE_COMPOSITING_MODE=1`. That is a known WebKitGTK and WSLg
-  issue. Do not set either one until a real machine shows it is needed.
-- The library, `target/`, and outputs may need to stay on the Linux filesystem
-  (`~/…`), not `/mnt/c`. Windows drives are slower over WSL, chmod mostly does
-  not apply, and they are case-insensitive. This has not been measured.
-- Dragging files from Windows Explorer into the app may not work under WSLg.
-  The file picker is the path to try.
+Windows is not supported yet; #557 tracks it.
 
 ### Install a local build
 
@@ -133,37 +118,4 @@ package a DMG that may run on an unknown recipient Mac.
 
 ## Claude on GitHub
 
-Tag `@claude` with a request in an issue or pull request comment, an inline
-review comment, a submitted review, or a new issue's title/body. The
-`Claude mentions` workflow handles the request. The triggering person must
-have write access; the action rejects bot actors and users without it.
-
-Both Claude workflows use a subscription token stored as the repository secret
-`CLAUDE_CODE_OAUTH_TOKEN`. To replace a rejected or expired token, run these
-commands locally, then paste the token printed by the first command into the
-second command's hidden prompt:
-
-```sh
-claude setup-token
-gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo Allmight97/audiobook-boss
-```
-
-Paste only the token, without quotes or the surrounding instructions. Keep it
-out of comments, logs, and committed files. A `401 Invalid bearer token` error
-means Anthropic rejected the stored credential; rerunning with the same secret
-does not repair it.
-
-In GitHub Actions, select **Claude mentions → Run workflow** to check
-authentication without posting comments or changing files. The run must pass
-before testing `@claude` on a real request. From the CLI:
-
-```sh
-gh workflow run claude.yml --repo Allmight97/audiobook-boss --ref main
-```
-
-Turn automatic review (`claude-review.yml`, `docs/DECISIONS.md`) off or on with:
-
-```sh
-gh workflow disable claude-review.yml --repo Allmight97/audiobook-boss
-gh workflow enable claude-review.yml --repo Allmight97/audiobook-boss
-```
+Tokens, workflows, and review toggles: [docs/claude-on-github.md](docs/claude-on-github.md).

@@ -58,8 +58,6 @@ simpler design.
   with typed diagnostics; hard-fail when the selected contract cannot be met.
   Every IPC, metadata, path, and lifecycle boundary behaves explicitly, with
   no silent or caller-side substitute.
-- Solid 2 is the frontend baseline; for version-sensitive Solid API behavior
-  use the `abb-library-research` skill.
 
 ## Environment
 
@@ -81,9 +79,6 @@ profile write); PATH comes from `eval "$(scripts/setup.sh --print-env)"`
 named lanes run afresh. `verify.sh --help` lists the lanes and what each form
 runs; their commands live only in `verify.sh`.
 
-Codex cloud: paste `bash scripts/setup.sh` into the Codex environment settings
-field once. That setting is not in the repo.
-
 ## Refactor Discipline
 
 - Name the owned invariant and its owner before refactoring; move truth to the
@@ -92,8 +87,9 @@ field once. That setting is not in the repo.
 - Source files stay small enough to read whole (`scripts/check-file-size.mjs`).
   An over-budget file may not exceed its size at the merge base with
   `origin/main`; new logic and tests go in a sibling file. A function on a
-  complexity list gains no logic, except one dispatch arm for a new intent.
-  The PR names the split the file needs.
+  complexity list gains no logic, except one dispatch arm for a new intent (a
+  reviewer judgement; no check enforces it). The PR names the split the file
+  needs.
 - When merging code paths, name what each old path relied on (reads it
   skipped, state it left alone, ordering); keep each reliance or say which one
   the change drops.
@@ -111,7 +107,7 @@ field once. That setting is not in the repo.
 - Report pre-existing dead code and suspicious seams with evidence; fix them in
   the same change only inside the active owner and when they affect its
   invariant or proof. Fix trivial mechanical drift and name it. Classify the
-  rest `fix`, `defer`, or `reject` with impact and owner.
+  rest `fix` or `reject` with impact and owner.
 
 ## Testing And Proof
 
@@ -129,7 +125,6 @@ field once. That setting is not in the repo.
   `scripts/check-known-mistakes.ts` rejects another pairing and names the fix.
   Why: an agent reads the implementation without the tests, and tests do not
   spend the implementation's file-size budget.
-- UI behavior also needs visual review where tests cannot prove UX.
 - An owned import/export surface change updates the nearest `AGENTS.md`. A
   frontend owner or view `index.ts` also updates its hand-written STRIPS list
   in `src/__tests__/public-api-strips.contract.test.ts`. That update needs no

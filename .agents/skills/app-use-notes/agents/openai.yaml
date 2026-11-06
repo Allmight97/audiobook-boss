@@ -1,0 +1,4 @@
+interface:
+  display_name: "App Use Notes"
+  short_description: "Record owner-observed ABB behavior and check product decisions against it"
+  default_prompt: "Use $app-use-notes to record what the owner observed in ABB, or to check this product decision against those notes."
