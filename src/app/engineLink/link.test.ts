@@ -5,7 +5,7 @@ import {
 	sessionUpdate,
 	type FakeEngine,
 } from '../../test/fixtures/fakeEngine';
-import type { SessionUpdate } from '../../types/session';
+import type { SessionIntent, SessionOutcome, SessionUpdate } from '../../types/session';
 import type { OperationSnapshot } from '../../types/workRuntime';
 import { attachEngineLink, type EngineLink } from './link';
 
@@ -260,6 +260,52 @@ describe('engine link', () => {
 		engine.publishOperation(operation('late'));
 
 		expect(link.workOperations()).toEqual([]);
+	});
+
+	describe('outcomes that change nothing and say nothing', () => {
+		const saveRunning = 'A Save is running. Try again when it finishes.';
+		const editLost = 'Your edit was not applied because the selection changed.';
+
+		async function refusalAfter(intent: SessionIntent, outcome: SessionOutcome) {
+			const engine = createFakeEngine();
+			engine.respond = () => outcome;
+			const link = await linkTo(engine);
+			expect(await link.send(intent)).toEqual(outcome);
+			return link.refusal();
+		}
+
+		it.each<[SessionIntent]>([
+			[{ kind: 'selectAll' }],
+			[{ kind: 'clearSelection' }],
+			[{ kind: 'selectFile', titleId: 'a', modifiers: { multi: false, range: false } }],
+		])('says a Save is running when it blocks %j', async (intent) => {
+			expect(await refusalAfter(intent, { kind: 'draftRejected', message: null })).toBe(
+				saveRunning,
+			);
+		});
+
+		it('leaves a rejected draft to the message the form already shows', async () => {
+			expect(
+				await refusalAfter({ kind: 'selectAll' }, { kind: 'draftRejected', message: 'Bad date' }),
+			).toBeNull();
+		});
+
+		it.each<[SessionIntent]>([
+			[{ kind: 'setField', binding: 0, field: 'title', value: 'A' }],
+			[{ kind: 'setFieldAction', binding: 0, field: 'title', action: 'blank' }],
+			[{ kind: 'loadCoverFromFile', path: '/c.jpg' }],
+			[{ kind: 'loadCoverFromDrop', paths: ['/c.jpg'] }],
+			[{ kind: 'loadCoverFromUrl', url: 'https://example.com/c.jpg' }],
+		])('says the edit was lost when %j is superseded', async (intent) => {
+			expect(await refusalAfter(intent, { kind: 'superseded' })).toBe(editLost);
+		});
+
+		it.each<[SessionIntent]>([
+			[{ kind: 'selectFile', titleId: 'a', modifiers: { multi: false, range: false } }],
+			[{ kind: 'chooseCollisionPolicy', reviewId: 1, policy: 'skip_existing' }],
+		])('stays silent when a newer %j replaces it', async (intent) => {
+			expect(await refusalAfter(intent, { kind: 'superseded' })).toBeNull();
+		});
 	});
 
 	it('stops listening and rejects when the engine refuses to attach', async () => {

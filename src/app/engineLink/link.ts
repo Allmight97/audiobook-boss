@@ -53,6 +53,25 @@ export type EngineLink = {
 	dispose: () => void;
 };
 
+const SAVE_RUNNING_NOTICE = 'A Save is running. Try again when it finishes.';
+const EDIT_LOST_NOTICE = 'Your edit was not applied because the selection changed.';
+
+const SUPERSEDED_LOSES_THE_EDIT: ReadonlySet<SessionIntent['kind']> = new Set([
+	'setField',
+	'setFieldAction',
+	'loadCoverFromFile',
+	'loadCoverFromDrop',
+	'loadCoverFromUrl',
+]);
+
+function outcomeNotice(intent: SessionIntent, outcome: SessionOutcome): string | null {
+	if (outcome.kind === 'draftRejected' && outcome.message === null) return SAVE_RUNNING_NOTICE;
+	if (outcome.kind === 'superseded' && SUPERSEDED_LOSES_THE_EDIT.has(intent.kind)) {
+		return EDIT_LOST_NOTICE;
+	}
+	return null;
+}
+
 function shareUnchangedFiles(previous: SessionTitles, next: SessionTitles): SessionTitles {
 	const known = new Map<string, { file: AudioFile; content: string }>();
 	const remember = (file: AudioFile) =>
@@ -236,17 +255,26 @@ function createLink(
 		});
 	}
 
+	function showRefusal(message: string): void {
+		if (disposed) return;
+		refusal = message;
+		bumpRefusal((n) => n + 1);
+	}
+
 	function send(intent: SessionIntent): Promise<SessionOutcome> {
-		return dispatch((id, sequence) => capability.sessionDispatch(id, sequence, intent));
+		return dispatch((id, sequence) => capability.sessionDispatch(id, sequence, intent)).then(
+			(outcome) => {
+				const notice = outcomeNotice(intent, outcome);
+				if (notice !== null) showRefusal(notice);
+				return outcome;
+			},
+		);
 	}
 
 	function refuse(intent: SessionIntent, error: unknown): void {
 		if (disposed || isCancellation(error)) return;
 		logFrontendFailure(`engineLink.${intent.kind}`, error);
-		refusal = toUserMessage(error, {
-			fallback: "That change couldn't be applied.",
-		});
-		bumpRefusal((n) => n + 1);
+		showRefusal(toUserMessage(error, { fallback: "That change couldn't be applied." }));
 	}
 
 	const link: EngineLink = {

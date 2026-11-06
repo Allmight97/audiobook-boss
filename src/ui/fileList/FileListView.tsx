@@ -40,7 +40,6 @@ export function FileListView(props: {
 }): JSX.Element {
 	const runtime = useAppRuntime();
 	const input = runtime.input;
-	const metadataView = runtime.metadata.view;
 	const view = input.view;
 	const selectFile = input.selectFile;
 	const selectAll = input.selectAll;
@@ -87,7 +86,6 @@ export function FileListView(props: {
 
 	function handleFileListClick(index: number, event: MouseEvent): void {
 		if (isInteractiveListTarget(event.target)) return;
-		if (metadataView().saveInProgress) return;
 		if (reorderHandlers.consumePostDragClick()) return;
 		fileListContent?.focus({ preventScroll: true });
 		if (event.shiftKey) window.getSelection()?.removeAllRanges();
@@ -104,7 +102,6 @@ export function FileListView(props: {
 			selectedAnchor: view().selectedAnchor,
 		});
 		if (!command) return;
-		if (metadataView().saveInProgress) return;
 		event.preventDefault();
 		if (command.type === 'navigate') {
 			if (view().selectedIndices.length === 1 && view().selectedIndices[0] === command.index) {

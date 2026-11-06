@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- A click on a row, Select All, or a keyboard selection while a Save runs now says
+  "A Save is running. Try again when it finishes." A metadata edit or cover change dropped
+  because the selection changed says "Your edit was not applied because the selection changed."
 - Editing the metadata search query or source while a search runs now ends the status
   with "Search stopped because it changed. Search again." instead of "Searching…" forever.
   Changing the apply mode or replace-cover option no longer cancels a running search.
