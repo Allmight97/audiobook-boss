@@ -281,6 +281,25 @@ describe('engine link', () => {
 		expect(stopped).toBe(true);
 	});
 
+	it('stops the listeners that started when another one cannot', async () => {
+		const engine = createFakeEngine();
+		const listen = engine.listenSessionUpdates.bind(engine);
+		let stopped = false;
+		engine.listenSessionUpdates = async (handler) => {
+			const stop = await listen(handler);
+			return () => {
+				stopped = true;
+				stop();
+			};
+		};
+		engine.listenWorkOperations = async () => {
+			throw new Error('listener unavailable');
+		};
+
+		await expect(attachEngineLink(engine)).rejects.toThrow('listener unavailable');
+		expect(stopped).toBe(true);
+	});
+
 	it('refuses a first snapshot that lacks a part', async () => {
 		const engine = createFakeEngine();
 		const attach = engine.attach.bind(engine);

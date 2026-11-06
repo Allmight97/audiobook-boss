@@ -310,15 +310,20 @@ export async function attachEngineLink(
 		if (inbound) apply(inbound);
 		else early.push(apply);
 	}
-	const stops = await Promise.all([
+	const listeners = await Promise.allSettled([
 		capability.listenSessionUpdates((update) => deliver((to) => to.session(update))),
 		capability.listenSettingsUpdates((snapshot) => deliver((to) => to.settings(snapshot))),
 		capability.listenWorkOperations((update) => deliver((to) => to.work(update))),
 	]);
 	const stopListening = () => {
-		for (const stop of stops) stop();
+		for (const listener of listeners) {
+			if (listener.status === 'fulfilled') listener.value();
+		}
 	};
 	try {
+		for (const listener of listeners) {
+			if (listener.status === 'rejected') throw listener.reason;
+		}
 		const attached = createLink(capability, await capability.attach(), stopListening);
 		inbound = attached.inbound;
 		for (const apply of early) apply(attached.inbound);
