@@ -52,7 +52,7 @@ export function CoverArtView(): JSX.Element {
 			setUrlInput(pastedUrl);
 			loadFromUrl(pastedUrl);
 		} catch {
-			rejectPastedText();
+			if (!isTextInput(target)) rejectPastedText();
 		}
 	}
 

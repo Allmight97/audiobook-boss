@@ -26,10 +26,10 @@ describe('cover art paste', () => {
 		runtime.metadata.setCoverHovered(true);
 	}
 
-	function paste(text: string): void {
+	function paste(text: string, target: EventTarget = document.body): void {
 		const event = new Event('paste', { bubbles: true, cancelable: true });
 		Object.defineProperty(event, 'clipboardData', { value: { getData: () => text } });
-		document.body.dispatchEvent(event);
+		target.dispatchEvent(event);
 	}
 
 	it('loads a pasted URL over the cover', async () => {
@@ -53,5 +53,28 @@ describe('cover art paste', () => {
 			}),
 		);
 		expect(engine.sessionIntents.some((intent) => intent.kind === 'loadCoverFromUrl')).toBe(false);
+	});
+
+	it('leaves pasted text to the URL field and says nothing when it is not a URL', async () => {
+		await renderCover();
+		const field = screen.getByTestId('cover-art-url-input');
+		field.focus();
+		paste('example.com/cover', field);
+		await Promise.resolve();
+		expect(runtime?.metadata.view().cover.message).toEqual({ kind: 'hidden' });
+		expect(engine.sessionIntents.some((intent) => intent.kind === 'loadCoverFromUrl')).toBe(false);
+	});
+
+	it('still loads a URL pasted into the URL field', async () => {
+		await renderCover();
+		const field = screen.getByTestId('cover-art-url-input');
+		field.focus();
+		paste('https://example.com/cover.jpg', field);
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'loadCoverFromUrl',
+				url: 'https://example.com/cover.jpg',
+			}),
+		);
 	});
 });
