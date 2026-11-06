@@ -16,11 +16,6 @@ import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { SessionIntent } from '../../types/session';
 import type { OperationId } from '../../types/workRuntime';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
-import {
-	normalizeWorkOperationsUpdate,
-	normalizeSessionUpdate,
-	normalizeSettingsSnapshot,
-} from './normalizers';
 
 type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
 type RuntimeEventName = Exclude<EventName, AppEventName>;
@@ -33,21 +28,15 @@ type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
 async function listenWorkOperationsUpdate(
 	handler: WorkOperationsUpdateHandler,
 ): Promise<UnlistenFn> {
-	return generatedEvents.workOperationsUpdate.listen((event) => {
-		handler({ payload: normalizeWorkOperationsUpdate(event.payload) });
-	});
+	return generatedEvents.workOperationsUpdate.listen(handler);
 }
 
 async function listenSettingsUpdate(handler: SettingsUpdateHandler): Promise<UnlistenFn> {
-	return generatedEvents.settingsUpdate.listen((event) => {
-		handler({ payload: normalizeSettingsSnapshot(event.payload) });
-	});
+	return generatedEvents.settingsUpdate.listen(handler);
 }
 
 async function listenSessionUpdate(handler: SessionUpdateHandler): Promise<UnlistenFn> {
-	return generatedEvents.sessionUpdate.listen((event) => {
-		handler({ payload: normalizeSessionUpdate(event.payload) });
-	});
+	return generatedEvents.sessionUpdate.listen(handler);
 }
 
 function listen(

@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
-import type { AcquisitionLane, AppSettings, PinnedDefaults } from '../../types/appSettings';
+import type { AcquisitionLane, AppSettings } from '../../types/appSettings';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Dialog } from '../foundation';
 import { EncoderView } from '../encoderPanel';
@@ -236,7 +236,7 @@ export function AppSettingsDialogView(): JSX.Element {
 		};
 	});
 
-	const pinnedDefaults = (): PinnedDefaults | undefined => state().settings?.pinnedDefaults;
+	const pinnedDefaults = () => state().settings?.pinnedDefaults;
 	const startupBehavior = () => state().settings?.startupBehavior ?? 'rememberLastState';
 	const defaultAcquisitionLane = (): AcquisitionLane => settings.defaultAcquisitionLane();
 

@@ -3,49 +3,25 @@ import type { SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { SessionIntent } from '../../types/session';
 import type { OperationId } from '../../types/workRuntime';
-import { normalizeAppError, unwrapGeneratedResult } from './appError';
-import {
-	normalizeFrontendAttachment,
-	normalizeSessionReply,
-	normalizeSettingsReply,
-} from './normalizers';
+import { unwrapGeneratedResult } from './appError';
 
 type GeneratedResult<T> = { status: 'ok'; data: T } | { status: 'error'; error: unknown };
 
-async function runGeneratedCommand<T>(promise: Promise<GeneratedResult<T>>): Promise<T>;
-async function runGeneratedCommand<T, R>(
-	promise: Promise<GeneratedResult<T>>,
-	transform: (value: T) => R,
-): Promise<R>;
-async function runGeneratedCommand<T, R>(
-	promise: Promise<GeneratedResult<T>>,
-	transform?: (value: T) => R,
-): Promise<T | R> {
-	try {
-		const unwrapped = unwrapGeneratedResult(await promise);
-		return transform ? transform(unwrapped) : unwrapped;
-	} catch (error) {
-		throw normalizeAppError(error);
-	}
+async function runGeneratedCommand<T>(promise: Promise<GeneratedResult<T>>): Promise<T> {
+	return unwrapGeneratedResult(await promise);
 }
 
 export const commandSpecs = {
-	attach_frontend: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.attachFrontend(), normalizeFrontendAttachment),
+	attach_frontend: (_args?: undefined) => runGeneratedCommand(generatedCommands.attachFrontend()),
 	session_dispatch: (args: { client: number; sequence: number; intent: SessionIntent }) =>
-		runGeneratedCommand(
-			generatedCommands.sessionDispatch(args.client, args.sequence, args.intent),
-			normalizeSessionReply,
-		),
+		runGeneratedCommand(generatedCommands.sessionDispatch(args.client, args.sequence, args.intent)),
 	open_preview_output: (args: { client: number; sequence: number; runId: string }) =>
 		runGeneratedCommand(
 			generatedCommands.openPreviewOutput(args.client, args.sequence, args.runId),
-			normalizeSessionReply,
 		),
 	settings_dispatch: (args: { client: number; sequence: number; intent: SettingsIntent }) =>
 		runGeneratedCommand(
 			generatedCommands.settingsDispatch(args.client, args.sequence, args.intent),
-			normalizeSettingsReply,
 		),
 	cancel_work_operation: (args: { operationId: OperationId; childJobId?: string }) =>
 		runGeneratedCommand(

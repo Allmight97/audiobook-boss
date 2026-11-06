@@ -60,9 +60,24 @@ function freshSession(): SessionParts {
 }
 
 export function defaultAppSettings(): AppSettings {
-	const settings = structuredClone(recordedFresh.settings.settings);
-	if (!settings) throw new Error('the recorded fresh settings hold no settings');
-	return settings;
+	return structuredClone(recordedFresh.settings.settings);
+}
+
+export function sessionUpdate(
+	parts: Pick<SessionUpdate, 'revision'> & Partial<SessionUpdate>,
+): SessionUpdate {
+	return {
+		titles: null,
+		selection: null,
+		metadata: null,
+		lookup: null,
+		audio: null,
+		output: null,
+		remote: null,
+		remoteLibrary: null,
+		remoteAcquisition: null,
+		...parts,
+	};
 }
 
 export function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
@@ -74,10 +89,19 @@ export function audioFile(path: string, overrides: Partial<AudioFile> = {}): Aud
 		size: 1024,
 		duration: 60,
 		format: 'm4b',
+		bitrate: null,
+		sampleRate: null,
+		channels: null,
+		codecLabel: null,
+		selectedDecoder: null,
+		artist: null,
+		chapterPlan: null,
+		cueSource: null,
+		error: null,
 		isValid,
 		sourceRemoved: false,
 		chapters: [],
-		cover: isValid ? `audio/0/${encodeURIComponent(path)}` : undefined,
+		cover: isValid ? `audio/0/${encodeURIComponent(path)}` : null,
 		...overrides,
 	};
 }
@@ -294,7 +318,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		},
 		seedAppSettings(patch, saveError) {
 			engine.seedSettings({
-				settings: { ...settingsSnapshot.settings!, ...patch },
+				settings: { ...settingsSnapshot.settings, ...patch },
 				saveError,
 			});
 		},

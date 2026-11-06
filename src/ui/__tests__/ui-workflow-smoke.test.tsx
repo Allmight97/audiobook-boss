@@ -35,6 +35,10 @@ function importedFile(): AudioFile {
 		selectedDecoder: 'FFmpeg',
 		label: 'Dune (old tags)',
 		artist: 'Old Author',
+		chapterPlan: null,
+		cueSource: null,
+		error: null,
+		cover: null,
 		isValid: true,
 		sourceRemoved: false,
 	};

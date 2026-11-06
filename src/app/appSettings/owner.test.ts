@@ -23,7 +23,7 @@ describe('settings owner', () => {
 	}
 
 	function unsaved(message: string) {
-		return { code: 'io_error', category: 'io', message } as const;
+		return { code: 'io_error', category: 'io', message, detail: null } as const;
 	}
 
 	it('words the job count as Auto → N or Max N from the engine snapshot', async () => {
@@ -57,7 +57,7 @@ describe('settings owner', () => {
 		await app.initialize();
 
 		engine.seedAppSettings(
-			{ encoderDefaults: { ...engine.settings().settings!.encoderDefaults, intent: 'preserve' } },
+			{ encoderDefaults: { ...engine.settings().settings.encoderDefaults, intent: 'preserve' } },
 			unsaved('Disk full'),
 		);
 
@@ -137,9 +137,9 @@ describe('settings owner', () => {
 			const { settings } = engine.settings();
 			engine.seedAppSettings({
 				pinnedDefaults: {
-					maxConcurrentJobs: settings!.maxConcurrentJobs,
-					encoderDefaults: settings!.encoderDefaults,
-					outputDefaults: settings!.outputDefaults,
+					maxConcurrentJobs: settings.maxConcurrentJobs,
+					encoderDefaults: settings.encoderDefaults,
+					outputDefaults: settings.outputDefaults,
 				},
 			});
 			return undefined;
@@ -154,6 +154,6 @@ describe('settings owner', () => {
 		};
 		await app.settings.resetAllAppSettings();
 		expect(app.settings.dialog().saveState).toBe('saved');
-		expect(app.settings.dialog().settings?.pinnedDefaults).toBeUndefined();
+		expect(app.settings.dialog().settings?.pinnedDefaults).toBeNull();
 	});
 });

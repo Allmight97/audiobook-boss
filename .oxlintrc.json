@@ -38,8 +38,8 @@
 						"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
 					},
 					{
-						"group": ["**/tauri/commands", "**/tauri/normalizers"],
-						"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+						"group": ["**/tauri/commands"],
+						"message": "commands.ts is private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
 					},
 					{
 						"group": ["@tauri-apps/plugin-*", "@tauri-apps/api/event"],
@@ -156,8 +156,8 @@
 								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
 							},
 							{
-								"group": ["**/tauri/commands", "**/tauri/normalizers"],
-								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+								"group": ["**/tauri/commands"],
+								"message": "commands.ts is private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
 							},
 							{
 								"group": ["@tauri-apps/plugin-*", "@tauri-apps/api/event"],
@@ -203,8 +203,8 @@
 								"message": "Tauri plugin and event APIs stay in src/lib/tauri; call them through tauriClient (src/lib/tauri/AGENTS.md)."
 							},
 							{
-								"group": ["**/tauri/commands", "**/tauri/normalizers"],
-								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+								"group": ["**/tauri/commands"],
+								"message": "commands.ts is private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
 							}
 						]
 					}
@@ -247,8 +247,8 @@
 								"message": "Tauri plugin and event APIs stay in src/lib/tauri; call them through tauriClient (src/lib/tauri/AGENTS.md)."
 							},
 							{
-								"group": ["**/tauri/commands", "**/tauri/normalizers"],
-								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+								"group": ["**/tauri/commands"],
+								"message": "commands.ts is private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
 							}
 						]
 					}
@@ -282,8 +282,8 @@
 								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
 							},
 							{
-								"group": ["**/tauri/commands", "**/tauri/normalizers"],
-								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+								"group": ["**/tauri/commands"],
+								"message": "commands.ts is private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
 							}
 						]
 					}

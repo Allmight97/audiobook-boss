@@ -1,7 +1,12 @@
 import { createSignal, type Accessor } from 'solid-js';
 import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
 import { liveEngineCapability, type EngineCapability } from '../../lib/tauri/capabilities/engine';
-import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../types/appSettings';
+import type {
+	AppSettings,
+	SettingsIntent,
+	SettingsOutcome,
+	SettingsSnapshot,
+} from '../../types/appSettings';
 import type { AudioFile } from '../../types/audio';
 import type {
 	RemoteAcquisitionSnapshot,
@@ -36,7 +41,7 @@ export type EngineLink = {
 	readonly remote: Accessor<RemoteUiSnapshot>;
 	readonly remoteLibrary: Accessor<RemoteLibrarySnapshot>;
 	readonly remoteAcquisition: Accessor<RemoteAcquisitionSnapshot>;
-	readonly settings: Accessor<SettingsSnapshot>;
+	readonly settings: Accessor<LinkSettings>;
 	/** WorkRuntime's operations in the engine's display order. */
 	readonly workOperations: Accessor<ReadonlyArray<OperationSnapshot>>;
 	/** Cancels an operation, or only the title named by `childJobId`; the
@@ -59,6 +64,11 @@ export type EngineLink = {
 	sendSettings: (intent: SettingsIntent) => Promise<SettingsOutcome>;
 	ready: () => Promise<void>;
 	dispose: () => void;
+};
+
+/** The engine's settings; `settings` stays null until it attaches. */
+type LinkSettings = Omit<SettingsSnapshot, 'settings' | 'startupDefaults'> & {
+	readonly settings: AppSettings | null;
 };
 
 type Attachment =
@@ -242,9 +252,12 @@ function emptyRemote(): RemoteUiSnapshot {
 	};
 }
 
-function emptySettings(): SettingsSnapshot {
+function emptySettings(): LinkSettings {
 	return {
 		revision: UNATTACHED,
+		settings: null,
+		saveError: null,
+		recovery: null,
 		concurrency: {
 			preference: { mode: 'auto' },
 			effective: 1,

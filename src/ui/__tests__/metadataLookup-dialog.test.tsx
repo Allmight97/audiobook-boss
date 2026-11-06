@@ -20,6 +20,10 @@ function lookupResult(): OnlineMetadataResult {
 		publishedDate: '2020-07',
 		durationSeconds: 3600,
 		audibleOnly: false,
+		series: null,
+		seriesPart: null,
+		subseries: null,
+		subseriesPart: null,
 		cover: 'remote/0/https%3A%2F%2Fexample.com%2Fcover.jpg',
 	};
 }

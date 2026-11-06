@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@solidjs/testing-library';
 import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
-import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
+import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import type { AudioChoiceView, SessionAudio } from '../../types/session';
 import { EncoderView } from '../encoderPanel';
 
@@ -120,16 +120,11 @@ describe('encoder panel behavior controls', () => {
 		await renderEncoder(() => undefined);
 		engine.loadTitles(
 			[
-				{
-					inputId: '/books/source.m4b',
-					chapters: [],
-					path: '/books/source.m4b',
+				audioFile('/books/source.m4b', {
 					label: 'source.m4b',
-					isValid: true,
-					sourceRemoved: false,
 					sampleRate: 44100,
 					channels: 2,
-				},
+				}),
 			],
 			[0],
 		);

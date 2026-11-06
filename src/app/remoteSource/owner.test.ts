@@ -18,6 +18,11 @@ const job: AcquisitionJob = {
 		percentage: 40,
 		message: 'Downloading audiobook.',
 		terminal: false,
+		bytesDownloaded: null,
+		bytesTotal: null,
+		currentTitleId: null,
+		currentItemIndex: null,
+		totalItems: null,
 	},
 	materializedFiles: [],
 	supplementalAssets: [],
@@ -168,14 +173,25 @@ const title = {
 	title: 'Restored book',
 	authors: ['Writer'],
 	narrators: [],
+	cover: null,
 	supplementalPdfAvailable: false,
-	availability: { status: 'available' as const, acquirable: true, label: 'Available' },
+	availability: {
+		status: 'available' as const,
+		acquirable: true,
+		label: 'Available',
+		detail: null,
+	},
 };
 
 it('restores cached library rows and selections during accepted acquisition without requesting a library load', async () => {
 	const engine = createFakeEngine();
 	engine.change((state) => {
-		state.remote.account = { providerId: 'audible', status: 'connected' };
+		state.remote.account = {
+			providerId: 'audible',
+			status: 'connected',
+			account: null,
+			message: null,
+		};
 		state.remote.selectedTitleIds = [title.titleId];
 		state.remoteAcquisition.job = job;
 		state.remoteLibrary.titles = [title];

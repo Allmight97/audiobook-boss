@@ -7,11 +7,11 @@ import { coverSrc } from '../../lib/tauri/coverSrc';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import './metadataLookup.css';
 
-function formatPublicationDate(value: string | null | undefined): string {
+function formatPublicationDate(value: string | null): string {
 	return value || '—';
 }
 
-function formatDurationHours(durationSeconds: number | null | undefined): string {
+function formatDurationHours(durationSeconds: number | null): string {
 	if (!durationSeconds) return '—';
 	return `${Math.round(durationSeconds / 3600)}h`;
 }
@@ -249,7 +249,7 @@ export function MetadataLookupView(): JSX.Element {
 									<div class="metadata-lookup-meta">{formatSeriesSummary(result)}</div>
 									<div class="metadata-lookup-meta">
 										Publication {formatPublicationDate(result.publishedDate ?? null)} • Length:{' '}
-										{formatDurationHours(result.durationSeconds ?? null)}
+										{formatDurationHours(result.durationSeconds)}
 									</div>
 									<span
 										class={[

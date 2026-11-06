@@ -204,7 +204,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		defaultAcquisitionLane: () => link.settings().settings?.defaultAcquisitionLane ?? 'audible',
 		dialog: () => {
 			rev();
-			return { ...dialog, settings: link.settings().settings ?? null };
+			return { ...dialog, settings: link.settings().settings };
 		},
 		async setConcurrencySelection(value) {
 			const error = failure(

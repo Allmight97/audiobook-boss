@@ -1,5 +1,5 @@
 import { flush } from 'solid-js';
-import { createFakeEngine, fakeEngine } from '../../test/fixtures/fakeEngine';
+import { createFakeEngine, fakeEngine, sessionUpdate } from '../../test/fixtures/fakeEngine';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -26,6 +26,8 @@ function acquisitionJob(percentage: number, terminal = false): AcquisitionJob {
 			percentage,
 			message: terminal ? 'Acquisition complete.' : 'Downloading audiobook.',
 			terminal,
+			bytesDownloaded: null,
+			bytesTotal: null,
 			currentTitleId: 'B000000001',
 			currentItemIndex: 1,
 			totalItems: 1,
@@ -56,11 +58,13 @@ function remoteTitle(): RemoteTitle {
 		title: 'Example Book',
 		authors: ['Example Author'],
 		narrators: [],
+		cover: null,
 		supplementalPdfAvailable: false,
 		availability: {
 			status: 'available',
 			acquirable: true,
 			label: 'Available',
+			detail: null,
 		},
 	};
 }
@@ -73,7 +77,7 @@ async function openConnected(
 	fakeEngine().change((state) => {
 		state.remote.lane = lane;
 		state.remote.providers = providerCapabilities();
-		state.remote.account = { providerId: lane, status: 'connected' };
+		state.remote.account = { providerId: lane, status: 'connected', account: null, message: null };
 		state.remoteLibrary.titles = [remoteTitle()];
 	});
 	await runtime.remoteSource.open({ lane });
@@ -222,6 +226,7 @@ describe('RemoteSourceAcquireView', () => {
 						providerId: 'indexer',
 						status: 'needsAuth',
 						message: 'Configure Indexer URL and API key in Settings before searching.',
+						account: null,
 					};
 				});
 			}
@@ -248,7 +253,12 @@ describe('RemoteSourceAcquireView', () => {
 		));
 		fakeEngine().change((state) => {
 			state.remote.providers = providerCapabilities();
-			state.remote.account = { providerId: 'audible', status: 'needsAuth' };
+			state.remote.account = {
+				providerId: 'audible',
+				status: 'needsAuth',
+				account: null,
+				message: null,
+			};
 			state.remote.busy = true;
 		});
 		await runtime.remoteSource.open({ lane: 'audible' });
@@ -311,6 +321,7 @@ describe('RemoteSourceAcquireView', () => {
 			indexer: `Indexer ${indexerId}`,
 			sizeBytes: 1000,
 			protocol: 'torrent',
+			detailUrl: null,
 			seeders: indexerId === 8 ? 72 : 10,
 			categories: [{ id: 3030, name: 'Audio/Audiobook' }],
 		}));
@@ -390,10 +401,12 @@ describe('RemoteSourceAcquireView during a download', () => {
 			progress(percentage: number) {
 				if (!deliver) throw new Error('not attached yet');
 				revision += 1;
-				deliver({
-					revision,
-					remoteAcquisition: { revision, acquiring: false, job: acquisitionJob(percentage) },
-				});
+				deliver(
+					sessionUpdate({
+						revision,
+						remoteAcquisition: { revision, acquiring: false, job: acquisitionJob(percentage) },
+					}),
+				);
 				flush();
 			},
 		};
@@ -409,7 +422,12 @@ describe('RemoteSourceAcquireView during a download', () => {
 		engine.change((state) => {
 			state.remote.lane = 'audible';
 			state.remote.providers = providerCapabilities();
-			state.remote.account = { providerId: 'audible', status: 'connected' };
+			state.remote.account = {
+				providerId: 'audible',
+				status: 'connected',
+				account: null,
+				message: null,
+			};
 			state.remote.selectedTitleIds = [titles[1].titleId];
 			state.remote.includePdfByTitleId = Object.fromEntries(
 				titles.map((title) => [title.titleId, title.supplementalPdfAvailable]),
@@ -543,7 +561,12 @@ describe('RemoteSourceAcquireView during a download', () => {
 		host.engine.change((state) => {
 			state.remote.lane = 'indexer';
 			state.remote.providers = providerCapabilities();
-			state.remote.account = { providerId: 'indexer', status: 'connected' };
+			state.remote.account = {
+				providerId: 'indexer',
+				status: 'connected',
+				account: null,
+				message: null,
+			};
 			state.remote.indexer.releases = Array.from({ length: 40 }, (_, index) => ({
 				providerId: 'indexer' as const,
 				key: `guid-${index}`,
@@ -553,6 +576,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 				indexer: 'Indexer',
 				sizeBytes: 1000,
 				protocol: 'torrent' as const,
+				detailUrl: null,
 				seeders: index,
 				categories: [],
 			}));

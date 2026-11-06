@@ -14,7 +14,12 @@ afterEach(() => {
 });
 
 function completedOperation(): OperationSnapshot {
-	const progress = { stage: 'complete' as const, percentage: 100, message: 'Complete.' };
+	const progress = {
+		stage: 'complete' as const,
+		percentage: 100,
+		message: 'Complete.',
+		etaSeconds: null,
+	};
 	return {
 		operationId: 'batch',
 		sequence: 1,
@@ -41,6 +46,14 @@ function completedOperation(): OperationSnapshot {
 				startedAtMs: 2_000,
 				finishedAtMs: 19_685,
 				warnings: [],
+				sourcePath: null,
+				inputIndex: null,
+				inputId: null,
+				jobId: null,
+				message: null,
+				outputPath: null,
+				supplementalWarning: null,
+				outputUpdate: null,
 			},
 			{
 				sourceInputIds: [],
@@ -54,9 +67,18 @@ function completedOperation(): OperationSnapshot {
 				startedAtMs: 2_000,
 				finishedAtMs: 15_150,
 				warnings: [],
+				sourcePath: null,
+				inputIndex: null,
+				inputId: null,
+				jobId: null,
+				message: null,
+				outputPath: null,
+				supplementalWarning: null,
+				outputUpdate: null,
 			},
 		],
 		logTail: [],
+		terminalSummary: null,
 	};
 }
 
@@ -84,8 +106,8 @@ it('renders operation wall time and each file duration independently in the exis
 
 it('keeps plain completion labels when timestamps are unavailable', async () => {
 	const operation = completedOperation();
-	operation.startedAtMs = undefined;
-	for (const child of operation.children) child.finishedAtMs = undefined;
+	operation.startedAtMs = null;
+	for (const child of operation.children) child.finishedAtMs = null;
 	await showOperation(operation);
 	expect(screen.getByText('Completed')).toBeVisible();
 	expect(screen.getAllByText('Done')).toHaveLength(2);

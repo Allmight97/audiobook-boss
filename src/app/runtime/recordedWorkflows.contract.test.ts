@@ -160,7 +160,7 @@ describe('workflows recorded from the real engine', () => {
 
 		await runtime.settings.setStartupBehavior('pinnedDefaults');
 		expect(runtime.settings.dialog().settings?.startupBehavior).toBe('pinnedDefaults');
-		expect(runtime.settings.dialog().settings?.pinnedDefaults).toBeUndefined();
+		expect(runtime.settings.dialog().settings?.pinnedDefaults).toBeNull();
 		await runtime.settings.saveCurrentSettingsAsPinnedDefaults();
 		expect(runtime.settings.dialog().settings?.pinnedDefaults).toBeDefined();
 		await runtime.settings.setDefaultAcquisitionLane('indexer');
@@ -171,7 +171,7 @@ describe('workflows recorded from the real engine', () => {
 			startupBehavior: 'rememberLastState',
 			defaultAcquisitionLane: 'audible',
 		});
-		expect(runtime.settings.dialog().settings?.pinnedDefaults).toBeUndefined();
+		expect(runtime.settings.dialog().settings?.pinnedDefaults).toBeNull();
 		replay.finish();
 	});
 

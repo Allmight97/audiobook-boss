@@ -95,15 +95,15 @@ describe('AppSettingsDialogView', () => {
 			state.audio.defaults.facts.effectiveEncoder = 'faac';
 		});
 		const faac = {
-			...engine.settings().settings!.encoderDefaults,
+			...engine.settings().settings.encoderDefaults,
 			settings: {
-				...engine.settings().settings!.encoderDefaults.settings,
+				...engine.settings().settings.encoderDefaults.settings,
 				encoderType: 'faac' as const,
 			},
 		};
 		engine.seedAppSettings(
 			{ encoderDefaults: faac },
-			{ code: 'io_error', category: 'io', message: 'Disk full' },
+			{ code: 'io_error', category: 'io', message: 'Disk full', detail: null },
 		);
 		await vi.waitFor(() =>
 			expect(screen.getByRole('button', { name: 'Retry save' })).toBeInTheDocument(),
@@ -191,7 +191,7 @@ describe('AppSettingsDialogView', () => {
 		engine.respondSettings = () => {
 			engine.seedAppSettings(
 				{ keepAwakeWhileWorking: false },
-				{ code: 'io_error', category: 'io', message: 'Disk full' },
+				{ code: 'io_error', category: 'io', message: 'Disk full', detail: null },
 			);
 			return undefined;
 		};

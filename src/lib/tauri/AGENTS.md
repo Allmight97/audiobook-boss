@@ -29,19 +29,15 @@
 
 ## Private To This Folder
 
-- `commands.ts` and `normalizers.ts` are private to this folder (Oxlint
-  `no-restricted-imports`).
-- `normalizers.ts` turns `null` into an absent field for the snapshot families
-  it names (for example title files, remote account and acquisition, settings)
-  and passes every other field through unchanged, so a meaningful null (a
-  title's size estimate before it can be estimated) survives.
+- `commands.ts` is private to this folder (Oxlint `no-restricted-imports`).
+- Snapshots reach owners in the generated shape: a field the engine leaves
+  empty is `null`, never absent. Read it with `?.`, `??`, or `== null`.
 - Name commands and types for the product; skip `_v1`/`_v2` and `_cmd`
   suffixes. A breaking change gets a new product-meaningful name.
 
 `recordedFresh.ts` is test support and not private: the fake engine and
-contract tests outside this folder import it. It normalizes the recorded fresh
-session and settings (`generated/fixtures/`) the way the client does, and sits
-here because only this folder may import `normalizers.ts`.
+contract tests outside this folder import it. It types the recorded fresh
+session and settings (`generated/fixtures/`) as a frontend attachment.
 
 ## Frontend Utilities
 

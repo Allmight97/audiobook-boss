@@ -16,7 +16,7 @@ type Replay = {
 
 /**
  * Answers the commands of one recorded scenario at the `invoke` boundary, so
- * the real client, normalizers, link and owners run. It holds no state and no
+ * the real client, link and owners run. It holds no state and no
  * rule: each dispatch must carry the next recorded intent and gets the
  * recorded reply unchanged.
  *

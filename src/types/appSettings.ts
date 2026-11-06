@@ -1,50 +1,12 @@
-import type {
-	AacDecoder as GeneratedAacDecoder,
-	AcquisitionLane as GeneratedAcquisitionLane,
-	AppSettings as GeneratedAppSettings,
-	ConcurrencyPreference as GeneratedConcurrencyPreference,
-	EncoderDefaults as GeneratedEncoderDefaults,
-	OutputDefaults as GeneratedOutputDefaults,
-	SettingsIntent as GeneratedSettingsIntent,
-	SettingsOutcome as GeneratedSettingsOutcome,
-	SettingsSnapshot as GeneratedSettingsSnapshot,
-	SettingsUnit as GeneratedSettingsUnit,
-	StartupBehavior as GeneratedStartupBehavior,
+export type {
+	AacDecoder,
+	AcquisitionLane,
+	AppSettings,
+	ConcurrencyPreference,
+	SettingsIntent,
+	SettingsOutcome,
+	SettingsReply,
+	SettingsSnapshot,
+	SettingsUnit,
+	StartupBehavior,
 } from '../lib/generated/tauri';
-import type { EncoderSettings } from './audio';
-import type { NullToOptionalDeep } from './ipc';
-
-export type ConcurrencyPreference = GeneratedConcurrencyPreference;
-export type AcquisitionLane = GeneratedAcquisitionLane;
-export type AacDecoder = GeneratedAacDecoder;
-export type StartupBehavior = GeneratedStartupBehavior;
-export type SettingsUnit = GeneratedSettingsUnit;
-type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
-	settings: EncoderSettings;
-};
-type OutputDefaults = NullToOptionalDeep<GeneratedOutputDefaults>;
-export type PinnedDefaults = {
-	maxConcurrentJobs: ConcurrencyPreference;
-	encoderDefaults: EncoderDefaults;
-	outputDefaults: OutputDefaults;
-};
-export type AppSettings = Omit<
-	NullToOptionalDeep<GeneratedAppSettings>,
-	'encoderDefaults' | 'outputDefaults' | 'pinnedDefaults'
-> & {
-	encoderDefaults: EncoderDefaults;
-	outputDefaults: OutputDefaults;
-	pinnedDefaults?: PinnedDefaults;
-};
-
-export type SettingsSnapshot = Omit<
-	NullToOptionalDeep<GeneratedSettingsSnapshot>,
-	'settings' | 'startupDefaults'
-> & {
-	settings?: AppSettings;
-	startupDefaults?: PinnedDefaults;
-};
-
-export type SettingsIntent = GeneratedSettingsIntent;
-export type SettingsOutcome = GeneratedSettingsOutcome;
-export type SettingsReply = { outcome: SettingsOutcome; snapshot: SettingsSnapshot };

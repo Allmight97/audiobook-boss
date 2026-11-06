@@ -18,6 +18,10 @@ function coverResult(source: 'audnexus' | 'openlibrary', name: string): OnlineMe
 		publishedDate: '2020-07',
 		durationSeconds: 3600,
 		audibleOnly: false,
+		series: null,
+		seriesPart: null,
+		subseries: null,
+		subseriesPart: null,
 		cover: `remote/0/${encodeURIComponent(`https://covers.example.com/${name}-cover.jpg`)}`,
 	};
 }

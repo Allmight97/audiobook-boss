@@ -26,7 +26,7 @@ async function renderNotice(recovery: SettingsSnapshot['recovery']): Promise<Fak
 }
 
 it('names the settings a launch reset until the next change', async () => {
-	const engine = await renderNotice({ reset: ['jobLimit', 'pinnedDefaults'] });
+	const engine = await renderNotice({ reset: ['jobLimit', 'pinnedDefaults'], setAsideAs: null });
 
 	const notice = screen.getByTestId('settings-recovery-notice');
 	expect(notice).toHaveTextContent('number of jobs, pinned defaults');
@@ -42,7 +42,7 @@ it('names the settings a launch reset until the next change', async () => {
 });
 
 it('names a reset Indexer connection and says its API key is still stored', async () => {
-	await renderNotice({ reset: ['indexerConnection'] });
+	await renderNotice({ reset: ['indexerConnection'], setAsideAs: null });
 
 	const notice = screen.getByTestId('settings-recovery-notice');
 	expect(notice).toHaveTextContent('Indexer URL and categories');

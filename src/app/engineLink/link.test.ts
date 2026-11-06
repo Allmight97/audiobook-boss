@@ -1,6 +1,11 @@
 import { createRoot } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
+import {
+	audioFile,
+	createFakeEngine,
+	sessionUpdate,
+	type FakeEngine,
+} from '../../test/fixtures/fakeEngine';
 import type { SessionUpdate } from '../../types/session';
 import type { OperationSnapshot } from '../../types/workRuntime';
 import { createEngineLink, type EngineLink } from './link';
@@ -13,12 +18,15 @@ function operation(operationId: string): OperationSnapshot {
 		kind: 'processingBatch',
 		status: 'running',
 		title: 'Listed',
+		startedAtMs: null,
+		finishedAtMs: null,
 		cancellable: true,
 		cancelRequested: false,
 		sourceInputIds: [],
-		progress: { stage: 'converting', percentage: 10, message: 'Working.' },
+		progress: { stage: 'converting', percentage: 10, message: 'Working.', etaSeconds: null },
 		children: [],
 		logTail: [],
+		terminalSummary: null,
 	};
 }
 
@@ -78,17 +86,21 @@ describe('engine link', () => {
 		await link.send({ kind: 'setField', binding: 0, field: 'title', value: 'Newer' });
 		const current = link.metadata();
 
-		publish({
-			revision: current.revision - 1,
-			metadata: { ...current, revision: current.revision - 1, saveInProgress: true },
-		});
+		publish(
+			sessionUpdate({
+				revision: current.revision - 1,
+				metadata: { ...current, revision: current.revision - 1, saveInProgress: true },
+			}),
+		);
 
 		expect(link.metadata()).toBe(current);
 
-		publish({
-			revision: current.revision + 5,
-			metadata: { ...current, revision: current.revision + 5, saveInProgress: true },
-		});
+		publish(
+			sessionUpdate({
+				revision: current.revision + 5,
+				metadata: { ...current, revision: current.revision + 5, saveInProgress: true },
+			}),
+		);
 		expect(link.metadata().saveInProgress).toBe(true);
 	});
 
@@ -102,13 +114,17 @@ describe('engine link', () => {
 		const link = linkTo(engine);
 		await link.ready();
 		const library = { ...link.remoteLibrary(), revision: 10, diagnostics: [] };
-		publish({ revision: 10, remoteLibrary: library });
-		publish({
-			revision: 11,
-			remoteAcquisition: { revision: 11, acquiring: true, job: null },
-		});
+		publish(sessionUpdate({ revision: 10, remoteLibrary: library }));
+		publish(
+			sessionUpdate({
+				revision: 11,
+				remoteAcquisition: { revision: 11, acquiring: true, job: null },
+			}),
+		);
 		expect(link.remoteLibrary()).toBe(library);
-		publish({ revision: 12, remoteLibrary: { ...library, revision: 9, diagnostics: [] } });
+		publish(
+			sessionUpdate({ revision: 12, remoteLibrary: { ...library, revision: 9, diagnostics: [] } }),
+		);
 		expect(link.remoteLibrary()).toBe(library);
 		expect(link.remoteAcquisition().acquiring).toBe(true);
 	});
@@ -139,11 +155,26 @@ describe('engine link', () => {
 		const link = linkTo(engine);
 		await link.ready();
 		const remote = link.remote();
-		publish({ revision: 31, remoteAcquisition: { revision: 31, acquiring: false, job: null } });
-		publish({ revision: 30, remote: { ...remote, revision: 30, selectedTitleIds: ['picked'] } });
+		publish(
+			sessionUpdate({
+				revision: 31,
+				remoteAcquisition: { revision: 31, acquiring: false, job: null },
+			}),
+		);
+		publish(
+			sessionUpdate({
+				revision: 30,
+				remote: { ...remote, revision: 30, selectedTitleIds: ['picked'] },
+			}),
+		);
 		expect(link.remote().selectedTitleIds).toEqual(['picked']);
 		expect(link.remoteAcquisition().revision).toBe(31);
-		publish({ revision: 32, remoteAcquisition: { revision: 29, acquiring: true, job: null } });
+		publish(
+			sessionUpdate({
+				revision: 32,
+				remoteAcquisition: { revision: 29, acquiring: true, job: null },
+			}),
+		);
 		expect(link.remoteAcquisition().acquiring).toBe(false);
 	});
 
@@ -157,6 +188,7 @@ describe('engine link', () => {
 			indexer: 'Indexer',
 			sizeBytes: 1,
 			protocol: 'torrent' as const,
+			detailUrl: null,
 			seeders,
 			categories: [],
 		});

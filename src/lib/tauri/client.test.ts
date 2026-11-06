@@ -45,53 +45,8 @@ describe('tauriClient', () => {
 			},
 		});
 		expect(reply.outcome).toEqual({ kind: 'applied' });
-		expect(reply.snapshot.settings).toBeUndefined();
-		expect(reply.snapshot.recovery).toBeUndefined();
-	});
-
-	it('passes audio requests through and drops nulls from audio files', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const { tauriClient } = await import('./client');
-		const passThrough = { format: 'mp3', intent: 'preserve', sampleRate: 'auto' };
-		vi.mocked(invoke).mockResolvedValueOnce({
-			outcome: { kind: 'applied' },
-			update: {
-				revision: 4,
-				titles: {
-					revision: 4,
-					files: [{ inputId: 'a', path: '/books/a.mp3', isValid: true, error: null, size: null }],
-					titleSourcesByIdentity: {},
-					audioChoiceRequired: [],
-					sortDirection: 'none',
-					orderLocked: false,
-					notice: null,
-					orderDiffersFromImport: false,
-					companions: {},
-				},
-				selection: null,
-				metadata: null,
-				lookup: null,
-				audio: {
-					revision: 4,
-					capabilities: null,
-					defaults: { choice: {}, facts: {}, request: passThrough },
-					titles: {},
-				},
-			},
-		});
-
-		const reply = await tauriClient.sessionDispatch(7, 0, { kind: 'selectAll' });
-
-		expect(invoke).toHaveBeenLastCalledWith('session_dispatch', {
-			client: 7,
-			sequence: 0,
-			intent: { kind: 'selectAll' },
-		});
-		const titles = reply.update.titles;
-		expect(titles?.files[0]).toEqual({ inputId: 'a', path: '/books/a.mp3', isValid: true });
-		expect(reply.update.audio?.defaults.request).toEqual(passThrough);
-		expect(reply.update).not.toHaveProperty('selection', null);
-		expect(reply.update.selection).toBeUndefined();
+		expect(reply.snapshot.settings).toBeNull();
+		expect(reply.snapshot.recovery).toBeNull();
 	});
 
 	it('carries identified decisions and preserves nullable held-question facts', async () => {
@@ -145,7 +100,7 @@ describe('tauriClient', () => {
 		});
 		expect(reply.outcome).toEqual({ kind: 'superseded' });
 		expect(reply.update.output?.collisionReview?.reviewId).toBe(42);
-		expect(reply.update.output?.collisionReview?.outputs[0].renameCandidate).toBeUndefined();
+		expect(reply.update.output?.collisionReview?.outputs[0].renameCandidate).toBeNull();
 		expect(reply.update.output?.restartPrompt).toBeNull();
 		expect(reply.update.output?.submissionInProgress).toBe(true);
 	});
@@ -193,66 +148,10 @@ describe('tauriClient', () => {
 	});
 });
 
-describe('tauriClient nullish adapters', () => {
+describe('tauriClient errors', () => {
 	beforeEach(() => {
 		vi.resetModules();
 		vi.clearAllMocks();
-	});
-
-	it('normalizes a finished preview carried in the session output', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		vi.mocked(invoke).mockResolvedValueOnce({
-			outcome: { kind: 'applied' },
-			update: {
-				revision: 5,
-				output: {
-					revision: 5,
-					directory: '/tmp/out',
-					preset: 'absDefault',
-					includeYear: false,
-					template: '',
-					naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
-					preview: { kind: 'noTitle' },
-					submission: {
-						kind: 'previewFinished',
-						result: {
-							summary: { total: 2, succeeded: 1, skipped: 0, cancelled: 0, failed: 1 },
-							terminalClass: 'mixed',
-							results: [
-								{ inputIndex: 0, status: 'success', message: 'ok', jobId: 'job-1', error: null },
-								{
-									inputIndex: 1,
-									status: 'failed',
-									message: 'failed',
-									jobId: null,
-									error: {
-										code: 'ffmpeg_error',
-										category: 'toolchain',
-										message: 'decoder unavailable',
-										detail: 'ffmpeg missing',
-									},
-								},
-							],
-						},
-					},
-				},
-			},
-		});
-
-		const { tauriClient } = await import('./client');
-		const reply = await tauriClient.sessionDispatch(7, 0, { kind: 'preview' });
-
-		const submission = reply.update.output?.submission;
-		expect(submission?.kind).toBe('previewFinished');
-		if (submission?.kind !== 'previewFinished') return;
-		expect(submission.result.results[0]).toEqual({
-			inputIndex: 0,
-			status: 'success',
-			message: 'ok',
-			jobId: 'job-1',
-		});
-		expect(submission.result.results[1]?.error?.message).toBe('decoder unavailable');
-		expect(submission.result.results[1]?.jobId).toBeUndefined();
 	});
 
 	it('unwraps generated Result error responses into normalized app errors', async () => {

@@ -116,15 +116,13 @@ function inspectorFromFiles(
 	};
 }
 
-function formatOptionalText(value: string | undefined): string {
-	if (typeof value !== 'string') return 'N/A';
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : 'N/A';
+function formatOptionalText(value: string | null): string {
+	return value?.trim() || 'N/A';
 }
 
 function summarizeSharedTextValue(
 	files: ReadonlyArray<AudioFile>,
-	pickValue: (file: AudioFile) => string | undefined,
+	pickValue: (file: AudioFile) => string | null,
 ): string {
 	if (files.length === 0) return '---';
 	const values = files.map((file) => {

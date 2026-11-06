@@ -18,6 +18,8 @@ const existingOutput: PlannedOutput = {
 	kind: 'final',
 	requestedPath: '/out/b.m4b',
 	resolvedPath: '/out/b.m4b',
+	renameCandidate: null,
+	review: null,
 	collision: { kind: 'existing_file', conflictingPath: '/out/b.m4b', detail: 'exists' },
 	action: 'review_required',
 };

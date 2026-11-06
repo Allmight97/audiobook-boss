@@ -10,7 +10,7 @@ import './workCenterView.css';
 
 function completedLabel(
 	label: string,
-	timing: { startedAtMs?: number; finishedAtMs?: number },
+	timing: { startedAtMs: number | null; finishedAtMs: number | null },
 ): string {
 	if (timing.startedAtMs == null || timing.finishedAtMs == null) return label;
 	const totalSeconds = Math.max(0, Math.round((timing.finishedAtMs - timing.startedAtMs) / 1000));

@@ -1,44 +1,19 @@
-import type {
-	AudioFile as GeneratedAudioFile,
-	CollisionPolicy as GeneratedCollisionPolicy,
-	EncoderSettingsCapabilities as GeneratedEncoderSettingsCapabilities,
-	EncoderSettings as GeneratedEncoderSettings,
-	EncoderType as GeneratedEncoderType,
-	FaacProfile as GeneratedFaacProfile,
-	OutputCollisionKind as GeneratedOutputCollisionKind,
-	OutputNamingConfig as GeneratedOutputNamingConfig,
-	PlannedOutput as GeneratedPlannedOutput,
-	ProcessCommandResult as GeneratedProcessCommandResult,
-	ProcessResultEntry as GeneratedProcessResultEntry,
+export type {
+	AudioFile,
+	AudiobookFormat,
+	AudioIntent,
+	CollisionPolicy,
+	EncoderSettingsCapabilities,
+	EncoderType,
+	FaacProfile,
+	OutputCollisionKind,
+	OutputNamingConfig,
+	PlannedOutput,
+	TitleAudioPlan,
+	TitleAudioRequest,
 } from '../lib/generated/tauri';
-import type { AppErrorEnvelope } from '../lib/tauri/appError';
-import type { NullToOptionalDeep } from './ipc';
 
-export type AudioFile = NullToOptionalDeep<GeneratedAudioFile>;
-
-export type CollisionPolicy = GeneratedCollisionPolicy;
-export type OutputCollisionKind = GeneratedOutputCollisionKind;
-export type PlannedOutput = NullToOptionalDeep<GeneratedPlannedOutput>;
-
-export type EncoderType = GeneratedEncoderType;
-export type FaacProfile = GeneratedFaacProfile;
-export type EncoderSettings = GeneratedEncoderSettings;
-export type EncoderSettingsCapabilities = NullToOptionalDeep<GeneratedEncoderSettingsCapabilities>;
-
-export type OutputNamingConfig = NullToOptionalDeep<GeneratedOutputNamingConfig>;
-
-type ProcessResultError = AppErrorEnvelope;
-type ProcessCommandJobResult = Omit<NullToOptionalDeep<GeneratedProcessResultEntry>, 'error'> & {
-	error?: ProcessResultError | null;
-};
-export type ProcessCommandResult = Omit<
-	NullToOptionalDeep<GeneratedProcessCommandResult>,
-	'results'
-> & {
-	results: ProcessCommandJobResult[];
-};
-
-export const formatDuration = (seconds: number | undefined): string => {
+export const formatDuration = (seconds: number | null): string => {
 	if (seconds == null || Number.isNaN(seconds)) {
 		return '---';
 	}
@@ -53,7 +28,7 @@ export const formatDuration = (seconds: number | undefined): string => {
 	return `${minutes}:${secs.toString().padStart(2, '0')}`;
 };
 
-export const formatFileSize = (bytes: number | undefined): string => {
+export const formatFileSize = (bytes: number | null): string => {
 	if (bytes == null || Number.isNaN(bytes)) {
 		return '---';
 	}
@@ -71,15 +46,8 @@ export const formatFileSize = (bytes: number | undefined): string => {
 };
 
 /** Imported audio bitrate is bits per second; encoder targets use kilobits per second. */
-export const formatAudioBitrate = (bitsPerSecond: number | undefined): string =>
+export const formatAudioBitrate = (bitsPerSecond: number | null): string =>
 	bitsPerSecond ? `${Math.round(bitsPerSecond / 100) / 10} kbps` : 'N/A';
-
-export type {
-	AudiobookFormat,
-	AudioIntent,
-	TitleAudioRequest,
-	TitleAudioPlan,
-} from '../lib/generated/tauri';
 
 export {
 	SUPPORTED_AUDIO_IMPORT_EXTENSIONS,

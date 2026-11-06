@@ -8,7 +8,7 @@ import {
 	type AudioFile,
 } from '../../types/audio';
 import type { SessionOutcome } from '../../types/session';
-import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
+import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
 import { App } from '../App';
@@ -18,18 +18,14 @@ const listeners: {
 } = {};
 
 function analyzedFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
-	return {
-		path,
+	return audioFile(path, {
 		label: path.split('/').pop() ?? path,
-		isValid: true,
-		sourceRemoved: false,
+		cover: null,
 		duration: 1,
 		size: 1000,
 		format: 'mp3',
-		inputId: path,
-		chapters: [],
 		...overrides,
-	};
+	});
 }
 
 function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
