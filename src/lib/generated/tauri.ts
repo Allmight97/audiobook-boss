@@ -890,7 +890,7 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
  *  The user asked for the title's Supplemental PDF and Audible offers
  *  none. Non-blocking: the audiobook is imported without it.
  */
-"supplementalPdfUnavailable" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
+"supplementalPdfUnavailable" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
 
 export type RemoteAcquisitionSnapshot = {
 	revision: number,
