@@ -92,13 +92,12 @@ impl SessionState {
         self.restore_failed_writes();
 
         let selected = self.selected_titles();
-        let mut key: Vec<PathBuf> = selected.iter().map(|title| title.path.clone()).collect();
-        key.sort();
+        let same_titles = selected.len() == self.bound.len()
+            && selected.iter().all(|title| self.bound.contains(title));
+        self.bound = selected;
         let mut tickets = Vec::new();
-        if key != self.selection_key || selected != self.bound {
+        if !same_titles {
             self.binding += 1;
-            self.selection_key = key;
-            self.bound = selected;
             self.status = None;
             self.cover = Cover {
                 displayed: self.cover.displayed.take(),
@@ -174,7 +173,6 @@ impl SessionState {
         self.tags.clear();
         self.form = MetadataForm::single(&AudiobookMetadata::default());
         self.bound.clear();
-        self.selection_key.clear();
         self.cover = Cover {
             displayed: self.cover.displayed.take(),
             image_revision: self.cover.image_revision,

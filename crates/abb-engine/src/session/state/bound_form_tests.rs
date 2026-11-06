@@ -395,3 +395,23 @@ fn a_lookup_result_applies_only_to_the_title_it_was_chosen_for() {
         }
     );
 }
+
+#[test]
+fn reordering_the_selected_titles_keeps_the_form_bound_to_them() {
+    let mut desk = two_books();
+    desk.type_into(MetadataField::Genre, "Mystery");
+    let binding = desk.state.binding;
+
+    desk.state.working_set.reorder_files(0, 1);
+    desk.import(&[("gamma", Some(beta_tags()))]);
+
+    assert_eq!(desk.state.binding, binding);
+    assert!(desk
+        .state
+        .set_field(binding, MetadataField::Date, "2003".to_string()));
+    assert!(desk.field(MetadataField::Genre).dirty);
+    desk.save(&[]);
+    let on_disk = |desk: &Desk, name| desk.disk[&path(name)].genre.clone();
+    assert_eq!(on_disk(&desk, "alpha").as_deref(), Some("Mystery"));
+    assert_eq!(on_disk(&desk, "beta").as_deref(), Some("Mystery"));
+}
