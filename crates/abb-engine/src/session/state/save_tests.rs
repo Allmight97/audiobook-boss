@@ -543,3 +543,21 @@ fn a_failed_waiting_write_hands_its_edit_to_the_newer_write_waiting_on_the_same_
     assert_eq!(on_disk.genre.as_deref(), Some("Mystery"));
     assert_eq!(on_disk.artist.as_deref(), Some("Second"));
 }
+
+#[test]
+fn a_newer_write_that_lands_ends_the_older_failed_write_of_the_same_field() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.type_into(MetadataField::Genre, "Mystery");
+    desk.save_during(&HashSet::from([path("alpha")]), &[], &[]);
+    let running = desk.begin_deferred(&HashSet::new());
+    desk.type_into(MetadataField::Genre, "Horror");
+    desk.save_during(&HashSet::new(), &[], &[]).expect("save");
+
+    desk.end_deferred(running, &["alpha"]);
+    let next = desk.begin_deferred(&HashSet::new());
+    desk.end_deferred(next, &[]);
+
+    assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Horror"));
+    assert!(desk.pending("alpha").is_none());
+    assert_eq!(desk.field(MetadataField::Genre).value, "Horror");
+}

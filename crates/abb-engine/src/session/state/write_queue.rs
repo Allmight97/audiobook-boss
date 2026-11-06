@@ -157,7 +157,9 @@ impl WriteQueue {
         }
         if written {
             self.deferred.retain(|write| {
-                write.item.path != item.path || write.item.revision != item.revision
+                write.item.path != item.path
+                    || (write.item.revision != item.revision
+                        && write.phase != DeferredPhase::Failed)
             });
         }
     }

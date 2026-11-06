@@ -18,6 +18,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   for a failed one.
 - A metadata edit waiting for an export to finish reading its file is no longer lost
   when its title is removed and imported again and a later Save changes another field.
+- When a waiting Save failed and a newer one for the same file succeeded, the form
+  no longer returns to the failed value, which the next Save would have written back.
 - After you start an export, the status line reads "Submitted to Work Center." without
   a Completed stage or 100% bar, since the work has only been accepted.
 - The Audible status shows it is busy while the library loads after an account
