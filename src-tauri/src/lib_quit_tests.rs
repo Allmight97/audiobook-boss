@@ -54,10 +54,11 @@ fn quitting_shuts_down_when_the_engine_closes_for_the_consent() {
 fn quitting_asks_again_when_the_work_changed_since_the_user_agreed() {
     let none = abb_engine::QuitConsent::default();
     let first = next_quit_step(|_| Err(exports_running(1, 0)), &none);
-    let QuitStep::Ask { prompt, consent } = first else {
+    let QuitStep::Ask(running) = first else {
         panic!("asked nothing although an export is running");
     };
-    assert_eq!(prompt.title, "Exports are still running");
+    assert_eq!(quit_prompt(&running).title, "Exports are still running");
+    let consent = running.consent;
 
     let second = next_quit_step(
         |agreed| {
@@ -66,10 +67,11 @@ fn quitting_asks_again_when_the_work_changed_since_the_user_agreed() {
         },
         &consent,
     );
-    let QuitStep::Ask { prompt, consent } = second else {
+    let QuitStep::Ask(running) = second else {
         panic!("did not ask about the download that started after the first answer");
     };
-    assert_eq!(prompt.title, "Work is still running");
+    assert_eq!(quit_prompt(&running).title, "Work is still running");
+    let consent = running.consent;
 
     let third = next_quit_step(
         |agreed| {

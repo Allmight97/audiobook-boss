@@ -295,10 +295,7 @@ fn quit_prompt(running: &abb_engine::RunningWork) -> QuitPrompt {
 #[derive(Debug, PartialEq)]
 enum QuitStep {
     ShutDown,
-    Ask {
-        prompt: QuitPrompt,
-        consent: abb_engine::QuitConsent,
-    },
+    Ask(abb_engine::RunningWork),
 }
 
 fn next_quit_step(
@@ -307,10 +304,7 @@ fn next_quit_step(
 ) -> QuitStep {
     match close_for_quit(consent) {
         Ok(()) => QuitStep::ShutDown,
-        Err(running) => QuitStep::Ask {
-            prompt: quit_prompt(&running),
-            consent: running.consent,
-        },
+        Err(running) => QuitStep::Ask(running),
     }
 }
 
@@ -336,9 +330,11 @@ fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) 
         },
         consent,
     );
-    let QuitStep::Ask { prompt, consent } = step else {
+    let QuitStep::Ask(running) = step else {
         return shut_down_then_exit(app);
     };
+    let prompt = quit_prompt(&running);
+    let consent = running.consent;
     let app = app.clone();
     app.dialog()
         .message(prompt.message)
