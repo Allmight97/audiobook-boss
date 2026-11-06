@@ -112,6 +112,9 @@ package a DMG that may run on an unknown recipient Mac.
 `package.json` holds the shortcuts.
 
 - Run the app: `bun run app:dev:log` (bundled FFmpeg).
+- Read the app log: `~/Library/Logs/com.audiobook-boss/abb.log` on macOS,
+  `~/.local/share/com.audiobook-boss/logs/abb.log` on Linux. Each launch replaces
+  it and keeps the last one as `abb.previous.log`.
 - Run the checks: `bash scripts/verify.sh`; lanes are in `scripts/AGENTS.md`.
 - Drive the engine without a window: `bash scripts/abb-dev.sh --help`. It keeps
   its own state and never touches the app's settings.

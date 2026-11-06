@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- The app writes a log file (`~/Library/Logs/com.audiobook-boss/abb.log` on macOS), so a
+  failure in an app opened from Finder can be read.
 - With nothing running in this window, the step line reads "Ready" instead of
   "Waiting for files...", which it showed even with files loaded.
 - Work Center's "Failed to show the exported file" message clears when a later

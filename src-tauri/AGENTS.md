@@ -17,6 +17,11 @@ engine does not offer, add it to the engine's host interface.
   frontend is refused. An intent that arrives after a later one has run is
   refused, never applied out of order. The check and the claim happen in one
   step, so a reload between them cannot hand an old frontend's intent a turn.
+- **Log file.** `log_file.rs` sends the log to stderr and to `abb.log` in the
+  app log folder (macOS `~/Library/Logs/com.audiobook-boss`; Linux
+  `$XDG_DATA_HOME/com.audiobook-boss/logs`). Why: a Finder-launched app has no
+  readable stderr. Each launch moves the last file to `abb.previous.log`. If the
+  file cannot open, the app logs to stderr and warns once.
 - **Second copy.** When `Engine::start` fails with `AlreadyRunning`, setup
   hides the window, shows the message in a native dialog, and exits on OK
   without an engine. `Quit` and `FrontendLink` are managed before the engine

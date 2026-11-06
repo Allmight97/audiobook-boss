@@ -3,6 +3,7 @@ mod cover_protocol;
 mod events;
 mod intent_order;
 pub mod ipc_contract;
+mod log_file;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -369,7 +370,7 @@ fn open_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
 }
 
 pub fn run() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    log_file::init_logger();
 
     log::info!("Starting AudioBook Boss application");
 
