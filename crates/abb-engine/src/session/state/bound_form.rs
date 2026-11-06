@@ -153,25 +153,28 @@ impl SessionState {
         reads: Vec<(ReadTicket, Result<AudiobookMetadata, AppError>)>,
     ) {
         let cover_path = self.cover_read_target();
-        let mut unreadable: Vec<String> = Vec::new();
+        let mut failed = Vec::new();
         for (ticket, result) in reads {
             match result {
                 Ok(metadata) => {
                     self.tags.complete_read(&ticket, metadata);
                 }
-                Err(error) => {
-                    log::warn!("Failed to read metadata: {error}");
-                    if binding == self.binding
-                        && self.bound.iter().any(|title| title.path == ticket.path)
-                    {
-                        unreadable.push(self.label_of(&ticket.path));
-                    }
-                    if binding == self.binding && cover_path.as_ref() == Some(&ticket.path) {
-                        self.set_cover_notice(CoverNotice::LoadFailed {
-                            error: AppErrorEnvelope::from(&error),
-                        });
-                    }
-                }
+                Err(error) => failed.push((ticket, error)),
+            }
+        }
+        let mut unreadable: Vec<String> = Vec::new();
+        for (ticket, error) in failed {
+            log::warn!("Failed to read metadata: {error}");
+            if binding != self.binding || self.tags.has_source_read(&ticket.path) {
+                continue;
+            }
+            if self.bound.iter().any(|title| title.path == ticket.path) {
+                unreadable.push(self.label_of(&ticket.path));
+            }
+            if cover_path.as_ref() == Some(&ticket.path) {
+                self.set_cover_notice(CoverNotice::LoadFailed {
+                    error: AppErrorEnvelope::from(&error),
+                });
             }
         }
         if let Some((first, rest)) = unreadable.split_first() {

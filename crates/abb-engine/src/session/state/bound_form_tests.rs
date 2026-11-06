@@ -266,6 +266,36 @@ fn a_file_whose_tags_cannot_be_read_is_named_beside_its_blank_form() {
 }
 
 #[test]
+fn a_failed_second_read_of_a_title_whose_tags_arrived_reports_nothing() {
+    let mut desk = Desk::open(&[], &[]);
+    desk.disk.insert(path("alpha"), alpha_tags());
+    desk.state
+        .working_set
+        .append_analyzed(vec![audio_file("alpha", true)], &audio_request());
+    let mut reads = desk.state.rebind();
+    reads.extend(desk.state.rebind());
+    assert_eq!(
+        reads.len(),
+        2,
+        "selecting the title again starts a second read"
+    );
+    let second = reads.pop().expect("second read");
+    let first = reads.pop().expect("first read");
+
+    let binding = desk.state.binding;
+    desk.state.finish_reads(
+        binding,
+        vec![
+            (first, Ok(alpha_tags())),
+            (second, Err(AppError::General("file busy".to_string()))),
+        ],
+    );
+
+    assert_eq!(desk.metadata().status, None);
+    assert_eq!(desk.field(MetadataField::Title).value, "Alpha");
+}
+
+#[test]
 fn an_unreadable_file_still_shows_its_staged_edits_when_selected_again() {
     let mut desk = Desk::open(&[("alpha", None), ("beta", None)], &[0]);
     desk.type_into(MetadataField::Author, "Edited Author");
