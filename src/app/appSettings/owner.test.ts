@@ -26,7 +26,7 @@ describe('settings owner', () => {
 		return { code: 'io_error', category: 'io', message } as const;
 	}
 
-	it('shows the engine concurrency', async () => {
+	it('words the job count as Auto → N or Max N from the engine snapshot', async () => {
 		const app = open();
 		await app.initialize();
 
