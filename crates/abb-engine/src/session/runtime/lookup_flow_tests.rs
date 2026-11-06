@@ -628,6 +628,33 @@ async fn editing_the_query_during_an_apply_says_the_apply_stopped() {
 }
 
 #[tokio::test]
+async fn editing_the_query_while_the_queue_moves_to_the_next_title_says_the_apply_stopped() {
+    let rig = rig();
+    rig.load(&["alpha", "beta"]);
+    rig.select(&[0, 1]).await;
+    rig.answer_next_search(Ok(found(&["Found A"])));
+    rig.send(SessionIntent::LookupOpen).await;
+    rig.session.transition(|state| {
+        state
+            .tags
+            .retain_paths(&std::collections::HashSet::from([path("alpha")]))
+    });
+    let applying = rig.session.begin(rig.lookup_apply(0));
+    while rig.selected() != [1] {
+        tokio::task::yield_now().await;
+    }
+
+    rig.send(SessionIntent::LookupSetTitleQuery {
+        value: "Changed".to_string(),
+    })
+    .await;
+
+    assert_eq!(applying.finish().await.outcome, SessionOutcome::Superseded);
+    assert_eq!(rig.lookup().status, Some(LookupStatus::ApplySuperseded));
+    assert_eq!(rig.lookup().title_query, "Changed");
+}
+
+#[tokio::test]
 async fn lookup_cover_reply_cannot_pull_the_selection_back_to_an_earlier_title() {
     let (cover, pending) = tokio::sync::oneshot::channel();
     let rig = rig_with_cover(Some(pending));

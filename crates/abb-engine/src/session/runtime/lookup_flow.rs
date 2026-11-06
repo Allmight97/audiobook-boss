@@ -215,21 +215,17 @@ impl Session {
         let selected = match self.select_title(&title, request, binding).await {
             Ok(selected) => selected,
             Err(outcome) => {
-                self.lookup_step(request, |state| {
-                    if state.lookup.status == Some(LookupStatus::Applying) {
-                        state.lookup.status = Some(LookupStatus::ApplySuperseded);
-                    }
-                });
+                self.lookup_apply_stopped(request);
                 return outcome;
             }
         };
         let metadata = lookup::result_metadata(&result);
         let applied = self.lookup_step(request, |state| {
             let applied = selected && state.apply_lookup(&title, &metadata, cover);
-            state.lookup.status = Some(if applied {
-                LookupStatus::Applied { cover_failed }
-            } else {
-                LookupStatus::ApplyRejected
+            state.lookup.status = Some(match (applied, mode) {
+                (false, _) => LookupStatus::ApplyRejected,
+                (true, LookupApplyMode::Queue) => LookupStatus::Applying,
+                (true, _) => LookupStatus::Applied { cover_failed },
             });
             applied
         });
@@ -245,6 +241,14 @@ impl Session {
             }
             Some(_) => SessionOutcome::Applied,
         }
+    }
+
+    fn lookup_apply_stopped(&self, request: u64) {
+        self.lookup_step(request, |state| {
+            if state.lookup.status == Some(LookupStatus::Applying) {
+                state.lookup.status = Some(LookupStatus::ApplySuperseded);
+            }
+        });
     }
 
     pub(super) async fn lookup_advance(&self, request: u64, step: QueueStep) -> SessionOutcome {
@@ -271,7 +275,10 @@ impl Session {
 
         let selected = match self.select_title(&title, request, binding).await {
             Ok(selected) => selected,
-            Err(outcome) => return outcome,
+            Err(outcome) => {
+                self.lookup_apply_stopped(request);
+                return outcome;
+            }
         };
         let moved = self.lookup_step(request, |state| {
             if !selected {
