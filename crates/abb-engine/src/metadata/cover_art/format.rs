@@ -67,12 +67,10 @@ pub(crate) fn detect_jpeg_dimensions(data: &[u8]) -> Option<(i32, i32)> {
         }
 
         let marker = data[i + 1];
-        if matches!(marker, SOF0 | SOF2) {
-            if i + 9 < data.len() {
-                let height = u16::from_be_bytes([data[i + 5], data[i + 6]]) as i32;
-                let width = u16::from_be_bytes([data[i + 7], data[i + 8]]) as i32;
-                return Some((width, height));
-            }
+        if matches!(marker, SOF0 | SOF2) && i + 9 < data.len() {
+            let height = u16::from_be_bytes([data[i + 5], data[i + 6]]) as i32;
+            let width = u16::from_be_bytes([data[i + 7], data[i + 8]]) as i32;
+            return Some((width, height));
         }
 
         if i + 3 < data.len() {
