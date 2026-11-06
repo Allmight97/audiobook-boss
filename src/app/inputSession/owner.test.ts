@@ -220,7 +220,7 @@ describe('input owner', () => {
 		expect(inspect().contextDetail).toBe('2 of 3');
 		engine.change((state) => {
 			state.titles.files = [files[0], files[2]];
-			state.titles.titleSourcesByIdentity = { [files[0].inputId!]: [files[0], files[1]] };
+			state.titles.titleSourcesByIdentity = { [files[0].inputId]: [files[0], files[1]] };
 			state.selection.selectedIndices = [0];
 		});
 		expect(inspect().contextText).toBe('2 files selected');

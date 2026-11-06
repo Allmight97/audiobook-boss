@@ -186,7 +186,7 @@ describe('tauriClient', () => {
 			const { tauriClient } = await import('./client');
 			await tauriClient.openUrl('https://example.com/login');
 
-			expect(mockOpenUrl).toHaveBeenLastCalledWith('https://example.com/login', undefined);
+			expect(mockOpenUrl).toHaveBeenLastCalledWith('https://example.com/login');
 		});
 	});
 });

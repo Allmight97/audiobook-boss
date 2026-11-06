@@ -28,7 +28,7 @@ describe('encoding owner', () => {
 		return app.input.view().files;
 	}
 
-	it('sends each control as a typed edit and drops a non-numeric bitrate', async () => {
+	it('sends each control as a typed edit and drops values no control offers', async () => {
 		const app = await open();
 
 		app.encoding.select('bitrate', '96');
@@ -36,6 +36,7 @@ describe('encoding owner', () => {
 		app.encoding.select('sampleRate', 'auto');
 		app.encoding.select('rateControl', 'vbr');
 		app.encoding.select('bitrate', 'fast');
+		app.encoding.select('format', 'wav');
 
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents.filter((intent) => intent.kind === 'setDefaultAudio')).toEqual([
@@ -147,7 +148,7 @@ describe('encoding owner', () => {
 		const app = await open();
 		const [alpha] = titles(app);
 		engine.change((state) => {
-			const first = state.audio.titles[alpha.inputId!];
+			const first = state.audio.titles[alpha.inputId];
 			state.audio.selection = {
 				choice: first.choice,
 				facts: { ...first.facts, downmixWarning: true },
@@ -171,7 +172,7 @@ describe('encoding owner', () => {
 			autoChannels: SelectionAudio['autoChannels'],
 		) =>
 			engine.change((state) => {
-				const first = state.audio.titles[alpha.inputId!];
+				const first = state.audio.titles[alpha.inputId];
 				state.audio.selection = {
 					choice: first.choice,
 					facts: first.facts,
@@ -205,7 +206,7 @@ describe('encoding owner', () => {
 		engine.change((state) => {
 			state.audio.refusal = {
 				kind: 'notAccepted',
-				titleIds: [beta.inputId!],
+				titleIds: [beta.inputId],
 				labels: ['Beta Book'],
 			};
 		});
@@ -225,13 +226,13 @@ describe('encoding owner', () => {
 		const app = await open();
 		const alpha = titles(app)[0];
 		engine.change((state) => {
-			state.audio.titles[alpha.inputId!].facts.downmixWarning = true;
+			state.audio.titles[alpha.inputId].facts.downmixWarning = true;
 		});
 		expect(app.encoding.titleView(alpha).channelsHint).toBe(
 			'Surround downmix omits bass effects (LFE).',
 		);
 		engine.change((state) => {
-			state.audio.titles[alpha.inputId!].facts.downmixWarning = false;
+			state.audio.titles[alpha.inputId].facts.downmixWarning = false;
 		});
 		expect(app.encoding.titleView(alpha).channelsHint).toBeNull();
 	});

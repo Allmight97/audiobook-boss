@@ -8,20 +8,7 @@ import type { CollisionPolicy, OutputCollisionKind, PlannedOutput } from '../../
 import './collisionDialog.css';
 
 function formatKind(kind: OutputCollisionKind): string {
-	switch (kind) {
-		case 'existing_file':
-			return 'Existing file';
-		case 'batch_duplicate':
-			return 'Batch duplicate';
-		case 'source_destination_overlap':
-			return 'Source overlap';
-		case 'canonical_path_overlap':
-			return 'Canonical overlap';
-		case 'case_insensitive_match':
-			return 'Case-insensitive match';
-		default:
-			return kind;
-	}
+	return kind === 'batch_duplicate' ? 'Batch duplicate' : 'Case-insensitive match';
 }
 
 function formatOutputKind(kind: PlannedOutput['kind']): string {
@@ -96,14 +83,12 @@ function CollisionQuestion(props: { readonly reviewId: number }): JSX.Element {
 										{parentPath(outputItem.resolvedPath)}
 									</div>
 								</div>
-								<Show when={outputItem.collision && outputItem.collision.kind !== 'existing_file'}>
-									<div
-										class="collision-dialog-summary"
-										title={outputItem.collision?.detail ?? undefined}
-									>
-										{formatOutputKind(outputItem.kind)} •{' '}
-										{formatKind(outputItem.collision?.kind ?? 'existing_file')}
-									</div>
+								<Show when={outputItem.collision?.kind !== 'existing_file' && outputItem.collision}>
+									{(collision) => (
+										<div class="collision-dialog-summary" title={collision().detail ?? undefined}>
+											{formatOutputKind(outputItem.kind)} • {formatKind(collision().kind)}
+										</div>
+									)}
 								</Show>
 							</div>
 						)}

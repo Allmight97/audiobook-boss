@@ -152,7 +152,7 @@ export const tauriClient = {
 	openFiles,
 	openDirectory,
 	revealPath: (path: string): Promise<void> => revealItemInDir(path),
-	openUrl: (url: string | URL, openWith?: string): Promise<void> => tauriOpenUrl(url, openWith),
+	openUrl: (url: string | URL): Promise<void> => tauriOpenUrl(url),
 };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.keys returns string[]; commandSpecs is keyed by TauriCommand.

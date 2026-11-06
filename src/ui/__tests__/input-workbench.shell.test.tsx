@@ -374,7 +374,7 @@ describe('Solid input workbench', () => {
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
 		engine.seedGroup(files);
 		engine.change((state) => {
-			state.titles.companions = { [files[1].inputId!]: ['Guide.pdf'] };
+			state.titles.companions = { [files[1].inputId]: ['Guide.pdf'] };
 		});
 		await waitFor(() => {
 			const row = screen.getByRole('option', { name: 'part1.m4b' });

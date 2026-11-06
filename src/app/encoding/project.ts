@@ -8,7 +8,6 @@ import type {
 } from '../../types/audio';
 
 export type EncodingField = AudioEdit['field'];
-type EditValue<F extends EncodingField> = Extract<AudioEdit, { field: F }>['value'];
 
 type EncodingOption = {
 	readonly value: string;
@@ -217,28 +216,44 @@ export function projectView(source: EncodingSource): EncodingView {
 	};
 }
 
+function oneOf<T extends string>(options: readonly T[], value: string): value is T {
+	return (options as readonly string[]).includes(value);
+}
+
 export function editFor(field: EncodingField, value: string): AudioEdit | null {
 	const number = Number(value);
 	const whole = value.trim() !== '' && Number.isInteger(number) && number >= 0;
 	switch (field) {
 		case 'format':
-			return { field, value: value as EditValue<'format'> };
+			return oneOf(['m4b', 'mp3', 'm4aOpus', 'mkaOpus'] as const, value)
+				? { field: 'format', value }
+				: null;
 		case 'intent':
-			return { field, value: value as EditValue<'intent'> };
+			return oneOf(['auto', 'encode', 'preserve'] as const, value)
+				? { field: 'intent', value }
+				: null;
 		case 'encoder':
-			return { field, value: value as EditValue<'encoder'> };
+			return oneOf(['auto', 'aac_at', 'native_aac', 'faac'] as const, value)
+				? { field: 'encoder', value }
+				: null;
 		case 'faacProfile':
-			return { field, value: value as EditValue<'faacProfile'> };
+			return oneOf(['auto', 'aac_lc', 'he_aac_v1'] as const, value)
+				? { field: 'faacProfile', value }
+				: null;
 		case 'rateControl':
-			return { field, value: value as EditValue<'rateControl'> };
-		case 'channels':
-			return { field, value: value as EditValue<'channels'> };
+			return value === 'abr' || value === 'vbr' ? { field: 'rateControl', value: value } : null;
 		case 'quality':
+			return whole ? { field: 'quality', value: number } : null;
 		case 'nativeSpeed':
+			return whole ? { field: 'nativeSpeed', value: number } : null;
 		case 'bitrate':
-			return whole ? { field, value: number } : null;
+			return whole ? { field: 'bitrate', value: number } : null;
 		case 'sampleRate':
-			if (value === 'auto') return { field, value };
-			return whole ? { field, value: { explicit: number } } : null;
+			if (value === 'auto') return { field: 'sampleRate', value: 'auto' };
+			return whole ? { field: 'sampleRate', value: { explicit: number } } : null;
+		case 'channels':
+			return oneOf(['auto', 'mono', 'stereo'] as const, value)
+				? { field: 'channels', value }
+				: null;
 	}
 }
