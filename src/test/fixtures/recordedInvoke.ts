@@ -32,8 +32,7 @@ export function replayInvoke(
 		engine === 'session' ? sessionScenarios : settingsScenarios;
 	const scenario = scenarios.find((candidate) => candidate.name === name);
 	if (!scenario) throw new Error(`no recorded scenario named ${name}`);
-	const recorded = scenario.steps.filter((step) => !('do' in step));
-	const steps = recorded.slice(0, options.through ?? recorded.length);
+	const steps = scenario.steps.slice(0, options.through ?? scenario.steps.length);
 	const wanted = engine === 'session' ? 'session_dispatch' : 'settings_dispatch';
 	const mismatches: string[] = [];
 	const fallback = vi.mocked(invoke).getMockImplementation();

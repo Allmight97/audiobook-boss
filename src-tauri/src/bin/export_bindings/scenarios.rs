@@ -28,17 +28,11 @@ struct Scenarios {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Scenario {
     name: String,
-    #[serde(default)]
-    start: Start,
-    steps: Vec<Value>,
-}
-
-#[derive(Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Start {
     settings_toml: Option<String>,
+    steps: Vec<Value>,
 }
 
 pub fn export_scenarios(fixtures: &Path) {
@@ -138,7 +132,7 @@ fn without_revision(part: &Value) -> Value {
 /// stamped with the step's number plus one, which is above every revision in
 /// the fresh snapshot. Background timing never reaches the file.
 fn record_session(scenario: &Scenario) -> Value {
-    let fixture = FixtureEngine::start(&scenario.name, scenario.start.settings_toml.as_deref());
+    let fixture = FixtureEngine::start(&scenario.name, scenario.settings_toml.as_deref());
     write_media(&fixture.root);
     let mut normalizer = Normalizer::new(&fixture.root);
     let mut previous = serde_json::to_value(fixture.engine.session_snapshot())
@@ -176,7 +170,7 @@ fn record_session(scenario: &Scenario) -> Value {
 }
 
 fn record_settings(scenario: &Scenario) -> Value {
-    let fixture = FixtureEngine::start(&scenario.name, scenario.start.settings_toml.as_deref());
+    let fixture = FixtureEngine::start(&scenario.name, scenario.settings_toml.as_deref());
     let mut normalizer = Normalizer::new(&fixture.root);
     let snapshot = |engine: &Engine, normalizer: &mut Normalizer| {
         let mut value =
@@ -190,7 +184,6 @@ fn record_settings(scenario: &Scenario) -> Value {
     for step in &scenario.steps {
         if is_action(step) {
             run_action(step, &fixture.root);
-            recorded.push(step.clone());
             continue;
         }
         let real = real_value(step, &fixture.root, &[]);

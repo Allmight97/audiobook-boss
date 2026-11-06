@@ -52,7 +52,7 @@
     },
     {
       "name": "recovery",
-      "start": { "settingsToml": "[general]\nmax_concurrent_jobs = 99\n" },
+      "settingsToml": "[general]\nmax_concurrent_jobs = 99\n",
       "steps": [
         { "kind": "retry" },
         { "kind": "setKeepAwake", "enabled": false }

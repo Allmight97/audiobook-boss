@@ -47,9 +47,7 @@ pub fn write_tagged(path: &Path, tags: &Tags) {
     body.extend(chunk(b"fmt ", &format));
     body.extend(info(tags));
     body.extend(chunk(b"data", &vec![0u8; (SAMPLE_RATE * 2) as usize]));
-    let mut file = chunk(b"RIFF", &body);
-    file.shrink_to_fit();
-    std::fs::write(path, file).expect("failed to write a fixture WAV");
+    std::fs::write(path, chunk(b"RIFF", &body)).expect("failed to write a fixture WAV");
 }
 
 /// A file named like audio whose header stops before the format chunk ends.

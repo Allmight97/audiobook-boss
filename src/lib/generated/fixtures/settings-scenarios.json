@@ -668,9 +668,6 @@
     },
     "steps": [
       {
-        "do": "blockConfig"
-      },
-      {
         "intent": {
           "enabled": false,
           "kind": "setKeepAwake"
@@ -886,9 +883,6 @@
             }
           }
         }
-      },
-      {
-        "do": "restoreConfig"
       },
       {
         "intent": {
