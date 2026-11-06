@@ -124,6 +124,7 @@ async fn an_edited_grouped_title_exports_every_field_and_the_chosen_cover() {
         (MetadataField::Description, "Edited blurb"),
     ] {
         desk.send(SessionIntent::SetField {
+            binding: desk.metadata().binding,
             field,
             value: value.to_string(),
         })
@@ -226,6 +227,7 @@ async fn cleared_cover_export(
     .await;
     assert_eq!(picture_codecs(&src), vec![ffmpeg_next::codec::Id::MJPEG]);
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "Bare Cover".to_string(),
     })
@@ -280,6 +282,7 @@ async fn desk_with_cue_mp3() -> Desk {
     fs::write(src.join("book.cue"), CUE_SHEET).expect("write CUE");
     desk.import(&src.join("book.mp3")).await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "Cue Book".to_string(),
     })

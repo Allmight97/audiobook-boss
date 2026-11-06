@@ -1104,7 +1104,12 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  *  Edits the audio choice of each named title. Refused while the list is
  *  locked.
  */
-{ kind: "setTitleAudio"; titleIds: string[]; edit: AudioEdit } | { kind: "applyDefaultAudio"; titleIds: string[] } | { kind: "setField"; field: MetadataField; value: string } | { kind: "setFieldAction"; field: MetadataField; action: FieldAction } | { kind: "loadCoverFromFile"; path: string } | { kind: "loadCoverFromDrop"; paths: string[] } | { kind: "loadCoverFromUrl"; url: string } | { kind: "clearCover" } |
+{ kind: "setTitleAudio"; titleIds: string[]; edit: AudioEdit } | { kind: "applyDefaultAudio"; titleIds: string[] } |
+/**
+ *  Types into the form whose `MetadataSnapshot::binding` is `binding`.
+ *  A form that has since bound to a different selection refuses it.
+ */
+{ kind: "setField"; binding: number; field: MetadataField; value: string } | { kind: "setFieldAction"; binding: number; field: MetadataField; action: FieldAction } | { kind: "loadCoverFromFile"; path: string } | { kind: "loadCoverFromDrop"; paths: string[] } | { kind: "loadCoverFromUrl"; url: string } | { kind: "clearCover" } |
 /**  Writes every pending edit that can be written now. */
 { kind: "save" } | { kind: "lookupOpen" } | { kind: "lookupClose" } | { kind: "lookupSearch" } | { kind: "lookupApply"; index: number;
 /**  Lookup part revision the host rendered; a mismatch changes nothing. */
@@ -1119,7 +1124,10 @@ export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } | { k
  *  is absent when a save in progress is what blocked the change.
  */
 { kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } | { kind: "previewOutput"; path: string | null } |
-/**  A newer request or a reset replaced this one before it finished. */
+/**
+ *  A newer request, a reset, or a change of the form it was typed into
+ *  replaced this one before it finished.
+ */
 { kind: "superseded" };
 
 export type SessionReply = {

@@ -121,6 +121,7 @@ describe('metadata workbench shell', () => {
 		await waitFor(() => expect(lastIntents(engine, 2)[1]).toEqual({ kind: 'save' }));
 		expect(lastIntents(engine, 2)[0]).toEqual({
 			kind: 'setField',
+			binding: 0,
 			field: 'title',
 			value: 'Edited',
 		});
@@ -143,7 +144,7 @@ describe('metadata workbench shell', () => {
 		window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }));
 		await waitFor(() =>
 			expect(lastIntents(engine, 2)).toEqual([
-				{ kind: 'setField', field: 'title', value: 'Alpha Two' },
+				{ kind: 'setField', binding: 0, field: 'title', value: 'Alpha Two' },
 				{ kind: 'save' },
 			]),
 		);

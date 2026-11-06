@@ -30,7 +30,10 @@ one host attachment.
   transport can reorder requests calls `begin` in the order the user acted.
 - The metadata part carries `binding`, which advances whenever the form binds
   to a different selection. A host shows typing the engine has not yet
-  confirmed only on the form it was typed into.
+  confirmed only on the form it was typed into. `SetField` and `SetFieldAction`
+  carry the binding the host showed; the engine answers `Superseded` and writes
+  nothing when the form has since bound elsewhere. Why: an import can select a
+  title between a keystroke and the update that tells the host.
 - Covers are not in a snapshot as bytes. Each view that offers a cover
   carries its address as an opaque string: a source on `AudioFile`, a lookup
   result, an Audible library title, the cover on screen, the preview.

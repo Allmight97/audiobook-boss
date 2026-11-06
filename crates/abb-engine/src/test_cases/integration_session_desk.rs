@@ -99,6 +99,7 @@ impl Desk {
 
     pub(super) async fn edit_genre_and_save(&self) -> MetadataSnapshot {
         self.send(SessionIntent::SetField {
+            binding: self.metadata().binding,
             field: MetadataField::Genre,
             value: "Mystery".to_string(),
         })

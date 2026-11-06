@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- A keystroke typed into the blank form just as an import selects a title no
+  longer lands on that title as an unsaved edit.
 - Text typed during an export is no longer wiped when ABB removes the finished
   Audible download. The form keeps it, and Save writes it to the exported file.
 - After a Save, the file list shows the title and author you just saved. Before,

@@ -222,7 +222,12 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		setFieldValue(command) {
 			const field = fieldForInputId(command.inputId);
 			if (!field) return;
-			const intent: SessionIntent = { kind: 'setField', field, value: command.value };
+			const intent: SessionIntent = {
+				kind: 'setField',
+				binding: link.metadata().binding,
+				field,
+				value: command.value,
+			};
 			typed.show(field, command.value, () =>
 				link.send(intent).catch((error: unknown) => link.refuse(intent, error)),
 			);
@@ -231,7 +236,12 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			const field = fieldForActionId(command.actionId);
 			if (!field) return;
 			typed.drop(field);
-			link.post({ kind: 'setFieldAction', field, action: command.action });
+			link.post({
+				kind: 'setFieldAction',
+				binding: link.metadata().binding,
+				field,
+				action: command.action,
+			});
 		},
 		setCoverHovered(hovered) {
 			isHovered = hovered;

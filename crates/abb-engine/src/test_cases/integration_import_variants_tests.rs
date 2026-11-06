@@ -250,6 +250,7 @@ async fn a_hundred_file_group_exports_in_order_with_a_chapter_each() {
     desk.send(SessionIntent::SelectAll).await;
     desk.send(SessionIntent::GroupSelected).await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "Hundred Parts".to_string(),
     })

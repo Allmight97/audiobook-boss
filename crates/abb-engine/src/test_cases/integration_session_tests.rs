@@ -25,6 +25,7 @@ async fn shutdown_finishes_an_accepted_save_without_a_host_waiting_for_its_reply
         .await;
     desk.import(&source).await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Genre,
         value: "Mystery".into(),
     })
@@ -340,6 +341,7 @@ async fn a_naming_edit_retags_a_finished_output_where_it_is() {
     let output = desk.output_of(&export);
 
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "Beta".to_string(),
     })
@@ -378,6 +380,7 @@ async fn restarting_a_title_moves_its_unfinished_export_to_the_new_location() {
     let first = desk.export().await;
 
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Author,
         value: "Other Author".to_string(),
     })
@@ -782,12 +785,14 @@ async fn keep_location_writes_the_latest_offered_tags_to_the_original_export_pat
     desk.import(&book).await;
     let operation = desk.export().await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Author,
         value: "First choice".into(),
     })
     .await;
     desk.send(SessionIntent::Save).await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Author,
         value: "Latest choice".into(),
     })

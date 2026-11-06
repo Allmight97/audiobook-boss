@@ -31,6 +31,7 @@ async fn five_hundred_cue_chapters_survive_export() {
     fs::write(source.join("book.cue"), cue_sheet(500, 9)).expect("write the CUE");
     desk.import(&source.join("book.mp3")).await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "Cue Heavy".to_string(),
     })

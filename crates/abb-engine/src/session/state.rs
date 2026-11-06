@@ -1167,18 +1167,27 @@ impl SessionState {
         self.reset_metadata();
     }
 
-    pub(crate) fn set_field(&mut self, field: MetadataField, value: String) {
+    pub(crate) fn set_field(&mut self, binding: u64, field: MetadataField, value: String) -> bool {
+        if binding != self.binding {
+            return false;
+        }
         self.form.set_value(field, value);
         self.status = None;
+        true
     }
 
     pub(crate) fn set_field_action(
         &mut self,
+        binding: u64,
         field: MetadataField,
         action: super::metadata_form::FieldAction,
-    ) {
+    ) -> bool {
+        if binding != self.binding {
+            return false;
+        }
         self.form.set_action(field, action);
         self.status = None;
+        true
     }
 
     pub(crate) fn apply_lookup(

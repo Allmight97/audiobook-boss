@@ -47,6 +47,16 @@ const ALLOWED_INTEGER_FIELDS: readonly AllowedIntegerField[] = [
 		reason: 'names a held collision review.',
 	},
 	{
+		variant: 'SetField',
+		field: 'binding',
+		reason: 'form binding the host showed; a mismatch changes nothing.',
+	},
+	{
+		variant: 'SetFieldAction',
+		field: 'binding',
+		reason: 'form binding the host showed; a mismatch changes nothing.',
+	},
+	{
 		variant: 'RestartTitle',
 		field: 'revision',
 		reason: 'names a restart offer revision.',

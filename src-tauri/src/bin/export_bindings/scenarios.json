@@ -7,8 +7,8 @@
         { "kind": "selectFile", "titleId": "title-1", "modifiers": { "multi": false, "range": false } },
         { "kind": "selectFile", "titleId": "title-2", "modifiers": { "multi": false, "range": true } },
         { "kind": "selectAll" },
-        { "kind": "setField", "field": "genre", "value": "" },
-        { "kind": "setFieldAction", "field": "author", "action": "blank" },
+        { "kind": "setField", "binding": "current", "field": "genre", "value": "" },
+        { "kind": "setFieldAction", "binding": "current", "field": "author", "action": "blank" },
         { "kind": "clearSelection" }
       ]
     },

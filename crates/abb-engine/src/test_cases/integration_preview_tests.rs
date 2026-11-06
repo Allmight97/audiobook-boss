@@ -28,6 +28,7 @@ async fn a_preview_plays_ninety_seconds_with_the_edited_metadata_and_no_chapters
     })
     .await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "Preview Title".to_string(),
     })

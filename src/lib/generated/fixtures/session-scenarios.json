@@ -529,6 +529,7 @@
       },
       {
         "intent": {
+          "binding": 3,
           "field": "genre",
           "kind": "setField",
           "value": ""
@@ -659,6 +660,7 @@
       {
         "intent": {
           "action": "blank",
+          "binding": 3,
           "field": "author",
           "kind": "setFieldAction"
         },

@@ -163,7 +163,7 @@ fn remove_download(state: &mut SessionState, name: &str) {
 }
 
 fn typed(state: &mut SessionState, value: &str) {
-    state.set_field(MetadataField::Genre, value.to_string());
+    state.set_field(state.binding, MetadataField::Genre, value.to_string());
     state.settle();
 }
 
@@ -189,7 +189,7 @@ fn pending_genre(state: &SessionState, name: &str) -> bool {
 #[test]
 fn typing_on_a_title_survives_its_download_leaving_even_when_invalid() {
     let mut state = listed(&["alpha"]);
-    state.set_field(MetadataField::Date, "soon".to_string());
+    state.set_field(state.binding, MetadataField::Date, "soon".to_string());
     typed(&mut state, "Mystery");
 
     remove_download(&mut state, "alpha");

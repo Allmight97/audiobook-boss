@@ -54,18 +54,21 @@ async fn one_save_blanks_author_on_two_titles_and_writes_each_titles_own_edit() 
 
     only(&desk, "alpha.m4b").await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Genre,
         value: "Mystery".to_string(),
     })
     .await;
     only(&desk, "beta.m4b").await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "New".to_string(),
     })
     .await;
     desk.send(SessionIntent::SelectAll).await;
     desk.send(SessionIntent::SetFieldAction {
+        binding: desk.metadata().binding,
         field: MetadataField::Author,
         action: FieldAction::Blank,
     })
@@ -133,11 +136,13 @@ async fn a_save_changes_the_title_and_author_the_list_shows() {
     );
 
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "Renamed".to_string(),
     })
     .await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Author,
         value: "New Author".to_string(),
     })
@@ -170,6 +175,7 @@ async fn a_second_save_on_a_finished_output_keeps_the_first_saves_tag() {
 
     desk.edit_genre_and_save().await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Narrator,
         value: "Reader".to_string(),
     })

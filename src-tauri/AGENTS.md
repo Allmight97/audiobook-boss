@@ -65,7 +65,8 @@ after the one before it: a gap stalls the test for `MISSING_INTENT_WAIT`, then
 `IntentOrder` skips the number and refuses it as late.
 
 `src/bin/export_bindings` records the fixtures from the real engine: the intent
-sequences are in `scenarios.json`. The check runs on macOS and Linux, so a value
-that differs between machines is pinned in `pin_machine_values`; a new one
+sequences are in `scenarios.json`; `"binding": "current"` in a step becomes the
+form binding the engine shows before that step. The check runs on macOS and
+Linux, so a value that differs between machines is pinned in `pin_machine_values`; a new one
 makes the other OS report a stale fixture. Name a title only after importing
 it, or the recorder panics.

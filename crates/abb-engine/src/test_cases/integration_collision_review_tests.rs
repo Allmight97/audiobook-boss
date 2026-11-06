@@ -156,6 +156,7 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
     })
     .await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "Beta".to_string(),
     })

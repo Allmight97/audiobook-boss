@@ -172,12 +172,14 @@ impl Desk {
     }
 
     fn type_into(&mut self, field: MetadataField, value: &str) {
-        self.state.set_field(field, value.to_string());
+        let binding = self.state.binding;
+        self.state.set_field(binding, field, value.to_string());
         self.state.settle();
     }
 
     fn act(&mut self, field: MetadataField, action: FieldAction) {
-        self.state.set_field_action(field, action);
+        let binding = self.state.binding;
+        self.state.set_field_action(binding, field, action);
         self.state.settle();
     }
 
@@ -1151,7 +1153,8 @@ impl Run {
                 } else {
                     FieldAction::Keep
                 };
-                desk.state.set_field_action(FIELDS[field], action);
+                let binding = desk.state.binding;
+                desk.state.set_field_action(binding, FIELDS[field], action);
                 desk.state.settle();
             }
             Step::Stage => {

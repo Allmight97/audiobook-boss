@@ -484,7 +484,20 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, Strin
     .await?;
     send(&engine, SessionIntent::SelectAll).await?;
     for (field, value) in options.edits.clone() {
-        send(&engine, SessionIntent::SetField { field, value }).await?;
+        let binding = engine
+            .session_snapshot()
+            .metadata
+            .ok_or("the session shows no metadata form")?
+            .binding;
+        send(
+            &engine,
+            SessionIntent::SetField {
+                binding,
+                field,
+                value,
+            },
+        )
+        .await?;
     }
     if options.save {
         send(&engine, SessionIntent::Save).await?;

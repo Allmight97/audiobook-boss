@@ -46,8 +46,8 @@ describe('metadata owner', () => {
 		expect(title(app).value).toBe('Alp');
 		replies[1]?.({ kind: 'applied' });
 		expect(engine.sessionIntents.filter((intent) => intent.kind === 'setField')).toEqual([
-			{ kind: 'setField', field: 'title', value: 'Al' },
-			{ kind: 'setField', field: 'title', value: 'Alp' },
+			{ kind: 'setField', binding: 0, field: 'title', value: 'Al' },
+			{ kind: 'setField', binding: 0, field: 'title', value: 'Alp' },
 		]);
 	});
 
@@ -103,9 +103,9 @@ describe('metadata owner', () => {
 
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents.slice(-3)).toEqual([
-				{ kind: 'setField', field: 'date', value: '2020' },
-				{ kind: 'setField', field: 'narrator', value: 'Reader' },
-				{ kind: 'setFieldAction', field: 'seriesPart', action: 'blank' },
+				{ kind: 'setField', binding: 0, field: 'date', value: '2020' },
+				{ kind: 'setField', binding: 0, field: 'narrator', value: 'Reader' },
+				{ kind: 'setFieldAction', binding: 0, field: 'seriesPart', action: 'blank' },
 			]),
 		);
 	});
@@ -169,6 +169,23 @@ describe('metadata owner', () => {
 			state.metadata.binding += 1;
 		});
 		expect(title(app).value).toBe('Alpha');
+	});
+
+	it('types into the form it shows, so the engine can refuse text meant for a form it replaced', async () => {
+		const app = await open();
+		engine.change((state) => {
+			state.metadata.binding = 7;
+		});
+
+		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Typed' });
+		app.metadata.setFieldAction({ actionId: 'meta-author-action', action: 'blank' });
+
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents.slice(-2)).toEqual([
+				{ kind: 'setField', binding: 7, field: 'title', value: 'Typed' },
+				{ kind: 'setFieldAction', binding: 7, field: 'author', action: 'blank' },
+			]),
+		);
 	});
 
 	it("shows the engine's cover at an address that names that image", async () => {

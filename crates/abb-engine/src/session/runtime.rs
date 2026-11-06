@@ -664,14 +664,16 @@ impl Session {
                 Rest::Done(SessionOutcome::Applied)
             }
 
-            I::SetField { field, value } => {
-                self.transition(|state| state.set_field(field, value));
-                Rest::Done(SessionOutcome::Applied)
-            }
-            I::SetFieldAction { field, action } => {
-                self.transition(|state| state.set_field_action(field, action));
-                Rest::Done(SessionOutcome::Applied)
-            }
+            I::SetField {
+                binding,
+                field,
+                value,
+            } => self.edit_form(|state| state.set_field(binding, field, value)),
+            I::SetFieldAction {
+                binding,
+                field,
+                action,
+            } => self.edit_form(|state| state.set_field_action(binding, field, action)),
             I::LoadCoverFromFile { path } => self.begin_cover_load(CoverSource::File(path)),
             I::LoadCoverFromDrop { paths } => {
                 match crate::cover_source::dropped_cover_path(paths) {
@@ -760,6 +762,14 @@ impl Session {
     fn edit_titles(&self, change: impl FnOnce(&mut WorkingSet)) -> Rest {
         self.transition(|state| change(&mut state.working_set));
         Rest::Done(SessionOutcome::Applied)
+    }
+
+    fn edit_form(&self, change: impl FnOnce(&mut SessionState) -> bool) -> Rest {
+        Rest::Done(if self.transition(change) {
+            SessionOutcome::Applied
+        } else {
+            SessionOutcome::Superseded
+        })
     }
 
     fn begin_select_file(&self, title_id: String, modifiers: SelectionModifiers) -> Rest {

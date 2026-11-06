@@ -142,11 +142,15 @@ pub enum SessionIntent {
         title_ids: Vec<String>,
     },
 
+    /// Types into the form whose `MetadataSnapshot::binding` is `binding`.
+    /// A form that has since bound to a different selection refuses it.
     SetField {
+        binding: u64,
         field: MetadataField,
         value: String,
     },
     SetFieldAction {
+        binding: u64,
         field: MetadataField,
         action: FieldAction,
     },
@@ -212,7 +216,8 @@ pub enum SessionOutcome {
     PreviewOutput {
         path: Option<String>,
     },
-    /// A newer request or a reset replaced this one before it finished.
+    /// A newer request, a reset, or a change of the form it was typed into
+    /// replaced this one before it finished.
     Superseded,
 }
 

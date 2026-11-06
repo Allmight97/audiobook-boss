@@ -34,7 +34,7 @@ describe('engine link', () => {
 		const link = linkTo(engine);
 
 		const sent = [
-			link.send({ kind: 'setField', field: 'title', value: 'A' }),
+			link.send({ kind: 'setField', binding: 0, field: 'title', value: 'A' }),
 			link.send({ kind: 'save' }),
 			link.send({ kind: 'selectAll' }),
 		];
@@ -57,7 +57,7 @@ describe('engine link', () => {
 		};
 		const link = linkTo(engine);
 		await link.ready();
-		await link.send({ kind: 'setField', field: 'title', value: 'Newer' });
+		await link.send({ kind: 'setField', binding: 0, field: 'title', value: 'Newer' });
 		const current = link.metadata();
 
 		publish({

@@ -261,6 +261,17 @@ impl Rig {
         self.session.dispatch(intent).await.outcome
     }
 
+    async fn type_into(&self, field: MetadataField, value: &str) {
+        let binding = self.metadata().binding;
+        let value = value.to_string();
+        self.send(SessionIntent::SetField {
+            binding,
+            field,
+            value,
+        })
+        .await;
+    }
+
     fn title_id(&self, index: usize) -> String {
         self.session
             .snapshot()
@@ -745,11 +756,7 @@ async fn a_result_is_not_applied_when_its_title_cannot_be_selected() {
     rig.answer_next_search(Ok(found(&["Found"])));
     rig.send(SessionIntent::LookupOpen).await;
     rig.select(&[1]).await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Date,
-        value: "soon".to_string(),
-    })
-    .await;
+    rig.type_into(MetadataField::Date, "soon").await;
 
     rig.send(rig.lookup_apply(0)).await;
 
@@ -778,11 +785,7 @@ async fn an_unknown_select_file_title_id_changes_nothing() {
     let rig = rig();
     rig.load(&["alpha", "beta"]);
     rig.select(&[0]).await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Date,
-        value: "soon".to_string(),
-    })
-    .await;
+    rig.type_into(MetadataField::Date, "soon").await;
     let before = rig.selected();
 
     let outcome = rig
@@ -929,6 +932,7 @@ async fn a_reply_carries_what_its_intent_changed() {
     let reply = rig
         .session
         .dispatch(SessionIntent::SetField {
+            binding: rig.metadata().binding,
             field: MetadataField::Genre,
             value: "Mystery".to_string(),
         })
@@ -944,11 +948,7 @@ async fn a_rejected_selection_reports_why_and_leaves_the_selection() {
     let rig = rig();
     rig.load(&["alpha", "beta"]);
     rig.select(&[0]).await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Date,
-        value: "soon".to_string(),
-    })
-    .await;
+    rig.type_into(MetadataField::Date, "soon").await;
 
     let outcome = rig
         .send(SessionIntent::SelectFile {
@@ -1064,11 +1064,7 @@ async fn reset_empties_the_session() {
     let rig = rig();
     rig.load(&["alpha"]);
     rig.select(&[0]).await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Genre,
-        value: "Mystery".to_string(),
-    })
-    .await;
+    rig.type_into(MetadataField::Genre, "Mystery").await;
 
     rig.send(SessionIntent::Reset).await;
 
@@ -1094,6 +1090,7 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
         modifiers: SelectionModifiers::default(),
     });
     let edit = rig.session.begin(SessionIntent::SetField {
+        binding: rig.metadata().binding,
         field: MetadataField::Genre,
         value: "Mystery".to_string(),
     });
@@ -1161,6 +1158,7 @@ async fn repeated_removal_targets_one_title_and_preserves_its_neighbours_edits()
     rig.load(&["alpha", "beta"]);
     rig.select(&[1]).await;
     rig.send(SessionIntent::SetField {
+        binding: rig.metadata().binding,
         field: MetadataField::Genre,
         value: "Mystery".into(),
     })
@@ -1325,11 +1323,7 @@ async fn the_output_preview_follows_the_form_the_directory_and_the_format() {
     assert!(first.starts_with("/out/Author"), "{first}");
     assert!(first.ends_with(".m4b"), "{first}");
 
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Title,
-        value: "Dune".to_string(),
-    })
-    .await;
+    rig.type_into(MetadataField::Title, "Dune").await;
     rig.send(SessionIntent::SetTitleAudio {
         title_ids: vec!["alpha".to_string()],
         edit: AudioEdit::Format(AudiobookFormat::Mp3),
@@ -1391,11 +1385,7 @@ async fn ending_a_submission_wakes_a_save_waiting_on_its_sources() {
             state.begin_submission(false)
         })
         .expect("the submission is prepared");
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Genre,
-        value: "Mystery".to_string(),
-    })
-    .await;
+    rig.type_into(MetadataField::Genre, "Mystery").await;
     rig.send(SessionIntent::Save).await;
     assert_eq!(rig.session.waiting_write_paths(), [path("alpha")]);
 
@@ -1588,11 +1578,7 @@ async fn a_download_goes_once_its_title_is_exported() {
         directory: output.path().to_string_lossy().into_owned(),
     })
     .await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Title,
-        value: "Book".to_string(),
-    })
-    .await;
+    rig.type_into(MetadataField::Title, "Book").await;
     rig.send(SessionIntent::Submit).await;
     assert!(
         matches!(
@@ -1620,11 +1606,7 @@ async fn reset_during_preflight_drops_the_review_and_unlocks_the_list() {
         directory: out.path().to_string_lossy().into_owned(),
     })
     .await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Title,
-        value: "Book".to_string(),
-    })
-    .await;
+    rig.type_into(MetadataField::Title, "Book").await;
     let dest = preview_path(&rig);
     if let Some(parent) = std::path::Path::new(&dest).parent() {
         std::fs::create_dir_all(parent).expect("output parent");
@@ -1965,3 +1947,5 @@ async fn moves_name_the_title_so_a_second_click_moves_the_same_title_again() {
 
 #[path = "runtime_audio_tests.rs"]
 mod audio;
+#[path = "runtime_field_edit_tests.rs"]
+mod field_edit;

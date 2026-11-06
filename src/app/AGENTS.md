@@ -41,6 +41,7 @@ second copy of owner state.
   through `createTypingEcho`: at once, until the engine's reply for that
   keystroke arrives, and only in the scope the owner names (the form's
   `binding`, the lookup queue item). The echo is display only and never decides what is saved.
+  Form edits send the `binding` the form shows.
   The Remote Source URL echo does not use it: it drops only once the engine's
   URL matches the trimmed text, or at once when an applied settings Reset
   discards the typed connection edits (below).
