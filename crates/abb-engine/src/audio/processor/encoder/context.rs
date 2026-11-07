@@ -114,15 +114,15 @@ pub(crate) fn setup_encoder(
     let resolved_encoder_type = plan.encoder_settings.encoder_type;
     settings_encoder::validate_encoder_settings(&plan.encoder_settings)?;
 
-    let mut octx = ff::format::output_as(
-        &plan.output_path,
-        if plan.output_path.extension().is_some_and(|ext| ext == "mka") {
-            "matroska"
-        } else {
-            "mp4"
-        },
-    )
-    .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
+    let muxer = plan
+        .output_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .and_then(crate::audio::format_for_extension)
+        .ok_or_else(|| AppError::InvalidInput("Unsupported audiobook container.".into()))?
+        .muxer;
+    let mut octx = ff::format::output_as(&plan.output_path, muxer.ffmpeg_name())
+        .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
 
     if let Some(metadata) = metadata {
         crate::metadata::set_container_metadata(&mut octx, metadata)
@@ -130,11 +130,7 @@ pub(crate) fn setup_encoder(
         log::debug!("Container metadata set successfully");
     }
 
-    let stream_codec_id = if resolved_encoder_type == EncoderType::Opus {
-        ff::codec::Id::OPUS
-    } else {
-        ff::codec::Id::AAC
-    };
+    let stream_codec_id = crate::audio::codec_family_of(resolved_encoder_type).codec_id();
     let codec = ff::encoder::find(stream_codec_id)
         .ok_or_else(|| AppError::General(format!("{:?} encoder not found", stream_codec_id)))?;
 

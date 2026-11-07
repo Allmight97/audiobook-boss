@@ -78,12 +78,13 @@ pub(super) fn remux_into(
     let mut octx = stage("metadata_create_output", temp_path, || {
         match output_format {
             Some(format) => ff::format::output_as(temp_path, format),
-            None if matches!(
-                temp_path.extension().and_then(|ext| ext.to_str()),
-                Some("m4a" | "m4b")
-            ) =>
+            None if temp_path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .and_then(crate::audio::format_for_extension)
+                .is_some_and(|spec| spec.muxer == crate::audio::Muxer::Mp4) =>
             {
-                ff::format::output_as(temp_path, "mp4")
+                ff::format::output_as(temp_path, crate::audio::Muxer::Mp4.ffmpeg_name())
             }
             None => ff::format::output(temp_path),
         }

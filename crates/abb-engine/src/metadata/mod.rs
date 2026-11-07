@@ -217,15 +217,12 @@ pub(crate) fn remux_preserved_audio_container(
     extension: &str,
     chapters: &[ChapterSpec],
 ) -> Result<()> {
-    let target = match extension {
-        "m4a" | "m4b" => "mp4",
-        "mka" => "matroska",
-        _ => {
-            return Err(crate::errors::AppError::InvalidInput(
-                "Unsupported audiobook container.".into(),
-            ))
-        }
-    };
+    let target = crate::audio::format_for_extension(extension)
+        .ok_or_else(|| {
+            crate::errors::AppError::InvalidInput("Unsupported audiobook container.".into())
+        })?
+        .muxer
+        .ffmpeg_name();
     let source = extract_passthrough_metadata(&[PassthroughSource {
         path: path.into(),
         duration: None,

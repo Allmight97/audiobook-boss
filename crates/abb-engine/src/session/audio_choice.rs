@@ -307,8 +307,8 @@ impl AudioChoice {
         &self,
         caps: Option<&EncoderSettingsCapabilities>,
     ) -> EncoderType {
-        if self.format.is_opus() {
-            return EncoderType::Opus;
+        if let Some(fixed) = self.format.spec().fixed_encoder() {
+            return fixed;
         }
         match (self.encoder, caps) {
             (EncoderType::Auto, Some(caps)) => caps.availability.auto_encoder,
@@ -363,11 +363,7 @@ impl AudioChoice {
     fn settings(&self, caps: Option<&EncoderSettingsCapabilities>) -> EncoderSettings {
         let opus = self.format.is_opus();
         EncoderSettings {
-            encoder_type: if opus {
-                EncoderType::Opus
-            } else {
-                self.encoder
-            },
+            encoder_type: self.format.spec().fixed_encoder().unwrap_or(self.encoder),
             bitrate_kbps: if opus {
                 self.opus_bitrate_kbps
             } else {
@@ -421,11 +417,8 @@ impl AudioChoice {
                     .iter()
                     .copied()
                     .filter(|encoder| {
-                        if self.format.is_opus() {
-                            *encoder == EncoderType::Opus
-                        } else {
-                            !matches!(encoder, EncoderType::Opus | EncoderType::Auto)
-                        }
+                        *encoder != EncoderType::Auto
+                            && self.format.spec().encoders.contains(encoder)
                     })
                     .map(|encoder| EncoderOption {
                         encoder,
@@ -433,7 +426,7 @@ impl AudioChoice {
                     })
                     .collect()
             }),
-            encoder_locked: self.format.is_opus() || caps.is_none(),
+            encoder_locked: self.format.spec().fixed_encoder().is_some() || caps.is_none(),
             downmix_warning: false,
             bitrate_mode,
             bitrate_kbps_min: config.map_or(1, |config| config.bitrate_kbps_min),

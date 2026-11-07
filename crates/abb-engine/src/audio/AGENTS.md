@@ -130,6 +130,11 @@ encoding uses the built-in AAC defaults (NMR 65 kbps target, source channels and
 automatic rate), independent of saved user preferences. Explicit Encode applies
 the settings.
 
+`format.rs` is the one table of output formats: extension, muxer, codec
+family, and allowed encoders. Read a format fact there; never list it again. A
+format "keeps" a source only when the source can be copied
+(`assess_preservation`) and its codec family equals the format's.
+
 Session title plans (`session/plans.rs`) and processing preflight share this
 resolver. Only encoding plans resolve encoder availability, channels, and input
 rate. Execution receives that resolved plan and takes no frontend preferences.

@@ -9,6 +9,7 @@ mod constants;
 pub use constants::ALLOWED_IMAGE_EXTENSIONS;
 mod extensions;
 mod file_list;
+mod format;
 mod imports;
 mod path_validation;
 mod processor;
@@ -156,6 +157,9 @@ pub enum SampleRateConfig {
 }
 
 pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
+pub(crate) use format::{
+    codec_family_of, format_for_extension, supported_extensions_text, CodecFamily, Muxer, FORMATS,
+};
 pub(crate) use imports::discover_audio_import_paths;
 pub use imports::{
     supported_audio_import_extensions, supported_audio_import_formats_text,

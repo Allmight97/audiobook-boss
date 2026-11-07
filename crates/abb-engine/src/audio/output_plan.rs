@@ -1,4 +1,4 @@
-use super::{EncoderSettings, EncoderType, FileListInfo, SampleRateConfig};
+use super::{EncoderSettings, FileListInfo, SampleRateConfig};
 use crate::{
     errors::{AppError, Result},
     processing::AudioHandling,
@@ -15,14 +15,10 @@ pub enum AudiobookFormat {
 }
 impl AudiobookFormat {
     pub fn extension(self) -> &'static str {
-        match self {
-            Self::M4b => "m4b",
-            Self::M4aOpus => "m4a",
-            Self::MkaOpus => "mka",
-        }
+        self.spec().extension
     }
     pub fn is_opus(self) -> bool {
-        matches!(self, Self::M4aOpus | Self::MkaOpus)
+        self.spec().codec_family == super::CodecFamily::Opus
     }
 }
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -274,7 +270,7 @@ fn encoding_plan(
     } else {
         requested.clone()
     };
-    if format.is_opus() != (settings.encoder_type == EncoderType::Opus) {
+    if !format.spec().encoders.contains(&settings.encoder_type) {
         return Err(AppError::InvalidInput(
             "The encoder must match the selected output format.".into(),
         )
@@ -331,18 +327,13 @@ fn source_codecs(info: &FileListInfo) -> Result<Vec<Option<ffmpeg_next::codec::I
 }
 
 fn formats_that_keep(codecs: &[Option<ffmpeg_next::codec::Id>]) -> Vec<AudiobookFormat> {
-    [
-        AudiobookFormat::M4b,
-        AudiobookFormat::M4aOpus,
-        AudiobookFormat::MkaOpus,
-    ]
-    .into_iter()
-    .filter(|format| {
-        let expected = match format {
-            AudiobookFormat::M4b => ffmpeg_next::codec::Id::AAC,
-            _ => ffmpeg_next::codec::Id::OPUS,
-        };
-        codecs.iter().all(|codec| *codec == Some(expected))
-    })
-    .collect()
+    super::FORMATS
+        .into_iter()
+        .filter(|spec| {
+            codecs
+                .iter()
+                .all(|codec| *codec == Some(spec.codec_family.codec_id()))
+        })
+        .map(|spec| spec.format)
+        .collect()
 }

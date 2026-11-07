@@ -98,14 +98,15 @@ pub fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
         validate_output_directory_writable(parent)?;
     }
 
+    let supported = super::supported_extensions_text();
     match path.extension().and_then(|s| s.to_str()) {
-        Some("m4b" | "m4a" | "mka") => Ok(()),
+        Some(ext) if super::format_for_extension(ext).is_some() => Ok(()),
         Some(ext) => Err(AppError::InvalidInput(format!(
-            "Encoded output must be .m4b, .m4a or .mka, got: .{ext}"
+            "Encoded output must be {supported}, got: .{ext}"
         ))),
-        None => Err(AppError::InvalidInput(
-            "Encoded output requires an .m4b, .m4a or .mka extension".to_string(),
-        )),
+        None => Err(AppError::InvalidInput(format!(
+            "Encoded output requires an {supported} extension"
+        ))),
     }
 }
 
@@ -120,9 +121,10 @@ pub fn validate_preserved_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
         .map(str::to_ascii_lowercase)
         .as_deref()
     {
-        Some("m4b" | "m4a" | "mka") => Ok(()),
+        Some(extension) if super::format_for_extension(extension).is_some() => Ok(()),
         Some(extension) => Err(AppError::InvalidInput(format!(
-            "Preserved output must be .m4b, .m4a or .mka, got: .{extension}"
+            "Preserved output must be {}, got: .{extension}",
+            super::supported_extensions_text()
         ))),
         None => Err(AppError::InvalidInput(
             "Preserved output must have a supported audio extension".to_string(),
