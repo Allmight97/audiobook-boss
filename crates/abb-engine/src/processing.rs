@@ -1,4 +1,5 @@
 mod context;
+mod job_identity;
 mod job_registry;
 mod output_parent_cleanup;
 pub(crate) mod plan;
@@ -25,6 +26,7 @@ pub use types::{
     ProcessingPreflightPlan, SupplementalProcessingAsset, TitleSource,
 };
 
+pub(crate) use job_identity::JobIdentity;
 #[cfg(test)]
 pub(crate) use job_registry::cancelled_token;
 pub(crate) use job_registry::{CancellationChecker, JobRegistry};

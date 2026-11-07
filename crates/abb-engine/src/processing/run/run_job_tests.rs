@@ -1,17 +1,11 @@
 use super::*;
 use crate::errors::{AppErrorCategory, AppErrorCode};
 
-fn log_identity(
-    operation_id: Option<&str>,
-    job_id: &str,
-    input_index: usize,
-    operation_kind: OperationKind,
-) -> ProcessingJobLogIdentity {
-    ProcessingJobLogIdentity {
+fn log_identity(operation_id: Option<&str>, job_id: &str, input_index: usize) -> JobIdentity {
+    JobIdentity {
         operation_id: operation_id.map(str::to_string),
-        job_id: job_id.to_string(),
+        job_id: Some(job_id.to_string()),
         input_index,
-        operation_kind,
     }
 }
 
@@ -19,7 +13,8 @@ fn log_identity(
 fn processing_job_record_format_pins_started_and_terminal_contracts() {
     assert_eq!(
         format_processing_job_record(
-            &log_identity(None, "job-123", 0, OperationKind::ProcessingBatch),
+            &log_identity(None, "job-123", 0),
+            OperationKind::ProcessingBatch,
             ProcessingJobLogEvent::Started,
             ProcessingJobLogStatus::Running,
             None,
@@ -32,9 +27,8 @@ fn processing_job_record_format_pins_started_and_terminal_contracts() {
             &log_identity(
                 Some("operation-123"),
                 "job-456",
-                4,
-                OperationKind::ProcessingBatch,
-            ),
+                4),
+            OperationKind::ProcessingBatch,
             ProcessingJobLogEvent::Terminal,
             ProcessingJobLogStatus::Success,
             Some(321),
@@ -47,9 +41,8 @@ fn processing_job_record_format_pins_started_and_terminal_contracts() {
             &log_identity(
                 Some("operation-123"),
                 "job-789",
-                5,
-                OperationKind::ProcessingBatch,
-            ),
+                5),
+            OperationKind::ProcessingBatch,
             ProcessingJobLogEvent::Terminal,
             ProcessingJobLogStatus::Cancelled,
             Some(654),
@@ -68,12 +61,8 @@ fn failed_processing_job_record_includes_stable_typed_error_fields() {
     );
 
     let record = format_processing_job_record(
-        &log_identity(
-            Some("operation-123"),
-            "job-456",
-            2,
-            OperationKind::ProcessingBatch,
-        ),
+        &log_identity(Some("operation-123"), "job-456", 2),
+        OperationKind::ProcessingBatch,
         ProcessingJobLogEvent::Terminal,
         ProcessingJobLogStatus::Failed(&failure),
         Some(987),

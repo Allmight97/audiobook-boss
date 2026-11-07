@@ -4,8 +4,11 @@ use super::*;
 fn terminal_events_share_context_and_reset_progress() {
     let emitter = ProgressEmitter {
         operation_kind: OperationKind::ProcessingBatch,
-        job_id: Some("job-123".to_string()),
-        input_index: Some(7),
+        identity: JobIdentity {
+            operation_id: None,
+            job_id: Some("job-123".to_string()),
+            input_index: 7,
+        },
         progress_listener: None,
     };
 
@@ -45,8 +48,11 @@ fn emitted_progress_normalizes_non_finite_percentage() {
     });
     let emitter = ProgressEmitter::with_context(EmitContext {
         operation_kind: OperationKind::ProcessingBatch,
-        job_id: None,
-        input_index: None,
+        identity: JobIdentity {
+            operation_id: None,
+            job_id: None,
+            input_index: 0,
+        },
     })
     .with_progress_listener(Some(listener));
 

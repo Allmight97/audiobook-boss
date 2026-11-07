@@ -1,7 +1,7 @@
 use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::processing::session::ProcessingSession;
 use crate::processing::OperationKind;
-use crate::processing::ProgressEventListener;
+use crate::processing::{JobIdentity, ProgressEventListener};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -57,11 +57,8 @@ pub struct ProcessingContext {
     pub sample_rate: u32,
     pub aac_decoder: crate::audio::AacDecoder,
     pub output: OutputConfig,
-    workspace_root: PathBuf,
-    pub job_id: Option<String>,
-    /// WorkRuntime operation identity; absent for foreground processing.
-    pub(crate) operation_id: Option<String>,
-    pub input_index: Option<usize>,
+    pub(crate) workspace_root: PathBuf,
+    pub(crate) identity: JobIdentity,
     pub operation_kind: OperationKind,
     pub(crate) progress_listener: Option<ProgressEventListener>,
     /// The export title's output record; publication goes through it.
@@ -76,38 +73,15 @@ impl std::fmt::Debug for ProcessingContext {
             .field("aac_decoder", &self.aac_decoder)
             .field("output", &self.output)
             .field("workspace_root", &self.workspace_root)
-            .field("job_id", &self.job_id)
-            .field("operation_id", &self.operation_id)
-            .field("input_index", &self.input_index)
+            .field("identity", &self.identity)
             .field("operation_kind", &self.operation_kind)
             .field("progress_listener", &self.progress_listener.is_some())
+            .field("title_output", &self.title_output.is_some())
             .finish()
     }
 }
 
 impl ProcessingContext {
-    pub(crate) fn new_with_workspace_root(
-        session: Arc<ProcessingSession>,
-        sample_rate: u32,
-        aac_decoder: crate::audio::AacDecoder,
-        output: OutputConfig,
-        workspace_root: PathBuf,
-    ) -> Self {
-        Self {
-            session,
-            sample_rate,
-            aac_decoder,
-            output,
-            workspace_root,
-            job_id: None,
-            operation_id: None,
-            input_index: None,
-            operation_kind: OperationKind::ProcessingBatch,
-            progress_listener: None,
-            title_output: None,
-        }
-    }
-
     #[cfg(test)]
     pub fn new_headless_with_workspace_root(
         session: Arc<ProcessingSession>,
@@ -115,13 +89,21 @@ impl ProcessingContext {
         output: OutputConfig,
         workspace_root: PathBuf,
     ) -> Self {
-        Self::new_with_workspace_root(
+        Self {
             session,
             sample_rate,
-            crate::audio::AacDecoder::Auto,
+            aac_decoder: crate::audio::AacDecoder::Auto,
             output,
             workspace_root,
-        )
+            identity: JobIdentity {
+                operation_id: None,
+                job_id: None,
+                input_index: 0,
+            },
+            operation_kind: OperationKind::ProcessingBatch,
+            progress_listener: None,
+            title_output: None,
+        }
     }
 
     pub fn is_preview(&self) -> bool {
@@ -136,8 +118,7 @@ impl ProcessingContext {
         crate::processing::progress::ProgressEmitter::with_context(
             crate::processing::progress::EmitContext {
                 operation_kind: self.operation_kind,
-                job_id: self.job_id.clone(),
-                input_index: self.input_index,
+                identity: self.identity.clone(),
             },
         )
         .with_progress_listener(self.progress_listener.clone())

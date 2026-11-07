@@ -2,22 +2,20 @@ use super::{
     EventStage, ProgressEvent, PROGRESS_ANALYZING_START, PROGRESS_COMPLETE,
     PROGRESS_CONVERTING_START, PROGRESS_FINALIZING, PROGRESS_METADATA_START,
 };
-use crate::processing::OperationKind;
+use crate::processing::{JobIdentity, OperationKind};
 use std::sync::Arc;
 
 pub(crate) type ProgressEventListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
 
 #[derive(Clone)]
-pub struct EmitContext {
-    pub operation_kind: OperationKind,
-    pub job_id: Option<String>,
-    pub input_index: Option<usize>,
+pub(crate) struct EmitContext {
+    pub(crate) operation_kind: OperationKind,
+    pub(crate) identity: JobIdentity,
 }
 
 pub struct ProgressEmitter {
     operation_kind: OperationKind,
-    job_id: Option<String>,
-    input_index: Option<usize>,
+    identity: JobIdentity,
     progress_listener: Option<ProgressEventListener>,
 }
 
@@ -25,8 +23,7 @@ impl ProgressEmitter {
     pub(crate) fn with_context(context: EmitContext) -> Self {
         Self {
             operation_kind: context.operation_kind,
-            job_id: context.job_id,
-            input_index: context.input_index,
+            identity: context.identity,
             progress_listener: None,
         }
     }
@@ -51,8 +48,8 @@ impl ProgressEmitter {
             message: message.to_string(),
             current_file: None,
             eta_seconds: None,
-            job_id: self.job_id.clone(),
-            input_index: self.input_index,
+            job_id: self.identity.job_id.clone(),
+            input_index: Some(self.identity.input_index),
         }
     }
 
@@ -159,8 +156,8 @@ impl ProgressEmitter {
             message: message.to_string(),
             current_file,
             eta_seconds,
-            job_id: self.job_id.clone(),
-            input_index: self.input_index,
+            job_id: self.identity.job_id.clone(),
+            input_index: Some(self.identity.input_index),
         };
 
         self.notify_listener(&event);

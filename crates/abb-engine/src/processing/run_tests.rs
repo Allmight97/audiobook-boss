@@ -1,6 +1,6 @@
 use super::run_job::{
     commit_supplemental_assets, register_job_and_validate_output, supplemental_assets_for_input,
-    title_outcome, ProcessingJobLogContext,
+    title_outcome,
 };
 use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
 use crate::output_artifact::OutputKind;
@@ -530,11 +530,11 @@ fn supplemental_asset(
     }
 }
 
-fn batch_log_context() -> ProcessingJobLogContext {
-    ProcessingJobLogContext {
-        operation_id: None,
+fn batch_identity(operation_id: Option<&str>) -> crate::processing::JobIdentity {
+    crate::processing::JobIdentity {
+        operation_id: operation_id.map(str::to_string),
+        job_id: None,
         input_index: 0,
-        operation_kind: OperationKind::ProcessingBatch,
     }
 }
 
@@ -550,10 +550,8 @@ async fn failed_output_validation_emits_started_and_failed_terminal_records() {
         &invalid_output,
         crate::audio::AudiobookFormat::M4b,
         None,
-        ProcessingJobLogContext {
-            operation_id: Some("log-proof".into()),
-            ..batch_log_context()
-        },
+        batch_identity(Some("log-proof")),
+        OperationKind::ProcessingBatch,
     )
     .await
     .is_ok()
@@ -608,7 +606,8 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
         &invalid_output,
         crate::audio::AudiobookFormat::M4b,
         None,
-        batch_log_context(),
+        batch_identity(None),
+        OperationKind::ProcessingBatch,
     )
     .await
     {

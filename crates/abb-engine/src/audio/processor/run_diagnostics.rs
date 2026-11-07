@@ -63,12 +63,10 @@ pub(super) fn write_run_identity(
         "target_duration_seconds={target_duration_seconds:.3}"
     );
     let _ = writeln!(output, "session_id={}", context.session.id());
-    if let Some(job_id) = context.job_id.as_deref() {
+    if let Some(job_id) = context.identity.job_id.as_deref() {
         let _ = writeln!(output, "job_id={job_id}");
     }
-    if let Some(input_index) = context.input_index {
-        let _ = writeln!(output, "input_index={input_index}");
-    }
+    let _ = writeln!(output, "input_index={}", context.identity.input_index);
     let _ = writeln!(output, "operation_kind={:?}", context.operation_kind);
 }
 
@@ -123,7 +121,7 @@ pub(super) fn log_output_observation(context: &crate::processing::ProcessingCont
     }
     let identity = format!(
         "job_id={} output_path={:?}",
-        context.job_id.as_deref().unwrap_or("unscoped"),
+        context.identity.job_id.as_deref().unwrap_or("unscoped"),
         context.output.final_path()
     );
     let record = match observe_output(path) {

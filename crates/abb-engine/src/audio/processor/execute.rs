@@ -65,7 +65,7 @@ pub(crate) fn merge_audio_files_with_context(
     log::info!(
         "media_job session_id={} job_id={} artifact={} encoder={:?}",
         context.session.id(),
-        context.job_id.as_deref().unwrap_or("unscoped"),
+        context.identity.job_id.as_deref().unwrap_or("unscoped"),
         crate::diagnostics::artifact_id(&temp_output),
         settings.encoder_type
     );

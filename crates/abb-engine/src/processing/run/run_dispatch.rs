@@ -11,7 +11,7 @@ use crate::processing::terminal_outcomes::{
     emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,
 };
 use crate::processing::ProcessResultStatus;
-use crate::processing::ProgressEventListener;
+use crate::processing::{JobIdentity, ProgressEventListener};
 use crate::processing::{OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry};
 use std::future::Future;
 use std::path::PathBuf;
@@ -77,8 +77,11 @@ async fn dispatch_batch_plan(
                 options.progress_listener.as_ref(),
                 EmitContext {
                     operation_kind: OperationKind::ProcessingBatch,
-                    job_id: skipped_entry.job_id.clone(),
-                    input_index: Some(skipped_entry.input_index),
+                    identity: JobIdentity {
+                        operation_id: options.operation_id.clone(),
+                        job_id: skipped_entry.job_id.clone(),
+                        input_index: skipped_entry.input_index,
+                    },
                 },
                 &skipped_entry.message,
             );
@@ -101,9 +104,12 @@ async fn dispatch_batch_plan(
             metadata_intent: planned_job.metadata_intent.clone(),
             sample_rate: planned_job.audio_plan.sample_rate,
             aac_decoder: payload.accepted_aac_decoder()?,
-            input_index,
+            identity: JobIdentity {
+                operation_id: options.operation_id.clone(),
+                job_id: None,
+                input_index,
+            },
             operation_kind: OperationKind::ProcessingBatch,
-            operation_id: options.operation_id.clone(),
             title_cancel: options.title_cancels.get(input_index).cloned(),
             output_plan: planned_job.output.clone(),
             file_info: crate::processing::plan::title_file_info(
@@ -121,7 +127,11 @@ async fn dispatch_batch_plan(
     }
 
     let outcomes = registry.run_batch(scheduled_jobs, queue_cancels).await;
-    let finalized_results = finalize_batch_results(outcomes, options.progress_listener.as_ref())?;
+    let finalized_results = finalize_batch_results(
+        outcomes,
+        &options.operation_id,
+        options.progress_listener.as_ref(),
+    )?;
 
     Ok(ProcessCommandResult::new(finalized_results))
 }
@@ -135,7 +145,8 @@ async fn run_title_job(
     folders: Arc<Mutex<OutputParentDirCleanup>>,
 ) -> Result<ProcessResultEntry> {
     let listener = request.progress_listener.clone();
-    let input_index = request.input_index;
+    let identity = request.identity.clone();
+    let input_index = identity.input_index;
     let title_output = request.title_output.clone();
     let cancelled = request
         .title_cancel
@@ -167,8 +178,7 @@ async fn run_title_job(
             listener.as_ref(),
             EmitContext {
                 operation_kind: OperationKind::ProcessingBatch,
-                job_id: None,
-                input_index: Some(input_index),
+                identity,
             },
             "Processing was cancelled",
         );
@@ -178,6 +188,7 @@ async fn run_title_job(
 
 fn finalize_batch_results(
     outcomes: Vec<Result<ProcessResultEntry>>,
+    operation_id: &Option<String>,
     progress_listener: Option<&ProgressEventListener>,
 ) -> Result<Vec<ProcessResultEntry>> {
     let finalized = collect_batch_results(outcomes)?;
@@ -186,8 +197,11 @@ fn finalize_batch_results(
             progress_listener,
             EmitContext {
                 operation_kind: OperationKind::ProcessingBatch,
-                job_id: event.job_id.clone(),
-                input_index: Some(event.input_index),
+                identity: JobIdentity {
+                    operation_id: operation_id.clone(),
+                    job_id: event.job_id.clone(),
+                    input_index: event.input_index,
+                },
             },
             &event.message,
         );

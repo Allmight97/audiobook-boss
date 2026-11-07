@@ -2,11 +2,11 @@ use super::*;
 use crate::processing::OperationKind;
 use tempfile::TempDir;
 
-fn log_context() -> ProcessingJobLogContext {
-    ProcessingJobLogContext {
+fn identity() -> crate::processing::JobIdentity {
+    crate::processing::JobIdentity {
         operation_id: None,
+        job_id: None,
         input_index: 0,
-        operation_kind: OperationKind::ProcessingBatch,
     }
 }
 
@@ -24,10 +24,16 @@ async fn registration_accepts_each_formats_own_extension() {
         let output = temp_dir
             .path()
             .join(format!("output.{}", format.extension()));
-        let registered =
-            register_job_and_validate_output(&registry, &output, format, None, log_context())
-                .await
-                .expect("the format's own extension should be accepted");
+        let registered = register_job_and_validate_output(
+            &registry,
+            &output,
+            format,
+            None,
+            identity(),
+            OperationKind::ProcessingBatch,
+        )
+        .await
+        .expect("the format's own extension should be accepted");
         registry.complete_job(registered.job_id);
     }
     assert_eq!(

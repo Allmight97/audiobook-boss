@@ -207,11 +207,9 @@ pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<Audi
     let encoder_type = resolution::resolve_linked_encoder(&settings)?;
     log::info!(
         "audio engine encoder: operation_id={} job_id={} input_index={} requested_encoder={:?} resolved_encoder={encoder_type:?}",
-        context.operation_id.as_deref().unwrap_or("foreground"),
-        context.job_id.as_deref().unwrap_or("none"),
-        context
-            .input_index
-            .map_or_else(|| "none".to_string(), |index| index.to_string()),
+        context.identity.operation_id.as_deref().unwrap_or("foreground"),
+        context.identity.job_id.as_deref().unwrap_or("none"),
+        context.identity.input_index,
         settings.encoder_type,
     );
     settings.resolve_encoder(encoder_type);

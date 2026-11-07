@@ -67,6 +67,10 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 ## Progress and stages
 
 - Processing emits internal `ProgressEvent` values to its supplied listener.
+- `JobIdentity` (operation id, job id, input index) is built when a job
+  registers; `ProcessingContext`, `ProgressEmitter`, and the `processing_job`
+  log record hold that one value. A title skipped or cancelled before it starts
+  has no job id.
 - `EventStage` in `progress/mod.rs` is the stage every emitted event carries.
 - A cancelled stage returns `AppError::cancelled()` and emits nothing. The
   title runner (`run/run_dispatch.rs`) emits Cancelled once, after the title's

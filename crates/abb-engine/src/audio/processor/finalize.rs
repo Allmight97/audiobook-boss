@@ -29,7 +29,7 @@ pub(super) fn complete_staged_output(
     let commit_request =
         OutputCommitRequest::new(context.output.final_path(), context.output.commit_action());
     log::info!("media_handoff stage=publish session_id={} job_id={} source_artifact={} destination_artifact={} destination_state={:?}",
-        context.session.id(), context.job_id.as_deref().unwrap_or("unscoped"),
+        context.session.id(), context.identity.job_id.as_deref().unwrap_or("unscoped"),
         crate::diagnostics::artifact_id(&staged_output), crate::diagnostics::artifact_id(context.output.final_path()),
         crate::diagnostics::file_state(context.output.final_path()));
     let commit = || {
@@ -50,7 +50,7 @@ pub(super) fn complete_staged_output(
     };
     log::info!(
         "media_handoff stage=published job_id={} output_path={:?} artifact={} {}",
-        context.job_id.as_deref().unwrap_or("unscoped"),
+        context.identity.job_id.as_deref().unwrap_or("unscoped"),
         outcome.final_output,
         crate::diagnostics::artifact_id(&outcome.final_output),
         crate::diagnostics::file_state(&outcome.final_output)

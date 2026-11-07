@@ -58,8 +58,9 @@ pub fn converting_percentage(fraction: f32) -> f32 {
     PROGRESS_CONVERTING_START + fraction.clamp(0.0, 1.0) * PROGRESS_CONVERTING_SPAN
 }
 
+pub(crate) use emitter::EmitContext;
+pub use emitter::ProgressEmitter;
 pub(crate) use emitter::ProgressEventListener;
-pub use emitter::{EmitContext, ProgressEmitter};
 
 #[cfg(test)]
 #[path = "progress_tests.rs"]
