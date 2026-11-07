@@ -84,11 +84,11 @@ describe('settings owner', () => {
 		};
 
 		const saving = app.settings.setDefaultAcquisitionLane('indexer');
-		expect(app.settings.dialog().laneSaveState).toBe('saving');
+		expect(app.settings.dialog().status.lane.state).toBe('saving');
 
 		release();
 		await saving;
-		expect(app.settings.dialog().laneSaveState).toBe('saved');
+		expect(app.settings.dialog().status.lane.state).toBe('saved');
 		expect(app.settings.defaultAcquisitionLane()).toBe('indexer');
 	});
 
@@ -109,9 +109,9 @@ describe('settings owner', () => {
 
 		await app.settings.setDefaultAcquisitionLane('indexer');
 
-		expect(app.settings.dialog()).toMatchObject({
-			laneSaveState: 'error',
-			laneSaveError: 'Indexer is not set up.',
+		expect(app.settings.dialog().status.lane).toEqual({
+			state: 'error',
+			error: 'Indexer is not set up.',
 		});
 	});
 
@@ -125,7 +125,7 @@ describe('settings owner', () => {
 		};
 		await app.settings.setStartupBehavior('pinnedDefaults');
 		expect(app.settings.dialog().settings?.startupBehavior).toBe('pinnedDefaults');
-		expect(app.settings.dialog().startupSaveState).not.toBe('error');
+		expect(app.settings.dialog().status.startup.state).not.toBe('error');
 		expect(app.settings.durability()).toEqual({ state: 'error', message: 'Read-only' });
 
 		engine.respondSettings = () => {
@@ -148,7 +148,7 @@ describe('settings owner', () => {
 			return undefined;
 		};
 		await app.settings.resetAllAppSettings();
-		expect(app.settings.dialog().saveState).toBe('saved');
+		expect(app.settings.dialog().status.reset.state).toBe('saved');
 		expect(app.settings.dialog().settings?.pinnedDefaults).toBeNull();
 	});
 });

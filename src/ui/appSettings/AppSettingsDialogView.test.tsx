@@ -326,7 +326,7 @@ describe('AppSettingsDialogView', () => {
 		await vi.waitFor(() => expect(url).toHaveValue('http://saved:9696'));
 		expect(url).toHaveAttribute('placeholder', 'https://prowlarr.example.com');
 		expect(screen.getByText('HTTP is unencrypted.')).toBeInTheDocument();
-		const test = vi.spyOn(r.remoteSource, 'testIndexerConnection').mockResolvedValue();
+		const test = vi.spyOn(r.remoteSource.indexerConnection, 'testConnection').mockResolvedValue();
 		fireEvent.click(screen.getByRole('button', { name: 'Test' }));
 		flush();
 		expect(test).toHaveBeenCalledOnce();
@@ -385,7 +385,7 @@ describe('AppSettingsDialogView', () => {
 		});
 		expect(screen.getByLabelText('URL')).toHaveValue('http://draft:9696');
 		expect(screen.getByLabelText('API key')).toHaveValue('draft-secret');
-		expect(r.remoteSource.indexerConnection().apiKeyDraft).toBe('draft-secret');
+		expect(r.remoteSource.indexerConnection.view().apiKeyDraft).toBe('draft-secret');
 	});
 
 	it('dispatches Test for the current connection draft without saving or clearing the password', async () => {
@@ -399,8 +399,8 @@ describe('AppSettingsDialogView', () => {
 			}),
 		);
 		await vi.waitFor(() => expect(screen.getByLabelText('URL')).toHaveValue('http://saved:9696'));
-		const test = vi.spyOn(r.remoteSource, 'testIndexerConnection').mockResolvedValue();
-		const save = vi.spyOn(r.remoteSource, 'saveIndexerConnectionSettings');
+		const test = vi.spyOn(r.remoteSource.indexerConnection, 'testConnection').mockResolvedValue();
+		const save = vi.spyOn(r.remoteSource.indexerConnection, 'save');
 		const key = screen.getByLabelText('API key');
 		expect(key).toHaveAttribute('type', 'password');
 		fireEvent.input(screen.getByLabelText('URL'), { target: { value: 'http://draft:9696' } });
@@ -411,7 +411,7 @@ describe('AppSettingsDialogView', () => {
 		flush();
 		expect(test).toHaveBeenCalledOnce();
 		expect(save).not.toHaveBeenCalled();
-		expect(r.remoteSource.indexerConnection()).toMatchObject({
+		expect(r.remoteSource.indexerConnection.view()).toMatchObject({
 			baseUrlDraft: 'http://draft:9696',
 			apiKeyDraft: 'draft-secret',
 		});

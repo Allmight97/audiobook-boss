@@ -17,7 +17,7 @@ export type IndexerConnectionSettingsView = {
 	testMessage: string;
 };
 
-export function createIndexerConnectionSettings(link: EngineLink): {
+export type IndexerConnectionSettings = {
 	readonly view: Accessor<IndexerConnectionSettingsView>;
 	load(): Promise<void>;
 	patch(
@@ -28,7 +28,9 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 	save(): Promise<void>;
 	testConnection(): Promise<void>;
 	reset(): void;
-} {
+};
+
+export function createIndexerConnectionSettings(link: EngineLink): IndexerConnectionSettings {
 	const [revision, bump] = createSignal(0, { ownedWrite: true });
 	let keyEcho = '';
 	let keyAccepted = false;

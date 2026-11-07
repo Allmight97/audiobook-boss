@@ -1,4 +1,4 @@
-import { createRoot } from 'solid-js';
+import { createEffect, createMemo, createRoot } from 'solid-js';
 import { createSettingsOwner } from '../appSettings';
 import { createEncodingOwner } from '../encoding';
 import { attachEngineLink } from '../engineLink';
@@ -28,6 +28,10 @@ export async function createAppRuntime(
 		const remoteSource = createRemoteSourceOwner({ link, ...capabilities.remoteSource });
 		const processing = createProcessingOwner({ link, settings });
 		const workOperations = createWorkOperationsOwner({ link });
+		const settingsDialogOpen = createMemo(() => settings.dialog().isOpen);
+		createEffect(settingsDialogOpen, (open) => {
+			if (open) void remoteSource.indexerConnection.load();
+		});
 		let disposed = false;
 		return {
 			engine: {

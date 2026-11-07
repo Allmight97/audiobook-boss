@@ -1,4 +1,4 @@
-import { createSignal, onSettled, Show } from 'solid-js';
+import { createSignal, For, onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { nativeDropTargetAtPoint } from '../../app/inputSession';
@@ -84,24 +84,19 @@ export function FileImportView(): JSX.Element {
 				>
 					{({ close }) => (
 						<>
-							<SplitButton.Option
-								data-testid="import-lane-audible"
-								onClick={() => {
-									close();
-									openAcquire('audible');
-								}}
-							>
-								Audible
-							</SplitButton.Option>
-							<SplitButton.Option
-								data-testid="import-lane-indexer"
-								onClick={() => {
-									close();
-									openAcquire('indexer');
-								}}
-							>
-								Indexer
-							</SplitButton.Option>
+							<For each={remoteSource.lanes()} keyed={(lane) => lane.id}>
+								{(lane) => (
+									<SplitButton.Option
+										data-testid={`import-lane-${lane().id}`}
+										onClick={() => {
+											close();
+											openAcquire(lane().id);
+										}}
+									>
+										{lane().label}
+									</SplitButton.Option>
+								)}
+							</For>
 						</>
 					)}
 				</SplitButton>

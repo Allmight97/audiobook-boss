@@ -177,7 +177,7 @@ export function AppSettingsDialogView(): JSX.Element {
 		},
 	);
 	const isOpen = createMemo(() => state().isOpen);
-	const indexerConnection = remoteSource.indexerConnection;
+	const indexerConnection = remoteSource.indexerConnection.view;
 	const [indexerHelpOpen, setIndexerHelpOpen] = createSignal(false);
 	createEffect(isOpen, (open) => {
 		if (!open) setIndexerHelpOpen(false);
@@ -212,11 +212,7 @@ export function AppSettingsDialogView(): JSX.Element {
 	}
 
 	createEffect(isOpen, (open) => {
-		if (!open) {
-			cancelResetConfirm();
-			return;
-		}
-		void remoteSource.loadIndexerConnectionSettings();
+		if (!open) cancelResetConfirm();
 	});
 
 	onSettled(() => {
@@ -272,7 +268,7 @@ export function AppSettingsDialogView(): JSX.Element {
 							type="checkbox"
 							data-testid="app-settings-keep-awake-checkbox"
 							checked={state().settings.keepAwakeWhileWorking}
-							disabled={state().powerSaveState === 'saving'}
+							disabled={state().status.keepAwake.state === 'saving'}
 							onChange={(event) =>
 								void settings.setKeepAwakeWhileWorking(event.currentTarget.checked)
 							}
@@ -283,13 +279,13 @@ export function AppSettingsDialogView(): JSX.Element {
 						During encoding, Audible acquisition, Indexer handoff, and metadata saves. The display
 						can sleep normally; ABB being open and idle does not keep the computer awake.
 					</p>
-					<Show when={state().powerSaveState === 'error'}>
+					<Show when={state().status.keepAwake.state === 'error'}>
 						<p
 							class="app-settings-status app-settings-status-error"
 							data-testid="app-settings-power-error"
 							role="alert"
 						>
-							{state().powerSaveError}
+							{state().status.keepAwake.error}
 						</p>
 					</Show>
 				</section>
@@ -301,7 +297,7 @@ export function AppSettingsDialogView(): JSX.Element {
 								type="checkbox"
 								data-testid="app-settings-press-quit-twice-checkbox"
 								checked={state().settings.pressQuitTwice}
-								disabled={state().quitSaveState === 'saving'}
+								disabled={state().status.pressQuitTwice.state === 'saving'}
 								onChange={(event) => void settings.setPressQuitTwice(event.currentTarget.checked)}
 							/>
 							<span class="option-label">Press {QUIT_SHORTCUT} twice to quit</span>
@@ -310,13 +306,13 @@ export function AppSettingsDialogView(): JSX.Element {
 							The first press shows a reminder, so a stray {QUIT_SHORTCUT} does not close ABB. If
 							work is running, ABB asks before it quits.
 						</p>
-						<Show when={state().quitSaveState === 'error'}>
+						<Show when={state().status.pressQuitTwice.state === 'error'}>
 							<p
 								class="app-settings-status app-settings-status-error"
 								data-testid="app-settings-quit-error"
 								role="alert"
 							>
-								{state().quitSaveError}
+								{state().status.pressQuitTwice.error}
 							</p>
 						</Show>
 					</section>
@@ -338,7 +334,7 @@ export function AppSettingsDialogView(): JSX.Element {
 								value="auto"
 								data-testid="app-settings-aac-decoder-auto"
 								checked={state().settings.aacDecoder === 'auto'}
-								disabled={state().decoderSaveState === 'saving'}
+								disabled={state().status.aacDecoder.state === 'saving'}
 								onChange={() => void settings.setAacDecoder('auto')}
 							/>
 							Auto (FFmpeg)
@@ -350,19 +346,19 @@ export function AppSettingsDialogView(): JSX.Element {
 								value="faad"
 								data-testid="app-settings-aac-decoder-faad"
 								checked={state().settings.aacDecoder === 'faad'}
-								disabled={state().decoderSaveState === 'saving'}
+								disabled={state().status.aacDecoder.state === 'saving'}
 								onChange={() => void settings.setAacDecoder('faad')}
 							/>
 							FAAD3 (bundled)
 						</label>
 					</div>
-					<Show when={state().decoderSaveState === 'error'}>
+					<Show when={state().status.aacDecoder.state === 'error'}>
 						<p
 							class="app-settings-status app-settings-status-error"
 							data-testid="app-settings-decoder-error"
 							role="alert"
 						>
-							{state().decoderSaveError}
+							{state().status.aacDecoder.error}
 						</p>
 					</Show>
 				</section>
@@ -377,38 +373,30 @@ export function AppSettingsDialogView(): JSX.Element {
 						role="radiogroup"
 						aria-label="Default acquisition lane"
 					>
-						<label class="app-settings-radio">
-							<input
-								type="radio"
-								name="app-settings-default-acquisition-lane"
-								value="audible"
-								data-testid="app-settings-default-lane-audible"
-								checked={defaultAcquisitionLane() === 'audible'}
-								disabled={state().laneSaveState === 'saving'}
-								onChange={() => void settings.setDefaultAcquisitionLane('audible')}
-							/>
-							Audible
-						</label>
-						<label class="app-settings-radio">
-							<input
-								type="radio"
-								name="app-settings-default-acquisition-lane"
-								value="indexer"
-								data-testid="app-settings-default-lane-indexer"
-								checked={defaultAcquisitionLane() === 'indexer'}
-								disabled={state().laneSaveState === 'saving'}
-								onChange={() => void settings.setDefaultAcquisitionLane('indexer')}
-							/>
-							Indexer
-						</label>
+						<For each={remoteSource.lanes()} keyed={(lane) => lane.id}>
+							{(lane) => (
+								<label class="app-settings-radio">
+									<input
+										type="radio"
+										name="app-settings-default-acquisition-lane"
+										value={lane().id}
+										data-testid={`app-settings-default-lane-${lane().id}`}
+										checked={defaultAcquisitionLane() === lane().id}
+										disabled={state().status.lane.state === 'saving'}
+										onChange={() => void settings.setDefaultAcquisitionLane(lane().id)}
+									/>
+									{lane().label}
+								</label>
+							)}
+						</For>
 					</div>
-					<Show when={state().laneSaveState === 'error'}>
+					<Show when={state().status.lane.state === 'error'}>
 						<p
 							class="app-settings-status app-settings-status-error"
 							data-testid="app-settings-lane-error"
 							role="alert"
 						>
-							{state().laneSaveError}
+							{state().status.lane.error}
 						</p>
 					</Show>
 				</section>
@@ -433,7 +421,7 @@ export function AppSettingsDialogView(): JSX.Element {
 							aria-describedby="app-settings-connection-security"
 							value={indexerConnection().baseUrlDraft}
 							onInput={(event) =>
-								remoteSource.patchIndexerConnectionSettings({
+								remoteSource.indexerConnection.patch({
 									baseUrlDraft: event.currentTarget.value,
 								})
 							}
@@ -454,7 +442,7 @@ export function AppSettingsDialogView(): JSX.Element {
 							selected={indexerConnection().categoryIdsDraft}
 							refused={indexerConnection().categoriesRefused}
 							onChange={(categoryIdsDraft) =>
-								remoteSource.patchIndexerConnectionSettings({ categoryIdsDraft })
+								remoteSource.indexerConnection.patch({ categoryIdsDraft })
 							}
 						/>
 					</div>
@@ -472,7 +460,7 @@ export function AppSettingsDialogView(): JSX.Element {
 							}
 							value={indexerConnection().apiKeyDraft}
 							onInput={(event) =>
-								remoteSource.patchIndexerConnectionSettings({
+								remoteSource.indexerConnection.patch({
 									apiKeyDraft: event.currentTarget.value,
 								})
 							}
@@ -483,14 +471,14 @@ export function AppSettingsDialogView(): JSX.Element {
 							tone="primary"
 							data-testid="app-settings-indexer-save"
 							disabled={indexerConnection().saveState === 'saving'}
-							onClick={() => void remoteSource.saveIndexerConnectionSettings()}
+							onClick={() => void remoteSource.indexerConnection.save()}
 						>
 							{indexerConnection().saveState === 'saving' ? 'Saving…' : 'Save'}
 						</Button>
 						<Button
 							data-testid="app-settings-indexer-test"
 							disabled={indexerConnection().testState === 'testing'}
-							onClick={() => void remoteSource.testIndexerConnection()}
+							onClick={() => void remoteSource.indexerConnection.testConnection()}
 						>
 							{indexerConnection().testState === 'testing' ? 'Testing…' : 'Test'}
 						</Button>
@@ -559,18 +547,18 @@ export function AppSettingsDialogView(): JSX.Element {
 					<div class="app-settings-path-row">
 						<Button
 							data-testid="app-settings-pin-defaults"
-							disabled={state().startupSaveState === 'saving'}
+							disabled={state().status.startup.state === 'saving'}
 							onClick={() => void settings.saveCurrentSettingsAsPinnedDefaults()}
 						>
 							Use current settings as defaults
 						</Button>
 					</div>
-					<Show when={state().startupSaveState === 'error'}>
+					<Show when={state().status.startup.state === 'error'}>
 						<p
 							class="app-settings-status app-settings-status-error"
 							data-testid="app-settings-startup-error"
 						>
-							{state().startupSaveError}
+							{state().status.startup.error}
 						</p>
 					</Show>
 					<dl class="app-settings-summary" data-testid="app-settings-summary">
@@ -604,7 +592,7 @@ export function AppSettingsDialogView(): JSX.Element {
 							fallback={
 								<Button
 									data-testid="app-settings-reset"
-									disabled={state().saveState === 'saving'}
+									disabled={state().status.reset.state === 'saving'}
 									onClick={requestResetConfirm}
 								>
 									Reset all settings to defaults
@@ -616,7 +604,7 @@ export function AppSettingsDialogView(): JSX.Element {
 							</span>
 							<Button
 								data-testid="app-settings-reset-confirm"
-								disabled={state().saveState === 'saving'}
+								disabled={state().status.reset.state === 'saving'}
 								onClick={confirmReset}
 							>
 								Reset
@@ -626,12 +614,12 @@ export function AppSettingsDialogView(): JSX.Element {
 							</Button>
 						</Show>
 					</div>
-					<Show when={state().saveState === 'error'}>
+					<Show when={state().status.reset.state === 'error'}>
 						<p
 							class="app-settings-status app-settings-status-error"
 							data-testid="app-settings-error"
 						>
-							{state().saveError}
+							{state().status.reset.error}
 						</p>
 					</Show>
 				</section>

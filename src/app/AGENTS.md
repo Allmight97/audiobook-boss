@@ -151,7 +151,11 @@ without a bullet has none. Engine paths name the owner of the truth.
   A submission's error line shows over a preview's step line, because a failed
   preview also leaves a blocked submission.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and
-  `selectLane` send only the lane intent. Connection editing sends write-only
+  `selectLane` send only the lane intent. `lanes()` and `lane()` give each
+  lane's id, label, connected flag, and the controls it shows; the import
+  menu, the Settings radios, and the Acquire dialog read them and never test
+  the account state themselves. `createAppRuntime` loads the Indexer
+  connection whenever the Settings dialog opens. Connection editing sends write-only
   key, URL, and category intents; keys never come back from the engine, and
   only the URL's typing echo and the key's visual echo stay local. The engine
   draft holds the URL as typed and normalizes it only on Test and Save, so the

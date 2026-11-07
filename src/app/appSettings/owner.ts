@@ -30,23 +30,18 @@ type ConcurrencyView = {
 
 type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
+type SettingStatus = { readonly state: SettingsSaveState; readonly error: string };
+
+type DialogSetting = 'reset' | 'keepAwake' | 'pressQuitTwice' | 'aacDecoder' | 'startup' | 'lane';
+
+const IDLE: SettingStatus = { state: 'idle', error: '' };
+
 type AppSettingsDialogState = {
 	isOpen: boolean;
 	settings: AppSettings;
 	/** Only macOS has the Quit shortcut the Quitting setting governs. */
 	quittingAvailable: boolean;
-	saveState: SettingsSaveState;
-	saveError: string;
-	powerSaveState: SettingsSaveState;
-	powerSaveError: string;
-	quitSaveState: SettingsSaveState;
-	quitSaveError: string;
-	decoderSaveState: SettingsSaveState;
-	decoderSaveError: string;
-	startupSaveState: SettingsSaveState;
-	startupSaveError: string;
-	laneSaveState: SettingsSaveState;
-	laneSaveError: string;
+	status: Readonly<Record<DialogSetting, SettingStatus>>;
 };
 
 export type SettingsOwner = {
@@ -75,23 +70,18 @@ export type SettingsOwnerDeps = {
 };
 
 type DialogProgress = Omit<AppSettingsDialogState, 'settings' | 'quittingAvailable'>;
-type ProgressKey = 'save' | 'powerSave' | 'quitSave' | 'decoderSave' | 'startupSave' | 'laneSave';
 
 function idleDialog(): DialogProgress {
 	return {
 		isOpen: false,
-		saveState: 'idle',
-		saveError: '',
-		powerSaveState: 'idle',
-		powerSaveError: '',
-		quitSaveState: 'idle',
-		quitSaveError: '',
-		decoderSaveState: 'idle',
-		decoderSaveError: '',
-		startupSaveState: 'idle',
-		startupSaveError: '',
-		laneSaveState: 'idle',
-		laneSaveError: '',
+		status: {
+			reset: IDLE,
+			keepAwake: IDLE,
+			pressQuitTwice: IDLE,
+			aacDecoder: IDLE,
+			startup: IDLE,
+			lane: IDLE,
+		},
 	};
 }
 
@@ -149,14 +139,14 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		return 'error' in outcome ? describe(outcome.error) : null;
 	}
 
-	async function runDialogAction(key: ProgressKey, intent: SettingsIntent): Promise<boolean> {
-		updateDialog({ [`${key}State`]: 'saving', [`${key}Error`]: '' });
+	function setStatus(setting: DialogSetting, status: SettingStatus): void {
+		updateDialog({ status: { ...dialog.status, [setting]: status } });
+	}
+
+	async function runDialogAction(setting: DialogSetting, intent: SettingsIntent): Promise<boolean> {
+		setStatus(setting, { state: 'saving', error: '' });
 		const error = failure(await send(intent));
-		updateDialog(
-			error === null
-				? { [`${key}State`]: 'saved' }
-				: { [`${key}State`]: 'error', [`${key}Error`]: error },
-		);
+		setStatus(setting, error === null ? { state: 'saved', error: '' } : { state: 'error', error });
 		return error === null;
 	}
 
@@ -221,7 +211,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			changed();
 		},
 		async setDefaultAcquisitionLane(defaultAcquisitionLane) {
-			await runDialogAction('laneSave', {
+			await runDialogAction('lane', {
 				kind: 'remember',
 				encoderDefaults: null,
 				outputDefaults: null,
@@ -239,22 +229,22 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			updateDialog({ isOpen: false });
 		},
 		async setKeepAwakeWhileWorking(enabled) {
-			await runDialogAction('powerSave', { kind: 'setKeepAwake', enabled });
+			await runDialogAction('keepAwake', { kind: 'setKeepAwake', enabled });
 		},
 		async setPressQuitTwice(enabled) {
-			await runDialogAction('quitSave', { kind: 'setPressQuitTwice', enabled });
+			await runDialogAction('pressQuitTwice', { kind: 'setPressQuitTwice', enabled });
 		},
 		async setAacDecoder(decoder) {
-			await runDialogAction('decoderSave', { kind: 'setAacDecoder', decoder });
+			await runDialogAction('aacDecoder', { kind: 'setAacDecoder', decoder });
 		},
 		async saveCurrentSettingsAsPinnedDefaults() {
-			await runDialogAction('startupSave', { kind: 'pinCurrentDefaults' });
+			await runDialogAction('startup', { kind: 'pinCurrentDefaults' });
 		},
 		async setStartupBehavior(behavior) {
-			await runDialogAction('startupSave', { kind: 'setStartupBehavior', behavior });
+			await runDialogAction('startup', { kind: 'setStartupBehavior', behavior });
 		},
 		async resetAllAppSettings() {
-			if (!(await runDialogAction('save', { kind: 'reset' }))) return;
+			if (!(await runDialogAction('reset', { kind: 'reset' }))) return;
 			concurrencyError = '';
 			changed();
 		},
