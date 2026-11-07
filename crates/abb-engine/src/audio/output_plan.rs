@@ -29,6 +29,9 @@ pub enum AudioIntent {
     Preserve,
     Encode,
 }
+impl AudioIntent {
+    pub(crate) const ALL: [Self; 3] = [Self::Auto, Self::Preserve, Self::Encode];
+}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "format", rename_all = "camelCase")]
 pub enum OutputAudio {

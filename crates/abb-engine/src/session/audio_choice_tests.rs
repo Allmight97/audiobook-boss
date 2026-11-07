@@ -1,5 +1,5 @@
 use super::*;
-use crate::audio::{EncoderAvailability, FaacProfileCapability};
+use crate::audio::{CodecFamily, EncoderAvailability, FaacProfileCapability};
 
 fn config(
     encoder_type: EncoderType,
@@ -176,6 +176,61 @@ fn values_outside_the_capabilities_are_refused() {
         choice.edit(AudioEdit::Bitrate(96), None, EditScope::Defaults),
         EditResult::Refused
     );
+}
+
+#[test]
+fn facts_name_every_option_and_the_bitrate_the_request_carries() {
+    let caps = caps();
+    let mut choice = AudioChoice::default();
+    choice.edit(AudioEdit::Bitrate(96), Some(&caps), EditScope::Defaults);
+
+    let facts = choice.facts(Some(&caps));
+    assert_eq!(facts.bitrate_kbps, 96);
+    assert_eq!(facts.codec_family, CodecFamily::Aac);
+    assert_eq!(facts.native_speed_options, [0, 1, 2, 3, 4]);
+    assert_eq!(
+        facts.channel_options,
+        [
+            ChannelConfig::Auto,
+            ChannelConfig::Mono,
+            ChannelConfig::Stereo
+        ]
+    );
+    assert_eq!(
+        facts.intent_options,
+        [
+            AudioIntent::Auto,
+            AudioIntent::Preserve,
+            AudioIntent::Encode
+        ]
+    );
+    assert_eq!(
+        facts
+            .format_options
+            .iter()
+            .map(|option| (option.format, option.codec_family))
+            .collect::<Vec<_>>(),
+        [
+            (AudiobookFormat::M4b, CodecFamily::Aac),
+            (AudiobookFormat::M4aOpus, CodecFamily::Opus),
+            (AudiobookFormat::MkaOpus, CodecFamily::Opus),
+        ]
+    );
+
+    choice.edit(
+        AudioEdit::Format(AudiobookFormat::MkaOpus),
+        Some(&caps),
+        EditScope::Defaults,
+    );
+    choice.edit(AudioEdit::Bitrate(40), Some(&caps), EditScope::Defaults);
+    let opus = choice.facts(Some(&caps));
+    assert_eq!(
+        (opus.bitrate_kbps, opus.codec_family),
+        (40, CodecFamily::Opus)
+    );
+
+    let bare = choice.facts(None);
+    assert!(bare.native_speed_options.is_empty() && bare.channel_options.is_empty());
 }
 
 #[test]

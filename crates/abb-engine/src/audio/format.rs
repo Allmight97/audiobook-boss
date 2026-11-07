@@ -15,8 +15,9 @@ impl Muxer {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CodecFamily {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum CodecFamily {
     Aac,
     Opus,
 }

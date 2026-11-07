@@ -66,7 +66,12 @@ describe('Solid import tracer shell', () => {
 					duration: 60,
 					chapters: [],
 					chapterPlan: { chapters: [one, two], fromCue: true, sourceFingerprint: '1:1' },
-					cueSource: { fileName: 'chapter.cue', status: 'ready', message: '' },
+					cueSource: {
+						fileName: 'chapter.cue',
+						status: 'ready',
+						message: '',
+						actions: ['ignore'],
+					},
 				}),
 			);
 		runtime = await createAppRuntime({ input: fakeInput(), engine });
@@ -94,7 +99,7 @@ describe('Solid import tracer shell', () => {
 				paths.map((path) =>
 					audioFile(path.replace(/\.m4b$/, '.mp3'), {
 						chapterPlan: null,
-						cueSource: { fileName: 'chapter.cue', status, message: 'About the CUE.' },
+						cueSource: { fileName: 'chapter.cue', status, message: 'About the CUE.', actions: [] },
 					}),
 				);
 			runtime = await createAppRuntime({ input: fakeInput(), engine });

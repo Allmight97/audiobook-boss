@@ -83,6 +83,7 @@ export function sessionUpdate(
 
 export function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
 	const isValid = overrides.isValid ?? true;
+	const sourceRemoved = overrides.sourceRemoved ?? false;
 	return {
 		inputId: path,
 		path,
@@ -100,7 +101,8 @@ export function audioFile(path: string, overrides: Partial<AudioFile> = {}): Aud
 		cueSource: null,
 		error: null,
 		isValid,
-		sourceRemoved: false,
+		sourceRemoved,
+		status: sourceRemoved ? 'removedFinished' : isValid ? 'ready' : 'failed',
 		chapters: [],
 		cover: isValid ? `audio/0/${encodeURIComponent(path)}` : null,
 		...overrides,

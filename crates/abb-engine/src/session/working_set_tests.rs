@@ -322,23 +322,33 @@ fn a_cue_choice_confirms_or_ignores_without_touching_other_sources() {
         from_cue: true,
         source_fingerprint: "1:1".into(),
     });
-    with_cue.cue_source = Some(CueSource {
-        file_name: "cue.cue".into(),
-        status: CueStatus::NeedsConfirmation,
-        message: String::new(),
-    });
+    with_cue.cue_source = Some(CueSource::new(
+        "cue.cue".into(),
+        CueStatus::NeedsConfirmation,
+        String::new(),
+    ));
     let mut set = WorkingSet::default();
     set.append_analyzed(
         vec![with_cue, file("plain.mp3")],
         &request(AudioIntent::Auto),
     );
 
-    set.choose_cue("cue.mp3", CueChoice::ConfirmHundredths);
     let cue = |set: &WorkingSet| set.files()[0].cue_source.clone().expect("cue source");
+    assert_eq!(
+        cue(&set).actions,
+        [CueChoice::ConfirmHundredths, CueChoice::Ignore]
+    );
+
+    set.choose_cue("cue.mp3", CueChoice::ConfirmHundredths);
+    assert_eq!(cue(&set).status, CueStatus::Ready);
+    assert_eq!(cue(&set).actions, [CueChoice::Ignore]);
+
+    set.choose_cue("cue.mp3", CueChoice::ConfirmHundredths);
     assert_eq!(cue(&set).status, CueStatus::Ready);
 
     set.choose_cue("cue.mp3", CueChoice::Ignore);
     assert_eq!(cue(&set).status, CueStatus::Ignored);
+    assert!(cue(&set).actions.is_empty());
     let plan = set.files()[0].chapter_plan.clone().expect("chapter plan");
     assert!(!plan.from_cue);
     assert_eq!(plan.chapters, embedded);

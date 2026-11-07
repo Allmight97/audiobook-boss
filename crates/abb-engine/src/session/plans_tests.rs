@@ -41,11 +41,11 @@ fn chapter_plan(from_cue: bool) -> ChapterPlan {
 #[test]
 fn a_cue_sheet_waiting_for_confirmation_refuses_the_title() {
     let mut file = source("alpha", 60.0, 1.0);
-    file.cue_source = Some(CueSource {
-        file_name: "alpha.cue".to_string(),
-        status: CueStatus::NeedsConfirmation,
-        message: String::new(),
-    });
+    file.cue_source = Some(CueSource::new(
+        "alpha.cue".to_string(),
+        CueStatus::NeedsConfirmation,
+        String::new(),
+    ));
 
     let error = chapter_plans_for(&[file]).expect_err("refused");
     assert!(error.contains("alpha.cue"), "{error}");
@@ -174,11 +174,11 @@ fn a_failure_one_audio_setting_causes_names_that_setting() {
     );
 
     let mut cue = unknown_rate.clone();
-    cue.cue_source = Some(CueSource {
-        file_name: "alpha.cue".to_string(),
-        status: CueStatus::NeedsConfirmation,
-        message: String::new(),
-    });
+    cue.cue_source = Some(CueSource::new(
+        "alpha.cue".to_string(),
+        CueStatus::NeedsConfirmation,
+        String::new(),
+    ));
     assert_eq!(resolve(&cue).field, None);
 }
 

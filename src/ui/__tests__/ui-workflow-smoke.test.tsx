@@ -40,6 +40,7 @@ function importedFile(): AudioFile {
 		cover: null,
 		isValid: true,
 		sourceRemoved: false,
+		status: 'ready',
 	};
 }
 

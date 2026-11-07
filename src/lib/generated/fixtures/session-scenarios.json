@@ -50,7 +50,8 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "ready"
               },
               {
                 "artist": "Ann Author",
@@ -75,7 +76,8 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "ready"
               },
               {
                 "artist": null,
@@ -96,7 +98,8 @@
                 "sampleRate": null,
                 "selectedDecoder": null,
                 "size": 20.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "failed"
               }
             ],
             "notice": null,
@@ -984,7 +987,8 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "ready"
               },
               {
                 "artist": "Ann Author",
@@ -1009,7 +1013,8 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "ready"
               },
               {
                 "artist": "Gus Writer",
@@ -1034,7 +1039,8 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "ready"
               }
             ],
             "notice": null,
@@ -1257,7 +1263,8 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "ready"
               },
               {
                 "artist": "Gus Writer",
@@ -1282,7 +1289,8 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "ready"
               }
             ],
             "notice": null,
@@ -1621,7 +1629,8 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "ready"
               }
             ],
             "notice": null,
@@ -1691,7 +1700,8 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "ready"
               }
             ],
             "notice": {
@@ -1764,7 +1774,8 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "ready"
               },
               {
                 "artist": "Ann Author",
@@ -1789,7 +1800,8 @@
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false
+                "sourceRemoved": false,
+                "status": "ready"
               }
             ],
             "notice": null,

@@ -4,8 +4,9 @@ use super::audio_choice::AudioEdit;
 use super::lookup::{LookupApplyMode, LookupSource};
 use super::metadata_form::{FieldAction, MetadataField};
 use super::state::SessionUpdate;
-use super::working_set::{CueChoice, MoveDirection, SelectionModifiers};
+use super::working_set::{MoveDirection, SelectionModifiers};
 use crate::errors::AppErrorEnvelope;
+use crate::metadata::CueChoice;
 use crate::output_artifact::{CollisionPolicy, NamingPreset};
 
 #[derive(Debug, Clone, Deserialize, specta::Type)]

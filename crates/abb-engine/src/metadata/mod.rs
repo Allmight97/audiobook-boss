@@ -12,7 +12,7 @@ pub(crate) use cue::{
     inspect_chapter_source, source_fingerprint, source_fingerprint_from_metadata,
     validate_chapter_plan, validate_source_fingerprint,
 };
-pub use cue::{ChapterPlan, CueSource, CueStatus};
+pub use cue::{ChapterPlan, CueChoice, CueSource, CueStatus};
 mod chapter_count;
 mod cover_art;
 mod embedded_cover;

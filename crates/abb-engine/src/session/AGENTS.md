@@ -129,6 +129,11 @@ one host attachment.
   multi-source title has none (`metadata/chapter_count.rs`, shared with the
   merge and passthrough writers). Per-source rows keep their own count. These
   are packaging facts, not a statement that every container keeps them.
+  Every listed title and source carries a `status` (`ready`, `failed`,
+  `removedFinished`; `title_status.rs`). A title takes its sources' combined
+  status, a failed source outranks a removed one, and its `error` then reads
+  as that source's. A CUE source lists the `actions` `choose_cue` accepts for
+  its status; the engine refuses any other choice.
   `titles.previewLength` spans the valid titles' preview lengths
   (`PreviewConfig::title_seconds`), so the Preview Audio tooltip names the
   length processing renders.
@@ -192,6 +197,9 @@ one host attachment.
   resolves to for sample rate and channels: one value, `differs`, or
   unresolved, with the plan problem. A mixed field reads plain Auto and still
   carries the plan problem. Each title carries the same readings for itself.
+  `facts` publishes every option list a control shows (formats with their
+  codec family, intents, channels, native speeds, encoders) and the bitrate the
+  request carries, so a host words and lists them and derives none.
 - **Title plans.** Each title's plan resolves in the background whenever its
   request or what a plan reads from its sources changes; a stale result is
   dropped (`plans.rs`). A tag Save changes nothing a plan reads, so a resolved

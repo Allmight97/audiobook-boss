@@ -225,6 +225,9 @@ fn share(facts: &mut AudioChoiceFacts, other: &AudioChoiceFacts) {
         .faac_profiles
         .retain(|profile| other.faac_profiles.contains(profile));
     facts
+        .native_speed_options
+        .retain(|speed| other.native_speed_options.contains(speed));
+    facts
         .allowed_sample_rates
         .retain(|rate| other.allowed_sample_rates.contains(rate));
     facts.sample_rate_supported &= other.sample_rate_supported;

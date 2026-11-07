@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::app_settings::EncoderDefaults;
 use crate::audio::{
-    AudioIntent, AudiobookFormat, BitrateMode, BitrateModeKind, ChannelConfig,
+    AudioIntent, AudiobookFormat, BitrateMode, BitrateModeKind, ChannelConfig, CodecFamily,
     EncoderConfigurationCapability, EncoderSettings, EncoderSettingsCapabilities, EncoderType,
-    FaacProfile, OutputAudio, SampleRateConfig, TitleAudioRequest,
+    FaacProfile, OutputAudio, SampleRateConfig, TitleAudioRequest, FORMATS,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -105,9 +105,21 @@ pub struct EncoderOption {
     pub available: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FormatOption {
+    pub format: AudiobookFormat,
+    pub codec_family: CodecFamily,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioChoiceFacts {
+    pub format_options: Vec<FormatOption>,
+    /// The codec family of the chosen format.
+    pub codec_family: CodecFamily,
+    pub intent_options: Vec<AudioIntent>,
+    pub channel_options: Vec<ChannelConfig>,
     /// The encoder that would run: Opus for Opus formats, and what Auto
     /// resolves to.
     pub effective_encoder: EncoderType,
@@ -115,10 +127,15 @@ pub struct AudioChoiceFacts {
     pub encoder_locked: bool,
     pub downmix_warning: bool,
     pub bitrate_mode: BitrateMode,
+    /// The target kbps the request carries: the Opus bitrate for an Opus
+    /// format, else the AAC one.
+    pub bitrate_kbps: u16,
     pub bitrate_kbps_min: u16,
     pub bitrate_kbps_max: u16,
     pub allowed_modes: Vec<BitrateModeKind>,
     pub faac_profiles: Vec<FaacProfile>,
+    /// Every speed the native AAC encoder accepts, slowest search first.
+    pub native_speed_options: Vec<u8>,
     pub allowed_sample_rates: Vec<u32>,
     /// False when an explicit sample rate is kept that this encoder does not
     /// accept; the user must choose another before export.
@@ -426,7 +443,18 @@ impl AudioChoice {
         let config = self.configuration(caps);
         let allowed_sample_rates = self.allowed_sample_rates(caps);
         let bitrate_mode = self.bitrate_mode(caps);
+        let settings = self.settings(caps);
         AudioChoiceFacts {
+            format_options: FORMATS
+                .into_iter()
+                .map(|spec| FormatOption {
+                    format: spec.format,
+                    codec_family: spec.codec_family,
+                })
+                .collect(),
+            codec_family: self.format.spec().codec_family,
+            intent_options: AudioIntent::ALL.to_vec(),
+            channel_options: caps.map_or_else(Vec::new, |caps| caps.channel_options.clone()),
             effective_encoder: self.effective_encoder(caps),
             encoder_options: caps.map_or_else(Vec::new, |caps| {
                 caps.encoder_types
@@ -445,6 +473,7 @@ impl AudioChoice {
             encoder_locked: self.format.spec().fixed_encoder().is_some() || caps.is_none(),
             downmix_warning: false,
             bitrate_mode,
+            bitrate_kbps: settings.bitrate_kbps,
             bitrate_kbps_min: config.map_or(1, |config| config.bitrate_kbps_min),
             bitrate_kbps_max: config.map_or(0, |config| config.bitrate_kbps_max),
             allowed_modes: config.map_or_else(Vec::new, |config| config.allowed_modes.clone()),
@@ -461,8 +490,10 @@ impl AudioChoice {
                 }
                 _ => true,
             },
+            native_speed_options: caps
+                .map_or_else(Vec::new, |caps| (0..=caps.native_speed_max).collect()),
             allowed_sample_rates,
-            estimate_kbps: bitrate_mode.fixed_kbps(self.settings(caps).bitrate_kbps),
+            estimate_kbps: bitrate_mode.fixed_kbps(settings.bitrate_kbps),
         }
     }
 }

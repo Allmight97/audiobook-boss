@@ -132,6 +132,11 @@ export type AudioChoice = {
 };
 
 export type AudioChoiceFacts = {
+	formatOptions: FormatOption[],
+	/**  The codec family of the chosen format. */
+	codecFamily: CodecFamily,
+	intentOptions: AudioIntent[],
+	channelOptions: ChannelConfig[],
 	/**
 	 *  The encoder that would run: Opus for Opus formats, and what Auto
 	 *  resolves to.
@@ -141,10 +146,17 @@ export type AudioChoiceFacts = {
 	encoderLocked: boolean,
 	downmixWarning: boolean,
 	bitrateMode: BitrateMode,
+	/**
+	 *  The target kbps the request carries: the Opus bitrate for an Opus
+	 *  format, else the AAC one.
+	 */
+	bitrateKbps: number,
 	bitrateKbpsMin: number,
 	bitrateKbpsMax: number,
 	allowedModes: BitrateModeKind[],
 	faacProfiles: FaacProfile[],
+	/**  Every speed the native AAC encoder accepts, slowest search first. */
+	nativeSpeedOptions: number[],
 	allowedSampleRates: number[],
 	/**
 	 *  False when an explicit sample rate is kept that this encoder does not
@@ -194,6 +206,11 @@ export type AudioFile = {
 	isValid: boolean,
 	/**  An exported download that ABB removed. The title is finished, not failed. */
 	sourceRemoved: boolean,
+	/**
+	 *  Whether this entry can be exported, set by the session on the titles
+	 *  and sources it lists: a title takes its sources' combined status.
+	 */
+	status: TitleStatus,
 	error: string | null,
 	/**
 	 *  The address of this source's embedded cover, set by the session on
@@ -294,6 +311,8 @@ export type ChildJobSnapshot = {
 
 export type ChildJobStatus = "queued" | "running" | "completed" | "skipped" | "cancelled" | "failed";
 
+export type CodecFamily = "aac" | "opus";
+
 export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip_existing";
 
 export type CollisionReview = {
@@ -333,6 +352,8 @@ export type CueSource = {
 	fileName: string,
 	status: CueStatus,
 	message: string,
+	/**  The choices `choose_cue` accepts while the status is as shown. */
+	actions: CueChoice[],
 };
 
 export type CueStatus = "ready" | "needsConfirmation" | "invalid" | "ignored" | "embeddedPreferred";
@@ -399,6 +420,11 @@ export type FieldSnapshot = {
 };
 
 export type FormMode = "single" | "multi";
+
+export type FormatOption = {
+	format: AudiobookFormat,
+	codecFamily: CodecFamily,
+};
 
 export type FrontendAttachment = {
 	/**  Sent with every intent so intents from an earlier frontend are refused. */
@@ -1285,6 +1311,10 @@ export type TitlePlan = { kind: "pending" } | { kind: "resolved"; plan: TitleAud
 { kind: "failed"; message: string; field: AudioPlanField | null } |
 /**  Grouped sources disagree about their audio; the user must choose. */
 { kind: "choiceRequired" };
+
+export type TitleStatus = "ready" | "failed" |
+/**  An exported download that ABB removed. The title is finished, not failed. */
+"removedFinished";
 
 export type TitleTotals = {
 	/**  The chapters ABB sends to the output for this title. */

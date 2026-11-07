@@ -22,6 +22,7 @@ fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
         chapters: Vec::new(),
         is_valid,
         source_removed: false,
+        status: crate::audio::TitleStatus::Ready,
         cover: None,
         error: None,
     }

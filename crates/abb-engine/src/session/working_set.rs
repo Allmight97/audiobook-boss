@@ -12,10 +12,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::audio::{AudioFile, TitleAudioRequest};
 use crate::errors::AppErrorEnvelope;
-use crate::metadata::{CueStatus, MetadataIntentPatch, PatchOp};
+use crate::metadata::{CueChoice, CueStatus, MetadataIntentPatch, PatchOp};
 use crate::metadata_save::Rewrite;
 use crate::natural_order::natural_cmp;
 
+use super::title_status;
 use super::title_totals::{title_totals, PreviewLength, TitleTotals};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
@@ -39,15 +40,6 @@ pub struct SelectionModifiers {
 pub enum MoveDirection {
     Up,
     Down,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum CueChoice {
-    /// Accept a CUE whose timestamps need the hundredths interpretation.
-    ConfirmHundredths,
-    /// Drop the CUE and fall back to the file's embedded chapters.
-    Ignore,
 }
 
 /// What the last import could not do: why it added nothing, or which dropped
@@ -128,10 +120,13 @@ fn identity(file: &AudioFile) -> &str {
 impl WorkingSet {
     pub(crate) fn titles(&self, revision: u64) -> TitlesSnapshot {
         let totals = title_totals(&self.files, &self.title_sources);
+        let mut files = self.files.clone();
+        let mut title_sources = self.title_sources.clone();
+        title_status::publish(&mut files, &mut title_sources);
         TitlesSnapshot {
             revision,
-            files: self.files.clone(),
-            title_sources_by_identity: self.title_sources.clone(),
+            files,
+            title_sources_by_identity: title_sources,
             title_totals: totals.by_title,
             total_size_bytes: totals.total_size_bytes,
             preview_length: totals.preview_length,
@@ -741,18 +736,18 @@ impl WorkingSet {
             let Some(cue) = file.cue_source.as_mut() else {
                 return;
             };
+            if !cue.actions.contains(&choice) {
+                return;
+            }
             match choice {
-                CueChoice::ConfirmHundredths if cue.status == CueStatus::NeedsConfirmation => {
-                    cue.status = CueStatus::Ready;
-                }
-                CueChoice::Ignore if cue.status != CueStatus::EmbeddedPreferred => {
-                    cue.status = CueStatus::Ignored;
+                CueChoice::ConfirmHundredths => cue.set_status(CueStatus::Ready),
+                CueChoice::Ignore => {
+                    cue.set_status(CueStatus::Ignored);
                     if let Some(plan) = file.chapter_plan.as_mut() {
                         plan.from_cue = false;
                         plan.chapters = file.chapters.clone();
                     }
                 }
-                _ => {}
             }
         };
         self.files.iter_mut().for_each(apply);

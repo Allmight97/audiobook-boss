@@ -53,10 +53,22 @@ pub struct AudioFile {
     pub is_valid: bool,
     /// An exported download that ABB removed. The title is finished, not failed.
     pub source_removed: bool,
+    /// Whether this entry can be exported, set by the session on the titles
+    /// and sources it lists: a title takes its sources' combined status.
+    pub status: TitleStatus,
     pub error: Option<String>,
     /// The address of this source's embedded cover, set by the session on
     /// the sources it lists; absent when the source is not valid.
     pub cover: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum TitleStatus {
+    Ready,
+    Failed,
+    /// An exported download that ABB removed. The title is finished, not failed.
+    RemovedFinished,
 }
 
 /// What inspection learned about copying a source: whether its container and
@@ -107,6 +119,7 @@ impl AudioFile {
             cue_source: None,
             is_valid: false,
             source_removed: false,
+            status: TitleStatus::Failed,
             cover: None,
             error: None,
         };
@@ -160,7 +173,8 @@ pub enum SampleRateConfig {
 }
 
 pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
-pub(crate) use format::{codec_family_of, format_for_extension, CodecFamily, Muxer, FORMATS};
+pub use format::CodecFamily;
+pub(crate) use format::{codec_family_of, format_for_extension, Muxer, FORMATS};
 pub(crate) use imports::discover_audio_import_paths;
 pub use imports::{
     supported_audio_import_extensions, supported_audio_import_formats_text,
@@ -174,6 +188,18 @@ pub(crate) use processor::{
 pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
 pub(crate) use settings::validate_sample_rate_config;
 pub(crate) use settings::{check_output_directory, validate_output_target};
+
+impl AudioFile {
+    pub(crate) fn own_status(&self) -> TitleStatus {
+        if self.source_removed {
+            TitleStatus::RemovedFinished
+        } else if self.is_valid {
+            TitleStatus::Ready
+        } else {
+            TitleStatus::Failed
+        }
+    }
+}
 
 pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
     if !file.is_valid || !file.preservation.is_some_and(|value| value.can_preserve) {
