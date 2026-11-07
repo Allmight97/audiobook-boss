@@ -109,6 +109,7 @@ export function audioFile(path: string, overrides: Partial<AudioFile> = {}): Aud
 export type FakeEngine = EngineCapability & {
 	readonly sessionIntents: SessionIntent[];
 	readonly settingsIntents: SettingsIntent[];
+	readonly claimedPreviews: string[];
 	readonly openedPreviews: string[];
 	readonly cancelledWork: { operationId: OperationId; childJobId?: string }[];
 	/** Answers a cancel; a rejection fails it. */
@@ -125,6 +126,8 @@ export type FakeEngine = EngineCapability & {
 	respond?: (
 		intent: SessionIntent,
 	) => SessionOutcome | Promise<SessionOutcome | undefined> | undefined;
+	/** Answers a preview-output claim with the path to open; `undefined` is no path. */
+	respondPreviewOutput?: (runId: string) => string | Promise<string | undefined> | undefined;
 	/** Answers a settings intent; `undefined` is `applied`. */
 	respondSettings?: (
 		intent: SettingsIntent,
@@ -210,9 +213,16 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		}
 	}
 
+	function takeSessionTurn(sequence: number): void {
+		if (sequence !== nextSessionSequence)
+			throw new Error(`session intent ${sequence} arrived out of order`);
+		nextSessionSequence += 1;
+	}
+
 	const engine: FakeEngine = {
 		sessionIntents: [],
 		settingsIntents: [],
+		claimedPreviews: [],
 		openedPreviews: [],
 		cancelledWork: [],
 		analyze: (paths) => paths.map((path) => audioFile(path)),
@@ -231,22 +241,18 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			};
 		},
 		async sessionDispatch(_client, sequence, intent) {
-			if (sequence !== nextSessionSequence)
-				throw new Error(`session intent ${sequence} arrived out of order`);
-			nextSessionSequence += 1;
+			takeSessionTurn(sequence);
 			engine.sessionIntents.push(structuredClone(intent));
 			const answered = await engine.respond?.(intent);
 			if (!answered && intent.kind === 'import') appendFiles(engine.analyze(intent.paths));
 			return { outcome: answered ?? { kind: 'applied' }, update: settle() };
 		},
-		async openPreviewOutput(client, sequence, runId) {
-			const reply = await engine.sessionDispatch(client, sequence, {
-				kind: 'takePreviewOutput',
-				runId,
-			});
-			if (reply.outcome.kind === 'previewOutput' && reply.outcome.path)
-				engine.openedPreviews.push(reply.outcome.path);
-			return reply;
+		async openPreviewOutput(_client, sequence, runId) {
+			takeSessionTurn(sequence);
+			engine.claimedPreviews.push(runId);
+			const path = (await engine.respondPreviewOutput?.(runId)) ?? null;
+			if (path) engine.openedPreviews.push(path);
+			return { outcome: { kind: 'previewOutput', path }, update: settle() };
 		},
 		async settingsDispatch(_client, sequence, intent) {
 			if (sequence !== nextSettingsSequence)

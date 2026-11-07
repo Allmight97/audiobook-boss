@@ -335,10 +335,7 @@ describe('engine preview adapter', () => {
 
 	it('claims a finished preview once and never claims a cancelled run', async () => {
 		const engine = createFakeEngine();
-		engine.respond = (intent) =>
-			intent.kind === 'takePreviewOutput'
-				? { kind: 'previewOutput', path: '/tmp/Book.preview.m4b' }
-				: undefined;
+		engine.respondPreviewOutput = () => '/tmp/Book.preview.m4b';
 		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
 		const complete = preview();
@@ -364,8 +361,6 @@ describe('engine preview adapter', () => {
 		});
 		expect(app.processing.isProcessing()).toBe(false);
 		expect(engine.openedPreviews).toHaveLength(1);
-		expect(
-			engine.sessionIntents.filter((intent) => intent.kind === 'takePreviewOutput'),
-		).toHaveLength(1);
+		expect(engine.claimedPreviews).toEqual(['preview-1']);
 	});
 });

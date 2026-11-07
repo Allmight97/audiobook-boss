@@ -212,7 +212,8 @@ one host attachment.
   reply and never grants an output for opening. Accepted custom cover or
   preserved source artwork is read by run identity; bytes stay outside
   snapshots. Only a successful single output can be claimed once through
-  `TakePreviewOutput`, across hosts.
+  `TakePreviewOutput`, across hosts. The variant is `#[serde(skip)]`: it is
+  not in the generated type and a webview payload naming it fails to decode.
 - **Remote.** `SessionIntent::Remote` routes remote choices and accepted work to
   `remote_source`, which owns the remote, library, and acquisition parts. They
   survive frontend replacement; hosts do not rebuild plans, batch policy, or

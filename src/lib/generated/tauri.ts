@@ -1029,7 +1029,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 /**  Keeps an exported title where it is; its export continues unchanged. */
 { kind: "keepTitleLocation"; titleId: string; revision: number } |
 /**  Cancels the identified preview, including preparation and queued titles. */
-{ kind: "cancelPreview"; runId: string; childJobId: string | null } | { kind: "takePreviewOutput"; runId: string } |
+{ kind: "cancelPreview"; runId: string; childJobId: string | null } |
 /**  Where exports are written; recorded in the settings. */
 { kind: "setOutputDirectory"; directory: string } | { kind: "setNamingPreset"; preset: NamingPreset } | { kind: "setIncludeYear"; includeYear: boolean } |
 /**  The custom naming template as typed; recorded once typing pauses. */

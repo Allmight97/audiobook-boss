@@ -102,7 +102,7 @@ pub enum SessionIntent {
         run_id: String,
         child_job_id: Option<String>,
     },
-    #[serde(rename_all = "camelCase")]
+    #[serde(skip, rename_all = "camelCase")]
     TakePreviewOutput {
         run_id: String,
     },

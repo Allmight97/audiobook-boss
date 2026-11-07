@@ -56,9 +56,11 @@ engine does not offer, add it to the engine's host interface.
 - `open_preview_output` is the one session action with its own command: it
   takes a session turn, claims the preview through `TakePreviewOutput`, and
   opens the path with `OpenerExt::open_path`. Why: opening needs a host
-  capability, and the webview must never name a path to open. An open
-  failure returns the reply with a `Rejected` outcome so its update still
-  applies.
+  capability, and the webview must never name a path to open.
+  `TakePreviewOutput` is `#[serde(skip)]`, so `session_dispatch` cannot claim
+  an output it would never open (`commands/session_invoke_tests.rs` pins it).
+  An open failure returns the reply with a `Rejected` outcome so its update
+  still applies.
 - The engine validates paths, metadata intent, output artifact truth, and
   operation lifecycle. A command passes the request through.
 - Register a new command in `ipc_contract.rs`, then run
