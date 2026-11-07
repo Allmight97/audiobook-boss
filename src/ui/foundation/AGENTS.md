@@ -16,6 +16,9 @@ language.
   owner stylesheet. The `.app-modal-*` classes in `internal/dialogs.css` are
   shared dialog-body layout that the lookup, collision, and remote dialogs use
   by name.
+- `JobRow` is the one title row for the status panel and the Work Center. The
+  caller injects `actions`; the row keys them by `id`, so a progress tick does
+  not rebuild a button between press and release.
 - A primitive stays only if deleting it redistributes real behavior across
   owners.
 - Theme follows `prefers-color-scheme`.

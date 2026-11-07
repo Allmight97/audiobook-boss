@@ -170,6 +170,11 @@ without a bullet has none. Engine paths name the owner of the truth.
   Operations come from the link (Engine Link, above); the owner keeps only
   cancel-pending state and error wording. After `reset`, a late cancel or
   reveal reply changes nothing.
+  `labels.ts` is the one table of stage, operation-status, title-status and
+  kind wording, typed over the generated unions so a new engine value fails
+  typecheck; the Work Center, the status panel and `processing` read it.
+  `view().error` is `{ kind: 'cancel' | 'reveal', message }`; a later success
+  of the same kind clears it.
   `phase === 'active'` (running or cancelling) decides which work shows
   motion, for the Work Center and the preview bar alike; `phase` is the
   engine's answer, so no view keeps its own status list.

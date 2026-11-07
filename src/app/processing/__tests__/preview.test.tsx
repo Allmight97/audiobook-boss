@@ -324,7 +324,7 @@ describe('engine preview adapter', () => {
 		});
 
 		await vi.waitFor(() =>
-			expect(container.querySelector('.queue-job-status')).toHaveTextContent('55.0%'),
+			expect(container.querySelector('.abb-job-row-status')).toHaveTextContent('55.0%'),
 		);
 		expect(cancel).toBeInTheDocument();
 		cancel?.click();

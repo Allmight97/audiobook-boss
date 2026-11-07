@@ -80,6 +80,10 @@ One bullet per view. A view without a bullet has no trap beyond its owner.
   scroll position and returns to it once its rows render on reopen.
 - `tagPreview`: with several titles selected, the TSOA row omits each title's
   source value. It can show blank where outputs keep their own.
+- `statusPanel` and `workCenter` render title rows with the foundation
+  `JobRow` and inject their own actions: the panel's Cancel sends the
+  preview's `cancelPreview`, the Work Center's sends the operation's
+  `workOperations.cancel`. Status classes are `is-<generated status value>`.
 - `workCenter`: a title row offers Cancel only in a multi-title operation whose
   child is `cancellable` (the engine clears it once the title is
   cancelling). Restart and Keep Location show
