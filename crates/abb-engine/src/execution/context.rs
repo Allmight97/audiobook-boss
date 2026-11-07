@@ -54,7 +54,7 @@ impl OutputConfig {
 pub struct ProcessingContext {
     pub session: Arc<ProcessingSession>,
     pub sample_rate: u32,
-    pub aac_decoder: crate::audio::AacDecoder,
+    pub aac_decoder: super::AacDecoder,
     pub output: OutputConfig,
     pub(crate) workspace_root: PathBuf,
     pub(crate) identity: JobIdentity,
@@ -91,7 +91,7 @@ impl ProcessingContext {
         Self {
             session,
             sample_rate,
-            aac_decoder: crate::audio::AacDecoder::Auto,
+            aac_decoder: super::AacDecoder::Auto,
             output,
             workspace_root,
             identity: JobIdentity {

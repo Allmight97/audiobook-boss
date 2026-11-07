@@ -1,8 +1,9 @@
 //! The leaf below the audio pipeline and the processing lifecycle: what one
 //! title's job carries while it runs (identity, cancellation, output, progress)
-//! and the gate its publication passes through. It takes no module above the
-//! audio pipeline except `audio::AacDecoder`, as a type.
+//! and the gate its publication passes through. It imports nothing from
+//! `crate::audio` or `crate::processing`.
 
+mod aac_decoder;
 mod cancel;
 mod context;
 mod job_identity;
@@ -11,6 +12,7 @@ mod progress;
 mod publish_gate;
 mod session;
 
+pub use aac_decoder::AacDecoder;
 #[cfg(test)]
 pub(crate) use cancel::cancelled_token;
 pub use cancel::CancellationChecker;

@@ -15,7 +15,6 @@ mod path_validation;
 mod processor;
 mod settings;
 mod settings_capabilities;
-mod settings_decoder;
 mod settings_encoder;
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -211,12 +210,12 @@ pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
     }
     Ok(())
 }
+pub use crate::execution::AacDecoder;
 pub(crate) use settings_capabilities::encoder_settings_capabilities;
 pub use settings_capabilities::{
     EncoderAvailability, EncoderConfigurationCapability, EncoderSettingsCapabilities,
     FaacProfileCapability,
 };
-pub use settings_decoder::AacDecoder;
 pub(crate) use settings_encoder::{validate_encoder_settings, DEFAULT_FAAC_QUALITY};
 pub use settings_encoder::{
     BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, FaacProfile,

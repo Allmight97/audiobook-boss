@@ -52,7 +52,8 @@ app, a test, and the `abb-dev` tool drive the same code
   config, progress events and bands) and the `PublishGate` its publication
   passes through belong to `crate::execution`, a leaf beside `engine_tasks.rs`:
   audio imports it and never imports `crate::processing`, which re-exports
-  its names. It names `audio::AacDecoder` as a type only. Shared lifecycle
+  its names. It owns `AacDecoder`, which `audio` re-exports so the public
+  path stays `audio::AacDecoder`. Shared lifecycle
   vocabulary, active jobs, and terminal summaries belong to
   `crate::processing`. Accepted operation identity, snapshots, retention, and
   operation cancellation belong to `crate::work_runtime`.
