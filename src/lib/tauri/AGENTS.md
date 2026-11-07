@@ -2,9 +2,10 @@
 
 ## Public API Strip
 
-- `client.ts` exports `tauriClient`, the one runtime surface, with
-  `TAURI_COMMAND_NAMES`, `TAURI_APP_EVENT_NAMES`, and the `TauriCommand` type
-  for the contract test (pinned by `src/lib/tauri-public-api.contract.test.ts`).
+- `client.ts` exports `tauriClient`, the one runtime surface (pinned by
+  `src/lib/tauri-public-api.contract.test.ts`). Engine events come from its
+  `events`, the generated listeners, so a new engine event needs no edit here.
+  Its raw `listen` serves OS drag events (`tauri://drag-*`) only.
 - Regenerate bindings with `bun run bindings:generate`.
   `check-tauri-runtime-boundary.ts` keeps generated value imports in
   `commands.ts` and `client.ts` (type imports may appear elsewhere); Oxlint

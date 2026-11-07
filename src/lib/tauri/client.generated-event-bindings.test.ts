@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
-import { EVENTS } from '../../types/events';
 import type {
 	AcquisitionProgress,
 	ChapterSpec,
@@ -18,21 +17,22 @@ describe('tauriClient generated event bindings', () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 	});
 
-	it('routes app events through generated tauri listeners', async () => {
+	it('routes every engine event through its generated listener', async () => {
 		const { listen } = await import('@tauri-apps/api/event');
 		const tauriListen = vi.mocked(listen);
 		const { tauriClient } = await import('./client');
 
-		await tauriClient.listen(EVENTS.SESSION_UPDATE, () => {});
-		await tauriClient.listen(EVENTS.WORK_OPERATIONS_UPDATE, () => {});
+		await tauriClient.events.sessionUpdate.listen(() => {});
+		await tauriClient.events.settingsUpdate.listen(() => {});
+		await tauriClient.events.workOperationsUpdate.listen(() => {});
+		await tauriClient.events.quitPressAgain.listen(() => {});
 
-		expect(tauriListen).toHaveBeenNthCalledWith(1, EVENTS.SESSION_UPDATE, expect.any(Function));
-		expect(tauriListen).toHaveBeenNthCalledWith(
-			2,
-			EVENTS.WORK_OPERATIONS_UPDATE,
-			expect.any(Function),
-		);
-		expect(tauriListen).toHaveBeenCalledTimes(2);
+		expect(tauriListen.mock.calls.map(([name]) => name)).toEqual([
+			'session-update',
+			'settings-update',
+			'work-operations-update',
+			'quit-press-again',
+		]);
 	});
 
 	it('keeps bounded wide Rust values in the numeric IPC contract', () => {

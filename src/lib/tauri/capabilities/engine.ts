@@ -10,7 +10,6 @@ import type {
 	WorkOperationsSnapshot,
 	WorkOperationsUpdate,
 } from '../../generated/tauri';
-import { EVENTS } from '../../../types/events';
 import { tauriClient } from '../client';
 
 export interface EngineCapability {
@@ -51,19 +50,19 @@ export const liveEngineCapability: EngineCapability = {
 	settingsDispatch: (client, sequence, intent) =>
 		tauriClient.settingsDispatch(client, sequence, intent),
 	listenSessionUpdates: (handler) =>
-		tauriClient.listen(EVENTS.SESSION_UPDATE, (event) => {
+		tauriClient.events.sessionUpdate.listen((event) => {
 			handler(event.payload);
 		}),
 	listenSettingsUpdates: (handler) =>
-		tauriClient.listen(EVENTS.SETTINGS_UPDATE, (event) => {
+		tauriClient.events.settingsUpdate.listen((event) => {
 			handler(event.payload);
 		}),
 	listenWorkOperations: (handler) =>
-		tauriClient.listen(EVENTS.WORK_OPERATIONS_UPDATE, (event) => {
+		tauriClient.events.workOperationsUpdate.listen((event) => {
 			handler(event.payload);
 		}),
 	listenQuitPressAgain: (handler) =>
-		tauriClient.listen(EVENTS.QUIT_PRESS_AGAIN, (event) => {
+		tauriClient.events.quitPressAgain.listen((event) => {
 			handler(event.payload.windowMs);
 		}),
 	cancelWorkOperation: (operationId, childJobId) =>

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 // oxlint-disable-next-line import/default -- Vite's ?raw import exports the file text as its default.
 import generated from './generated/tauri.ts?raw';
-import { tauriClient, TAURI_APP_EVENT_NAMES, TAURI_COMMAND_NAMES } from './tauri/client';
+import { tauriClient, TAURI_COMMAND_NAMES } from './tauri/client';
 
 const EXPECTED_COMMAND_NAMES = [
 	'attach_frontend',
@@ -13,10 +13,11 @@ const EXPECTED_COMMAND_NAMES = [
 	'log_frontend',
 ] as const;
 
-const EXPECTED_APP_EVENT_NAMES = [
+const EXPECTED_EVENT_NAMES = [
 	'work-operations-update',
 	'session-update',
 	'settings-update',
+	'quit-press-again',
 ] as const;
 
 const EXPECTED_TAURI_CLIENT_METHODS = [
@@ -25,6 +26,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'openPreviewOutput',
 	'settingsDispatch',
 	'cancelWorkOperation',
+	'events',
 	'listen',
 	'logFrontend',
 	'openDirectory',
@@ -41,9 +43,15 @@ describe('Tauri Runtime Boundary public API contract', () => {
 		);
 	});
 
-	it('pins the independent command and app-event strips', () => {
+	it('pins the independent command strip', () => {
 		expect([...TAURI_COMMAND_NAMES].toSorted()).toEqual([...EXPECTED_COMMAND_NAMES].toSorted());
-		expect([...TAURI_APP_EVENT_NAMES]).toEqual([...EXPECTED_APP_EVENT_NAMES]);
+	});
+
+	it('every Rust event is one the engine is expected to send', () => {
+		const emitted = [...generated.matchAll(/makeEvent<\w+>\("([\w-]+)"\)/g)].map(
+			(match) => match[1],
+		);
+		expect(emitted.toSorted()).toEqual([...EXPECTED_EVENT_NAMES].toSorted());
 	});
 
 	it('every Rust command has a commandSpecs entry', () => {
