@@ -9,6 +9,8 @@ mod types;
 
 #[cfg(test)]
 mod contract_tests;
+#[cfg(test)]
+mod plan_table_tests;
 
 use crate::errors::{AppError, Result};
 use crate::metadata::NamingMetadata;

@@ -538,37 +538,9 @@ fn batch_log_context() -> ProcessingJobLogContext {
     }
 }
 
-/// Captures lifecycle records emitted through `log` so tests can assert
-/// terminal truth. The only logger the engine's tests install; assertions
-/// filter on this test's operation id, so tests sharing the process do not
-/// interfere.
-struct CapturingLogger {
-    records: std::sync::Mutex<Vec<String>>,
-}
-
-impl log::Log for CapturingLogger {
-    fn enabled(&self, _metadata: &log::Metadata<'_>) -> bool {
-        true
-    }
-
-    fn log(&self, record: &log::Record<'_>) {
-        self.records
-            .lock()
-            .expect("capturing logger lock")
-            .push(record.args().to_string());
-    }
-
-    fn flush(&self) {}
-}
-
-static CAPTURING_LOGGER: CapturingLogger = CapturingLogger {
-    records: std::sync::Mutex::new(Vec::new()),
-};
-
 #[tokio::test]
 async fn failed_output_validation_emits_started_and_failed_terminal_records() {
-    log::set_logger(&CAPTURING_LOGGER).expect("install capturing logger");
-    log::set_max_level(log::LevelFilter::Info);
+    crate::test_cases::log_capture::install();
     let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(2));
     let temp_dir = TempDir::new().expect("create temp dir");
     let invalid_output = temp_dir.path().join("output.mp3");
@@ -589,11 +561,7 @@ async fn failed_output_validation_emits_started_and_failed_terminal_records() {
         panic!("invalid extension should fail validation");
     }
 
-    let records = CAPTURING_LOGGER
-        .records
-        .lock()
-        .expect("capturing logger lock")
-        .clone();
+    let records = crate::test_cases::log_capture::records();
     let started: Vec<&String> = records
         .iter()
         .filter(|record| record.contains("processing_job event=started operation_id=log-proof"))

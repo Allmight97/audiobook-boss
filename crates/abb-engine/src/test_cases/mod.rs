@@ -14,6 +14,8 @@ mod integration_faac_execution_tests;
 mod integration_import_variants_tests;
 #[path = "integration_indexer_connection_tests.rs"]
 mod integration_indexer_connection_tests;
+#[path = "integration_job_log_tests.rs"]
+mod integration_job_log_tests;
 #[path = "integration_library_readback_tests.rs"]
 mod integration_library_readback_tests;
 #[path = "integration_media_album_sort_tests.rs"]
@@ -28,10 +30,14 @@ mod integration_media_encoding_choice_tests;
 mod integration_media_merge_chapters_tests;
 #[path = "integration_media_opus_tests.rs"]
 mod integration_media_opus_tests;
+#[path = "integration_media_preserve_bytes_tests.rs"]
+mod integration_media_preserve_bytes_tests;
 #[path = "integration_media_preserve_decision_tests.rs"]
 mod integration_media_preserve_decision_tests;
 #[path = "integration_media_preserve_tests.rs"]
 mod integration_media_preserve_tests;
+#[path = "integration_media_residue_tests.rs"]
+mod integration_media_residue_tests;
 #[path = "integration_media_route_parity_tests.rs"]
 mod integration_media_route_parity_tests;
 #[path = "integration_media_tag_save_tests.rs"]
@@ -50,6 +56,8 @@ mod integration_session_save_tests;
 mod integration_session_tests;
 #[path = "integration_settings_relaunch_tests.rs"]
 mod integration_settings_relaunch_tests;
+#[path = "log_capture.rs"]
+pub(crate) mod log_capture;
 #[path = "media_fixtures.rs"]
 pub(crate) mod media_fixtures;
 #[path = "tag_interop_dump.rs"]
