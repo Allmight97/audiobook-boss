@@ -90,6 +90,9 @@ session records reaches hosts as `EngineEvent::Settings`.
   The enums the saved structs embed keep their serde spellings: a test per enum
   in `saved_format_tests.rs` lists every spelling, and golden-bytes tests there
   hold the written text of an unchanged setting.
+- The save conversion and `AppSettings::merge` destructure every field of
+  `AppSettings` and `AppSettingsPatch`, so a new setting does not compile until
+  both place it.
 - Encoder format and copy/encode validation stay Audio-owned; App Settings
   checks durable choices with the owning runtime APIs and leaves encoder and
   JobRegistry rules to them.

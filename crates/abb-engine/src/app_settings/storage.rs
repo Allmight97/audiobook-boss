@@ -207,8 +207,6 @@ struct General {
     press_quit_twice: bool,
     max_concurrent_jobs: AutoOr<usize>,
     default_acquisition_lane: AcquisitionLane,
-    /// Absent from files saved by earlier releases; loads as Auto.
-    #[serde(default)]
     aac_decoder: AacDecoder,
 }
 
@@ -339,23 +337,35 @@ struct Naming {
 
 impl From<&AppSettings> for SavedSettings {
     fn from(settings: &AppSettings) -> Self {
+        let AppSettings {
+            keep_awake_while_working,
+            press_quit_twice,
+            max_concurrent_jobs,
+            encoder_defaults,
+            output_defaults,
+            startup_behavior,
+            pinned_defaults,
+            default_acquisition_lane,
+            aac_decoder,
+            indexer_connection,
+        } = settings;
         Self {
             general: General {
-                keep_awake_while_working: settings.keep_awake_while_working,
-                press_quit_twice: settings.press_quit_twice,
-                max_concurrent_jobs: settings.max_concurrent_jobs.into(),
-                default_acquisition_lane: settings.default_acquisition_lane,
-                aac_decoder: settings.aac_decoder,
+                keep_awake_while_working: *keep_awake_while_working,
+                press_quit_twice: *press_quit_twice,
+                max_concurrent_jobs: (*max_concurrent_jobs).into(),
+                default_acquisition_lane: *default_acquisition_lane,
+                aac_decoder: *aac_decoder,
             },
-            audio: Audio::from(&settings.encoder_defaults),
-            output: Output::from(&settings.output_defaults),
+            audio: Audio::from(encoder_defaults),
+            output: Output::from(output_defaults),
             indexer: Indexer {
-                url: settings.indexer_connection.base_url.clone(),
-                categories: settings.indexer_connection.category_ids.clone(),
+                url: indexer_connection.base_url.clone(),
+                categories: indexer_connection.category_ids.clone(),
             },
             startup: Startup {
-                behavior: settings.startup_behavior,
-                pinned: settings.pinned_defaults.as_ref().map(|pinned| Pinned {
+                behavior: *startup_behavior,
+                pinned: pinned_defaults.as_ref().map(|pinned| Pinned {
                     max_concurrent_jobs: pinned.max_concurrent_jobs.into(),
                     audio: Audio::from(&pinned.encoder_defaults),
                     output: Output::from(&pinned.output_defaults),

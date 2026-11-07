@@ -173,36 +173,42 @@ impl Default for EncoderDefaults {
 
 impl AppSettings {
     pub(super) fn merge(mut self, patch: AppSettingsPatch) -> Result<Self> {
-        if let Some(max_concurrent_jobs) = patch.max_concurrent_jobs {
-            self.max_concurrent_jobs = max_concurrent_jobs;
+        let Self {
+            keep_awake_while_working,
+            press_quit_twice,
+            max_concurrent_jobs,
+            encoder_defaults,
+            output_defaults,
+            startup_behavior,
+            pinned_defaults,
+            default_acquisition_lane,
+            aac_decoder,
+            indexer_connection,
+        } = &mut self;
+        let AppSettingsPatch {
+            keep_awake_while_working: patch_keep_awake_while_working,
+            press_quit_twice: patch_press_quit_twice,
+            max_concurrent_jobs: patch_max_concurrent_jobs,
+            encoder_defaults: patch_encoder_defaults,
+            output_defaults: patch_output_defaults,
+            startup_behavior: patch_startup_behavior,
+            pinned_defaults: patch_pinned_defaults,
+            default_acquisition_lane: patch_default_acquisition_lane,
+            aac_decoder: patch_aac_decoder,
+            indexer_connection: patch_indexer_connection,
+        } = patch;
+        replace_with(keep_awake_while_working, patch_keep_awake_while_working);
+        replace_with(press_quit_twice, patch_press_quit_twice);
+        replace_with(max_concurrent_jobs, patch_max_concurrent_jobs);
+        replace_with(encoder_defaults, patch_encoder_defaults);
+        replace_with(output_defaults, patch_output_defaults);
+        replace_with(startup_behavior, patch_startup_behavior);
+        if patch_pinned_defaults.is_some() {
+            *pinned_defaults = patch_pinned_defaults;
         }
-        if let Some(encoder_defaults) = patch.encoder_defaults {
-            self.encoder_defaults = encoder_defaults;
-        }
-        if let Some(output_defaults) = patch.output_defaults {
-            self.output_defaults = output_defaults;
-        }
-        if let Some(startup_behavior) = patch.startup_behavior {
-            self.startup_behavior = startup_behavior;
-        }
-        if let Some(pinned_defaults) = patch.pinned_defaults {
-            self.pinned_defaults = Some(pinned_defaults);
-        }
-        if let Some(default_acquisition_lane) = patch.default_acquisition_lane {
-            self.default_acquisition_lane = default_acquisition_lane;
-        }
-        if let Some(enabled) = patch.keep_awake_while_working {
-            self.keep_awake_while_working = enabled;
-        }
-        if let Some(enabled) = patch.press_quit_twice {
-            self.press_quit_twice = enabled;
-        }
-        if let Some(aac_decoder) = patch.aac_decoder {
-            self.aac_decoder = aac_decoder;
-        }
-        if let Some(indexer_connection) = patch.indexer_connection {
-            self.indexer_connection = indexer_connection;
-        }
+        replace_with(default_acquisition_lane, patch_default_acquisition_lane);
+        replace_with(aac_decoder, patch_aac_decoder);
+        replace_with(indexer_connection, patch_indexer_connection);
         self.validate()?;
         Ok(self)
     }
@@ -216,6 +222,12 @@ impl AppSettings {
             pinned.validate()?;
         }
         Ok(())
+    }
+}
+
+fn replace_with<T>(target: &mut T, patch: Option<T>) {
+    if let Some(value) = patch {
+        *target = value;
     }
 }
 
