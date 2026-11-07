@@ -30,18 +30,6 @@ function operationStatusLabel(operation: OperationSnapshot): string {
 	return 'Mixed';
 }
 
-function acceptedQueuePosition(
-	operation: OperationSnapshot,
-	operations: ReadonlyArray<OperationSnapshot>,
-): number | null {
-	if (operation.status !== 'accepted') return null;
-	const accepted = operations
-		.filter((candidate) => candidate.status === 'accepted')
-		.toSorted((left, right) => left.sequence - right.sequence);
-	const index = accepted.findIndex((candidate) => candidate.operationId === operation.operationId);
-	return index >= 0 ? index + 1 : null;
-}
-
 function operationKindLabel(kind: OperationSnapshot['kind']): string {
 	if (kind === 'processingBatch') return 'Batch';
 	return 'Metadata';
@@ -129,7 +117,7 @@ export function WorkCenterView(): JSX.Element {
 				<div class="work-operation-list">
 					<For each={view().operations} keyed={(operation) => operation.operationId}>
 						{(operation) => {
-							const queuePosition = () => acceptedQueuePosition(operation(), view().operations);
+							const queuePosition = () => view().queuePosition(operation().operationId);
 							return (
 								<section class={`work-operation is-${operation().status}`}>
 									<div class="work-operation-topline">

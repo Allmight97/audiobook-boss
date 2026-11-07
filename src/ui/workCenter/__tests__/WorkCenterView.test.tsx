@@ -270,3 +270,34 @@ it('keeps retryable Restart and Keep actions on only the matching export row', a
 	await showOperation({ ...operation, operationId: 'older-batch' }, [offer]);
 	expect(screen.queryByRole('button', { name: 'Restart' })).not.toBeInTheDocument();
 });
+
+it('shows each accepted operation its place in the engine queue and moves it up when an earlier one starts', async () => {
+	const accepted = (operationId: string, sequence: number): OperationSnapshot => ({
+		...completedOperation(),
+		operationId,
+		sequence,
+		status: 'accepted',
+		title: `Batch ${operationId}`,
+		children: [],
+	});
+	const first = accepted('first', 1);
+	const second = accepted('second', 2);
+	const engine = createFakeEngine();
+	engine.publishOperation(first, ['first']);
+	engine.publishOperation(second, ['first', 'second']);
+	runtime = await createAppRuntime({ engine });
+	render(() => (
+		<AppRuntimeProvider runtime={runtime!}>
+			<WorkCenterView />
+		</AppRuntimeProvider>
+	));
+	expect(screen.getByText('Batch first').closest('section')).toHaveTextContent('Accepted #1');
+	expect(screen.getByText('Batch second').closest('section')).toHaveTextContent('Accepted #2');
+
+	engine.publishOperation({ ...first, revision: 2, status: 'running' }, ['second']);
+
+	await vi.waitFor(() =>
+		expect(screen.getByText('Batch second').closest('section')).toHaveTextContent('Accepted #1'),
+	);
+	expect(screen.getByText('Batch first').closest('section')).not.toHaveTextContent('#');
+});

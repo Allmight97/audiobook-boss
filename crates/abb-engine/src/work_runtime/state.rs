@@ -78,6 +78,7 @@ impl WorkRuntimeState {
         WorkOperationsSnapshot {
             revision: self.revision,
             order: operations.iter().map(|o| o.operation_id.clone()).collect(),
+            queue: self.queue(),
             operations: operations.into_iter().cloned().collect(),
         }
     }
@@ -91,8 +92,22 @@ impl WorkRuntimeState {
                 .into_iter()
                 .map(|o| o.operation_id.clone())
                 .collect(),
+            queue: self.queue(),
             changed,
         }
+    }
+
+    fn queue(&self) -> Vec<OperationId> {
+        let mut accepted = self
+            .operations
+            .values()
+            .filter(|operation| operation.status == WorkOperationStatus::Accepted)
+            .collect::<Vec<_>>();
+        accepted.sort_by_key(|operation| operation.sequence);
+        accepted
+            .into_iter()
+            .map(|operation| operation.operation_id.clone())
+            .collect()
     }
 
     fn ordered(&self) -> Vec<&OperationSnapshot> {

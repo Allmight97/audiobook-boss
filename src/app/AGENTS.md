@@ -28,7 +28,7 @@ second copy of owner state.
   in between on top of the reply, so no update is missed; part revisions make
   applying one twice harmless. WorkRuntime operations come with the attach
   reply and then as `work-operations-update` events, merged by
-  `workOperations.ts` (newest snapshot per operation, newest order). A cancel's
+  `workOperations.ts` (newest snapshot per operation, newest order and queue). A cancel's
   change arrives as one of those events; its reply carries nothing.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
   for intents whose outcome and completion nobody awaits; its refusal shows as

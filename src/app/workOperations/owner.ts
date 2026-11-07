@@ -6,6 +6,8 @@ import type { OperationId, OperationSnapshot } from '../../types/workRuntime';
 
 export type WorkOperationsView = {
 	readonly operations: ReadonlyArray<OperationSnapshot>;
+	/** Where an accepted operation waits, counted from 1; absent once it starts. */
+	queuePosition: (operationId: OperationId) => number | null;
 	readonly cancelPendingByOperationId: Readonly<Partial<Record<string, boolean>>>;
 	readonly errorMessage: string | null;
 };
@@ -63,6 +65,10 @@ export function createWorkOperationsOwner(deps: {
 			rev();
 			return {
 				operations: deps.link.workOperations(),
+				queuePosition: (operationId) => {
+					const index = deps.link.workQueue().indexOf(operationId);
+					return index < 0 ? null : index + 1;
+				},
 				cancelPendingByOperationId,
 				errorMessage,
 			};
