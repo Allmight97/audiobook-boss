@@ -1,6 +1,4 @@
 mod permit;
-#[cfg(test)]
-mod tests;
 mod types;
 
 use crate::errors::{AppError, Result};

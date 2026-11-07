@@ -1,68 +1,63 @@
 use super::*;
+use std::sync::Mutex;
 
-#[test]
-fn terminal_events_share_context_and_reset_progress() {
-    let emitter = ProgressEmitter {
-        operation_kind: OperationKind::ProcessingBatch,
-        identity: JobIdentity {
-            operation_id: None,
-            job_id: Some("job-123".to_string()),
-            input_index: 7,
-        },
-        progress_listener: None,
-    };
-
-    let failed = emitter.terminal_event(EventStage::Failed, "failed");
-    let cancelled = emitter.terminal_event(EventStage::Cancelled, "cancelled");
-    let skipped = emitter.terminal_event(EventStage::Skipped, "skipped");
-
-    assert_eq!(failed.stage, EventStage::Failed);
-    assert_eq!(cancelled.stage, EventStage::Cancelled);
-    assert_eq!(skipped.stage, EventStage::Skipped);
-    assert_eq!(failed.operation_kind, OperationKind::ProcessingBatch);
-    assert_eq!(cancelled.operation_kind, OperationKind::ProcessingBatch);
-    assert_eq!(skipped.operation_kind, OperationKind::ProcessingBatch);
-    assert_eq!(failed.percentage, 0.0);
-    assert_eq!(cancelled.percentage, 0.0);
-    assert_eq!(skipped.percentage, 100.0);
-    assert_eq!(failed.job_id, Some("job-123".to_string()));
-    assert_eq!(cancelled.job_id, Some("job-123".to_string()));
-    assert_eq!(skipped.job_id, Some("job-123".to_string()));
-    assert_eq!(failed.input_index, Some(7));
-    assert_eq!(cancelled.input_index, Some(7));
-    assert_eq!(skipped.input_index, Some(7));
-    assert_eq!(failed.current_file, None);
-    assert_eq!(cancelled.current_file, None);
-    assert_eq!(skipped.current_file, None);
-    assert_eq!(failed.eta_seconds, None);
-    assert_eq!(cancelled.eta_seconds, None);
-    assert_eq!(skipped.eta_seconds, None);
-}
-
-#[test]
-fn emitted_progress_normalizes_non_finite_percentage() {
-    let captured = Arc::new(std::sync::Mutex::new(None));
-    let listener_capture = Arc::clone(&captured);
+fn emitter_with_events(job_id: Option<&str>) -> (ProgressEmitter, Arc<Mutex<Vec<ProgressEvent>>>) {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&events);
     let listener: ProgressEventListener = Arc::new(move |event| {
-        *listener_capture.lock().expect("capture progress event") = Some(event.clone());
+        sink.lock()
+            .expect("capture progress event")
+            .push(event.clone());
     });
     let emitter = ProgressEmitter::with_context(EmitContext {
         operation_kind: OperationKind::ProcessingBatch,
         identity: JobIdentity {
             operation_id: None,
-            job_id: None,
-            input_index: 0,
+            job_id: job_id.map(str::to_string),
+            input_index: 7,
         },
     })
     .with_progress_listener(Some(listener));
+    (emitter, events)
+}
+
+#[test]
+fn terminal_events_reach_the_listener_with_the_job_identity_and_reset_progress() {
+    let (emitter, events) = emitter_with_events(Some("job-123"));
+
+    emitter.emit_terminal_failed("failed");
+    emitter.emit_terminal_cancelled("cancelled");
+    emitter.emit_terminal_skipped("skipped");
+
+    let events = events.lock().expect("read progress events");
+    let stages: Vec<_> = events
+        .iter()
+        .map(|event| (event.stage, event.percentage))
+        .collect();
+    assert_eq!(
+        stages,
+        [
+            (EventStage::Failed, 0.0),
+            (EventStage::Cancelled, 0.0),
+            (EventStage::Skipped, 100.0),
+        ]
+    );
+    for event in events.iter() {
+        assert_eq!(event.operation_kind, OperationKind::ProcessingBatch);
+        assert_eq!(event.job_id.as_deref(), Some("job-123"));
+        assert_eq!(event.input_index, Some(7));
+        assert_eq!(event.current_file, None);
+        assert_eq!(event.eta_seconds, None);
+    }
+}
+
+#[test]
+fn emitted_progress_normalizes_non_finite_percentage() {
+    let (emitter, events) = emitter_with_events(None);
 
     emitter.emit_converting_progress(f32::NAN, "Encoding", None, None);
 
-    let event = captured
-        .lock()
-        .expect("read progress event")
-        .clone()
-        .expect("progress event was emitted");
-    assert_eq!(event.percentage, 0.0);
-    assert!(event.percentage.is_finite());
+    let events = events.lock().expect("read progress events");
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].percentage, 0.0);
 }
