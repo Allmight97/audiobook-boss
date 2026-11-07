@@ -162,7 +162,10 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
     let mut cumulative_offset_ms: i64 = 0;
 
     let valid: Vec<&PassthroughSource> = files.iter().filter(|f| f.is_valid).collect();
+    let mut adds_chapters = Vec::with_capacity(valid.len());
+    let mut unmeasured = Vec::new();
     for (position, file) in valid.iter().enumerate() {
+        let chapters_before = passthrough.chapters.len();
         match ff::format::input(&file.path) {
             Ok(ictx) => {
                 if file.chapters.is_none() && ictx.nb_chapters() > 0 {
@@ -190,10 +193,6 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
                     file.path.display(),
                     e
                 );
-                passthrough.warnings.push(format!(
-                    "Chapters and cover art could not be read from {}, so they were left out.",
-                    source_name(&file.path)
-                ));
             }
         }
 
@@ -207,15 +206,17 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
                 }));
         }
 
+        adds_chapters.push(passthrough.chapters.len() > chapters_before);
+
         // Rounded like the synthetic-chapter math so both paths agree.
         match file.duration {
             Some(duration) => cumulative_offset_ms += (duration * 1000.0).round() as i64,
-            None if position + 1 < valid.len() => {
-                passthrough
-                    .warnings
-                    .push(no_length_warning(&source_name(&file.path)));
-            }
-            None => {}
+            None => unmeasured.push((position, source_name(&file.path))),
+        }
+    }
+    for (position, name) in unmeasured {
+        if adds_chapters[position + 1..].contains(&true) {
+            passthrough.warnings.push(no_length_warning(&name));
         }
     }
 

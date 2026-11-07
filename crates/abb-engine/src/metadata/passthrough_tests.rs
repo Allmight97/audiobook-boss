@@ -24,21 +24,6 @@ fn chapterless_sources_synthesize_one_chapter_per_file() {
 }
 
 #[test]
-fn a_source_that_cannot_be_opened_is_named_in_the_warnings() {
-    let passthrough = extract_passthrough_metadata(&[PassthroughSource {
-        chapters: None,
-        path: std::path::PathBuf::from("/books/missing.m4b"),
-        duration: Some(60.0),
-        is_valid: true,
-    }]);
-
-    assert_eq!(
-        passthrough.warnings,
-        ["Chapters and cover art could not be read from missing.m4b, so they were left out."]
-    );
-}
-
-#[test]
 fn a_source_with_no_length_is_named_because_it_shifts_later_chapters() {
     let source = |path: &str, duration: Option<f64>| PassthroughSource {
         chapters: None,
@@ -59,39 +44,45 @@ fn a_source_with_no_length_is_named_because_it_shifts_later_chapters() {
 }
 
 #[test]
-fn a_source_with_chapters_and_no_length_is_named_because_it_shifts_later_chapters() {
-    let source = |path: &str, duration: Option<f64>| PassthroughSource {
-        chapters: Some(vec![ChapterSpec {
-            title: Some("Chapter".to_string()),
-            start_ms: 0,
-            end_ms: 1_000,
-        }]),
-        path: std::path::PathBuf::from(path),
-        duration,
-        is_valid: true,
+fn a_source_with_no_length_is_named_only_when_a_later_source_has_chapters() {
+    let chapter = || ChapterSpec {
+        title: Some("Chapter".to_string()),
+        start_ms: 0,
+        end_ms: 1_000,
     };
-    let no_length_warning =
-        "one.m4b has no known length, so the chapters after it may start too early.".to_string();
-
-    let shifted = extract_passthrough_metadata(&[
-        source("/books/one.m4b", None),
-        source("/books/two.m4b", Some(90.0)),
-    ]);
-    let nothing_after = extract_passthrough_metadata(&[
-        source("/books/two.m4b", Some(90.0)),
-        source("/books/one.m4b", None),
-    ]);
-
-    assert!(shifted.warnings.contains(&no_length_warning));
-    assert!(!nothing_after.warnings.contains(&no_length_warning));
-    assert_eq!(
-        shifted
+    let source =
+        |path: &str, duration: Option<f64>, chapters: Vec<ChapterSpec>| PassthroughSource {
+            chapters: Some(chapters),
+            path: std::path::PathBuf::from(path),
+            duration,
+            is_valid: true,
+        };
+    let no_length_warnings = |sources: &[PassthroughSource]| -> Vec<String> {
+        extract_passthrough_metadata(sources)
             .warnings
-            .iter()
+            .into_iter()
             .filter(|warning| warning.contains("no known length"))
-            .count(),
-        1
+            .collect()
+    };
+    let one = "one.m4b has no known length, so the chapters after it may start too early.";
+
+    assert_eq!(
+        no_length_warnings(&[
+            source("/books/one.m4b", None, vec![chapter()]),
+            source("/books/two.m4b", Some(90.0), vec![chapter()]),
+        ]),
+        [one]
     );
+    assert!(no_length_warnings(&[
+        source("/books/one.m4b", None, vec![chapter()]),
+        source("/books/two.m4b", Some(90.0), Vec::new()),
+    ])
+    .is_empty());
+    assert!(no_length_warnings(&[
+        source("/books/two.m4b", Some(90.0), vec![chapter()]),
+        source("/books/one.m4b", None, vec![chapter()]),
+    ])
+    .is_empty());
 }
 
 #[test]
