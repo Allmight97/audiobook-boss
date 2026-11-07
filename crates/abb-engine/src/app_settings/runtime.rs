@@ -1,6 +1,5 @@
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use serde::{Deserialize, Serialize};
 
@@ -121,9 +120,8 @@ struct Inner {
     config_dir: PathBuf,
     jobs: ManagedJobRegistry,
     power: PowerManager,
-    aac_decoder: Mutex<AacDecoder>,
-    press_quit_twice: AtomicBool,
-    indexer_connection: Mutex<IndexerConnection>,
+    /// What synchronous readers see; replaced only by `apply_to_runtime`.
+    current: RwLock<Arc<AppSettings>>,
     state: tokio::sync::Mutex<State>,
     /// Completion of the last accepted intent, independent of host waits.
     turn: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
@@ -218,18 +216,14 @@ impl SettingsRuntime {
         }
         state.recovery =
             (!recovery.reset.is_empty() || recovery.set_aside_as.is_some()).then_some(recovery);
-        let aac_decoder = Mutex::new(accepted.aac_decoder);
-        let press_quit_twice = AtomicBool::new(accepted.press_quit_twice);
-        let indexer_connection = Mutex::new(accepted.indexer_connection.clone());
+        let current = RwLock::new(Arc::new(accepted.clone()));
         state.accepted = accepted;
         let runtime = Self {
             inner: Arc::new(Inner {
                 config_dir,
                 jobs: Arc::clone(&jobs),
                 power,
-                aac_decoder,
-                press_quit_twice,
-                indexer_connection,
+                current,
                 state: tokio::sync::Mutex::new(state),
                 turn: Mutex::default(),
             }),
@@ -237,24 +231,26 @@ impl SettingsRuntime {
         (runtime, jobs, startup)
     }
 
+    fn current(&self) -> Arc<AppSettings> {
+        Arc::clone(
+            &self
+                .inner
+                .current
+                .read()
+                .unwrap_or_else(PoisonError::into_inner),
+        )
+    }
+
     pub(crate) fn aac_decoder(&self) -> AacDecoder {
-        *self
-            .inner
-            .aac_decoder
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+        self.current().aac_decoder
     }
 
     pub(crate) fn press_quit_twice(&self) -> bool {
-        self.inner.press_quit_twice.load(Ordering::SeqCst)
+        self.current().press_quit_twice
     }
 
     pub(crate) fn indexer_connection(&self) -> IndexerConnection {
-        self.inner
-            .indexer_connection
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+        self.current().indexer_connection.clone()
     }
 
     pub(crate) async fn snapshot(&self) -> SettingsSnapshot {
@@ -517,17 +513,9 @@ impl SettingsRuntime {
             .set_enabled(state.accepted.keep_awake_while_working);
         *self
             .inner
-            .aac_decoder
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = state.accepted.aac_decoder;
-        self.inner
-            .press_quit_twice
-            .store(state.accepted.press_quit_twice, Ordering::SeqCst);
-        *self
-            .inner
-            .indexer_connection
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = state.accepted.indexer_connection.clone();
+            .current
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = Arc::new(state.accepted.clone());
     }
 
     /// Asks the scheduler to accept the change before recording it. A fixed

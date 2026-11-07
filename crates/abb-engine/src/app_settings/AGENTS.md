@@ -41,6 +41,10 @@ session records reaches hosts as `EngineEvent::Settings`.
   `RemoteSourceRuntime::reset_lease` refuses it (`Engine::settings_dispatch`
   takes the lease; rule in `remote_source/AGENTS.md`). Otherwise it puts the
   defaults in effect and writes them like any change.
+- Synchronous readers (`aac_decoder`, `press_quit_twice`,
+  `indexer_connection`) read one `Arc<AppSettings>` snapshot that
+  `apply_to_runtime` alone replaces after each accepted change and Reset. A
+  setting read this way needs an accessor, not another cell.
 - `keep_awake_while_working` defaults on. Applying it updates
   `PowerManager`; opting out releases an active hold.
 - `press_quit_twice` defaults on and is not part of pinned defaults.
