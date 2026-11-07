@@ -1,5 +1,4 @@
 use super::*;
-use crate::test_cases::media_fixtures::SAMPLE_RATE;
 use std::path::PathBuf;
 
 fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
@@ -31,23 +30,23 @@ fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
 
 #[tokio::test]
 async fn cancellation_after_workspace_creation_keeps_cleanup_ownership() {
-    use crate::processing::{JobRegistry, OutputConfig, ProcessingSession};
-    let registry = JobRegistry::new(1);
-    let (job, _permit) = registry.register_job().await.expect("register test job");
+    use crate::audio::{get_file_list_info, AacDecoder};
+    use crate::processing::ProcessingSession;
+    use crate::test_cases::media_fixtures::MediaLane;
+    let lane = MediaLane::with_fixtures(&[1.0]);
+    let files = get_file_list_info(&lane.inputs, AacDecoder::Auto)
+        .expect("probe fixture")
+        .files;
     let checker =
         crate::processing::CancellationChecker::new(Some(crate::processing::cancelled_token()));
-    let root = tempfile::TempDir::new().expect("create isolated test directory");
-    let workspace = root.path().join("sessions");
-    let context = ProcessingContext::new_headless_with_workspace_root(
-        std::sync::Arc::new(ProcessingSession::with_cancellation(job.0, checker)),
-        SAMPLE_RATE,
-        OutputConfig::new(root.path().join("output.m4b")),
-        workspace.clone(),
-    );
-    assert!(prepare_workspace(&context, &[]).is_err());
+    let context = lane.context(ProcessingSession::with_cancellation(
+        uuid::Uuid::new_v4(),
+        checker,
+    ));
+    assert!(prepare(&context, &files).is_err());
     assert_eq!(
-        std::fs::read_dir(workspace)
-            .expect("inspect workspace residue")
+        std::fs::read_dir(lane.workspace_root())
+            .expect("the workspace root was created")
             .count(),
         0
     );

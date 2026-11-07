@@ -6,7 +6,7 @@ use crate::processing::ProcessingContext;
 use super::workspace::Workspace;
 use super::ProcessingWorkflow;
 
-pub(crate) fn validate_processing_inputs(files: &[AudioFile]) -> Result<()> {
+fn validate_processing_inputs(files: &[AudioFile]) -> Result<()> {
     if files.is_empty() {
         return Err(AppError::InvalidInput("No files to process".to_string()));
     }
@@ -34,21 +34,7 @@ pub(crate) fn validate_processing_inputs(files: &[AudioFile]) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn prepare_workspace(
-    context: &ProcessingContext,
-    files: &[AudioFile],
-) -> Result<ProcessingWorkflow> {
-    let workspace = Workspace::open(context)?;
-    let total_duration = progress_total_duration(files, context.is_preview());
-
-    if context.is_cancelled() {
-        return Err(AppError::cancelled());
-    }
-
-    Ok(ProcessingWorkflow::new(workspace, total_duration))
-}
-
-pub(crate) fn progress_total_duration(files: &[AudioFile], preview: bool) -> f64 {
+fn progress_total_duration(files: &[AudioFile], preview: bool) -> f64 {
     let durations: Vec<f64> = files
         .iter()
         .map(|file| file.duration.unwrap_or_default())
@@ -60,15 +46,19 @@ pub(crate) fn progress_total_duration(files: &[AudioFile], preview: bool) -> f64
     }
 }
 
-pub(crate) fn validate_and_prepare(
+pub(super) fn prepare(
     context: &ProcessingContext,
     files: &[AudioFile],
 ) -> Result<ProcessingWorkflow> {
     validate_processing_inputs(files)?;
+    let workspace = Workspace::open(context)?;
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
-    prepare_workspace(context, files)
+    Ok(ProcessingWorkflow {
+        workspace,
+        total_duration: progress_total_duration(files, context.is_preview()),
+    })
 }
 
 #[cfg(test)]

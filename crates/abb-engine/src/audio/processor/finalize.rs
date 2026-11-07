@@ -92,7 +92,7 @@ pub(super) fn complete_staged_output(
     Ok(success.result_message)
 }
 
-pub(crate) fn finalize_processing(
+pub(super) fn finalize(
     context: &ProcessingContext,
     workflow: &mut ProcessingWorkflow,
     merged_output: PathBuf,

@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::audio::constants::TEMP_MERGED_FILENAME;
 use crate::audio::{AudioFile, EncoderSettings};
@@ -9,7 +9,7 @@ use super::engine;
 use super::plan::MediaProcessingPlan;
 use super::ProcessingWorkflow;
 
-pub(crate) fn execute_processing(
+pub(super) fn encode(
     context: &ProcessingContext,
     settings: &EncoderSettings,
     workflow: &ProcessingWorkflow,
@@ -23,33 +23,9 @@ pub(crate) fn execute_processing(
         settings.bitrate_kbps
     );
 
-    let merged_output = merge_audio_files_with_context(
-        workflow.workspace.dir(),
-        context,
-        settings,
-        workflow.total_duration,
-        files,
-        metadata,
-        passthrough,
-    )?;
-
-    if context.is_cancelled() {
-        return Err(AppError::cancelled());
-    }
-
-    Ok(merged_output)
-}
-
-pub(crate) fn merge_audio_files_with_context(
-    temp_dir: &Path,
-    context: &ProcessingContext,
-    settings: &EncoderSettings,
-    total_duration: f64,
-    files: &[AudioFile],
-    metadata: Option<&crate::metadata::AudiobookMetadata>,
-    passthrough: Option<&crate::metadata::PassthroughMetadata>,
-) -> Result<PathBuf> {
-    let temp_output = temp_dir
+    let temp_output = workflow
+        .workspace
+        .dir()
         .join(TEMP_MERGED_FILENAME)
         .with_extension(context.output.final_path().extension().unwrap_or_default());
 
@@ -59,7 +35,7 @@ pub(crate) fn merge_audio_files_with_context(
         settings.clone(),
         context.sample_rate,
         file_paths,
-        total_duration,
+        workflow.total_duration,
     );
 
     log::info!(
@@ -72,6 +48,10 @@ pub(crate) fn merge_audio_files_with_context(
     crate::diagnostics::stage("encode_mux", &temp_output, || {
         engine::execute(&plan, context, metadata, passthrough)
     })?;
+
+    if context.is_cancelled() {
+        return Err(AppError::cancelled());
+    }
 
     Ok(temp_output)
 }

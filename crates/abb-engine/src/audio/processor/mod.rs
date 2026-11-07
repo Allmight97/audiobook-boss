@@ -10,10 +10,10 @@ use crate::processing::AudioHandling;
 use crate::processing::ProcessingContext;
 
 mod decoder;
+mod encode;
 mod encoder;
 mod engine;
 mod engine_orchestrator;
-mod execute;
 mod faad_decoder;
 mod finalize;
 mod frame_pipeline;
@@ -230,15 +230,6 @@ struct ProcessingWorkflow {
     total_duration: f64,
 }
 
-impl ProcessingWorkflow {
-    fn new(workspace: workspace::Workspace, total_duration: f64) -> Self {
-        Self {
-            workspace,
-            total_duration,
-        }
-    }
-}
-
 fn process_audiobook_with_context(
     context: ProcessingContext,
     settings: EncoderSettings,
@@ -246,7 +237,7 @@ fn process_audiobook_with_context(
     metadata: Option<AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
 ) -> Result<AudioRunOutcome> {
-    let mut workflow = prepare::validate_and_prepare(&context, &files)?;
+    let mut workflow = prepare::prepare(&context, &files)?;
 
     let passthrough_sources = passthrough_sources_from_audio_files(&files);
     let mut extracted = extract_passthrough_metadata(&passthrough_sources);
@@ -262,7 +253,7 @@ fn process_audiobook_with_context(
         passthrough.chapters.clear();
     }
 
-    let merged_output = execute::execute_processing(
+    let merged_output = encode::encode(
         &context,
         &settings,
         &workflow,
@@ -271,7 +262,7 @@ fn process_audiobook_with_context(
         passthrough_metadata.as_ref(),
     )?;
 
-    let message = finalize::finalize_processing(
+    let message = finalize::finalize(
         &context,
         &mut workflow,
         merged_output,
