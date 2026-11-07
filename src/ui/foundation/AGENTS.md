@@ -16,6 +16,10 @@ language.
   owner stylesheet. The `.app-modal-*` classes in `internal/dialogs.css` are
   shared dialog-body layout that the lookup, collision, and remote dialogs use
   by name.
+- A select whose value the engine owns uses `Select`: it sends the choice,
+  then shows the owner's value again, so a refused choice never leaves the
+  element showing it. Why: the owner's value does not change on a refusal, so
+  nothing else resets the element.
 - `JobRow` is the one title row for the status panel and the Work Center. The
   caller injects `actions`; the row keys them by `id`, so a progress tick does
   not rebuild a button between press and release.

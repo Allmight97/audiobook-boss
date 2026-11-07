@@ -268,7 +268,7 @@ export function AudioHandlingControl(props: {
 								Apply App Settings
 							</button>
 						</p>
-						<EncoderView title={props.file} />
+						<EncoderView scope={{ kind: 'title', file: props.file }} />
 						<Show when={plan()}>
 							{(planned) => (
 								<dl class="audio-plan-properties">

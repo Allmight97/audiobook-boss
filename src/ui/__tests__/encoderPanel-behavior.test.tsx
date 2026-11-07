@@ -28,7 +28,7 @@ describe('encoder panel behavior controls', () => {
 		runtime = await createAppRuntime({ engine });
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
-				<EncoderView />
+				<EncoderView scope={{ kind: 'defaults' }} />
 			</AppRuntimeProvider>
 		));
 	}
@@ -61,10 +61,10 @@ describe('encoder panel behavior controls', () => {
 		await renderEncoder((defaults) => {
 			defaults.facts.bitrateKbps = 193;
 		});
-		await vi.waitFor(() => expect(document.getElementById('native-speed')).not.toBeNull());
+		await vi.waitFor(() => expect(screen.queryByTestId('native-speed-select')).not.toBeNull());
 
-		changeSelectValue(document.getElementById('native-speed') as HTMLSelectElement, '4');
-		const bitrate = document.getElementById('output-bitrate') as HTMLInputElement;
+		changeSelectValue(screen.getByTestId<HTMLSelectElement>('native-speed-select'), '4');
+		const bitrate = screen.getByTestId<HTMLInputElement>('bitrate-input');
 		bitrate.value = '0';
 		bitrate.dispatchEvent(new Event('change', { bubbles: true }));
 
@@ -85,8 +85,8 @@ describe('encoder panel behavior controls', () => {
 				available: true,
 			}));
 		});
-		await vi.waitFor(() => expect(document.getElementById('adv-encoder')).not.toBeNull());
-		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
+		await vi.waitFor(() => expect(screen.queryByTestId('encoder-select')).not.toBeNull());
+		const select = screen.getByTestId<HTMLSelectElement>('encoder-select');
 		const held = select.value;
 		const other = Array.from(select.options).find(
 			(option) => option.value !== held && !option.disabled,
@@ -107,15 +107,13 @@ describe('encoder panel behavior controls', () => {
 		});
 
 		await vi.waitFor(() => {
-			const bitrate = document.getElementById('output-bitrate') as HTMLInputElement;
+			const bitrate = screen.getByTestId<HTMLInputElement>('bitrate-input');
 			const values = (id: string) =>
-				Array.from((document.getElementById(id) as HTMLSelectElement).options).map(
-					(option) => option.value,
-				);
+				Array.from(screen.getByTestId<HTMLSelectElement>(id).options).map((option) => option.value);
 			expect(bitrate.min).toBe('24');
 			expect(bitrate.max).toBe('256');
-			expect(values('output-samplerate')).toEqual(['auto', '44100']);
-			expect(values('output-channels')).toEqual(['auto', 'mono']);
+			expect(values('samplerate-select')).toEqual(['auto', '44100']);
+			expect(values('channels-select')).toEqual(['auto', 'mono']);
 		});
 	});
 
@@ -134,9 +132,9 @@ describe('encoder panel behavior controls', () => {
 
 		await vi.waitFor(() => {
 			const shown = (id: string) =>
-				(document.getElementById(id) as HTMLSelectElement).selectedOptions[0]?.textContent;
-			expect(shown('output-samplerate')).toBe('Auto · Source audio');
-			expect(shown('output-channels')).toBe('Auto · Source audio');
+				screen.getByTestId<HTMLSelectElement>(id).selectedOptions[0]?.textContent;
+			expect(shown('samplerate-select')).toBe('Auto · Source audio');
+			expect(shown('channels-select')).toBe('Auto · Source audio');
 		});
 	});
 
@@ -156,23 +154,23 @@ describe('encoder panel behavior controls', () => {
 			};
 		});
 
-		await vi.waitFor(() => expect(document.getElementById('output-quality')?.hidden).toBe(false));
-		const quality = document.getElementById('output-quality') as HTMLSelectElement;
+		await vi.waitFor(() => expect(screen.queryByTestId('quality-select')?.hidden).toBe(false));
+		const quality = screen.getByTestId<HTMLSelectElement>('quality-select');
 		expect(Array.from(quality.options).map((option) => option.textContent)).toEqual([
 			'Smaller (50)',
 			'Standard (100)',
 			'Higher (200)',
 		]);
-		const profile = document.getElementById('faac-profile') as HTMLSelectElement;
+		const profile = screen.getByTestId<HTMLSelectElement>('faac-profile-select');
 		expect(profile.selectedOptions[0]?.textContent).toBe('Auto · FAAC chooses LC or HE');
-		const sampleRate = document.getElementById('output-samplerate') as HTMLSelectElement;
+		const sampleRate = screen.getByTestId<HTMLSelectElement>('samplerate-select');
 		expect(sampleRate.value).toBe('22050');
 		expect(
 			Array.from(sampleRate.options).find((option) => option.value === '22050')?.disabled,
 		).toBe(true);
 
 		changeSelectValue(quality, '50');
-		changeSelectValue(document.getElementById('faac-rate-control') as HTMLSelectElement, 'abr');
+		changeSelectValue(screen.getByTestId<HTMLSelectElement>('faac-rate-control-select'), 'abr');
 		await vi.waitFor(() =>
 			expect(sent()).toEqual([
 				{ kind: 'setDefaultAudio', edit: { field: 'quality', value: 50 } },
@@ -194,11 +192,11 @@ describe('encoder panel behavior controls', () => {
 		});
 
 		await vi.waitFor(() => {
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.value).toBe('aac_at');
-			expect(
-				Array.from(select?.options ?? []).find((option) => option.value === 'aac_at')?.disabled,
-			).toBe(true);
+			const select = screen.getByTestId<HTMLSelectElement>('encoder-select');
+			expect(select.value).toBe('aac_at');
+			expect(Array.from(select.options).find((option) => option.value === 'aac_at')?.disabled).toBe(
+				true,
+			);
 		});
 	});
 });

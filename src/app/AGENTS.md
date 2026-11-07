@@ -102,7 +102,9 @@ without a bullet has none. Engine paths name the owner of the truth.
   shown come from the engine's `facts`, and `labels.ts` is the one table of
   format, intent, encoder, and bitrate-mode wording. `project.ts` disables an
   option because the facts say so. `editFor` turns a control value into an
-  `AudioEdit`; a value outside the engine's lists sends nothing. Sample-rate
+  `AudioEdit`; a value outside the engine's lists sends nothing. `form(scope)`
+  (defaults, one title, or a selection) gives a panel its view, refusal,
+  `choose`, and summary line. Sample-rate
   and FAAC quality lists still come from the capabilities. What Auto resolves
   to comes from the engine's `autoSampleRate` and `autoChannels` readings on
   the title or the selection, never from source facts or a plan; a selection's

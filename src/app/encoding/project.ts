@@ -6,6 +6,7 @@ import type {
 	AutoReading,
 	CodecFamily,
 	EncoderSettingsCapabilities,
+	EncoderType,
 	FaacProfile,
 } from '../../lib/generated/tauri';
 import { encoderLabel, formatOptionLabel, intentLabel, profileLabel } from './labels';
@@ -22,7 +23,7 @@ export type EncodingView = {
 	readonly intent: AudioIntent;
 	readonly intentOptions: ReadonlyArray<EncodingOption>;
 	readonly codecFamily: CodecFamily;
-	readonly effectiveFlavor: string;
+	readonly effectiveFlavor: EncoderType;
 	readonly flavorOptions: ReadonlyArray<EncodingOption>;
 	readonly flavorDisabled: boolean;
 	readonly profileDisplay: string;

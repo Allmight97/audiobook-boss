@@ -47,8 +47,10 @@ One bullet per view. A view without a bullet has no trap beyond its owner.
   Closing the restart dialog (Escape or close) keeps the
   location. Teardown answers neither question. Both dialogs use the foundation
   `Dialog` (`src/lib/tauri/AGENTS.md`, native dialogs).
-- `encoderPanel`: one `EncoderView` serves Settings defaults (no props), one
-  title (`title`), or a selection (`titles`). A mixed selection shows Mixed; the
+- `encoderPanel`: one `EncoderView` serves Settings defaults, one title, or a
+  selection, by the `scope` it passes to `runtime.encoding.form`. Every element
+  id carries a per-instance suffix, because several panels can be open; tests
+  find controls by label or `data-testid`. A mixed selection shows Mixed; the
   user picks a common format before editing encoder fields. Encoder fields show
   only under User Preference.
 - `fileList`: every selection-changing action sends an Input intent, so the

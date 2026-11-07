@@ -1,69 +1,37 @@
 import { For, Show, createMemo, createUniqueId, type Accessor } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
+import type { EncodingField, EncodingForm, EncodingScope, PanelView } from '../../app/encoding';
 import { useAppRuntime } from '../../app/runtime';
-import type { AudioFile } from '../../lib/generated/tauri';
-import type { EncodingField, EncodingView } from '../../app/encoding';
+import { Select } from '../foundation';
 import './encoderView.css';
 
-type PanelView = EncodingView & {
-	readonly mixedFields: readonly EncodingField[];
-};
-
-export function EncoderView(
-	props: { title?: AudioFile; titles?: readonly AudioFile[] } = {},
-): JSX.Element {
+export function EncoderView(props: { scope: EncodingScope }): JSX.Element {
 	const runtime = useAppRuntime();
-	const view = createMemo((): PanelView | null =>
-		props.titles
-			? runtime.encoding.selectionView()
-			: {
-					...(props.title ? runtime.encoding.titleView(props.title) : runtime.encoding.view()),
-					mixedFields: [],
-				},
-	);
+	const form = createMemo(() => runtime.encoding.form(props.scope));
+	const view = createMemo(() => form().view());
 	return (
 		<Show when={view()}>
-			{(shown) => <EncoderPanel view={shown} title={props.title} titles={props.titles} />}
+			{(shown) => (
+				<EncoderPanel form={form()} view={shown} open={props.scope.kind === 'defaults'} />
+			)}
 		</Show>
 	);
 }
 
 function EncoderPanel(props: {
+	form: EncodingForm;
 	view: Accessor<PanelView>;
-	title?: AudioFile;
-	titles?: readonly AudioFile[];
+	open: boolean;
 }): JSX.Element {
-	const runtime = useAppRuntime();
 	const view = props.view;
-	const refusal = () =>
-		props.titles
-			? runtime.encoding.refusal(props.titles)
-			: props.title
-				? runtime.encoding.refusal([props.title])
-				: null;
+	const form = () => props.form;
 	const mixed = (field: EncodingField) => view().mixedFields.includes(field);
 	const value = (field: EncodingField, current: string | number) => (mixed(field) ? '' : current);
-	const editingTitles = () => !!props.title || !!props.titles;
 	const displayedFlavor = () => view().effectiveFlavor;
 	const instanceId = createUniqueId();
-	const id = (name: string) => (editingTitles() ? `${name}-${instanceId}` : name);
-	const choose = (field: EncodingField, selected: string) =>
-		props.titles
-			? runtime.encoding.selectTitles(props.titles, field, selected)
-			: props.title
-				? runtime.encoding.selectTitle(props.title, field, selected)
-				: runtime.encoding.select(field, selected);
-
-	function bind(field: EncodingField) {
-		return (event: Event) => {
-			const select = event.currentTarget;
-			if (!(select instanceof HTMLSelectElement || select instanceof HTMLInputElement)) return;
-			choose(field, select.value);
-			if (field === 'encoder') select.value = String(value('encoder', displayedFlavor()));
-			if (field === 'bitrate') select.value = String(view().bitrate);
-		};
-	}
+	const id = (name: string) => `${name}-${instanceId}`;
+	const choose = (field: EncodingField) => (selected: string) => form().choose(field, selected);
 
 	return (
 		<div
@@ -71,18 +39,19 @@ function EncoderPanel(props: {
 			class="encoder-workbench-panel"
 			data-testid="encoder-settings-panel"
 		>
-			<Show when={refusal()}>
+			<Show when={form().refusal()}>
 				<p class="field-hint" role="status" data-testid="audio-edit-refusal">
-					{refusal()}
+					{form().refusal()}
 				</p>
 			</Show>
 			<div class="encoder-workbench-grid">
 				<div class="encoder-field-row">
 					<label for={id('audio-format')}>Output</label>
-					<select
+					<Select
 						id={id('audio-format')}
+						data-testid="audio-format-select"
 						value={value('format', view().format)}
-						onChange={bind('format')}
+						onChoose={choose('format')}
 					>
 						<Show when={mixed('format')}>
 							<option value="" disabled>
@@ -92,14 +61,15 @@ function EncoderPanel(props: {
 						<For each={view().formatOptions} keyed={(option) => option.value}>
 							{(option) => <option value={option().value}>{option().label}</option>}
 						</For>
-					</select>
+					</Select>
 				</div>
 				<div class="encoder-field-row">
 					<label for={id('audio-intent')}>Audio handling</label>
-					<select
+					<Select
 						id={id('audio-intent')}
+						data-testid="audio-intent-select"
 						value={value('intent', view().intent)}
-						onChange={bind('intent')}
+						onChoose={choose('intent')}
 					>
 						<Show when={mixed('intent')}>
 							<option value="" disabled>
@@ -109,33 +79,24 @@ function EncoderPanel(props: {
 						<For each={view().intentOptions} keyed={(option) => option.value}>
 							{(option) => <option value={option().value}>{option().label}</option>}
 						</For>
-					</select>
+					</Select>
 				</div>
 				<Show when={mixed('format')}>
 					<p class="field-hint">Choose one output format to edit encoding settings together.</p>
 				</Show>
 				<Show when={!mixed('format') && !mixed('intent') && view().intent === 'encode'}>
-					<details class="encoder-conversion" open={!editingTitles()}>
-						<summary>
-							Encoding settings ·{' '}
-							{mixed('encoder')
-								? 'Mixed encoders'
-								: mixed('quality') || mixed('bitrate')
-									? 'Mixed quality'
-									: view().codecFamily === 'opus'
-										? `Opus · ${view().bitrate} kbps VBR`
-										: `${view().flavorOptions.find((option) => option.value === displayedFlavor())?.label} · ${view().showQuality ? `VBR ${view().quality}` : `${view().bitrate} kbps`}`}
-						</summary>
+					<details class="encoder-conversion" open={props.open}>
+						<summary>Encoding settings · {form().summary()}</summary>
 						<div class="encoder-workbench-grid">
 							<div class="encoder-field-row">
 								<label for={id('adv-encoder')}>Encoder</label>
 								<div class="encoder-field-stack">
-									<select
+									<Select
 										id={id('adv-encoder')}
 										data-testid="encoder-select"
 										value={value('encoder', displayedFlavor())}
 										disabled={view().flavorDisabled}
-										onChange={bind('encoder')}
+										onChoose={choose('encoder')}
 									>
 										<Show when={mixed('encoder')}>
 											<option value="" disabled>
@@ -149,7 +110,7 @@ function EncoderPanel(props: {
 												</option>
 											)}
 										</For>
-									</select>
+									</Select>
 								</div>
 							</div>
 							<Show when={mixed('encoder')}>
@@ -159,11 +120,11 @@ function EncoderPanel(props: {
 								<div class="encoder-field-row">
 									<label for={id('native-speed')}>NMR speed</label>
 									<div class="encoder-field-stack">
-										<select
+										<Select
 											id={id('native-speed')}
 											data-testid="native-speed-select"
 											value={value('nativeSpeed', view().nativeSpeed)}
-											onChange={bind('nativeSpeed')}
+											onChoose={choose('nativeSpeed')}
 											aria-describedby={id('native-speed-hint')}
 										>
 											<Show when={mixed('nativeSpeed')}>
@@ -174,7 +135,7 @@ function EncoderPanel(props: {
 											<For each={view().nativeSpeedOptions} keyed={(option) => option.value}>
 												{(option) => <option value={option().value}>{option().label}</option>}
 											</For>
-										</select>
+										</Select>
 										<p id={id('native-speed-hint')} class="field-hint">
 											Higher values trade some quality for faster encoding.
 										</p>
@@ -191,7 +152,7 @@ function EncoderPanel(props: {
 												class="profile-display profile-display-workbench"
 												data-testid="profile-display"
 											>
-												<span id={id('encoder-profile-display')}>{view().profileDisplay}</span>
+												<span class="profile-display-name">{view().profileDisplay}</span>
 												<span class="readonly-badge">read-only</span>
 											</div>
 										</div>
@@ -200,10 +161,11 @@ function EncoderPanel(props: {
 									<div class="encoder-field-row">
 										<label for={id('faac-profile')}>Profile</label>
 										<div class="encoder-field-stack">
-											<select
+											<Select
 												id={id('faac-profile')}
+												data-testid="faac-profile-select"
 												value={value('faacProfile', view().faacProfile)}
-												onChange={bind('faacProfile')}
+												onChoose={choose('faacProfile')}
 											>
 												<Show when={mixed('faacProfile')}>
 													<option value="" disabled>
@@ -213,15 +175,16 @@ function EncoderPanel(props: {
 												<For each={view().faacProfileOptions} keyed={(option) => option.value}>
 													{(option) => <option value={option().value}>{option().label}</option>}
 												</For>
-											</select>
+											</Select>
 										</div>
 									</div>
 									<div class="encoder-field-row">
 										<label for={id('faac-rate-control')}>Rate control</label>
-										<select
+										<Select
 											id={id('faac-rate-control')}
+											data-testid="faac-rate-control-select"
 											value={value('rateControl', view().rateControl)}
-											onChange={bind('rateControl')}
+											onChoose={choose('rateControl')}
 										>
 											<Show when={mixed('rateControl')}>
 												<option value="" disabled>
@@ -231,7 +194,7 @@ function EncoderPanel(props: {
 											<For each={view().rateControlOptions} keyed={(option) => option.value}>
 												{(option) => <option value={option().value}>{option().label}</option>}
 											</For>
-										</select>
+										</Select>
 									</div>
 								</Show>
 								<Show when={!mixed('rateControl') && !mixed('faacProfile')}>
@@ -243,12 +206,12 @@ function EncoderPanel(props: {
 											{view().qualityBitrateLabel}
 										</label>
 										<div class="encoder-field-stack">
-											<select
+											<Select
 												id={id('output-quality')}
 												hidden={!view().showQuality}
 												data-testid="quality-select"
 												value={value('quality', view().quality)}
-												onChange={bind('quality')}
+												onChoose={choose('quality')}
 											>
 												<Show when={mixed('quality')}>
 													<option value="" disabled>
@@ -258,7 +221,7 @@ function EncoderPanel(props: {
 												<For each={view().qualityOptions} keyed={(option) => option.value}>
 													{(option) => <option value={option().value}>{option().label}</option>}
 												</For>
-											</select>
+											</Select>
 											<input
 												id={id('output-bitrate')}
 												data-testid="bitrate-input"
@@ -269,7 +232,11 @@ function EncoderPanel(props: {
 												max={view().bitrateKbpsMax}
 												step="1"
 												value={value('bitrate', view().bitrate)}
-												onChange={bind('bitrate')}
+												onChange={(event) => {
+													const input = event.currentTarget;
+													form().choose('bitrate', input.value);
+													input.value = String(view().bitrate);
+												}}
 											/>
 										</div>
 									</div>
@@ -277,11 +244,11 @@ function EncoderPanel(props: {
 								<div class="encoder-field-row">
 									<label for={id('output-samplerate')}>Sample Rate</label>
 									<div class="encoder-field-stack">
-										<select
+										<Select
 											id={id('output-samplerate')}
 											data-testid="samplerate-select"
 											value={value('sampleRate', view().sampleRate)}
-											onChange={bind('sampleRate')}
+											onChoose={choose('sampleRate')}
 										>
 											<Show when={mixed('sampleRate')}>
 												<option value="" disabled>
@@ -295,7 +262,7 @@ function EncoderPanel(props: {
 													</option>
 												)}
 											</For>
-										</select>
+										</Select>
 										<Show when={view().sampleRateHint}>
 											<p
 												id={id('output-samplerate-effective')}
@@ -311,11 +278,11 @@ function EncoderPanel(props: {
 								<div class="encoder-field-row">
 									<label for={id('output-channels')}>Channels</label>
 									<div class="encoder-field-stack">
-										<select
+										<Select
 											id={id('output-channels')}
 											data-testid="channels-select"
 											value={value('channels', view().channels)}
-											onChange={bind('channels')}
+											onChoose={choose('channels')}
 										>
 											<Show when={mixed('channels')}>
 												<option value="" disabled>
@@ -325,7 +292,7 @@ function EncoderPanel(props: {
 											<For each={view().channelOptions} keyed={(option) => option.value}>
 												{(option) => <option value={option().value}>{option().label}</option>}
 											</For>
-										</select>
+										</Select>
 										<Show when={view().channelsHint}>
 											<p
 												id={id('output-channels-effective')}

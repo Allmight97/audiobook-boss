@@ -135,7 +135,7 @@ describe('UI workflow intents', () => {
 
 		try {
 			await waitFor(() => {
-				expect(runtime.encoding.view().flavorDisabled).toBe(false);
+				expect(runtime.encoding.form({ kind: 'defaults' }).view()?.flavorDisabled).toBe(false);
 			});
 			await user.click(document.querySelector('[aria-label="Add audio files"]') as HTMLElement);
 			await waitFor(() => {

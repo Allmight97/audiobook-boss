@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@solidjs/testing-library';
+import { render, screen } from '@solidjs/testing-library';
 import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { EncoderView } from '../encoderPanel';
@@ -26,7 +26,7 @@ describe('encoder panel encoder resolution', () => {
 		runtime = await createAppRuntime({ engine });
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
-				<EncoderView />
+				<EncoderView scope={{ kind: 'defaults' }} />
 			</AppRuntimeProvider>
 		));
 	}
@@ -35,20 +35,20 @@ describe('encoder panel encoder resolution', () => {
 		await renderEncoder();
 
 		await vi.waitFor(() => {
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.value).toBe('native_aac');
-			expect(Array.from(select?.options ?? []).map((option) => option.value)).toEqual([
+			const select = screen.getByTestId<HTMLSelectElement>('encoder-select');
+			expect(select.value).toBe('native_aac');
+			expect(Array.from(select.options).map((option) => option.value)).toEqual([
 				'aac_at',
 				'native_aac',
 				'faac',
 			]);
-			expect(document.getElementById('native-speed')).not.toBeNull();
+			expect(screen.queryByTestId('native-speed-select')).not.toBeNull();
 		});
 	});
 
 	it('sends an explicit encoder choice and hides native speed once the engine applies it', async () => {
 		await renderEncoder();
-		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
+		const select = screen.getByTestId<HTMLSelectElement>('encoder-select');
 
 		changeSelectValue(select, 'faac');
 		await vi.waitFor(() =>
@@ -63,7 +63,7 @@ describe('encoder panel encoder resolution', () => {
 		});
 		await vi.waitFor(() => {
 			expect(select.value).toBe('faac');
-			expect(document.getElementById('native-speed')).toBeNull();
+			expect(screen.queryByTestId('native-speed-select')).toBeNull();
 		});
 	});
 });

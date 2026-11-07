@@ -257,7 +257,7 @@ export function AppSettingsDialogView(): JSX.Element {
 					<p class="muted-text">
 						Used for newly imported titles. Existing titles keep their settings.
 					</p>
-					<EncoderView />
+					<EncoderView scope={{ kind: 'defaults' }} />
 				</section>
 				<section class="app-settings-section">
 					<h4 class="app-settings-section-title">Power</h4>

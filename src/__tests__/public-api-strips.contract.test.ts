@@ -111,7 +111,7 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 	[
 		'ui/foundation',
 		foundation,
-		['Button', 'CoverImage', 'CoverThumb', 'Dialog', 'JobRow', 'Progress', 'SplitButton'],
+		['Button', 'CoverImage', 'CoverThumb', 'Dialog', 'JobRow', 'Progress', 'Select', 'SplitButton'],
 	],
 	['ui/jobControls', jobControls, ['ConcurrencyControl', 'GroupTitlesButton']],
 	['ui/leftColumn', leftColumn, ['FileInspectorView']],

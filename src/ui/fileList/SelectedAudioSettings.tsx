@@ -125,7 +125,7 @@ export function SelectedAudioSettings(): JSX.Element {
 								Apply App Settings
 							</button>
 						</p>
-						<EncoderView titles={selected()} />
+						<EncoderView scope={{ kind: 'selection', files: selected() }} />
 					</div>
 				</Portal>
 			</Show>
