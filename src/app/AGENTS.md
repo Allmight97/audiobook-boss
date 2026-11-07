@@ -182,8 +182,11 @@ appends imported files. It holds no product rule;
 `import`. Seed the engine's answer on the intent that asks for it (`respond`,
 `respondSettings`, `respondPreviewOutput`, `seedForm`, `seedSettings`,
 `change`). What the real engine answers to a
-sequence of intents (outcomes and the changed snapshot parts, audio excluded)
-is proved by `runtime/recordedWorkflows.contract.test.ts`;
+sequence of intents (outcomes and the changed snapshot parts) is proved by
+`runtime/recordedWorkflows.contract.test.ts`. The recorder writes `audio` as
+null in every step, because no replay reads it and it was most of the file;
+`recordedFixtures.contract.test.ts` keeps each step's keys equal to
+`session-fresh.json`'s;
 a new engine-owned behavior a view depends on becomes a scenario in
 `src-tauri/src/bin/export_bindings/scenarios.json`, not a rule in the fake.
 

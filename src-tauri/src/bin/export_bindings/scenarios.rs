@@ -10,16 +10,7 @@ use crate::recording::{write_fixture, FixtureEngine, Normalizer};
 use crate::wav::{write_tagged, write_truncated, Tags};
 
 const SCENARIOS: &str = include_str!("scenarios.json");
-const SESSION_PARTS: [&str; 8] = [
-    "titles",
-    "selection",
-    "metadata",
-    "lookup",
-    "output",
-    "remote",
-    "remoteLibrary",
-    "remoteAcquisition",
-];
+const UNRECORDED_KEYS: [&str; 2] = ["revision", "audio"];
 
 #[derive(Deserialize)]
 struct Scenarios {
@@ -166,16 +157,20 @@ fn record_session(scenario: &Scenario) -> Value {
         normalizer.apply(&mut outcome);
         let mut update = Map::new();
         update.insert("revision".into(), json!(revision));
-        for part in SESSION_PARTS {
-            let current = &snapshot[part];
+        update.insert("audio".into(), Value::Null);
+        let parts = snapshot.as_object().expect("session snapshot is an object");
+        for (part, current) in parts {
+            if UNRECORDED_KEYS.contains(&part.as_str()) {
+                continue;
+            }
             if without_revision(current) == without_revision(&previous[part]) {
-                update.insert(part.into(), Value::Null);
+                update.insert(part.clone(), Value::Null);
                 continue;
             }
             let mut changed = current.clone();
             changed["revision"] = json!(revision);
             previous[part] = current.clone();
-            update.insert(part.into(), changed);
+            update.insert(part.clone(), changed);
         }
         recorded.push(json!({ "intent": step, "outcome": outcome, "update": update }));
     }

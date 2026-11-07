@@ -15,6 +15,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": null,
           "output": null,
@@ -142,6 +143,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": {
             "binding": 1,
@@ -279,6 +281,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": {
             "binding": 2,
@@ -412,6 +415,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": {
             "binding": 3,
@@ -549,6 +553,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": {
             "binding": 3,
@@ -677,6 +682,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": {
             "binding": 3,
@@ -802,6 +808,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": {
             "binding": 4,
@@ -942,6 +949,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": null,
           "output": null,
@@ -1073,6 +1081,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": {
             "binding": 1,
@@ -1206,6 +1215,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": null,
           "output": null,
@@ -1309,6 +1319,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": {
             "binding": 2,
@@ -1462,6 +1473,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": {
             "binding": 1,
@@ -1644,6 +1656,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": null,
           "output": null,
@@ -1716,6 +1729,7 @@
           "kind": "applied"
         },
         "update": {
+          "audio": null,
           "lookup": null,
           "metadata": null,
           "output": null,
