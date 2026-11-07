@@ -1,4 +1,3 @@
-use crate::audio::CleanupGuard;
 use crate::audio::FileListInfo;
 use crate::errors::{AppError, Result};
 use crate::metadata::MetadataIntentPatch;
@@ -26,12 +25,7 @@ pub(super) fn execute_preserved_audio(
         )
     })?;
 
-    let workspace = super::staging::create_processing_workspace_dir(
-        context.session.uuid(),
-        context.processing_workspace_root(),
-    )?;
-    let mut cleanup = CleanupGuard::new(context.session.id());
-    cleanup.add_path(&workspace);
+    let mut workspace = super::workspace::Workspace::open(&context)?;
     let extension = file
         .path
         .extension()
@@ -39,8 +33,7 @@ pub(super) fn execute_preserved_audio(
         .ok_or_else(|| {
             AppError::InvalidInput("Preserve source has no supported extension.".to_string())
         })?;
-    let staged = workspace.join(format!("preserved.{extension}"));
-    cleanup.add_path(&staged);
+    let staged = workspace.dir().join(format!("preserved.{extension}"));
     context
         .new_emitter()
         .emit_converting_start("Preserving original audio...");
@@ -75,7 +68,7 @@ pub(super) fn execute_preserved_audio(
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
-    super::finalize::complete_staged_output(&context, staged, &mut cleanup)
+    super::finalize::complete_staged_output(&context, staged, &mut workspace)
 }
 
 pub(super) fn copy_with_cancellation(

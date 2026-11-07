@@ -1,5 +1,5 @@
 use super::{complete_staged_output, settle_published};
-use crate::audio::CleanupGuard;
+use crate::audio::processor::workspace::Workspace;
 use crate::output_artifact::{
     commit_output_artifact, finalized_output_success, OutputCommitRequest, OutputKind,
     PlannedOutputAction,
@@ -24,33 +24,37 @@ fn has_hidden_processing_artifact(root: &Path) -> bool {
     })
 }
 
-#[tokio::test]
-async fn complete_staged_output_commits_from_local_workspace_without_destination_residue() {
+async fn context_for(
+    local: &TempDir,
+    final_output: &Path,
+    cancelled: bool,
+) -> (ProcessingContext, Workspace) {
     let registry = JobRegistry::new(1);
     let (job_id, _permit) = registry.register_job().await.expect("register job");
-    let checker = crate::processing::CancellationChecker::new(None);
-
-    let local = TempDir::new().expect("local workspace root");
-    let destination = TempDir::new().expect("destination root");
-    let workspace_root = local.path().join("processing").join("sessions");
-    let session_dir = workspace_root.join(".abb-processing-test");
-    std::fs::create_dir_all(&session_dir).expect("session dir");
-    let staged_output = session_dir.join("staged.m4b");
-    let final_output = destination.path().join("final.m4b");
-    fs::write(&staged_output, b"audio").expect("write staged output");
-
+    let checker = crate::processing::CancellationChecker::new(
+        cancelled.then(crate::processing::cancelled_token),
+    );
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
         SAMPLE_RATE,
-        OutputConfig::new(&final_output),
-        workspace_root,
+        OutputConfig::new(final_output),
+        local.path().join("processing").join("sessions"),
     );
-    let mut cleanup_guard = CleanupGuard::new(context.session.id());
-    cleanup_guard.add_path(&session_dir);
-    cleanup_guard.add_path(&staged_output);
+    let workspace = Workspace::open(&context).expect("open workspace");
+    (context, workspace)
+}
 
-    complete_staged_output(&context, staged_output, &mut cleanup_guard)
-        .expect("commit should succeed");
+#[tokio::test]
+async fn complete_staged_output_commits_from_local_workspace_without_destination_residue() {
+    let local = TempDir::new().expect("local workspace root");
+    let destination = TempDir::new().expect("destination root");
+    let final_output = destination.path().join("final.m4b");
+    let (context, mut workspace) = context_for(&local, &final_output, false).await;
+    let staged_output = workspace.dir().join("staged.m4b");
+    fs::write(&staged_output, b"audio").expect("write staged output");
+    let session_dir = workspace.dir().to_path_buf();
+
+    complete_staged_output(&context, staged_output, &mut workspace).expect("commit should succeed");
 
     assert_eq!(std::fs::read(&final_output).expect("read final"), b"audio");
     assert!(!session_dir.exists(), "local workspace should be cleaned");
@@ -62,38 +66,23 @@ async fn complete_staged_output_commits_from_local_workspace_without_destination
 
 #[tokio::test]
 async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
-    let registry = JobRegistry::new(1);
-    let (job_id, _permit) = registry.register_job().await.expect("register job");
-    let checker = crate::processing::CancellationChecker::new(None);
-
     let local = TempDir::new().expect("local workspace root");
     let destination = TempDir::new().expect("destination root");
-    let workspace_root = local.path().join("processing").join("sessions");
-    let session_dir = workspace_root.join(".abb-processing-test");
-    std::fs::create_dir_all(&session_dir).expect("session dir");
-    let staged_output = session_dir.join("staged.m4b");
     let final_output = destination.path().join("final.m4b");
-    fs::write(&staged_output, b"audio").expect("write staged output");
     fs::write(&final_output, b"existing").expect("write existing output");
-
-    let mut context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        SAMPLE_RATE,
-        OutputConfig::new(&final_output),
-        workspace_root,
-    );
+    let (mut context, mut workspace) = context_for(&local, &final_output, false).await;
+    let staged_output = workspace.dir().join("staged.m4b");
+    fs::write(&staged_output, b"audio").expect("write staged output");
+    let session_dir = workspace.dir().to_path_buf();
     let stages = Arc::new(std::sync::Mutex::new(Vec::new()));
     let recorded = Arc::clone(&stages);
     context.progress_listener = Some(Arc::new(move |event| {
         recorded.lock().expect("stages").push(event.stage);
     }));
-    let mut cleanup_guard = CleanupGuard::new(context.session.id());
-    cleanup_guard.add_path(&session_dir);
-    cleanup_guard.add_path(&staged_output);
 
-    let error = complete_staged_output(&context, staged_output, &mut cleanup_guard)
+    let error = complete_staged_output(&context, staged_output, &mut workspace)
         .expect_err("existing destination should fail write action");
-    drop(cleanup_guard);
+    drop(workspace);
 
     assert!(
         error
@@ -121,31 +110,15 @@ async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
 
 #[tokio::test]
 async fn complete_staged_output_cleans_without_committing_when_cancelled_before_commit() {
-    let registry = JobRegistry::new(1);
-    let (job_id, _permit) = registry.register_job().await.expect("register job");
-    let checker =
-        crate::processing::CancellationChecker::new(Some(crate::processing::cancelled_token()));
-
     let local = TempDir::new().expect("local workspace root");
     let destination = TempDir::new().expect("destination root");
-    let workspace_root = local.path().join("processing").join("sessions");
-    let session_dir = workspace_root.join(".abb-processing-test");
-    std::fs::create_dir_all(&session_dir).expect("session dir");
-    let staged_output = session_dir.join("staged.m4b");
     let final_output = destination.path().join("final.m4b");
+    let (context, mut workspace) = context_for(&local, &final_output, true).await;
+    let staged_output = workspace.dir().join("staged.m4b");
     fs::write(&staged_output, b"audio").expect("write staged output");
+    let session_dir = workspace.dir().to_path_buf();
 
-    let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        SAMPLE_RATE,
-        OutputConfig::new(&final_output),
-        workspace_root,
-    );
-    let mut cleanup_guard = CleanupGuard::new(context.session.id());
-    cleanup_guard.add_path(&session_dir);
-    cleanup_guard.add_path(&staged_output);
-
-    let error = complete_staged_output(&context, staged_output.clone(), &mut cleanup_guard)
+    let error = complete_staged_output(&context, staged_output.clone(), &mut workspace)
         .expect_err("cancelled job should not commit staged output");
 
     assert!(
@@ -156,7 +129,7 @@ async fn complete_staged_output_cleans_without_committing_when_cancelled_before_
         !final_output.exists(),
         "cancelled staged output should not be committed"
     );
-    drop(cleanup_guard);
+    drop(workspace);
     assert!(
         !session_dir.exists(),
         "cancelled local workspace should be cleaned"
@@ -169,27 +142,18 @@ async fn complete_staged_output_cleans_without_committing_when_cancelled_before_
 
 #[tokio::test]
 async fn a_cleanup_failure_after_publication_is_a_success_with_a_warning_and_a_retry() {
-    let registry = JobRegistry::new(1);
-    let (job_id, _permit) = registry.register_job().await.expect("register job");
-    let checker = crate::processing::CancellationChecker::new(None);
-
     let local = TempDir::new().expect("local workspace root");
     let destination = TempDir::new().expect("destination root");
-    let workspace_root = local.path().join("processing").join("sessions");
-    let session_dir = workspace_root.join(".abb-processing-test");
-    fs::create_dir_all(&session_dir).expect("session dir");
-    let staged_output = session_dir.join("staged.m4b");
     let final_output = destination.path().join("final.m4b");
+    let (mut context, mut workspace) = context_for(&local, &final_output, false).await;
+    let staged_output = local.path().join("elsewhere").join("staged.m4b");
+    fs::create_dir_all(staged_output.parent().expect("staging folder")).expect("staging folder");
     fs::write(&staged_output, b"audio").expect("write staged output");
-    let blocker = local.path().join("blocker");
-    fs::write(&blocker, b"a file where a folder is expected").expect("write blocker");
-
-    let mut context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        SAMPLE_RATE,
-        OutputConfig::new(&final_output),
-        workspace_root,
-    );
+    let session_dir = workspace.dir().to_path_buf();
+    let sessions = local.path().join("processing").join("sessions");
+    let backup = local.path().join("sessions-backup");
+    crate::test_cases::move_test_file(&sessions, &backup);
+    fs::write(&sessions, b"a file where a folder is expected").expect("write blocker");
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let recorded = Arc::clone(&events);
     context.progress_listener = Some(Arc::new(move |event| {
@@ -198,12 +162,8 @@ async fn a_cleanup_failure_after_publication_is_a_success_with_a_warning_and_a_r
             .expect("events")
             .push((event.stage, event.message.clone()));
     }));
-    let mut cleanup_guard = CleanupGuard::new(context.session.id());
-    cleanup_guard.add_path(&session_dir);
-    cleanup_guard.add_path(&staged_output);
-    cleanup_guard.add_path(blocker.join("child"));
 
-    let message = complete_staged_output(&context, staged_output, &mut cleanup_guard)
+    let message = complete_staged_output(&context, staged_output, &mut workspace)
         .expect("a published title stays a success");
 
     assert_eq!(fs::read(&final_output).expect("read final"), b"audio");
@@ -223,35 +183,30 @@ async fn a_cleanup_failure_after_publication_is_a_success_with_a_warning_and_a_r
         completed,
         ["Output created; temporary cleanup needs attention"]
     );
-    assert!(!session_dir.exists(), "what could be removed was removed");
-    cleanup_guard
-        .cleanup_now()
-        .expect_err("the path that failed stays tracked and fails again");
-    fs::remove_file(&blocker).expect("clear the blocker");
-    cleanup_guard
-        .cleanup_now()
-        .expect("the retry succeeds once the blocker is gone");
+    fs::remove_file(&sessions).expect("clear the blocker");
+    crate::test_cases::move_test_file(&backup, &sessions);
+    assert!(session_dir.exists(), "the workspace stays owned for retry");
+    drop(workspace);
+    assert!(!session_dir.exists(), "the retry on drop removes it");
     assert_eq!(fs::read(&final_output).expect("read final"), b"audio");
 }
 
-#[test]
-fn a_cancel_after_publication_keeps_the_published_output_and_still_cleans_the_workspace() {
-    let root = TempDir::new().expect("temp root");
-    let temp_dir = root.path().join("worker-temp");
-    fs::create_dir_all(&temp_dir).expect("create worker temp dir");
-    let temp_output = temp_dir.join("worker-output.m4b");
+#[tokio::test]
+async fn a_cancel_after_publication_keeps_the_published_output_and_still_cleans_the_workspace() {
+    let local = TempDir::new().expect("local workspace root");
+    let destination = TempDir::new().expect("destination root");
+    let final_output = destination.path().join("final-output.m4b");
+    let (_context, mut workspace) = context_for(&local, &final_output, false).await;
+    let temp_output = workspace.dir().join("worker-output.m4b");
     fs::write(&temp_output, b"payload").expect("write temp output");
-    let final_output = root.path().join("final-output.m4b");
-    let mut cleanup_guard = CleanupGuard::new("commit-test".to_string());
-    cleanup_guard.add_path(&temp_dir);
-    cleanup_guard.add_path(&temp_output);
+    let temp_dir = workspace.dir().to_path_buf();
 
     let published = commit_output_artifact(
         OutputCommitRequest::new(&final_output, PlannedOutputAction::Write),
-        temp_output.clone(),
+        temp_output,
     )
     .expect("commit should succeed");
-    let outcome = settle_published(published, &temp_output, &mut cleanup_guard, || true);
+    let outcome = settle_published(published, &mut workspace, || true);
 
     assert!(outcome.cancelled, "expected cancellation after move");
     assert!(final_output.exists(), "moved output should be preserved");
@@ -261,24 +216,24 @@ fn a_cancel_after_publication_keeps_the_published_output_and_still_cleans_the_wo
     );
 }
 
-#[test]
-fn committed_output_survives_cleanup_failure_with_visible_warning_and_retry() {
-    let root = TempDir::new().expect("create isolated test directory");
-    let workspace = root.path().join("workspace");
-    let backup = root.path().join("workspace-backup");
-    fs::create_dir(&workspace).expect("create test workspace");
-    let staged = workspace.join("staged.m4b");
-    let output = root.path().join("book.m4b");
+#[tokio::test]
+async fn committed_output_survives_cleanup_failure_with_visible_warning_and_retry() {
+    let local = TempDir::new().expect("local workspace root");
+    let destination = TempDir::new().expect("destination root");
+    let output = destination.path().join("book.m4b");
+    let (_context, mut workspace) = context_for(&local, &output, false).await;
+    let sessions = local.path().join("processing").join("sessions");
+    let backup = local.path().join("sessions-backup");
+    let staged = workspace.dir().join("staged.m4b");
     fs::write(&staged, b"complete book").expect("write test fixture");
-    let mut guard = CleanupGuard::new("cleanup-warning".into());
     let published = commit_output_artifact(
         OutputCommitRequest::new(&output, PlannedOutputAction::Write),
         staged.clone(),
     )
     .expect("publication remains successful when staged cleanup fails");
-    let outcome = settle_published(published, &staged, &mut guard, || {
-        crate::test_cases::move_test_file(&workspace, &backup);
-        fs::write(&workspace, b"blocks cleanup traversal").expect("write test fixture");
+    let outcome = settle_published(published, &mut workspace, || {
+        crate::test_cases::move_test_file(&sessions, &backup);
+        fs::write(&sessions, b"blocks cleanup traversal").expect("write test fixture");
         false
     });
     assert_eq!(
@@ -294,9 +249,9 @@ fn committed_output_survives_cleanup_failure_with_visible_warning_and_retry() {
     assert!(success
         .result_message
         .contains("temporary files could not be removed"));
-    fs::remove_file(&workspace).expect("remove test traversal blocker");
-    crate::test_cases::move_test_file(&backup, &workspace);
-    drop(guard);
+    fs::remove_file(&sessions).expect("remove test traversal blocker");
+    crate::test_cases::move_test_file(&backup, &sessions);
+    drop(workspace);
     assert!(!staged.exists());
     assert_eq!(
         fs::read(&output).expect("read published artifact"),

@@ -1,4 +1,3 @@
-use crate::audio::cleanup::CleanupGuard;
 use crate::audio::file_list::FileListInfo;
 use crate::audio::settings_encoder::EncoderSettings;
 use crate::audio::AudioFile;
@@ -39,6 +38,7 @@ pub(in crate::audio) mod resolution;
 mod run_diagnostics;
 mod staging;
 mod streams;
+mod workspace;
 
 pub(crate) use decoder::codec_library_versions;
 pub(in crate::audio) use measured_length::measured_length_seconds;
@@ -224,16 +224,16 @@ pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<Audi
     })?
 }
 
-pub(crate) struct ProcessingWorkflow {
-    pub(crate) temp_dir: std::path::PathBuf,
+struct ProcessingWorkflow {
+    workspace: workspace::Workspace,
     /// Seconds, summed over the valid inputs.
-    pub(crate) total_duration: f64,
+    total_duration: f64,
 }
 
 impl ProcessingWorkflow {
-    pub(crate) fn new(temp_dir: std::path::PathBuf, total_duration: f64) -> Self {
+    fn new(workspace: workspace::Workspace, total_duration: f64) -> Self {
         Self {
-            temp_dir,
+            workspace,
             total_duration,
         }
     }
@@ -246,9 +246,7 @@ fn process_audiobook_with_context(
     metadata: Option<AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
 ) -> Result<AudioRunOutcome> {
-    let mut workflow_cleanup = CleanupGuard::new(context.session.id());
-    let workflow = prepare::validate_and_prepare(&context, &files, &mut workflow_cleanup)?;
-    let workflow_temp_dir = workflow.temp_dir.clone();
+    let mut workflow = prepare::validate_and_prepare(&context, &files)?;
 
     let passthrough_sources = passthrough_sources_from_audio_files(&files);
     let mut extracted = extract_passthrough_metadata(&passthrough_sources);
@@ -275,12 +273,11 @@ fn process_audiobook_with_context(
 
     let message = finalize::finalize_processing(
         &context,
-        workflow,
+        &mut workflow,
         merged_output,
         effective_metadata,
         passthrough_metadata.as_ref(),
     )?;
-    let _ = workflow_cleanup.forget_path(&workflow_temp_dir);
     Ok(AudioRunOutcome {
         message,
         warnings: passthrough_warnings

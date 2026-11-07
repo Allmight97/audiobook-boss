@@ -1,6 +1,5 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use crate::audio::CleanupGuard;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::AudiobookMetadata;
 use crate::output_artifact::{
@@ -8,6 +7,7 @@ use crate::output_artifact::{
 };
 use crate::processing::ProcessingContext;
 
+use super::workspace::Workspace;
 use super::ProcessingWorkflow;
 
 struct PublishedOutput {
@@ -26,15 +26,12 @@ fn ensure_not_cancelled_before_commit(context: &ProcessingContext) -> Result<()>
 
 fn settle_published(
     path: PathBuf,
-    staged_output: &Path,
-    cleanup_guard: &mut CleanupGuard,
+    workspace: &mut Workspace,
     is_cancelled: impl FnOnce() -> bool,
 ) -> PublishedOutput {
-    cleanup_guard.add_path(staged_output);
-    cleanup_guard.forget_path(&path);
     let cancelled = is_cancelled();
-    let cleanup_warning = cleanup_guard
-        .cleanup_now()
+    let cleanup_warning = workspace
+        .published(&path)
         .err()
         .map(|error| cleanup_failure_warning(&error));
     PublishedOutput {
@@ -47,7 +44,7 @@ fn settle_published(
 pub(super) fn complete_staged_output(
     context: &ProcessingContext,
     staged_output: PathBuf,
-    cleanup_guard: &mut CleanupGuard,
+    workspace: &mut Workspace,
 ) -> Result<String> {
     ensure_not_cancelled_before_commit(context)?;
     super::run_diagnostics::log_output_observation(context, &staged_output);
@@ -62,12 +59,7 @@ pub(super) fn complete_staged_output(
         ensure_not_cancelled_before_commit(context)?;
         crate::diagnostics::stage("publish", &staged_output, || {
             let path = commit_output_artifact(commit_request, staged_output.clone())?;
-            Ok(settle_published(
-                path,
-                &staged_output,
-                cleanup_guard,
-                || context.is_cancelled(),
-            ))
+            Ok(settle_published(path, workspace, || context.is_cancelled()))
         })
         .map(|outcome| {
             let published = outcome.path.clone();
@@ -100,21 +92,9 @@ pub(super) fn complete_staged_output(
     Ok(success.result_message)
 }
 
-pub(crate) fn complete_processing(
-    context: &ProcessingContext,
-    workflow: ProcessingWorkflow,
-    merged_output: PathBuf,
-) -> Result<String> {
-    let mut cleanup_guard = CleanupGuard::new(context.session.id());
-    cleanup_guard.add_path(workflow.temp_dir);
-    cleanup_guard.add_path(&merged_output);
-
-    complete_staged_output(context, merged_output, &mut cleanup_guard)
-}
-
 pub(crate) fn finalize_processing(
     context: &ProcessingContext,
-    workflow: ProcessingWorkflow,
+    workflow: &mut ProcessingWorkflow,
     merged_output: PathBuf,
     metadata: Option<AudiobookMetadata>,
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
@@ -128,7 +108,7 @@ pub(crate) fn finalize_processing(
     if rewrote {
         ui.emit_finalizing("Finalizing...");
     }
-    complete_processing(context, workflow, merged_output)
+    complete_staged_output(context, merged_output, &mut workflow.workspace)
 }
 
 #[cfg(test)]

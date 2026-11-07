@@ -31,7 +31,6 @@ fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
 
 #[tokio::test]
 async fn cancellation_after_workspace_creation_keeps_cleanup_ownership() {
-    use crate::audio::CleanupGuard;
     use crate::processing::{JobRegistry, OutputConfig, ProcessingSession};
     let registry = JobRegistry::new(1);
     let (job, _permit) = registry.register_job().await.expect("register test job");
@@ -45,9 +44,7 @@ async fn cancellation_after_workspace_creation_keeps_cleanup_ownership() {
         OutputConfig::new(root.path().join("output.m4b")),
         workspace.clone(),
     );
-    let mut cleanup = CleanupGuard::new(context.session.id());
-    assert!(prepare_workspace(&context, &[], &mut cleanup).is_err());
-    drop(cleanup);
+    assert!(prepare_workspace(&context, &[]).is_err());
     assert_eq!(
         std::fs::read_dir(workspace)
             .expect("inspect workspace residue")

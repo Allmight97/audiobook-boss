@@ -1,6 +1,6 @@
 //! Packet-copy joining for matching AAC sources with complete, contiguous frames.
 //! Interior priming, padding and decoder resets require re-encoding.
-use crate::audio::{AudioFile, CleanupGuard, FileListInfo};
+use crate::audio::{AudioFile, FileListInfo};
 use crate::errors::{AppError, Result};
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::ProcessingContext;
@@ -196,12 +196,7 @@ pub(super) fn execute(
     metadata: Option<AudiobookMetadata>,
     cover_policy: CoverArtPassthroughPolicy,
 ) -> Result<super::AudioRunOutcome> {
-    let workspace = super::staging::create_processing_workspace_dir(
-        context.session.uuid(),
-        context.processing_workspace_root(),
-    )?;
-    let mut cleanup = CleanupGuard::new(context.session.id());
-    cleanup.add_path(&workspace);
+    let mut workspace = super::workspace::Workspace::open(&context)?;
     context
         .new_emitter()
         .emit_converting_start("Preserving original audio...");
@@ -213,10 +208,9 @@ pub(super) fn execute(
             .ok_or_else(|| incompatible("source identity is missing"))?
             .source_fingerprint
             .as_str();
-        let folder = workspace.join(format!("source-{index}"));
+        let folder = workspace.dir().join(format!("source-{index}"));
         std::fs::create_dir_all(&folder).map_err(AppError::Io)?;
         let path = folder.join(file.path.file_name().unwrap_or_default());
-        cleanup.add_path(&path);
         super::preserve::copy_with_cancellation(
             &file.path,
             fingerprint,
@@ -230,9 +224,9 @@ pub(super) fn execute(
         copies.push(copy);
     }
     let staged: PathBuf = workspace
+        .dir()
         .join("merged")
         .with_extension(context.output.final_path().extension().unwrap_or_default());
-    cleanup.add_path(&staged);
     super::preserve::emit_progress(
         &context,
         0.5,
@@ -256,7 +250,7 @@ pub(super) fn execute(
         .emit_metadata_start("Writing title metadata and chapters...");
     crate::metadata::finalize_artifact_metadata(&staged, metadata.as_ref(), passthrough.as_ref())?;
     Ok(super::AudioRunOutcome {
-        message: super::finalize::complete_staged_output(&context, staged, &mut cleanup)?,
+        message: super::finalize::complete_staged_output(&context, staged, &mut workspace)?,
         warnings: passthrough_warnings
             .into_iter()
             .chain(cover_warning)

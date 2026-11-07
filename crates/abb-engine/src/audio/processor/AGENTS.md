@@ -45,9 +45,12 @@ execution pipeline. Final artifact commit policy lives in `output_artifact/`.
   a preview length that tests can assert exactly.
 - Drop probe/inspection contexts before reopening the same path for decoder
   trials, processing, replacement, or another library.
-- Register newly created workspaces with cleanup before observing cancellation.
-  Failed cleanup stays tracked for retry; post-publication cleanup failure
-  preserves success with an explicit warning from Output Artifact.
+- One `Workspace` (`workspace.rs`) per job owns the temp folder and every
+  staged file under it, and stages borrow it. It is registered when created,
+  before the job observes cancellation, and removed on drop or when
+  `published` runs after publication. Failed cleanup stays owned for retry;
+  post-publication cleanup failure preserves success with an explicit warning
+  from Output Artifact.
 - Metadata finalize writes happen only for supported container paths and
   validated metadata payloads.
 - Cancel is checked again right before commit: publishing may first wait for
@@ -78,7 +81,7 @@ execution pipeline. Final artifact commit policy lives in `output_artifact/`.
 - The private `encoder::EncoderSession` owns the selected backend, PCM
   submission, packet muxing, drain, and trailer. Callers submit contiguous
   frames and finish the session; backend handles and packet mechanics stay
-  inside `encoder/`. Declare its output cleanup guard before opening the session
+  inside `encoder/`. Declare the job's `Workspace` before opening the session
   so handles close before cleanup removes a failed output.
 
 ## FAAC and HE-AAC file timing

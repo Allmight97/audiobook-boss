@@ -222,8 +222,6 @@ pub use settings_encoder::{
     BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, FaacProfile,
 };
 
-pub(crate) use cleanup::CleanupGuard;
-
 pub(crate) fn processing_workspace_root(cache_dir: &Path) -> PathBuf {
     processor::processing_workspace_root(cache_dir)
 }

@@ -24,7 +24,7 @@ pub(crate) fn execute_processing(
     );
 
     let merged_output = merge_audio_files_with_context(
-        &workflow.temp_dir,
+        workflow.workspace.dir(),
         context,
         settings,
         workflow.total_duration,

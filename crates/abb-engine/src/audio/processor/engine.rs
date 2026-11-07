@@ -7,7 +7,6 @@ use super::run_diagnostics::{
     append_run_record, encoding_log_enabled, write_common_run_fields, write_run_header,
     write_run_identity,
 };
-use crate::audio::cleanup::CleanupGuard;
 use crate::audio::processor::plan::MediaProcessingPlan;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::processing::ProcessingContext;
@@ -135,8 +134,6 @@ fn execute_pipeline(
         let _ = ff::init();
     });
 
-    let mut cleanup_guard = CleanupGuard::new(context.session.id());
-    cleanup_guard.add_path(&plan.output_path);
     let mut enc_ctx = crate::audio::processor::encoder::setup_encoder(plan, metadata, passthrough)?;
 
     if let Some(diagnostics) = diagnostics.as_deref_mut() {
@@ -164,8 +161,6 @@ fn execute_pipeline(
         diagnostics.encoder_details = Some(enc_ctx.diagnostics());
     }
     result?;
-
-    let _ = cleanup_guard.forget_path(&plan.output_path);
 
     if metadata.is_some() {
         log::info!("Audio processing completed with metadata integration");
