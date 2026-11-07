@@ -92,9 +92,10 @@ pub struct IndexerDraftSnapshot {
     pub save: RemoteDraftStatus,
     pub test: RemoteDraftStatus,
     pub test_result: Option<RemoteIndexerConnectionTestResult>,
-    /// Why the API key or the URL was refused, the key first. The draft keeps
-    /// the value it accepted before; Save and Test refuse until a new value
-    /// for each refused field is accepted.
+    /// Why the API key or the URL was refused, the key first. The URL draft
+    /// shows what was typed; the key draft keeps the value it accepted
+    /// before. Save and Test refuse until a new value for each refused field
+    /// is accepted.
     pub draft_error: Option<AppErrorEnvelope>,
     /// The last category edit chose none and was refused; the draft keeps
     /// its categories. A search needs at least one.

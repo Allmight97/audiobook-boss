@@ -122,24 +122,60 @@ it('reopens from the engine draft without exposing another host’s entered key'
 		apiKeyDraft: '',
 	});
 });
-it('shows the engine draft again after an applied reset, whatever was typed before', async () => {
+it('shows exactly what was typed in the URL field while the engine replies, then the engine draft', async () => {
 	const owner = await open();
-	owner.patchIndexerConnectionSettings({ baseUrlDraft: 'https://indexer.test/' });
+	let answer: () => void = () => {};
+	engine.respond = () =>
+		new Promise((resolve) => {
+			answer = () => resolve({ kind: 'applied' });
+		});
+
+	owner.patchIndexerConnectionSettings({ baseUrlDraft: 'HTTPS://Host:443/' });
+	expect(owner.indexerConnection().baseUrlDraft).toBe('HTTPS://Host:443/');
+	owner.patchIndexerConnectionSettings({ baseUrlDraft: 'HTTPS://Host:443/books' });
+	expect(owner.indexerConnection().baseUrlDraft).toBe('HTTPS://Host:443/books');
+
 	engine.change((state) => {
-		state.remote.connection.baseUrl = 'https://indexer.test';
+		state.remote.connection.baseUrl = 'HTTPS://Host:443/books';
 	});
+	answer();
+	await vi.waitFor(() =>
+		expect(owner.indexerConnection().baseUrlDraft).toBe('HTTPS://Host:443/books'),
+	);
+});
+it('keeps a refused URL visible beside its reason', async () => {
+	const owner = await open();
+	owner.patchIndexerConnectionSettings({ baseUrlDraft: 'ftp://indexer.test' });
+	engine.change((state) => {
+		state.remote.connection.baseUrl = 'ftp://indexer.test';
+		state.remote.connection.draftError = {
+			code: 'invalid_input',
+			category: 'validation',
+			message: 'Indexer URL must use http or https.',
+			detail: null,
+		};
+	});
+
+	await vi.waitFor(() =>
+		expect(owner.indexerConnection()).toMatchObject({
+			baseUrlDraft: 'ftp://indexer.test',
+			saveError: 'Indexer URL must use http or https.',
+		}),
+	);
+});
+it('shows the engine’s value once the engine has replied, even if it differs from what was typed', async () => {
+	const owner = await open();
+
+	owner.patchIndexerConnectionSettings({ baseUrlDraft: 'HTTPS://Host:443/' });
 	await vi.waitFor(() =>
 		expect(engine.sessionIntents).toContainEqual({
 			kind: 'remote',
 			intent: expect.objectContaining({ kind: 'editConnection' }),
 		}),
 	);
-	expect(owner.indexerConnection().baseUrlDraft).toBe('https://indexer.test/');
-
-	await runtime!.settings.resetAllAppSettings();
 	engine.change((state) => {
-		state.remote.connection.baseUrl = '';
+		state.remote.connection.baseUrl = 'https://host';
 	});
 
-	await vi.waitFor(() => expect(owner.indexerConnection().baseUrlDraft).toBe(''));
+	await vi.waitFor(() => expect(owner.indexerConnection().baseUrlDraft).toBe('https://host'));
 });

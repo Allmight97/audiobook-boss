@@ -72,8 +72,6 @@ export type SettingsOwner = {
 
 export type SettingsOwnerDeps = {
 	readonly link: EngineLink;
-	/** Called once the engine has applied a reset of every setting. */
-	readonly onAppliedReset: () => void;
 };
 
 type DialogProgress = Omit<AppSettingsDialogState, 'settings' | 'quittingAvailable'>;
@@ -259,7 +257,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			if (!(await runDialogAction('save', { kind: 'reset' }))) return;
 			concurrencyError = '';
 			changed();
-			deps.onAppliedReset();
 		},
 	};
 }

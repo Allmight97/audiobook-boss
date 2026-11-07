@@ -145,3 +145,47 @@ fn each_field_keeps_its_own_refusal_and_the_key_is_shown_first() {
     assert!(shown.message.contains("Indexer URL"), "{}", shown.message);
     assert!(ui.save_connection().is_err());
 }
+
+#[test]
+fn the_draft_holds_the_indexer_url_as_typed_and_save_shows_the_normalized_one() {
+    let mut ui = UiState::default();
+    ui.begin(edit(Some("HTTPS://Host:443/"), None, None))
+        .expect("a valid URL is accepted as typed");
+    assert_eq!(ui.snapshot().connection.base_url, "HTTPS://Host:443/");
+    assert!(ui.snapshot().connection.draft_error.is_none());
+
+    let accepted = ui.save_connection().expect("a valid draft saves");
+    assert_eq!(
+        accepted.connection.base_url.as_deref(),
+        Some("https://host")
+    );
+    ui.saved(accepted.revision, &accepted.connection, &Ok(false));
+
+    assert_eq!(ui.snapshot().connection.base_url, "https://host");
+}
+
+#[test]
+fn a_refused_indexer_url_stays_in_the_draft_beside_its_reason() {
+    let mut ui = UiState::default();
+
+    assert!(ui
+        .begin(edit(Some("ftp://indexer.test"), None, None))
+        .is_err());
+
+    let shown = ui.snapshot().connection;
+    assert_eq!(shown.base_url, "ftp://indexer.test");
+    assert!(shown.draft_error.is_some());
+}
+
+#[test]
+fn a_test_sends_the_trimmed_typed_url_for_the_provider_to_normalize() {
+    let mut ui = UiState::default();
+    ui.begin(edit(Some("  HTTPS://Host:443/  "), None, Some("key")))
+        .expect("edit");
+
+    let Ok(UiAction::Test { update, .. }) = ui.begin(RemoteUiIntent::TestConnection) else {
+        panic!("a valid draft tests");
+    };
+
+    assert_eq!(update.base_url.as_deref(), Some("HTTPS://Host:443/"));
+}

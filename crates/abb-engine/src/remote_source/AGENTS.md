@@ -191,6 +191,10 @@ selection change.
   adapter maps a hit. Select and Grab intents carry only that key; selection,
   grab outcomes, and `sent_releases` all index by it. `indexer.canGrabSelection`
   (some selected release is not Sent) is computed in `UiState::snapshot`.
+- The draft holds the Indexer URL as typed. An edit normalizes it only to set
+  the URL's refusal (`draft_error`); Test and Save normalize as they always
+  did, and a finished Save shows the saved value. Why: rewriting the field
+  under the user's cursor loses keystrokes.
 - The draft starts from the saved settings; Load reads only whether a key is
   stored for the saved URL. An applied Reset replaces the draft, clears its
   errors, failures, and search results, and rereads the account when the Indexer

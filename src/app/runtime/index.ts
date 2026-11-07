@@ -20,10 +20,7 @@ export async function createAppRuntime(
 	const link = await attachEngineLink(capabilities.engine);
 	return createRoot((disposeRoot) => {
 		const input = createInputOwner({ link, capability: capabilities.input });
-		const settings = createSettingsOwner({
-			link,
-			onAppliedReset: () => remoteSource.discardIndexerConnectionEdits(),
-		});
+		const settings = createSettingsOwner({ link });
 		const metadata = createMetadataOwner({ link, capability: capabilities.metadata });
 		const encoding = createEncodingOwner({ link });
 		const output = createOutputOwner({ link });

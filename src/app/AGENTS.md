@@ -47,14 +47,12 @@ second copy of owner state.
   results. A changed remote part keeps the objects of its unchanged selection
   lists, PDF choices, releases, and grab records. Solid rows are not rebuilt,
   and a click does not land on a replaced element.
-- Adapters show typed text (form fields, lookup queries, the naming template)
-  through `createTypingEcho`: at once, until the engine's reply for that
-  keystroke arrives, and only in the scope the owner names (the form's
-  `binding`, the lookup queue item). The echo is display only and never decides what is saved.
+- Adapters show typed text (form fields, lookup queries, the naming template,
+  the Remote Source Indexer URL) through `createTypingEcho`: at once, until the
+  engine's reply for that keystroke arrives, and only in the scope the owner
+  names (the form's `binding`, the lookup queue item). The echo is display only
+  and never decides what is saved.
   Form edits send the `binding` the form shows.
-  The Remote Source URL echo does not use it: it drops only once the engine's
-  URL matches the trimmed text, or at once when an applied settings Reset
-  discards the typed connection edits (below).
 
 ## Owner Interface
 
@@ -155,10 +153,10 @@ without a bullet has none. Engine paths name the owner of the truth.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and
   `selectLane` send only the lane intent. Connection editing sends write-only
   key, URL, and category intents; keys never come back from the engine, and
-  only unconfirmed URL typing and the key's visual echo stay local. An applied
-  settings Reset reaches it through the settings owner's `onAppliedReset`
-  (wired in `runtime/index.ts`) and `discardIndexerConnectionEdits()`, so the
-  form shows the engine's default connection. Close
+  only the URL's typing echo and the key's visual echo stay local. The engine
+  draft holds the URL as typed and normalizes it only on Test and Save, so the
+  form shows the engine's draft, a refused URL included, once its reply
+  arrives. Close
   leaves accepted work running. Disposal invalidates pending
   authorization-browser replies. An authorization URL occurs only in the
   initiating intent outcome; snapshots never reopen a browser. The

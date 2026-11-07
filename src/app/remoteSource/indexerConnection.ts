@@ -1,7 +1,7 @@
 import { createEffect, createSignal, type Accessor } from 'solid-js';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { RemoteUiIntent } from '../../lib/generated/tauri';
-import type { EngineLink } from '../engineLink';
+import { createTypingEcho, type EngineLink } from '../engineLink';
 
 export type IndexerConnectionSettingsView = {
 	baseUrlDraft: string;
@@ -28,11 +28,11 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 	reset(): void;
 } {
 	const [revision, bump] = createSignal(0, { ownedWrite: true });
-	let typed: { baseUrlDraft?: string } | null = null;
 	let keyEcho = '';
 	let keyAccepted = false;
 	let localError = '';
 	const changed = () => bump((value) => value + 1);
+	const typed = createTypingEcho<'baseUrl'>({ scopeOf: () => [], changed });
 	createEffect(
 		() => link.remote().connection.apiKeyEntered,
 		(entered) => {
@@ -66,7 +66,7 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 						? toUserMessage(draft.draftError)
 						: localError;
 			return {
-				baseUrlDraft: typed?.baseUrlDraft ?? draft.baseUrl,
+				baseUrlDraft: typed.valueOf('baseUrl') ?? draft.baseUrl,
 				categoryIdsDraft: draft.categoryIds,
 				categoriesRefused: draft.emptyCategoriesRefused,
 				apiKeyDraft: keyEcho,
@@ -97,38 +97,26 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			await send({ kind: 'loadConnection' });
 		},
 		patch(patch) {
-			const echo = {
-				...typed,
-				...(patch.baseUrlDraft === undefined ? {} : { baseUrlDraft: patch.baseUrlDraft }),
-			};
-			typed = echo;
 			if (patch.apiKeyDraft !== undefined) keyEcho = patch.apiKeyDraft;
 			localError = '';
 			changed();
-			void link
-				.send({
-					kind: 'remote',
-					intent: {
-						kind: 'editConnection',
-						baseUrl: patch.baseUrlDraft ?? null,
-						categoryIds: patch.categoryIdsDraft ?? null,
-						apiKey: patch.apiKeyDraft ?? null,
-					},
-				})
-				.catch((error: unknown) => {
-					localError = toUserMessage(error);
-					changed();
-				})
-				.finally(() => {
-					if (
-						typed === echo &&
-						(echo.baseUrlDraft === undefined ||
-							echo.baseUrlDraft.trim() === link.remote().connection.baseUrl)
-					) {
-						typed = null;
+			const sendEdit = () =>
+				link
+					.send({
+						kind: 'remote',
+						intent: {
+							kind: 'editConnection',
+							baseUrl: patch.baseUrlDraft ?? null,
+							categoryIds: patch.categoryIdsDraft ?? null,
+							apiKey: patch.apiKeyDraft ?? null,
+						},
+					})
+					.catch((error: unknown) => {
+						localError = toUserMessage(error);
 						changed();
-					}
-				});
+					});
+			if (patch.baseUrlDraft === undefined) void sendEdit();
+			else typed.show('baseUrl', patch.baseUrlDraft, sendEdit);
 		},
 		async save() {
 			await send({ kind: 'saveConnection' });
@@ -137,7 +125,7 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			await send({ kind: 'testConnection' });
 		},
 		reset() {
-			typed = null;
+			typed.clear();
 			keyEcho = '';
 			localError = '';
 			changed();

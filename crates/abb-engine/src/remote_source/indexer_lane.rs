@@ -78,16 +78,14 @@ impl UiState {
     ) -> Result<()> {
         let mut refusal = None;
         if let Some(url) = base_url {
-            match normalize_base_url(url) {
-                Ok(url) => {
-                    self.indexer.url_refusal = None;
-                    self.snapshot.connection.base_url = url.unwrap_or_default();
-                }
+            match normalize_base_url(url.clone()) {
+                Ok(_) => self.indexer.url_refusal = None,
                 Err(error) => {
                     self.indexer.url_refusal = Some(AppErrorEnvelope::from(&error));
                     refusal = Some(error);
                 }
             }
+            self.snapshot.connection.base_url = url;
         }
         if let Some(key) = api_key {
             match validate_api_key(key.trim()) {
