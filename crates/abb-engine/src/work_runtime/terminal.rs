@@ -1,9 +1,5 @@
-use super::types::{
-    ChildJobStatus, OperationTerminalSummary, WorkOperationStatus, WorkProgressStage,
-};
-use crate::processing::{
-    classify_run_terminal, OperationResultSummary, ProcessResultStatus, RunTerminalClass,
-};
+use super::types::{OperationTerminalSummary, WorkOperationStatus};
+use crate::processing::{classify_run_terminal, OperationResultSummary, RunTerminalClass};
 
 pub(crate) fn operation_terminal_summary(
     summary: &OperationResultSummary,
@@ -40,44 +36,8 @@ fn work_status_from_terminal_class(class: RunTerminalClass) -> WorkOperationStat
     }
 }
 
-pub(crate) fn child_status_from_result_status(status: ProcessResultStatus) -> ChildJobStatus {
-    match status {
-        ProcessResultStatus::Success => ChildJobStatus::Completed,
-        ProcessResultStatus::Skipped => ChildJobStatus::Skipped,
-        ProcessResultStatus::Cancelled => ChildJobStatus::Cancelled,
-        ProcessResultStatus::Failed => ChildJobStatus::Failed,
-    }
-}
-
-pub(crate) fn stage_from_status(status: WorkOperationStatus) -> WorkProgressStage {
-    match status {
-        WorkOperationStatus::Completed | WorkOperationStatus::Mixed => WorkProgressStage::Complete,
-        WorkOperationStatus::Cancelled => WorkProgressStage::Cancelled,
-        WorkOperationStatus::Failed => WorkProgressStage::Failed,
-        WorkOperationStatus::Accepted => WorkProgressStage::Pending,
-        WorkOperationStatus::Running => WorkProgressStage::Converting,
-        WorkOperationStatus::Cancelling => WorkProgressStage::Cleaning,
-    }
-}
-
-pub(crate) fn stage_from_child_status(status: ChildJobStatus) -> WorkProgressStage {
-    match status {
-        ChildJobStatus::Completed | ChildJobStatus::Skipped => WorkProgressStage::Complete,
-        ChildJobStatus::Cancelled => WorkProgressStage::Cancelled,
-        ChildJobStatus::Failed => WorkProgressStage::Failed,
-        ChildJobStatus::Queued => WorkProgressStage::Pending,
-        ChildJobStatus::Running => WorkProgressStage::Converting,
-    }
-}
-
 pub(crate) fn is_terminal(status: WorkOperationStatus) -> bool {
-    matches!(
-        status,
-        WorkOperationStatus::Completed
-            | WorkOperationStatus::Cancelled
-            | WorkOperationStatus::Failed
-            | WorkOperationStatus::Mixed
-    )
+    super::stage_table::for_finished_operation(status).is_some()
 }
 
 fn terminal_message(summary: &OperationResultSummary) -> String {

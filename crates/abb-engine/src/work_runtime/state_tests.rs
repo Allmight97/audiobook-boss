@@ -353,7 +353,7 @@ fn single_title_state(id: &str) -> (WorkRuntimeState, OperationId) {
 }
 
 #[test]
-fn a_single_title_export_takes_its_titles_stage_and_fails_with_it() {
+fn a_single_title_export_mirrors_its_title_and_stays_running() {
     let (mut state, operation_id) = single_title_state("single-complete");
     let snapshot = state
         .apply_progress_event(
@@ -381,7 +381,7 @@ fn a_single_title_export_takes_its_titles_stage_and_fails_with_it() {
             1_000,
         )
         .expect("progress");
-    assert_eq!(snapshot.status, WorkOperationStatus::Failed);
+    assert_eq!(snapshot.status, WorkOperationStatus::Running);
     assert_eq!(snapshot.children[0].status, ChildJobStatus::Failed);
 }
 

@@ -76,3 +76,11 @@
 - Reach processing through `processing::run`.
 - `WorkProgressStage` is a work_runtime-owned display vocabulary;
   `src/app/processing/render.ts` words each stage directly.
+- A progress event never changes an operation's status; only the run's result
+  or abort does, through `terminalize` (`state.rs`). Why: the UI,
+  `unfinished_exports`, and `abb-dev` read a terminal status as finished, and a
+  title's cleanup ends after its last progress event. A single-title operation still mirrors its
+  title's stage, message, and ETA.
+- `stage_table.rs` is the one table relating result status, event stage, child
+  status, finished operation status, and display stage. `Cleaning` is the wire
+  value that shows an operation as cancelling (`CANCELLING_STAGE`).
