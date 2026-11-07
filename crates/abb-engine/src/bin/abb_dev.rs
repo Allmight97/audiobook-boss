@@ -22,7 +22,9 @@ use abb_engine::session::{
     AudioEdit, CollisionReview, MetadataField, MetadataStatus, SessionIntent, SessionOutcome,
     SessionUpdate, SubmissionStatus,
 };
-use abb_engine::work_runtime::{ChildJobStatus, OperationId, OperationPhase, OperationSnapshot};
+use abb_engine::work_runtime::{
+    ChildJobStatus, OperationId, OperationPhase, OperationSnapshot, WorkOperationsUpdate,
+};
 use abb_engine::{Engine, EngineConfig, EngineEvent, EventSink};
 
 #[path = "abb_dev/during_export.rs"]
@@ -232,10 +234,13 @@ impl PrintProgress {
 
 impl EventSink for PrintProgress {
     fn emit(&self, event: EngineEvent) {
-        let EngineEvent::WorkOperations(update) = event else {
+        let EngineEvent::WorkOperations(WorkOperationsUpdate {
+            changed: Some(operation),
+            ..
+        }) = event
+        else {
             return;
         };
-        let operation = update.changed;
         self.keep_newest(&operation);
         let Ok(mut seen) = self.seen.lock() else {
             return;

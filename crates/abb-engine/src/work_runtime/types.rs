@@ -187,21 +187,27 @@ impl OperationSnapshot {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkOperationsSnapshot {
-    /// Advances with every change to any operation or to the order.
+    /// Advances with every change to any operation, to the order, or to
+    /// `concurrency_locked`.
     pub revision: u64,
     pub order: Vec<OperationId>,
     pub operations: Vec<OperationSnapshot>,
+    /// The engine refuses a change of the job limit now: a job or an export
+    /// is active.
+    pub concurrency_locked: bool,
 }
 
 /// One change. A host keeps the newest `changed` per operation (by its own
-/// `revision`) and the `order` with the highest `revision`, so updates may
-/// arrive in any order; an operation missing from that order is not shown.
+/// `revision`) and the `order` and `concurrency_locked` of the highest
+/// `revision`, so updates may arrive in any order; an operation missing from
+/// that order is not shown. `changed` is absent when only the lock changed.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkOperationsUpdate {
     pub revision: u64,
     pub order: Vec<OperationId>,
-    pub changed: OperationSnapshot,
+    pub changed: Option<OperationSnapshot>,
+    pub concurrency_locked: bool,
 }
 
 #[derive(Debug, Clone)]

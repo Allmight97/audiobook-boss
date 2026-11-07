@@ -47,6 +47,34 @@ impl WorkRuntime {
 }
 
 impl WorkRuntime {
+    pub(crate) fn follow_concurrency_lock(
+        &self,
+        host: &Host,
+        registry: &crate::ManagedJobRegistry,
+    ) {
+        let runtime = Arc::downgrade(&self.inner);
+        let observed = Arc::downgrade(registry);
+        let host = host.clone();
+        registry.observe_concurrency_lock(Arc::new(move || {
+            if let (Some(inner), Some(registry)) = (runtime.upgrade(), observed.upgrade()) {
+                WorkRuntime { inner }.publish_concurrency_lock(&host, &registry);
+            }
+        }));
+        self.recover_operations()
+            .state
+            .set_concurrency_locked(registry.concurrency_locked());
+    }
+
+    fn publish_concurrency_lock(&self, host: &Host, registry: &crate::ManagedJobRegistry) {
+        let update = self
+            .recover_operations()
+            .state
+            .set_concurrency_locked(registry.concurrency_locked());
+        if let Some(update) = update {
+            host.emit(EngineEvent::WorkOperations(update));
+        }
+    }
+
     pub(crate) async fn submit_processing_operation(
         &self,
         host: Host,

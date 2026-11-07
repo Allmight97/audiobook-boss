@@ -51,6 +51,12 @@
   progress through the output's Completed event. Keep each child's finish when
   the batch settles; missing timestamps mean unknown, so derive them from
   neither logs nor batch duration.
+- `concurrency_locked` in the operations snapshot and every update is the job
+  registry's rule (a job or a held run is active), the same one that refuses a
+  job-limit change. `follow_concurrency_lock` publishes an update, without a
+  `changed` operation, whenever that rule's answer changes, so the lock can
+  clear after an operation's last update. Hosts keep the value of the update
+  with the highest `revision`.
 - An export holds concurrency fixed from acceptance to its end, including
   between titles. One lock guards every operation's snapshot beside its live
   record (title cancel tokens and sources). Acceptance inserts both together,

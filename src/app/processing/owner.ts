@@ -6,8 +6,8 @@ import {
 	untrack,
 	type Accessor,
 } from 'solid-js';
-import type { SettingsOwner } from '../appSettings';
 import type { EngineLink } from '../engineLink';
+import { concurrencyLabel } from '../../lib/format/concurrency';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { OutputSnapshot, RestartOffer, SessionIntent } from '../../lib/generated/tauri';
 import { processingFailure } from './submit';
@@ -40,7 +40,6 @@ export type ProcessingOwner = {
 
 export type ProcessingOwnerDeps = {
 	readonly link: EngineLink;
-	readonly settings: SettingsOwner;
 };
 
 export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwner {
@@ -63,7 +62,7 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			submission,
 			localError:
 				error?.previewRun === previewRun && error.submission === submission ? error.message : null,
-			concurrencyText: deps.settings.concurrency().label,
+			concurrencyText: concurrencyLabel(deps.link.settings().concurrency),
 		});
 	});
 	function cancelPreview(childJobId?: string): void {
@@ -96,10 +95,6 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			showError(processingFailure(error));
 		}
 	}
-	createEffect(
-		() => deps.link.output().submissionInProgress,
-		(active) => deps.settings.setControlsEnabled(!active),
-	);
 
 	return {
 		restartOffers: () => deps.link.output().restartOffers,

@@ -26,7 +26,7 @@ export async function createAppRuntime(
 		const output = createOutputOwner({ link });
 		const lookup = createMetadataLookupOwner({ link });
 		const remoteSource = createRemoteSourceOwner({ link, ...capabilities.remoteSource });
-		const processing = createProcessingOwner({ link, settings });
+		const processing = createProcessingOwner({ link });
 		const workOperations = createWorkOperationsOwner({ link });
 		const settingsDialogOpen = createMemo(() => settings.dialog().isOpen);
 		createEffect(settingsDialogOpen, (open) => {

@@ -28,8 +28,10 @@ second copy of owner state.
   in between on top of the reply, so no update is missed; part revisions make
   applying one twice harmless. WorkRuntime operations come with the attach
   reply and then as `work-operations-update` events, merged by
-  `workOperations.ts` (newest snapshot per operation, newest order). A cancel's
-  change arrives as one of those events; its reply carries nothing.
+  `workOperations.ts` (newest snapshot per operation, newest order and
+  `concurrencyLocked`). A cancel's change arrives as one of those events; its
+  reply carries nothing. The settings owner reads `concurrencyLocked` to
+  disable the job-count select; no other owner sets that lock.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
   for intents whose outcome and completion nobody awaits; its refusal shows as
   the link's `refusal` (`RefusedChangeNotice`). A `send` caller with its own
@@ -149,7 +151,8 @@ without a bullet has none. Engine paths name the owner of the truth.
   `preview()` sends no length: the engine owns the preview length and content,
   and `previewTooltip()` words `titles.previewLength`.
   The status line is one pure `statusOf(previewRun, submission, localError,
-  concurrency)` in a memo; a failed send or preview open is the only local
+  concurrencyText)` in a memo, with the job-count wording from the link's
+  settings; a failed send or preview open is the only local
   state and shows until the engine reports a new preview run or submission.
   A submission's error line shows over a preview's step line, because a failed
   preview also leaves a blocked submission.

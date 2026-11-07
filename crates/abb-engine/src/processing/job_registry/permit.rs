@@ -19,7 +19,9 @@ impl JobRegistry {
     /// no concurrency permit, so it never waits behind one.
     pub fn register_job_without_permit(&self) -> JobId {
         let job_id = JobId::new();
-        self.admission().jobs.insert(job_id.0);
+        let mut admission = self.admission();
+        admission.jobs.insert(job_id.0);
+        self.announce_lock(admission);
         log::info!("Job {} registered without a permit", job_id);
         job_id
     }
@@ -36,7 +38,9 @@ impl JobRegistry {
         let semaphore = {
             let mut admission = self.admission();
             admission.jobs.insert(job_id.0);
-            admission.semaphore.clone()
+            let semaphore = admission.semaphore.clone();
+            self.announce_lock(admission);
+            semaphore
         };
         let pending = PendingAdmission {
             registry: self,

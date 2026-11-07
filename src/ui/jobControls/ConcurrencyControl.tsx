@@ -19,7 +19,7 @@ export function ConcurrencyControl(): JSX.Element {
 				id="concurrency-select"
 				class="concurrency-select"
 				value={view().selection}
-				disabled={!view().controlsEnabled}
+				disabled={view().locked}
 				onChoose={setSelection}
 			>
 				<option value={view().autoSelection}>{`Auto · ${view().autoEffective} jobs`}</option>

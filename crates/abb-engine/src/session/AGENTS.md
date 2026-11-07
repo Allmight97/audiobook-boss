@@ -157,9 +157,9 @@ one host attachment.
   for each review and survives Clear All; choice and cancel intents name it, and
   stale or duplicate answers are `Superseded`. Frontend teardown is not a
   user cancellation. `output.submission_in_progress` owns the busy
-  fact; the frontend also locks the concurrency controls while it is set, and
-  the engine refuses a concurrency change while jobs are active
-  (`processing/job_registry`).
+  fact. The engine refuses a concurrency change while a job or an export is
+  active (`processing/job_registry`) and publishes that lock as
+  `concurrency_locked` in the work operations (`work_runtime/AGENTS.md`).
   `output.restart_prompt` selects one unanswered current offer in title-id order
   only after the preceding answer's work settles; answering suppresses that
   offer's automatic question for the engine session, even if Restart or Keep

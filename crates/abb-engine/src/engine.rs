@@ -138,6 +138,7 @@ impl Engine {
         }
 
         let work = WorkRuntime::new(tasks.clone());
+        work.follow_concurrency_lock(&host, &jobs);
         let session = Session::new(SessionDeps {
             remote: remote_source.clone(),
             host: host.clone(),

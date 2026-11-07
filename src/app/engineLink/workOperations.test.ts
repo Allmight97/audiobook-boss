@@ -54,6 +54,32 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 }
 
 describe('work center model', () => {
+	it('keeps the concurrency lock of the newest update, with or without a changed operation', () => {
+		let model = applyWorkOperations(emptyWorkCenterModel(), {
+			revision: 2,
+			order: [],
+			concurrencyLocked: true,
+			changed: null,
+		});
+		expect(model.concurrencyLocked).toBe(true);
+
+		model = applyWorkOperations(model, {
+			revision: 1,
+			order: [],
+			concurrencyLocked: false,
+			changed: null,
+		});
+		expect(model.concurrencyLocked).toBe(true);
+
+		model = applyWorkOperations(model, {
+			revision: 3,
+			order: [],
+			concurrencyLocked: false,
+			changed: null,
+		});
+		expect(model.concurrencyLocked).toBe(false);
+	});
+
 	const at = (op: OperationSnapshot, revision: number) => ({ ...op, revision });
 	const ids = (model: ReturnType<typeof emptyWorkCenterModel>) =>
 		visibleOperations(model).map((item) => `${item.operationId}@${item.revision}`);
@@ -62,9 +88,24 @@ describe('work center model', () => {
 		const a = operation('a', 1);
 		const b = operation('b', 2);
 		let model = emptyWorkCenterModel();
-		model = applyWorkOperations(model, { revision: 3, order: ['b', 'a'], changed: at(b, 1) });
-		model = applyWorkOperations(model, { revision: 2, order: ['a'], changed: at(a, 2) });
-		model = applyWorkOperations(model, { revision: 1, order: ['a'], changed: at(a, 1) });
+		model = applyWorkOperations(model, {
+			revision: 3,
+			order: ['b', 'a'],
+			concurrencyLocked: false,
+			changed: at(b, 1),
+		});
+		model = applyWorkOperations(model, {
+			revision: 2,
+			order: ['a'],
+			concurrencyLocked: false,
+			changed: at(a, 2),
+		});
+		model = applyWorkOperations(model, {
+			revision: 1,
+			order: ['a'],
+			concurrencyLocked: false,
+			changed: at(a, 1),
+		});
 
 		expect(ids(model)).toEqual(['b@1', 'a@2']);
 	});
@@ -74,11 +115,17 @@ describe('work center model', () => {
 		let model = applyWorkOperations(emptyWorkCenterModel(), {
 			revision: 2,
 			order: ['b', 'a'],
+			concurrencyLocked: false,
 			changed: a,
 		});
 		expect(ids(model)).toEqual(['a@1']);
 
-		model = applyWorkOperations(model, { revision: 1, order: ['b'], changed: operation('b', 2) });
+		model = applyWorkOperations(model, {
+			revision: 1,
+			order: ['b'],
+			concurrencyLocked: false,
+			changed: operation('b', 2),
+		});
 		expect(ids(model)).toEqual(['b@1', 'a@1']);
 	});
 
@@ -87,9 +134,15 @@ describe('work center model', () => {
 		let model = applyWorkOperations(emptyWorkCenterModel(), {
 			revision: 5,
 			order: [],
+			concurrencyLocked: false,
 			changed: operation('b', 2),
 		});
-		model = applyWorkOperations(model, { revision: 4, order: ['a'], changed: at(a, 3) });
+		model = applyWorkOperations(model, {
+			revision: 4,
+			order: ['a'],
+			concurrencyLocked: false,
+			changed: at(a, 3),
+		});
 
 		expect(ids(model)).toEqual([]);
 	});
@@ -99,9 +152,15 @@ describe('work center model', () => {
 		let model = applyWorkOperations(emptyWorkCenterModel(), {
 			revision: 4,
 			order: ['a'],
+			concurrencyLocked: false,
 			changed: at(a, 3),
 		});
-		model = applyWorkOperations(model, { revision: 2, order: ['a'], operations: [at(a, 1)] });
+		model = applyWorkOperations(model, {
+			revision: 2,
+			order: ['a'],
+			concurrencyLocked: false,
+			operations: [at(a, 1)],
+		});
 
 		expect(ids(model)).toEqual(['a@3']);
 	});

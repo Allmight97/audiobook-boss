@@ -201,3 +201,65 @@ fn work_operation_record_labels_pin_all_contract_variants() {
         ["accepted", "running", "cancel_requested", "terminal"]
     );
 }
+
+#[derive(Default)]
+struct PublishedLocks(Mutex<Vec<(u64, bool)>>);
+
+impl crate::EventSink for PublishedLocks {
+    fn emit(&self, event: EngineEvent) {
+        if let EngineEvent::WorkOperations(update) = event {
+            assert!(update.changed.is_none(), "only the lock changed");
+            self.0
+                .lock()
+                .expect("published")
+                .push((update.revision, update.concurrency_locked));
+        }
+    }
+}
+
+#[test]
+fn the_concurrency_lock_is_published_with_every_job_and_run_change_and_with_the_snapshot() {
+    let registry: crate::ManagedJobRegistry = Arc::new(crate::processing::JobRegistry::new(2));
+    let published = Arc::new(PublishedLocks::default());
+    let host = Host::new(published.clone(), crate::power::PowerManager::default());
+    let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
+    runtime.follow_concurrency_lock(&host, &registry);
+    assert!(
+        !runtime
+            .list_operations()
+            .expect("snapshot")
+            .concurrency_locked
+    );
+
+    let tagging = registry.register_job_without_permit();
+    let second = registry.register_job_without_permit();
+    assert!(
+        runtime
+            .list_operations()
+            .expect("snapshot")
+            .concurrency_locked
+    );
+    let run = registry.hold_run();
+    registry.complete_job(tagging);
+    registry.complete_job(second);
+    assert!(
+        runtime
+            .list_operations()
+            .expect("snapshot")
+            .concurrency_locked,
+        "a held run keeps the lock"
+    );
+    drop(run);
+
+    let snapshot = runtime.list_operations().expect("snapshot");
+    assert!(!snapshot.concurrency_locked);
+    let published = published.0.lock().expect("published").clone();
+    assert_eq!(
+        published
+            .iter()
+            .map(|(_, locked)| *locked)
+            .collect::<Vec<_>>(),
+        [true, false]
+    );
+    assert_eq!(published[1].0, snapshot.revision);
+}

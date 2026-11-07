@@ -33,11 +33,30 @@ describe('submission snapshot adapter', () => {
 			expect(app.processing.status().stepText).toContain('Choose an output folder'),
 		);
 		expect(app.processing.isProcessing()).toBe(true);
-		expect(app.settings.concurrency().controlsEnabled).toBe(false);
+	});
+
+	it('locks the job count while the engine publishes its concurrency lock, not while a submit is in progress', async () => {
+		const engine = createFakeEngine();
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		expect(app.settings.concurrency().locked).toBe(false);
+
+		engine.change((state) => {
+			state.output.submissionInProgress = true;
+		});
+		await vi.waitFor(() => expect(app.processing.isProcessing()).toBe(true));
+		expect(app.settings.concurrency().locked).toBe(false);
+
+		engine.publishConcurrencyLock(true);
+		await vi.waitFor(() => expect(app.settings.concurrency().locked).toBe(true));
 		engine.change((state) => {
 			state.output.submissionInProgress = false;
 		});
-		await vi.waitFor(() => expect(app.settings.concurrency().controlsEnabled).toBe(true));
+		await vi.waitFor(() => expect(app.processing.isProcessing()).toBe(false));
+		expect(app.settings.concurrency().locked).toBe(true);
+
+		engine.publishConcurrencyLock(false);
+		await vi.waitFor(() => expect(app.settings.concurrency().locked).toBe(false));
 	});
 
 	it('says how many invalid files a Submit left out', async () => {

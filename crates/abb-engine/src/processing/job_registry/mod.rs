@@ -21,12 +21,22 @@ pub const MAX_CONCURRENT_JOBS: usize = 8;
 pub struct JobRegistry {
     admission: Mutex<Admission>,
     max_concurrent: AtomicUsize,
+    lock_observer: Mutex<Option<LockObserver>>,
 }
+
+pub(crate) type LockObserver = Arc<dyn Fn() + Send + Sync>;
 
 struct Admission {
     jobs: HashSet<Uuid>,
     semaphore: Arc<Semaphore>,
     runs: usize,
+    announced: bool,
+}
+
+impl Admission {
+    fn locked(&self) -> bool {
+        !self.jobs.is_empty() || self.runs > 0
+    }
 }
 
 pub(crate) struct ActiveRun {
@@ -37,6 +47,7 @@ impl Drop for ActiveRun {
     fn drop(&mut self) {
         let mut admission = self.registry.admission();
         admission.runs = admission.runs.saturating_sub(1);
+        self.registry.announce_lock(admission);
     }
 }
 
@@ -157,8 +168,10 @@ impl JobRegistry {
                 jobs: HashSet::new(),
                 semaphore: Arc::new(Semaphore::new(effective_max)),
                 runs: 0,
+                announced: false,
             }),
             max_concurrent: AtomicUsize::new(effective_max),
+            lock_observer: Mutex::new(None),
         }
     }
 
@@ -207,7 +220,9 @@ impl JobRegistry {
     }
 
     pub(crate) fn hold_run(self: &Arc<Self>) -> ActiveRun {
-        self.admission().runs += 1;
+        let mut admission = self.admission();
+        admission.runs += 1;
+        self.announce_lock(admission);
         ActiveRun {
             registry: Arc::clone(self),
         }
@@ -220,7 +235,42 @@ impl JobRegistry {
     }
 
     fn remove_job(&self, job_id: JobId) -> bool {
-        self.admission().jobs.remove(&job_id.0)
+        let mut admission = self.admission();
+        let removed = admission.jobs.remove(&job_id.0);
+        self.announce_lock(admission);
+        removed
+    }
+
+    /// Whether the concurrency limit is refused right now: a job or a run is
+    /// active.
+    pub(crate) fn concurrency_locked(&self) -> bool {
+        self.admission().locked()
+    }
+
+    /// Calls `observer` after every change of `concurrency_locked`, with no
+    /// registry lock held.
+    pub(crate) fn observe_concurrency_lock(&self, observer: LockObserver) {
+        *self
+            .lock_observer
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(observer);
+    }
+
+    fn announce_lock(&self, mut admission: MutexGuard<'_, Admission>) {
+        let locked = admission.locked();
+        let changed = std::mem::replace(&mut admission.announced, locked) != locked;
+        drop(admission);
+        if !changed {
+            return;
+        }
+        let observer = self
+            .lock_observer
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        if let Some(observer) = observer {
+            observer();
+        }
     }
 
     pub fn max_concurrent(&self) -> usize {
@@ -230,7 +280,7 @@ impl JobRegistry {
     pub fn update_max_concurrent(&self, max: usize) -> Result<usize> {
         let effective = Self::normalize_max(max);
         let mut admission = self.admission();
-        if !admission.jobs.is_empty() || admission.runs > 0 {
+        if admission.locked() {
             return Err(AppError::InvalidInput(
                 "Cannot change max concurrency while jobs are active".to_string(),
             ));

@@ -121,6 +121,7 @@ export type FakeEngine = EngineCapability & {
 	pressQuitOnce(windowMs: number): void;
 	/** Adds or replaces an operation and tells every listener. */
 	publishOperation(operation: OperationSnapshot): void;
+	publishConcurrencyLock(locked: boolean): void;
 	analyze: (paths: readonly string[]) => AudioFile[];
 	/**
 	 * Answers a session intent. A reply of `undefined`, at once or later, is
@@ -171,6 +172,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	const workListeners = new Set<(update: WorkOperationsUpdate) => void>();
 	const operations = new Map<OperationId, OperationSnapshot>();
 	let workRevision = 0;
+	let concurrencyLocked = false;
 	const state = freshSession();
 	let settingsSnapshot: SettingsSnapshot = {
 		...structuredClone(recordedFresh.settings),
@@ -240,6 +242,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 					revision: workRevision,
 					order: [...operations.keys()],
 					operations: [...operations.values()],
+					concurrencyLocked,
 				}),
 			};
 		},
@@ -294,6 +297,18 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				revision: workRevision,
 				order: [...operations.keys()],
 				changed: operation,
+				concurrencyLocked,
+			};
+			for (const listener of workListeners) listener(structuredClone(update));
+		},
+		publishConcurrencyLock(locked) {
+			concurrencyLocked = locked;
+			workRevision += 1;
+			const update = {
+				revision: workRevision,
+				order: [...operations.keys()],
+				changed: null,
+				concurrencyLocked,
 			};
 			for (const listener of workListeners) listener(structuredClone(update));
 		},

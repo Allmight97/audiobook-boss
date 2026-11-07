@@ -7,5 +7,5 @@ export const recordedFresh = {
 	client: 1,
 	session: sessionFresh,
 	settings: settingsFresh,
-	workOperations: { revision: 0, order: [], operations: [] },
+	workOperations: { revision: 0, order: [], operations: [], concurrencyLocked: false },
 } as FrontendAttachment;

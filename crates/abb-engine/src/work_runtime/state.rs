@@ -60,6 +60,7 @@ pub(crate) struct WorkRuntimeState {
     operations: BTreeMap<String, OperationSnapshot>,
     revision: u64,
     terminal_order: Vec<String>,
+    concurrency_locked: bool,
 }
 
 impl WorkRuntimeState {
@@ -79,10 +80,23 @@ impl WorkRuntimeState {
             revision: self.revision,
             order: operations.iter().map(|o| o.operation_id.clone()).collect(),
             operations: operations.into_iter().cloned().collect(),
+            concurrency_locked: self.concurrency_locked,
         }
     }
 
     pub(crate) fn publish(&mut self, changed: OperationSnapshot) -> WorkOperationsUpdate {
+        self.update(Some(changed))
+    }
+
+    pub(crate) fn set_concurrency_locked(&mut self, locked: bool) -> Option<WorkOperationsUpdate> {
+        if self.concurrency_locked == locked {
+            return None;
+        }
+        self.concurrency_locked = locked;
+        Some(self.update(None))
+    }
+
+    fn update(&mut self, changed: Option<OperationSnapshot>) -> WorkOperationsUpdate {
         self.revision += 1;
         WorkOperationsUpdate {
             revision: self.revision,
@@ -92,6 +106,7 @@ impl WorkRuntimeState {
                 .map(|o| o.operation_id.clone())
                 .collect(),
             changed,
+            concurrency_locked: self.concurrency_locked,
         }
     }
 

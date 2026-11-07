@@ -98,7 +98,8 @@ fn report(progress: &PrintProgress, operation: OperationSnapshot) {
         abb_engine::work_runtime::WorkOperationsUpdate {
             revision: operation.revision,
             order: vec![operation.operation_id.clone()],
-            changed: operation,
+            changed: Some(operation),
+            concurrency_locked: false,
         },
     ));
 }

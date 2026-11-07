@@ -1366,21 +1366,31 @@ export type WorkOperationStatus = "accepted" | "running" | "cancelling" | "compl
  *  first, then accepted ones, then finished ones; newest first within each.
  */
 export type WorkOperationsSnapshot = {
-	/**  Advances with every change to any operation or to the order. */
+	/**
+	 *  Advances with every change to any operation, to the order, or to
+	 *  `concurrency_locked`.
+	 */
 	revision: number,
 	order: OperationId[],
 	operations: OperationSnapshot[],
+	/**
+	 *  The engine refuses a change of the job limit now: a job or an export
+	 *  is active.
+	 */
+	concurrencyLocked: boolean,
 };
 
 /**
  *  One change. A host keeps the newest `changed` per operation (by its own
- *  `revision`) and the `order` with the highest `revision`, so updates may
- *  arrive in any order; an operation missing from that order is not shown.
+ *  `revision`) and the `order` and `concurrency_locked` of the highest
+ *  `revision`, so updates may arrive in any order; an operation missing from
+ *  that order is not shown. `changed` is absent when only the lock changed.
  */
 export type WorkOperationsUpdate = {
 	revision: number,
 	order: OperationId[],
-	changed: OperationSnapshot,
+	changed: OperationSnapshot | null,
+	concurrencyLocked: boolean,
 };
 
 /**  An accepted operation changed, with the display order as of then. */

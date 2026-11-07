@@ -9,6 +9,7 @@ import type {
 	SettingsUnit,
 	StartupBehavior,
 } from '../../lib/generated/tauri';
+import { concurrencyLabel } from '../../lib/format/concurrency';
 import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { QUIT_SHORTCUT, runsOnMac } from '../../lib/platform';
 import { toUserMessage } from '../../lib/tauri/appError';
@@ -26,7 +27,7 @@ type ConcurrencyView = {
 	readonly effective: number;
 	readonly autoEffective: number;
 	readonly label: string;
-	readonly controlsEnabled: boolean;
+	readonly locked: boolean;
 	readonly fixedOptions: ReadonlyArray<number>;
 };
 
@@ -58,7 +59,6 @@ export type SettingsOwner = {
 	readonly dialog: Accessor<AppSettingsDialogState>;
 	setConcurrencySelection: (value: string) => Promise<void>;
 	setDefaultAcquisitionLane: (lane: AcquisitionLane) => Promise<void>;
-	setControlsEnabled: (enabled: boolean) => void;
 	openDialog: () => void;
 	closeDialog: () => void;
 	setKeepAwakeWhileWorking: (enabled: boolean) => Promise<void>;
@@ -118,16 +118,11 @@ function preferenceFromSelection(value: string): ConcurrencyPreference {
 		: { mode: 'fixed', value: Number.parseInt(value, 10) };
 }
 
-function concurrencyLabel(preference: ConcurrencyPreference, effective: number): string {
-	return `Max jobs: ${effective}${preference.mode === 'auto' ? ' (Auto)' : ''}`;
-}
-
 export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	const { link } = deps;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	let dialog = idleDialog();
 	let concurrencyError = '';
-	let controlsEnabled = true;
 	let writesInFlight = 0;
 	let retryDropped = false;
 
@@ -213,8 +208,8 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 				autoSelection: AUTO_SELECTION,
 				effective,
 				autoEffective: capabilities.autoEffective,
-				label: concurrencyLabel(preference, effective),
-				controlsEnabled,
+				label: concurrencyLabel(snapshot.concurrency),
+				locked: link.concurrencyLocked(),
 				fixedOptions: capabilities.fixedOptions,
 			};
 		},
@@ -235,10 +230,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 				kind: 'setDefaultAcquisitionLane',
 				lane: defaultAcquisitionLane,
 			});
-		},
-		setControlsEnabled(enabled) {
-			controlsEnabled = enabled;
-			changed();
 		},
 		openDialog() {
 			updateDialog({ ...idleDialog(), isOpen: true });

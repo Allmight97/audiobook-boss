@@ -39,6 +39,8 @@ export type EngineLink = {
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** WorkRuntime's operations in the engine's display order. */
 	readonly workOperations: Accessor<ReadonlyArray<OperationSnapshot>>;
+	/** The engine refuses a change of the job limit now: a job or an export is active. */
+	readonly concurrencyLocked: Accessor<boolean>;
 	/** Cancels an operation, or only the title named by `childJobId`; the
 	 * change arrives in `workOperations`. */
 	cancelWork: (operationId: OperationId, childJobId?: string) => Promise<void>;
@@ -297,6 +299,10 @@ function createLink(
 		workOperations: () => {
 			workRev();
 			return operations;
+		},
+		concurrencyLocked: () => {
+			workRev();
+			return work.concurrencyLocked;
 		},
 		cancelWork: capability.cancelWorkOperation,
 		send,
