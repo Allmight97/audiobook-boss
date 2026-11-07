@@ -63,7 +63,7 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			submission,
 			localError:
 				error?.previewRun === previewRun && error.submission === submission ? error.message : null,
-			concurrency: deps.settings.concurrency(),
+			concurrencyText: deps.settings.concurrency().label,
 		});
 	});
 	function cancelPreview(childJobId?: string): void {

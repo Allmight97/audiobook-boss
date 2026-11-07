@@ -87,9 +87,12 @@ One bullet per owner with an invariant the code does not show; an owner
 without a bullet has none. Engine paths name the owner of the truth.
 
 - `appSettings` (`crates/abb-engine/src/app_settings/AGENTS.md`): the owner
-  words durability from `saveError` and the reset notice from `recovery`,
-  shows the concurrency view (Auto shows the capability's `autoEffective`, not
-  the current fixed count), and holds dialog state. Settings intents go
+  words durability from `saveError` and the reset notice from `recovery`
+  (a retry call that never reached the engine is logged and worded "Retry
+  didn't reach ABB."), shows the concurrency view (Auto shows the capability's
+  `autoEffective`, not the current fixed count; its `label` is the one wording
+  the status panel and the select's screen-reader text share), and holds
+  dialog state. Settings intents go
   through `sendSettings` (their own numbered order); a dialog control's
   failure shows beside that control (`runDialogAction`). The session records
   audio and output defaults and announces them with `settings-update`; views

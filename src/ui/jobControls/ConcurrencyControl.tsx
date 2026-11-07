@@ -22,13 +22,13 @@ export function ConcurrencyControl(): JSX.Element {
 				disabled={!view().controlsEnabled}
 				onChoose={setSelection}
 			>
-				<option value="auto">{`Auto · ${view().autoEffective} jobs`}</option>
+				<option value={view().autoSelection}>{`Auto · ${view().autoEffective} jobs`}</option>
 				<For each={view().fixedOptions} keyed={(option) => option}>
 					{(option) => <option value={String(option())}>{option()}</option>}
 				</For>
 			</Select>
 			<span class="sr-only" aria-live="polite">
-				{view().effectiveLabel}
+				{view().label}
 			</span>
 		</div>
 	);

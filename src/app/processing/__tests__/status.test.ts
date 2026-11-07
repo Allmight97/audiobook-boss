@@ -3,10 +3,10 @@ import { statusOf, type StatusInputs } from '../status';
 import { processingFailure } from '../submit';
 import type { OutputSnapshot } from '../../../lib/generated/tauri';
 
-const concurrency = { selection: 'auto', effective: 4 };
+const concurrencyText = 'Max jobs: 4 (Auto)';
 
 function inputs(over: Partial<StatusInputs>): StatusInputs {
-	return { previewRun: null, submission: null, localError: null, concurrency, ...over };
+	return { previewRun: null, submission: null, localError: null, concurrencyText, ...over };
 }
 
 function failedPreview(): NonNullable<OutputSnapshot['previewRun']> {

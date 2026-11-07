@@ -5,6 +5,12 @@ import {
 	type FakeEngine,
 } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../runtime';
+import { logFrontendFailure } from '../../lib/frontendLogBridge';
+
+vi.mock('../../lib/frontendLogBridge', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../../lib/frontendLogBridge')>()),
+	logFrontendFailure: vi.fn(),
+}));
 
 describe('settings owner', () => {
 	let runtime: AppRuntime | undefined;
@@ -26,14 +32,15 @@ describe('settings owner', () => {
 		return { code: 'io_error', category: 'io', message, detail: null } as const;
 	}
 
-	it('words the job count as Auto → N or Max N from the engine snapshot', async () => {
+	it('words the job count as Max jobs: N, with (Auto) when the engine picks, from the engine snapshot', async () => {
 		const app = await open();
 
 		expect(app.settings.concurrency()).toMatchObject({
 			selection: 'auto',
 			effective: 4,
 			autoEffective: 4,
-			effectiveLabel: 'Auto → 4',
+			autoSelection: 'auto',
+			label: 'Max jobs: 4 (Auto)',
 		});
 		engine.respondSettings = () => {
 			const { concurrency } = engine.settings();
@@ -46,7 +53,7 @@ describe('settings owner', () => {
 		expect(app.settings.concurrency()).toMatchObject({
 			selection: '2',
 			effective: 2,
-			effectiveLabel: 'Max 2',
+			label: 'Max jobs: 2',
 			errorMessage: '',
 		});
 	});
@@ -69,6 +76,33 @@ describe('settings owner', () => {
 		await app.settings.retryPersistence();
 		expect(app.settings.durability()).toEqual({ state: 'saved', message: '' });
 		expect(engine.settings().settings?.encoderDefaults.intent).toBe('preserve');
+	});
+
+	it('logs a retry that never reached the engine and says so beside the unsaved notice', async () => {
+		const app = await open();
+		engine.seedAppSettings(
+			{ encoderDefaults: { ...engine.settings().settings.encoderDefaults, intent: 'preserve' } },
+			unsaved('Disk full'),
+		);
+		const dropped = new Error('channel closed');
+		engine.settingsDispatch = async () => {
+			throw dropped;
+		};
+
+		await app.settings.retryPersistence();
+
+		expect(logFrontendFailure).toHaveBeenCalledWith('appSettings.retry', dropped);
+		expect(app.settings.durability()).toEqual({
+			state: 'error',
+			message: "Retry didn't reach ABB. Disk full",
+		});
+
+		engine.settingsDispatch = async () => {
+			engine.seedAppSettings({});
+			return { outcome: { kind: 'applied' }, snapshot: engine.settings() };
+		};
+		await app.settings.retryPersistence();
+		expect(app.settings.durability()).toEqual({ state: 'saved', message: '' });
 	});
 
 	it('shows the default import source as saving until the engine replies', async () => {

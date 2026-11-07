@@ -4,17 +4,7 @@ import type { OutputSnapshot } from '../../lib/generated/tauri';
 import { operationStatusLabel, stageStatusText } from '../workOperations';
 import type { JobListItem, StatusView } from './view';
 
-export type ConcurrencyRead = {
-	readonly selection: string;
-	readonly effective: number;
-};
-
 type PreviewRun = NonNullable<OutputSnapshot['previewRun']>;
-
-export function concurrencyText(concurrency: ConcurrencyRead): string {
-	const suffix = concurrency.selection === 'auto' ? ' (Auto)' : '';
-	return `Max jobs: ${concurrency.effective}${suffix}`;
-}
 
 function previewStatusText({ status, progress }: PreviewRun['operation']): string {
 	if (status === 'mixed' || status === 'cancelling') return operationStatusLabel(status);

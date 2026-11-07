@@ -9,6 +9,7 @@ import type {
 	SettingsUnit,
 	StartupBehavior,
 } from '../../lib/generated/tauri';
+import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { QUIT_SHORTCUT, runsOnMac } from '../../lib/platform';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { EngineLink } from '../engineLink';
@@ -21,9 +22,10 @@ type SettingsDurability = {
 type ConcurrencyView = {
 	readonly errorMessage: string;
 	readonly selection: string;
+	readonly autoSelection: string;
 	readonly effective: number;
 	readonly autoEffective: number;
-	readonly effectiveLabel: string;
+	readonly label: string;
 	readonly controlsEnabled: boolean;
 	readonly fixedOptions: ReadonlyArray<number>;
 };
@@ -33,6 +35,8 @@ type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
 type SettingStatus = { readonly state: SettingsSaveState; readonly error: string };
 
 type DialogSetting = 'reset' | 'keepAwake' | 'pressQuitTwice' | 'aacDecoder' | 'startup' | 'lane';
+
+const RETRY_DROPPED = "Retry didn't reach ABB.";
 
 const IDLE: SettingStatus = { state: 'idle', error: '' };
 
@@ -102,12 +106,20 @@ const UNIT_LABELS: Record<SettingsUnit, string> = {
 	pinnedDefaults: 'pinned defaults',
 };
 
+const AUTO_SELECTION = 'auto';
+
 function selectionOf(preference: ConcurrencyPreference): string {
-	return preference.mode === 'fixed' ? String(preference.value) : 'auto';
+	return preference.mode === 'fixed' ? String(preference.value) : AUTO_SELECTION;
 }
 
 function preferenceFromSelection(value: string): ConcurrencyPreference {
-	return value === 'auto' ? { mode: 'auto' } : { mode: 'fixed', value: Number.parseInt(value, 10) };
+	return value === AUTO_SELECTION
+		? { mode: 'auto' }
+		: { mode: 'fixed', value: Number.parseInt(value, 10) };
+}
+
+function concurrencyLabel(preference: ConcurrencyPreference, effective: number): string {
+	return `Max jobs: ${effective}${preference.mode === 'auto' ? ' (Auto)' : ''}`;
 }
 
 export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
@@ -117,6 +129,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	let concurrencyError = '';
 	let controlsEnabled = true;
 	let writesInFlight = 0;
+	let retryDropped = false;
 
 	function changed(): void {
 		bump((n) => n + 1);
@@ -154,11 +167,13 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		durability: () => {
 			rev();
 			const error = link.settings().saveError;
-			if (writesInFlight > 0)
-				return { state: 'saving', message: error ? toUserMessage(error) : '' };
-			return error
-				? { state: 'error', message: toUserMessage(error) }
-				: { state: 'saved', message: '' };
+			const reason = error ? toUserMessage(error) : '';
+			if (writesInFlight > 0) return { state: 'saving', message: reason };
+			if (!error) return { state: 'saved', message: '' };
+			return {
+				state: 'error',
+				message: retryDropped ? `${RETRY_DROPPED} ${reason}` : reason,
+			};
 		},
 		recoveryNotice: () => {
 			const recovery = link.settings().recovery;
@@ -178,22 +193,27 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		},
 		async retryPersistence() {
 			writesInFlight += 1;
+			retryDropped = false;
 			changed();
-			await send({ kind: 'retry' });
+			const outcome = await send({ kind: 'retry' });
 			writesInFlight -= 1;
+			if ('error' in outcome) {
+				logFrontendFailure('appSettings.retry', outcome.error);
+				retryDropped = true;
+			}
 			changed();
 		},
 		concurrency: () => {
 			rev();
 			const snapshot = link.settings();
 			const { preference, effective, capabilities } = snapshot.concurrency;
-			const selection = selectionOf(preference);
 			return {
 				errorMessage: concurrencyError,
-				selection,
+				selection: selectionOf(preference),
+				autoSelection: AUTO_SELECTION,
 				effective,
 				autoEffective: capabilities.autoEffective,
-				effectiveLabel: selection === 'auto' ? `Auto → ${effective}` : `Max ${effective}`,
+				label: concurrencyLabel(preference, effective),
 				controlsEnabled,
 				fixedOptions: capabilities.fixedOptions,
 			};
