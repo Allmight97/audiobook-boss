@@ -4,7 +4,7 @@ use super::*;
 use crate::audio::{
     AudiobookFormat, EncoderSettings, OutputAudio, SampleRateConfig, TitleAudioPlan,
 };
-use crate::metadata::CueSource;
+use crate::metadata::{CueSource, CueStatus};
 
 fn source(name: &str, seconds: f64, bytes: f64) -> AudioFile {
     let mut file = AudioFile::new(PathBuf::from(format!("/books/{name}.m4b")));

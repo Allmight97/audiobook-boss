@@ -190,9 +190,7 @@ pub fn resolve_title_audio(
         .files
         .iter()
         .any(|file| file.chapter_plan.as_ref().is_some_and(|plan| plan.from_cue));
-    if cue && info.files.len() > 1 {
-        return Err(AppError::InvalidInput("Merging CUE-bearing inputs is not supported. Separate the titles or ignore CUE chapters.".into()).into());
-    }
+    FileListInfo::check_cue_chapters(&info.files)?;
     let mut reason = cue.then(|| "Encoding applies the accepted CUE chapters.".into());
     if !preview && request.intent != AudioIntent::Encode && !cue {
         reason = copy_rejection(request, info)?;

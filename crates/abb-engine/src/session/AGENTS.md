@@ -210,9 +210,8 @@ one host attachment.
   plan stays resolved; any other plan is read again, since its
   fingerprint check may have seen the file during the write. That check is the
   only plan step that touches the file; the codec family and copy facts come
-  from inspection. A CUE
-  awaiting confirmation, or CUE chapters on a merged title, fails the plan with
-  a reason.
+  from inspection. A title `FileListInfo::check_cue_chapters` refuses
+  (`audio/AGENTS.md`) fails the plan with that reason.
 - **Output.** The output part carries the directory, naming, the naming
   processing receives (an empty custom template names `{author}/{title}`), and
   the path the first selected (or first valid) title would get with the values

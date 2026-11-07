@@ -6,7 +6,8 @@ use crate::audio::{
     apply_chapter_plans, resolve_title_audio, AudioFile, AudioIntent, AudioPlanField, FileListInfo,
     TitleAudioPlan, TitleAudioRequest,
 };
-use crate::metadata::{ChapterPlan, CueStatus};
+use crate::errors::AppError;
+use crate::metadata::ChapterPlan;
 use crate::processing::AudioHandling;
 
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
@@ -41,30 +42,18 @@ pub enum SizeEstimate {
 pub(crate) fn chapter_plans_for(
     sources: &[AudioFile],
 ) -> Result<HashMap<String, ChapterPlan>, String> {
-    let mut plans = HashMap::new();
-    for file in sources.iter().filter(|file| file.is_valid) {
-        if let Some(cue) = &file.cue_source {
-            if matches!(
-                cue.status,
-                CueStatus::NeedsConfirmation | CueStatus::Invalid
-            ) {
-                return Err(format!(
-                    "Review {}: confirm its timestamp interpretation or ignore the CUE before converting.",
-                    cue.file_name
-                ));
-            }
-        }
-        if let Some(plan) = &file.chapter_plan {
-            if sources.len() > 1 && plan.from_cue {
-                return Err(
-                    "Merging CUE-bearing inputs is not supported. Convert separate jobs or ignore CUE chapters."
-                        .to_string(),
-                );
-            }
-            plans.insert(file.path.to_string_lossy().into_owned(), plan.clone());
-        }
-    }
-    Ok(plans)
+    FileListInfo::check_cue_chapters(sources).map_err(|error| match error {
+        AppError::InvalidInput(message) => message,
+        other => other.to_string(),
+    })?;
+    Ok(sources
+        .iter()
+        .filter(|file| file.is_valid)
+        .filter_map(|file| {
+            let plan = file.chapter_plan.clone()?;
+            Some((file.path.to_string_lossy().into_owned(), plan))
+        })
+        .collect())
 }
 
 #[derive(Debug, Clone)]

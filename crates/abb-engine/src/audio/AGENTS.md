@@ -116,8 +116,10 @@ diagnostics and, when its sheet reads, a CUE plan. A file whose chapters
 cannot be repaired is listed invalid with the reason; the rest of the import
 continues. `apply_chapter_plans` validates accepted plans against the audio
 identity and duration before dispatch. CUE confirmation or Ignore is
-explicit; multi-source CUE merging is rejected. Encoders consume accepted
-chapters.
+explicit. `FileListInfo::check_cue_chapters` is the one rule for a title's
+sources: a CUE awaiting review, or CUE chapters on a merged title, is
+refused; session submission and the title plan call it, and execution does
+not repeat it. Encoders consume accepted chapters.
 
 ## Title Audio Plan
 
