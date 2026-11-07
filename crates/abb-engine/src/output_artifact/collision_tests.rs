@@ -24,22 +24,25 @@ fn detects_case_insensitive_claim_conflict() {
 }
 
 #[test]
-fn detects_case_insensitive_disk_conflict() {
+fn a_name_differing_only_in_case_collides_whatever_the_volume() {
     let temp_dir = TempDir::new().expect("temp dir");
     let existing_path = temp_dir.path().join("Book.m4b");
     let candidate = temp_dir.path().join("book.m4b");
     write(&existing_path, b"existing").expect("write existing file");
-    if path_entry_exists(&candidate).expect("inspect candidate") {
-        return;
-    }
+    let volume_ignores_case = path_entry_exists(&candidate).expect("inspect candidate");
 
     let mut cache = OutputCollisionCache::default();
     let collision = detect_output_collision(&candidate, &HashSet::new(), &[], &mut cache)
         .expect("collision check")
         .expect("case-insensitive disk conflict");
 
-    assert_eq!(collision.kind, OutputCollisionKind::CaseInsensitiveMatch);
-    assert_eq!(collision.conflicting_path, Some(existing_path));
+    if volume_ignores_case {
+        assert_eq!(collision.kind, OutputCollisionKind::ExistingFile);
+        assert_eq!(collision.conflicting_path, Some(candidate));
+    } else {
+        assert_eq!(collision.kind, OutputCollisionKind::CaseInsensitiveMatch);
+        assert_eq!(collision.conflicting_path, Some(existing_path));
+    }
 }
 
 #[test]

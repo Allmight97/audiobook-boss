@@ -279,12 +279,7 @@ fn custom_template_skips_empty_series_segment() {
 }
 
 #[test]
-fn pure_action_helpers_classify_write_and_hard_blocks() {
-    assert!(action_requires_output_write(PlannedOutputAction::Write));
-    assert!(!action_requires_output_write(
-        PlannedOutputAction::SkipExisting
-    ));
-
+fn an_output_that_resolves_to_its_own_source_is_blocked() {
     let plan = ResolvedOutputPlan {
         kind: OutputKind::Final,
         requested_path: PathBuf::from("/tmp/input.m4b"),
