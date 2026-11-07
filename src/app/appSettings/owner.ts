@@ -32,6 +32,8 @@ type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
 type AppSettingsDialogState = {
 	isOpen: boolean;
 	settings: AppSettings;
+	/** Only macOS has the Quit shortcut the Quitting setting governs. */
+	quittingAvailable: boolean;
 	saveState: SettingsSaveState;
 	saveError: string;
 	powerSaveState: SettingsSaveState;
@@ -73,7 +75,7 @@ export type SettingsOwnerDeps = {
 	readonly onAppliedReset: () => void;
 };
 
-type DialogProgress = Omit<AppSettingsDialogState, 'settings'>;
+type DialogProgress = Omit<AppSettingsDialogState, 'settings' | 'quittingAvailable'>;
 type ProgressKey = 'save' | 'powerSave' | 'quitSave' | 'decoderSave' | 'startupSave' | 'laneSave';
 
 function idleDialog(): DialogProgress {
@@ -92,6 +94,10 @@ function idleDialog(): DialogProgress {
 		laneSaveState: 'idle',
 		laneSaveError: '',
 	};
+}
+
+function runsOnMac(): boolean {
+	return typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 }
 
 function describe(error: unknown): string {
@@ -210,7 +216,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		defaultAcquisitionLane: () => link.settings().settings.defaultAcquisitionLane,
 		dialog: () => {
 			rev();
-			return { ...dialog, settings: link.settings().settings };
+			return { ...dialog, settings: link.settings().settings, quittingAvailable: runsOnMac() };
 		},
 		async setConcurrencySelection(value) {
 			const error = failure(

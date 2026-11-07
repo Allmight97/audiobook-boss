@@ -12,6 +12,7 @@ describe('AppSettingsDialogView', () => {
 
 	afterEach(() => {
 		cleanup();
+		vi.restoreAllMocks();
 		runtime?.dispose();
 		runtime = undefined;
 	});
@@ -202,8 +203,22 @@ describe('AppSettingsDialogView', () => {
 		expect(engine.settingsIntents).toContainEqual({ kind: 'setKeepAwake', enabled: false });
 	});
 
-	it('offers the second Quit press on by default and sends the choice to turn it off', async () => {
+	function runOn(userAgent: string): void {
+		vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(userAgent);
+	}
+
+	it('hides the Quitting setting where the Quit shortcut is not ABB’s', async () => {
+		runOn('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15');
 		await renderOpenDialog();
+
+		expect(screen.queryByText('Quitting')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('app-settings-press-quit-twice-checkbox')).not.toBeInTheDocument();
+	});
+
+	it('offers the second Quit press on by default and sends the choice to turn it off', async () => {
+		runOn('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15');
+		await renderOpenDialog();
+		expect(screen.getByText('Quitting')).toBeInTheDocument();
 		const twice = screen.getByTestId('app-settings-press-quit-twice-checkbox');
 		expect(twice).toBeChecked();
 
