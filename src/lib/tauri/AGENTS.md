@@ -6,6 +6,11 @@
   `src/lib/tauri-public-api.contract.test.ts`). Engine events come from its
   `events`, the generated listeners, so a new engine event needs no edit here.
   Its raw `listen` serves OS drag events (`tauri://drag-*`) only.
+- `tauriClient.commands` is the generated `commands` object with every reply
+  unwrapped (`commands.ts`); a refusal throws a normalized app error. A new
+  Rust command needs no edit here. The contract test lists the expected
+  command names by hand; `client.test.ts` proves every command throws on a
+  refusal.
 - Regenerate bindings with `bun run bindings:generate`.
   `check-tauri-runtime-boundary.ts` keeps generated value imports in
   `commands.ts` and `client.ts` (type imports may appear elsewhere); Oxlint

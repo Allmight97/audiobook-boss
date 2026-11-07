@@ -26,7 +26,7 @@ describe('tauriClient', () => {
 			},
 		});
 
-		const reply = await tauriClient.settingsDispatch(7, 2, {
+		const reply = await tauriClient.commands.settingsDispatch(7, 2, {
 			kind: 'remember',
 			encoderDefaults: null,
 			outputDefaults: null,
@@ -86,7 +86,7 @@ describe('tauriClient', () => {
 				},
 			},
 		});
-		const reply = await tauriClient.sessionDispatch(7, 2, {
+		const reply = await tauriClient.commands.sessionDispatch(7, 2, {
 			kind: 'chooseCollisionPolicy',
 			reviewId: 41,
 			policy: 'replace_existing',
@@ -163,12 +163,37 @@ describe('tauriClient errors', () => {
 
 		const { tauriClient } = await import('./client');
 
-		await expect(tauriClient.cancelWorkOperation('mock-operation-1')).rejects.toMatchObject({
+		await expect(
+			tauriClient.commands.cancelWorkOperation('mock-operation-1', null),
+		).rejects.toMatchObject({
 			code: 'processing_cancelled',
 			category: 'cancellation',
 			message: 'Processing was cancelled',
 			detail: 'user requested stop',
 		});
+	});
+
+	it('never reads a refused command as success', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const { tauriClient } = await import('./client');
+		const commands = Object.values(tauriClient.commands);
+		const refusal = {
+			code: 'processing_cancelled',
+			category: 'cancellation',
+			message: 'Processing was cancelled',
+			detail: 'user requested stop',
+		} satisfies AppErrorEnvelope;
+		for (let sent = 0; sent < commands.length; sent += 1) {
+			vi.mocked(invoke).mockRejectedValueOnce(refusal);
+		}
+
+		await Promise.all(
+			commands.map((command) =>
+				expect(Promise.resolve(Reflect.apply(command, undefined, []))).rejects.toMatchObject({
+					code: 'processing_cancelled',
+				}),
+			),
+		);
 	});
 
 	it('shows the fallback text when an error field is an object', async () => {

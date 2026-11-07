@@ -2,16 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 // oxlint-disable-next-line import/default -- Vite's ?raw import exports the file text as its default.
 import generated from './generated/tauri.ts?raw';
-import { tauriClient, TAURI_COMMAND_NAMES } from './tauri/client';
-
-const EXPECTED_COMMAND_NAMES = [
-	'attach_frontend',
-	'session_dispatch',
-	'open_preview_output',
-	'settings_dispatch',
-	'cancel_work_operation',
-	'log_frontend',
-] as const;
+import { TAURI_COMMAND_NAMES } from '../test/tauriCommandNames';
+import { tauriClient } from './tauri/client';
 
 const EXPECTED_EVENT_NAMES = [
 	'work-operations-update',
@@ -21,14 +13,9 @@ const EXPECTED_EVENT_NAMES = [
 ] as const;
 
 const EXPECTED_TAURI_CLIENT_METHODS = [
-	'attachFrontend',
-	'sessionDispatch',
-	'openPreviewOutput',
-	'settingsDispatch',
-	'cancelWorkOperation',
+	'commands',
 	'events',
 	'listen',
-	'logFrontend',
 	'openDirectory',
 	'openFile',
 	'openFiles',
@@ -43,8 +30,17 @@ describe('Tauri Runtime Boundary public API contract', () => {
 		);
 	});
 
-	it('pins the independent command strip', () => {
-		expect([...TAURI_COMMAND_NAMES].toSorted()).toEqual([...EXPECTED_COMMAND_NAMES].toSorted());
+	it('every Rust command is one the frontend is expected to call', () => {
+		const invoked = [...generated.matchAll(/__TAURI_INVOKE\("(\w+)"/g)].map((match) => match[1]);
+		expect(invoked.toSorted()).toEqual([...TAURI_COMMAND_NAMES].toSorted());
+	});
+
+	it('exposes every Rust command through the unwrapped map', () => {
+		const camelCase = (name: string) =>
+			name.replace(/_(\w)/g, (_match, letter: string) => letter.toUpperCase());
+		expect(Object.keys(tauriClient.commands).toSorted()).toEqual(
+			TAURI_COMMAND_NAMES.map(camelCase).toSorted(),
+		);
 	});
 
 	it('every Rust event is one the engine is expected to send', () => {
@@ -52,10 +48,5 @@ describe('Tauri Runtime Boundary public API contract', () => {
 			(match) => match[1],
 		);
 		expect(emitted.toSorted()).toEqual([...EXPECTED_EVENT_NAMES].toSorted());
-	});
-
-	it('every Rust command has a commandSpecs entry', () => {
-		const invoked = [...generated.matchAll(/__TAURI_INVOKE\("(\w+)"/g)].map((match) => match[1]);
-		expect(invoked.toSorted()).toEqual([...TAURI_COMMAND_NAMES].toSorted());
 	});
 });
