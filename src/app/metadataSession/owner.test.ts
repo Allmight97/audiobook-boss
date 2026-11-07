@@ -235,4 +235,22 @@ describe('metadata owner', () => {
 		vi.advanceTimersByTime(4000);
 		expect(app.metadata.view().cover.message).toEqual({ kind: 'hidden' });
 	});
+
+	it('says to select one title when a cover had none to go to', async () => {
+		const app = await open();
+		engine.respond = (intent) => {
+			if (intent.kind !== 'loadCoverFromUrl') return undefined;
+			engine.seedCover({ kind: 'noTitleForCover' });
+			return { kind: 'coverLoadFailed' };
+		};
+
+		app.metadata.loadCoverArtFromUrl('https://example.com/cover.jpg');
+
+		await vi.waitFor(() =>
+			expect(app.metadata.view().cover.message).toEqual({
+				kind: 'error',
+				text: 'Select one title to set its cover.',
+			}),
+		);
+	});
 });

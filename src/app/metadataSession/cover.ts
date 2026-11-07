@@ -29,6 +29,8 @@ export function coverNoticeMessage(notice: CoverNotice | null): CoverArtMessage 
 			return { kind: 'error', text: 'This is not an image URL.' };
 		case 'loadedFromUrl':
 			return { kind: 'success', text: 'Cover art loaded from URL.' };
+		case 'noTitleForCover':
+			return { kind: 'error', text: 'Select one title to set its cover.' };
 		case 'loadFailed':
 			return {
 				kind: 'error',

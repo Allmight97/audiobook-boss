@@ -187,3 +187,38 @@ async fn text_that_is_not_a_web_address_is_refused_without_a_fetch() {
         assert!(!cover.loading && cover.image.is_none(), "{text}");
     }
 }
+
+#[tokio::test]
+async fn a_cover_with_no_single_title_to_own_it_reports_failure_for_url_and_file() {
+    let rig = rig();
+    rig.load(&["alpha", "beta"]);
+    rig.select(&[0, 1]).await;
+    let file = rig._config.path().join("cover.png");
+    std::fs::write(&file, downloaded_cover()).expect("cover file");
+
+    let from_url = rig
+        .send(SessionIntent::LoadCoverFromUrl {
+            url: "https://example.com/cover.jpg".to_string(),
+        })
+        .await;
+    let url_cover = rig.metadata().cover;
+    let from_file = rig
+        .send(SessionIntent::LoadCoverFromFile {
+            path: file.to_string_lossy().into_owned(),
+        })
+        .await;
+
+    assert_eq!(from_url, SessionOutcome::CoverLoadFailed);
+    assert_eq!(from_file, SessionOutcome::CoverLoadFailed);
+    assert_eq!(
+        url_cover.notice,
+        Some(crate::session::state::CoverNotice::NoTitleForCover)
+    );
+    let cover = rig.metadata().cover;
+    assert_eq!(
+        cover.notice,
+        Some(crate::session::state::CoverNotice::NoTitleForCover)
+    );
+    assert!(!cover.custom);
+    assert_eq!(rig.pending("alpha").and_then(|patch| patch.cover_art), None);
+}

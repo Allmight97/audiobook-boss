@@ -80,6 +80,7 @@ pub enum CoverNotice {
     UrlRequired,
     NotAnImageUrl,
     LoadedFromUrl,
+    NoTitleForCover,
     LoadFailed { error: AppErrorEnvelope },
 }
 

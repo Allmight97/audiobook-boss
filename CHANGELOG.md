@@ -8,6 +8,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 - Start and Preview work again after a grouped download title has exported. The finished title
   no longer blocks the next book.
+- A cover no title can take no longer says it loaded. With several titles selected, ABB now says
+  to select one title.
 
 ## [1.18.0] - 2026-11-06
 
