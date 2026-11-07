@@ -154,16 +154,19 @@ impl WriteQueue {
                 write.item.patch = patch;
             }
         }
-        let absorbed = !written
-            && self
-                .deferred
-                .iter()
-                .any(|write| write.item.path == item.path && write.phase == DeferredPhase::Waiting);
-        if written || absorbed {
+        if written {
             self.deferred.retain(|write| {
                 write.item.path != item.path
                     || (write.item.revision != item.revision
                         && write.phase != DeferredPhase::Failed)
+            });
+        } else if self
+            .deferred
+            .iter()
+            .any(|write| write.item.path == item.path && write.phase == DeferredPhase::Waiting)
+        {
+            self.deferred.retain(|write| {
+                write.item.path != item.path || write.phase != DeferredPhase::Failed
             });
         }
     }

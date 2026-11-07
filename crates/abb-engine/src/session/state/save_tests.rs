@@ -474,6 +474,27 @@ fn a_newer_write_that_also_fails_leaves_the_newest_value_pending_after_a_reimpor
 }
 
 #[test]
+fn a_failed_write_keeps_the_waiting_retry_saved_with_no_edit_between() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.type_into(MetadataField::Genre, "Mystery");
+    desk.save_during(&HashSet::from([path("alpha")]), &[], &[]);
+    let running = desk.begin_deferred(&HashSet::new());
+    desk.save_during(&HashSet::new(), &[], &[]).expect("save");
+    desk.change(|set| {
+        set.remove_file(0);
+    })
+    .expect("remove");
+
+    desk.end_deferred(running, &["alpha"]);
+    let retry = desk.begin_deferred(&HashSet::new());
+    desk.end_deferred(retry, &["alpha"]);
+    desk.import(&[("alpha", None)]);
+    desk.select(&[0]).expect("select returning title");
+
+    assert_eq!(desk.field(MetadataField::Genre).value, "Mystery");
+}
+
+#[test]
 fn a_save_with_nothing_to_write_never_ends_the_save_running_after_it() {
     let mut desk = Desk::open(
         &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
