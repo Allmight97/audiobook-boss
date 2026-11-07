@@ -2,35 +2,22 @@ import {
 	formatDuration,
 	formatFileSize,
 	formatAudioBitrate,
+	SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
 	type AudioFile,
 } from '../../types/audio';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { InputNotice, SessionSelection, SessionTitles } from '../../types/session';
 import { fileIdentityKey, type InputView } from './types';
 
-export function displayedTitleForFile(file: AudioFile): string {
-	if (file.tagTitle?.trim()) {
-		return file.tagTitle;
-	}
-	const segments = file.path.split(/[\\/]/).filter((segment) => segment !== '');
-	return segments[segments.length - 1] ?? file.path;
-}
-
-export function displayedArtistForFile(file: AudioFile): string {
-	return file.tagArtist?.trim() ?? '';
-}
-
-/** The chapters a file converts with: its accepted plan once the engine made
- * one (repaired embedded or CUE chapters), else its embedded chapters. */
 export function acceptedChapterCount(file: AudioFile): number {
-	return (file.chapterPlan?.chapters ?? file.chapters ?? []).length;
+	return file.chapterPlan?.chapters.length ?? 0;
 }
 
 export function formatFileDetails(
 	file: AudioFile,
 	chapterCount = acceptedChapterCount(file),
 ): string {
-	const artist = displayedArtistForFile(file);
+	const artist = file.artist ?? '';
 	const artistPrefix = artist ? `${artist} • ` : '';
 	const chapterSuffix = chapterCount
 		? ` • ${chapterCount} chapter${chapterCount === 1 ? '' : 's'}`
@@ -72,7 +59,6 @@ export function toInputView(
 	local: {
 		readonly errorMessage: string;
 		readonly isDragOver: boolean;
-		readonly supportText: string;
 	},
 ): InputView {
 	const files = titles.files;
@@ -92,17 +78,17 @@ export function toInputView(
 		fileCount: files.length,
 		hasFiles: files.length > 0,
 		orderLocked: locked,
-		coversRevision: titles.coversRevision,
 		errorMessage: local.errorMessage || inputNoticeText(titles.notice),
 		isDragOver: local.isDragOver,
-		supportText: local.supportText,
+		supportText: SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
 		sortDirection: titles.sortDirection,
 		sortLabel: titles.sortDirection === 'descending' ? 'Sort: Z-A' : 'Sort: A-Z',
 		orderDiffersFromImport: titles.orderDiffersFromImport,
 		showSortButton: files.length > 1,
 		showClearButton: files.length > 0,
 		showRestoreImportOrder: titles.orderDiffersFromImport && !locked,
-		totalDurationSeconds: sourceFiles.reduce((sum, file) => sum + (file.duration ?? 0), 0),
+		totalSizeBytes: titles.totalSizeBytes ?? 0,
+		canGroup: selection.canGroup,
 	};
 }
 

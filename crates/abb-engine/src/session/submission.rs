@@ -95,6 +95,8 @@ pub enum SubmissionStatus {
     Submitted {
         operation_id: OperationId,
         title: String,
+        /// Invalid titles the submission left out.
+        left_out: usize,
     },
     Previewing,
     PreviewFinished {
@@ -118,6 +120,7 @@ pub(crate) struct Draft {
     pub(crate) title: String,
     pub(crate) sources: Vec<PathBuf>,
     pub(crate) reviewed: Option<Vec<String>>,
+    pub(crate) left_out: usize,
 }
 
 impl Draft {
@@ -247,6 +250,7 @@ pub(crate) fn build_draft(
         title,
         sources,
         reviewed: None,
+        left_out: titles.len() - valid.len(),
     })
 }
 
@@ -267,17 +271,7 @@ fn label_with_edit(
 }
 
 pub(crate) fn title_label(file: &AudioFile) -> String {
-    file.tag_title
-        .as_deref()
-        .map(str::trim)
-        .filter(|title| !title.is_empty())
-        .map(str::to_string)
-        .or_else(|| {
-            file.path
-                .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-        })
-        .unwrap_or_else(|| file.path.to_string_lossy().into_owned())
+    file.label.clone()
 }
 
 pub(crate) fn collisions(outputs: &[PlannedOutput]) -> Vec<String> {

@@ -65,7 +65,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-fn fixture_auth() -> Auth {
+pub(in crate::remote_source) fn fixture_auth() -> Auth {
     Auth {
         locale: localization::find_by_country_code(COUNTRY_CODE).expect("locale"),
         device_registration: Registration {
@@ -170,7 +170,6 @@ fn persist_auth_stores_serialized_auth_and_reports_connected() {
     let state = AudibleProvider::persist_auth(&vault, &auth).expect("persist");
 
     assert_eq!(state.status, RemoteAccountStatus::Connected);
-    assert_eq!(state.account.expect("account").account_id, ACCOUNT_ID);
     assert_eq!(vault.set_calls(), vec![AUTH_SECRET_KEY.to_string()]);
 
     let stored = vault
@@ -202,7 +201,6 @@ fn account_state_needs_auth_when_vault_has_no_secret() {
     let state = AudibleProvider::account_state(&vault).expect("state");
 
     assert_eq!(state.status, RemoteAccountStatus::NeedsAuth);
-    assert!(state.account.is_none());
     assert_eq!(
         state.message.as_deref(),
         Some("Connect Audible to load your library.")
@@ -217,9 +215,6 @@ fn account_state_connected_when_vault_holds_valid_auth() {
     let state = AudibleProvider::account_state(&vault).expect("state");
 
     assert_eq!(state.status, RemoteAccountStatus::Connected);
-    let account = state.account.expect("account");
-    assert_eq!(account.account_id, ACCOUNT_ID);
-    assert_eq!(account.display_name, "Fixture Listener");
     assert!(state.message.is_none());
 }
 

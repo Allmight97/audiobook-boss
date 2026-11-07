@@ -6,22 +6,20 @@ fn write_file(path: &Path) {
 }
 
 #[test]
-fn supported_audio_import_metadata_comes_from_canonical_format_table() {
-    let metadata = supported_audio_import_metadata();
-
+fn supported_audio_import_texts_come_from_canonical_format_table() {
     assert_eq!(
-        metadata.extensions,
+        supported_audio_import_extensions(),
         SUPPORTED_AUDIO_FORMATS
             .iter()
-            .map(|format| format.extension.to_string())
+            .map(|format| format.extension)
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        metadata.formats_text,
+        supported_audio_import_formats_text(),
         "MKA, MP3, M4A/M4B, AAC, WAV, and FLAC"
     );
     assert_eq!(
-        metadata.support_text,
+        supported_audio_import_support_text(),
         "Supports MKA, MP3, M4A/M4B, AAC, WAV, and FLAC audio files"
     );
 }

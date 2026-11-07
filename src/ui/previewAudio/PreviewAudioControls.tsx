@@ -8,11 +8,10 @@ export function PreviewAudioControls(): JSX.Element {
 
 	return (
 		<Button
-			id="preview-button"
 			tone="primary"
 			class="preview-audio-button"
 			data-testid="preview-audio-controls"
-			title="Encode a 90-second sample of each title, split across its files, with its current audio settings and metadata, so you can listen before exporting."
+			title={processing.previewTooltip()}
 			disabled={processing.isProcessing()}
 			onClick={() => void processing.preview()}
 		>

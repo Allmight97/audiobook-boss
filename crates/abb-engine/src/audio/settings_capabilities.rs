@@ -4,9 +4,9 @@ use super::settings_encoder::{
     BitrateMode, BitrateModeKind, ChannelConfig, EncoderType, FaacProfile, ALL_ENCODER_TYPES,
     AUTO_ENCODER,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderAvailability {
     pub aac_at_available: bool,
@@ -25,30 +25,34 @@ pub fn detect_encoder_availability() -> EncoderAvailability {
 /// Encoder-specific settings facts that cannot be represented by the global
 /// controls below. In particular, FAAC's explicit HE-AAC sample-rate support
 /// is narrower than the rates accepted by the other encoders.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderConfigurationCapability {
     pub encoder_type: EncoderType,
     pub bitrate_kbps_min: u16,
     pub bitrate_kbps_max: u16,
     pub allowed_modes: Vec<BitrateModeKind>,
+    #[serde(skip)]
     pub default_mode: BitrateMode,
     pub explicit_sample_rates: Vec<u32>,
     pub faac_profiles: Vec<FaacProfileCapability>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FaacProfileCapability {
     pub profile: FaacProfile,
     pub explicit_sample_rates: Vec<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderSettingsCapabilities {
+    #[serde(skip)]
     pub availability: EncoderAvailability,
+    #[serde(skip)]
     pub encoder_types: Vec<EncoderType>,
+    #[serde(skip)]
     pub encoder_configurations: Vec<EncoderConfigurationCapability>,
     pub native_speed_max: u8,
     pub faac_quality_presets: Vec<u16>,

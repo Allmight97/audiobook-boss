@@ -15,43 +15,17 @@ async fn a_new_title_starts_from_the_default_audio_choice() {
 }
 
 #[tokio::test]
-async fn a_default_audio_edit_is_recorded_in_the_settings_and_announced() {
-    let rig = rig();
-    rig.send(SessionIntent::SetDefaultAudio {
-        edit: AudioEdit::Bitrate(96),
-    })
-    .await;
-
-    let settings = rig.session.inner.deps.settings.snapshot().await;
-    let saved = settings.settings.encoder_defaults;
-    assert_eq!(saved.settings.bitrate_kbps, 96);
-    assert_eq!(saved.intent, AudioIntent::Encode);
-    let announced = rig.events.1.lock().expect("events").last().cloned();
-    assert_eq!(
-        announced.map(|snapshot| snapshot.revision),
-        Some(settings.revision)
-    );
-
-    let before = rig.events.1.lock().expect("events").len();
-    rig.send(SessionIntent::SetDefaultAudio {
-        edit: AudioEdit::Bitrate(96),
-    })
-    .await;
-    assert_eq!(rig.events.1.lock().expect("events").len(), before);
-}
-
-#[tokio::test]
 async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
     let rig = rig();
     rig.load(&["alpha", "beta"]);
 
     rig.send(SessionIntent::SetTitleAudio {
         title_ids: vec!["alpha".to_string()],
-        edit: AudioEdit::Format(AudiobookFormat::Mp3),
+        edit: AudioEdit::Format(AudiobookFormat::M4aOpus),
     })
     .await;
     let titles = audio(&rig).titles;
-    assert_eq!(titles["alpha"].choice.intent, AudioIntent::Preserve);
+    assert_eq!(titles["alpha"].choice.format, AudiobookFormat::M4aOpus);
     assert_eq!(titles["beta"].choice.format, AudiobookFormat::M4b);
 
     rig.lock_order(true);
@@ -61,7 +35,7 @@ async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
     .await;
     assert_eq!(
         audio(&rig).titles["alpha"].choice.format,
-        AudiobookFormat::Mp3
+        AudiobookFormat::M4aOpus
     );
 
     rig.lock_order(false);
@@ -127,7 +101,6 @@ async fn a_batch_audio_edit_applies_to_every_title_or_none() {
 
     rig.select(&[0, 1]).await;
     let selection = audio(&rig).selection.expect("selection audio");
-    assert_eq!(selection.title_ids, both);
     assert!(!selection.facts.allowed_sample_rates.contains(&only_lc));
     assert!(selection.facts.allowed_sample_rates.contains(&44_100));
     assert!(selection.mixed.contains(&AudioField::FaacProfile));

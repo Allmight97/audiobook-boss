@@ -1,6 +1,6 @@
 import type { OutputNamingConfig } from '../../types/audio';
 
-export type OutputNamingPreset = OutputNamingConfig['preset'];
+type OutputNamingPreset = OutputNamingConfig['preset'];
 
 export type OutputView = {
 	readonly outputDirectory: string;
@@ -17,5 +17,3 @@ export const CUSTOM_TEMPLATE_PLACEHOLDER = '{author}/{series}/Book {seriesPart} 
 
 export const EMPTY_PREVIEW_TEXT = 'Select output directory...';
 export const EMPTY_PREVIEW_TITLE = 'No directory selected';
-export const PREVIEW_UNAVAILABLE_TEXT =
-	'Output preview unavailable. Fix metadata/template and retry.';

@@ -18,7 +18,8 @@ const existingOutput: PlannedOutput = {
 	kind: 'final',
 	requestedPath: '/out/b.m4b',
 	resolvedPath: '/out/b.m4b',
-	collision: { kind: 'existing_file', conflictingPath: '/out/b.m4b', detail: 'exists' },
+	review: null,
+	collision: { kind: 'existing_file', detail: 'exists' },
 	action: 'review_required',
 };
 const runtimes: AppRuntime[] = [];
@@ -27,9 +28,8 @@ afterEach(() => {
 	for (const runtime of runtimes.splice(0)) runtime.dispose();
 });
 async function mount(engine: FakeEngine) {
-	const runtime = createAppRuntime({ engine });
+	const runtime = await createAppRuntime({ engine });
 	runtimes.push(runtime);
-	await runtime.initialize();
 	const view = render(() => (
 		<AppRuntimeProvider runtime={runtime}>
 			<CollisionDialogView />
@@ -109,6 +109,32 @@ describe('engine decision dialogs', () => {
 				{ kind: 'chooseCollisionPolicy', reviewId: 8, policy: 'skip_existing' },
 			]),
 		);
+	});
+
+	it.each([
+		['Overwrite Existing', 'replace_existing'],
+		['Skip Existing', 'skip_existing'],
+		['Keep Existing', 'rename_new'],
+	] as const)('answers %s once when it is pressed twice', async (label, policy) => {
+		const engine = createFakeEngine();
+		seed(engine, 'collision');
+		await mount(engine);
+		const button = screen.getByRole('button', { name: label });
+		fireEvent.click(button, { detail: 1 });
+		fireEvent.click(button, { detail: 2 });
+		await vi.waitFor(() => expect(engine.sessionIntents).toHaveLength(1));
+		expect(engine.sessionIntents).toEqual([{ kind: 'chooseCollisionPolicy', reviewId: 7, policy }]);
+	});
+
+	it('restarts once when Restart is pressed twice', async () => {
+		const engine = createFakeEngine();
+		seed(engine, 'restart');
+		await mount(engine);
+		const button = screen.getByRole('button', { name: 'Restart' });
+		fireEvent.click(button, { detail: 1 });
+		fireEvent.click(button, { detail: 2 });
+		await vi.waitFor(() => expect(engine.sessionIntents).toHaveLength(1));
+		expect(engine.sessionIntents).toEqual([{ kind: 'restartTitle', titleId: 'beta', revision: 3 }]);
 	});
 
 	it.each(['collision', 'restart'] as const)(

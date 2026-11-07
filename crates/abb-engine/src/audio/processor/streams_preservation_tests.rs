@@ -8,4 +8,5 @@ fn unsupported_codec_or_container_cannot_preserve() {
     );
     assert!(!assess_preservation("wav", "wav", ff::codec::Id::MP3).can_preserve);
     assert!(!assess_preservation("mp3", "mp3", ff::codec::Id::AAC).can_preserve);
+    assert!(!assess_preservation("mp3", "mp3", ff::codec::Id::MP3).can_preserve);
 }

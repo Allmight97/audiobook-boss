@@ -6,7 +6,7 @@ use secrecy::SecretString;
 use crate::app_settings::IndexerConnection;
 use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
-    AccountRef, ProviderId, RemoteAccountStatus, RemoteIndexerConnectionUpdate, RemoteRelease,
+    ProviderId, RemoteAccountStatus, RemoteIndexerConnectionUpdate, RemoteRelease,
     RemoteReleaseGrabRequest, RemoteReleaseGrabResponse, RemoteReleaseSearchRequest,
     RemoteReleaseSearchResponse, RemoteSourceAccountState, RemoteSourceProviderCapabilities,
 };
@@ -38,7 +38,6 @@ impl IndexerProvider {
             return Ok(RemoteSourceAccountState {
                 provider_id: ProviderId::Indexer,
                 status: RemoteAccountStatus::NeedsAuth,
-                account: None,
                 message: account_message(
                     Some("Configure Indexer URL and API key in Settings before searching."),
                     survives,
@@ -49,11 +48,6 @@ impl IndexerProvider {
         Ok(RemoteSourceAccountState {
             provider_id: ProviderId::Indexer,
             status: RemoteAccountStatus::Connected,
-            account: Some(AccountRef {
-                provider_id: ProviderId::Indexer,
-                account_id: "indexer".to_string(),
-                display_name: connection.base_url.clone().unwrap_or_default(),
-            }),
             message: account_message(None, survives),
         })
     }
@@ -116,15 +110,15 @@ impl IndexerProvider {
             .grab(
                 &connection.base_url,
                 &connection.api_key,
-                &request.release.guid,
-                request.release.indexer_id,
+                &request.release,
                 &request_id.to_string(),
             )
             .await;
         let outcome = match &result {
             Ok(outcome) if outcome.accepted => "handoff_confirmed",
+            Ok(outcome) if outcome.unconfirmed => "unconfirmed",
             Ok(_) => "rejected",
-            Err(_) => "unconfirmed",
+            Err(_) => "failed",
         };
         log::info!(
             "remote_source indexer_grab request_id={} stage=complete outcome={} elapsed_ms={}",
@@ -162,6 +156,7 @@ fn map_grab_outcome(outcome: prowlarr::ProwlarrGrabOutcome) -> RemoteReleaseGrab
     RemoteReleaseGrabResponse {
         provider_id: ProviderId::Indexer,
         accepted: outcome.accepted,
+        unconfirmed: outcome.unconfirmed,
         message: outcome.message,
         diagnostics: outcome.diagnostics,
     }

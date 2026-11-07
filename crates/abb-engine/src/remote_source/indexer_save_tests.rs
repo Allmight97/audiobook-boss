@@ -1,7 +1,8 @@
-use super::super::{release_key, ReleaseGrabSnapshot, ReleaseGrabStatus, RemoteUiIntent};
+use super::super::{ReleaseGrabSnapshot, ReleaseGrabStatus, RemoteUiIntent};
 use super::*;
 use crate::app_settings::SettingsIntent;
 use crate::remote_source::tests::{test_runtime, test_runtime_with, MemoryVault};
+use crate::remote_source::types::release_key;
 use crate::remote_source::types::RemoteReleaseSearchResponse;
 use secrecy::ExposeSecret;
 use tempfile::TempDir;
@@ -432,6 +433,7 @@ async fn a_reset_clears_an_old_save_failure() {
 fn release(indexer_id: i64) -> crate::remote_source::types::RemoteRelease {
     crate::remote_source::types::RemoteRelease {
         provider_id: ProviderId::Indexer,
+        key: release_key(indexer_id, "shared-guid"),
         guid: "shared-guid".into(),
         indexer_id,
         title: format!("Book {indexer_id}"),
@@ -459,10 +461,7 @@ fn serve_grabs_pausing_on_the_second(
     tokio::spawn(async move {
         let (mut arrived, mut gate) = (Some(arrived), Some(gate));
         let mut ids = Vec::new();
-        for (index, status) in ["200 OK", "500 Internal Server Error", "200 OK"]
-            .into_iter()
-            .enumerate()
-        {
+        for (index, status) in ["200 OK", "409 Conflict", "200 OK"].into_iter().enumerate() {
             let (mut stream, _) = listener.accept().await.expect("accept a grab");
             let mut request = Vec::new();
             let body = loop {
@@ -488,7 +487,15 @@ fn serve_grabs_pausing_on_the_second(
             let json: serde_json::Value = serde_json::from_str(&body).expect("grab body");
             ids.push(json["indexerId"].as_i64().expect("indexer id"));
             if index == 1 {
+                #[expect(
+                    clippy::unused_result_ok,
+                    reason = "the receiver is gone if the test stops waiting"
+                )]
                 arrived.take().expect("one pause").send(()).ok();
+                #[expect(
+                    clippy::unused_result_ok,
+                    reason = "the sender is dropped when the test ends"
+                )]
                 gate.take().expect("one pause").await.ok();
             }
             stream
@@ -540,8 +547,7 @@ async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryab
         run(
             &runtime,
             RemoteUiIntent::SelectRelease {
-                indexer_id,
-                guid: "shared-guid".into(),
+                key: release_key(indexer_id, "shared-guid"),
                 multi: true,
             },
         )
@@ -639,8 +645,7 @@ async fn connection_save_persists_the_accepted_draft_and_invalidates_old_release
     }
     runtime
         .ui_begin(RemoteUiIntent::SelectRelease {
-            indexer_id: 1,
-            guid: "shared-guid".into(),
+            key: release_key(1, "shared-guid"),
             multi: false,
         })
         .finish()
@@ -774,8 +779,7 @@ async fn an_admitted_reset_refuses_a_new_search_or_grab_until_it_ends() {
     run(
         &runtime,
         RemoteUiIntent::SelectRelease {
-            indexer_id: 1,
-            guid: "shared-guid".into(),
+            key: release_key(1, "shared-guid"),
             multi: false,
         },
     )

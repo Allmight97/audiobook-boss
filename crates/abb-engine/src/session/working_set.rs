@@ -13,8 +13,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::audio::{AudioFile, TitleAudioRequest};
 use crate::errors::AppErrorEnvelope;
-use crate::metadata::CueStatus;
+use crate::metadata::{CueStatus, MetadataIntentPatch, PatchOp};
 use crate::metadata_save::Rewrite;
+
+use super::title_totals::{title_totals, PreviewLength, TitleTotals};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -79,17 +81,17 @@ pub struct TitlesSnapshot {
     pub files: Vec<AudioFile>,
     /// Ordered sources for grouped titles, keyed by the title's identity.
     pub title_sources_by_identity: BTreeMap<String, Vec<AudioFile>>,
-    /// Grouped titles whose sources disagreed on audio handling.
-    pub audio_choice_required: Vec<String>,
+    /// What each title sends to the output, keyed by the title's identity.
+    pub title_totals: BTreeMap<String, TitleTotals>,
+    /// Bytes of every valid source in the list.
+    pub total_size_bytes: f64,
+    pub preview_length: PreviewLength,
     pub sort_direction: SortDirection,
     pub order_locked: bool,
     pub notice: Option<InputNotice>,
     pub order_differs_from_import: bool,
     /// Companion PDF names of downloaded titles, by input id.
     pub companions: BTreeMap<String, Vec<String>>,
-    /// Advances whenever a Save writes a cover into a source, so an address
-    /// for a source's cover names its current image.
-    pub covers_revision: u64,
 }
 
 /// Which titles are selected, as positions in [`TitlesSnapshot::files`].
@@ -99,6 +101,7 @@ pub struct SelectionSnapshot {
     pub revision: u64,
     pub selected_indices: Vec<usize>,
     pub selected_anchor: Option<usize>,
+    pub can_group: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -124,17 +127,19 @@ fn identity(file: &AudioFile) -> &str {
 
 impl WorkingSet {
     pub(crate) fn titles(&self, revision: u64) -> TitlesSnapshot {
+        let totals = title_totals(&self.files, &self.title_sources);
         TitlesSnapshot {
             revision,
             files: self.files.clone(),
             title_sources_by_identity: self.title_sources.clone(),
-            audio_choice_required: self.audio_choice_required.clone(),
+            title_totals: totals.by_title,
+            total_size_bytes: totals.total_size_bytes,
+            preview_length: totals.preview_length,
             sort_direction: self.sort_direction,
             order_locked: self.order_locked,
             notice: self.notice.clone(),
             order_differs_from_import: self.order_differs_from_import(),
             companions: BTreeMap::new(),
-            covers_revision: 0,
         }
     }
 
@@ -143,7 +148,12 @@ impl WorkingSet {
             revision,
             selected_indices: self.selected_indices.clone(),
             selected_anchor: self.selected_anchor,
+            can_group: self.can_group(),
         }
+    }
+
+    fn can_group(&self) -> bool {
+        !self.order_locked && self.selected_indices.len() >= 2
     }
 
     /// Advances whenever the titles, their order, or their settings change.
@@ -569,7 +579,7 @@ impl WorkingSet {
     /// title. Conflicting audio choices require an explicit choice afterward.
     /// Returns whether a group was formed.
     pub(crate) fn group_selected(&mut self) -> bool {
-        if self.order_locked || self.selected_indices.len() < 2 {
+        if !self.can_group() {
             return false;
         }
         let mut indices = self.selected_indices.clone();
@@ -660,15 +670,48 @@ impl WorkingSet {
         self.touch();
     }
 
-    /// Carries a source's chapter plan across ABB's own tag write, which
-    /// changes the file but not its audio. A plan made for a file that had
-    /// already changed before the write keeps its old fingerprint, so the
-    /// change is still caught.
-    pub(crate) fn note_tag_write(&mut self, path: &Path, rewrite: &Rewrite) {
-        let apply = |file: &mut AudioFile| {
+    /// Makes the list call a saved source by the title and author just
+    /// written to its file.
+    pub(crate) fn note_saved_names(&mut self, path: &Path, saved: &MetadataIntentPatch) {
+        let mut changed = false;
+        let mut apply = |file: &mut AudioFile| {
             if file.path != path {
                 return;
             }
+            match &saved.title {
+                Some(PatchOp::Set(title)) => file.set_tag_title(Some(title.clone())),
+                Some(PatchOp::Clear) => file.set_tag_title(None),
+                None => {}
+            }
+            match &saved.artist {
+                Some(PatchOp::Set(artist)) => file.set_artist(Some(artist.clone())),
+                Some(PatchOp::Clear) => file.set_artist(None),
+                None => {}
+            }
+            changed = true;
+        };
+        self.files.iter_mut().for_each(&mut apply);
+        self.title_sources
+            .values_mut()
+            .flat_map(|sources| sources.iter_mut())
+            .for_each(&mut apply);
+        if changed {
+            self.touch();
+        }
+    }
+
+    /// Carries a source's size and chapter plan across ABB's own tag write,
+    /// which changes the file but not its audio. A plan made for a file that
+    /// had already changed before the write keeps its old fingerprint, so the
+    /// change is still caught.
+    pub(crate) fn note_tag_write(&mut self, path: &Path, rewrite: &Rewrite) {
+        let mut changed = false;
+        let mut apply = |file: &mut AudioFile| {
+            if file.path != path {
+                return;
+            }
+            file.size = Some(rewrite.after_bytes as f64);
+            changed = true;
             if let Some(plan) = file
                 .chapter_plan
                 .as_mut()
@@ -677,11 +720,14 @@ impl WorkingSet {
                 plan.source_fingerprint = rewrite.after.clone();
             }
         };
-        self.files.iter_mut().for_each(apply);
+        self.files.iter_mut().for_each(&mut apply);
         self.title_sources
             .values_mut()
             .flat_map(|sources| sources.iter_mut())
-            .for_each(apply);
+            .for_each(&mut apply);
+        if changed {
+            self.touch();
+        }
     }
 
     pub(crate) fn choose_cue(&mut self, input_id: &str, choice: CueChoice) {

@@ -2,7 +2,7 @@ import { formatAudioBitrate, formatFileSize, type AudioFile } from '../../types/
 import { pathBasename } from '../../lib/path/basename';
 import type { InputView } from './types';
 
-export type InspectorContextVariant = 'empty' | 'single' | 'multi';
+type InspectorContextVariant = 'empty' | 'single' | 'multi';
 
 export type InspectorView = {
 	readonly contextText: string;
@@ -46,17 +46,9 @@ export function toInspectorViewFromInput(
 		view.sourceFiles.flatMap((file, index) =>
 			view.selectedSourceFiles.some((selected) => selected.path === file.path) ? [index] : [],
 		),
-		view.hasFiles ? combinedSizeFromFiles(view.sourceFiles) : '--- MB',
+		view.hasFiles ? formatFileSize(view.totalSizeBytes) : '--- MB',
 		companionSummaryForInputIds,
 	);
-}
-
-function combinedSizeFromFiles(files: ReadonlyArray<AudioFile>): string {
-	const totalSize = files.reduce(
-		(sum, file) => sum + (file.isValid && file.size ? file.size : 0),
-		0,
-	);
-	return formatFileSize(totalSize);
 }
 
 function inspectorFromFiles(
@@ -124,15 +116,13 @@ function inspectorFromFiles(
 	};
 }
 
-function formatOptionalText(value: string | undefined): string {
-	if (typeof value !== 'string') return 'N/A';
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : 'N/A';
+function formatOptionalText(value: string | null): string {
+	return value?.trim() || 'N/A';
 }
 
 function summarizeSharedTextValue(
 	files: ReadonlyArray<AudioFile>,
-	pickValue: (file: AudioFile) => string | undefined,
+	pickValue: (file: AudioFile) => string | null,
 ): string {
 	if (files.length === 0) return '---';
 	const values = files.map((file) => {

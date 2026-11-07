@@ -15,7 +15,3 @@ export function titleAudioRequest(): TitleAudioRequest {
 		},
 	};
 }
-
-export function mp3AudioRequest(): TitleAudioRequest {
-	return { format: 'mp3', intent: 'auto', sampleRate: 'auto' };
-}

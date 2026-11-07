@@ -38,8 +38,8 @@
 						"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
 					},
 					{
-						"group": ["**/tauri/commands", "**/tauri/normalizers"],
-						"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+						"group": ["**/tauri/commands"],
+						"message": "commands.ts is private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
 					},
 					{
 						"group": ["@tauri-apps/plugin-*", "@tauri-apps/api/event"],
@@ -48,6 +48,8 @@
 				]
 			}
 		],
+		// A failure is handled, reported, or returned; an empty block drops it.
+		"eslint/no-empty": ["error", { "allowEmptyCatch": false }],
 		"import/no-cycle": "error",
 		"typescript/no-explicit-any": "error",
 		"typescript/no-floating-promises": "error",
@@ -90,14 +92,17 @@
 			// The app runs in a WebView, which has no Node built-ins.
 			"files": ["src/**"],
 			"rules": {
-				"import/no-nodejs-modules": "error"
+				"import/no-nodejs-modules": "error",
+				// Production code reports through the log bridge or a visible state, not the console.
+				"eslint/no-console": "error"
 			}
 		},
 		{
-			// Tests assert on values they just built.
+			// Tests assert on values they just built and may print.
 			"files": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**/*.ts"],
 			"rules": {
-				"typescript/no-non-null-assertion": "off"
+				"typescript/no-non-null-assertion": "off",
+				"eslint/no-console": "off"
 			}
 		},
 		{
@@ -122,6 +127,7 @@
 				"scripts/dev-log-analysis.ts",
 				"scripts/verification.ts",
 				"src/app/encoding/project.ts",
+				// Keep: one view over the audio plan states, with no rule of its own. Split it when it gains another control.
 				"src/ui/fileList/AudioHandlingControl.tsx",
 				"src/ui/remoteSource/RemoteSourceAcquireView.tsx"
 			],
@@ -156,8 +162,8 @@
 								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
 							},
 							{
-								"group": ["**/tauri/commands", "**/tauri/normalizers"],
-								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+								"group": ["**/tauri/commands"],
+								"message": "commands.ts is private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
 							},
 							{
 								"group": ["@tauri-apps/plugin-*", "@tauri-apps/api/event"],
@@ -203,8 +209,8 @@
 								"message": "Tauri plugin and event APIs stay in src/lib/tauri; call them through tauriClient (src/lib/tauri/AGENTS.md)."
 							},
 							{
-								"group": ["**/tauri/commands", "**/tauri/normalizers"],
-								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+								"group": ["**/tauri/commands"],
+								"message": "commands.ts is private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
 							}
 						]
 					}
@@ -247,8 +253,8 @@
 								"message": "Tauri plugin and event APIs stay in src/lib/tauri; call them through tauriClient (src/lib/tauri/AGENTS.md)."
 							},
 							{
-								"group": ["**/tauri/commands", "**/tauri/normalizers"],
-								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+								"group": ["**/tauri/commands"],
+								"message": "commands.ts is private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
 							}
 						]
 					}
@@ -282,8 +288,8 @@
 								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
 							},
 							{
-								"group": ["**/tauri/commands", "**/tauri/normalizers"],
-								"message": "commands.ts and normalizers.ts are private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
+								"group": ["**/tauri/commands"],
+								"message": "commands.ts is private to src/lib/tauri; call tauriClient (src/lib/tauri/AGENTS.md)."
 							}
 						]
 					}

@@ -1,17 +1,16 @@
 import {
-	displayedTitleForFile,
 	acceptedChapterCount,
 	formatFileDetails,
 	formatAudioProperties,
 	interpretFileListKeyDown,
 } from '../../app/inputSession';
-import { pathBasename } from '../../lib/path/basename';
 import { useAppRuntime } from '../../app/runtime';
 import { coverSrc } from '../../lib/tauri/coverSrc';
 import { Button, CoverImage } from '../foundation';
 import { createSignal, createEffect, Show, For, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import type { AudioFile } from '../../types/audio';
+import type { TitleTotals } from '../../types/session';
 
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 import { TitleSources } from './TitleSources';
@@ -20,6 +19,13 @@ import './fileList.css';
 
 function isFailedSource(source: AudioFile): boolean {
 	return !source.isValid && !source.sourceRemoved;
+}
+
+function titleDetails(file: AudioFile, totals: TitleTotals | undefined): string {
+	return formatFileDetails(
+		{ ...file, duration: totals?.durationSeconds ?? 0, size: totals?.sizeBytes ?? 0 },
+		totals?.chapterCount ?? 0,
+	);
 }
 
 function isInteractiveListTarget(target: EventTarget | null): boolean {
@@ -34,7 +40,6 @@ export function FileListView(props: {
 }): JSX.Element {
 	const runtime = useAppRuntime();
 	const input = runtime.input;
-	const metadataView = runtime.metadata.view;
 	const view = input.view;
 	const selectFile = input.selectFile;
 	const selectAll = input.selectAll;
@@ -81,7 +86,6 @@ export function FileListView(props: {
 
 	function handleFileListClick(index: number, event: MouseEvent): void {
 		if (isInteractiveListTarget(event.target)) return;
-		if (metadataView().saveInProgress) return;
 		if (reorderHandlers.consumePostDragClick()) return;
 		fileListContent?.focus({ preventScroll: true });
 		if (event.shiftKey) window.getSelection()?.removeAllRanges();
@@ -98,7 +102,6 @@ export function FileListView(props: {
 			selectedAnchor: view().selectedAnchor,
 		});
 		if (!command) return;
-		if (metadataView().saveInProgress) return;
 		event.preventDefault();
 		if (command.type === 'navigate') {
 			if (view().selectedIndices.length === 1 && view().selectedIndices[0] === command.index) {
@@ -154,7 +157,6 @@ export function FileListView(props: {
 					<Button
 						id="restore-import-order-btn"
 						style={{ display: view().showRestoreImportOrder ? 'block' : 'none' }}
-						disabled={view().orderLocked}
 						onClick={() => restoreImportOrder()}
 					>
 						Restore import order
@@ -224,7 +226,7 @@ export function FileListView(props: {
 									}
 									role="option"
 									aria-selected={isSelected(index()) ? 'true' : 'false'}
-									aria-label={pathBasename(file.path, { fallback: 'path' })}
+									aria-label={file.label}
 									tabindex={-1}
 									onClick={(event) => handleFileListClick(index(), event)}
 								>
@@ -233,7 +235,7 @@ export function FileListView(props: {
 											type="button"
 											class="file-reorder-grip"
 											tabindex={-1}
-											aria-label={`Reorder ${pathBasename(file.path, { fallback: 'path' })}`}
+											aria-label={`Reorder ${file.label}`}
 											onPointerDown={(event) => reorderHandlers.onGripPointerDown(index(), event)}
 											onClick={(event) => event.stopPropagation()}
 										>
@@ -241,15 +243,7 @@ export function FileListView(props: {
 										</button>
 										<div class="file-cover-thumbnail" aria-hidden="true">
 											<CoverImage
-												src={
-													file.isValid
-														? coverSrc({
-																kind: 'audio',
-																path: file.path,
-																revision: view().coversRevision,
-															})
-														: null
-												}
+												src={file.cover ? coverSrc(file.cover) : null}
 												alt=""
 												missing={<span>Art</span>}
 											/>
@@ -301,7 +295,7 @@ export function FileListView(props: {
 														</svg>
 														<span aria-hidden="true">{expanded() ? '⌄' : '›'}</span>
 													</Show>
-													<span class="title-disclosure-label">{displayedTitleForFile(file)}</span>
+													<span class="title-disclosure-label">{file.label}</span>
 													<Show when={grouped()}>
 														<span class="title-source-count">{sources().length} files</span>
 													</Show>
@@ -321,14 +315,7 @@ export function FileListView(props: {
 												{grouped()
 													? unusableSource()
 														? formatFileDetails(unusableSource() ?? file)
-														: formatFileDetails(
-																{
-																	...file,
-																	duration: sources().reduce((n, f) => n + (f.duration ?? 0), 0),
-																	size: sources().reduce((n, f) => n + (f.size ?? 0), 0),
-																},
-																sources().reduce((n, f) => n + acceptedChapterCount(f), 0),
-															)
+														: titleDetails(file, input.totalsFor(file))
 													: formatFileDetails(file)}
 											</div>
 											<div class="file-audio-row">
@@ -344,13 +331,15 @@ export function FileListView(props: {
 											<Show when={file.cueSource}>
 												{(cue) => (
 													<div class="file-cue-details">
-														<span>
-															{acceptedChapterCount(file)} chapter
-															{acceptedChapterCount(file) === 1 ? '' : 's'} from{' '}
-															{cue().status === 'embeddedPreferred'
-																? 'embedded audio'
-																: cue().fileName}
-														</span>
+														<Show when={cue().status !== 'ignored' && cue().status !== 'invalid'}>
+															<span>
+																{acceptedChapterCount(file)} chapter
+																{acceptedChapterCount(file) === 1 ? '' : 's'} from{' '}
+																{cue().status === 'embeddedPreferred'
+																	? 'embedded audio'
+																	: cue().fileName}
+															</span>
+														</Show>
 														<Show when={cue().message}>
 															<p>{cue().message}</p>
 														</Show>

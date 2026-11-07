@@ -8,14 +8,14 @@ use abb_engine::session::{
     SubmissionStatus, SubmitRefusal, TitlePlan,
 };
 use abb_engine::work_runtime::WorkOperationStatus;
-use abb_engine::{read_metadata, Engine, ShutdownOutcome};
+use abb_engine::{read_metadata, Engine, RunningWork, ShutdownOutcome};
 use tempfile::TempDir;
 
 use super::integration_session_desk::{
     collision_review, engine_config, finished, genre_on_disk, start_once_the_lock_frees,
     submission, Desk,
 };
-use super::media_fixtures::{ffmpeg, oversized_jpeg};
+use super::media_fixtures::oversized_jpeg;
 
 #[tokio::test]
 async fn shutdown_finishes_an_accepted_save_without_a_host_waiting_for_its_reply() {
@@ -25,6 +25,7 @@ async fn shutdown_finishes_an_accepted_save_without_a_host_waiting_for_its_reply
         .await;
     desk.import(&source).await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Genre,
         value: "Mystery".into(),
     })
@@ -253,7 +254,7 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
             },
         })
     );
-    assert_eq!(metadata.waiting_writes.len(), 1);
+    assert_eq!(desk.engine.running_work().waiting_writes, 1);
 
     desk.wait_until("the waiting write is applied", |desk| {
         desk.metadata().status
@@ -308,7 +309,7 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
             },
         })
     );
-    assert!(metadata.waiting_writes.is_empty());
+    assert_eq!(desk.engine.running_work().waiting_writes, 0);
 
     desk.wait_until("the export finishes", |desk| {
         finished(desk.export_status(&export))
@@ -340,6 +341,7 @@ async fn a_naming_edit_retags_a_finished_output_where_it_is() {
     let output = desk.output_of(&export);
 
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "Beta".to_string(),
     })
@@ -378,6 +380,7 @@ async fn restarting_a_title_moves_its_unfinished_export_to_the_new_location() {
     let first = desk.export().await;
 
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Author,
         value: "Other Author".to_string(),
     })
@@ -471,6 +474,7 @@ async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_w
     desk.edit_genre_and_save().await;
     let running = desk.engine.running_work();
     assert_eq!((running.exports, running.waiting_writes), (1, 1));
+    assert_eq!(desk.engine.quit_pressed(), abb_engine::QuitPress::Proceed);
 
     let outcome = tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
         .await
@@ -479,7 +483,7 @@ async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_w
 
     assert!(finished(desk.export_status(&export)));
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
-    assert!(desk.engine.running_work().is_empty());
+    assert_eq!(desk.engine.running_work(), RunningWork::default());
     desk.send(SessionIntent::Submit).await;
     assert_eq!(
         submission(&desk),
@@ -619,27 +623,13 @@ async fn a_choice_made_while_reset_is_waiting_stays_on_screen_and_on_disk() {
 async fn save_updates_finished_outputs_in_every_supported_container() {
     for format in [
         AudiobookFormat::M4b,
-        AudiobookFormat::Mp3,
         AudiobookFormat::M4aOpus,
         AudiobookFormat::MkaOpus,
     ] {
         let desk = Desk::new();
-        let mut source = desk
+        let source = desk
             .audiobook(&desk.root.path().join("source.m4b"), 0.2)
             .await;
-        if format == AudiobookFormat::Mp3 {
-            let mp3 = desk.root.path().join("source.mp3");
-            ffmpeg([
-                "-v",
-                "error",
-                "-i",
-                source.to_str().expect("utf8 path"),
-                "-c:a",
-                "libmp3lame",
-                mp3.to_str().expect("utf8 path"),
-            ]);
-            source = mp3;
-        }
         desk.import(&source).await;
         let id = desk.engine.session_snapshot().titles.expect("titles").files[0]
             .input_id
@@ -782,12 +772,14 @@ async fn keep_location_writes_the_latest_offered_tags_to_the_original_export_pat
     desk.import(&book).await;
     let operation = desk.export().await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Author,
         value: "First choice".into(),
     })
     .await;
     desk.send(SessionIntent::Save).await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Author,
         value: "Latest choice".into(),
     })

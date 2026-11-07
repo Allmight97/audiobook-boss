@@ -4,10 +4,7 @@
     "start": {
       "concurrency": {
         "capabilities": {
-          "allowAuto": true,
           "autoEffective": 4,
-          "fixedMax": 8,
-          "fixedMin": 1,
           "fixedOptions": [
             1,
             2,
@@ -65,35 +62,8 @@
           }
         },
         "pinnedDefaults": null,
+        "pressQuitTwice": true,
         "startupBehavior": "rememberLastState"
-      },
-      "startupDefaults": {
-        "encoderDefaults": {
-          "format": "m4b",
-          "intent": "auto",
-          "sampleRate": "auto",
-          "settings": {
-            "bitrateKbps": 65,
-            "bitrateMode": {
-              "mode": "cbr"
-            },
-            "channels": "auto",
-            "encoderType": "native_aac",
-            "faacProfile": "auto",
-            "nativeAacSpeed": 0
-          }
-        },
-        "maxConcurrentJobs": {
-          "mode": "auto"
-        },
-        "outputDefaults": {
-          "outputDirectory": null,
-          "outputNaming": {
-            "customTemplate": null,
-            "includeYear": false,
-            "preset": "absDefault"
-          }
-        }
       }
     },
     "steps": [
@@ -108,10 +78,7 @@
         "snapshot": {
           "concurrency": {
             "capabilities": {
-              "allowAuto": true,
               "autoEffective": 4,
-              "fixedMax": 8,
-              "fixedMin": 1,
               "fixedOptions": [
                 1,
                 2,
@@ -169,35 +136,8 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "pinnedDefaults"
-          },
-          "startupDefaults": {
-            "encoderDefaults": {
-              "format": "m4b",
-              "intent": "auto",
-              "sampleRate": "auto",
-              "settings": {
-                "bitrateKbps": 65,
-                "bitrateMode": {
-                  "mode": "cbr"
-                },
-                "channels": "auto",
-                "encoderType": "native_aac",
-                "faacProfile": "auto",
-                "nativeAacSpeed": 0
-              }
-            },
-            "maxConcurrentJobs": {
-              "mode": "auto"
-            },
-            "outputDefaults": {
-              "outputDirectory": null,
-              "outputNaming": {
-                "customTemplate": null,
-                "includeYear": false,
-                "preset": "absDefault"
-              }
-            }
           }
         }
       },
@@ -211,10 +151,7 @@
         "snapshot": {
           "concurrency": {
             "capabilities": {
-              "allowAuto": true,
               "autoEffective": 4,
-              "fixedMax": 8,
-              "fixedMin": 1,
               "fixedOptions": [
                 1,
                 2,
@@ -299,35 +236,8 @@
                 }
               }
             },
+            "pressQuitTwice": true,
             "startupBehavior": "pinnedDefaults"
-          },
-          "startupDefaults": {
-            "encoderDefaults": {
-              "format": "m4b",
-              "intent": "auto",
-              "sampleRate": "auto",
-              "settings": {
-                "bitrateKbps": 65,
-                "bitrateMode": {
-                  "mode": "cbr"
-                },
-                "channels": "auto",
-                "encoderType": "native_aac",
-                "faacProfile": "auto",
-                "nativeAacSpeed": 0
-              }
-            },
-            "maxConcurrentJobs": {
-              "mode": "auto"
-            },
-            "outputDefaults": {
-              "outputDirectory": null,
-              "outputNaming": {
-                "customTemplate": null,
-                "includeYear": false,
-                "preset": "absDefault"
-              }
-            }
           }
         }
       },
@@ -344,10 +254,7 @@
         "snapshot": {
           "concurrency": {
             "capabilities": {
-              "allowAuto": true,
               "autoEffective": 4,
-              "fixedMax": 8,
-              "fixedMin": 1,
               "fixedOptions": [
                 1,
                 2,
@@ -432,35 +339,8 @@
                 }
               }
             },
+            "pressQuitTwice": true,
             "startupBehavior": "pinnedDefaults"
-          },
-          "startupDefaults": {
-            "encoderDefaults": {
-              "format": "m4b",
-              "intent": "auto",
-              "sampleRate": "auto",
-              "settings": {
-                "bitrateKbps": 65,
-                "bitrateMode": {
-                  "mode": "cbr"
-                },
-                "channels": "auto",
-                "encoderType": "native_aac",
-                "faacProfile": "auto",
-                "nativeAacSpeed": 0
-              }
-            },
-            "maxConcurrentJobs": {
-              "mode": "auto"
-            },
-            "outputDefaults": {
-              "outputDirectory": null,
-              "outputNaming": {
-                "customTemplate": null,
-                "includeYear": false,
-                "preset": "absDefault"
-              }
-            }
           }
         }
       },
@@ -474,10 +354,7 @@
         "snapshot": {
           "concurrency": {
             "capabilities": {
-              "allowAuto": true,
               "autoEffective": 4,
-              "fixedMax": 8,
-              "fixedMin": 1,
               "fixedOptions": [
                 1,
                 2,
@@ -535,35 +412,8 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
-          },
-          "startupDefaults": {
-            "encoderDefaults": {
-              "format": "m4b",
-              "intent": "auto",
-              "sampleRate": "auto",
-              "settings": {
-                "bitrateKbps": 65,
-                "bitrateMode": {
-                  "mode": "cbr"
-                },
-                "channels": "auto",
-                "encoderType": "native_aac",
-                "faacProfile": "auto",
-                "nativeAacSpeed": 0
-              }
-            },
-            "maxConcurrentJobs": {
-              "mode": "auto"
-            },
-            "outputDefaults": {
-              "outputDirectory": null,
-              "outputNaming": {
-                "customTemplate": null,
-                "includeYear": false,
-                "preset": "absDefault"
-              }
-            }
           }
         }
       }
@@ -574,10 +424,7 @@
     "start": {
       "concurrency": {
         "capabilities": {
-          "allowAuto": true,
           "autoEffective": 4,
-          "fixedMax": 8,
-          "fixedMin": 1,
           "fixedOptions": [
             1,
             2,
@@ -635,35 +482,8 @@
           }
         },
         "pinnedDefaults": null,
+        "pressQuitTwice": true,
         "startupBehavior": "rememberLastState"
-      },
-      "startupDefaults": {
-        "encoderDefaults": {
-          "format": "m4b",
-          "intent": "auto",
-          "sampleRate": "auto",
-          "settings": {
-            "bitrateKbps": 65,
-            "bitrateMode": {
-              "mode": "cbr"
-            },
-            "channels": "auto",
-            "encoderType": "native_aac",
-            "faacProfile": "auto",
-            "nativeAacSpeed": 0
-          }
-        },
-        "maxConcurrentJobs": {
-          "mode": "auto"
-        },
-        "outputDefaults": {
-          "outputDirectory": null,
-          "outputNaming": {
-            "customTemplate": null,
-            "includeYear": false,
-            "preset": "absDefault"
-          }
-        }
       }
     },
     "steps": [
@@ -678,10 +498,7 @@
         "snapshot": {
           "concurrency": {
             "capabilities": {
-              "allowAuto": true,
               "autoEffective": 4,
-              "fixedMax": 8,
-              "fixedMin": 1,
               "fixedOptions": [
                 1,
                 2,
@@ -744,35 +561,8 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
-          },
-          "startupDefaults": {
-            "encoderDefaults": {
-              "format": "m4b",
-              "intent": "auto",
-              "sampleRate": "auto",
-              "settings": {
-                "bitrateKbps": 65,
-                "bitrateMode": {
-                  "mode": "cbr"
-                },
-                "channels": "auto",
-                "encoderType": "native_aac",
-                "faacProfile": "auto",
-                "nativeAacSpeed": 0
-              }
-            },
-            "maxConcurrentJobs": {
-              "mode": "auto"
-            },
-            "outputDefaults": {
-              "outputDirectory": null,
-              "outputNaming": {
-                "customTemplate": null,
-                "includeYear": false,
-                "preset": "absDefault"
-              }
-            }
           }
         }
       },
@@ -786,10 +576,7 @@
         "snapshot": {
           "concurrency": {
             "capabilities": {
-              "allowAuto": true,
               "autoEffective": 4,
-              "fixedMax": 8,
-              "fixedMin": 1,
               "fixedOptions": [
                 1,
                 2,
@@ -852,35 +639,8 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
-          },
-          "startupDefaults": {
-            "encoderDefaults": {
-              "format": "m4b",
-              "intent": "auto",
-              "sampleRate": "auto",
-              "settings": {
-                "bitrateKbps": 65,
-                "bitrateMode": {
-                  "mode": "cbr"
-                },
-                "channels": "auto",
-                "encoderType": "native_aac",
-                "faacProfile": "auto",
-                "nativeAacSpeed": 0
-              }
-            },
-            "maxConcurrentJobs": {
-              "mode": "auto"
-            },
-            "outputDefaults": {
-              "outputDirectory": null,
-              "outputNaming": {
-                "customTemplate": null,
-                "includeYear": false,
-                "preset": "absDefault"
-              }
-            }
           }
         }
       },
@@ -894,10 +654,7 @@
         "snapshot": {
           "concurrency": {
             "capabilities": {
-              "allowAuto": true,
               "autoEffective": 4,
-              "fixedMax": 8,
-              "fixedMin": 1,
               "fixedOptions": [
                 1,
                 2,
@@ -955,35 +712,8 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
-          },
-          "startupDefaults": {
-            "encoderDefaults": {
-              "format": "m4b",
-              "intent": "auto",
-              "sampleRate": "auto",
-              "settings": {
-                "bitrateKbps": 65,
-                "bitrateMode": {
-                  "mode": "cbr"
-                },
-                "channels": "auto",
-                "encoderType": "native_aac",
-                "faacProfile": "auto",
-                "nativeAacSpeed": 0
-              }
-            },
-            "maxConcurrentJobs": {
-              "mode": "auto"
-            },
-            "outputDefaults": {
-              "outputDirectory": null,
-              "outputNaming": {
-                "customTemplate": null,
-                "includeYear": false,
-                "preset": "absDefault"
-              }
-            }
           }
         }
       }
@@ -994,10 +724,7 @@
     "start": {
       "concurrency": {
         "capabilities": {
-          "allowAuto": true,
           "autoEffective": 4,
-          "fixedMax": 8,
-          "fixedMin": 1,
           "fixedOptions": [
             1,
             2,
@@ -1060,35 +787,8 @@
           }
         },
         "pinnedDefaults": null,
+        "pressQuitTwice": true,
         "startupBehavior": "rememberLastState"
-      },
-      "startupDefaults": {
-        "encoderDefaults": {
-          "format": "m4b",
-          "intent": "auto",
-          "sampleRate": "auto",
-          "settings": {
-            "bitrateKbps": 65,
-            "bitrateMode": {
-              "mode": "cbr"
-            },
-            "channels": "auto",
-            "encoderType": "native_aac",
-            "faacProfile": "auto",
-            "nativeAacSpeed": 0
-          }
-        },
-        "maxConcurrentJobs": {
-          "mode": "auto"
-        },
-        "outputDefaults": {
-          "outputDirectory": null,
-          "outputNaming": {
-            "customTemplate": null,
-            "includeYear": false,
-            "preset": "absDefault"
-          }
-        }
       }
     },
     "steps": [
@@ -1102,10 +802,7 @@
         "snapshot": {
           "concurrency": {
             "capabilities": {
-              "allowAuto": true,
               "autoEffective": 4,
-              "fixedMax": 8,
-              "fixedMin": 1,
               "fixedOptions": [
                 1,
                 2,
@@ -1168,35 +865,8 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
-          },
-          "startupDefaults": {
-            "encoderDefaults": {
-              "format": "m4b",
-              "intent": "auto",
-              "sampleRate": "auto",
-              "settings": {
-                "bitrateKbps": 65,
-                "bitrateMode": {
-                  "mode": "cbr"
-                },
-                "channels": "auto",
-                "encoderType": "native_aac",
-                "faacProfile": "auto",
-                "nativeAacSpeed": 0
-              }
-            },
-            "maxConcurrentJobs": {
-              "mode": "auto"
-            },
-            "outputDefaults": {
-              "outputDirectory": null,
-              "outputNaming": {
-                "customTemplate": null,
-                "includeYear": false,
-                "preset": "absDefault"
-              }
-            }
           }
         }
       },
@@ -1211,10 +881,7 @@
         "snapshot": {
           "concurrency": {
             "capabilities": {
-              "allowAuto": true,
               "autoEffective": 4,
-              "fixedMax": 8,
-              "fixedMin": 1,
               "fixedOptions": [
                 1,
                 2,
@@ -1272,35 +939,8 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
-          },
-          "startupDefaults": {
-            "encoderDefaults": {
-              "format": "m4b",
-              "intent": "auto",
-              "sampleRate": "auto",
-              "settings": {
-                "bitrateKbps": 65,
-                "bitrateMode": {
-                  "mode": "cbr"
-                },
-                "channels": "auto",
-                "encoderType": "native_aac",
-                "faacProfile": "auto",
-                "nativeAacSpeed": 0
-              }
-            },
-            "maxConcurrentJobs": {
-              "mode": "auto"
-            },
-            "outputDefaults": {
-              "outputDirectory": null,
-              "outputNaming": {
-                "customTemplate": null,
-                "includeYear": false,
-                "preset": "absDefault"
-              }
-            }
           }
         }
       }
@@ -1311,10 +951,7 @@
     "start": {
       "concurrency": {
         "capabilities": {
-          "allowAuto": true,
           "autoEffective": 4,
-          "fixedMax": 8,
-          "fixedMin": 1,
           "fixedOptions": [
             1,
             2,
@@ -1372,35 +1009,8 @@
           }
         },
         "pinnedDefaults": null,
+        "pressQuitTwice": true,
         "startupBehavior": "rememberLastState"
-      },
-      "startupDefaults": {
-        "encoderDefaults": {
-          "format": "m4b",
-          "intent": "auto",
-          "sampleRate": "auto",
-          "settings": {
-            "bitrateKbps": 65,
-            "bitrateMode": {
-              "mode": "cbr"
-            },
-            "channels": "auto",
-            "encoderType": "native_aac",
-            "faacProfile": "auto",
-            "nativeAacSpeed": 0
-          }
-        },
-        "maxConcurrentJobs": {
-          "mode": "auto"
-        },
-        "outputDefaults": {
-          "outputDirectory": null,
-          "outputNaming": {
-            "customTemplate": null,
-            "includeYear": false,
-            "preset": "absDefault"
-          }
-        }
       }
     },
     "steps": [
@@ -1418,10 +1028,7 @@
         "snapshot": {
           "concurrency": {
             "capabilities": {
-              "allowAuto": true,
               "autoEffective": 4,
-              "fixedMax": 8,
-              "fixedMin": 1,
               "fixedOptions": [
                 1,
                 2,
@@ -1481,36 +1088,8 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
-          },
-          "startupDefaults": {
-            "encoderDefaults": {
-              "format": "m4b",
-              "intent": "auto",
-              "sampleRate": "auto",
-              "settings": {
-                "bitrateKbps": 65,
-                "bitrateMode": {
-                  "mode": "cbr"
-                },
-                "channels": "auto",
-                "encoderType": "native_aac",
-                "faacProfile": "auto",
-                "nativeAacSpeed": 0
-              }
-            },
-            "maxConcurrentJobs": {
-              "mode": "fixed",
-              "value": 2
-            },
-            "outputDefaults": {
-              "outputDirectory": null,
-              "outputNaming": {
-                "customTemplate": null,
-                "includeYear": false,
-                "preset": "absDefault"
-              }
-            }
           }
         }
       },
@@ -1534,10 +1113,7 @@
         "snapshot": {
           "concurrency": {
             "capabilities": {
-              "allowAuto": true,
               "autoEffective": 4,
-              "fixedMax": 8,
-              "fixedMin": 1,
               "fixedOptions": [
                 1,
                 2,
@@ -1597,36 +1173,8 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
-          },
-          "startupDefaults": {
-            "encoderDefaults": {
-              "format": "m4b",
-              "intent": "auto",
-              "sampleRate": "auto",
-              "settings": {
-                "bitrateKbps": 65,
-                "bitrateMode": {
-                  "mode": "cbr"
-                },
-                "channels": "auto",
-                "encoderType": "native_aac",
-                "faacProfile": "auto",
-                "nativeAacSpeed": 0
-              }
-            },
-            "maxConcurrentJobs": {
-              "mode": "fixed",
-              "value": 2
-            },
-            "outputDefaults": {
-              "outputDirectory": null,
-              "outputNaming": {
-                "customTemplate": null,
-                "includeYear": false,
-                "preset": "absDefault"
-              }
-            }
           }
         }
       }

@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 pub enum AudiobookFormat {
     #[default]
     M4b,
-    Mp3,
     M4aOpus,
     MkaOpus,
 }
@@ -18,7 +17,6 @@ impl AudiobookFormat {
     pub fn extension(self) -> &'static str {
         match self {
             Self::M4b => "m4b",
-            Self::Mp3 => "mp3",
             Self::M4aOpus => "m4a",
             Self::MkaOpus => "mka",
         }
@@ -39,7 +37,6 @@ pub enum AudioIntent {
 #[serde(tag = "format", rename_all = "camelCase")]
 pub enum OutputAudio {
     M4b { settings: EncoderSettings },
-    Mp3,
     M4aOpus { settings: EncoderSettings },
     MkaOpus { settings: EncoderSettings },
 }
@@ -47,7 +44,6 @@ impl OutputAudio {
     pub fn new(format: AudiobookFormat, settings: EncoderSettings) -> Self {
         match format {
             AudiobookFormat::M4b => Self::M4b { settings },
-            AudiobookFormat::Mp3 => Self::Mp3,
             AudiobookFormat::M4aOpus => Self::M4aOpus { settings },
             AudiobookFormat::MkaOpus => Self::MkaOpus { settings },
         }
@@ -55,17 +51,15 @@ impl OutputAudio {
     pub fn format(&self) -> AudiobookFormat {
         match self {
             Self::M4b { .. } => AudiobookFormat::M4b,
-            Self::Mp3 => AudiobookFormat::Mp3,
             Self::M4aOpus { .. } => AudiobookFormat::M4aOpus,
             Self::MkaOpus { .. } => AudiobookFormat::MkaOpus,
         }
     }
-    pub fn encoder_settings(&self) -> Option<&EncoderSettings> {
+    pub fn encoder_settings(&self) -> &EncoderSettings {
         match self {
             Self::M4b { settings } | Self::M4aOpus { settings } | Self::MkaOpus { settings } => {
-                Some(settings)
+                settings
             }
-            Self::Mp3 => None,
         }
     }
 }
@@ -187,9 +181,9 @@ pub fn resolve_title_audio(
         "mixed audio".into()
     };
     let format = request.format();
-    if preview && (format == AudiobookFormat::Mp3 || request.intent == AudioIntent::Preserve) {
+    if preview && request.intent == AudioIntent::Preserve {
         return Err(AppError::InvalidInput(
-            "Encoding previews are available with M4B or Opus output.".into(),
+            "Previews need encoded audio. Choose encoding settings to preview this title.".into(),
         )
         .into());
     }
@@ -214,28 +208,36 @@ pub fn resolve_title_audio(
             });
         }
     }
-    match request.output.encoder_settings() {
-        Some(settings) if request.intent != AudioIntent::Preserve => {
-            encoding_plan(request, settings, info, source_rate, source_codec, reason)
-        }
-        _ => Err(AppError::InvalidInput(
-            reason.unwrap_or_else(|| "Choose M4B or Opus to encode this title.".into()),
-        )
-        .into()),
+    if request.intent == AudioIntent::Preserve {
+        return Err(
+            AppError::InvalidInput(reason.expect("a rejected copy always has a reason")).into(),
+        );
     }
+    encoding_plan(
+        request,
+        request.output.encoder_settings(),
+        info,
+        source_rate,
+        source_codec,
+        reason,
+    )
 }
 
 fn copy_rejection(request: &TitleAudioRequest, info: &FileListInfo) -> Result<Option<String>> {
     let format = request.format();
-    if !sources_match_codec(format, info)? {
-        return Ok(Some(match format {
-                AudiobookFormat::Mp3 => "MP3 output needs MP3 source audio. Choose M4B or Opus to encode this title.".into(),
-                _ if request.intent == AudioIntent::Preserve => format!("This audio cannot be kept unchanged in {}. Change the output format or choose encoding settings.", format.extension().to_uppercase()),
-                _ => format!("Encoding is required for the selected {} output.", format.extension().to_uppercase()),
-            }));
+    let keeping_formats = formats_that_keep(&source_codecs(info)?);
+    if !keeping_formats.contains(&format) {
+        let extension = format.extension().to_uppercase();
+        return Ok(Some(if request.intent != AudioIntent::Preserve {
+            format!("Encoding is required for the selected {extension} output.")
+        } else if keeping_formats.is_empty() {
+            "This audio cannot be kept unchanged in any output format. Choose encoding settings."
+                .to_string()
+        } else {
+            format!("This audio cannot be kept unchanged in {extension}. Change the output format or choose encoding settings.")
+        }));
     }
     if request.intent == AudioIntent::Auto
-        && format != AudiobookFormat::Mp3
         && !info.files.iter().all(|file| {
             file.bitrate.is_some_and(|rate| {
                 (1..=super::constants::COMPACT_AUDIO_MAX_BITRATE).contains(&rate)
@@ -314,22 +316,33 @@ fn encoding_plan(
     })
 }
 
-fn sources_match_codec(format: AudiobookFormat, info: &FileListInfo) -> Result<bool> {
-    let expected = match format {
-        AudiobookFormat::M4b => ffmpeg_next::codec::Id::AAC,
-        AudiobookFormat::Mp3 => ffmpeg_next::codec::Id::MP3,
-        _ => ffmpeg_next::codec::Id::OPUS,
-    };
-    for file in &info.files {
-        let path = super::validate_input_audio_path(&file.path)?;
-        let input = ffmpeg_next::format::input(&path)?;
-        if !input
-            .streams()
-            .best(ffmpeg_next::media::Type::Audio)
-            .is_some_and(|stream| stream.parameters().id() == expected)
-        {
-            return Ok(false);
-        }
-    }
-    Ok(true)
+fn source_codecs(info: &FileListInfo) -> Result<Vec<Option<ffmpeg_next::codec::Id>>> {
+    info.files
+        .iter()
+        .map(|file| {
+            let path = super::validate_input_audio_path(&file.path)?;
+            let input = ffmpeg_next::format::input(&path)?;
+            Ok(input
+                .streams()
+                .best(ffmpeg_next::media::Type::Audio)
+                .map(|stream| stream.parameters().id()))
+        })
+        .collect()
+}
+
+fn formats_that_keep(codecs: &[Option<ffmpeg_next::codec::Id>]) -> Vec<AudiobookFormat> {
+    [
+        AudiobookFormat::M4b,
+        AudiobookFormat::M4aOpus,
+        AudiobookFormat::MkaOpus,
+    ]
+    .into_iter()
+    .filter(|format| {
+        let expected = match format {
+            AudiobookFormat::M4b => ffmpeg_next::codec::Id::AAC,
+            _ => ffmpeg_next::codec::Id::OPUS,
+        };
+        codecs.iter().all(|codec| *codec == Some(expected))
+    })
+    .collect()
 }

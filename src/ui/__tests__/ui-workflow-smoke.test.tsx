@@ -11,22 +11,19 @@ import { App } from '../App';
 const native = vi.hoisted(() => ({
 	openFiles: vi.fn(),
 	openDirectory: vi.fn(),
-	getSupportedAudioImportMetadata: vi.fn(),
 	listen: vi.fn(),
 	openFile: vi.fn(),
-	listWorkOperations: vi.fn(),
-	cancelWorkOperation: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({ tauriClient: native }));
 
 const INPUT_PATH = '/library/Dune.m4b';
 const OUTPUT_DIRECTORY = '/exports/audiobooks';
-const COVER_BYTES = [9, 8, 7, 6];
 
 function importedFile(): AudioFile {
 	return {
 		inputId: 'input-dune',
+		chapters: [],
 		path: INPUT_PATH,
 		size: 1024,
 		duration: 3600,
@@ -36,8 +33,12 @@ function importedFile(): AudioFile {
 		channels: 1,
 		codecLabel: 'AAC',
 		selectedDecoder: 'FFmpeg',
-		tagTitle: 'Dune (old tags)',
-		tagArtist: 'Old Author',
+		label: 'Dune (old tags)',
+		artist: 'Old Author',
+		chapterPlan: null,
+		cueSource: null,
+		error: null,
+		cover: null,
 		isValid: true,
 		sourceRemoved: false,
 	};
@@ -46,7 +47,6 @@ function importedFile(): AudioFile {
 function lookupResult(): OnlineMetadataResult {
 	return {
 		source: 'audnexus',
-		sourceId: 'dune-1965',
 		title: 'Dune',
 		authors: ['Frank Herbert'],
 		narrators: ['George Guidall'],
@@ -57,7 +57,7 @@ function lookupResult(): OnlineMetadataResult {
 		description: 'The desert planet Arrakis holds the spice.',
 		publishedDate: '1965-08',
 		durationSeconds: 3600,
-		coverUrl: 'https://covers.example.test/dune.jpg',
+		cover: 'remote/0/https%3A%2F%2Fcovers.example.test%2Fdune.jpg',
 		audibleOnly: false,
 	};
 }
@@ -68,14 +68,7 @@ describe('UI workflow intents', () => {
 	it('sends the lookup, cover, audio, and output choices the user made, then submits', async () => {
 		native.openFiles.mockResolvedValue([INPUT_PATH]);
 		native.openDirectory.mockResolvedValue(OUTPUT_DIRECTORY);
-		native.getSupportedAudioImportMetadata.mockResolvedValue({
-			formats: [{ extension: 'm4b', label: 'M4B' }],
-			extensions: ['m4b'],
-			formatsText: 'M4B',
-			supportText: 'Supports M4B audio files',
-		});
 		native.listen.mockResolvedValue(() => undefined);
-		native.listWorkOperations.mockResolvedValue({ revision: 0, order: [], operations: [] });
 
 		const engine = createFakeEngine();
 		engine.analyze = () => [importedFile()];
@@ -83,7 +76,7 @@ describe('UI workflow intents', () => {
 			if (intent.kind === 'import') {
 				engine.loadTitles(engine.analyze(intent.paths), [0]);
 				engine.seedForm({ title: 'Dune (old tags)', author: 'Old Author' });
-				engine.seedCover([1, 1, 1]);
+				engine.seedCover();
 				return { kind: 'applied' };
 			}
 			if (intent.kind === 'lookupClose') {
@@ -104,6 +97,7 @@ describe('UI workflow intents', () => {
 						kind: 'submitted',
 						operationId: 'operation-1',
 						title: 'Dune',
+						leftOut: 0,
 					};
 				});
 				return { kind: 'applied' };
@@ -115,7 +109,7 @@ describe('UI workflow intents', () => {
 						open: true,
 						hasSearched: true,
 						results: [lookupResult()],
-						queuePosition: { index: 0, total: 1, path: INPUT_PATH },
+						queuePosition: { index: 0, total: 1, path: INPUT_PATH, label: 'Dune (old tags)' },
 						status: { kind: 'found', count: 1, partial: false, after: null },
 					};
 				});
@@ -123,7 +117,7 @@ describe('UI workflow intents', () => {
 			}
 			if (intent.kind === 'lookupApply') {
 				engine.seedForm({ title: 'Dune', author: 'Frank Herbert' });
-				engine.seedCover(COVER_BYTES);
+				engine.seedCover();
 				engine.change((state) => {
 					state.lookup = { ...state.lookup, status: { kind: 'applied', coverFailed: false } };
 				});
@@ -131,7 +125,7 @@ describe('UI workflow intents', () => {
 			}
 			return undefined;
 		};
-		const runtime = createAppRuntime({ engine });
+		const runtime = await createAppRuntime({ engine });
 		const user = userEvent.setup();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime}>

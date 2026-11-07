@@ -32,6 +32,7 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
     let Some(SubmissionStatus::Submitted {
         operation_id,
         title,
+        ..
     }) = submission(&desk)
     else {
         panic!("submitted: {:?}", submission(&desk));
@@ -121,8 +122,8 @@ async fn shutdown_answers_a_pending_collision_review_so_a_waiting_save_lands() {
         "{:?}",
         submission(&desk)
     );
-    let metadata = desk.edit_genre_and_save().await;
-    assert_eq!(metadata.waiting_writes.len(), 1);
+    desk.edit_genre_and_save().await;
+    assert_eq!(desk.engine.running_work().waiting_writes, 1);
 
     let outcome = tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
         .await
@@ -156,6 +157,7 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
     })
     .await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "Beta".to_string(),
     })

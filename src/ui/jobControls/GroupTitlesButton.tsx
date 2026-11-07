@@ -8,7 +8,7 @@ export function GroupTitlesButton(): JSX.Element {
 		<button
 			type="button"
 			class="group-titles-button"
-			disabled={input.view().orderLocked || input.view().selectedIndices.length < 2}
+			disabled={!input.view().canGroup}
 			title="Select two or more titles to group their files into one audiobook."
 			onClick={() => input.groupSelected()}
 		>

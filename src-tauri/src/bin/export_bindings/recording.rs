@@ -15,6 +15,10 @@ impl FixtureEngine {
             "abb-contract-fixture-{}-{name}",
             std::process::id()
         ));
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "the fixture folder is usually absent before a run"
+        )]
         let _ = std::fs::remove_dir_all(&root);
         if let Some(toml) = settings_toml {
             std::fs::create_dir_all(root.join("config"))
@@ -27,15 +31,22 @@ impl FixtureEngine {
             config_dir: root.join("config"),
             app_identifier: "com.audiobook-boss.contract-fixture".into(),
             events: Arc::new(DiscardEvents),
-            aaxclean_helper: None,
         })
         .expect("failed to start the fixture engine");
         Self { engine, root }
     }
 
     pub fn finish(self) {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "shutdown outcome is not part of the recorded fixture"
+        )]
         let _ = tauri::async_runtime::block_on(self.engine.shutdown());
         drop(self.engine);
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "best-effort removal of the fixture folder"
+        )]
         let _ = std::fs::remove_dir_all(self.root);
     }
 }
@@ -69,7 +80,7 @@ pub fn export_fresh(fixtures: &Path) {
 /// titles first appear in a `titles.files` list, so the name does not depend
 /// on map order. The numbering carries from one snapshot to the next.
 pub struct Normalizer {
-    roots: Vec<String>,
+    roots: Vec<(String, String)>,
     titles: Vec<String>,
 }
 
@@ -78,11 +89,20 @@ const IO_ERROR_MESSAGE: &str = "IO operation failed: <operating system error>";
 
 impl Normalizer {
     pub fn new(root: &Path) -> Self {
-        let mut roots = Vec::new();
+        let mut spellings = Vec::new();
         if let Ok(canonical) = root.canonicalize() {
-            roots.push(canonical.to_string_lossy().into_owned());
+            spellings.push(canonical.to_string_lossy().into_owned());
         }
-        roots.push(root.to_string_lossy().into_owned());
+        spellings.push(root.to_string_lossy().into_owned());
+        let roots = spellings
+            .into_iter()
+            .flat_map(|spelling| {
+                [
+                    (encode_component(&spelling), encode_component("/fixture")),
+                    (spelling, "/fixture".to_string()),
+                ]
+            })
+            .collect();
         Self {
             roots,
             titles: Vec::new(),
@@ -141,9 +161,11 @@ impl Normalizer {
                 });
             return format!("title-{}", position + 1);
         }
-        self.roots.iter().fold(text.to_string(), |text, root| {
-            text.replace(root, "/fixture")
-        })
+        self.roots
+            .iter()
+            .fold(text.to_string(), |text, (root, fixture)| {
+                text.replace(root, fixture)
+            })
     }
 }
 
@@ -173,6 +195,27 @@ fn pin_machine_values(map: &mut Map<String, Value>) {
     {
         map.insert("effective".into(), Value::from(MACHINE_JOBS));
     }
+}
+
+/// A cover address carries a source's path percent-encoded.
+fn encode_component(text: &str) -> String {
+    text.bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'_'
+            | b'.'
+            | b'!'
+            | b'~'
+            | b'*'
+            | b'\''
+            | b'('
+            | b')' => char::from(byte).to_string(),
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
 }
 
 fn is_uuid(text: &str) -> bool {

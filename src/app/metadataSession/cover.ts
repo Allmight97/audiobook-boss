@@ -13,8 +13,6 @@ export type CoverUiState = {
 	readonly isHovered: boolean;
 	readonly isDragOver: boolean;
 	readonly urlInputValue: string;
-	readonly hasCustomCoverArt: boolean;
-	readonly coverArtRemovalRequested: boolean;
 };
 
 export const HIDDEN_COVER_MESSAGE: CoverArtMessage = { kind: 'hidden' };
@@ -27,6 +25,8 @@ export function coverNoticeMessage(notice: CoverNotice | null): CoverArtMessage 
 			return HIDDEN_COVER_MESSAGE;
 		case 'urlRequired':
 			return { kind: 'error', text: 'Paste an image URL first.' };
+		case 'notAnImageUrl':
+			return { kind: 'error', text: 'This is not an image URL.' };
 		case 'loadedFromUrl':
 			return { kind: 'success', text: 'Cover art loaded from URL.' };
 		case 'loadFailed':

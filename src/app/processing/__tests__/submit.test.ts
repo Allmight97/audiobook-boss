@@ -10,15 +10,21 @@ describe('submission snapshot adapter', () => {
 
 	it('renders outcomes received without a local waiter and trusts engine busy facts', async () => {
 		const engine = createFakeEngine();
-		const app = createAppRuntime({ engine });
+		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		await app.initialize();
 		engine.change((state) => {
-			state.output.submission = { kind: 'submitted', operationId: 'op-1', title: 'Alpha' };
+			state.output.submission = {
+				kind: 'submitted',
+				operationId: 'op-1',
+				title: 'Alpha',
+				leftOut: 0,
+			};
 		});
 		await vi.waitFor(() =>
 			expect(app.processing.status().stepText).toBe('Current Step: Submitted to Work Center.'),
 		);
+		expect(app.processing.status().statusText).toBe('Idle');
+		expect(app.processing.status().progressPercentage).toBe(0);
 		engine.change((state) => {
 			state.output.submission = { kind: 'refused', reason: { kind: 'noOutputDirectory' } };
 			state.output.submissionInProgress = true;
@@ -34,11 +40,51 @@ describe('submission snapshot adapter', () => {
 		await vi.waitFor(() => expect(app.settings.concurrency().controlsEnabled).toBe(true));
 	});
 
+	it('says how many invalid files a Submit left out', async () => {
+		const engine = createFakeEngine();
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		const submitted = (leftOut: number) =>
+			engine.change((state) => {
+				state.output.submission = {
+					kind: 'submitted',
+					operationId: `op-${leftOut}`,
+					title: 'Alpha',
+					leftOut,
+				};
+			});
+		submitted(1);
+		await vi.waitFor(() =>
+			expect(app.processing.status().stepText).toBe(
+				'Current Step: Submitted to Work Center. 1 invalid file was left out.',
+			),
+		);
+		submitted(2);
+		await vi.waitFor(() =>
+			expect(app.processing.status().stepText).toBe(
+				'Current Step: Submitted to Work Center. 2 invalid files were left out.',
+			),
+		);
+	});
+
+	it('shows work that finished before its restart as completed', async () => {
+		const engine = createFakeEngine();
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		engine.change((state) => {
+			state.output.submission = {
+				kind: 'finishedBeforeRestart',
+				outputs: { updated: 1, elsewhere: 0, restartOffered: 0, failed: 0 },
+			};
+		});
+		await vi.waitFor(() => expect(app.processing.status().statusText).toBe('Completed'));
+		expect(app.processing.status().progressPercentage).toBe(100);
+	});
+
 	it('sends export, preview and targeted restart intents without building or continuing work', async () => {
 		const engine = createFakeEngine();
-		const app = createAppRuntime({ engine });
+		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		await app.initialize();
 		await app.processing.start();
 		await app.processing.preview();
 		await app.processing.restart({
@@ -53,24 +99,5 @@ describe('submission snapshot adapter', () => {
 			{ kind: 'preview' },
 			{ kind: 'restartTitle', titleId: 'alpha', revision: 3 },
 		]);
-	});
-
-	it('words backend cancellation without reporting failure', async () => {
-		const engine = createFakeEngine();
-		const app = createAppRuntime({ engine });
-		runtimes.push(app);
-		await app.initialize();
-		engine.change((state) => {
-			state.output.submission = {
-				kind: 'failed',
-				error: {
-					code: 'processing_cancelled',
-					category: 'cancellation',
-					message: 'Processing was cancelled.',
-					detail: null,
-				},
-			};
-		});
-		await vi.waitFor(() => expect(app.processing.status().stepText).toBe('Preview was cancelled.'));
 	});
 });

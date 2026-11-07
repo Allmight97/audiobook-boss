@@ -229,6 +229,7 @@ async fn encoding_choices_reach_the_file() {
         stereo_pink_noise(&book);
         desk.import(&book).await;
         desk.send(SessionIntent::SetField {
+            binding: desk.metadata().binding,
             field: MetadataField::Title,
             value: "Noise".to_string(),
         })

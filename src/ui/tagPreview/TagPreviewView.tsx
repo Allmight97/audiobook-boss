@@ -5,13 +5,12 @@ import { useAppRuntime } from '../../app/runtime';
 import { compactRows, leftRows, rightRows } from './rows';
 import './tagPreview.css';
 
-export function TagPreviewView(props: { readonly variant?: 'full' | 'workbench' }): JSX.Element {
+export function TagPreviewView(): JSX.Element {
 	const view = useAppRuntime().metadata.view;
 	const [showAllTags, setShowAllTags] = createSignal(false);
 	const tags = () => view().tags;
-	const variant = () => props.variant ?? 'full';
 
-	return variant() === 'workbench' ? (
+	return (
 		<div class="tag-preview-workbench">
 			<section class="tag-compact-table" aria-label="Basic metadata tags">
 				<For each={compactRows}>
@@ -67,33 +66,6 @@ export function TagPreviewView(props: { readonly variant?: 'full' | 'workbench' 
 			>
 				{showAllTags() ? 'Hide Extra Tags' : 'Show All Tags'}
 			</button>
-		</div>
-	) : (
-		<div class="tag-grid tag-grid-full">
-			<div class="tag-column">
-				<For each={leftRows}>
-					{(row) => (
-						<div class="tag-row" title={row.title}>
-							<span class="tag-name">{row.label}</span>
-							<span class="tag-value" data-field={row.field}>
-								{tags()[row.field] || '—'}
-							</span>
-						</div>
-					)}
-				</For>
-			</div>
-			<div class="tag-column">
-				<For each={rightRows}>
-					{(row) => (
-						<div class="tag-row" title={row.title}>
-							<span class="tag-name">{row.label}</span>
-							<span class="tag-value" data-field={row.field}>
-								{tags()[row.field] || '—'}
-							</span>
-						</div>
-					)}
-				</For>
-			</div>
 		</div>
 	);
 }

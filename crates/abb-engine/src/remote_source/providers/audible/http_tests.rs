@@ -63,6 +63,10 @@ async fn stub_http(replies: Vec<String>) -> (AudibleApi, JoinHandle<Vec<String>>
                 .write_all(reply.as_bytes())
                 .await
                 .expect("write reply");
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the client may already have closed the stream"
+            )]
             let _ = stream.shutdown().await;
         }
         request_lines

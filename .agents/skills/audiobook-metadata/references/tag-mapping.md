@@ -37,7 +37,7 @@ Album sort: MP4-family files carry the sort-album atom (FFmpeg key
 ABB compare tag keys ignoring case, and Matroska reports them upper case). MP3
 carries the ID3v2.4 `TSOA` frame (FFmpeg key `album-sort`); `sort_album` there
 would be a stray TXXX frame. ABB reads `album-sort` first, then `sort_album`,
-so an MP3 tagged by an older ABB still reads. A Save or Preserve that sets or
+so an MP3 tagged by an older ABB still reads. A Save that sets or
 clears the sort replaces both keys on MP3; one that leaves the sort alone
 keeps whatever keys the file has. Clearing a field removes its tag whatever
 case the container reports.

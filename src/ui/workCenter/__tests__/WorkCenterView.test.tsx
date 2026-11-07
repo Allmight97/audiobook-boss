@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../../app/runtime';
 import type { RestartOffer } from '../../../types/session';
 import type { OperationSnapshot } from '../../../types/workRuntime';
+import { createFakeEngine } from '../../../test/fixtures/fakeEngine';
 import { WorkCenterView } from '..';
 
 let runtime: AppRuntime | undefined;
@@ -13,7 +14,12 @@ afterEach(() => {
 });
 
 function completedOperation(): OperationSnapshot {
-	const progress = { stage: 'complete' as const, percentage: 100, message: 'Complete.' };
+	const progress = {
+		stage: 'complete' as const,
+		percentage: 100,
+		message: 'Complete.',
+		etaSeconds: null,
+	};
 	return {
 		operationId: 'batch',
 		sequence: 1,
@@ -21,91 +27,96 @@ function completedOperation(): OperationSnapshot {
 		kind: 'processingBatch',
 		status: 'completed',
 		title: 'Batch encode (2 files)',
-		createdAtMs: 0,
 		startedAtMs: 1_000,
 		finishedAtMs: 20_000,
 		cancellable: false,
 		cancelRequested: false,
-		lanes: ['encodeCpu'],
-		sourceInputIds: [],
 		progress,
 		children: [
 			{
-				sourceInputIds: [],
 				childJobId: 'first',
 				operationId: 'batch',
 				label: 'A Change of Plans.m4b',
 				status: 'completed',
-				lane: 'encodeCpu',
 				progress,
 				cancellable: false,
 				cancelRequested: false,
 				startedAtMs: 2_000,
 				finishedAtMs: 19_685,
 				warnings: [],
+				sourcePath: null,
+				inputIndex: null,
+				inputId: null,
+				jobId: null,
+				message: null,
+				outputPath: null,
+				supplementalWarning: null,
+				outputUpdate: null,
 			},
 			{
-				sourceInputIds: [],
 				childJobId: 'second',
 				operationId: 'batch',
 				label: 'Feedback.m4b',
 				status: 'completed',
-				lane: 'encodeCpu',
 				progress,
 				cancellable: false,
 				cancelRequested: false,
 				startedAtMs: 2_000,
 				finishedAtMs: 15_150,
 				warnings: [],
+				sourcePath: null,
+				inputIndex: null,
+				inputId: null,
+				jobId: null,
+				message: null,
+				outputPath: null,
+				supplementalWarning: null,
+				outputUpdate: null,
 			},
 		],
-		errors: [],
 		logTail: [],
 	};
 }
 
-function showOperation(operation: OperationSnapshot, offers: RestartOffer[] = []) {
-	runtime = createAppRuntime();
+async function showOperation(operation: OperationSnapshot, offers: RestartOffer[] = []) {
+	const engine = createFakeEngine();
+	engine.publishOperation(operation);
+	runtime = await createAppRuntime({ engine });
 	vi.spyOn(runtime.processing, 'restartOffers').mockReturnValue(offers);
-	vi.spyOn(runtime.workOperations, 'view').mockReturnValue({
-		initialized: true,
-		operations: [operation],
-		cancelPendingByOperationId: {},
-		errorMessage: null,
-	});
 	render(() => (
 		<AppRuntimeProvider runtime={runtime!}>
 			<WorkCenterView />
 		</AppRuntimeProvider>
 	));
+	return engine;
 }
 
-it('renders operation wall time and each file duration independently in the existing status labels', () => {
-	showOperation(completedOperation());
+it('renders operation wall time and each file duration independently in the existing status labels', async () => {
+	await showOperation(completedOperation());
 	expect(screen.getByText('Completed in 00:19')).toHaveClass('work-status', 'is-completed');
 	expect(screen.getByText('Done in 00:18')).toBeVisible();
 	expect(screen.getByText('Done in 00:13')).toBeVisible();
 	expect(screen.getByText('100%')).toBeVisible();
 });
 
-it('keeps plain completion labels when timestamps are unavailable', () => {
+it('keeps plain completion labels when timestamps are unavailable', async () => {
 	const operation = completedOperation();
-	operation.startedAtMs = undefined;
-	for (const child of operation.children) child.finishedAtMs = undefined;
-	showOperation(operation);
+	operation.startedAtMs = null;
+	for (const child of operation.children) child.finishedAtMs = null;
+	await showOperation(operation);
 	expect(screen.getByText('Completed')).toBeVisible();
 	expect(screen.getAllByText('Done')).toHaveLength(2);
 	expect(screen.queryByText(/in 00:00/)).not.toBeInTheDocument();
 });
 
-it('keeps durations beyond an hour in minutes and seconds', () => {
+it('keeps durations beyond an hour in minutes and seconds', async () => {
 	const operation = completedOperation();
 	operation.finishedAtMs = 3_662_000;
-	showOperation(operation);
+	await showOperation(operation);
 	expect(screen.getByText('Completed in 61:01')).toBeVisible();
 });
 
-it('shows each failed file with its own reason', () => {
+it('shows each failed file with its own reason', async () => {
 	const operation = completedOperation();
 	operation.status = 'mixed';
 	operation.children[0] = {
@@ -114,21 +125,21 @@ it('shows each failed file with its own reason', () => {
 		message: 'File validation failed: File not found: A Change of Plans.m4b',
 	};
 	operation.children[1] = { ...operation.children[1], message: 'Saved metadata: Feedback.m4b' };
-	showOperation(operation);
+	await showOperation(operation);
 	expect(
 		screen.getByText('File validation failed: File not found: A Change of Plans.m4b'),
 	).toBeVisible();
 	expect(screen.queryByText('Saved metadata: Feedback.m4b')).not.toBeInTheDocument();
 });
 
-it('shows a finished file whose PDF was not saved as done, with every warning', () => {
+it('shows a finished file whose PDF was not saved as done, with every warning', async () => {
 	const operation = completedOperation();
 	operation.children[0] = {
 		...operation.children[0],
 		supplementalWarning: 'Audiobook output was created, but the PDF could not be committed.',
 		outputUpdate: { revision: 2, status: { kind: 'failed', message: 'Disk full.' } },
 	};
-	showOperation(operation);
+	await showOperation(operation);
 	expect(screen.getByText('Done in 00:18')).toBeVisible();
 	expect(
 		screen.getByText(
@@ -137,20 +148,20 @@ it('shows a finished file whose PDF was not saved as done, with every warning', 
 	).toBeVisible();
 });
 
-it('shows why a finished title has no cover', () => {
+it('shows why a finished title has no cover', async () => {
 	const operation = completedOperation();
 	operation.children[0] = {
 		...operation.children[0],
 		warnings: ["The source file's cover could not be used, so this audiobook has no cover."],
 	};
-	showOperation(operation);
+	await showOperation(operation);
 	expect(screen.getByText('Done in 00:18')).toBeVisible();
 	expect(
 		screen.getByText("The source file's cover could not be used, so this audiobook has no cover."),
 	).toBeVisible();
 });
 
-it('cancels one title in a running batch and hides title cancel for a single title', () => {
+it('cancels one title in a running batch and hides title cancel for a single title', async () => {
 	const operation = completedOperation();
 	operation.status = 'running';
 	operation.cancellable = true;
@@ -159,7 +170,7 @@ it('cancels one title in a running batch and hides title cancel for a single tit
 		status: 'running',
 		cancellable: true,
 	}));
-	showOperation(operation);
+	await showOperation(operation);
 	const cancel = vi.spyOn(runtime!.workOperations, 'cancel').mockResolvedValue();
 
 	screen.getByTitle('Cancel Feedback.m4b only').click();
@@ -167,30 +178,74 @@ it('cancels one title in a running batch and hides title cancel for a single tit
 	expect(cancel).toHaveBeenCalledWith('batch', 'second');
 	cleanup();
 	runtime?.dispose();
-	showOperation({ ...operation, children: [operation.children[0]] });
+	await showOperation({ ...operation, children: [operation.children[0]] });
 	expect(screen.queryByTitle(/only$/)).not.toBeInTheDocument();
 });
 
-it('reveals only completed titles in the host file manager', () => {
+it('keeps each row and its buttons across a progress update', async () => {
+	const operation = completedOperation();
+	operation.status = 'running';
+	operation.cancellable = true;
+	operation.children = operation.children.map((child) => ({
+		...child,
+		status: 'running',
+		cancellable: true,
+	}));
+	operation.children[1].outputPath = '/Library/Feedback.m4b';
+	const engine = await showOperation(operation);
+	const titleCancel = screen.getByTitle('Cancel Feedback.m4b only');
+	const [operationCancel] = screen.getAllByRole('button', { name: 'Cancel' });
+	const reveal = screen.getByRole('button', { name: /^Show in / });
+
+	engine.publishOperation({
+		...operation,
+		revision: 2,
+		progress: { ...operation.progress, percentage: 42 },
+		children: [{ ...operation.children[0], status: 'completed' }, operation.children[1]],
+	});
+
+	await screen.findByText('42%');
+	expect(screen.getByText('Done in 00:18')).toBeVisible();
+	expect(titleCancel).toBeInTheDocument();
+	expect(operationCancel).toBeInTheDocument();
+	expect(reveal).toBeInTheDocument();
+});
+
+it('a child with an output path offers a reveal in the host file manager', async () => {
 	const operation = completedOperation();
 	operation.children[0] = {
 		...operation.children[0],
 		outputPath: '/Library/A Change of Plans.m4b',
 	};
-	operation.children[1] = {
-		...operation.children[1],
-		status: 'cancelled' as const,
-		outputPath: '/x.m4b',
-	};
-	showOperation(operation);
+	await showOperation(operation);
 	const reveal = vi.spyOn(runtime!.workOperations, 'revealOutput').mockResolvedValue();
 	const buttons = screen.getAllByRole('button', { name: /^Show in / });
 	expect(buttons).toHaveLength(1);
 	buttons[0].click();
-	expect(reveal).toHaveBeenCalledWith(operation.children[0]);
+	expect(reveal).toHaveBeenCalledWith(
+		expect.objectContaining({ outputPath: '/Library/A Change of Plans.m4b' }),
+	);
 });
 
-it('keeps retryable Restart and Keep actions on only the matching export row', () => {
+it('says why a title was skipped or cancelled, and keeps its other notes', async () => {
+	const operation = completedOperation();
+	operation.children[0] = {
+		...operation.children[0],
+		status: 'skipped',
+		message: 'Skipped: output exists.',
+	};
+	operation.children[1] = {
+		...operation.children[1],
+		status: 'cancelled',
+		message: 'Cancelled before it started.',
+		warnings: ['Cover was not embedded.'],
+	};
+	await showOperation(operation);
+	expect(screen.getByText('Skipped: output exists.')).toBeVisible();
+	expect(screen.getByText('Cancelled before it started. Cover was not embedded.')).toBeVisible();
+});
+
+it('keeps retryable Restart and Keep actions on only the matching export row', async () => {
 	const operation = completedOperation();
 	operation.children[0].inputId = 'first-title';
 	operation.children[1].inputId = 'other-title';
@@ -201,7 +256,7 @@ it('keeps retryable Restart and Keep actions on only the matching export row', (
 		from: '/Old.m4b',
 		to: '/New.m4b',
 	};
-	showOperation(operation, [offer]);
+	await showOperation(operation, [offer]);
 	const restart = vi.spyOn(runtime!.processing, 'restart').mockResolvedValue();
 	const keep = vi.spyOn(runtime!.processing, 'keepLocation').mockResolvedValue();
 	screen.getByRole('button', { name: 'Restart' }).click();
@@ -212,6 +267,37 @@ it('keeps retryable Restart and Keep actions on only the matching export row', (
 	expect(keep).toHaveBeenCalledWith(offer);
 	cleanup();
 	runtime?.dispose();
-	showOperation({ ...operation, operationId: 'older-batch' }, [offer]);
+	await showOperation({ ...operation, operationId: 'older-batch' }, [offer]);
 	expect(screen.queryByRole('button', { name: 'Restart' })).not.toBeInTheDocument();
+});
+
+it('shows each accepted operation its place in the engine queue and moves it up when an earlier one starts', async () => {
+	const accepted = (operationId: string, sequence: number): OperationSnapshot => ({
+		...completedOperation(),
+		operationId,
+		sequence,
+		status: 'accepted',
+		title: `Batch ${operationId}`,
+		children: [],
+	});
+	const first = accepted('first', 1);
+	const second = accepted('second', 2);
+	const engine = createFakeEngine();
+	engine.publishOperation(first, ['first']);
+	engine.publishOperation(second, ['first', 'second']);
+	runtime = await createAppRuntime({ engine });
+	render(() => (
+		<AppRuntimeProvider runtime={runtime!}>
+			<WorkCenterView />
+		</AppRuntimeProvider>
+	));
+	expect(screen.getByText('Batch first').closest('section')).toHaveTextContent('Accepted #1');
+	expect(screen.getByText('Batch second').closest('section')).toHaveTextContent('Accepted #2');
+
+	engine.publishOperation({ ...first, revision: 2, status: 'running' }, ['second']);
+
+	await vi.waitFor(() =>
+		expect(screen.getByText('Batch second').closest('section')).toHaveTextContent('Accepted #1'),
+	);
+	expect(screen.getByText('Batch first').closest('section')).not.toHaveTextContent('#');
 });

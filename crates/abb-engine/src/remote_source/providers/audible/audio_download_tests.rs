@@ -59,6 +59,10 @@ async fn start_stub(script: Vec<Serve>) -> Stub {
     let user_agents = Arc::new(Mutex::new(Vec::new()));
     let recorded_agents = Arc::clone(&user_agents);
 
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "the client may hang up mid-reply on purpose"
+    )]
     tokio::spawn(async move {
         let body = body();
         for serve in script {

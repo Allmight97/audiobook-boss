@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
 import { audioFile, createFakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime } from './index';
@@ -23,9 +23,12 @@ function runningJob(): AcquisitionJob {
 			percentage: 10,
 			message: 'Downloading audiobook.',
 			terminal: false,
+			bytesDownloaded: null,
+			bytesTotal: null,
+			currentTitleId: null,
+			currentItemIndex: null,
+			totalItems: null,
 		},
-		materializedFiles: [],
-		supplementalAssets: [],
 		diagnostics: [],
 	};
 }
@@ -53,9 +56,8 @@ describe('app runtime', () => {
 					}
 				: undefined;
 		};
-		const first = createAppRuntime({ engine });
-		await first.initialize();
-		const second = createAppRuntime();
+		const first = await createAppRuntime({ engine });
+		const second = await createAppRuntime();
 		dispose = () => {
 			first.dispose();
 			second.dispose();
@@ -64,7 +66,7 @@ describe('app runtime', () => {
 		first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
 		await first.processing.start();
-		void first.remoteSource.open();
+		void first.remoteSource.open({ lane: 'audible' });
 		first.remoteSource.editSearch({ titleFilter: 'first runtime only' });
 
 		expect(first.settings.dialog().isOpen).toBe(true);
@@ -72,7 +74,7 @@ describe('app runtime', () => {
 		expect(first.lookup.view().titleQuery).toBe('stale lookup');
 		expect(second.lookup.view().titleQuery).toBe('');
 		expect(first.processing.status().stepText).toBe('Error: Processing failed: Disk full');
-		expect(second.processing.status().stepText).toBe('Current Step: Waiting for files...');
+		expect(second.processing.status().stepText).toBe('Current Step: Ready');
 		expect(first.remoteSource.view().isOpen).toBe(true);
 		expect(second.remoteSource.view().isOpen).toBe(false);
 		expect(second.remoteSource.view().statusMessage).toBe('');
@@ -80,58 +82,55 @@ describe('app runtime', () => {
 		first.dispose();
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(second.processing.status().stepText).toBe('Current Step: Waiting for files...');
+		expect(second.processing.status().stepText).toBe('Current Step: Ready');
 		expect(second.remoteSource.view().isOpen).toBe(false);
 
-		const third = createAppRuntime();
+		const third = await createAppRuntime();
 		dispose = () => {
 			second.dispose();
 			third.dispose();
 		};
 		expect(third.settings.dialog().isOpen).toBe(false);
 		expect(third.lookup.view().titleQuery).toBe('');
-		expect(third.encoding.view().flavor).toBe('native_aac');
-		expect(third.processing.status().stepText).toBe('Current Step: Waiting for files...');
+		expect(third.encoding.view().effectiveFlavor).toBe('native_aac');
+		expect(third.processing.status().stepText).toBe('Current Step: Ready');
 		expect(third.remoteSource.view().isOpen).toBe(false);
 	});
 
 	it('a new runtime finds the session a disposed one left, without its view-local state', async () => {
 		const engine = createFakeEngine();
-		const first = createAppRuntime({ engine });
+		const first = await createAppRuntime({ engine });
 		engine.loadTitles([audioFile('/books/alpha.m4b')]);
-		await first.initialize();
 		first.input.setDragOver(true);
 		expect(first.input.view().isDragOver).toBe(true);
 		expect(first.input.view().fileCount).toBe(1);
 
 		first.dispose();
 
-		const second = createAppRuntime({ engine });
+		const second = await createAppRuntime({ engine });
 		dispose = () => second.dispose();
-		await second.initialize();
-		expect(engine.sessionIntents).not.toContainEqual({ kind: 'reset' });
 		expect(second.input.view().isDragOver).toBe(false);
 		expect(second.input.view().fileCount).toBe(1);
 	});
 
 	it('publishes nothing when the engine answers after disposal', async () => {
-		const attached = createDeferred<void>();
+		const held = createDeferred<void>();
 		const engine = createFakeEngine();
-		engine.change((state) => {
-			state.output.directory = '/late';
-		});
-		const attach = engine.attach.bind(engine);
-		engine.attach = async () => {
-			await attached.promise;
-			return attach();
+		engine.respond = async () => {
+			await held.promise;
+			engine.change((state) => {
+				state.output.directory = '/late';
+			});
+			return undefined;
 		};
-		const runtime = createAppRuntime({ engine });
-		const startup = runtime.initialize();
+		const runtime = await createAppRuntime({ engine });
+		runtime.input.toggleSort();
 		runtime.dispose();
 		const outputAfterDispose = runtime.output.view();
 
-		attached.resolve();
-		await startup;
+		held.resolve();
+		await vi.waitFor(() => expect(engine.sessionIntents).toHaveLength(1));
+		await new Promise((resolve) => setTimeout(resolve));
 
 		expect(runtime.output.view()).toEqual(outputAfterDispose);
 	});
@@ -141,13 +140,11 @@ describe('app runtime', () => {
 		engine.change((state) => {
 			state.remoteAcquisition.job = runningJob();
 		});
-		const runtime = createAppRuntime({ engine });
-		await runtime.initialize();
+		const runtime = await createAppRuntime({ engine });
 		const before = runtime.remoteSource.acquisition();
 		runtime.dispose();
-		const other = createAppRuntime({ engine });
+		const other = await createAppRuntime({ engine });
 		dispose = () => other.dispose();
-		await other.initialize();
 		engine.change((state) => {
 			state.remoteAcquisition.job = {
 				...runningJob(),

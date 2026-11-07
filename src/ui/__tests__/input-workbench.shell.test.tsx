@@ -1,43 +1,38 @@
-import { mp3AudioRequest, titleAudioRequest } from '../../test/fixtures/titleAudio';
+import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AudioFile, SupportedAudioImportMetadata } from '../../types/audio';
+import {
+	SUPPORTED_AUDIO_IMPORT_EXTENSIONS,
+	SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
+	type AudioFile,
+} from '../../types/audio';
 import type { SessionOutcome } from '../../types/session';
-import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
+import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
+import { tauriClient } from '../../lib/tauri/client';
 import { App } from '../App';
-
-const metadata: SupportedAudioImportMetadata = {
-	formats: [{ extension: 'm4b', label: 'M4B' }],
-	extensions: ['mp3', 'm4a', 'm4b', 'aac', 'wav', 'flac'],
-	formatsText: 'MP3, M4A/M4B, AAC, WAV, and FLAC',
-	supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
-};
 
 const listeners: {
 	drop?: (payload: NativeDropPayload) => void;
 } = {};
 
 function analyzedFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
-	return {
-		path,
-		isValid: true,
-		sourceRemoved: false,
+	return audioFile(path, {
+		label: path.split('/').pop() ?? path,
+		cover: null,
 		duration: 1,
 		size: 1000,
 		format: 'mp3',
-		inputId: path,
 		...overrides,
-	};
+	});
 }
 
 function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 	return {
 		openFiles: vi.fn(async () => []),
 		openDirectory: vi.fn(async () => null),
-		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
 		listenDragDrop: vi.fn(async (handler) => {
 			listeners.drop = handler;
 			return () => {
@@ -55,15 +50,15 @@ const REMOVED_NOTICE =
 
 let engine: FakeEngine;
 
-function runtimeFor(
+async function runtimeFor(
 	options: { files?: AudioFile[]; input?: Partial<InputCapability> } = {},
-): AppRuntime {
+): Promise<AppRuntime> {
 	engine = createFakeEngine();
 	const analyze = options.files
 		? () => options.files ?? []
 		: (paths: readonly string[]) => paths.map((path) => analyzedFile(path));
 	engine.analyze = vi.fn(analyze);
-	return createAppRuntime({ input: fakeInput(options.input), engine });
+	return await createAppRuntime({ input: fakeInput(options.input), engine });
 }
 
 function selects(selectedIndices: number[], selectedAnchor: number): SessionOutcome {
@@ -96,7 +91,7 @@ describe('Solid input workbench', () => {
 
 	it('imports audio and enables grouping only for multiple selected titles', async () => {
 		const user = userEvent.setup();
-		runtime = runtimeFor({
+		runtime = await runtimeFor({
 			input: { openFiles: vi.fn(async () => ['/tmp/file1.mp3']) },
 			files: [
 				analyzedFile('/tmp/file1.mp3', {
@@ -122,12 +117,26 @@ describe('Solid input workbench', () => {
 		expect(runtime.input.view().selectedIndices).toEqual([0]);
 	});
 
+	it('opens the picker with the engine import formats and shows the engine support text', async () => {
+		const user = userEvent.setup();
+		const openFiles = vi.fn(async () => []);
+		runtime = await runtimeFor({ input: { openFiles } });
+		await renderApp(runtime);
+
+		expect(runtime.input.view().supportText).toBe(SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT);
+		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
+
+		expect(openFiles).toHaveBeenCalledWith({
+			filters: [{ name: 'Audio Files', extensions: [...SUPPORTED_AUDIO_IMPORT_EXTENSIONS] }],
+		});
+	});
+
 	it('edits only selected titles through one mixed-value audio editor', async () => {
 		const user = userEvent.setup();
 		const files = ['first.m4b', 'second.m4b', 'other.m4b'].map((name) =>
 			analyzedFile(`/books/${name}`),
 		);
-		runtime = runtimeFor({ files });
+		runtime = await runtimeFor({ files });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -155,10 +164,11 @@ describe('Solid input workbench', () => {
 				};
 			}
 			state.audio.selection = {
-				titleIds: [files[0].path, files[1].path],
 				choice: first.choice,
 				facts: first.facts,
 				mixed: ['faacProfile', 'channels'],
+				autoSampleRate: { outcome: { kind: 'unresolved' }, problem: null },
+				autoChannels: { outcome: { kind: 'unresolved' }, problem: null },
 			};
 		});
 		const selectionAnswers = [
@@ -170,10 +180,18 @@ describe('Solid input workbench', () => {
 			if (intent.kind !== 'selectFile') return undefined;
 			return selectionAnswers.shift()?.();
 		};
-		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
-		await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });
+		await runtime.input.selectFile({
+			index: 0,
+			modifiers: { multi: false, range: false },
+		});
+		await runtime.input.selectFile({
+			index: 1,
+			modifiers: { multi: true, range: false },
+		});
 		await user.click(screen.getByRole('button', { name: 'Audio settings · 2 titles' }));
-		const editor = screen.getByRole('dialog', { name: 'Audio settings for 2 selected titles' });
+		const editor = screen.getByRole('dialog', {
+			name: 'Audio settings for 2 selected titles',
+		});
 		await user.click(within(editor).getByText(/Encoding settings/));
 		expect(within(editor).getByLabelText('Channels')).toHaveValue('');
 		expect(within(editor).getByLabelText('Profile')).toHaveValue('');
@@ -202,17 +220,25 @@ describe('Solid input workbench', () => {
 		expect(runtime.input.view().selectedIndices).toEqual([0, 1]);
 		await user.keyboard('{Escape}');
 		await user.click(screen.getByRole('button', { name: 'Audio settings · 2 titles' }));
-		await runtime.input.selectFile({ index: 2, modifiers: { multi: false, range: false } });
+		await runtime.input.selectFile({
+			index: 2,
+			modifiers: { multi: false, range: false },
+		});
 		expect(screen.queryByRole('dialog', { name: /Audio settings for/ })).not.toBeInTheDocument();
 	});
 
 	it('shows the engine plan, its failure, and the estimate in the audio plan popover', async () => {
 		const user = userEvent.setup();
 		const file = analyzedFile('/books/estimate.m4b');
-		runtime = runtimeFor({ files: [file] });
+		runtime = await runtimeFor({ files: [file] });
 		await renderApp(runtime);
-		await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
-		const indicator = await screen.findByRole('button', { name: 'Audio plan for estimate.m4b' });
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: [file.path],
+		});
+		const indicator = await screen.findByRole('button', {
+			name: 'Audio plan for estimate.m4b',
+		});
 		expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
 
 		await user.click(indicator);
@@ -237,7 +263,11 @@ describe('Solid input workbench', () => {
 		expect(screen.getByTitle('Estimated output size')).toHaveTextContent('1000.0 B');
 
 		engine.seedTitleAudio(file.path, titleAudioRequest(), {
-			plan: { kind: 'failed', message: 'Sources cannot be joined', field: null },
+			plan: {
+				kind: 'failed',
+				message: 'Sources cannot be joined',
+				field: null,
+			},
 			estimate: null,
 		});
 		await waitFor(() => expect(popup).toHaveTextContent('Sources cannot be joined'));
@@ -247,9 +277,12 @@ describe('Solid input workbench', () => {
 	it('shows an invalid source in the grouped title status', async () => {
 		const files = [
 			analyzedFile('/books/valid.m4b'),
-			analyzedFile('/books/broken.m4b', { isValid: false, error: 'Broken audio source' }),
+			analyzedFile('/books/broken.m4b', {
+				isValid: false,
+				error: 'Broken audio source',
+			}),
 		];
-		runtime = runtimeFor({ files });
+		runtime = await runtimeFor({ files });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -270,9 +303,12 @@ describe('Solid input workbench', () => {
 			sourceRemoved: true,
 			error: REMOVED_NOTICE,
 		});
-		runtime = runtimeFor({ files: [removed] });
+		runtime = await runtimeFor({ files: [removed] });
 		await renderApp(runtime);
-		await runtime.input.importIntent({ type: 'importPaths', paths: [removed.path] });
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: [removed.path],
+		});
 		const row = await screen.findByRole('option', { name: 'done.m4b' });
 		engine.seedTitleAudio(removed.path, titleAudioRequest(), {
 			plan: { kind: 'failed', message: 'Source is not valid', field: null },
@@ -303,7 +339,7 @@ describe('Solid input workbench', () => {
 			isValid: false,
 			error: 'Broken audio source',
 		});
-		runtime = runtimeFor({ files: [gone, goneToo, broken] });
+		runtime = await runtimeFor({ files: [gone, goneToo, broken] });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -326,7 +362,7 @@ describe('Solid input workbench', () => {
 
 	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {
 		const files = [analyzedFile('/books/part1.m4b'), analyzedFile('/books/part2.m4b')];
-		runtime = runtimeFor({ files });
+		runtime = await runtimeFor({ files });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -335,7 +371,7 @@ describe('Solid input workbench', () => {
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
 		engine.seedGroup(files);
 		engine.change((state) => {
-			state.titles.companions = { [files[1].inputId!]: ['Guide.pdf'] };
+			state.titles.companions = { [files[1].inputId]: ['Guide.pdf'] };
 		});
 		await waitFor(() => {
 			const row = screen.getByRole('option', { name: 'part1.m4b' });
@@ -343,36 +379,63 @@ describe('Solid input workbench', () => {
 		});
 	});
 
-	it('edits one stack through its audio popover', async () => {
-		const user = userEvent.setup();
-		const files = ['part1.mp3', 'part2.mp3', 'other.m4b'].map((name) =>
-			analyzedFile(`/books/${name}`, { sampleRate: 44100, channels: 1, codecLabel: 'MP3' }),
-		);
-		runtime = runtimeFor({ files });
+	it("shows a grouped title's chapter total from the engine", async () => {
+		const files = ['part1.mp3', 'part2.mp3'].map((name) => analyzedFile(`/books/${name}`));
+		runtime = await runtimeFor({ files });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
-		engine.seedTitleAudio(files[0].path, mp3AudioRequest());
+		engine.seedGroup(files);
+		engine.change((state) => {
+			state.titles.titleTotals = {
+				[files[0].inputId]: { chapterCount: 2, durationSeconds: 2, sizeBytes: 2000 },
+			};
+		});
+		await waitFor(() => {
+			const row = screen.getByRole('option', { name: 'part1.mp3' });
+			expect(row).toHaveTextContent('2 chapters');
+		});
+	});
+
+	it('edits one stack through its audio popover', async () => {
+		const user = userEvent.setup();
+		const files = ['part1.mp3', 'part2.mp3', 'other.m4b'].map((name) =>
+			analyzedFile(`/books/${name}`, {
+				sampleRate: 44100,
+				channels: 1,
+				codecLabel: 'MP3',
+			}),
+		);
+		runtime = await runtimeFor({ files });
+		await renderApp(runtime);
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: files.map((file) => file.path),
+		});
+		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
+		engine.seedTitleAudio(files[0].path, titleAudioRequest());
 		engine.seedGroup([files[0], files[1]], { choiceRequired: true });
 		engine.respond = (intent) => {
 			if (intent.kind !== 'applyDefaultAudio') return undefined;
 			engine.change((state) => {
-				state.titles.audioChoiceRequired = [];
+				state.audio.titles[files[0].path].plan = { kind: 'pending' };
 			});
 			return { kind: 'applied' };
 		};
-		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0])).toBe(true));
-		const indicator = screen.getByRole('button', { name: 'Audio plan for part1.mp3' });
+		await waitFor(() => expect(runtime!.encoding.plan(files[0]).kind).toBe('choiceRequired'));
+		const indicator = screen.getByRole('button', {
+			name: 'Audio plan for part1.mp3',
+		});
 		await user.hover(indicator);
 		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
 		expect(popup).toHaveTextContent('Choose this title’s audio');
 		expect(popup.parentElement).toBe(document.body);
 		await user.click(indicator);
 		await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
-		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0])).toBe(false));
+		await waitFor(() => expect(runtime!.encoding.plan(files[0]).kind).not.toBe('choiceRequired'));
 		expect(engine.sessionIntents).toContainEqual({
 			kind: 'applyDefaultAudio',
 			titleIds: [files[0].path],
@@ -393,8 +456,32 @@ describe('Solid input workbench', () => {
 		expect(screen.queryByRole('dialog', { name: 'Audio plan' })).not.toBeInTheDocument();
 	});
 
+	it('says why the Opus compatibility page did not open', async () => {
+		const user = userEvent.setup();
+		const file = analyzedFile('/books/part1.mp3', { codecLabel: 'MP3' });
+		runtime = await runtimeFor({ files: [file] });
+		await renderApp(runtime);
+		await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
+		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(1));
+		engine.seedTitleAudio(file.path, { ...titleAudioRequest(), format: 'm4aOpus' });
+		const openUrl = vi.spyOn(tauriClient, 'openUrl').mockRejectedValueOnce({
+			code: 'opener_failed',
+			category: 'io',
+			message: 'No browser could be started.',
+			detail: null,
+		});
+		const indicator = screen.getByRole('button', { name: 'Audio plan for part1.mp3' });
+		await user.click(indicator);
+		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
+
+		await user.click(within(popup).getByRole('button', { name: 'Player compatibility' }));
+
+		expect(openUrl).toHaveBeenCalledTimes(1);
+		expect(await within(popup).findByText('No browser could be started.')).toBeInTheDocument();
+	});
+
 	it('handles keyboard actions only from the focused listbox', async () => {
-		runtime = runtimeFor({
+		runtime = await runtimeFor({
 			files: [analyzedFile('/books/alpha.m4b'), analyzedFile('/books/bravo.m4b')],
 		});
 		engine.respond = (intent) => {
@@ -426,7 +513,7 @@ describe('Solid input workbench', () => {
 	});
 
 	it('routes cover-art drops away from import and imports file-area drops', async () => {
-		runtime = runtimeFor();
+		runtime = await runtimeFor();
 		const cover = document.createElement('div');
 		cover.id = 'cover-art-area';
 		document.body.appendChild(cover);
@@ -469,14 +556,17 @@ describe('Solid input workbench', () => {
 		});
 		expect(engine.analyze).not.toHaveBeenCalled();
 
-		listeners.drop?.({ position: { x: 200, y: 200 }, paths: ['/tmp/file1.wav'] });
+		listeners.drop?.({
+			position: { x: 200, y: 200 },
+			paths: ['/tmp/file1.wav'],
+		});
 		await waitFor(() => {
 			expect(engine.analyze).toHaveBeenCalledWith(['/tmp/file1.wav']);
 		});
 	});
 
 	it('shows the engine order lock and its refused-import notice', async () => {
-		runtime = runtimeFor();
+		runtime = await runtimeFor();
 		await renderApp(runtime);
 		engine.change((state) => {
 			state.titles.orderLocked = true;

@@ -18,14 +18,18 @@ mod integration_library_readback_tests;
 mod integration_media_album_sort_tests;
 #[path = "integration_media_cue_scale_tests.rs"]
 mod integration_media_cue_scale_tests;
+#[path = "integration_media_encoded_run_tests.rs"]
+mod integration_media_encoded_run_tests;
 #[path = "integration_media_encoding_choice_tests.rs"]
 mod integration_media_encoding_choice_tests;
-#[path = "integration_media_execution_tests.rs"]
-mod integration_media_execution_tests;
+#[path = "integration_media_opus_tests.rs"]
+mod integration_media_opus_tests;
+#[path = "integration_media_preserve_tests.rs"]
+mod integration_media_preserve_tests;
 #[path = "integration_media_route_parity_tests.rs"]
 mod integration_media_route_parity_tests;
-#[path = "integration_media_tag_clear_tests.rs"]
-mod integration_media_tag_clear_tests;
+#[path = "integration_media_tag_save_tests.rs"]
+mod integration_media_tag_save_tests;
 #[path = "integration_output_safety_tests.rs"]
 mod integration_output_safety_tests;
 #[path = "integration_preview_tests.rs"]

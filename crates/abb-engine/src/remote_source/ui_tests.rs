@@ -1,5 +1,7 @@
 use super::*;
-use crate::remote_source::types::{RemoteTitleAvailability, RemoteTitleAvailabilityStatus};
+use crate::remote_source::types::{
+    release_key, RemoteTitleAvailability, RemoteTitleAvailabilityStatus,
+};
 
 fn title(id: &str, acquirable: bool, pdf: bool) -> RemoteTitle {
     RemoteTitle {
@@ -8,17 +10,14 @@ fn title(id: &str, acquirable: bool, pdf: bool) -> RemoteTitle {
         title: id.into(),
         authors: vec![],
         narrators: vec![],
-        duration_seconds: None,
-        cover_url: None,
+        cover: None,
         supplemental_pdf_available: pdf,
-        acquired: false,
         availability: RemoteTitleAvailability {
             status: RemoteTitleAvailabilityStatus::Available,
             acquirable,
             label: "Available".into(),
             detail: None,
         },
-        unsupported_reasons: vec![],
     }
 }
 fn library(titles: Vec<RemoteTitle>) -> super::super::RemoteLibraryResponse {
@@ -44,6 +43,7 @@ fn configured() -> IndexerConnection {
 fn release(indexer_id: i64) -> RemoteRelease {
     RemoteRelease {
         provider_id: ProviderId::Indexer,
+        key: release_key(indexer_id, "shared-guid"),
         guid: "shared-guid".into(),
         indexer_id,
         title: format!("Book {indexer_id}"),
@@ -55,6 +55,36 @@ fn release(indexer_id: i64) -> RemoteRelease {
         categories: vec![],
     }
 }
+#[test]
+fn grab_is_offered_while_a_selected_release_is_unsent() {
+    let mut ui = UiState::default();
+    ui.snapshot.indexer.releases = vec![release(1), release(2)];
+    assert!(!ui.snapshot().indexer.can_grab_selection);
+
+    ui.begin(RemoteUiIntent::SelectRelease {
+        key: release_key(1, "shared-guid"),
+        multi: false,
+    })
+    .expect("select");
+    assert!(ui.snapshot().indexer.can_grab_selection);
+
+    ui.snapshot.indexer.release_grabs.insert(
+        release_key(1, "shared-guid"),
+        ReleaseGrabSnapshot {
+            status: ReleaseGrabStatus::Sent,
+            message: "Sent".into(),
+        },
+    );
+    assert!(!ui.snapshot().indexer.can_grab_selection);
+
+    ui.begin(RemoteUiIntent::SelectRelease {
+        key: release_key(2, "shared-guid"),
+        multi: true,
+    })
+    .expect("select");
+    assert!(ui.snapshot().indexer.can_grab_selection);
+}
+
 #[test]
 fn old_tests_cannot_replace_newer_drafts_or_expose_the_key() {
     let mut ui = UiState::default();
@@ -243,8 +273,7 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
     for indexer_id in [1, 2] {
         runtime
             .ui_begin(RemoteUiIntent::SelectRelease {
-                indexer_id,
-                guid: "shared-guid".into(),
+                key: release_key(indexer_id, "shared-guid"),
                 multi: true,
             })
             .finish()
@@ -297,7 +326,7 @@ fn serve_grab_batch(listener: tokio::net::TcpListener) -> tokio::task::JoinHandl
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     tokio::spawn(async move {
         let mut ids = Vec::new();
-        for response_status in ["200 OK", "500 Internal Server Error", "200 OK"] {
+        for response_status in ["200 OK", "409 Conflict", "200 OK"] {
             let (mut stream, _) = listener.accept().await.expect("fixture step succeeded");
             let mut request = Vec::new();
             loop {
@@ -391,58 +420,6 @@ async fn shutdown_drops_an_indexer_search_waiting_on_a_silent_server() {
         .expect("the search ends at shutdown, not after the server's timeout")
         .expect("search task");
     assert!(ended.is_err());
-}
-
-#[test]
-fn save_and_test_refuse_a_refused_draft() {
-    let mut ui = UiState::default();
-    let refused = ui.begin(RemoteUiIntent::EditConnection {
-        base_url: Some("not a url ::".into()),
-        category_ids: None,
-        api_key: None,
-    });
-    assert!(refused.is_err());
-    assert!(ui.snapshot().connection.draft_error.is_some());
-    assert!(ui.save_connection().is_err());
-    assert!(ui.begin(RemoteUiIntent::TestConnection).is_err());
-
-    ui.begin(RemoteUiIntent::EditConnection {
-        base_url: Some("https://indexer.test".into()),
-        category_ids: None,
-        api_key: None,
-    })
-    .expect("accepted edit");
-    assert!(ui.snapshot().connection.draft_error.is_none());
-}
-
-#[test]
-fn a_category_edit_that_chooses_none_is_refused_and_the_draft_keeps_its_categories() {
-    let mut ui = UiState::default();
-    assert_eq!(ui.snapshot().connection.category_ids, [3000, 3030]);
-    let edit = |ids: Vec<u32>| RemoteUiIntent::EditConnection {
-        base_url: None,
-        category_ids: Some(ids),
-        api_key: None,
-    };
-
-    ui.begin(edit(vec![3030])).expect("one category");
-    ui.begin(edit(Vec::new()))
-        .expect("refusal is reported, not an error");
-    let connection = ui.snapshot().connection;
-    assert_eq!(connection.category_ids, [3030]);
-    assert!(connection.empty_categories_refused);
-
-    ui.begin(edit(vec![3000, 3030])).expect("two categories");
-    let connection = ui.snapshot().connection;
-    assert_eq!(connection.category_ids, [3000, 3030]);
-    assert!(!connection.empty_categories_refused);
-}
-
-#[test]
-fn release_keys_keep_the_format_the_frontend_builds() {
-    // `src/app/remoteSource/selection.ts` builds the same key with
-    // `JSON.stringify([indexerId, guid])` to look rows up.
-    assert_eq!(release_key(8, "same-guid"), r#"[8,"same-guid"]"#);
 }
 
 struct VaultGate {
@@ -865,11 +842,6 @@ fn connected_audible() -> super::super::RemoteSourceAccountState {
     super::super::RemoteSourceAccountState {
         provider_id: ProviderId::Audible,
         status: super::super::RemoteAccountStatus::Connected,
-        account: Some(super::super::AccountRef {
-            provider_id: ProviderId::Audible,
-            account_id: "audible-us".into(),
-            display_name: "Listener".into(),
-        }),
         message: None,
     }
 }
@@ -930,3 +902,6 @@ fn signing_in_again_or_disconnecting_clears_a_refused_sign_in() {
 
 #[path = "ui_acquisition_tests.rs"]
 mod acquisition;
+
+#[path = "ui_connection_tests.rs"]
+mod connection;

@@ -1,3 +1,4 @@
+import type { RemoteUiSnapshot } from '../../types/session';
 import type {
 	ProviderId,
 	RemoteRelease,
@@ -5,12 +6,7 @@ import type {
 	RemoteSourceProviderCapabilities,
 } from '../../types/remoteSource';
 
-export type ReleaseGrabState = {
-	status: 'queued' | 'sending' | 'sent' | 'error';
-	message: string;
-};
-
-export type AcquisitionState = {
+type AcquisitionState = {
 	isBusy: boolean;
 	providerId: ProviderId;
 	providers: readonly RemoteSourceProviderCapabilities[];
@@ -27,31 +23,26 @@ export type AcquisitionState = {
 	releaseFilter: string;
 	releaseSort: 'seeders' | 'size';
 	selectedReleaseKeys: ReadonlySet<string>;
-	releaseGrabs: Readonly<Record<string, ReleaseGrabState>>;
+	releaseGrabs: Readonly<RemoteUiSnapshot['indexer']['releaseGrabs']>;
+	canGrabSelection: boolean;
 	statusMessage: string;
 };
 
-export type RemoteSourceState = Omit<AcquisitionState, 'statusMessage'> & {
-	isOpen: boolean;
-	statusByProvider: Record<ProviderId, string>;
-};
-
-export type RemoteSourceView = Omit<RemoteSourceState, 'statusByProvider'> & {
-	statusMessage: string;
-};
+export type RemoteSourceView = AcquisitionState & { isOpen: boolean };
 
 type EngineFields =
 	| 'isBusy'
 	| 'providerId'
 	| 'providers'
 	| 'accountState'
-	| 'statusByProvider'
+	| 'statusMessage'
 	| 'selectedTitleIds'
 	| 'includePdfByTitleId'
 	| 'releases'
 	| 'selectedReleaseKeys'
-	| 'releaseGrabs';
-export type RemoteSourceLocalState = Omit<RemoteSourceState, EngineFields>;
+	| 'releaseGrabs'
+	| 'canGrabSelection';
+export type RemoteSourceLocalState = Omit<RemoteSourceView, EngineFields>;
 export type RemoteSourcePatch = Partial<RemoteSourceLocalState>;
 export function createInitialRemoteSourceState(): RemoteSourceLocalState {
 	return {
@@ -65,9 +56,4 @@ export function createInitialRemoteSourceState(): RemoteSourceLocalState {
 		releaseSort: 'seeders',
 		isOpen: false,
 	};
-}
-
-export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourceView {
-	const { statusByProvider, ...view } = state;
-	return { ...view, statusMessage: statusByProvider[state.providerId] };
 }

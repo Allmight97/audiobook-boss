@@ -13,15 +13,14 @@ afterEach(() => {
 
 it('restores the accepted select value and shows the engine rejection', async () => {
 	const engine = fakeEngine();
-	runtime = createAppRuntime();
-	await runtime.initialize();
+	runtime = await createAppRuntime();
 	render(() => (
 		<AppRuntimeProvider runtime={runtime!}>
 			<ConcurrencyControl />
 			<SettingsPersistenceNotice />
 		</AppRuntimeProvider>
 	));
-	const select = screen.getByRole('combobox') as HTMLSelectElement;
+	const select = screen.getByRole('combobox', { name: 'Number of Jobs:' }) as HTMLSelectElement;
 	expect(select).toHaveValue('auto');
 	expect(select.options[0]?.textContent).toBe('Auto · 4 jobs');
 

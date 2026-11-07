@@ -30,7 +30,6 @@ const TERMINAL_CHILD_STATUSES: [ChildJobStatus; 4] = [
 /// `OPERATION_LOG_TAIL_CAP`.
 fn push_operation_log(
     snapshot: &mut OperationSnapshot,
-    timestamp_ms: i64,
     message: &str,
     stage: Option<WorkProgressStage>,
     child_job_id: Option<String>,
@@ -44,7 +43,6 @@ fn push_operation_log(
         return;
     }
     snapshot.log_tail.push(OperationLogEntry {
-        timestamp_ms,
         message: message.to_string(),
         stage,
         child_job_id,
@@ -80,6 +78,7 @@ impl WorkRuntimeState {
         WorkOperationsSnapshot {
             revision: self.revision,
             order: operations.iter().map(|o| o.operation_id.clone()).collect(),
+            queue: self.queue(),
             operations: operations.into_iter().cloned().collect(),
         }
     }
@@ -93,8 +92,22 @@ impl WorkRuntimeState {
                 .into_iter()
                 .map(|o| o.operation_id.clone())
                 .collect(),
+            queue: self.queue(),
             changed,
         }
+    }
+
+    fn queue(&self) -> Vec<OperationId> {
+        let mut accepted = self
+            .operations
+            .values()
+            .filter(|operation| operation.status == WorkOperationStatus::Accepted)
+            .collect::<Vec<_>>();
+        accepted.sort_by_key(|operation| operation.sequence);
+        accepted
+            .into_iter()
+            .map(|operation| operation.operation_id.clone())
+            .collect()
     }
 
     fn ordered(&self) -> Vec<&OperationSnapshot> {
@@ -132,7 +145,6 @@ impl WorkRuntimeState {
             snapshot.progress.message = "Processing started.".to_string();
             push_operation_log(
                 snapshot,
-                now_ms,
                 "Processing started.",
                 Some(WorkProgressStage::Analyzing),
                 None,
@@ -224,7 +236,6 @@ impl WorkRuntimeState {
         );
         push_operation_log(
             snapshot,
-            now_ms,
             &event.message,
             Some(work_stage_from_event_stage(event.stage)),
             matched_child_job_id,
@@ -247,7 +258,6 @@ impl WorkRuntimeState {
             snapshot.progress.stage = WorkProgressStage::Cleaning;
             push_operation_log(
                 snapshot,
-                now_ms,
                 "Cancellation requested.",
                 Some(WorkProgressStage::Cleaning),
                 None,
@@ -269,7 +279,6 @@ impl WorkRuntimeState {
         &mut self,
         operation_id: &OperationId,
         child_job_id: &str,
-        now_ms: i64,
     ) -> Result<(OperationSnapshot, Option<usize>)> {
         let snapshot = self.snapshot_mut(operation_id)?;
         if !titles_cancel_individually(snapshot.kind) {
@@ -296,7 +305,6 @@ impl WorkRuntimeState {
         let message = format!("Cancellation requested for {}.", child.label);
         push_operation_log(
             snapshot,
-            now_ms,
             &message,
             Some(WorkProgressStage::Cleaning),
             Some(child_job_id.to_string()),
@@ -341,7 +349,7 @@ impl WorkRuntimeState {
             }
         }
         for (warning, child_job_id) in warning_logs {
-            push_operation_log(snapshot, now_ms, &warning, None, Some(child_job_id));
+            push_operation_log(snapshot, &warning, None, Some(child_job_id));
         }
 
         let snapshot = snapshot.clone();
@@ -403,14 +411,7 @@ impl WorkRuntimeState {
         snapshot.progress.stage = WorkProgressStage::Failed;
         snapshot.progress.percentage = 100.0;
         snapshot.progress.message = message.clone();
-        push_operation_log(
-            snapshot,
-            now_ms,
-            &message,
-            Some(WorkProgressStage::Failed),
-            None,
-        );
-        snapshot.errors.push(message.clone());
+        push_operation_log(snapshot, &message, Some(WorkProgressStage::Failed), None);
         let summary = OperationResultSummary::all_failed(snapshot.children.len());
         snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message.clone()));
         for child in &mut snapshot.children {
@@ -447,13 +448,7 @@ impl WorkRuntimeState {
         snapshot.progress.stage = WorkProgressStage::Cancelled;
         snapshot.progress.percentage = 100.0;
         snapshot.progress.message = message.clone();
-        push_operation_log(
-            snapshot,
-            now_ms,
-            &message,
-            Some(WorkProgressStage::Cancelled),
-            None,
-        );
+        push_operation_log(snapshot, &message, Some(WorkProgressStage::Cancelled), None);
         let summary = OperationResultSummary::all_cancelled(snapshot.children.len());
         snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message.clone()));
         for child in &mut snapshot.children {
@@ -554,7 +549,6 @@ fn apply_operation_terminal(
     snapshot.progress.message = terminal_summary.message.clone();
     push_operation_log(
         snapshot,
-        now_ms,
         &terminal_summary.message,
         Some(stage_from_status(status)),
         None,

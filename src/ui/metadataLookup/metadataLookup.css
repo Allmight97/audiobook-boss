@@ -46,14 +46,3 @@
 .metadata-lookup-status {
 	min-height: 1rem;
 }
-
-@media (max-width: 720px) {
-	.app-modal-controls {
-		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.app-modal-field-button,
-	.app-modal-field-toggle {
-		align-items: stretch;
-	}
-}

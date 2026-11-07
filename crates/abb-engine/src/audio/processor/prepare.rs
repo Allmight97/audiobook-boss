@@ -57,14 +57,14 @@ pub(crate) fn prepare_workspace(
 }
 
 pub(crate) fn progress_total_duration(files: &[AudioFile], preview: Option<&PreviewConfig>) -> f64 {
-    let share = preview.map(|preview| preview.per_file_seconds(files.len()));
-    files
+    let durations: Vec<f64> = files
         .iter()
-        .map(|file| {
-            let duration = file.duration.unwrap_or_default();
-            share.map_or(duration, |share| duration.min(share))
-        })
-        .sum()
+        .map(|file| file.duration.unwrap_or_default())
+        .collect();
+    preview.map_or_else(
+        || durations.iter().sum(),
+        |preview| preview.title_seconds(&durations),
+    )
 }
 
 pub(crate) fn validate_and_prepare(

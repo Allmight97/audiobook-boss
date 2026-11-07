@@ -36,11 +36,15 @@ pub struct AudioFile {
     pub codec_label: Option<String>,
     /// Whether this source can be copied without re-encoding and whether the
     /// source meets the automatic low-bitrate recommendation.
+    #[serde(skip)]
     pub preservation: Option<AudioPreservation>,
     /// Display only.
     pub selected_decoder: Option<String>,
-    pub tag_title: Option<String>,
-    pub tag_artist: Option<String>,
+    /// What the title list calls this source: the title tag, else the file name.
+    pub label: String,
+    pub artist: Option<String>,
+    #[serde(skip)]
+    pub(crate) tag_title: Option<String>,
     /// Chapters embedded in this individual source file, normalized to milliseconds.
     pub chapters: Vec<AudioChapter>,
     pub chapter_plan: Option<crate::metadata::ChapterPlan>,
@@ -49,6 +53,9 @@ pub struct AudioFile {
     /// An exported download that ABB removed. The title is finished, not failed.
     pub source_removed: bool,
     pub error: Option<String>,
+    /// The address of this source's embedded cover, set by the session on
+    /// the sources it lists; absent when the source is not valid.
+    pub cover: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
@@ -76,7 +83,7 @@ impl fmt::Display for DecoderSelection {
 
 impl AudioFile {
     pub fn new(path: PathBuf) -> Self {
-        Self {
+        let mut file = Self {
             input_id: uuid::Uuid::new_v4().to_string(),
             path,
             size: None,
@@ -88,15 +95,50 @@ impl AudioFile {
             codec_label: None,
             preservation: None,
             selected_decoder: None,
+            label: String::new(),
+            artist: None,
             tag_title: None,
-            tag_artist: None,
             chapters: Vec::new(),
             chapter_plan: None,
             cue_source: None,
             is_valid: false,
             source_removed: false,
+            cover: None,
             error: None,
-        }
+        };
+        file.relabel();
+        file
+    }
+
+    pub(crate) fn set_path(&mut self, path: PathBuf) {
+        self.path = path;
+        self.relabel();
+    }
+
+    pub(crate) fn set_tag_title(&mut self, title: Option<String>) {
+        self.tag_title = title;
+        self.relabel();
+    }
+
+    pub(crate) fn set_artist(&mut self, artist: Option<String>) {
+        self.artist = artist
+            .map(|artist| artist.trim().to_string())
+            .filter(|artist| !artist.is_empty());
+    }
+
+    fn relabel(&mut self) {
+        self.label = self
+            .tag_title
+            .as_deref()
+            .map(str::trim)
+            .filter(|title| !title.is_empty())
+            .map(str::to_string)
+            .or_else(|| {
+                self.path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+            })
+            .unwrap_or_else(|| self.path.to_string_lossy().into_owned());
     }
 
     pub(crate) fn takes_edits(&self) -> bool {
@@ -114,8 +156,11 @@ pub enum SampleRateConfig {
 }
 
 pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
-pub(crate) use imports::{discover_audio_import_paths, supported_audio_import_metadata};
-pub use imports::{SkippedImportPath, SupportedAudioImportFormat, SupportedAudioImportMetadata};
+pub(crate) use imports::discover_audio_import_paths;
+pub use imports::{
+    supported_audio_import_extensions, supported_audio_import_formats_text,
+    supported_audio_import_support_text, SkippedImportPath,
+};
 pub(crate) use path_validation::{validate_input_audio_path, validate_input_image_path};
 pub(crate) use processor::{
     codec_library_versions, execute_audio_engine, probe_builtin_audio_decoder,
@@ -129,8 +174,7 @@ pub(crate) use settings::{
 pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
     if !file.is_valid || !file.preservation.is_some_and(|value| value.can_preserve) {
         return Err(AppError::InvalidInput(
-            "Source audio is not a supported AAC, MP3, or Opus container for preservation."
-                .to_string(),
+            "Source audio is not a supported AAC or Opus container for preservation.".to_string(),
         ));
     }
     Ok(())

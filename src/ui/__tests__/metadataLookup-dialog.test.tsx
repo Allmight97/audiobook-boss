@@ -1,7 +1,6 @@
 import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SupportedAudioImportMetadata } from '../../types/audio';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import type { SessionIntent, SessionLookup } from '../../types/session';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
@@ -10,17 +9,9 @@ import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { App } from '../App';
 
-const support: SupportedAudioImportMetadata = {
-	formats: [{ extension: 'm4b', label: 'M4B' }],
-	extensions: ['m4b'],
-	formatsText: 'M4B',
-	supportText: 'Supports M4B audio files',
-};
-
 function lookupResult(): OnlineMetadataResult {
 	return {
 		source: 'audnexus',
-		sourceId: 'audnexus:1',
 		title: 'Lookup Title',
 		authors: ['Author One'],
 		narrators: ['Narrator One'],
@@ -28,7 +19,11 @@ function lookupResult(): OnlineMetadataResult {
 		publishedDate: '2020-07',
 		durationSeconds: 3600,
 		audibleOnly: false,
-		coverUrl: 'https://example.com/cover.jpg',
+		series: null,
+		seriesPart: null,
+		subseries: null,
+		subseriesPart: null,
+		cover: 'remote/0/https%3A%2F%2Fexample.com%2Fcover.jpg',
 	};
 }
 
@@ -36,7 +31,6 @@ function fakeInput(): InputCapability {
 	return {
 		openFiles: vi.fn(async () => ['/books/alpha.m4b', '/books/beta.m4b']),
 		openDirectory: vi.fn(async () => null),
-		getSupportedAudioImportMetadata: vi.fn(async () => support),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),
@@ -68,6 +62,7 @@ function queued(index: number, patch: Partial<SessionLookup> = {}): Partial<Sess
 			index,
 			total: 2,
 			path: index === 0 ? '/books/alpha.m4b' : '/books/beta.m4b',
+			label: index === 0 ? 'Alpha' : 'Beta',
 		},
 		results: [lookupResult()],
 		hasSearched: true,
@@ -91,7 +86,7 @@ describe('metadata lookup dialog', () => {
 	) {
 		engine = createFakeEngine();
 		engine.analyze = (paths) =>
-			paths.map((path) => audioFile(path, { tagTitle: path.includes('beta') ? 'Beta' : 'Alpha' }));
+			paths.map((path) => audioFile(path, { label: path.includes('beta') ? 'Beta' : 'Alpha' }));
 		const lookupAfter: Partial<Record<SessionIntent['kind'], Partial<SessionLookup>>> = {
 			lookupOpen: queued(0),
 			...answers,
@@ -104,7 +99,7 @@ describe('metadata lookup dialog', () => {
 			});
 			return { kind: 'applied' };
 		};
-		const app = createAppRuntime({ input: fakeInput(), engine });
+		const app = await createAppRuntime({ input: fakeInput(), engine });
 		runtime = app;
 		render(() => (
 			<AppRuntimeProvider runtime={app}>
@@ -131,13 +126,13 @@ describe('metadata lookup dialog', () => {
 				status: { kind: 'found', count: 1, partial: false, after: 'applied' },
 			}),
 		});
-		expect(getContextText()).toContain('1 of 2 • alpha.m4b');
+		expect(getContextText()).toContain('1 of 2 • Alpha');
 
 		await userEvent.click(document.getElementById('metadata-lookup-cover-toggle') as HTMLElement);
 		await userEvent.click(await waitFor(applyButton));
 
 		await waitFor(() => expect(getStatusText()).toContain('Metadata applied.'));
-		expect(getContextText()).toContain('2 of 2 • beta.m4b');
+		expect(getContextText()).toContain('2 of 2 • Beta');
 		const sent = engine.sessionIntents.map((intent) => intent.kind);
 		expect(sent.indexOf('lookupSetReplaceCover')).toBeLessThan(sent.indexOf('lookupApply'));
 		expect(engine.sessionIntents).toContainEqual({ kind: 'lookupSetReplaceCover', replace: true });
@@ -158,7 +153,7 @@ describe('metadata lookup dialog', () => {
 		await userEvent.click(document.getElementById('metadata-lookup-skip-btn') as HTMLElement);
 
 		await waitFor(() => expect(getStatusText()).toContain('Skipped.'));
-		expect(getContextText()).toContain('beta.m4b');
+		expect(getContextText()).toContain('Beta');
 		expect(engine.sessionIntents).toContainEqual({ kind: 'lookupSkip' });
 	});
 
@@ -186,6 +181,19 @@ describe('metadata lookup dialog', () => {
 			);
 			expect((document.activeElement as HTMLElement | null)?.id).toBe('meta-title');
 		});
+	});
+
+	it('says no online matches were found for an empty search', async () => {
+		await openLookupOverTwoTitles({
+			lookupOpen: queued(0, {
+				results: [],
+				status: { kind: 'found', count: 0, partial: false, after: null },
+			}),
+		});
+
+		await waitFor(() =>
+			expect(document.body.textContent ?? '').toContain('No online matches found.'),
+		);
 	});
 
 	it('shows a failed search as a failure, not as no matches', async () => {

@@ -11,9 +11,6 @@ pub(crate) fn handle<R: tauri::Runtime>(
     request: Request<Vec<u8>>,
     responder: tauri::UriSchemeResponder,
 ) {
-    if ctx.webview_label() != "main" {
-        return responder.respond(response(Ok(None)));
-    }
     let app = ctx.app_handle().clone();
     let path = request.uri().path().to_string();
     // The handler runs on the webview's thread; the cover loads elsewhere.

@@ -11,7 +11,6 @@ fn sources_in_use_still_reports_queued_sources_after_the_state_lock_is_poisoned(
         "Book".to_string(),
         &[source.display().to_string()],
         None,
-        0,
     );
     lock_state(&runtime.inner.state)
         .expect("state lock")
@@ -62,7 +61,6 @@ fn work_operation_record_format_is_stable_and_path_free() {
             "/private/library/second.m4b".to_string(),
         ],
         None,
-        100,
     );
 
     let accepted = format_work_operation_record(WorkOperationLogEvent::Accepted, &snapshot);

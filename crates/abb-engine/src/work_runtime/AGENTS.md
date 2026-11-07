@@ -39,8 +39,9 @@
   `child_job_id` cancels only that title. Only processing titles cancel one at
   a time; a metadata save's files share one flag. Repeating a cancel, or
   cancelling a finished title, returns the current snapshot. Child
-  `cancellable` is the authority for offering title cancel.
-- Each output title is one child. Operation and child `source_input_ids` retain
+  `cancellable` is the authority for offering title cancel; the Work Center
+  adds only that the operation has more than one title.
+- Each output title is one child. A child's `source_input_ids` retain
   all source identities, so a grouped title's downloads settle together at its
   terminal outcome, including in mixed-success batches.
 - A child copies `supplemental_warning` and `warnings` from
@@ -58,13 +59,17 @@
   keeps the per-file results.
 - Stamp per-operation `revision` under the state lock before mutable access.
 - Every change reaches hosts as one `EngineEvent::WorkOperations`
-  (`WorkOperationsUpdate`): the changed operation plus the display order,
+  (`WorkOperationsUpdate`): the changed operation plus the display order and the start queue,
   numbered by a state-wide `revision` taken under the state lock when it is
   published. Emission happens after the lock, so updates can arrive out of
-  order; a host keeps the newest snapshot per operation and the order with the
+  order; a host keeps the newest snapshot per operation and the order and queue with the
   highest revision, and needs no other merge rule. `list_operations` returns
   the same order and revision. The engine owns display order: active, then
-  accepted, then finished; newest first within each. Session previews reuse the
+  accepted, then finished; newest first within each. It also owns the queue:
+  the accepted operations by sequence, oldest first, which a host shows as
+  `#N`. Why: it lives on the list, not on an operation, because an earlier
+  operation starting moves every later position without changing their own
+  revisions. Session previews reuse the
   private `WorkRuntimeState` reducer and publish within `SessionUpdate.output`;
   they stay outside retained export history. Event names belong to the host
   (`src-tauri/src/events.rs`).
@@ -73,4 +78,5 @@
   terminalization order (a just-finished long-running operation must survive
   its own prune). Running and accepted operations are never pruned.
 - Reach processing through `processing::run`.
-- `WorkProgressStage` is a work_runtime-owned display vocabulary.
+- `WorkProgressStage` is a work_runtime-owned display vocabulary;
+  `src/app/processing/render.ts` words each stage directly.

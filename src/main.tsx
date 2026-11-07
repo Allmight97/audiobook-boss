@@ -8,4 +8,4 @@ if (!target) {
 	throw new Error('App root #app not found');
 }
 
-export const disposeApp = render(() => <ProductionRoot />, target);
+render(() => <ProductionRoot />, target);

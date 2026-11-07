@@ -81,17 +81,14 @@ pub(crate) fn offer_library_title(runtime: &RemoteSourceRuntime, title_id: &str)
         title: title_id.into(),
         authors: Vec::new(),
         narrators: Vec::new(),
-        duration_seconds: None,
-        cover_url: None,
+        cover: None,
         supplemental_pdf_available: false,
-        acquired: false,
         availability: RemoteTitleAvailability {
             status: RemoteTitleAvailabilityStatus::Available,
             acquirable: true,
             label: "Available".into(),
             detail: None,
         },
-        unsupported_reasons: Vec::new(),
     }]);
 }
 
@@ -363,6 +360,7 @@ fn release(guid: &str) -> types::RemoteReleaseGrabRequest {
     types::RemoteReleaseGrabRequest {
         release: types::RemoteRelease {
             provider_id: RemoteProviderId::Indexer,
+            key: types::release_key(7, guid),
             guid: guid.to_string(),
             indexer_id: 7,
             title: "Example".to_string(),
@@ -380,7 +378,9 @@ fn release(guid: &str) -> types::RemoteReleaseGrabRequest {
 async fn a_release_sent_in_this_search_is_not_sent_again() {
     let root = TempDir::new().expect("temp root");
     let runtime = test_runtime(&root);
-    runtime.sent_releases().insert((7, "release-1".to_string()));
+    runtime
+        .sent_releases()
+        .insert(types::release_key(7, "release-1"));
 
     let again = runtime
         .grab_release(release("release-1"))
@@ -390,6 +390,10 @@ async fn a_release_sent_in_this_search_is_not_sent_again() {
     assert!(runtime.grab_release(release("release-2")).await.is_err());
     assert!(runtime.grab_release(release("release-2")).await.is_err());
 
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "the search only refreshes the state this test inspects"
+    )]
     let _ = runtime
         .search_releases(types::RemoteReleaseSearchRequest {
             author: None,

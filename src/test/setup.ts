@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { audioFile, fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
-import type { SupportedAudioImportMetadata, WorkOperationsSnapshot } from '../lib/generated/tauri';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
 const eventListeners = new Map<string, Set<TestEventHandler>>();
@@ -39,26 +38,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 					engineArgs.sequence,
 					engineArgs.intent,
 				);
-			case 'get_supported_audio_import_metadata':
-				return Promise.resolve({
-					formats: [
-						{ extension: 'mp3', label: 'MP3' },
-						{ extension: 'm4a', label: 'M4A/M4B' },
-						{ extension: 'm4b', label: 'M4A/M4B' },
-						{ extension: 'aac', label: 'AAC' },
-						{ extension: 'wav', label: 'WAV' },
-						{ extension: 'flac', label: 'FLAC' },
-					],
-					extensions: ['mp3', 'm4a', 'm4b', 'aac', 'wav', 'flac'],
-					formatsText: 'MP3, M4A/M4B, AAC, WAV, and FLAC',
-					supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
-				} satisfies SupportedAudioImportMetadata);
-			case 'list_work_operations':
-				return Promise.resolve({
-					revision: 0,
-					order: [],
-					operations: [],
-				} satisfies WorkOperationsSnapshot);
 			default:
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);
 		}

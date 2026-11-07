@@ -4,9 +4,11 @@ import type {
 	MetadataStatus,
 	OutputEdits,
 	SessionIntent,
+	TagPreview,
 	SessionMetadata,
 } from '../../types/session';
 import { coverSrc } from '../../lib/tauri/coverSrc';
+import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { toUserMessage } from '../../lib/tauri/appError';
 import {
 	liveMetadataCapability,
@@ -21,29 +23,21 @@ import {
 	type CoverArtMessage,
 	type CoverUiState,
 } from './cover';
-import {
-	fieldForActionId,
-	fieldForInputId,
-	toFormState,
-	type MetadataFieldAction,
-	type MetadataFormState,
-} from './fields';
-import { tagPreviewValues, type TagPreviewValues } from './tags';
+import { toFormState, type MetadataFieldAction, type MetadataFormState } from './fields';
 
-export type MetadataView = {
+type MetadataView = {
 	readonly form: MetadataFormState;
 	readonly cover: CoverUiState;
-	readonly tags: TagPreviewValues;
+	readonly tags: TagPreview;
 	readonly saveInProgress: boolean;
 	readonly statusMessage: string;
 };
 
 export type MetadataOwner = {
 	readonly view: Accessor<MetadataView>;
-	readonly capability: Accessor<MetadataCapability>;
-	setFieldValue: (command: { readonly inputId: string; readonly value: string }) => void;
+	setFieldValue: (command: { readonly field: MetadataField; readonly value: string }) => void;
 	setFieldAction: (command: {
-		readonly actionId: string;
+		readonly field: MetadataField;
 		readonly action: MetadataFieldAction;
 	}) => void;
 	setCoverHovered: (hovered: boolean) => void;
@@ -111,6 +105,10 @@ function statusText(status: MetadataStatus | null): string {
 			);
 		case 'saveCancelled':
 			return 'Metadata save cancelled.';
+		case 'tagReadFailed':
+			return status.more === 0
+				? `Could not read the tags of ${status.label}. The fields shown are not its tags.`
+				: `Could not read the tags of ${status.label} and ${status.more} other ${status.more === 1 ? 'file' : 'files'}. The fields shown are not their tags.`;
 		case 'saveFailed':
 			return toUserMessage(status.error, { fallback: 'Metadata save failed.' });
 		case 'deferredWritesFinished':
@@ -131,7 +129,6 @@ function statusText(status: MetadataStatus | null): string {
 export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	const { link } = deps;
 	const capabilityValue = deps.capability ?? liveMetadataCapability;
-	const capability: Accessor<MetadataCapability> = () => capabilityValue;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	let isHovered = false;
 	let isDragOver = false;
@@ -189,18 +186,14 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		return {
 			form,
 			cover: {
-				imageSrc: metadata.cover.present
-					? coverSrc({ kind: 'session', revision: metadata.cover.imageRevision })
-					: null,
+				imageSrc: metadata.cover.image ? coverSrc(metadata.cover.image) : null,
 				isLoading: metadata.cover.loading,
 				message: coverMessage(metadata),
 				isHovered,
 				isDragOver,
 				urlInputValue,
-				hasCustomCoverArt: metadata.cover.custom,
-				coverArtRemovalRequested: metadata.cover.removalRequested,
 			},
-			tags: tagPreviewValues(metadata.tags),
+			tags: metadata.tags,
 			saveInProgress: metadata.saveInProgress,
 			statusMessage: statusText(metadata.status) || (metadata.form.validationMessage ?? ''),
 		};
@@ -220,20 +213,20 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 
 	return {
 		view,
-		capability,
-		setFieldValue(command) {
-			const field = fieldForInputId(command.inputId);
-			if (!field) return;
-			const intent: SessionIntent = { kind: 'setField', field, value: command.value };
-			typed.show(field, command.value, () =>
-				link.send(intent).catch((error: unknown) => link.refuse(intent, error)),
+		setFieldValue({ field, value }) {
+			const intent: SessionIntent = {
+				kind: 'setField',
+				binding: link.metadata().binding,
+				field,
+				value,
+			};
+			typed.show(field, value, () =>
+				link.send(intent).catch((error: unknown) => link.refuse(intent.kind, error)),
 			);
 		},
-		setFieldAction(command) {
-			const field = fieldForActionId(command.actionId);
-			if (!field) return;
+		setFieldAction({ field, action }) {
 			typed.drop(field);
-			link.post({ kind: 'setFieldAction', field, action: command.action });
+			link.post({ kind: 'setFieldAction', binding: link.metadata().binding, field, action });
 		},
 		setCoverHovered(hovered) {
 			isHovered = hovered;
@@ -261,7 +254,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 					filters: [{ name: 'Image Files', extensions: [...COVER_ART_IMAGE_EXTENSION_HINTS] }],
 				});
 			} catch (error) {
-				console.error('Failed to open the image picker:', error);
+				logFrontendFailure('metadataSession.openImagePicker', error);
 				showLocalMessage({
 					kind: 'error',
 					text: toUserMessage(error, { fallback: 'Unable to open the image picker.' }),

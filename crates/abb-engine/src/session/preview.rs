@@ -1,7 +1,7 @@
 use super::submission::{Draft, SubmissionStatus};
 use crate::processing::{ProcessResultStatus, ProgressEvent};
 use crate::work_runtime::{
-    new_processing_snapshot, now_ms, OperationId, OperationSnapshot, WorkRuntimeState,
+    is_terminal, new_processing_snapshot, now_ms, OperationId, OperationSnapshot, WorkRuntimeState,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -12,7 +12,7 @@ pub struct PreviewSnapshot {
     pub operation: OperationSnapshot,
     /// A successful single preview may be claimed for opening once, across hosts.
     pub open_ready: bool,
-    pub artwork_ready: bool,
+    pub cover: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -66,16 +66,29 @@ impl Preview {
             draft.title.clone(),
             &draft.payload.input_files,
             draft.payload.input_ids.as_deref(),
-            now_ms(),
         ));
     }
 
+    pub(crate) fn end_finished(&mut self) {
+        let finished = self.id.as_ref().is_some_and(|id| {
+            self.state
+                .operation(id.as_str())
+                .is_some_and(|operation| is_terminal(operation.status))
+        });
+        if finished {
+            *self = Self::default();
+        }
+    }
+
     pub(crate) fn snapshot(&self) -> Option<PreviewSnapshot> {
-        let operation = self.state.operation(self.id.as_ref()?.as_str())?.clone();
+        let id = self.id.as_ref()?;
+        let operation = self.state.operation(id.as_str())?.clone();
         Some(PreviewSnapshot {
             operation,
             open_ready: self.open_path.is_some(),
-            artwork_ready: self.artwork_ready,
+            cover: self
+                .artwork_ready
+                .then(|| super::cover_address::preview(id.as_str())),
         })
     }
 
@@ -119,7 +132,7 @@ impl Preview {
         self.open_path = None;
         match child {
             Some(child) => {
-                let (_, index) = self.state.request_child_cancel(id, child, now_ms())?;
+                let (_, index) = self.state.request_child_cancel(id, child)?;
                 Ok(index.into_iter().collect())
             }
             None => {
@@ -154,13 +167,6 @@ impl Preview {
             SubmissionStatus::Cancelled => {
                 self.state
                     .cancel(id, "Preview cancelled.".into(), now_ms())
-                    .expect("registered preview");
-            }
-            SubmissionStatus::Failed { error }
-                if error.category == crate::errors::AppErrorCategory::Cancellation =>
-            {
-                self.state
-                    .cancel(id, error.message.clone(), now_ms())
                     .expect("registered preview");
             }
             SubmissionStatus::Failed { error } => {

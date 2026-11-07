@@ -277,15 +277,15 @@ fn grouping_titles_with_different_audio_choices_requires_an_explicit_choice() {
     set.set_audio_request("b", request(AudioIntent::Preserve));
     set.select_all();
     assert!(set.group_selected());
-    assert_eq!(set.titles(0).audio_choice_required, ["a"]);
+    assert_eq!(set.audio_choice_required(), ["a"]);
 
     set.set_audio_request("a", request(AudioIntent::Encode));
-    assert!(set.titles(0).audio_choice_required.is_empty());
+    assert!(set.audio_choice_required().is_empty());
 
     let mut same = set_with(&["a", "b"]);
     same.select_all();
     assert!(same.group_selected());
-    assert!(same.titles(0).audio_choice_required.is_empty());
+    assert!(same.audio_choice_required().is_empty());
 }
 
 #[test]
@@ -502,7 +502,7 @@ proptest! {
             // Group records and pending audio choices exist only for loaded titles.
             let ids: HashSet<&str> = snapshot.files.iter().map(|f| f.input_id.as_str()).collect();
             prop_assert!(snapshot.title_sources_by_identity.keys().all(|id| ids.contains(id.as_str())));
-            prop_assert!(snapshot.audio_choice_required.iter().all(|id| ids.contains(id.as_str())));
+            prop_assert!(set.audio_choice_required().iter().all(|id| ids.contains(id.as_str())));
         }
     }
 }
@@ -536,6 +536,7 @@ fn a_tag_write_moves_a_chapter_plan_only_when_the_file_was_as_inspected() {
         &Rewrite {
             before: "10:1".into(),
             after: "20:2".into(),
+            after_bytes: 20,
         },
     );
     set.note_tag_write(
@@ -543,6 +544,7 @@ fn a_tag_write_moves_a_chapter_plan_only_when_the_file_was_as_inspected() {
         &Rewrite {
             before: "15:5".into(),
             after: "25:6".into(),
+            after_bytes: 25,
         },
     );
 
@@ -573,4 +575,57 @@ fn a_removed_download_stays_as_finished_history_and_leaves_other_rows_alone() {
         sources[1].error.as_deref(),
         Some("Exported. Its download was removed to save space; acquire it again to export it again.")
     );
+}
+
+#[test]
+fn a_saved_title_and_author_rename_the_listed_source_and_clearing_returns_the_file_name() {
+    let mut set = set_with(&["dune.m4b", "other.m4b"]);
+    let before = set.titles_changes();
+    let saved = |title, artist| MetadataIntentPatch {
+        title,
+        artist,
+        ..Default::default()
+    };
+
+    set.note_saved_names(
+        Path::new("/books/dune.m4b"),
+        &saved(
+            Some(PatchOp::Set("  Dune  ".into())),
+            Some(PatchOp::Set(" Herbert ".into())),
+        ),
+    );
+
+    let listed = |set: &WorkingSet, name: &str| {
+        let file = set
+            .files()
+            .iter()
+            .find(|file| file.input_id == name)
+            .expect("listed");
+        (file.label.clone(), file.artist.clone())
+    };
+    assert_eq!(
+        listed(&set, "dune.m4b"),
+        ("Dune".to_string(), Some("Herbert".to_string()))
+    );
+    assert_eq!(listed(&set, "other.m4b"), ("other.m4b".to_string(), None));
+    assert!(set.titles_changes() > before);
+
+    set.note_saved_names(
+        Path::new("/books/dune.m4b"),
+        &saved(Some(PatchOp::Clear), Some(PatchOp::Clear)),
+    );
+    assert_eq!(listed(&set, "dune.m4b"), ("dune.m4b".to_string(), None));
+}
+
+#[test]
+fn grouping_is_offered_for_two_selected_titles_while_the_order_is_open() {
+    let mut set = set_with(&["a", "b", "c"]);
+    set.select_file(0, NO_MODIFIERS);
+    assert!(!set.selection(0).can_group);
+
+    set.select_file(1, MULTI);
+    assert!(set.selection(0).can_group);
+
+    set.set_order_locked(true);
+    assert!(!set.selection(0).can_group);
 }

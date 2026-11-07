@@ -7,11 +7,11 @@ import { coverSrc } from '../../lib/tauri/coverSrc';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import './metadataLookup.css';
 
-function formatPublicationDate(value: string | null | undefined): string {
+function formatPublicationDate(value: string | null): string {
 	return value || '—';
 }
 
-function formatDurationHours(durationSeconds: number | null | undefined): string {
+function formatDurationHours(durationSeconds: number | null): string {
 	if (!durationSeconds) return '—';
 	return `${Math.round(durationSeconds / 3600)}h`;
 }
@@ -46,15 +46,13 @@ function sourceLabel(result: OnlineMetadataResult): string {
 }
 
 function LookupCoverThumb(props: {
-	readonly coverUrl: string | null | undefined;
+	readonly cover: string | null | undefined;
 	readonly title: string;
 }): JSX.Element {
 	return (
 		<CoverThumb>
 			<CoverImage
-				src={
-					props.coverUrl ? coverSrc({ kind: 'remote', url: props.coverUrl, size: 'small' }) : null
-				}
+				src={props.cover ? coverSrc(props.cover) : null}
 				alt={`${props.title} cover art`}
 				testId="metadata-lookup-cover-image"
 				eager
@@ -216,7 +214,7 @@ export function MetadataLookupView(): JSX.Element {
 				<div id="metadata-lookup-results" class="app-modal-results">
 					{view().hasSearched && view().results.length === 0 && (
 						<div class="app-modal-empty muted-text">
-							<p>No online matches found across Audnexus and OpenLibrary.</p>
+							<p>No online matches found.</p>
 							<p class="metadata-lookup-empty-hint">
 								Older CD-era or rare audiobook editions may not be indexed. Use manual entry to
 								finish metadata for this file.
@@ -237,7 +235,7 @@ export function MetadataLookupView(): JSX.Element {
 					<For each={view().results}>
 						{(result, index) => (
 							<div class="app-modal-result">
-								<LookupCoverThumb coverUrl={result.coverUrl} title={result.title} />
+								<LookupCoverThumb cover={result.cover} title={result.title} />
 								<div class="metadata-lookup-details">
 									<div class="metadata-lookup-title">{result.title}</div>
 									<div class="metadata-lookup-meta">
@@ -251,7 +249,7 @@ export function MetadataLookupView(): JSX.Element {
 									<div class="metadata-lookup-meta">{formatSeriesSummary(result)}</div>
 									<div class="metadata-lookup-meta">
 										Publication {formatPublicationDate(result.publishedDate ?? null)} • Length:{' '}
-										{formatDurationHours(result.durationSeconds ?? null)}
+										{formatDurationHours(result.durationSeconds)}
 									</div>
 									<span
 										class={[

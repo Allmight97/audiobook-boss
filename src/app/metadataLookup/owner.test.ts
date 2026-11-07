@@ -8,7 +8,7 @@ it('drops delayed query echoes when lookup advances and preserves newer typing',
 	const engine = createFakeEngine();
 	engine.change((state) => {
 		state.lookup.open = true;
-		state.lookup.queuePosition = { index: 0, total: 2, path: '/books/alpha.m4b' };
+		state.lookup.queuePosition = { index: 0, total: 2, path: '/books/alpha.m4b', label: 'Alpha' };
 		state.lookup.titleQuery = 'Alpha';
 		state.lookup.authorQuery = 'First Author';
 	});
@@ -19,14 +19,13 @@ it('drops delayed query echoes when lookup advances and preserves newer typing',
 					replies.push(resolve);
 				})
 			: undefined;
-	runtime = createAppRuntime({ engine });
-	await runtime.initialize();
+	runtime = await createAppRuntime({ engine });
 	runtime.lookup.setTitleQuery('Old title draft');
 	runtime.lookup.setAuthorQuery('Old author draft');
 	expect(runtime.lookup.view().titleQuery).toBe('Old title draft');
 	await vi.waitFor(() => expect(replies).toHaveLength(2));
 	engine.change((state) => {
-		state.lookup.queuePosition = { index: 1, total: 2, path: '/books/beta.m4b' };
+		state.lookup.queuePosition = { index: 1, total: 2, path: '/books/beta.m4b', label: 'Beta' };
 		state.lookup.titleQuery = 'Beta';
 		state.lookup.authorQuery = 'Second Author';
 	});
@@ -64,8 +63,7 @@ it('shows a refused query and drops its typed text', async () => {
 		state.lookup.titleQuery = 'Alpha';
 	});
 	engine.respond = refusing('lookupSetTitleQuery');
-	runtime = createAppRuntime({ engine });
-	await runtime.initialize();
+	runtime = await createAppRuntime({ engine });
 
 	runtime.lookup.setTitleQuery('Typed');
 	expect(runtime.lookup.view().titleQuery).toBe('Typed');
@@ -89,8 +87,7 @@ it('moves focus to the form only after the engine closes the lookup for manual e
 					release = () => resolve(undefined);
 				})
 			: undefined;
-	runtime = createAppRuntime({ engine });
-	await runtime.initialize();
+	runtime = await createAppRuntime({ engine });
 
 	const ran = runtime.lookup.run({ type: 'manualEntry' });
 	await vi.waitFor(() =>
@@ -114,8 +111,7 @@ it('shows a refused manual entry and leaves focus where it was', async () => {
 	input.id = 'meta-title';
 	document.body.append(input);
 	engine.respond = refusing('lookupClose');
-	runtime = createAppRuntime({ engine });
-	await runtime.initialize();
+	runtime = await createAppRuntime({ engine });
 
 	await runtime.lookup.run({ type: 'manualEntry' });
 	await Promise.resolve();

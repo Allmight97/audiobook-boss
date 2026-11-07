@@ -107,6 +107,9 @@ describe('check-known-mistakes', () => {
 		expect(
 			found('crates/abb-engine/src/session/runtime.rs', 'let file = File::open(path)?;'),
 		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/session/runtime/save_flow.rs', 'let file = File::open(path)?;'),
+		).toEqual([]);
 		expect(found('crates/abb-engine/src/session/state_tests.rs', 'std::fs::read(path)?;')).toEqual(
 			[],
 		);
@@ -121,6 +124,11 @@ describe('check-known-mistakes', () => {
 			expect.stringMatching(/^1: `intent\.kind` puts a product rule in the fake engine/),
 		]);
 		expect(found(fake, '\t\tswitch (intent.kind) {')).toHaveLength(1);
+		expect(found(fake, '\t\tselection.canGroup = selection.selectedIndices.length >= 2;')).toEqual([
+			expect.stringMatching(/^1: `\.canGroup =` puts a product rule in the fake engine/),
+		]);
+		expect(found(fake, '\t\ttitles.titleTotals = {};')).toHaveLength(1);
+		expect(found(fake, '\t\tif (selection.canGroup === true) pass();')).toEqual([]);
 		expect(
 			found('src/test/fixtures/recordedInvoke.ts', "if (intent.kind === 'setField') x();"),
 		).toEqual([]);
@@ -375,7 +383,7 @@ describe('check-known-mistakes', () => {
 	});
 });
 
-const SAMPLES = 'crates/abb-engine/src/app_settings/samples';
+const SAMPLES = 'crates/abb-engine/src/app_settings/saved_settings';
 
 function sampleRepo(body: (root: string, git: (...args: string[]) => string) => void): void {
 	const root = mkdtempSync(path.join(os.tmpdir(), 'abb-samples-'));

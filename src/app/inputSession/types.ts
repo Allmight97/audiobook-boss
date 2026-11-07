@@ -1,6 +1,6 @@
 import type { AudioFile } from '../../types/audio';
 
-export type InputSortDirection = 'none' | 'ascending' | 'descending';
+type InputSortDirection = 'none' | 'ascending' | 'descending';
 
 export type SelectionModifiers = {
 	readonly multi: boolean;
@@ -16,8 +16,6 @@ export type InputView = {
 	readonly fileCount: number;
 	readonly hasFiles: boolean;
 	readonly orderLocked: boolean;
-	/** Advances when a Save writes a cover into a source; part of its address. */
-	readonly coversRevision: number;
 	readonly errorMessage: string;
 	readonly isDragOver: boolean;
 	readonly supportText: string;
@@ -27,7 +25,8 @@ export type InputView = {
 	readonly showSortButton: boolean;
 	readonly showClearButton: boolean;
 	readonly showRestoreImportOrder: boolean;
-	readonly totalDurationSeconds: number;
+	readonly totalSizeBytes: number;
+	readonly canGroup: boolean;
 };
 
 export type ImportIntent =
@@ -35,8 +34,6 @@ export type ImportIntent =
 	| { readonly type: 'pickFolder' }
 	| { readonly type: 'importPaths'; readonly paths: ReadonlyArray<string> };
 
-export const DEFAULT_SUPPORT_TEXT = 'Supports audio files';
-
 export function fileIdentityKey(file: AudioFile): string {
-	return file.inputId ?? file.path;
+	return file.inputId;
 }

@@ -3,6 +3,8 @@ mod cover_protocol;
 mod events;
 mod intent_order;
 pub mod ipc_contract;
+mod log_file;
+mod opened_files;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -95,7 +97,6 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
         config_dir: resolve("config", app.path().app_config_dir())?,
         app_identifier: app.config().identifier.clone(),
         events: std::sync::Arc::new(events::TauriEvents(app.handle().clone())),
-        aaxclean_helper: None,
     })
 }
 
@@ -120,23 +121,28 @@ struct Quit {
 
 const SHUTDOWN_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
 
+#[derive(Debug)]
+enum ShutdownWait<T> {
+    Finished(T),
+    QuitChosen,
+}
+
 /// Awaits `shutdown`, asking after each `SHUTDOWN_WAIT` whether to keep
-/// waiting. Returns its outcome; `None` only when the user chose to quit
-/// anyway.
+/// waiting.
 async fn settle_or_ask<T, A>(
     shutdown: impl std::future::Future<Output = T>,
     mut keep_waiting: impl FnMut() -> A,
-) -> Option<T>
+) -> ShutdownWait<T>
 where
     A: std::future::Future<Output = bool>,
 {
     tokio::pin!(shutdown);
     loop {
         if let Ok(outcome) = tokio::time::timeout(SHUTDOWN_WAIT, &mut shutdown).await {
-            return Some(outcome);
+            return ShutdownWait::Finished(outcome);
         }
         if !keep_waiting().await {
-            return None;
+            return ShutdownWait::QuitChosen;
         }
     }
 }
@@ -154,6 +160,10 @@ async fn ask_to_retry_settings_save(app: tauri::AppHandle, reason: String) -> bo
             "Quit Anyway".to_string(),
         ))
         .show(move |retry| {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the quit flow has stopped waiting if the receiver is gone"
+            )]
             let _ = answer.send(retry);
         });
     answered.await.unwrap_or(false)
@@ -172,6 +182,10 @@ async fn ask_to_keep_waiting(app: tauri::AppHandle) -> bool {
             "Quit Now".to_string(),
         ))
         .show(move |wait| {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the quit flow has stopped waiting if the receiver is gone"
+            )]
             let _ = answer.send(wait);
         });
     answered.await.unwrap_or(false)
@@ -188,14 +202,14 @@ async fn quit_when_saved<S, W, R>(
 {
     loop {
         match settle_or_ask(shutdown(), &mut keep_waiting).await {
-            Some(abb_engine::ShutdownOutcome::Settled) => break,
-            Some(abb_engine::ShutdownOutcome::SettingsUnsaved { error }) => {
+            ShutdownWait::Finished(abb_engine::ShutdownOutcome::Settled) => break,
+            ShutdownWait::Finished(abb_engine::ShutdownOutcome::SettingsUnsaved { error }) => {
                 if !retry_save(error.message).await {
                     log::warn!("Quit with unsaved settings, at the user's choice");
                     break;
                 }
             }
-            None => {
+            ShutdownWait::QuitChosen => {
                 log::warn!("Quit before the engine settled, at the user's choice");
                 break;
             }
@@ -224,11 +238,37 @@ fn shut_down_then_exit(app: &tauri::AppHandle) {
     });
 }
 
+fn settle_unheld_exit<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    let held = app
+        .try_state::<Quit>()
+        .is_some_and(|quit| quit.done.load(Ordering::SeqCst));
+    let Some(engine) = app.try_state::<abb_engine::Engine>().filter(|_| !held) else {
+        return;
+    };
+    log::warn!("Quit arrived past the hold, so ABB asked nothing and settles what it can");
+    let settled = tauri::async_runtime::block_on(async {
+        tokio::time::timeout(SHUTDOWN_WAIT, engine.shutdown()).await
+    });
+    match settled {
+        Ok(abb_engine::ShutdownOutcome::Settled) => {}
+        Ok(abb_engine::ShutdownOutcome::SettingsUnsaved { error }) => {
+            log::error!("Quit with unsaved settings: {}", error.message);
+        }
+        Err(_) => log::error!("Quit before the engine settled"),
+    }
+}
+
 fn plural(count: usize, one: &str, many: &str) -> String {
     format!("{count} {}", if count == 1 { one } else { many })
 }
 
-fn quit_prompt(running: &abb_engine::RunningWork) -> Option<(&'static str, String)> {
+#[derive(Debug, PartialEq)]
+struct QuitPrompt {
+    title: &'static str,
+    message: String,
+}
+
+fn quit_prompt(running: &abb_engine::RunningWork) -> QuitPrompt {
     let waiting = (running.exports == 0 && running.waiting_writes > 0).then(|| {
         format!(
             "Metadata changes for {} wait to be saved. Quitting saves them first.",
@@ -263,13 +303,38 @@ fn quit_prompt(running: &abb_engine::RunningWork) -> Option<(&'static str, Strin
         )
     });
     match (exports.or(waiting), downloads) {
-        (Some(work), None) if running.exports > 0 => Some(("Exports are still running", work)),
-        (Some(work), None) => Some(("Saves are still waiting", work)),
-        (None, Some(downloads)) => Some(("Downloads are still running", downloads)),
-        (Some(work), Some(downloads)) => {
-            Some(("Work is still running", format!("{work} {downloads}")))
-        }
-        (None, None) => None,
+        (Some(work), None) if running.exports > 0 => QuitPrompt {
+            title: "Exports are still running",
+            message: work,
+        },
+        (Some(work), None) => QuitPrompt {
+            title: "Saves are still waiting",
+            message: work,
+        },
+        (Some(work), Some(downloads)) => QuitPrompt {
+            title: "Work is still running",
+            message: format!("{work} {downloads}"),
+        },
+        (None, downloads) => QuitPrompt {
+            title: "Downloads are still running",
+            message: downloads.unwrap_or_default(),
+        },
+    }
+}
+
+#[derive(Debug, PartialEq)]
+enum QuitStep {
+    ShutDown,
+    Ask(abb_engine::RunningWork),
+}
+
+fn next_quit_step(
+    close_for_quit: impl FnOnce(&abb_engine::QuitConsent) -> Result<(), abb_engine::RunningWork>,
+    consent: &abb_engine::QuitConsent,
+) -> QuitStep {
+    match close_for_quit(consent) {
+        Ok(()) => QuitStep::ShutDown,
+        Err(running) => QuitStep::Ask(running),
     }
 }
 
@@ -284,24 +349,68 @@ fn hold_quit(app: &tauri::AppHandle) -> bool {
     true
 }
 
+const QUIT_ITEM: &str = "abb-quit";
+
+fn quit_item_pressed(app: &tauri::AppHandle) {
+    let press = app
+        .try_state::<abb_engine::Engine>()
+        .map_or(abb_engine::QuitPress::Proceed, |engine| {
+            engine.quit_pressed()
+        });
+    log::info!("Quit pressed: {press:?}");
+    if press == abb_engine::QuitPress::Proceed {
+        hold_quit(app);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn take_over_quit_item(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let app_menu = app
+        .menu()
+        .and_then(|menu| menu.items().ok())
+        .and_then(|items| items.first().and_then(|item| item.as_submenu().cloned()));
+    let Some(app_menu) = app_menu else {
+        log::error!("ABB found no app menu, so the Quit shortcut skips the quit hold");
+        return Ok(());
+    };
+    let is_quit = |item: &tauri::menu::MenuItemKind<tauri::Wry>| {
+        item.as_predefined_menuitem()
+            .is_some_and(|item| item.text().is_ok_and(|text| text.starts_with("Quit")))
+    };
+    let Some(quit) = app_menu.items()?.into_iter().find(is_quit) else {
+        log::error!("ABB found no Quit item, so the Quit shortcut skips the quit hold");
+        return Ok(());
+    };
+    app_menu.remove(&quit)?;
+    app_menu.append(&tauri::menu::MenuItem::with_id(
+        app,
+        QUIT_ITEM,
+        format!("Quit {}", app.package_info().name),
+        true,
+        Some("CmdOrCtrl+Q"),
+    )?)
+}
+
 /// Quits when the engine closes for the work `consent` covers; otherwise
 /// asks about the work quitting would stop now, and asks again if that
 /// changes before the user answers.
 fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) {
-    let closed = app
-        .try_state::<abb_engine::Engine>()
-        .map_or(Ok(()), |engine| engine.close_for_quit(consent));
-    let running = match closed {
-        Ok(()) => return shut_down_then_exit(app),
-        Err(running) => running,
-    };
-    let Some((title, message)) = quit_prompt(&running) else {
+    let step = next_quit_step(
+        |consent| {
+            app.try_state::<abb_engine::Engine>()
+                .map_or(Ok(()), |engine| engine.close_for_quit(consent))
+        },
+        consent,
+    );
+    let QuitStep::Ask(running) = step else {
         return shut_down_then_exit(app);
     };
+    let prompt = quit_prompt(&running);
+    let consent = running.consent;
     let app = app.clone();
     app.dialog()
-        .message(message)
-        .title(title)
+        .message(prompt.message)
+        .title(prompt.title)
         .buttons(MessageDialogButtons::OkCancelCustom(
             "Quit Anyway".to_string(),
             "Keep Open".to_string(),
@@ -310,30 +419,14 @@ fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) 
             let app = app.clone();
             move |quit| {
                 if quit {
-                    quit_with_consent(&app, &running.consent);
+                    quit_with_consent(&app, &consent);
                 }
             }
         });
 }
 
-#[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
-fn open_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
-    let paths = urls
-        .into_iter()
-        .filter_map(|url| url.to_file_path().ok())
-        .collect();
-    let Some(engine) = app.try_state::<abb_engine::Engine>() else {
-        log::warn!("Engine is unavailable; ignoring opened audio files");
-        return;
-    };
-    if let Err(error) = engine.open_audio_files(paths) {
-        log::warn!("Opened audio files were not imported: {error}");
-    }
-}
-
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    log_file::init_logger();
 
     log::info!("Starting AudioBook Boss application");
 
@@ -342,8 +435,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(opened_files::HeldFiles::default())
         .invoke_handler(specta_builder.invoke_handler())
         .register_asynchronous_uri_scheme_protocol(cover_protocol::SCHEME, cover_protocol::handle)
+        .on_menu_event(|app, event| {
+            if event.id() == QUIT_ITEM {
+                quit_item_pressed(app);
+            }
+        })
         .setup(move |app| {
             specta_builder.mount_events(app);
             log::info!(
@@ -355,9 +454,18 @@ pub fn run() {
                 abb_engine::media_build_identity()
             );
             app.manage(Quit::default());
+            #[cfg(target_os = "macos")]
+            {
+                if let Err(error) = take_over_quit_item(app.handle()) {
+                    log::error!("ABB could not take over the Quit menu item: {error}");
+                }
+            }
             app.manage(commands::FrontendLink::default());
             match start_engine(app) {
-                Ok(engine) => app.manage(engine),
+                Ok(engine) => {
+                    opened_files::import_held(app.handle(), &engine);
+                    app.manage(engine)
+                }
                 Err(error @ abb_engine::AppError::AlreadyRunning(_)) => {
                     quit_as_second_copy(app, error.to_string());
                     return Ok(());
@@ -388,8 +496,9 @@ pub fn run() {
             } if hold_quit(app) => {
                 api.prevent_close();
             }
-            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
-            tauri::RunEvent::Opened { urls } => open_urls(app, urls),
+            tauri::RunEvent::Exit => settle_unheld_exit(app),
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Opened { urls } => opened_files::open(app, urls),
             _ => {}
         });
 }

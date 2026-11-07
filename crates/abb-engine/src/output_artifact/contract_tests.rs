@@ -9,10 +9,10 @@ use tempfile::TempDir;
 #[test]
 fn output_artifact_plan_contract_blocks_source_destination_overlap() {
     let temp_dir = TempDir::new().expect("temp dir");
-    let source = temp_dir.path().join("book.mp3");
+    let source = temp_dir.path().join("book.m4b");
     std::fs::write(&source, b"source").expect("write source");
 
-    let requested = temp_dir.path().join("book.mp3");
+    let requested = temp_dir.path().join("book.m4b");
     assert_eq!(requested, source);
     let mut ledger = OutputPlanLedger::new();
     let plan = ledger

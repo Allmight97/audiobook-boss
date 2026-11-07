@@ -27,6 +27,7 @@ import type {
 	TitleAudio,
 	TitlePlan,
 } from '../../types/session';
+import type { OperationId, OperationSnapshot, WorkOperationsUpdate } from '../../types/workRuntime';
 
 const FORM_FIELDS: readonly MetadataField[] = [
 	'title',
@@ -59,21 +60,48 @@ function freshSession(): SessionParts {
 }
 
 export function defaultAppSettings(): AppSettings {
-	const settings = structuredClone(recordedFresh.settings.settings);
-	if (!settings) throw new Error('the recorded fresh settings hold no settings');
-	return settings;
+	return structuredClone(recordedFresh.settings.settings);
+}
+
+export function sessionUpdate(
+	parts: Pick<SessionUpdate, 'revision'> & Partial<SessionUpdate>,
+): SessionUpdate {
+	return {
+		titles: null,
+		selection: null,
+		metadata: null,
+		lookup: null,
+		audio: null,
+		output: null,
+		remote: null,
+		remoteLibrary: null,
+		remoteAcquisition: null,
+		...parts,
+	};
 }
 
 export function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
+	const isValid = overrides.isValid ?? true;
 	return {
 		inputId: path,
 		path,
+		label: path.split('/').findLast(Boolean) ?? path,
 		size: 1024,
 		duration: 60,
 		format: 'm4b',
-		isValid: true,
+		bitrate: null,
+		sampleRate: null,
+		channels: null,
+		codecLabel: null,
+		selectedDecoder: null,
+		artist: null,
+		chapterPlan: null,
+		cueSource: null,
+		error: null,
+		isValid,
 		sourceRemoved: false,
 		chapters: [],
+		cover: isValid ? `audio/0/${encodeURIComponent(path)}` : null,
 		...overrides,
 	};
 }
@@ -82,6 +110,13 @@ export type FakeEngine = EngineCapability & {
 	readonly sessionIntents: SessionIntent[];
 	readonly settingsIntents: SettingsIntent[];
 	readonly openedPreviews: string[];
+	readonly cancelledWork: { operationId: OperationId; childJobId?: string }[];
+	/** Answers a cancel; a rejection fails it. */
+	respondCancel?: () => Promise<void>;
+	/** Tells every listener the Quit shortcut was pressed once. */
+	pressQuitOnce(windowMs: number): void;
+	/** Adds or replaces an operation and tells every listener. */
+	publishOperation(operation: OperationSnapshot, queue?: OperationId[]): void;
 	analyze: (paths: readonly string[]) => AudioFile[];
 	/**
 	 * Answers a session intent. A reply of `undefined`, at once or later, is
@@ -107,7 +142,7 @@ export type FakeEngine = EngineCapability & {
 			readonly selectionCount?: number;
 		},
 	): void;
-	seedCover(bytes: number[], notice?: CoverNotice): void;
+	seedCover(notice?: CoverNotice): void;
 	seedTitleAudio(
 		titleId: string,
 		request: TitleAudioRequest,
@@ -126,11 +161,17 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	let revision = 0;
 	const listeners = new Set<(update: SessionUpdate) => void>();
 	const settingsListeners = new Set<(snapshot: SettingsSnapshot) => void>();
+	const quitPressListeners = new Set<(windowMs: number) => void>();
+	const workListeners = new Set<(update: WorkOperationsUpdate) => void>();
+	const operations = new Map<OperationId, OperationSnapshot>();
+	let workRevision = 0;
+	let workQueue: OperationId[] = [];
 	const state = freshSession();
 	let settingsSnapshot: SettingsSnapshot = {
 		...structuredClone(recordedFresh.settings),
 		settings: structuredClone(initialSettings),
 	};
+	let coverRevision = 0;
 	let nextSessionSequence = 0;
 	let nextSettingsSequence = 0;
 
@@ -139,6 +180,8 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			...structuredClone(state.audio.defaults),
 			plan: { kind: 'pending' },
 			estimate: null,
+			autoSampleRate: { outcome: { kind: 'unresolved' }, problem: null },
+			autoChannels: { outcome: { kind: 'unresolved' }, problem: null },
 		};
 	}
 
@@ -172,6 +215,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		sessionIntents: [],
 		settingsIntents: [],
 		openedPreviews: [],
+		cancelledWork: [],
 		analyze: (paths) => paths.map((path) => audioFile(path)),
 		async attach() {
 			nextSessionSequence = 0;
@@ -180,6 +224,12 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				client: 1,
 				session: settle(),
 				settings: structuredClone(settingsSnapshot),
+				workOperations: structuredClone({
+					revision: workRevision,
+					order: [...operations.keys()],
+					queue: [...workQueue],
+					operations: [...operations.values()],
+				}),
 			};
 		},
 		async sessionDispatch(_client, sequence, intent) {
@@ -218,6 +268,33 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			settingsListeners.add(handler);
 			return () => settingsListeners.delete(handler);
 		},
+		async listenQuitPressAgain(handler) {
+			quitPressListeners.add(handler);
+			return () => quitPressListeners.delete(handler);
+		},
+		async listenWorkOperations(handler) {
+			workListeners.add(handler);
+			return () => workListeners.delete(handler);
+		},
+		async cancelWorkOperation(operationId, childJobId) {
+			engine.cancelledWork.push({ operationId, childJobId });
+			await engine.respondCancel?.();
+		},
+		publishOperation(operation, queue = []) {
+			operations.set(operation.operationId, structuredClone(operation));
+			workRevision += 1;
+			workQueue = [...queue];
+			const update = {
+				revision: workRevision,
+				order: [...operations.keys()],
+				queue: [...workQueue],
+				changed: operation,
+			};
+			for (const listener of workListeners) listener(structuredClone(update));
+		},
+		pressQuitOnce(windowMs) {
+			for (const listener of quitPressListeners) listener(windowMs);
+		},
 		seedSettings(patch) {
 			settingsSnapshot = {
 				...settingsSnapshot,
@@ -228,7 +305,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		},
 		seedAppSettings(patch, saveError) {
 			engine.seedSettings({
-				settings: { ...settingsSnapshot.settings!, ...patch },
+				settings: { ...settingsSnapshot.settings, ...patch },
 				saveError,
 			});
 		},
@@ -245,7 +322,14 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				...titles.titleSourcesByIdentity,
 				[id]: sources,
 			};
-			if (options.choiceRequired) titles.audioChoiceRequired = [...titles.audioChoiceRequired, id];
+			if (options.choiceRequired)
+				state.audio.titles = {
+					...state.audio.titles,
+					[id]: {
+						...(state.audio.titles[id] ?? titleFromDefaults()),
+						plan: { kind: 'choiceRequired' },
+					},
+				};
 			select([titles.files.findIndex((file) => file.path === anchor.path)]);
 			publish();
 		},
@@ -264,13 +348,13 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			};
 			publish();
 		},
-		seedCover(bytes, notice) {
+		seedCover(notice) {
 			const cover = state.metadata.cover;
+			coverRevision += 1;
 			state.metadata.cover = {
 				...cover,
-				present: bytes.length > 0,
+				image: `session/${coverRevision}/`,
 				custom: true,
-				imageRevision: cover.imageRevision + 1,
 				notice: notice ?? cover.notice,
 				noticeSerial: notice ? cover.noticeSerial + 1 : cover.noticeSerial,
 			};

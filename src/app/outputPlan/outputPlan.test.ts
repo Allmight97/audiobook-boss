@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SessionOutcome } from '../../types/session';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { titleAudioRequest } from '../../test/fixtures/titleAudio';
+import { tauriClient } from '../../lib/tauri/client';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 
 describe('output plan owner', () => {
@@ -16,8 +17,7 @@ describe('output plan owner', () => {
 	async function open(): Promise<AppRuntime> {
 		engine = createFakeEngine();
 		engine.loadTitles([audioFile('/books/a.m4b', { duration: 100, size: 1024 })]);
-		runtime = createAppRuntime({ engine });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine });
 		return runtime;
 	}
 
@@ -38,9 +38,10 @@ describe('output plan owner', () => {
 		engine.change((state) => {
 			state.output.preview = { kind: 'unavailable', message: 'bad template' };
 		});
-		expect(app.output.view().previewText).toBe(
-			'Output preview unavailable. Fix metadata/template and retry.',
-		);
+		expect(app.output.view()).toMatchObject({
+			previewText: 'bad template',
+			previewTitle: 'bad template',
+		});
 	});
 
 	it('sends output choices and shows typed template text until the engine confirms it', async () => {
@@ -69,10 +70,47 @@ describe('output plan owner', () => {
 		]);
 	});
 
+	it('shows why the engine refused a naming template', async () => {
+		const app = await open();
+		engine.respond = (intent): SessionOutcome | undefined =>
+			intent.kind === 'setNamingTemplate'
+				? {
+						kind: 'rejected',
+						error: {
+							code: 'invalid_input',
+							category: 'validation',
+							message: 'The template needs a {title}.',
+							detail: null,
+						},
+					}
+				: undefined;
+
+		app.output.editNamingTemplate('{author}');
+
+		await vi.waitFor(() => expect(app.engine.refusal()).toBe('The template needs a {title}.'));
+	});
+
+	it('shows a directory picker that failed to open', async () => {
+		const app = await open();
+		vi.spyOn(tauriClient, 'openDirectory').mockRejectedValueOnce({
+			code: 'dialog_failed',
+			category: 'io',
+			message: 'The folder dialog could not open.',
+			detail: null,
+		});
+
+		await app.output.browseDirectory();
+
+		expect(app.engine.refusal()).toBe('The folder dialog could not open.');
+		expect(engine.sessionIntents.some((intent) => intent.kind === 'setOutputDirectory')).toBe(
+			false,
+		);
+	});
+
 	it('words each title estimate from the engine', async () => {
 		const app = await open();
 		const [title] = app.input.view().files;
-		const id = title.inputId ?? title.path;
+		const id = title.inputId;
 		expect(app.output.estimateTitleSizeText(title)).toBeNull();
 
 		engine.seedTitleAudio(id, titleAudioRequest(), {
@@ -81,6 +119,5 @@ describe('output plan owner', () => {
 		expect(app.output.estimateTitleSizeText(title)).toBe('Est. ~ 1.0 MB');
 		engine.seedTitleAudio(id, titleAudioRequest(), { estimate: { kind: 'variesWithAudio' } });
 		expect(app.output.estimateTitleSizeText(title)).toBe('Size varies with audio');
-		expect(app.output.estimateTitleSizeText({ ...title, isValid: false })).toBeNull();
 	});
 });

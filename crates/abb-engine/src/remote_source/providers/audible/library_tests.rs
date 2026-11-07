@@ -10,7 +10,6 @@ fn parse_library_titles_extracts_pdf_availability_without_raw_payload_leak() {
                 "title": "Remote Book",
                 "authors": [{"name": "Author One"}],
                 "narrators": [{"name": "Narrator One"}],
-                "runtime_length_min": 90,
                 "product_images": {"500": "https://example.test/cover.jpg"},
                 "details": {"pdf_url": "https://example.test/supplement.pdf"}
             }
@@ -25,10 +24,11 @@ fn parse_library_titles_extracts_pdf_availability_without_raw_payload_leak() {
     assert_eq!(title.title_id, "B000000001");
     assert_eq!(title.authors, vec!["Author One"]);
     assert_eq!(title.narrators, vec!["Narrator One"]);
-    assert_eq!(title.duration_seconds, Some(5_400));
     assert_eq!(
-        title.cover_url.as_deref(),
-        Some("https://example.test/cover.jpg")
+        title.cover,
+        Some(crate::session::cover_remote_address(
+            "https://example.test/cover.jpg"
+        ))
     );
     assert!(title.supplemental_pdf_available);
     assert_eq!(
@@ -36,7 +36,6 @@ fn parse_library_titles_extracts_pdf_availability_without_raw_payload_leak() {
         RemoteTitleAvailabilityStatus::Available
     );
     assert!(title.availability.acquirable);
-    assert!(title.unsupported_reasons.is_empty());
 }
 
 #[test]
@@ -56,10 +55,6 @@ fn parse_library_titles_marks_non_playable_library_items_unsupported() {
     let titles = parse_library_titles(&payload);
 
     assert_eq!(titles.len(), 1);
-    assert_eq!(
-        titles[0].unsupported_reasons,
-        vec![RemoteAcquisitionFailureKind::ProtectedUnsupported]
-    );
     assert_eq!(
         titles[0].availability.status,
         RemoteTitleAvailabilityStatus::CatalogOnly

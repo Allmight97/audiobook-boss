@@ -63,8 +63,6 @@ pub enum SessionIntent {
         input_id: String,
         choice: CueChoice,
     },
-    Reset,
-
     /// Exports every valid title.
     Submit,
     /// Renders a preview of each valid title, in the foreground: the start of
@@ -142,11 +140,15 @@ pub enum SessionIntent {
         title_ids: Vec<String>,
     },
 
+    /// Types into the form whose `MetadataSnapshot::binding` is `binding`.
+    /// A form that has since bound to a different selection refuses it.
     SetField {
+        binding: u64,
         field: MetadataField,
         value: String,
     },
     SetFieldAction {
+        binding: u64,
         field: MetadataField,
         action: FieldAction,
     },
@@ -212,8 +214,11 @@ pub enum SessionOutcome {
     PreviewOutput {
         path: Option<String>,
     },
-    /// A newer request or a reset replaced this one before it finished.
+    /// A newer request replaced this one before it finished.
     Superseded,
+    /// The form this edit or cover load was for was replaced, so it did not
+    /// land.
+    EditLost,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]

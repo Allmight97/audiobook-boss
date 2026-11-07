@@ -24,14 +24,13 @@ use library::parse_library_titles;
 use crate::errors::{AppError, Result};
 use crate::remote_source::vault::{account_message, SecretVault};
 use crate::remote_source::{
-    AccountRef, ProviderId, RemoteAccountStatus, RemoteLibraryResponse, RemoteSourceAccountState,
+    ProviderId, RemoteAccountStatus, RemoteLibraryResponse, RemoteSourceAccountState,
     RemoteSourceProviderCapabilities, RemoteTitle,
 };
 
 const COUNTRY_CODE: &str = "us";
 const DOMAIN: &str = "com";
 const MARKETPLACE_ID: &str = "ATVPDKIKX0DER";
-const ACCOUNT_ID: &str = "audible-us";
 const AUTH_SECRET_KEY: &str = "audible.us.auth";
 const AUDIBLE_LIBRARY_PAGE_SIZE: u16 = 1000;
 const MAX_AUDIBLE_LIBRARY_PAGES: u16 = 100;
@@ -125,30 +124,17 @@ impl AudibleProvider {
             return Ok(RemoteSourceAccountState {
                 provider_id: ProviderId::Audible,
                 status: RemoteAccountStatus::NeedsAuth,
-                account: None,
                 message: account_message(Some("Connect Audible to load your library."), survives),
             });
         };
 
-        let auth: Auth = serde_json::from_str(secret.expose_secret()).map_err(|error| {
+        serde_json::from_str::<Auth>(secret.expose_secret()).map_err(|error| {
             AppError::ResourceCleanup(format!("Stored Audible auth is invalid: {error}"))
         })?;
-        let display_name = auth
-            .device_registration
-            .customer_info
-            .get("name")
-            .and_then(Value::as_str)
-            .unwrap_or("Audible account")
-            .to_string();
 
         Ok(RemoteSourceAccountState {
             provider_id: ProviderId::Audible,
             status: RemoteAccountStatus::Connected,
-            account: Some(AccountRef {
-                provider_id: ProviderId::Audible,
-                account_id: ACCOUNT_ID.to_string(),
-                display_name,
-            }),
             message: account_message(None, survives),
         })
     }
@@ -313,4 +299,4 @@ fn extract_audible_auth_code(response_url: &str) -> Result<String> {
 
 #[cfg(test)]
 #[path = "audible_tests.rs"]
-mod tests;
+pub(in crate::remote_source) mod tests;

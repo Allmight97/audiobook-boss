@@ -6,7 +6,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 
 - Import metadata boundary symbols from `crate::metadata`; the strip is the
   `pub use` list in `metadata/mod.rs`. `passthrough` and `mp4ameta_bridge` stay
-  private.
+  private. `chapter_count` holds the one rule for when a multi-source output
+  gets one synthesized chapter per source; the session count and both
+  synthesis sites call it.
 - The app reads tags from session snapshots and changes them through session
   intents; `abb-dev` reads through `Engine::read_audio_metadata`. Real file
   saves route through `save_metadata_intent`, so series validation can see
@@ -82,8 +84,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Cover intent comes only from cover actions (load, drop, clear). A text edit
   or Lookup apply that keeps the cover leaves cover intent absent, so a save
   does not rewrite unchanged art.
-- Processed outputs carry the album sort (the ID3 `TSOA` frame in MP3, the
-  sort-album atom in the MP4 family) from `processing_album_sort`:
+- Processed outputs carry the album sort (the sort-album atom in the MP4
+  family, `SORT_ALBUM` in Matroska) from `processing_album_sort`:
   derived from series, book # and title when possible (fractions kept, so
   novellas sort between books), else the source's own; explicit album-sort
   intent wins. Every processing route takes it from `plan_metadata_outcome`

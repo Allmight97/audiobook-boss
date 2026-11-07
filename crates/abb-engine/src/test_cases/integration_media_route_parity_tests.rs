@@ -1,7 +1,6 @@
 //! One seeded set of tags, a cover and drifting chapters go through the
 //! production planner on every output route and are read back from the file.
 
-use super::id3_frames::{id3v2_text, id3v2_txxx_descriptions};
 use super::media_fixtures::{
     assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32, ffprobe_format_tags,
     mux_chapters, native_encoder_settings,
@@ -236,34 +235,6 @@ fn aac_stack(dir: &Path) -> Vec<PathBuf> {
     sources
 }
 
-fn mp3_stack(dir: &Path) -> Vec<PathBuf> {
-    fs::create_dir_all(dir).expect("source folder");
-    let sources = vec![dir.join("first.mp3"), dir.join("second.mp3")];
-    for (index, source) in sources.iter().enumerate() {
-        let frequency = format!(
-            "sine=frequency={}:sample_rate=44100:duration=0.31",
-            440 * (index + 1)
-        );
-        quiet_ffmpeg(
-            &[
-                "-f",
-                "lavfi",
-                "-i",
-                &frequency,
-                "-c:a",
-                "libmp3lame",
-                "-b:a",
-                "96k",
-                "-write_xing",
-                "0",
-            ],
-            source,
-        );
-    }
-    seed(&sources[0]);
-    sources
-}
-
 fn expected_album_sort(name: &str) -> String {
     format!("{SEEDED_SERIES} 02.5 - Route {name}")
 }
@@ -301,23 +272,7 @@ fn assert_planned_tags(route: &Route, output: &Path) {
     assert_ffprobe_tag(&external, "title", &title);
     assert_ffprobe_tag(&external, "series", SEEDED_SERIES);
     assert_ffprobe_tag(&external, "series-part", SEEDED_PART);
-    if output
-        .extension()
-        .is_some_and(|extension| extension == "mp3")
-    {
-        assert_ffprobe_tag(&external, "album-sort", &sort);
-        assert_eq!(
-            id3v2_text(output, "TSOA").as_deref(),
-            Some(sort.as_str()),
-            "{name}"
-        );
-        assert!(
-            !id3v2_txxx_descriptions(output).contains(&"sort_album".to_string()),
-            "{name}: the album sort is a TSOA frame, not a user text frame"
-        );
-    } else {
-        assert_ffprobe_tag(&external, "sort_album", &sort);
-    }
+    assert_ffprobe_tag(&external, "sort_album", &sort);
 }
 
 fn expected_pictures(route: &Route) -> Vec<(Id, Vec<u8>)> {
@@ -497,7 +452,6 @@ async fn every_encode_route_writes_the_planned_tags_cover_and_chapters() {
 #[tokio::test]
 async fn every_single_file_preserve_route_keeps_source_tags_pictures_and_audio() {
     let tmp = TempDir::new().expect("preserve routes workspace");
-    let mp3 = picture_source(&tmp.path().join("mp3-pictures"), "mp3");
     let m4b = picture_source(&tmp.path().join("m4b-pictures"), "m4b");
     let short = short_m4b_source(&tmp.path().join("m4b-short"));
     let opus = opus_source(&tmp.path().join("mka-opus"));
@@ -515,14 +469,6 @@ async fn every_single_file_preserve_route_keeps_source_tags_pictures_and_audio()
         settings: native_encoder_settings(),
     };
     for row in [
-        preserve(
-            "p-mp3-remux",
-            &mp3,
-            OutputAudio::Mp3,
-            vec![Id::MJPEG, Id::PNG],
-            Chapters::Planned,
-            Audio::Copied,
-        ),
         preserve(
             "p-m4b-remux",
             &m4b,
@@ -567,7 +513,6 @@ async fn every_single_file_preserve_route_keeps_source_tags_pictures_and_audio()
 async fn every_preserve_merge_route_writes_the_planned_tags_and_joined_audio() {
     let tmp = TempDir::new().expect("merge routes workspace");
     let aac = aac_stack(&tmp.path().join("aac-stack"));
-    let mp3 = mp3_stack(&tmp.path().join("mp3-stack"));
     let merge_aac = Route {
         name: "m-aac",
         sources: aac,
@@ -580,42 +525,20 @@ async fn every_preserve_merge_route_writes_the_planned_tags_and_joined_audio() {
         chapters: Chapters::OnePerSource,
         audio: Audio::Copied,
     };
-    let merge_mp3 = Route {
-        name: "m-mp3",
-        sources: mp3,
-        output: OutputAudio::Mp3,
-        intent: AudioIntent::Auto,
-        expect_preserve: true,
-        pictures: vec![],
-        chapters: Chapters::OnePerSource,
-        audio: Audio::Copied,
-    };
-    for row in [merge_aac, merge_mp3] {
-        check_route(&row, tmp.path()).await;
-    }
+    check_route(&merge_aac, tmp.path()).await;
 }
 
 #[tokio::test]
 async fn a_preserved_merge_follows_the_users_order_and_takes_the_chosen_cover() {
     let tmp = TempDir::new().expect("ordered merge workspace");
-    for (name, sources, output, intent, extension) in [
-        (
-            "aac",
-            aac_stack(&tmp.path().join("aac-stack")),
-            OutputAudio::M4b {
-                settings: native_encoder_settings(),
-            },
-            AudioIntent::Preserve,
-            "m4b",
-        ),
-        (
-            "mp3",
-            mp3_stack(&tmp.path().join("mp3-stack")),
-            OutputAudio::Mp3,
-            AudioIntent::Auto,
-            "mp3",
-        ),
-    ] {
+    {
+        let name = "aac";
+        let sources = aac_stack(&tmp.path().join("aac-stack"));
+        let output = OutputAudio::M4b {
+            settings: native_encoder_settings(),
+        };
+        let intent = AudioIntent::Preserve;
+        let extension = "m4b";
         let anchor = sources[0].clone();
         let title_sources = |order: &[&PathBuf]| -> abb_engine::processing::ProcessPayload {
             let output_dir = tmp.path().join(format!("out-{name}"));

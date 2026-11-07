@@ -12,6 +12,7 @@ use tempfile::TempDir;
 fn chosen_settings() -> AppSettings {
     AppSettings {
         keep_awake_while_working: false,
+        press_quit_twice: true,
         max_concurrent_jobs: ConcurrencyPreference::Fixed(2),
         default_acquisition_lane: AcquisitionLane::Indexer,
         aac_decoder: AacDecoder::Faad,
@@ -20,7 +21,7 @@ fn chosen_settings() -> AppSettings {
             category_ids: vec![3030, 3040],
         },
         encoder_defaults: EncoderDefaults {
-            format: AudiobookFormat::Mp3,
+            format: AudiobookFormat::M4b,
             intent: AudioIntent::Encode,
             sample_rate: SampleRateConfig::Explicit(44100),
             settings: EncoderSettings {
@@ -88,6 +89,7 @@ fn naming(include_year: bool) -> OutputNamingConfig {
 fn remember_last_state_settings() -> AppSettings {
     AppSettings {
         keep_awake_while_working: true,
+        press_quit_twice: true,
         max_concurrent_jobs: ConcurrencyPreference::Auto,
         default_acquisition_lane: AcquisitionLane::Audible,
         aac_decoder: AacDecoder::Auto,
@@ -117,6 +119,7 @@ fn remember_last_state_settings() -> AppSettings {
 fn apple_aac_and_opus_settings() -> AppSettings {
     AppSettings {
         keep_awake_while_working: true,
+        press_quit_twice: true,
         max_concurrent_jobs: ConcurrencyPreference::Fixed(4),
         default_acquisition_lane: AcquisitionLane::Audible,
         aac_decoder: AacDecoder::Auto,
@@ -162,6 +165,7 @@ fn apple_aac_and_opus_settings() -> AppSettings {
 fn native_aac_settings() -> AppSettings {
     AppSettings {
         keep_awake_while_working: false,
+        press_quit_twice: true,
         max_concurrent_jobs: ConcurrencyPreference::Fixed(1),
         default_acquisition_lane: AcquisitionLane::Indexer,
         aac_decoder: AacDecoder::Auto,
@@ -205,60 +209,73 @@ fn native_aac_settings() -> AppSettings {
 }
 
 #[test]
-fn every_sample_settings_file_loads_every_choice_it_holds() {
+fn every_sample_settings_file_loads_every_choice_this_release_still_offers() {
     let samples = [
         (
+            "press-quit-twice.toml",
+            include_str!("saved_settings/press-quit-twice.toml"),
+            AppSettings {
+                press_quit_twice: false,
+                ..chosen_settings()
+            },
+            Vec::new(),
+        ),
+        (
             "indexer-connection.toml",
-            include_str!("samples/indexer-connection.toml"),
+            include_str!("saved_settings/indexer-connection.toml"),
             chosen_settings(),
+            Vec::new(),
         ),
         (
             "settings-aac-decoder.toml (saved before the Indexer connection)",
-            include_str!("samples/settings-aac-decoder.toml"),
+            include_str!("saved_settings/settings-aac-decoder.toml"),
             AppSettings {
                 indexer_connection: IndexerConnection::default(),
                 ..chosen_settings()
             },
+            Vec::new(),
         ),
         (
             "settings.toml (saved before the AAC decoder setting)",
-            include_str!("samples/settings.toml"),
+            include_str!("saved_settings/settings.toml"),
             AppSettings {
                 aac_decoder: AacDecoder::Auto,
                 indexer_connection: IndexerConnection::default(),
                 ..chosen_settings()
             },
+            Vec::new(),
         ),
         (
             "remember-last-state.toml",
-            include_str!("samples/remember-last-state.toml"),
+            include_str!("saved_settings/remember-last-state.toml"),
             remember_last_state_settings(),
+            Vec::new(),
         ),
         (
             "apple-aac-and-opus.toml",
-            include_str!("samples/apple-aac-and-opus.toml"),
+            include_str!("saved_settings/apple-aac-and-opus.toml"),
             apple_aac_and_opus_settings(),
+            Vec::new(),
         ),
         (
             "native-aac.toml",
-            include_str!("samples/native-aac.toml"),
+            include_str!("saved_settings/native-aac.toml"),
             native_aac_settings(),
+            Vec::new(),
         ),
     ];
-    for (name, content, expected) in samples {
+    for (name, content, expected, expected_reset) in samples {
         let temp = TempDir::new().expect("temp dir");
         std::fs::write(temp.path().join("settings.toml"), content).expect("write sample");
 
         let loaded = storage::load(temp.path());
 
-        assert!(loaded.reset.is_empty(), "{name}: {:?}", loaded.reset);
+        assert_eq!(loaded.reset, expected_reset, "{name}");
         assert_eq!(loaded.settings, expected, "{name}");
         storage::save(temp.path(), &expected).expect("save");
-        assert_eq!(
-            storage::load(temp.path()).settings,
-            expected,
-            "{name} saved again"
-        );
+        let saved_again = storage::load(temp.path());
+        assert!(saved_again.reset.is_empty(), "{name} saved again");
+        assert_eq!(saved_again.settings, expected, "{name} saved again");
     }
 }
 
@@ -272,7 +289,7 @@ fn no_file_loads_as_defaults() {
 }
 
 fn sample_edited(from: &str, to: &str) -> String {
-    let sample = include_str!("samples/indexer-connection.toml");
+    let sample = include_str!("saved_settings/indexer-connection.toml");
     assert!(sample.contains(from), "the sample holds {from}");
     sample.replace(from, to)
 }
@@ -433,7 +450,7 @@ fn a_file_abb_may_not_read_is_set_aside_before_defaults_are_used() {
     use std::os::unix::fs::PermissionsExt;
     let temp = TempDir::new().expect("temp dir");
     let path = temp.path().join("settings.toml");
-    std::fs::write(&path, include_str!("samples/settings.toml")).expect("write sample");
+    std::fs::write(&path, include_str!("saved_settings/settings.toml")).expect("write sample");
     // allow-permission-fake: the test returns early when root can still read it
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
     if std::fs::read(&path).is_ok() {

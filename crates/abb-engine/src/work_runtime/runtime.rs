@@ -109,12 +109,7 @@ impl WorkRuntime {
             title,
             &request.payload.input_files,
             input_ids,
-            now_ms(),
         );
-        snapshot.source_input_ids = (0..request.payload.input_files.len())
-            .flat_map(|index| request.payload.sources_for(index))
-            .filter_map(|source| source.input_id)
-            .collect();
         for child in &mut snapshot.children {
             if let Some(index) = child.input_index {
                 child.source_input_ids = request
@@ -248,13 +243,8 @@ impl WorkRuntime {
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
         let count = input_files.len();
         let title = format!("Metadata save ({count} file{})", plural_suffix(count));
-        let snapshot = new_metadata_save_snapshot(
-            operation_id.clone(),
-            sequence,
-            title,
-            input_files,
-            now_ms(),
-        );
+        let snapshot =
+            new_metadata_save_snapshot(operation_id.clone(), sequence, title, input_files);
         let cancel_flags = CancelFlags::per_title(1);
         let cancel_flag = Arc::clone(&cancel_flags.titles()[0]);
 
@@ -382,11 +372,8 @@ impl WorkRuntime {
         operation_id: &OperationId,
         child_job_id: &str,
     ) -> Result<OperationSnapshot> {
-        let (snapshot, title_index) = lock_state(&self.inner.state)?.request_child_cancel(
-            operation_id,
-            child_job_id,
-            now_ms(),
-        )?;
+        let (snapshot, title_index) =
+            lock_state(&self.inner.state)?.request_child_cancel(operation_id, child_job_id)?;
         if let Some(index) = title_index {
             let flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
             if flags

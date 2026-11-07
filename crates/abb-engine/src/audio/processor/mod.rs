@@ -297,8 +297,9 @@ fn process_audiobook_with_context(
     let workflow_temp_dir = workflow.temp_dir.clone();
 
     let passthrough_sources = passthrough_sources_from_audio_files(&files);
-    let passthrough_metadata = cover_art_passthrough
-        .apply_to_passthrough(extract_passthrough_metadata(&passthrough_sources).into_option());
+    let mut extracted = extract_passthrough_metadata(&passthrough_sources);
+    let passthrough_warnings = std::mem::take(&mut extracted.warnings);
+    let passthrough_metadata = cover_art_passthrough.apply_to_passthrough(extracted.into_option());
 
     let (effective_metadata, mut passthrough_metadata, cover_warning) =
         prepare_output_cover_art(metadata, passthrough_metadata, cover_art_passthrough)?;
@@ -328,6 +329,9 @@ fn process_audiobook_with_context(
     let _ = workflow_cleanup.forget_path(&workflow_temp_dir);
     Ok(AudioRunOutcome {
         message,
-        warnings: cover_warning.into_iter().collect(),
+        warnings: passthrough_warnings
+            .into_iter()
+            .chain(cover_warning)
+            .collect(),
     })
 }

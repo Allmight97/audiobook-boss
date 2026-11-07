@@ -11,9 +11,11 @@ export function ConcurrencyControl(): JSX.Element {
 
 	return (
 		<div class="concurrency-control" title="Concurrent Jobs">
-			<span class="concurrency-label">Number of Jobs:</span>
+			<label class="concurrency-label" for="concurrency-select">
+				Number of Jobs:
+			</label>
 			<select
-				id="max-concurrent-select"
+				id="concurrency-select"
 				class="concurrency-select"
 				value={view().selection}
 				disabled={!view().controlsEnabled}
@@ -23,17 +25,12 @@ export function ConcurrencyControl(): JSX.Element {
 					select.value = view().selection;
 				}}
 			>
-				{view().allowAuto && <option value="auto">{`Auto · ${view().autoEffective} jobs`}</option>}
+				<option value="auto">{`Auto · ${view().autoEffective} jobs`}</option>
 				<For each={[...view().fixedOptions]}>
 					{(option) => <option value={String(option)}>{option}</option>}
 				</For>
 			</select>
-			<span
-				id="max-concurrent-effective"
-				class="sr-only"
-				aria-live="polite"
-				data-testid="max-concurrent-effective"
-			>
+			<span class="sr-only" aria-live="polite">
 				{view().effectiveLabel}
 			</span>
 		</div>

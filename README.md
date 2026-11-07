@@ -89,7 +89,8 @@ one is running, so they survive a reboot. With no secret service, they last
 until the next restart, and the account view says sign-in will not be
 remembered
 ([#557](https://github.com/Allmight97/audiobook-boss/issues/557)).
-Windows is not supported yet; #557 tracks it.
+Windows has no native build. The plan is to run ABB under WSL, which
+[#557](https://github.com/Allmight97/audiobook-boss/issues/557) has yet to prove.
 
 ### Install a local build
 
@@ -111,6 +112,9 @@ package a DMG that may run on an unknown recipient Mac.
 `package.json` holds the shortcuts.
 
 - Run the app: `bun run app:dev:log` (bundled FFmpeg).
+- Read the app log: `~/Library/Logs/com.audiobook-boss/abb.log` on macOS,
+  `~/.local/share/com.audiobook-boss/logs/abb.log` on Linux. A launch adds
+  to it. When it is over 5 MB at launch, it becomes `abb.previous.log` and a new one starts.
 - Run the checks: `bash scripts/verify.sh`; lanes are in `scripts/AGENTS.md`.
 - Drive the engine without a window: `bash scripts/abb-dev.sh --help`. It keeps
   its own state and never touches the app's settings.

@@ -13,17 +13,14 @@ function remoteTitle(overrides: Partial<RemoteTitle> = {}): RemoteTitle {
 		title: 'Example Book',
 		authors: ['Example Author'],
 		narrators: ['Example Narrator'],
-		durationSeconds: 3600,
-		coverUrl: undefined,
+		cover: null,
 		supplementalPdfAvailable: false,
-		acquired: false,
 		availability: {
 			status: 'available',
 			acquirable: true,
 			label: 'Available',
-			detail: undefined,
+			detail: null,
 		},
-		unsupportedReasons: [],
 		...overrides,
 	};
 }
@@ -31,12 +28,14 @@ function remoteTitle(overrides: Partial<RemoteTitle> = {}): RemoteTitle {
 function release(overrides: Partial<RemoteRelease> = {}): RemoteRelease {
 	return {
 		providerId: 'indexer',
+		key: 'release-1',
 		guid: 'release-1',
 		indexerId: 1,
 		title: 'Example Release',
 		indexer: 'Example',
 		sizeBytes: 100,
 		protocol: 'torrent',
+		detailUrl: null,
 		seeders: 0,
 		categories: [{ id: 3030, name: 'Audio/Audiobook' }],
 		...overrides,
@@ -57,7 +56,6 @@ describe('remote source selection policy', () => {
 				label: 'Audible catalog title',
 				detail: 'Audible reports this title is not downloadable for this account.',
 			},
-			unsupportedReasons: ['protectedUnsupported'],
 		});
 		const availablePdfTitle = remoteTitle({
 			titleId: 'B000000003',
@@ -101,24 +99,28 @@ describe('remote source selection policy', () => {
 		const releases: RemoteRelease[] = [
 			{
 				providerId: 'indexer',
+				key: 'a',
 				guid: 'a',
 				indexerId: 1,
 				title: 'The Way of Kings',
 				indexer: 'Example',
 				sizeBytes: 100,
 				protocol: 'torrent',
+				detailUrl: null,
 				seeders: 10,
 				categories: [{ id: 3030, name: 'Audio/Audiobook' }],
 			},
 			{
 				providerId: 'indexer',
+				key: 'b',
 				guid: 'b',
 				indexerId: 2,
 				title: 'Mistborn',
 				indexer: 'Other',
 				sizeBytes: 200,
 				protocol: 'usenet',
-				seeders: undefined,
+				detailUrl: null,
+				seeders: null,
 				categories: [{ id: 3000, name: 'Audio' }],
 			},
 		];
@@ -154,7 +156,8 @@ describe('remote source selection policy', () => {
 				title: 'Starsight NZB',
 				indexer: 'NZBGeek',
 				protocol: 'usenet',
-				seeders: undefined,
+				detailUrl: null,
+				seeders: null,
 			}),
 			release({ guid: 'mam-72', title: 'Starsight 72', indexer: 'MyAnonamouse', seeders: 72 }),
 		];

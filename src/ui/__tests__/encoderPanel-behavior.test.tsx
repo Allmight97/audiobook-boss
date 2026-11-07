@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@solidjs/testing-library';
 import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
-import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
+import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import type { AudioChoiceView, SessionAudio } from '../../types/session';
 import { EncoderView } from '../encoderPanel';
 
@@ -25,8 +25,7 @@ describe('encoder panel behavior controls', () => {
 			state.audio.defaults.choice.intent = 'encode';
 			seed(state.audio.defaults, state.audio);
 		});
-		runtime = createAppRuntime({ engine });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine });
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<EncoderView />
@@ -79,6 +78,26 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => expect(bitrate.value).toBe('193'));
 	});
 
+	it('shows the engine encoder after a pick the engine did not take', async () => {
+		await renderEncoder((defaults) => {
+			defaults.facts.encoderOptions = defaults.facts.encoderOptions.map((option) => ({
+				...option,
+				available: true,
+			}));
+		});
+		await vi.waitFor(() => expect(document.getElementById('adv-encoder')).not.toBeNull());
+		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
+		const held = select.value;
+		const other = Array.from(select.options).find(
+			(option) => option.value !== held && !option.disabled,
+		);
+
+		changeSelectValue(select, other!.value);
+
+		await vi.waitFor(() => expect(sent()).toHaveLength(1));
+		expect(select.value).toBe(held);
+	});
+
 	it('renders option ranges from the engine facts and capabilities', async () => {
 		await renderEncoder((defaults, audio) => {
 			defaults.facts.bitrateKbpsMin = 24;
@@ -106,13 +125,11 @@ describe('encoder panel behavior controls', () => {
 		await renderEncoder(() => undefined);
 		engine.loadTitles(
 			[
-				{
-					path: '/books/source.m4b',
-					isValid: true,
-					sourceRemoved: false,
+				audioFile('/books/source.m4b', {
+					label: 'source.m4b',
 					sampleRate: 44100,
 					channels: 2,
-				},
+				}),
 			],
 			[0],
 		);
@@ -138,7 +155,6 @@ describe('encoder panel behavior controls', () => {
 				faacProfiles: ['auto', 'aac_lc', 'he_aac_v1'],
 				allowedSampleRates: [44100],
 				sampleRateSupported: false,
-				estimateKbps: null,
 			};
 		});
 
@@ -162,16 +178,18 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() =>
 			expect(sent()).toEqual([
 				{ kind: 'setDefaultAudio', edit: { field: 'quality', value: 50 } },
-				{ kind: 'setDefaultAudio', edit: { field: 'rateControl', value: 'abr' } },
+				{
+					kind: 'setDefaultAudio',
+					edit: { field: 'rateControl', value: 'abr' },
+				},
 			]),
 		);
 	});
 
 	it('keeps showing a chosen encoder that is no longer available', async () => {
-		await renderEncoder((defaults, audio) => {
+		await renderEncoder((defaults) => {
 			defaults.choice.encoder = 'aac_at';
 			defaults.facts.effectiveEncoder = 'aac_at';
-			if (audio.capabilities) audio.capabilities.availability.aacAtAvailable = false;
 			defaults.facts.encoderOptions = defaults.facts.encoderOptions.map((option) =>
 				option.encoder === 'aac_at' ? { ...option, available: false } : option,
 			);

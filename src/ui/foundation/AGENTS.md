@@ -13,7 +13,9 @@ language.
 - Views read the public semantic tokens on `:root` in `internal/tokens.css`.
   Only `src/styles.css` imports `internal/foundation.css`. Callers use the
   primitives' props, never their private class names. Owner layout stays in the
-  owner stylesheet.
+  owner stylesheet. The `.app-modal-*` classes in `internal/dialogs.css` are
+  shared dialog-body layout that the lookup, collision, and remote dialogs use
+  by name.
 - A primitive stays only if deleting it redistributes real behavior across
   owners.
 - Theme follows `prefers-color-scheme`.

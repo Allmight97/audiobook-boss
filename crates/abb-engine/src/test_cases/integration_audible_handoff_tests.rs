@@ -181,6 +181,7 @@ async fn an_edit_left_unsaved_during_an_export_outlives_the_download_and_reaches
     session.dispatch(SessionIntent::Submit).await;
     session
         .dispatch(SessionIntent::SetField {
+            binding: session.snapshot().metadata.expect("metadata part").binding,
             field: MetadataField::Genre,
             value: "Mystery".into(),
         })
@@ -197,6 +198,7 @@ async fn an_edit_left_unsaved_during_an_export_outlives_the_download_and_reaches
 
     session
         .dispatch(SessionIntent::SetField {
+            binding: session.snapshot().metadata.expect("metadata part").binding,
             field: MetadataField::Narrator,
             value: "Reader".into(),
         })

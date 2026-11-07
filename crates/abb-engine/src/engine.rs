@@ -3,15 +3,17 @@ use std::fs::{File, OpenOptions, TryLockError};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::Instant;
 
 use crate::app_settings::{
     SettingsIntent, SettingsOutcome, SettingsReply, SettingsRuntime, SettingsSnapshot,
 };
-use crate::audio::{self, SupportedAudioImportMetadata};
+use crate::audio;
 use crate::errors::{AppError, Result};
 use crate::host::{EventSink, Host};
 use crate::metadata::AudiobookMetadata;
 use crate::power::PowerManager;
+use crate::quit_press::{QuitPress, QuitPresses, QUIT_PRESS_WINDOW};
 use crate::remote_source::{RemoteSourceConfig, RemoteSourceRuntime};
 use crate::session::{
     Session, SessionDeps, SessionIntent, SessionReply, SessionRun, SessionUpdate,
@@ -44,6 +46,10 @@ impl EngineTasks {
     }
 
     pub(crate) fn close(&self) {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "a check that always passes cannot refuse the close"
+        )]
         let _ = self.close_if(|| Ok::<(), ()>(()));
     }
 
@@ -123,9 +129,6 @@ pub struct EngineConfig {
     /// Scopes stored credentials. Two identifiers never share a vault.
     pub app_identifier: String,
     pub events: Arc<dyn EventSink>,
-    /// Location of the Audible helper binary. `None` resolves it beside the
-    /// running executable.
-    pub aaxclean_helper: Option<PathBuf>,
 }
 
 /// One running ABB engine. Cloning shares the same engine.
@@ -146,6 +149,7 @@ struct EngineInner {
     remote_source: RemoteSourceRuntime,
     session: Session,
     tasks: EngineTasks,
+    quit_presses: QuitPresses,
     _cache_dir_lock: Option<File>,
 }
 
@@ -184,12 +188,6 @@ enum StoppedWork {
     Acquisition(String),
 }
 
-impl RunningWork {
-    pub fn is_empty(&self) -> bool {
-        *self == Self::default()
-    }
-}
-
 impl Engine {
     /// Starts the engine: locks `cache_dir`, clears working files abandoned
     /// by a previous run, puts the saved settings in effect, then starts the
@@ -209,7 +207,6 @@ impl Engine {
             app_identifier: config.app_identifier,
             power: power.clone(),
             host: host.clone(),
-            aaxclean_helper: config.aaxclean_helper,
             tasks: tasks.clone(),
         })?;
         if let Err(error) = remote_source.cleanup_abandoned_sessions() {
@@ -241,6 +238,7 @@ impl Engine {
                 remote_source,
                 session,
                 tasks,
+                quit_presses: QuitPresses::default(),
                 _cache_dir_lock: cache_dir_lock,
             }),
         })
@@ -275,6 +273,23 @@ impl Engine {
                     .collect(),
             ),
         }
+    }
+
+    /// Decides what a press of the Quit shortcut does. Running work skips the
+    /// second press, because quitting asks about that work anyway.
+    pub fn quit_pressed(&self) -> QuitPress {
+        let second_press_required =
+            self.inner.settings.press_quit_twice() && self.running_work().consent.0.is_empty();
+        let press = self
+            .inner
+            .quit_presses
+            .press(Instant::now(), second_press_required);
+        if press == QuitPress::PressAgain {
+            self.inner.host.emit(crate::EngineEvent::QuitPressAgain {
+                window_ms: QUIT_PRESS_WINDOW.as_millis() as u32,
+            });
+        }
+        press
     }
 
     /// Refuses new work when quitting would stop only what `consent` names;
@@ -399,7 +414,7 @@ impl Engine {
     }
 
     /// A cover a view shows, named by the request path of its cover address
-    /// (`session/cover_request.rs`); `None` when its source has no cover.
+    /// (`session/runtime/cover_flow.rs`); `None` when its source has no cover.
     /// Only covers the session handed out are served. Stops at closing.
     pub async fn cover(&self, request: &str) -> Result<Option<std::sync::Arc<[u8]>>> {
         self.inner
@@ -408,19 +423,12 @@ impl Engine {
             .await
     }
 
-    pub fn supported_audio_import_metadata(&self) -> SupportedAudioImportMetadata {
-        audio::supported_audio_import_metadata()
-    }
-
     /// Imports files the operating system asked ABB to open; no window has
-    /// to ask. Unsupported paths are dropped. While the list is locked the
-    /// import waits and appends once it unlocks. Refused once ABB is closing.
-    pub fn open_audio_files(&self, paths: Vec<PathBuf>) -> Result<()> {
-        let supported = crate::opened_audio::supported_opened_audio_paths(paths);
-        if supported.is_empty() {
-            return Ok(());
-        }
-        self.inner.session.import_opened(supported)
+    /// to ask. Unsupported paths get the notice a normal import gives. While
+    /// the list is locked the import waits and appends once it unlocks.
+    /// Refused once ABB is closing.
+    pub async fn open_audio_files(&self, paths: Vec<PathBuf>) -> Result<()> {
+        self.inner.session.import_opened(paths)
     }
 
     #[expect(

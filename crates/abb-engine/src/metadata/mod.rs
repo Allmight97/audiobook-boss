@@ -9,9 +9,11 @@ pub use abb_metadata_core::{
     parse_cue, validate_chapters, ChapterSpec, CueInterpretation, CueSheet,
 };
 pub(crate) use cue::{
-    inspect_chapter_source, source_fingerprint, validate_chapter_plan, validate_source_fingerprint,
+    inspect_chapter_source, source_fingerprint, source_fingerprint_from_metadata,
+    validate_chapter_plan, validate_source_fingerprint,
 };
 pub use cue::{ChapterPlan, CueSource, CueStatus};
+mod chapter_count;
 mod cover_art;
 mod embedded_cover;
 mod ffi;
@@ -34,6 +36,7 @@ pub use abb_metadata_core::{
     MetadataIntentValidationField, MetadataIntentValidationResult, NamingMetadata, PatchOp,
 };
 pub(crate) use abb_metadata_core::{AlbumSortWriteAction, MetadataWritePlan};
+pub(crate) use chapter_count::{output_chapter_count, synthesizes_chapter_per_source};
 pub use intent_plan::CoverArtPassthroughPolicy;
 pub(crate) use intent_plan::{
     plan_metadata_outcome, plan_metadata_outcome_from, plan_metadata_write_for_path,
@@ -217,7 +220,6 @@ pub(crate) fn remux_preserved_audio_container(
     let target = match extension {
         "m4a" | "m4b" => "mp4",
         "mka" => "matroska",
-        "mp3" => "mp3",
         _ => {
             return Err(crate::errors::AppError::InvalidInput(
                 "Unsupported audiobook container.".into(),
@@ -249,6 +251,7 @@ pub(crate) fn remux_preserved_audio_container(
     let passthrough = PassthroughMetadata {
         chapters: chapters.to_vec(),
         cover_art,
+        ..Default::default()
     };
     let plan = MetadataWritePlan::from_metadata(metadata.clone());
     remux::rewrite_metadata_with_ffmpeg_plan_as(

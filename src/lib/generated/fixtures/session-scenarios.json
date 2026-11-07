@@ -24,11 +24,10 @@
           "revision": 2,
           "selection": null,
           "titles": {
-            "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -38,24 +37,22 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Falpha.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
                 "format": "WAV",
                 "inputId": "title-1",
                 "isValid": true,
+                "label": "Alpha",
                 "path": "/fixture/media/alpha.wav",
-                "preservation": {
-                  "canPreserve": false
-                },
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Ann Author",
-                "tagTitle": "Alpha"
+                "sourceRemoved": false
               },
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -65,51 +62,70 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fbeta.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
                 "format": "WAV",
                 "inputId": "title-2",
                 "isValid": true,
+                "label": "Beta",
                 "path": "/fixture/media/beta.wav",
-                "preservation": {
-                  "canPreserve": false
-                },
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false,
-                "tagArtist": "  Ann Author  ",
-                "tagTitle": "Beta"
+                "sourceRemoved": false
               },
               {
+                "artist": null,
                 "bitrate": null,
                 "channels": null,
                 "chapterPlan": null,
                 "chapters": [],
                 "codecLabel": null,
+                "cover": null,
                 "cueSource": null,
                 "duration": null,
                 "error": "FFmpeg error: Invalid data found when processing input",
                 "format": null,
                 "inputId": "title-3",
                 "isValid": false,
+                "label": "broken.wav",
                 "path": "/fixture/media/broken.wav",
-                "preservation": null,
                 "sampleRate": null,
                 "selectedDecoder": null,
                 "size": 20.0,
-                "sourceRemoved": false,
-                "tagArtist": null,
-                "tagTitle": null
+                "sourceRemoved": false
               }
             ],
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 1,
+              "shortestSeconds": 1
+            },
             "revision": 2,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-1": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              },
+              "title-2": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88324.0
+              },
+              "title-3": {
+                "chapterCount": 0,
+                "durationSeconds": 0.0,
+                "sizeBytes": 20.0
+              }
+            },
+            "totalSizeBytes": 176644.0
           }
         }
       },
@@ -131,12 +147,10 @@
             "binding": 1,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
-              "noticeSerial": 0,
-              "present": false,
-              "removalRequested": false
+              "noticeSerial": 0
             },
             "form": {
               "fields": [
@@ -234,8 +248,7 @@
               "subseriesPart": "",
               "title": "Alpha",
               "year": "2001"
-            },
-            "waitingWrites": []
+            }
           },
           "output": null,
           "remote": null,
@@ -243,6 +256,7 @@
           "remoteLibrary": null,
           "revision": 3,
           "selection": {
+            "canGroup": false,
             "revision": 3,
             "selectedAnchor": 0,
             "selectedIndices": [
@@ -270,12 +284,10 @@
             "binding": 2,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
-              "noticeSerial": 0,
-              "present": false,
-              "removalRequested": false
+              "noticeSerial": 0
             },
             "form": {
               "fields": [
@@ -373,8 +385,7 @@
               "subseriesPart": "",
               "title": "",
               "year": ""
-            },
-            "waitingWrites": []
+            }
           },
           "output": null,
           "remote": null,
@@ -382,6 +393,7 @@
           "remoteLibrary": null,
           "revision": 4,
           "selection": {
+            "canGroup": true,
             "revision": 4,
             "selectedAnchor": 1,
             "selectedIndices": [
@@ -405,12 +417,10 @@
             "binding": 3,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
-              "noticeSerial": 0,
-              "present": false,
-              "removalRequested": false
+              "noticeSerial": 0
             },
             "form": {
               "fields": [
@@ -508,8 +518,7 @@
               "subseriesPart": "",
               "title": "",
               "year": ""
-            },
-            "waitingWrites": []
+            }
           },
           "output": null,
           "remote": null,
@@ -517,6 +526,7 @@
           "remoteLibrary": null,
           "revision": 5,
           "selection": {
+            "canGroup": true,
             "revision": 5,
             "selectedAnchor": 0,
             "selectedIndices": [
@@ -530,6 +540,7 @@
       },
       {
         "intent": {
+          "binding": 3,
           "field": "genre",
           "kind": "setField",
           "value": ""
@@ -543,12 +554,10 @@
             "binding": 3,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
-              "noticeSerial": 0,
-              "present": false,
-              "removalRequested": false
+              "noticeSerial": 0
             },
             "form": {
               "fields": [
@@ -646,8 +655,7 @@
               "subseriesPart": "",
               "title": "",
               "year": ""
-            },
-            "waitingWrites": []
+            }
           },
           "output": null,
           "remote": null,
@@ -661,6 +669,7 @@
       {
         "intent": {
           "action": "blank",
+          "binding": 3,
           "field": "author",
           "kind": "setFieldAction"
         },
@@ -673,12 +682,10 @@
             "binding": 3,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
-              "noticeSerial": 0,
-              "present": false,
-              "removalRequested": false
+              "noticeSerial": 0
             },
             "form": {
               "fields": [
@@ -776,8 +783,7 @@
               "subseriesPart": "",
               "title": "",
               "year": ""
-            },
-            "waitingWrites": []
+            }
           },
           "output": null,
           "remote": null,
@@ -801,12 +807,10 @@
             "binding": 4,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
-              "noticeSerial": 0,
-              "present": false,
-              "removalRequested": false
+              "noticeSerial": 0
             },
             "form": {
               "fields": [
@@ -904,8 +908,7 @@
               "subseriesPart": "",
               "title": "",
               "year": ""
-            },
-            "waitingWrites": []
+            }
           },
           "output": null,
           "remote": null,
@@ -913,6 +916,7 @@
           "remoteLibrary": null,
           "revision": 8,
           "selection": {
+            "canGroup": false,
             "revision": 8,
             "selectedAnchor": null,
             "selectedIndices": []
@@ -947,11 +951,10 @@
           "revision": 2,
           "selection": null,
           "titles": {
-            "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -961,24 +964,22 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Falpha.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
                 "format": "WAV",
                 "inputId": "title-1",
                 "isValid": true,
+                "label": "Alpha",
                 "path": "/fixture/media/alpha.wav",
-                "preservation": {
-                  "canPreserve": false
-                },
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Ann Author",
-                "tagTitle": "Alpha"
+                "sourceRemoved": false
               },
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -988,24 +989,22 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fbeta.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
                 "format": "WAV",
                 "inputId": "title-2",
                 "isValid": true,
+                "label": "Beta",
                 "path": "/fixture/media/beta.wav",
-                "preservation": {
-                  "canPreserve": false
-                },
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false,
-                "tagArtist": "  Ann Author  ",
-                "tagTitle": "Beta"
+                "sourceRemoved": false
               },
               {
+                "artist": "Gus Writer",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1015,30 +1014,49 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fgamma.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
                 "format": "WAV",
                 "inputId": "title-3",
                 "isValid": true,
+                "label": "Gamma",
                 "path": "/fixture/media/gamma.wav",
-                "preservation": {
-                  "canPreserve": false
-                },
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Gus Writer",
-                "tagTitle": "Gamma"
+                "sourceRemoved": false
               }
             ],
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 1,
+              "shortestSeconds": 1
+            },
             "revision": 2,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-1": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              },
+              "title-2": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88324.0
+              },
+              "title-3": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              }
+            },
+            "totalSizeBytes": 264964.0
           }
         }
       },
@@ -1060,12 +1078,10 @@
             "binding": 1,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
-              "noticeSerial": 0,
-              "present": false,
-              "removalRequested": false
+              "noticeSerial": 0
             },
             "form": {
               "fields": [
@@ -1163,8 +1179,7 @@
               "subseriesPart": "",
               "title": "Gamma",
               "year": "2003"
-            },
-            "waitingWrites": []
+            }
           },
           "output": null,
           "remote": null,
@@ -1172,6 +1187,7 @@
           "remoteLibrary": null,
           "revision": 3,
           "selection": {
+            "canGroup": false,
             "revision": 3,
             "selectedAnchor": 2,
             "selectedIndices": [
@@ -1198,6 +1214,7 @@
           "remoteLibrary": null,
           "revision": 4,
           "selection": {
+            "canGroup": false,
             "revision": 4,
             "selectedAnchor": 1,
             "selectedIndices": [
@@ -1205,11 +1222,10 @@
             ]
           },
           "titles": {
-            "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1219,24 +1235,22 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fbeta.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
                 "format": "WAV",
                 "inputId": "title-2",
                 "isValid": true,
+                "label": "Beta",
                 "path": "/fixture/media/beta.wav",
-                "preservation": {
-                  "canPreserve": false
-                },
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false,
-                "tagArtist": "  Ann Author  ",
-                "tagTitle": "Beta"
+                "sourceRemoved": false
               },
               {
+                "artist": "Gus Writer",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1246,30 +1260,44 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fgamma.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
                 "format": "WAV",
                 "inputId": "title-3",
                 "isValid": true,
+                "label": "Gamma",
                 "path": "/fixture/media/gamma.wav",
-                "preservation": {
-                  "canPreserve": false
-                },
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Gus Writer",
-                "tagTitle": "Gamma"
+                "sourceRemoved": false
               }
             ],
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 1,
+              "shortestSeconds": 1
+            },
             "revision": 4,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-2": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88324.0
+              },
+              "title-3": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              }
+            },
+            "totalSizeBytes": 176644.0
           }
         }
       },
@@ -1286,12 +1314,10 @@
             "binding": 2,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
-              "noticeSerial": 0,
-              "present": false,
-              "removalRequested": false
+              "noticeSerial": 0
             },
             "form": {
               "fields": [
@@ -1389,8 +1415,7 @@
               "subseriesPart": "",
               "title": "",
               "year": ""
-            },
-            "waitingWrites": []
+            }
           },
           "output": null,
           "remote": null,
@@ -1398,21 +1423,26 @@
           "remoteLibrary": null,
           "revision": 5,
           "selection": {
+            "canGroup": false,
             "revision": 5,
             "selectedAnchor": null,
             "selectedIndices": []
           },
           "titles": {
-            "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [],
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 90,
+              "shortestSeconds": 90
+            },
             "revision": 5,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {},
+            "totalSizeBytes": 0.0
           }
         }
       }
@@ -1437,12 +1467,10 @@
             "binding": 1,
             "cover": {
               "custom": false,
-              "imageRevision": 0,
+              "image": null,
               "loading": false,
               "notice": null,
-              "noticeSerial": 0,
-              "present": false,
-              "removalRequested": false
+              "noticeSerial": 0
             },
             "form": {
               "fields": [
@@ -1540,8 +1568,7 @@
               "subseriesPart": "",
               "title": "Alpha",
               "year": "2001"
-            },
-            "waitingWrites": []
+            }
           },
           "output": null,
           "remote": null,
@@ -1549,6 +1576,7 @@
           "remoteLibrary": null,
           "revision": 2,
           "selection": {
+            "canGroup": false,
             "revision": 2,
             "selectedAnchor": 0,
             "selectedIndices": [
@@ -1556,11 +1584,10 @@
             ]
           },
           "titles": {
-            "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1570,30 +1597,39 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Falpha.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
                 "format": "WAV",
                 "inputId": "title-1",
                 "isValid": true,
+                "label": "Alpha",
                 "path": "/fixture/media/alpha.wav",
-                "preservation": {
-                  "canPreserve": false
-                },
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Ann Author",
-                "tagTitle": "Alpha"
+                "sourceRemoved": false
               }
             ],
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 1,
+              "shortestSeconds": 1
+            },
             "revision": 2,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-1": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              }
+            },
+            "totalSizeBytes": 88320.0
           }
         }
       },
@@ -1617,11 +1653,10 @@
           "revision": 3,
           "selection": null,
           "titles": {
-            "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1631,22 +1666,19 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Falpha.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
                 "format": "WAV",
                 "inputId": "title-1",
                 "isValid": true,
+                "label": "Alpha",
                 "path": "/fixture/media/alpha.wav",
-                "preservation": {
-                  "canPreserve": false
-                },
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Ann Author",
-                "tagTitle": "Alpha"
+                "sourceRemoved": false
               }
             ],
             "notice": {
@@ -1654,9 +1686,21 @@
             },
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 1,
+              "shortestSeconds": 1
+            },
             "revision": 3,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-1": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              }
+            },
+            "totalSizeBytes": 88320.0
           }
         }
       },
@@ -1681,11 +1725,10 @@
           "revision": 4,
           "selection": null,
           "titles": {
-            "audioChoiceRequired": [],
             "companions": {},
-            "coversRevision": 0,
             "files": [
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1695,24 +1738,22 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Falpha.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
                 "format": "WAV",
                 "inputId": "title-1",
                 "isValid": true,
+                "label": "Alpha",
                 "path": "/fixture/media/alpha.wav",
-                "preservation": {
-                  "canPreserve": false
-                },
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88320.0,
-                "sourceRemoved": false,
-                "tagArtist": "Ann Author",
-                "tagTitle": "Alpha"
+                "sourceRemoved": false
               },
               {
+                "artist": "Ann Author",
                 "bitrate": 705600,
                 "channels": 1,
                 "chapterPlan": {
@@ -1722,30 +1763,44 @@
                 },
                 "chapters": [],
                 "codecLabel": "PCM S16LE",
+                "cover": "audio/0/%2Ffixture%2Fmedia%2Fbeta.wav",
                 "cueSource": null,
                 "duration": 1.0,
                 "error": null,
                 "format": "WAV",
                 "inputId": "title-2",
                 "isValid": true,
+                "label": "Beta",
                 "path": "/fixture/media/beta.wav",
-                "preservation": {
-                  "canPreserve": false
-                },
                 "sampleRate": 44100,
                 "selectedDecoder": "FFmpeg default decoder",
                 "size": 88324.0,
-                "sourceRemoved": false,
-                "tagArtist": "  Ann Author  ",
-                "tagTitle": "Beta"
+                "sourceRemoved": false
               }
             ],
             "notice": null,
             "orderDiffersFromImport": false,
             "orderLocked": false,
+            "previewLength": {
+              "longestSeconds": 1,
+              "shortestSeconds": 1
+            },
             "revision": 4,
             "sortDirection": "none",
-            "titleSourcesByIdentity": {}
+            "titleSourcesByIdentity": {},
+            "titleTotals": {
+              "title-1": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88320.0
+              },
+              "title-2": {
+                "chapterCount": 0,
+                "durationSeconds": 1.0,
+                "sizeBytes": 88324.0
+              }
+            },
+            "totalSizeBytes": 176644.0
           }
         }
       }

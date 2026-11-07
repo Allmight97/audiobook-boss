@@ -46,6 +46,29 @@ describe('lookup wording', () => {
 			'Skipped. Search failed. Check your query and try again.',
 			'error',
 		],
+		[{ kind: 'queryRequired', after: null }, 'Enter a title, author, or ASIN to search.', 'error'],
+		[
+			{ kind: 'queryRequired', after: 'appliedWithoutCover' },
+			'Metadata applied, but cover art failed to load. Enter a title, author, or ASIN to search.',
+			'error',
+		],
+		[
+			{ kind: 'nextTitleRejected', coverFailed: false },
+			'Could not select the next file. Review pending metadata edits and try again.',
+			'error',
+		],
+		[
+			{ kind: 'nextTitleRejected', coverFailed: true },
+			'Cover art failed to load. Could not select the next file. Review pending metadata edits and try again.',
+			'error',
+		],
+		[{ kind: 'searchSuperseded' }, 'Search stopped because it changed. Search again.', 'error'],
+		[{ kind: 'applying' }, 'Applying metadata…', 'info'],
+		[
+			{ kind: 'applySuperseded' },
+			'Apply stopped because the search changed. Apply again.',
+			'error',
+		],
 		[{ kind: 'applied', coverFailed: false }, 'Metadata applied to form.', 'success'],
 		[
 			{ kind: 'applied', coverFailed: true },
@@ -61,11 +84,13 @@ describe('lookup wording', () => {
 
 	it('names the queued title and shows query text typed before the engine confirms it', () => {
 		const state = toLookupState(
-			lookup({ queuePosition: { index: 1, total: 3, path: '/books/second.m4b' } }),
+			lookup({
+				queuePosition: { index: 1, total: 3, path: '/books/second.m4b', label: 'Second Book' },
+			}),
 			{ titleQuery: 'Dune Mess' },
 		);
 
-		expect(state.queueContext).toBe('2 of 3 • second.m4b');
+		expect(state.queueContext).toBe('2 of 3 • Second Book');
 		expect(state.titleQuery).toBe('Dune Mess');
 		expect(state.authorQuery).toBe('Herbert');
 		expect(toLookupState(lookup(), {}).queueContext).toBe('No files selected.');

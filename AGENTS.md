@@ -47,9 +47,12 @@ simpler design.
   contract change updates its owner, callers, and focused proof; pause when a
   consequential choice or data-loss risk is unresolved.
 - Working-session and settings truth live in `abb-engine`, and new product
-  rules go there. Hosts and the frontend send intents and render snapshots; a
-  rule added there would be rewritten for every future host. Tiers:
-  `crates/AGENTS.md`.
+  rules go there. The Tauri host and the frontend send intents and render
+  snapshots; a rule added there is a second copy no engine test can prove.
+  Tiers: `crates/AGENTS.md`.
+- ABB ships one Tauri host and this UI, for macOS and Linux. Windows has no
+  native build; the plan is WSL, which #557 has yet to prove. No native UI is
+  planned.
 - The engine builds metadata intent from the session's field edits;
   `crate::metadata` and `abb-metadata-core` validate and normalize it.
 - Greenfield: internal payloads and aliases change freely. Interoperability
@@ -104,16 +107,13 @@ runs; their commands live only in `verify.sh`.
   carry it.
 - Public API Strip tests list their expected surface by hand, independent of
   the registries and generated sources they guard.
-- Report pre-existing dead code and suspicious seams with evidence; fix them in
-  the same change only inside the active owner and when they affect its
-  invariant or proof. Fix trivial mechanical drift and name it. Classify the
-  rest `fix` or `reject` with impact and owner.
+- Report suspicious seams with evidence and classify each `fix` or `reject` with
+  impact and owner. Fix trivial mechanical drift and name it.
 
 ## Testing And Proof
 
 - Slow, opaque, or false-green proof is a `fix` finding when measured.
-- A test names a plausible regression at its owning boundary. Prefer a
-  failing-first test for a bug fix; skip it for trivial work.
+- A test names a plausible regression at its owning boundary.
 - Pick the lowest tier that proves the behavior deterministically:
   1. pure domain logic: its `abb-*-core` crate;
   2. session, settings, job lifecycle, file and network workflows, error
@@ -159,7 +159,7 @@ another CI run.
   marked ready. Each layer above stays a draft until the one below merges,
   then retarget it onto `main` and mark it ready. Why: proof against a base
   that will still move cannot establish the final integration.
-- Merge commits only. Merge a stack with `gh stack merge --merge` or the
+- Merge a stack with `gh stack merge --merge` or the
   async merge API (`merge_method: merge`). `gh pr merge` cannot merge a
   stack, and stack auto-merge is not ready to rely on. Link the stack with
   `gh stack` or `POST /repos/{owner}/{repo}/stacks`.

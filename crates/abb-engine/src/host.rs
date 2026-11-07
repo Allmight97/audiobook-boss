@@ -21,6 +21,9 @@ pub enum EngineEvent {
     /// The settings changed because of something other than a settings
     /// intent, such as a default chosen in the session.
     Settings(Box<SettingsSnapshot>),
+    /// The Quit shortcut was pressed once; a second press inside
+    /// `window_ms` quits.
+    QuitPressAgain { window_ms: u32 },
 }
 
 /// Receives engine events. Called from engine worker threads, so an

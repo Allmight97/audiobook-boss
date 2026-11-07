@@ -54,16 +54,3 @@
 	font-size: 0.76rem;
 	color: var(--text-secondary);
 }
-
-@media (max-width: 720px) {
-	.collision-dialog-controls,
-	.collision-dialog-result {
-		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.collision-dialog-summary {
-		min-width: 0;
-		max-width: none;
-		text-align: left;
-	}
-}

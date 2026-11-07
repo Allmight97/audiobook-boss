@@ -1,21 +1,15 @@
-import { handoffMessage, statusFromAcquisitionJob, uniqueDiagnosticMessage } from './display';
-import type {
-	RemoteAcquisitionSnapshot,
-	RemoteLibrarySnapshot,
-	RemoteUiSnapshot,
-} from '../../types/session';
+import type { RemoteAcquisitionSnapshot, RemoteUiSnapshot } from '../../types/session';
 import type { ProviderId } from '../../types/remoteSource';
-import { logAppError, toUserMessage } from '../../lib/tauri/appError';
+import { logFrontendFailure } from '../../lib/frontendLogBridge';
+import { toUserMessage } from '../../lib/tauri/appError';
 import {
 	createInitialRemoteSourceState,
-	snapshotRemoteSourceState,
 	type RemoteSourcePatch,
-	type RemoteSourceState,
 	type RemoteSourceView,
 } from './types';
 
 export type RemoteSourceStateStore = {
-	readonly current: () => RemoteSourceState;
+	readonly current: () => RemoteSourceView;
 	readonly snapshot: () => RemoteSourceView;
 	patch: (patch: RemoteSourcePatch) => void;
 	setAcquisitionError: (cause: unknown, fallback: string, providerId: ProviderId) => void;
@@ -23,56 +17,9 @@ export type RemoteSourceStateStore = {
 	reset: () => void;
 };
 
-function requestFailure(remote: RemoteUiSnapshot): string {
-	for (const status of remote.lane === 'audible'
-		? [remote.auth, remote.accountStatus, remote.libraryStatus]
-		: [remote.accountStatus]) {
-		if (status.kind === 'failed') return toUserMessage(status.error);
-	}
-	return '';
-}
-
-function connectedAccountNote(remote: RemoteUiSnapshot): string {
-	if (remote.account?.status !== 'connected') return '';
-	return remote.account.message ?? '';
-}
-
-function withConnectedAccountNote(status: string, remote: RemoteUiSnapshot): string {
-	const note = connectedAccountNote(remote);
-	if (!note || status.includes(note)) return status;
-	return status ? `${status} ${note}` : note;
-}
-
-function audibleStatus(
-	remote: RemoteUiSnapshot,
-	library: RemoteLibrarySnapshot,
-	job: RemoteAcquisitionSnapshot['job'],
-): string {
-	const downloadOutranksLibraryFailure =
-		job && remote.auth.kind !== 'failed' && remote.accountStatus.kind !== 'failed';
-	if (downloadOutranksLibraryFailure)
-		return (job.settled ? handoffMessage(job) : null) || statusFromAcquisitionJob(job);
-	const failure = requestFailure(remote);
-	if (failure) return failure;
-	if (remote.auth.kind === 'starting') return 'Starting Audible authorization.';
-	if (remote.auth.kind === 'completing') return 'Completing Audible connection.';
-	if (remote.accountStatus.kind === 'running') return 'Updating connection.';
-	if (remote.libraryStatus.kind === 'running') return 'Loading Audible library.';
-	if (remote.auth.kind === 'awaitingHandoff')
-		return 'Complete Audible authorization in your browser, then enter the handoff path, or Connect again.';
-	if (remote.libraryStatus.kind === 'succeeded') {
-		const loaded =
-			uniqueDiagnosticMessage(library.diagnostics) ||
-			`${library.titles.length} Audible titles loaded.`;
-		return withConnectedAccountNote(loaded, remote);
-	}
-	return remote.account?.message ?? '';
-}
-
-function indexerStatus(remote: RemoteUiSnapshot): string {
-	if (remote.lane !== 'indexer') return remote.indexer.message;
-	const status = requestFailure(remote) || remote.indexer.message;
-	return withConnectedAccountNote(status, remote);
+function laneMessage(remote: RemoteUiSnapshot, job: RemoteAcquisitionSnapshot['job']): string {
+	if (remote.lane === 'indexer') return remote.indexer.message;
+	return job && !job.settled ? job.progress.message : remote.audibleMessage;
 }
 
 function setOf(): (ids: readonly string[]) => Set<string> {
@@ -90,7 +37,6 @@ function setOf(): (ids: readonly string[]) => Set<string> {
 export function createRemoteSourceStateStore(
 	onChange: () => void,
 	choices: () => RemoteUiSnapshot,
-	library: () => RemoteLibrarySnapshot,
 	acquisition: () => RemoteAcquisitionSnapshot,
 ): RemoteSourceStateStore {
 	let state = createInitialRemoteSourceState();
@@ -101,7 +47,6 @@ export function createRemoteSourceStateStore(
 	let cached:
 		| {
 				readonly remote: RemoteUiSnapshot;
-				readonly library: RemoteLibrarySnapshot;
 				readonly acquisition: RemoteAcquisitionSnapshot;
 				readonly localVersion: number;
 				readonly view: RemoteSourceView;
@@ -112,7 +57,7 @@ export function createRemoteSourceStateStore(
 		onChange();
 	};
 
-	const current = (): RemoteSourceState => {
+	const current = (): RemoteSourceView => {
 		const remote = choices();
 		const { job } = acquisition();
 		return {
@@ -125,37 +70,26 @@ export function createRemoteSourceStateStore(
 			releases: remote.indexer.releases,
 			selectedReleaseKeys: selectedReleaseKeys(remote.indexer.selectedReleaseKeys),
 			releaseGrabs: remote.indexer.releaseGrabs,
+			canGrabSelection: remote.indexer.canGrabSelection,
 			isBusy: remote.busy,
-			statusByProvider: {
-				audible:
-					errors.audible ||
-					(remote.lane === 'audible'
-						? audibleStatus(remote, library(), job)
-						: job
-							? (job.settled ? handoffMessage(job) : null) || statusFromAcquisitionJob(job)
-							: ''),
-				indexer: errors.indexer || indexerStatus(remote),
-			},
+			statusMessage: errors[remote.lane] || laneMessage(remote, job),
 		};
 	};
 	return {
 		current,
 		snapshot: () => {
 			const remote = choices();
-			const titles = library();
 			const download = acquisition();
 			if (
 				cached?.remote !== remote ||
-				cached.library !== titles ||
 				cached.acquisition !== download ||
 				cached.localVersion !== localVersion
 			) {
 				cached = {
 					remote,
-					library: titles,
 					acquisition: download,
 					localVersion,
-					view: snapshotRemoteSourceState(current()),
+					view: current(),
 				};
 			}
 			return cached.view;
@@ -165,7 +99,7 @@ export function createRemoteSourceStateStore(
 			changed();
 		},
 		setAcquisitionError(cause, fallback, providerId) {
-			logAppError(fallback, cause);
+			logFrontendFailure(fallback, cause);
 			errors[providerId] = toUserMessage(cause, { fallback, suppressUnknown: true });
 			changed();
 		},

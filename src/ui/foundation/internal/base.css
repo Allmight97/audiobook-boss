@@ -138,11 +138,6 @@ textarea:hover:not(:focus) {
 	font-weight: 500;
 }
 
-.checkbox-label .option-desc {
-	font-size: 0.75rem;
-	color: var(--text-secondary);
-}
-
 .checkbox-label.tight {
 	margin-top: 0;
 	margin-bottom: 0;
@@ -161,11 +156,6 @@ textarea:hover:not(:focus) {
 	font-size: 0.875rem;
 	font-weight: 500;
 	color: var(--text-secondary);
-}
-
-.section-header .inline-info {
-	font-size: 0.75rem;
-	color: var(--text-muted);
 }
 
 .section-divider {

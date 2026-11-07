@@ -15,8 +15,7 @@ async function open() {
 			apiKeyConfigured: true,
 		};
 	});
-	runtime = createAppRuntime({ engine });
-	await runtime.initialize();
+	runtime = await createAppRuntime({ engine });
 	return runtime.remoteSource;
 }
 it('sends edited draft, Test, and Save as separate intents and never reads the saved key', async () => {
@@ -75,6 +74,41 @@ it('renders engine draft status and preserves the entered key until the engine c
 	expect(owner.indexerConnection().saveState).toBe('saved');
 	expect(owner.indexerConnection().apiKeyConfigured).toBe(true);
 });
+it('keeps the reason for a refused edit after Test and Save are refused for it', async () => {
+	const owner = await open();
+	const reason = {
+		code: 'invalid_input',
+		category: 'validation',
+		message: 'The Indexer API key has a character that cannot be sent in a request. Copy it again.',
+		detail: null,
+	} as const;
+	engine.change((state) => {
+		state.remote.connection.draftError = reason;
+	});
+	engine.respond = () => ({
+		kind: 'rejected',
+		error: {
+			code: 'invalid_input',
+			category: 'validation',
+			message: 'Correct the Indexer connection details before saving or testing.',
+			detail: null,
+		},
+	});
+
+	await owner.testIndexerConnection();
+
+	expect(owner.indexerConnection()).toMatchObject({
+		saveState: 'error',
+		saveError: reason.message,
+	});
+
+	engine.change((state) => {
+		state.remote.connection.draftError = null;
+	});
+	expect(owner.indexerConnection().saveError).toBe(
+		'Correct the Indexer connection details before saving or testing.',
+	);
+});
 it('reopens from the engine draft without exposing another host’s entered key', async () => {
 	await open();
 	engine.change((state) => {
@@ -82,8 +116,7 @@ it('reopens from the engine draft without exposing another host’s entered key'
 		state.remote.connection.baseUrl = 'https://unsaved.test';
 	});
 	runtime!.dispose();
-	runtime = createAppRuntime({ engine });
-	await runtime.initialize();
+	runtime = await createAppRuntime({ engine });
 	expect(runtime.remoteSource.indexerConnection()).toMatchObject({
 		baseUrlDraft: 'https://unsaved.test',
 		apiKeyDraft: '',

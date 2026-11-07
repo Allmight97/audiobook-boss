@@ -11,14 +11,6 @@ pub enum ProviderId {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct AccountRef {
-    pub provider_id: ProviderId,
-    pub account_id: String,
-    pub display_name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
 pub struct RemoteSourceProviderCapabilities {
     pub provider_id: ProviderId,
     pub label: String,
@@ -37,7 +29,6 @@ pub enum RemoteAccountStatus {
 pub struct RemoteSourceAccountState {
     pub provider_id: ProviderId,
     pub status: RemoteAccountStatus,
-    pub account: Option<AccountRef>,
     pub message: Option<String>,
 }
 
@@ -46,8 +37,6 @@ pub struct RemoteSourceAccountState {
 pub struct RemoteAuthStartResponse {
     pub provider_id: ProviderId,
     pub authorization_url: String,
-    pub handoff_path_hint: String,
-    pub message: String,
 }
 
 impl std::fmt::Debug for RemoteAuthStartResponse {
@@ -71,12 +60,10 @@ pub struct RemoteTitle {
     pub title: String,
     pub authors: Vec<String>,
     pub narrators: Vec<String>,
-    pub duration_seconds: Option<u32>,
-    pub cover_url: Option<String>,
+    /// The address of this title's cover.
+    pub cover: Option<String>,
     pub supplemental_pdf_available: bool,
-    pub acquired: bool,
     pub availability: RemoteTitleAvailability,
-    pub unsupported_reasons: Vec<RemoteAcquisitionFailureKind>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -113,6 +100,10 @@ pub enum RemoteReleaseProtocol {
     Unknown,
 }
 
+pub(crate) fn release_key(indexer_id: i64, guid: &str) -> String {
+    serde_json::to_string(&(indexer_id, guid)).expect("release identity is serializable")
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteReleaseCategory {
@@ -124,6 +115,7 @@ pub struct RemoteReleaseCategory {
 #[serde(rename_all = "camelCase")]
 pub struct RemoteRelease {
     pub provider_id: ProviderId,
+    pub key: String,
     pub guid: String,
     pub indexer_id: i64,
     pub title: String,
@@ -132,7 +124,6 @@ pub struct RemoteRelease {
     pub size_bytes: u64,
     pub protocol: RemoteReleaseProtocol,
     pub seeders: Option<u32>,
-    #[serde(default)]
     pub categories: Vec<RemoteReleaseCategory>,
 }
 
@@ -163,6 +154,7 @@ pub struct RemoteReleaseGrabRequest {
 pub struct RemoteReleaseGrabResponse {
     pub provider_id: ProviderId,
     pub accepted: bool,
+    pub unconfirmed: bool,
     pub message: String,
     pub diagnostics: Vec<RemoteSourceDiagnostic>,
 }
@@ -225,7 +217,6 @@ pub enum RemoteAcquisitionFailureKind {
     /// The user asked for the title's Supplemental PDF and Audible offers
     /// none. Non-blocking: the audiobook is imported without it.
     SupplementalPdfUnavailable,
-    IndexerConnectionRequired,
     ReleaseSearchFailed,
     ReleaseGrabFailed,
     Cancelled,
@@ -252,6 +243,7 @@ pub struct MaterializedSourceFile {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SupplementalAsset {
+    #[serde(skip)]
     pub asset_id: String,
     pub input_id: String,
     pub title_id: String,
@@ -268,7 +260,9 @@ pub struct AcquisitionJob {
     pub provider_id: ProviderId,
     pub status: RemoteAcquisitionStatus,
     pub progress: AcquisitionProgress,
+    #[serde(skip)]
     pub materialized_files: Vec<MaterializedSourceFile>,
+    #[serde(skip)]
     pub supplemental_assets: Vec<SupplementalAsset>,
     pub diagnostics: Vec<RemoteSourceDiagnostic>,
     /// Set once the engine has tried to import the job's files.
@@ -296,6 +290,7 @@ pub struct RemoteAcquisitionSnapshot {
     #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     /// An accepted request whose job is not registered yet.
+    #[serde(skip)]
     pub acquiring: bool,
     pub job: Option<Box<AcquisitionSnapshot>>,
 }

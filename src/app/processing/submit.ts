@@ -1,11 +1,9 @@
-import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
+import { toUserMessage } from '../../lib/tauri/appError';
 import type { SubmissionStatus, SubmitRefusal } from '../../types/session';
-import type { ProcessingStatus } from './state';
 
 export interface SubmissionDisplay {
-	updateStatus: (status: ProcessingStatus) => void;
-	setProcessingState: (active: boolean) => void;
-	handleCancellation: () => void;
+	showStep: (message: string) => void;
+	showCompleted: (message: string) => void;
 	resetToIdle: () => void;
 	showError: (message: string) => void;
 }
@@ -42,35 +40,35 @@ function refusalText(reason: SubmitRefusal): string {
 	}
 }
 
+function submittedText(leftOut: number): string {
+	if (leftOut === 0) return 'Submitted to Work Center.';
+	const files = leftOut === 1 ? '1 invalid file was' : `${leftOut} invalid files were`;
+	return `Submitted to Work Center. ${files} left out.`;
+}
+
 export function renderSubmission(
 	display: SubmissionDisplay,
 	status: SubmissionStatus | null,
 ): void {
 	switch (status?.kind) {
 		case undefined:
-		case 'preparing':
 		case 'previewing':
 		case 'previewFinished':
 		case 'reviewRequired':
 			return;
+		case 'preparing':
+			display.resetToIdle();
+			return;
 		case 'submitted':
-			display.setProcessingState(false);
-			display.updateStatus({
-				stage: 'completed',
-				percentage: 100,
-				message: 'Submitted to Work Center.',
-			});
+			display.resetToIdle();
+			display.showStep(submittedText(status.leftOut));
 			return;
 		case 'finishedBeforeRestart':
-			display.setProcessingState(false);
-			display.updateStatus({
-				stage: 'completed',
-				percentage: 100,
-				message:
-					status.outputs.failed > 0
-						? 'The title finished before it could restart, and its tags could not be updated there. Save again to retry.'
-						: 'The title finished before it could restart; its tags were updated where it is.',
-			});
+			display.showCompleted(
+				status.outputs.failed > 0
+					? 'The title finished before it could restart, and its tags could not be updated there. Save again to retry.'
+					: 'The title finished before it could restart; its tags were updated where it is.',
+			);
 			return;
 		case 'refused':
 			display.resetToIdle();
@@ -81,10 +79,6 @@ export function renderSubmission(
 			display.showError(status.message);
 			return;
 		case 'failed':
-			if (isCancellation(status.error)) {
-				display.handleCancellation();
-				return;
-			}
 			display.resetToIdle();
 			display.showError(
 				`Processing failed: ${toUserMessage(status.error, { fallback: 'Processing failed.' })}`,

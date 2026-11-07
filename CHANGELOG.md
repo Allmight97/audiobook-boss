@@ -4,10 +4,129 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Cmd+Q now needs a second press within 3 seconds, so a stray press does not close ABB. The
+  first press shows a reminder. Turn this off in App Settings under Quitting. If work is
+  running, one press goes straight to the question before quitting.
+
 ### Fixed
 
+- Cmd+Q and the Quit menu item now ask before stopping running work and write waiting Saves
+  first. They skipped both before. Dock Quit and logout still ask nothing, but now save first.
+- Opening an audio file from Finder while ABB is running no longer crashes the app.
+- Opening an audio file while ABB is closed now imports it, instead of starting with an empty
+  list.
+- A failed Indexer grab now says in one line which side is down (Prowlarr, the downloader, or
+  the indexer) and names it, instead of Prowlarr's raw JSON cut off mid-word. It names a
+  downloader only if that downloader is in the group Prowlarr sends to.
+- A grab batch counts releases Prowlarr never confirmed apart from failed ones.
+- A title joined from sources that already have chapters now warns in Work Center when a
+  source's length is unknown and the later chapters may start too early, as it already did
+  for sources without chapters.
+- An Indexer API key saved earlier that has a character that cannot be sent in a request now
+  makes search, grab, and Test connection say so, instead of sending the request with no key.
+- Editing the title or author query, or the source, while a metadata lookup result is being
+  applied, or while a queue Apply moves on to its next title, now says "Apply stopped because
+  the search changed. Apply again." instead of leaving the earlier "Found" or "Applied" line
+  in place.
+- A queue Apply whose chosen cover failed to load still says so when the next title has no
+  search text or cannot be selected, instead of dropping the cover failure.
+- A refused Indexer URL or API key stays refused until you replace it, and its reason stays
+  in the error line. Before, editing another field cleared the error, and Save stored the old
+  value while the field still showed the refused one.
+- When the drag-and-drop listener cannot start, the import area now says drag and drop is not
+  working and points to Add Folder; the Opus "Player compatibility" link says why when the
+  page does not open.
+- When a selected file's tags cannot be read, the status line now names the file and says
+  the fields shown are not its tags, so a Save no longer writes over tags you could not see
+  without warning.
+- An Indexer API key with a character that cannot be sent in a request is refused when you
+  enter it, instead of being sent as no key and read as a generic rejection.
+- Submitting with an invalid file in the list now says "Submitted to Work Center. 1 invalid
+  file was left out." instead of only "Submitted to Work Center."
+- Pasting text that is not a web address while the pointer is over the cover now says "This
+  is not an image URL." instead of doing nothing.
+- Choosing "Keep location" on an out-of-date restart offer now says the offer no longer
+  matches, as Restart does, instead of doing nothing.
+- A rejected naming template and a Browse button that cannot open the folder dialog now
+  show the reason in the notice, instead of only logging it.
+- Opening an unsupported file with ABB from the OS now shows the same "no supported files"
+  notice as importing one, instead of doing nothing.
+- A click on a row, Select All, or a keyboard selection while a Save runs now says
+  "A Save is running. Try again when it finishes." A metadata edit or cover change dropped
+  because the selection changed says "Your edit was not applied because the selection changed."
+- Editing the metadata search query or source while a search runs now ends the status
+  with "Search stopped because it changed. Search again." instead of "Searching…" forever.
+  Changing the apply mode or replace-cover option no longer cancels a running search.
+- A download that imported some titles and failed on others now says which failed,
+  instead of only the count imported.
+- The app writes a log file (`~/Library/Logs/com.audiobook-boss/abb.log` on macOS), so a
+  failure in an app opened from Finder can be read. Failures the window used to show
+  only in its console now reach that file too. It moves to `abb.previous.log` at a launch
+  that finds it over 5 MB.
+- With nothing running in this window, the step line reads "Ready" instead of
+  "Waiting for files...", which it showed even with files loaded.
+- Work Center's "Failed to show the exported file" message clears when a later
+  attempt works.
+- A CUE sheet that ABB ignored or could not read no longer shows a "chapters from"
+  line in the file list.
+- Screen readers announce a file-list row and its reorder button by the title
+  label, as the row shows it, instead of by the file name.
+- Work Center gives the reason for a skipped or cancelled title, as it already did
+  for a failed one.
+- A metadata edit waiting for an export to finish reading its file is no longer lost
+  when its title is removed and imported again and a later Save changes another field.
+- When a waiting Save failed and a newer one for the same file succeeded, the form
+  no longer returns to the failed value, which the next Save would have written back.
+- When two waiting Saves to one file both fail, the form keeps your newest value after the
+  title is imported again.
+- Reordering several selected titles no longer loses what you typed into the form
+  when an import or download finishes afterward.
+- A Save that only updates finished outputs no longer marks a later Save as done
+  while that Save is still writing.
+- Pressing Start or Preview clears a finished preview's stage, bar, and cover from
+  the status header, so a failed preview no longer reads as the new export's status.
+- After you start an export, the status line reads "Submitted to Work Center." without
+  a Completed stage or 100% bar, since the work has only been accepted.
+- The Audible status shows it is busy while the library loads after an account
+  check, instead of reading idle until the load ends.
+- The metadata lookup queue names each title as the file list does, by its title
+  tag, instead of by its file name.
+- After a Save, the file list shows each file's new size, and a saved title's
+  audio plan no longer drops back to checking.
+- The Preview Audio tooltip names the sample length ABB renders. A title of more
+  than 18 files runs longer than 90 seconds, and the tooltip now says so.
+- When a path can't be built, the output Example line says why, such as the
+  unknown template token and the tokens allowed, instead of a generic message.
+- Work Center and Status Panel buttons (Cancel, Show in Finder) no longer lose a
+  click when a progress update lands between press and release.
+- The file list shows the full list of supported audio formats from the first moment.
+  Before, it read "Supports audio files" until a background lookup finished.
+- After a finished Audible download, the status line now shows later library
+  loads and failures, sign-in guidance, and the sign-in warning instead of
+  keeping the old download result. A running download also shows its progress
+  over an older sign-in or account failure.
+- A good Audible library load now replaces an earlier sign-in or account failure in the
+  status line.
+- The Auto sample rate and channels options no longer read "Differs by title"
+  when only some of the selected titles use Auto.
+- A title made of several files with no chapters now shows the chapters ABB
+  sends to the output, one per file, instead of no chapter count.
+- A keystroke typed into the blank form just as an import selects a title no
+  longer lands on that title as an unsaved edit.
 - Text typed during an export is no longer wiped when ABB removes the finished
   Audible download. The form keeps it, and Save writes it to the exported file.
+- After a Save, the file list shows the title and author you just saved. Before,
+  it kept the old name until the file was imported again.
+- Saving a cover on one file now refreshes only that file's thumbnail in the
+  list. Before, every thumbnail faded and reloaded.
+
+### Removed
+
+- MP3 is no longer an output format. MP3 files still import, and export to M4B or
+  another output format. Keep original audio on an MP3 source now asks you to choose
+  encoding settings.
 
 ## [1.17.1] - 2026-11-05
 
@@ -1961,7 +2080,7 @@ tests now prove that behavior instead of masking it.
   fires.
 
 ### Removed
- 
+
 ## [1.0.4] - 2026-04-16
 
 Internal state-shape tightening release that continued the "make impossible

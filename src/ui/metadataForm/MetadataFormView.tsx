@@ -24,30 +24,7 @@ export function MetadataFormView(): JSX.Element {
 
 	return (
 		<>
-			<div
-				class="metadata-form-grid"
-				onInput={(event) => {
-					const target = event.target;
-					if (
-						(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) &&
-						target.id.startsWith('meta-')
-					) {
-						setFieldValue({ inputId: target.id, value: target.value });
-					}
-				}}
-				onChange={(event) => {
-					const target = event.target;
-					if (
-						target instanceof HTMLSelectElement &&
-						target.classList.contains('meta-apply-select')
-					) {
-						setFieldAction({
-							actionId: target.id,
-							action: target.value === 'blank' ? 'blank' : 'keep',
-						});
-					}
-				}}
-			>
+			<div class="metadata-form-grid">
 				<For each={[...METADATA_FIELD_DEFINITIONS]}>
 					{(field) => {
 						const fieldState = () => form().fields[field.inputId];
@@ -61,6 +38,12 @@ export function MetadataFormView(): JSX.Element {
 											class="meta-apply-select"
 											data-testid={field.actionId}
 											value={fieldState().action}
+											onChange={(event) =>
+												setFieldAction({
+													field: field.field,
+													action: event.currentTarget.value === 'blank' ? 'blank' : 'keep',
+												})
+											}
 										>
 											<option value="keep">Keep</option>
 											<option value="blank">Blank</option>
@@ -72,20 +55,24 @@ export function MetadataFormView(): JSX.Element {
 										id={field.inputId}
 										rows={2}
 										value={fieldState().value}
-										placeholder={fieldState().mixed ? 'Mixed values' : fieldState().placeholder}
+										placeholder={fieldState().mixed ? 'Mixed values' : field.placeholder}
 										data-dirty={fieldState().dirty ? 'true' : undefined}
 										data-mixed={fieldState().mixed ? 'true' : undefined}
-										class={{ 'dirty-field': fieldState().dirty }}
+										onInput={(event) =>
+											setFieldValue({ field: field.field, value: event.currentTarget.value })
+										}
 									/>
 								) : (
 									<input
 										type="text"
 										id={field.inputId}
 										value={fieldState().value}
-										placeholder={fieldState().mixed ? 'Mixed values' : fieldState().placeholder}
+										placeholder={fieldState().mixed ? 'Mixed values' : field.placeholder}
 										data-dirty={fieldState().dirty ? 'true' : undefined}
 										data-mixed={fieldState().mixed ? 'true' : undefined}
-										class={{ 'dirty-field': fieldState().dirty }}
+										onInput={(event) =>
+											setFieldValue({ field: field.field, value: event.currentTarget.value })
+										}
 									/>
 								)}
 								{field.inputId === 'meta-series-part' && (

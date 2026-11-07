@@ -63,6 +63,7 @@ fn a_result_supplies_only_the_fields_it_has() {
         published_date: Some("1965".to_string()),
         duration_seconds: None,
         cover_url: None,
+        cover: None,
         audible_only: None,
     };
 
@@ -86,6 +87,7 @@ fn opening_with_several_titles_queues_them_and_opening_with_none_says_so() {
     let queued = |name: &str| QueuedTitle {
         title_id: name.to_string(),
         path: PathBuf::from(format!("/books/{name}.m4b")),
+        label: name.to_string(),
     };
 
     lookup.open(

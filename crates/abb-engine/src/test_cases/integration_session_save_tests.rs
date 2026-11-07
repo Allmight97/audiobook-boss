@@ -3,7 +3,7 @@ use std::path::Path;
 
 use abb_engine::session::{
     FieldAction, MetadataField, MetadataStatus, OutputEdits, SelectionModifiers, SessionIntent,
-    SessionOutcome,
+    SessionOutcome, TitlePlan,
 };
 use abb_engine::work_runtime::WorkOperationStatus;
 use abb_engine::{read_metadata, AudiobookMetadata, ShutdownOutcome};
@@ -32,12 +32,9 @@ async fn only(desk: &Desk, name: &str) {
     assert_eq!(outcome, SessionOutcome::Applied);
 }
 
-fn covers_revision(desk: &Desk) -> u64 {
-    desk.engine
-        .session_snapshot()
-        .titles
-        .expect("titles")
-        .covers_revision
+fn listed_cover(desk: &Desk) -> Option<String> {
+    let titles = desk.engine.session_snapshot().titles.expect("titles");
+    titles.files.into_iter().next().and_then(|file| file.cover)
 }
 
 fn tags(path: &Path) -> AudiobookMetadata {
@@ -57,18 +54,21 @@ async fn one_save_blanks_author_on_two_titles_and_writes_each_titles_own_edit() 
 
     only(&desk, "alpha.m4b").await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Genre,
         value: "Mystery".to_string(),
     })
     .await;
     only(&desk, "beta.m4b").await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "New".to_string(),
     })
     .await;
     desk.send(SessionIntent::SelectAll).await;
     desk.send(SessionIntent::SetFieldAction {
+        binding: desk.metadata().binding,
         field: MetadataField::Author,
         action: FieldAction::Blank,
     })
@@ -114,6 +114,83 @@ async fn one_save_blanks_author_on_two_titles_and_writes_each_titles_own_edit() 
 }
 
 #[tokio::test]
+async fn a_save_changes_the_title_and_author_the_list_shows() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 0.2)
+        .await;
+    desk.import(&book).await;
+    let listed = |desk: &Desk| {
+        let file = desk
+            .engine
+            .session_snapshot()
+            .titles
+            .expect("titles")
+            .files
+            .remove(0);
+        (file.label, file.artist)
+    };
+    assert_eq!(
+        listed(&desk),
+        ("Alpha".to_string(), Some("Source Author".to_string()))
+    );
+
+    desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
+        field: MetadataField::Title,
+        value: "Renamed".to_string(),
+    })
+    .await;
+    desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
+        field: MetadataField::Author,
+        value: "New Author".to_string(),
+    })
+    .await;
+    assert_eq!(
+        desk.send(SessionIntent::Save).await,
+        SessionOutcome::Applied
+    );
+
+    assert_eq!(
+        listed(&desk),
+        ("Renamed".to_string(), Some("New Author".to_string()))
+    );
+}
+
+#[tokio::test]
+async fn a_save_lists_the_new_file_size_and_keeps_the_resolved_plan() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 0.2)
+        .await;
+    desk.import(&book).await;
+    desk.wait_until("the plan resolves", |desk| {
+        matches!(desk.plan(), TitlePlan::Resolved { .. })
+    })
+    .await;
+    let imported = fs::metadata(&book).expect("source").len();
+
+    desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
+        field: MetadataField::Title,
+        value: "A much longer title than the one the file had ".repeat(40),
+    })
+    .await;
+    assert_eq!(
+        desk.send(SessionIntent::Save).await,
+        SessionOutcome::Applied
+    );
+
+    let saved = fs::metadata(&book).expect("source").len();
+    assert_ne!(saved, imported);
+    let titles = desk.engine.session_snapshot().titles.expect("titles");
+    assert_eq!(titles.files[0].size, Some(saved as f64));
+    assert_eq!(titles.total_size_bytes, saved as f64);
+    assert!(matches!(desk.plan(), TitlePlan::Resolved { .. }));
+}
+
+#[tokio::test]
 async fn a_second_save_on_a_finished_output_keeps_the_first_saves_tag() {
     let desk = Desk::new();
     let source = desk
@@ -130,6 +207,7 @@ async fn a_second_save_on_a_finished_output_keeps_the_first_saves_tag() {
 
     desk.edit_genre_and_save().await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Narrator,
         value: "Reader".to_string(),
     })
@@ -169,7 +247,8 @@ async fn a_cover_loaded_and_then_cleared_through_the_session_is_on_and_then_off_
         .await;
     desk.import(&book).await;
     assert!(tags(&book).cover_art.is_none());
-    let before_cover = covers_revision(&desk);
+    let before_cover = listed_cover(&desk);
+    assert!(before_cover.is_some());
 
     let custom = desk.root.path().join("custom.png");
     image::RgbImage::from_pixel(1, 1, image::Rgb([180, 20, 90]))
@@ -188,9 +267,9 @@ async fn a_cover_loaded_and_then_cleared_through_the_session_is_on_and_then_off_
         tags(&book).cover_art.is_some(),
         "the chosen cover is in the file"
     );
-    let after_cover = covers_revision(&desk);
-    assert!(
-        after_cover > before_cover,
+    let after_cover = listed_cover(&desk);
+    assert_ne!(
+        after_cover, before_cover,
         "a saved cover moves the cover address"
     );
 
@@ -206,9 +285,10 @@ async fn a_cover_loaded_and_then_cleared_through_the_session_is_on_and_then_off_
         "the cleared cover is off the file"
     );
     assert_eq!(cleared.genre.as_deref(), Some("Mystery"));
-    assert!(!desk.metadata().cover.present);
-    assert!(
-        covers_revision(&desk) > after_cover,
+    assert!(desk.metadata().cover.image.is_none());
+    assert_ne!(
+        listed_cover(&desk),
+        after_cover,
         "a cleared cover moves the cover address"
     );
 }

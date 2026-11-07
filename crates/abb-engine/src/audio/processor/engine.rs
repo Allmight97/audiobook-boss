@@ -130,6 +130,10 @@ fn execute_pipeline(
 ) -> Result<()> {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "ffmpeg initialization is idempotent; the first ffmpeg call reports a failure"
+        )]
         let _ = ff::init();
     });
 
@@ -174,6 +178,10 @@ fn execute_pipeline(
     Ok(())
 }
 
+#[expect(
+    clippy::let_underscore_must_use,
+    reason = "writing to a String cannot fail"
+)]
 fn format_in_process_run(
     plan: &MediaProcessingPlan,
     context: &ProcessingContext,

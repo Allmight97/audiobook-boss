@@ -10,7 +10,6 @@ import { MetadataLookupView } from '../metadataLookup';
 function coverResult(source: 'audnexus' | 'openlibrary', name: string): OnlineMetadataResult {
 	return {
 		source,
-		sourceId: `${source}:${name}`,
 		title: `${name} Cover`,
 		authors: ['Author'],
 		narrators: ['Narrator'],
@@ -18,7 +17,11 @@ function coverResult(source: 'audnexus' | 'openlibrary', name: string): OnlineMe
 		publishedDate: '2020-07',
 		durationSeconds: 3600,
 		audibleOnly: false,
-		coverUrl: `https://covers.example.com/${name}-cover.jpg`,
+		series: null,
+		seriesPart: null,
+		subseries: null,
+		subseriesPart: null,
+		cover: `remote/0/${encodeURIComponent(`https://covers.example.com/${name}-cover.jpg`)}`,
 	};
 }
 
@@ -46,7 +49,7 @@ describe('MetadataLookup cover preview', () => {
 			});
 			return { kind: 'applied' };
 		};
-		runtime = createAppRuntime({
+		runtime = await createAppRuntime({
 			engine,
 			metadata: { openFile: vi.fn(async () => null) },
 		});
@@ -67,12 +70,8 @@ describe('MetadataLookup cover preview', () => {
 				'[data-testid="metadata-lookup-cover-image"]',
 			);
 			expect([...images].map((image) => image.getAttribute('src'))).toEqual(
-				['private', 'loopback'].map((name) =>
-					coverSrc({
-						kind: 'remote',
-						url: `https://covers.example.com/${name}-cover.jpg`,
-						size: 'small',
-					}),
+				[coverResult('audnexus', 'private'), coverResult('openlibrary', 'loopback')].map((result) =>
+					coverSrc(result.cover!),
 				),
 			);
 		});

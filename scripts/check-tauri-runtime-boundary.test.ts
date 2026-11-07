@@ -43,7 +43,7 @@ function createFixtureRepo(): string {
 		"import { events as generatedEvents } from '../generated/tauri';\nvoid generatedEvents;\n",
 	);
 	writeFileSync(
-		path.join(repoRoot, 'src/types/ipc.ts'),
+		path.join(repoRoot, 'src/types/session.ts'),
 		"import type { Foo } from '../lib/generated/tauri';\nexport type Bar = Foo;\n",
 	);
 

@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 pub enum OperationKind {
     #[default]
     ProcessingBatch,
-    RemoteAcquisition,
     MetadataSave,
 }
 

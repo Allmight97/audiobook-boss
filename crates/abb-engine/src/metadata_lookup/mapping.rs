@@ -48,6 +48,7 @@ pub(super) fn map_audnexus_book(book: AudnexusBook) -> OnlineMetadataResult {
         published_date,
         duration_seconds,
         cover_url,
+        cover: None,
         audible_only: None,
     }
 }
@@ -143,6 +144,7 @@ pub(super) fn map_audible_item(item: AudibleSearchItem) -> OnlineMetadataResult 
         published_date,
         duration_seconds,
         cover_url,
+        cover: None,
         audible_only: Some(true),
     }
 }

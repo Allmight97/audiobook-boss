@@ -1,5 +1,6 @@
 import { createEffect, createSignal, type Accessor } from 'solid-js';
 import { toUserMessage } from '../../lib/tauri/appError';
+import type { RemoteUiIntent } from '../../types/session';
 import type { EngineLink } from '../engineLink';
 
 export type IndexerConnectionSettingsView = {
@@ -22,8 +23,7 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			Pick<IndexerConnectionSettingsView, 'baseUrlDraft' | 'categoryIdsDraft' | 'apiKeyDraft'>
 		>,
 	): void;
-	isSaving(): boolean;
-	save(): Promise<boolean>;
+	save(): Promise<void>;
 	testConnection(): Promise<void>;
 	reset(): void;
 } {
@@ -44,11 +44,11 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			}
 		},
 	);
-	async function send(kind: 'loadConnection' | 'saveConnection' | 'testConnection') {
+	async function send(intent: RemoteUiIntent) {
 		localError = '';
 		changed();
 		try {
-			return await link.send({ kind: 'remote', intent: { kind } });
+			return await link.send({ kind: 'remote', intent });
 		} catch (error) {
 			localError = toUserMessage(error);
 			changed();
@@ -59,7 +59,12 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 		view: () => {
 			revision();
 			const draft = link.remote().connection;
-			const saveError = draft.save.kind === 'failed' ? toUserMessage(draft.save.error) : localError;
+			const saveError =
+				draft.save.kind === 'failed'
+					? toUserMessage(draft.save.error)
+					: draft.draftError
+						? toUserMessage(draft.draftError)
+						: localError;
 			return {
 				baseUrlDraft: typed?.baseUrlDraft ?? draft.baseUrl,
 				categoryIdsDraft: draft.categoryIds,
@@ -89,7 +94,7 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			};
 		},
 		async load() {
-			await send('loadConnection');
+			await send({ kind: 'loadConnection' });
 		},
 		patch(patch) {
 			const echo = {
@@ -125,12 +130,11 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 					}
 				});
 		},
-		isSaving: () => link.remote().connection.save.kind === 'running',
 		async save() {
-			return (await send('saveConnection'))?.kind === 'remoteSaved';
+			await send({ kind: 'saveConnection' });
 		},
 		async testConnection() {
-			await send('testConnection');
+			await send({ kind: 'testConnection' });
 		},
 		reset() {
 			typed = null;

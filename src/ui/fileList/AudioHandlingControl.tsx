@@ -1,8 +1,8 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { Portal, type JSX } from '@solidjs/web';
-import { displayedTitleForFile } from '../../app/inputSession';
 import { useAppRuntime } from '../../app/runtime';
 import { EncoderView } from '../encoderPanel';
+import { toUserMessage } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
 import type { AudioFile, TitleAudioPlan } from '../../types/audio';
 
@@ -14,6 +14,7 @@ export function AudioHandlingControl(props: {
 	const runtime = useAppRuntime();
 	const [open, setOpen] = createSignal(false);
 	const [position, setPosition] = createSignal({ left: 0, top: 0 });
+	const [linkError, setLinkError] = createSignal('');
 	let trigger: HTMLButtonElement | undefined;
 	let panel: HTMLDivElement | undefined;
 	let closeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -31,13 +32,28 @@ export function AudioHandlingControl(props: {
 		const current = resolved();
 		return current.kind === 'failed' ? current.message : '';
 	};
-	const needsChoice = () =>
-		runtime.input.audioChoiceRequired(props.file) || resolved().kind === 'choiceRequired';
+	const needsChoice = () => resolved().kind === 'choiceRequired';
 	const kept = () => plan()?.handling === 'preserve';
 	const guidanceId = () => `audio-plan-${props.index}`;
-	const format = () =>
-		({ m4b: 'M4B', mp3: 'MP3', m4aOpus: 'M4A', mkaOpus: 'MKA' })[request().format];
+	const format = () => ({ m4b: 'M4B', m4aOpus: 'M4A', mkaOpus: 'MKA' })[request().format];
 	const opus = () => request().format === 'm4aOpus' || request().format === 'mkaOpus';
+	async function openCompatibilityPage(): Promise<void> {
+		setLinkError('');
+		try {
+			await tauriClient.openUrl(
+				request().format === 'mkaOpus'
+					? 'https://www.videolan.org/vlc/features.html'
+					: 'https://www.audiobookshelf.org/docs/faq/server/',
+			);
+		} catch (cause) {
+			setLinkError(
+				toUserMessage(cause, {
+					fallback: 'Could not open the compatibility page.',
+					suppressUnknown: true,
+				}),
+			);
+		}
+	}
 	function show() {
 		if (dismissed) return;
 		clearTimeout(closeTimer);
@@ -133,7 +149,7 @@ export function AudioHandlingControl(props: {
 					'preservation-info-trigger',
 					{ kept: kept(), 'needs-choice': needsChoice() || !!error() },
 				]}
-				aria-label={`Audio plan for ${displayedTitleForFile(props.file)}`}
+				aria-label={`Audio plan for ${props.file.label}`}
 				aria-haspopup="dialog"
 				aria-expanded={open() ? 'true' : 'false'}
 				aria-controls={guidanceId()}
@@ -287,17 +303,16 @@ export function AudioHandlingControl(props: {
 								<button
 									type="button"
 									class="audio-compatibility-link"
-									onClick={() =>
-										void tauriClient.openUrl(
-											request().format === 'mkaOpus'
-												? 'https://www.videolan.org/vlc/features.html'
-												: 'https://www.audiobookshelf.org/docs/faq/server/',
-										)
-									}
+									onClick={() => void openCompatibilityPage()}
 								>
 									Player compatibility
 								</button>
 							</p>
+							<Show when={linkError()}>
+								<p class="audio-plan-origin" role="status">
+									{linkError()}
+								</p>
+							</Show>
 						</Show>
 					</div>
 				</Portal>

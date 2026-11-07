@@ -6,7 +6,9 @@ import type { AudioFile } from '../../types/audio';
 import type { EncodingField, EncodingView } from '../../app/encoding';
 import './encoderView.css';
 
-type PanelView = EncodingView & { readonly mixedFields: readonly EncodingField[] };
+type PanelView = EncodingView & {
+	readonly mixedFields: readonly EncodingField[];
+};
 
 export function EncoderView(
 	props: { title?: AudioFile; titles?: readonly AudioFile[] } = {},
@@ -14,7 +16,7 @@ export function EncoderView(
 	const runtime = useAppRuntime();
 	const view = createMemo((): PanelView | null =>
 		props.titles
-			? runtime.encoding.selectionView(props.titles)
+			? runtime.encoding.selectionView()
 			: {
 					...(props.title ? runtime.encoding.titleView(props.title) : runtime.encoding.view()),
 					mixedFields: [],
@@ -58,7 +60,7 @@ function EncoderPanel(props: {
 			const select = event.currentTarget;
 			if (!(select instanceof HTMLSelectElement || select instanceof HTMLInputElement)) return;
 			choose(field, select.value);
-			if (field === 'encoder') select.value = displayedFlavor();
+			if (field === 'encoder') select.value = String(value('encoder', displayedFlavor()));
 			if (field === 'bitrate') select.value = String(view().bitrate);
 		};
 	}
@@ -88,7 +90,6 @@ function EncoderPanel(props: {
 							</option>
 						</Show>
 						<option value="m4b">M4B · AAC</option>
-						<option value="mp3">MP3</option>
 						<option value="m4aOpus">M4A · Opus</option>
 						<option value="mkaOpus">MKA · Opus</option>
 					</select>
@@ -107,36 +108,23 @@ function EncoderPanel(props: {
 						</Show>
 						<option value="auto">Default</option>
 						<option value="preserve">Keep original audio</option>
-						<option value="encode" disabled={view().format === 'mp3'}>
-							User Preference
-						</option>
+						<option value="encode">User Preference</option>
 					</select>
 				</div>
 				<Show when={mixed('format')}>
 					<p class="field-hint">Choose one output format to edit encoding settings together.</p>
 				</Show>
-				<Show
-					when={
-						!mixed('format') &&
-						!mixed('intent') &&
-						view().intent === 'encode' &&
-						view().format !== 'mp3'
-					}
-				>
+				<Show when={!mixed('format') && !mixed('intent') && view().intent === 'encode'}>
 					<details class="encoder-conversion" open={!editingTitles()}>
 						<summary>
-							Encoding settings
-							<Show when={view().intent === 'encode'}>
-								{' '}
-								·{' '}
-								{mixed('encoder')
-									? 'Mixed encoders'
-									: mixed('quality') || mixed('bitrate')
-										? 'Mixed quality'
-										: view().flavor === 'opus'
-											? `Opus · ${view().bitrate} kbps VBR`
-											: `${view().flavorOptions.find((option) => option.value === displayedFlavor())?.label} · ${view().showQuality ? `VBR ${view().quality}` : `${view().bitrate} kbps`}`}
-							</Show>
+							Encoding settings ·{' '}
+							{mixed('encoder')
+								? 'Mixed encoders'
+								: mixed('quality') || mixed('bitrate')
+									? 'Mixed quality'
+									: displayedFlavor() === 'opus'
+										? `Opus · ${view().bitrate} kbps VBR`
+										: `${view().flavorOptions.find((option) => option.value === displayedFlavor())?.label} · ${view().showQuality ? `VBR ${view().quality}` : `${view().bitrate} kbps`}`}
 						</summary>
 						<div class="encoder-workbench-grid">
 							<div class="encoder-field-row">
@@ -293,7 +281,6 @@ function EncoderPanel(props: {
 											id={id('output-samplerate')}
 											data-testid="samplerate-select"
 											value={value('sampleRate', view().sampleRate)}
-											disabled={view().sampleRateDisabled}
 											onChange={bind('sampleRate')}
 										>
 											<Show when={mixed('sampleRate')}>
@@ -328,7 +315,6 @@ function EncoderPanel(props: {
 											id={id('output-channels')}
 											data-testid="channels-select"
 											value={value('channels', view().channels)}
-											disabled={view().channelsDisabled}
 											onChange={bind('channels')}
 										>
 											<Show when={mixed('channels')}>

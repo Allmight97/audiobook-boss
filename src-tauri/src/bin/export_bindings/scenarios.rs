@@ -77,6 +77,10 @@ fn run_action(step: &Value, root: &Path) {
     let config = root.join("config");
     match step["do"].as_str() {
         Some("blockConfig") => {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the folder is usually absent; a real failure shows when the file is written next"
+            )]
             let _ = std::fs::remove_dir_all(&config);
             std::fs::write(&config, b"").expect("failed to block the config folder");
         }
@@ -120,6 +124,15 @@ fn real_text(text: &str, root: &Path, titles: &[String]) -> String {
     }
 }
 
+fn with_current_binding(step: &Value, engine: &Engine) -> Value {
+    let mut sent = step.clone();
+    if sent.get("binding") == Some(&json!("current")) {
+        let shown = engine.session_snapshot().metadata;
+        sent["binding"] = json!(shown.expect("the form is shown").binding);
+    }
+    sent
+}
+
 fn without_revision(part: &Value) -> Value {
     let mut copy = part.clone();
     if let Some(map) = copy.as_object_mut() {
@@ -141,6 +154,7 @@ fn record_session(scenario: &Scenario) -> Value {
     let mut recorded = Vec::new();
     for (index, step) in scenario.steps.iter().enumerate() {
         let revision = index as u64 + 2;
+        let step = &with_current_binding(step, &fixture.engine);
         let real = real_value(step, &fixture.root, normalizer.real_title_ids());
         let intent: SessionIntent =
             serde_json::from_value(real).expect("the step is a session intent");

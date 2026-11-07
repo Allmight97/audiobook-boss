@@ -16,7 +16,12 @@ export type ProcessingOwner = {
 	keepLocation: (offer: RestartOffer) => Promise<void>;
 	start: () => Promise<void>;
 	preview: () => Promise<void>;
+	/** Says what Preview Audio does, with the length the engine renders. */
+	previewTooltip: () => string;
 	cancelAll: () => void;
+	cancelJob: (childJobId: string) => void;
+	/** The engine still accepts a cancel of the running preview. */
+	previewCancellable: () => boolean;
 	isProcessing: () => boolean;
 	reset: () => void;
 };
@@ -42,10 +47,12 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	});
 	const context = {
 		showError: (message: string) => statusView.showError(message),
-		updateStatus: (next: Parameters<typeof renderStatus>[1]) =>
-			renderStatus(statusView, next, false),
-		setProcessingState: (active: boolean) => statusView.setIsProcessing(active),
-		handleCancellation: () => statusView.showInfo('Preview was cancelled.'),
+		showStep: (message: string) => {
+			statusView.setStepText(`Current Step: ${message}`);
+			statusView.setStepColor('var(--text-primary)');
+		},
+		showCompleted: (message: string) =>
+			renderStatus(statusView, { stage: 'complete', percentage: 100, message }),
 		resetToIdle: () => {
 			if (!deps.link.output().previewRun) statusView.reset();
 		},
@@ -64,15 +71,12 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	createEffect(
 		() => deps.link.output().previewRun,
 		(preview) => {
-			renderPreview(statusView, preview, (child) => cancelPreview(child));
+			renderPreview(statusView, preview);
 			if (!preview) return;
 			const id = preview.operation.operationId;
-			const key = `${id}:${preview.artworkReady}`;
-			if (artworkKey !== key) {
-				artworkKey = key;
-				statusView.setCoverArtSrc(
-					preview.artworkReady ? coverSrc({ kind: 'preview', runId: id }) : null,
-				);
+			if (artworkKey !== preview.cover) {
+				artworkKey = preview.cover;
+				statusView.setCoverArtSrc(preview.cover ? coverSrc(preview.cover) : null);
 			}
 			if (preview.openReady && claiming !== id) {
 				claiming = id;
@@ -128,9 +132,19 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 		preview() {
 			return send({ kind: 'preview' });
 		},
+		previewTooltip() {
+			const { shortestSeconds, longestSeconds } = deps.link.titles().previewLength;
+			const length =
+				shortestSeconds === longestSeconds
+					? `${longestSeconds}-second`
+					: `${shortestSeconds}- to ${longestSeconds}-second`;
+			return `Encode a ${length} sample of each title, split across its files, with its current audio settings and metadata, so you can listen before exporting.`;
+		},
 		cancelAll() {
 			cancelPreview();
 		},
+		cancelJob: cancelPreview,
+		previewCancellable: () => deps.link.output().previewRun?.operation.cancellable ?? false,
 		isProcessing() {
 			return deps.link.output().submissionInProgress;
 		},

@@ -4,46 +4,29 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use super::audio::AudioDefaults;
-use super::exports::{ExportLink, OutputEdit, OutputEdits};
+use cover_flow::CoverSource;
+use lookup_flow::ChosenResult;
+
+use super::exports::ExportLink;
 use super::intent::{SessionIntent, SessionOutcome, SessionReply};
-use super::lookup::{self, LookupApplyMode, LookupStatus, QueueStep, QueuedTitle, RESULT_LIMIT};
-use super::output::OutputPlan;
+use super::lookup::{QueueStep, RESULT_LIMIT};
 use super::plans::PlanTicket;
-use super::state::{GateBlock, MetadataStatus, SaveItem, SavePlan, SessionState, SessionUpdate};
-use super::submission::{plan_verdict, Draft, PlanVerdict, SubmissionStatus, SubmitRefusal};
+use super::state::{GateBlock, SavePlan, SessionState, SessionUpdate};
+use super::submission::{Draft, SubmitRefusal};
 use super::tag_cache::ReadTicket;
-use super::working_set::{InputNotice, SelectionModifiers, WorkingSet};
-use crate::app_settings::{PinnedDefaults, SettingsIntent, SettingsRun, SettingsRuntime};
-use crate::audio::{self, AudioFile, EncoderSettingsCapabilities};
+use super::working_set::{SelectionModifiers, WorkingSet};
+use crate::app_settings::{SettingsRun, SettingsRuntime};
+use crate::audio::{self};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::host::{EngineEvent, Host};
 use crate::metadata::AudiobookMetadata;
-use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource, OnlineMetadataResult};
-use crate::metadata_save::{save_metadata_batch, MetadataSaveRequest, MetadataSaveResultStatus};
+use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource};
 use crate::output_artifact::CollisionPolicy;
-use crate::processing::run::{
-    inspect_processing_plan, process_inspected_with_options, ProcessingRunOptions,
-};
-use crate::processing::title_output::UpdateReply;
-use crate::processing::SupplementalProcessingAsset;
-use crate::processing::{OutputUpdate, OutputUpdateStatus};
-use crate::remote_source::{
-    AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal, RemoteRevisions, RemoteUiResult,
-};
+use crate::remote_source::{RemoteRevisions, RemoteUiResult};
 use crate::work_runtime::WorkRuntime;
-use crate::work_runtime::{OperationSnapshot, SubmitProcessingOperationRequest};
 use crate::ManagedJobRegistry;
 
 const READ_CONCURRENCY: usize = 8;
-
-fn remember_output(defaults: crate::app_settings::OutputDefaults) -> SettingsIntent {
-    SettingsIntent::Remember {
-        encoder_defaults: None,
-        output_defaults: Some(defaults),
-        default_acquisition_lane: None,
-    }
-}
 
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 
@@ -85,43 +68,6 @@ pub(crate) struct SessionDeps {
 
 pub(crate) type RemoveStaged = Arc<dyn Fn(&str) -> Result<()> + Send + Sync>;
 
-/// One line per finished search: counts by source and how many results
-/// offer a cover, never the query or the results themselves.
-fn log_lookup_found(response: &MetadataLookupResponse, elapsed: std::time::Duration) {
-    let from = |source: MetadataSource| {
-        response
-            .results
-            .iter()
-            .filter(|result| result.source == source)
-            .count()
-    };
-    log::info!(
-        "metadata_lookup outcome=found results={} audnexus={} openlibrary={} with_cover={} diagnostics={} elapsed_ms={}",
-        response.results.len(),
-        from(MetadataSource::Audnexus),
-        from(MetadataSource::Openlibrary),
-        response
-            .results
-            .iter()
-            .filter(|result| result.cover_url.is_some())
-            .count(),
-        response.diagnostics.len(),
-        elapsed.as_millis()
-    );
-}
-
-fn closing() -> SubmissionStatus {
-    SubmissionStatus::Refused {
-        reason: SubmitRefusal::Closing,
-    }
-}
-
-fn failed(error: &AppError) -> SubmissionStatus {
-    SubmissionStatus::Failed {
-        error: AppErrorEnvelope::from(error),
-    }
-}
-
 #[derive(Clone)]
 pub(crate) struct Session {
     inner: Arc<SessionInner>,
@@ -132,7 +78,6 @@ struct SessionInner {
     deps: SessionDeps,
     network: Network,
     imports: super::import_order::ImportOrder,
-    resets: AtomicU64,
     /// The revision the last event carried.
     published: AtomicU64,
     deferred_writer_running: AtomicBool,
@@ -151,6 +96,16 @@ struct Bound {
     reads: Vec<ReadTicket>,
 }
 
+impl Bound {
+    fn rebind(state: &mut SessionState) -> Self {
+        let reads = state.rebind();
+        Self {
+            binding: state.binding,
+            reads,
+        }
+    }
+}
+
 /// A disposable reply to work the engine has already accepted and started.
 pub struct SessionRun {
     session: Session,
@@ -165,23 +120,19 @@ enum Rest {
     Reads(Bound),
     Import {
         paths: Vec<String>,
-        resets: u64,
         turn: super::import_order::Turn,
     },
     Remember(SettingsRun),
     Submit {
         draft: Box<Draft>,
-        resets: u64,
     },
     Reviewed {
         draft: Box<Draft>,
         policy: CollisionPolicy,
-        resets: u64,
     },
     Restart {
         draft: Box<Draft>,
         link: Box<ExportLink>,
-        resets: u64,
     },
     Save {
         epoch: u64,
@@ -194,7 +145,7 @@ enum Rest {
     },
     CoverLoad {
         source: CoverSource,
-        started: (u64, u64, u64),
+        started: (u64, u64),
     },
     LookupSearch {
         request: u64,
@@ -207,14 +158,6 @@ enum Rest {
         request: u64,
         step: QueueStep,
     },
-}
-
-struct ChosenResult {
-    result: OnlineMetadataResult,
-    title: QueuedTitle,
-    replace_cover: bool,
-    mode: LookupApplyMode,
-    binding: u64,
 }
 
 impl SessionRun {
@@ -259,48 +202,20 @@ impl Session {
                 session.complete_reads(bound).await;
                 SessionOutcome::Applied
             }
-            Rest::Import {
-                paths,
-                resets,
-                turn,
-            } => session.import(paths, resets, turn).await,
-            Rest::Remember(run) => {
-                let reply = run.finish().await;
-                session
-                    .inner
-                    .deps
-                    .host
-                    .emit(EngineEvent::Settings(Box::new(reply.snapshot)));
-                match reply.outcome {
-                    crate::app_settings::SettingsOutcome::Rejected { error } => {
-                        SessionOutcome::Rejected { error }
-                    }
-                    _ => SessionOutcome::Applied,
-                }
-            }
-            Rest::Submit { draft, resets } => session.submit(*draft, resets).await,
-            Rest::Reviewed {
-                mut draft,
-                policy,
-                resets,
-            } => {
-                draft.payload.collision_policy = Some(policy);
-                session.submit(*draft, resets).await
-            }
+            Rest::Import { paths, turn } => session.import(paths, turn).await,
+            Rest::Remember(run) => session.finish_remember(run).await,
+            Rest::Submit { draft } => session.submit(*draft).await,
+            Rest::Reviewed { draft, policy } => session.submit_reviewed(*draft, policy).await,
             Rest::Save { epoch, plan } => session.save(epoch, plan).await,
-            Rest::Restart {
-                draft,
-                link,
-                resets,
-            } => session.restart(*draft, *link, resets).await,
+            Rest::Restart { draft, link } => session.restart(*draft, *link).await,
             Rest::KeepLocation {
                 title_id,
                 revision,
                 link,
             } => {
-                let outcome = session.keep_location(title_id, revision, *link).await;
-                session.transition(SessionState::finish_keep_location);
-                outcome
+                session
+                    .keep_location_finished(title_id, revision, *link)
+                    .await
             }
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
             Rest::LookupSearch { request } => session.lookup_search(request, None).await,
@@ -324,7 +239,6 @@ impl Session {
                 deps,
                 network,
                 imports: super::import_order::ImportOrder::default(),
-                resets: AtomicU64::new(0),
                 published: AtomicU64::new(0),
                 deferred_writer_running: AtomicBool::new(false),
                 sources_freed: tokio::sync::Notify::new(),
@@ -362,63 +276,7 @@ impl Session {
         value
     }
 
-    fn sweep_due(&self, state: &SessionState) -> bool {
-        !state.staged.is_empty()
-            && !self.inner.sweeping.load(Ordering::SeqCst)
-            && !state
-                .removable_staged(&self.inner.deps.work.sources_held(), now())
-                .is_empty()
-    }
-
-    fn sweep_staged(&self) {
-        if tokio::runtime::Handle::try_current().is_err()
-            || self.inner.sweeping.swap(true, Ordering::SeqCst)
-        {
-            return;
-        }
-        let session = self.clone();
-        self.inner.deps.tasks.spawn(async move {
-            loop {
-                let jobs = session.transition(|state| {
-                    let held = session.inner.deps.work.sources_held();
-                    let jobs = state.begin_staged_removal(&held, now());
-                    if jobs.is_empty() {
-                        session.inner.sweeping.store(false, Ordering::SeqCst);
-                    }
-                    jobs
-                });
-                if jobs.is_empty() {
-                    return;
-                }
-                for job_id in jobs {
-                    let remove = Arc::clone(&session.inner.deps.remove_staged);
-                    let id = job_id.clone();
-                    let removed = blocking(move || remove(&id)).await;
-                    if let Err(error) = &removed {
-                        log::warn!("Failed to remove staged download job_id={job_id}: {error}");
-                    }
-                    let bound = session.transition(|state| {
-                        let reads = state.finish_staged_removal(&job_id, removed.is_ok(), now());
-                        Bound {
-                            reads,
-                            binding: state.binding,
-                        }
-                    });
-                    session.complete_reads(bound).await;
-                }
-                session.publish();
-            }
-        });
-    }
-
-    fn export_finished(&self, snapshot: &OperationSnapshot) {
-        self.transition(|state| state.staged.finish_export(&snapshot.children));
-    }
-
     fn resolve_plans(&self, tickets: Vec<PlanTicket>) {
-        if tokio::runtime::Handle::try_current().is_err() {
-            return;
-        }
         let session = self.clone();
         self.inner.deps.tasks.spawn(async move {
             for ticket in tickets {
@@ -467,12 +325,20 @@ impl Session {
                 let (sender, reply) = tokio::sync::oneshot::channel();
                 match self.begin_rest(intent) {
                     Rest::Done(outcome) => {
+                        #[expect(
+                            clippy::let_underscore_must_use,
+                            reason = "the host may have dropped its wait; the result also reaches it as an event"
+                        )]
                         let _ = sender.send(outcome);
                     }
                     rest => {
                         let session = self.clone();
                         self.inner.deps.tasks.spawn(async move {
                             let outcome = session.complete(rest).await;
+                            #[expect(
+                                clippy::let_underscore_must_use,
+                                reason = "the host may have dropped its wait; the result also reaches it as an event"
+                            )]
                             let _ = sender.send(outcome);
                         });
                     }
@@ -484,6 +350,10 @@ impl Session {
                     self.transition(|state| state.refuse_submission(SubmitRefusal::Closing));
                 }
                 let (sender, reply) = tokio::sync::oneshot::channel();
+                #[expect(
+                    clippy::let_underscore_must_use,
+                    reason = "the host may have dropped its wait; the result also reaches it as an event"
+                )]
                 let _ = sender.send(SessionOutcome::Rejected {
                     error: AppErrorEnvelope::from(&error),
                 });
@@ -498,73 +368,13 @@ impl Session {
         }
     }
 
-    pub(crate) fn start_from_defaults(
-        &self,
-        defaults: Option<&PinnedDefaults>,
-        caps: Option<EncoderSettingsCapabilities>,
-    ) {
-        self.transition(|state| {
-            state.audio =
-                AudioDefaults::new(defaults.map(|defaults| &defaults.encoder_defaults), caps);
-            if let Some(defaults) = defaults {
-                state.output = OutputPlan::from_defaults(&defaults.output_defaults);
-            }
-        });
-    }
-
-    /// The edit counts a settings Reset compares against, so a default the
-    /// user changed while the Reset ran is kept.
-    pub(crate) fn defaults_checkpoint(&self) -> (u64, u64) {
-        let _state = self.lock();
-        (
-            self.inner.audio_edits.load(Ordering::SeqCst),
-            self.inner.output_edits.load(Ordering::SeqCst),
-        )
-    }
-
-    /// Replaces the defaults and output choices after a settings Reset.
-    /// Loaded titles keep their own audio choices.
-    pub(crate) fn replace_defaults(
-        &self,
-        defaults: &PinnedDefaults,
-        checkpoint: (u64, u64),
-        revision: u64,
-    ) {
-        self.transition(|state| {
-            if revision <= self.inner.settings_applied.load(Ordering::SeqCst) {
-                return;
-            }
-            self.inner
-                .settings_applied
-                .store(revision, Ordering::SeqCst);
-            if self.inner.audio_edits.load(Ordering::SeqCst) == checkpoint.0 {
-                state.audio.replace(&defaults.encoder_defaults);
-            }
-            if self.inner.output_edits.load(Ordering::SeqCst) == checkpoint.1 {
-                state.output = OutputPlan::from_defaults(&defaults.output_defaults);
-            }
-        });
-        self.publish();
-    }
-
     pub(crate) fn snapshot(&self) -> SessionUpdate {
         let mut snapshot = self.lock().update_since(None);
         self.inner.deps.remote.add_ui_parts(&mut snapshot, None);
         snapshot
     }
 
-    pub(crate) fn export_in_preparation(&self) -> Option<crate::work_runtime::OperationId> {
-        self.lock().export_in_preparation().cloned()
-    }
-
-    pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
-        self.lock().waiting_write_paths()
-    }
-
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one arm per intent; each arm is a call"
-    )]
+    #[expect(clippy::too_many_lines, reason = "one arm per intent")]
     fn begin_rest(&self, intent: SessionIntent) -> Rest {
         use SessionIntent as I;
         match intent {
@@ -618,38 +428,8 @@ impl Session {
             I::SetIncludeYear { include_year } => {
                 self.edit_output(|output| output.set_include_year(include_year))
             }
-            I::SetNamingTemplate { template } => {
-                let defaults = self.transition(|state| {
-                    state.output.set_template(template);
-                    self.inner.output_edits.fetch_add(1, Ordering::SeqCst);
-                    state.output.defaults()
-                });
-                let run = self.inner.deps.settings.remember_output_after_pause(
-                    defaults,
-                    Arc::clone(&self.inner.output_edits),
-                    &self.inner.deps.tasks,
-                );
-                let host = self.inner.deps.host.clone();
-                self.inner.deps.tasks.spawn(async move {
-                    let reply = run.finish().await;
-                    host.emit(EngineEvent::Settings(Box::new(reply.snapshot)));
-                });
-                Rest::Done(SessionOutcome::Applied)
-            }
-            I::SetDefaultAudio { edit } => match self.transition(|state| {
-                let defaults = state.audio.edit(edit);
-                if defaults.is_some() {
-                    self.inner.audio_edits.fetch_add(1, Ordering::SeqCst);
-                }
-                defaults
-            }) {
-                Some(defaults) => self.remember_later(SettingsIntent::Remember {
-                    encoder_defaults: Some(defaults),
-                    output_defaults: None,
-                    default_acquisition_lane: None,
-                }),
-                None => Rest::Done(SessionOutcome::Applied),
-            },
+            I::SetNamingTemplate { template } => self.set_naming_template(template),
+            I::SetDefaultAudio { edit } => self.set_default_audio(edit),
             I::SetTitleAudio { title_ids, edit } => {
                 self.transition(|state| state.edit_title_audio(&title_ids, edit));
                 Rest::Done(SessionOutcome::Applied)
@@ -658,28 +438,18 @@ impl Session {
                 self.transition(|state| state.apply_default_audio(&title_ids));
                 Rest::Done(SessionOutcome::Applied)
             }
-            I::Reset => {
-                self.inner.resets.fetch_add(1, Ordering::SeqCst);
-                self.transition(SessionState::reset);
-                self.sources_released();
-                Rest::Done(SessionOutcome::Applied)
-            }
-
-            I::SetField { field, value } => {
-                self.transition(|state| state.set_field(field, value));
-                Rest::Done(SessionOutcome::Applied)
-            }
-            I::SetFieldAction { field, action } => {
-                self.transition(|state| state.set_field_action(field, action));
-                Rest::Done(SessionOutcome::Applied)
-            }
+            I::SetField {
+                binding,
+                field,
+                value,
+            } => self.edit_form(|state| state.set_field(binding, field, value)),
+            I::SetFieldAction {
+                binding,
+                field,
+                action,
+            } => self.edit_form(|state| state.set_field_action(binding, field, action)),
             I::LoadCoverFromFile { path } => self.begin_cover_load(CoverSource::File(path)),
-            I::LoadCoverFromDrop { paths } => {
-                match crate::cover_source::dropped_cover_path(paths) {
-                    Some(path) => self.begin_cover_load(CoverSource::File(path)),
-                    None => Rest::Done(SessionOutcome::Applied),
-                }
-            }
+            I::LoadCoverFromDrop { paths } => self.begin_cover_drop(paths),
             I::LoadCoverFromUrl { url } => self.begin_cover_load(CoverSource::Url(url)),
             I::ClearCover => {
                 self.transition(SessionState::clear_cover);
@@ -696,46 +466,16 @@ impl Session {
                 path: self.transition(|state| state.preview.take_output(&run_id)),
             }),
             I::ChooseCollisionPolicy { review_id, policy } => {
-                match self.transition(|state| state.take_review(review_id)) {
-                    Some(draft) => Rest::Reviewed {
-                        draft: Box::new(draft),
-                        policy,
-                        resets: self.inner.resets.load(Ordering::SeqCst),
-                    },
-                    None => Rest::Done(SessionOutcome::Superseded),
-                }
+                self.begin_collision_policy(review_id, policy)
             }
-            I::CancelCollisionReview { review_id } => {
-                let cancelled = self.transition(|state| state.cancel_review_named(review_id));
-                if cancelled {
-                    self.sources_released();
-                }
-                Rest::Done(if cancelled {
-                    SessionOutcome::Applied
-                } else {
-                    SessionOutcome::Superseded
-                })
-            }
+            I::CancelCollisionReview { review_id } => self.cancel_collision_review(review_id),
             I::RestartTitle { title_id, revision } => self.begin_restart(&title_id, revision),
             I::KeepTitleLocation { title_id, revision } => {
-                match self.transition(|state| state.begin_keep_location(&title_id, revision)) {
-                    Some(link) => Rest::KeepLocation {
-                        title_id,
-                        revision,
-                        link: Box::new(link),
-                    },
-                    None => Rest::Done(SessionOutcome::Superseded),
-                }
+                self.begin_keep_location(title_id, revision)
             }
 
             I::LookupOpen => self.begin_lookup_open(),
-            I::LookupClose => {
-                self.transition(|state| {
-                    state.lookup.request += 1;
-                    state.lookup.open = false;
-                });
-                Rest::Done(SessionOutcome::Applied)
-            }
+            I::LookupClose => self.begin_lookup_close(),
             I::LookupSearch => Rest::LookupSearch {
                 request: self.begin_lookup_action(),
             },
@@ -745,15 +485,19 @@ impl Session {
                 step: QueueStep::Skipped,
             },
             I::LookupSetTitleQuery { value } => {
-                self.edit_lookup(|lookup| lookup.title_query = value)
+                self.edit_lookup_search(|lookup| lookup.title_query = value)
             }
             I::LookupSetAuthorQuery { value } => {
-                self.edit_lookup(|lookup| lookup.author_query = value)
+                self.edit_lookup_search(|lookup| lookup.author_query = value)
             }
-            I::LookupSetSource { source } => self.edit_lookup(|lookup| lookup.source = source),
-            I::LookupSetApplyMode { mode } => self.edit_lookup(|lookup| lookup.apply_mode = mode),
+            I::LookupSetSource { source } => {
+                self.edit_lookup_search(|lookup| lookup.source = source)
+            }
+            I::LookupSetApplyMode { mode } => {
+                self.edit_lookup_setting(|lookup| lookup.apply_mode = mode)
+            }
             I::LookupSetReplaceCover { replace } => {
-                self.edit_lookup(|lookup| lookup.replace_cover = replace)
+                self.edit_lookup_setting(|lookup| lookup.replace_cover = replace)
             }
         }
     }
@@ -763,6 +507,14 @@ impl Session {
         Rest::Done(SessionOutcome::Applied)
     }
 
+    fn edit_form(&self, change: impl FnOnce(&mut SessionState) -> bool) -> Rest {
+        Rest::Done(if self.transition(change) {
+            SessionOutcome::Applied
+        } else {
+            SessionOutcome::EditLost
+        })
+    }
+
     fn begin_select_file(&self, title_id: String, modifiers: SelectionModifiers) -> Rest {
         let bound = self.transition(|state| {
             if state.working_set.index_of(&title_id).is_none() {
@@ -770,20 +522,12 @@ impl Session {
             }
             state.gate()?;
             state.working_set.select_title(&title_id, modifiers);
-            Ok(Some(Bound {
-                reads: state.rebind(),
-                binding: state.binding,
-            }))
+            Ok(Some(Bound::rebind(state)))
         });
         match bound {
             Ok(None) => Rest::Done(SessionOutcome::Applied),
             Ok(Some(bound)) => Rest::Reads(bound),
-            Err(GateBlock::SaveInProgress) => {
-                Rest::Done(SessionOutcome::DraftRejected { message: None })
-            }
-            Err(GateBlock::Invalid(message)) => Rest::Done(SessionOutcome::DraftRejected {
-                message: Some(message),
-            }),
+            Err(block) => Rest::Done(draft_rejected(block)),
         }
     }
 
@@ -791,19 +535,11 @@ impl Session {
         let bound = self.transition(|state| {
             state.gate()?;
             change(&mut state.working_set);
-            Ok(Bound {
-                reads: state.rebind(),
-                binding: state.binding,
-            })
+            Ok(Bound::rebind(state))
         });
         match bound {
             Ok(bound) => Rest::Reads(bound),
-            Err(GateBlock::SaveInProgress) => {
-                Rest::Done(SessionOutcome::DraftRejected { message: None })
-            }
-            Err(GateBlock::Invalid(message)) => Rest::Done(SessionOutcome::DraftRejected {
-                message: Some(message),
-            }),
+            Err(block) => Rest::Done(draft_rejected(block)),
         }
     }
 
@@ -818,1221 +554,10 @@ impl Session {
         self.transition(|state| state.finish_reads(bound.binding, reads));
     }
 
-    fn import_failed(&self, notice: InputNotice) -> SessionOutcome {
-        self.transition(|state| state.working_set.set_notice(notice));
-        SessionOutcome::Applied
-    }
-
-    fn begin_import(&self, paths: Vec<String>) -> Rest {
-        if self.lock().working_set.order_locked() {
-            return Rest::Done(self.import_failed(InputNotice::OrderLocked));
-        }
-        Rest::Import {
-            paths,
-            resets: self.inner.resets.load(Ordering::SeqCst),
-            turn: self.inner.imports.take(),
-        }
-    }
-
-    pub(crate) fn import_opened(&self, paths: Vec<PathBuf>) -> Result<()> {
-        let paths = paths
-            .into_iter()
-            .map(|path| path.to_string_lossy().into_owned())
-            .collect();
-        self.inner.deps.tasks.admit(|| {
-            let rest = Rest::Import {
-                paths,
-                resets: self.inner.resets.load(Ordering::SeqCst),
-                turn: self.inner.imports.take(),
-            };
-            let session = self.clone();
-            self.inner.deps.tasks.spawn(async move {
-                session.complete(rest).await;
-            });
-        })
-    }
-
-    async fn import(
-        &self,
-        paths: Vec<String>,
-        resets: u64,
-        turn: super::import_order::Turn,
-    ) -> SessionOutcome {
-        let _in_order = self.inner.imports.wait(turn).await;
-        let superseded = || self.inner.resets.load(Ordering::SeqCst) != resets;
-        let failed = |notice| {
-            if superseded() {
-                SessionOutcome::Superseded
-            } else {
-                self.import_failed(notice)
-            }
-        };
-
-        let inputs: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
-        let discovery =
-            match blocking(move || Ok(audio::discover_audio_import_paths(&inputs))).await {
-                Ok(discovery) => discovery,
-                Err(error) => {
-                    return failed(InputNotice::AnalysisFailed {
-                        error: AppErrorEnvelope::from(&error),
-                    })
-                }
-            };
-        let discovered = discovery.paths;
-        let skipped: Vec<_> = discovery
-            .skipped
-            .iter()
-            .map(|(path, error)| audio::SkippedImportPath::new(path, error))
-            .collect();
-        if discovered.is_empty() {
-            return failed(if skipped.is_empty() {
-                InputNotice::NoSupportedFiles {
-                    formats_text: audio::supported_audio_import_metadata().formats_text,
-                }
-            } else {
-                InputNotice::SkippedPaths { skipped }
-            });
-        }
-        let aac_decoder = self.inner.deps.settings.aac_decoder();
-        let analyzed =
-            match blocking(move || audio::get_file_list_info(&discovered, aac_decoder)).await {
-                Ok(analyzed) => analyzed,
-                Err(error) => {
-                    return failed(InputNotice::AnalysisFailed {
-                        error: AppErrorEnvelope::from(&error),
-                    })
-                }
-            };
-
-        if superseded() {
-            return SessionOutcome::Superseded;
-        }
-        let Some(bound) = self.list_imported(analyzed.files, skipped, resets).await else {
-            return SessionOutcome::Superseded;
-        };
-        self.complete_reads(bound).await;
-        SessionOutcome::Applied
-    }
-
-    /// Analysis can overlap a submission: wait before changing its locked list.
-    async fn list_imported(
-        &self,
-        mut files: Vec<AudioFile>,
-        skipped: Vec<audio::SkippedImportPath>,
-        resets: u64,
-    ) -> Option<Bound> {
-        loop {
-            let unlocked = self.inner.list_unlocked.notified();
-            tokio::pin!(unlocked);
-            unlocked.as_mut().enable();
-            let attempt = self.transition(|state| {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    return Some(None);
-                }
-                if state.working_set.order_locked() {
-                    return None;
-                }
-                let default_audio = state.audio.request();
-                state
-                    .working_set
-                    .append_analyzed(std::mem::take(&mut files), &default_audio);
-                if !skipped.is_empty() {
-                    state.working_set.set_notice(InputNotice::SkippedPaths {
-                        skipped: skipped.clone(),
-                    });
-                }
-                Some(Some(Bound {
-                    reads: state.rebind(),
-                    binding: state.binding,
-                }))
-            });
-            if let Some(bound) = attempt {
-                return bound;
-            }
-            unlocked.await;
-        }
-    }
-
-    async fn import_acquired(&self, job: AcquisitionJob) -> AcquisitionHandoff {
-        let handoff = self.import_acquired_files(&job).await;
-        if matches!(handoff, AcquisitionHandoff::Removed { .. }) {
-            let paths = job
-                .materialized_files
-                .iter()
-                .map(|file| &file.path)
-                .chain(job.supplemental_assets.iter().map(|asset| &asset.path))
-                .map(|path| std::fs::canonicalize(path).unwrap_or_else(|_| path.clone()))
-                .collect();
-            self.transition(|state| state.staged.register_unimported(&job.job_id, paths));
-        }
-        handoff
-    }
-
-    async fn import_acquired_files(&self, job: &AcquisitionJob) -> AcquisitionHandoff {
-        let resets = self.inner.resets.load(Ordering::SeqCst);
-        let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
-        let removed = |reason| AcquisitionHandoff::Removed { reason };
-        if self.inner.resets.load(Ordering::SeqCst) != resets {
-            return removed(HandoffRefusal::NothingAdded);
-        }
-        let paths: Vec<PathBuf> = job
-            .materialized_files
-            .iter()
-            .map(|file| file.path.clone())
-            .collect();
-        let aac_decoder = self.inner.deps.settings.aac_decoder();
-        let analyzed = blocking(move || {
-            let discovery = audio::discover_audio_import_paths(&paths);
-            if let Some((_, error)) = discovery.skipped.into_iter().next() {
-                return Err(error);
-            }
-            audio::get_file_list_info(&discovery.paths, aac_decoder)
-        })
-        .await;
-        let analyzed = match analyzed {
-            Ok(analyzed) => analyzed.files,
-            Err(error) => {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    return removed(HandoffRefusal::NothingAdded);
-                }
-                return removed(HandoffRefusal::ImportFailed {
-                    error: AppErrorEnvelope::from(&error),
-                });
-            }
-        };
-        let titles = staged_titles(job);
-        let listed = loop {
-            let unlocked = self.inner.list_unlocked.notified();
-            tokio::pin!(unlocked);
-            unlocked.as_mut().enable();
-            if self.inner.resets.load(Ordering::SeqCst) != resets {
-                return removed(HandoffRefusal::NothingAdded);
-            }
-            let attempt = self.transition(|state| {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    return Some(Err(HandoffRefusal::NothingAdded));
-                }
-                if state.working_set.order_locked() {
-                    return None;
-                }
-                Some(list_acquired(state, job, analyzed.clone(), &titles))
-            });
-            match attempt {
-                Some(listed) => break listed,
-                None => unlocked.await,
-            }
-        };
-        match listed {
-            Ok((bound, count)) => {
-                self.complete_reads(bound).await;
-                self.publish();
-                if self.inner.resets.load(Ordering::SeqCst) == resets {
-                    AcquisitionHandoff::Imported { count }
-                } else {
-                    removed(HandoffRefusal::NothingAdded)
-                }
-            }
-            Err(reason) => {
-                self.publish();
-                removed(reason)
-            }
-        }
-    }
-
-    pub(crate) fn handoff(&self) -> Handoff {
-        let session = Arc::downgrade(&self.inner);
-        Arc::new(move |job| {
-            let session = session.upgrade().map(|inner| Session { inner });
-            Box::pin(async move {
-                match session {
-                    Some(session) => session.import_acquired(job).await,
-                    None => AcquisitionHandoff::Removed {
-                        reason: HandoffRefusal::NothingAdded,
-                    },
-                }
-            })
-        })
-    }
-
-    fn begin_submission(&self, preview: bool) -> Rest {
-        let draft = self.transition(|state| state.begin_submission(preview));
-        match draft {
-            Some(draft) => Rest::Submit {
-                draft: Box::new(self.capture_decoder(draft)),
-                resets: self.inner.resets.load(Ordering::SeqCst),
-            },
-            None => Rest::Done(SessionOutcome::Applied),
-        }
-    }
-
-    fn capture_decoder(&self, mut draft: Draft) -> Draft {
-        draft.payload.aac_decoder = Some(self.inner.deps.settings.aac_decoder());
-        draft
-    }
-
-    async fn submit(&self, draft: Draft, resets: u64) -> SessionOutcome {
-        self.publish();
-        let checking = draft.clone();
-        let plan = blocking(move || {
-            inspect_processing_plan(
-                &checking.payload,
-                checking.metadata.as_ref(),
-                checking.preview,
-            )
-        })
-        .await;
-        let plan = match plan {
-            Ok(plan) => plan,
-            Err(error) => return self.end_submission(&draft, failed(&error)),
-        };
-        if draft
-            .preview_id()
-            .is_some_and(|id| self.lock().preview.cancelled(id))
-        {
-            return self.end_submission(&draft, SubmissionStatus::Cancelled);
-        }
-        let public = plan.plan.to_public();
-        let collided: Vec<_> = public
-            .outputs
-            .iter()
-            .filter(|output| output.collision.is_some())
-            .cloned()
-            .collect();
-        let unreviewed = draft.reviewed.as_ref().is_some_and(|reviewed| {
-            crate::session::submission::collisions(&collided)
-                .iter()
-                .any(|collision| !reviewed.contains(collision))
-        });
-        match plan_verdict(&public) {
-            PlanVerdict::Blocked(message) => {
-                self.end_submission(&draft, SubmissionStatus::Blocked { message })
-            }
-            PlanVerdict::Review(outputs) if draft.payload.collision_policy.is_none() => {
-                self.hold_for_review(draft, outputs, resets)
-            }
-            _ if unreviewed => self.hold_for_review(draft, collided, resets),
-            PlanVerdict::Review(_) | PlanVerdict::Proceed => {
-                self.accept(
-                    draft.approved(public.collision_policy, public.plan_signature),
-                    plan,
-                )
-                .await
-            }
-        }
-    }
-
-    fn hold_for_review(
-        &self,
-        draft: Draft,
-        outputs: Vec<crate::output_artifact::PlannedOutput>,
-        resets: u64,
-    ) -> SessionOutcome {
-        let closing_draft = draft.clone();
-        match self.inner.deps.tasks.admit(|| {
-            self.transition(|state| {
-                if self.inner.resets.load(Ordering::SeqCst) != resets {
-                    state.finish_submission(&draft, SubmissionStatus::Cancelled);
-                    return true;
-                }
-                state.await_review(draft, outputs);
-                false
-            })
-        }) {
-            Ok(true) => {
-                self.sources_released();
-                SessionOutcome::Applied
-            }
-            Ok(false) => SessionOutcome::Applied,
-            Err(_) => {
-                self.transition(|state| state.finish_submission(&closing_draft, closing()));
-                self.sources_released();
-                SessionOutcome::Applied
-            }
-        }
-    }
-
-    async fn accept(
-        &self,
-        draft: Draft,
-        inspected: crate::processing::plan::InspectedProcessingPlan,
-    ) -> SessionOutcome {
-        let deps = &self.inner.deps;
-        if draft.preview {
-            return self.run_preview(draft, inspected).await;
-        }
-        let submitted = deps
-            .work
-            .submit_processing_operation(
-                deps.host.clone(),
-                deps.jobs.clone(),
-                deps.workspace_root.clone(),
-                SubmitProcessingOperationRequest {
-                    operation_id: draft.operation_id.clone(),
-                    payload: draft.payload.clone(),
-                    metadata: draft.metadata.clone(),
-                    title: draft.title.clone(),
-                },
-                Some(Box::new({
-                    let session = self.clone();
-                    move |snapshot| session.export_finished(&snapshot)
-                })),
-                inspected,
-            )
-            .await;
-        let status = match submitted {
-            Ok(accepted) => {
-                self.transition(|state| {
-                    state.link_exports(&draft, &accepted.operation_id, &accepted.titles);
-                });
-                let linked: Vec<String> = draft
-                    .payload
-                    .input_ids
-                    .iter()
-                    .flatten()
-                    .flatten()
-                    .cloned()
-                    .collect();
-                self.catch_up_outputs(&linked).await;
-                SubmissionStatus::Submitted {
-                    operation_id: accepted.operation_id,
-                    title: draft.title.clone(),
-                }
-            }
-            Err(AppError::Closing) => closing(),
-            Err(error) => failed(&error),
-        };
-        self.end_submission(&draft, status)
-    }
-
-    async fn run_preview(
-        &self,
-        draft: Draft,
-        inspected: crate::processing::plan::InspectedProcessingPlan,
-    ) -> SessionOutcome {
-        let deps = &self.inner.deps;
-        let _active_run = deps.jobs.hold_run();
-        let cancels: Vec<Arc<AtomicBool>> = (0..draft.payload.input_files.len())
-            .map(|_| Arc::default())
-            .collect();
-        let id = draft.operation_id.clone();
-        *self.preview_cancels() = cancels.clone();
-        if let Some(preview) = self.lock().preview.snapshot() {
-            for child in &preview.operation.children {
-                if child.cancel_requested {
-                    if let Some(flag) = child.input_index.and_then(|index| cancels.get(index)) {
-                        flag.store(true, Ordering::SeqCst);
-                    }
-                }
-            }
-        }
-        let artwork = super::preview::PreviewArtwork::from_plan(&inspected);
-        if self
-            .inner
-            .deps
-            .tasks
-            .admit(|| {
-                self.transition(|state| {
-                    state.preview.artwork = artwork;
-                    state.start_preview(&id);
-                });
-            })
-            .is_err()
-        {
-            return self.end_submission(&draft, closing());
-        }
-        self.publish();
-        let result = process_inspected_with_options(
-            &_active_run,
-            deps.host.clone(),
-            deps.jobs.clone(),
-            deps.workspace_root.clone(),
-            draft.payload.clone(),
-            inspected,
-            ProcessingRunOptions {
-                operation_id: Some(id.to_string()),
-                title_cancels: cancels,
-                progress_listener: Some(Arc::new({
-                    let session = self.clone();
-                    let id = id.clone();
-                    move |event| {
-                        session.transition(|state| state.preview.progress(&id, event));
-                        session.publish();
-                    }
-                })),
-                ..ProcessingRunOptions::default()
-            },
-        )
-        .await;
-        self.preview_cancels().clear();
-        let status = match result {
-            Ok(result) => SubmissionStatus::PreviewFinished { result },
-            Err(error) => failed(&error),
-        };
-        self.end_submission(&draft, status)
-    }
-
-    fn preview_cancels(&self) -> std::sync::MutexGuard<'_, Vec<Arc<AtomicBool>>> {
-        self.inner
-            .preview_cancels
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-    }
-
-    fn cancel_preview_run(&self, run_id: &str, child: Option<&str>) -> SessionOutcome {
-        let flags = self.preview_cancels();
-        let indexes = self.transition(|state| {
-            let indexes = state.preview.cancel(run_id, child)?;
-            if child.is_none() && state.preview.matches(run_id) {
-                state.cancel_preview_review();
-            }
-            Ok::<_, AppError>(indexes)
-        });
-        match indexes {
-            Ok(indexes) => {
-                for index in indexes {
-                    if let Some(flag) = flags.get(index) {
-                        flag.store(true, Ordering::SeqCst);
-                    }
-                }
-                self.sources_released();
-                SessionOutcome::Applied
-            }
-            Err(error) => SessionOutcome::Rejected {
-                error: (&error).into(),
-            },
-        }
-    }
-
-    pub(crate) fn cancel_preview(&self) {
-        let id = self
-            .lock()
-            .preview
-            .snapshot()
-            .map(|preview| preview.operation.operation_id);
-        if let Some(id) = id {
-            self.cancel_preview_run(id.as_str(), None);
-        }
-    }
-
-    pub(crate) fn cancel_review(&self) {
-        self.transition(SessionState::cancel_review);
-        self.sources_released();
-    }
-
     fn sources_released(&self) {
         self.inner.sources_freed.notify_one();
         self.inner.list_unlocked.notify_waiters();
     }
-
-    /// Ends a submission; its sources stay reserved until WorkRuntime has
-    /// registered them.
-    fn end_submission(&self, draft: &Draft, status: SubmissionStatus) -> SessionOutcome {
-        self.transition(|state| state.finish_submission(draft, status));
-        self.sources_released();
-        SessionOutcome::Applied
-    }
-
-    fn edit_output(&self, change: impl FnOnce(&mut OutputPlan)) -> Rest {
-        let defaults = self.transition(|state| {
-            change(&mut state.output);
-            self.inner.output_edits.fetch_add(1, Ordering::SeqCst);
-            state.output.defaults()
-        });
-        self.remember_later(remember_output(defaults))
-    }
-
-    fn remember_later(&self, intent: SettingsIntent) -> Rest {
-        Rest::Remember(
-            self.inner
-                .deps
-                .settings
-                .begin(intent, &self.inner.deps.tasks),
-        )
-    }
-
-    fn begin_cover_load(&self, source: CoverSource) -> Rest {
-        let from_url = matches!(source, CoverSource::Url(_));
-        if let CoverSource::Url(url) = &source {
-            if url.trim().is_empty() {
-                self.transition(SessionState::cover_url_required);
-                return Rest::Done(SessionOutcome::CoverLoadFailed);
-            }
-        }
-        let started = self.transition(|state| {
-            let request = state.begin_cover_request(from_url);
-            (state.epoch, state.binding, request)
-        });
-        Rest::CoverLoad { source, started }
-    }
-
-    async fn load_cover(&self, source: CoverSource, started: (u64, u64, u64)) -> SessionOutcome {
-        let from_url = matches!(source, CoverSource::Url(_));
-        if from_url {
-            self.publish();
-        }
-        let result = match source {
-            CoverSource::File(path) => crate::cover_source::load_cover_art_file(path).await,
-            CoverSource::Url(url) => self
-                .inner
-                .network
-                .covers
-                .remote_full(url.trim())
-                .await
-                .map(|cover| cover.to_vec()),
-        };
-        self.transition(|state| {
-            if (state.epoch, state.binding, state.cover_request()) != started {
-                return SessionOutcome::Superseded;
-            }
-            let loaded = result.is_ok();
-            state.cover_load_finished(from_url, result);
-            if loaded {
-                SessionOutcome::Applied
-            } else {
-                SessionOutcome::CoverLoadFailed
-            }
-        })
-    }
-
-    async fn keep_location(
-        &self,
-        title_id: String,
-        revision: u64,
-        link: ExportLink,
-    ) -> SessionOutcome {
-        let published = match link.title.keep_location(revision) {
-            Ok(published) => published,
-            Err(error) => {
-                return SessionOutcome::Rejected {
-                    error: AppErrorEnvelope::from(&error),
-                }
-            }
-        };
-        if published {
-            let title = Arc::clone(&link.title);
-            if let Err(error) = blocking(move || {
-                title.apply_published();
-                Ok(())
-            })
-            .await
-            {
-                return SessionOutcome::Rejected {
-                    error: AppErrorEnvelope::from(&error),
-                };
-            }
-        }
-        self.transition(|state| state.kept_location(&title_id, revision));
-        match link.title.update_state().map(|update| update.status) {
-            Some(crate::processing::OutputUpdateStatus::Failed { message }) => {
-                SessionOutcome::Rejected {
-                    error: AppErrorEnvelope::from(&AppError::General(message)),
-                }
-            }
-            _ => SessionOutcome::Applied,
-        }
-    }
-
-    fn begin_save(&self) -> Rest {
-        let staged = &self.inner.deps.temporary_root;
-        let staged_canonical = std::fs::canonicalize(staged).ok();
-        let is_temporary = |path: &Path| {
-            path.starts_with(staged)
-                || staged_canonical
-                    .as_ref()
-                    .is_some_and(|root| path.starts_with(root))
-        };
-        let plan = self.transition(|state| {
-            if state.working_set.files().is_empty() {
-                return None;
-            }
-            let in_use = self.inner.deps.work.sources_in_use();
-            let plan = state.begin_save(&in_use, is_temporary)?;
-            Some((state.epoch, plan))
-        });
-        match plan {
-            Some((epoch, plan)) => Rest::Save { epoch, plan },
-            None => Rest::Done(SessionOutcome::Applied),
-        }
-    }
-
-    async fn save(&self, epoch: u64, plan: SavePlan) -> SessionOutcome {
-        if plan.waiting > 0 {
-            self.ensure_deferred_writer();
-        }
-        let outputs = self.update_outputs(plan.outputs).await;
-
-        let mut saved = Vec::new();
-        let mut status = MetadataStatus::SaveComplete {
-            succeeded: 0,
-            failed: 0,
-            cancelled: 0,
-            waiting: plan.waiting,
-            held: plan.held,
-            outputs,
-        };
-        let nothing = plan.immediate.is_empty()
-            && plan.waiting == 0
-            && plan.held == 0
-            && outputs == OutputEdits::default();
-        if nothing {
-            status = if plan.grouped {
-                MetadataStatus::GroupedEditsKept
-            } else {
-                MetadataStatus::NoPendingChanges
-            };
-        }
-        let written_paths: Vec<PathBuf> = plan
-            .immediate
-            .iter()
-            .map(|item| item.path.clone())
-            .collect();
-        if !plan.immediate.is_empty() {
-            self.publish();
-            match self.write(&plan.immediate).await {
-                Ok(written) => {
-                    status = MetadataStatus::SaveComplete {
-                        succeeded: written.succeeded,
-                        failed: written.failed,
-                        cancelled: written.cancelled,
-                        waiting: plan.waiting,
-                        held: plan.held,
-                        outputs,
-                    };
-                    saved = plan
-                        .immediate
-                        .into_iter()
-                        .zip(written.items)
-                        .filter_map(|(item, written)| written.then_some(item))
-                        .collect();
-                }
-                Err(AppError::Cancellation(_)) => status = MetadataStatus::SaveCancelled,
-                Err(error) => {
-                    log::error!("Failed to save metadata: {error}");
-                    status = MetadataStatus::SaveFailed {
-                        error: AppErrorEnvelope::from(&error),
-                    };
-                }
-            }
-        }
-        self.transition(|state| state.finish_save(epoch, &written_paths, &saved, status));
-        self.sources_released();
-        SessionOutcome::Applied
-    }
-
-    async fn update_outputs(&self, edits: Vec<OutputEdit>) -> OutputEdits {
-        if edits.is_empty() {
-            return OutputEdits::default();
-        }
-        let mut replies = Vec::with_capacity(edits.len());
-        for edit in edits {
-            let mut reply = edit
-                .title
-                .update(edit.revision, &edit.intent)
-                .map_err(|error| error.to_string());
-            if matches!(
-                reply,
-                Ok(UpdateReply::Accepted {
-                    published: true,
-                    ..
-                })
-            ) {
-                let title = Arc::clone(&edit.title);
-                let _ = blocking(move || {
-                    title.apply_published();
-                    Ok(())
-                })
-                .await;
-                if let Some(OutputUpdate {
-                    status: OutputUpdateStatus::Failed { message },
-                    ..
-                }) = edit.title.update_state()
-                {
-                    reply = Err(message);
-                }
-            }
-            replies.push((edit, reply));
-        }
-        self.transition(|state| state.record_output_edits(replies))
-    }
-
-    /// Brings outputs linked by a just-accepted export up to the session's
-    /// edits: a Save made while the submission was being prepared did not
-    /// reach the export.
-    async fn catch_up_outputs(&self, title_ids: &[String]) {
-        let edits = self.transition(|state| {
-            let tags = &state.tags;
-            state
-                .exports
-                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
-                .into_iter()
-                .filter(|edit| title_ids.contains(&edit.title_id))
-                .collect::<Vec<_>>()
-        });
-        self.update_outputs(edits).await;
-    }
-
-    fn begin_restart(&self, title_id: &str, revision: u64) -> Rest {
-        let started = self.transition(|state| state.begin_restart(title_id, revision));
-        match started {
-            Some((draft, link)) => Rest::Restart {
-                draft: Box::new(self.capture_decoder(draft)),
-                link: Box::new(link),
-                resets: self.inner.resets.load(Ordering::SeqCst),
-            },
-            None => Rest::Done(SessionOutcome::Applied),
-        }
-    }
-
-    async fn restart(&self, draft: Draft, link: ExportLink, resets: u64) -> SessionOutcome {
-        self.publish();
-        let deps = &self.inner.deps;
-        let published = deps
-            .work
-            .stop_title(&deps.host, &link.operation_id, link.index, &link.title)
-            .await;
-        if !published {
-            return self.submit(draft, resets).await;
-        }
-        let edits = self.transition(|state| {
-            let tags = &state.tags;
-            state
-                .exports
-                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
-                .into_iter()
-                .filter(|edit| edit.title_id == draft_title_id(&draft))
-                .collect()
-        });
-        let outputs = self.update_outputs(edits).await;
-        self.end_submission(&draft, SubmissionStatus::FinishedBeforeRestart { outputs })
-    }
-
-    async fn write(&self, items: &[SaveItem]) -> Result<Written> {
-        let deps = &self.inner.deps;
-        let requests = items
-            .iter()
-            .map(|item| MetadataSaveRequest {
-                file_path: item.path.to_string_lossy().into_owned(),
-                metadata_patch: item.patch.clone(),
-            })
-            .collect();
-        let result = save_metadata_batch(&deps.host, &deps.work, &deps.jobs, requests).await?;
-        let mut written = Written {
-            items: vec![false; items.len()],
-            succeeded: result.summary.succeeded,
-            failed: result.summary.failed,
-            cancelled: result.summary.cancelled,
-        };
-        let mut state = self.lock();
-        for entry in result.results {
-            if let Some(slot) = written.items.get_mut(entry.input_index) {
-                *slot = entry.status == MetadataSaveResultStatus::Success;
-            }
-            if let (Some(item), Some(rewrite)) = (items.get(entry.input_index), &entry.rewrite) {
-                state.working_set.note_tag_write(&item.path, rewrite);
-            }
-        }
-        Ok(written)
-    }
-
-    fn ensure_deferred_writer(&self) {
-        if self
-            .inner
-            .deferred_writer_running
-            .swap(true, Ordering::SeqCst)
-        {
-            return;
-        }
-        let session = self.clone();
-        self.inner
-            .deps
-            .tasks
-            .spawn(async move { session.write_deferred_when_free().await });
-    }
-
-    async fn write_deferred_when_free(&self) {
-        let mut changes = self.inner.deps.work.subscribe_changes();
-        loop {
-            changes.borrow_and_update();
-            let ready = {
-                let mut state = self.lock();
-                let in_use = self.inner.deps.work.sources_in_use();
-                if !state.has_waiting_writes() {
-                    self.inner
-                        .deferred_writer_running
-                        .store(false, Ordering::SeqCst);
-                    return;
-                }
-                state.take_ready_deferred(&in_use)
-            };
-            if ready.is_empty() {
-                tokio::select! {
-                    changed = changes.changed() => {
-                        if changed.is_err() {
-                            return;
-                        }
-                    }
-                    () = self.inner.sources_freed.notified() => {}
-                }
-                continue;
-            }
-            let written = self.write(&ready).await;
-            let results: Vec<(SaveItem, bool)> = ready
-                .into_iter()
-                .enumerate()
-                .map(|(index, item)| {
-                    let ok = written
-                        .as_ref()
-                        .is_ok_and(|written| written.items.get(index) == Some(&true));
-                    (item, ok)
-                })
-                .collect();
-            self.transition(|state| state.finish_deferred(&results));
-            self.publish();
-        }
-    }
-
-    fn edit_lookup(&self, change: impl FnOnce(&mut lookup::LookupState)) -> Rest {
-        self.transition(|state| {
-            change(&mut state.lookup);
-            state.lookup.request += 1;
-        });
-        Rest::Done(SessionOutcome::Applied)
-    }
-
-    fn begin_lookup_action(&self) -> u64 {
-        let mut state = self.lock();
-        state.lookup.request += 1;
-        state.lookup.request
-    }
-
-    fn lookup_step<T>(
-        &self,
-        request: u64,
-        change: impl FnOnce(&mut SessionState) -> T,
-    ) -> Option<T> {
-        self.transition(|state| (state.lookup.request == request).then(|| change(state)))
-    }
-
-    fn begin_lookup_open(&self) -> Rest {
-        let request = self.begin_lookup_action();
-        let has_titles = self.transition(|state| {
-            let queue: Vec<QueuedTitle> = state
-                .working_set
-                .selected_files()
-                .into_iter()
-                .filter(|file| file.is_valid)
-                .map(|file| QueuedTitle {
-                    title_id: file.input_id.clone(),
-                    path: file.path.clone(),
-                })
-                .collect();
-            let first = queue
-                .first()
-                .and_then(|title| state.known_tags(&title.path));
-            let has_titles = !queue.is_empty();
-            state.lookup.open(queue, first.as_ref());
-            has_titles
-        });
-        if has_titles {
-            Rest::LookupSearch { request }
-        } else {
-            Rest::Done(SessionOutcome::Applied)
-        }
-    }
-
-    async fn lookup_search(&self, request: u64, after: Option<QueueStep>) -> SessionOutcome {
-        let search = self.lookup_step(request, |state| {
-            let query = state.lookup.search_query();
-            if query.is_empty() {
-                state.lookup.status = Some(LookupStatus::QueryRequired);
-                return None;
-            }
-            state.lookup.status = Some(LookupStatus::Searching);
-            Some((query, state.lookup.source.sources()))
-        });
-        let Some(search) = search else {
-            return SessionOutcome::Superseded;
-        };
-        let Some((query, sources)) = search else {
-            return SessionOutcome::Applied;
-        };
-        self.publish();
-        let started = std::time::Instant::now();
-        let response = (self.inner.network.search)(query, sources).await;
-        let applied = self.lookup_step(request, |state| match response {
-            Ok(response) => {
-                log_lookup_found(&response, started.elapsed());
-                state.lookup.status = Some(LookupStatus::Found {
-                    count: response.results.len(),
-                    partial: !response.diagnostics.is_empty(),
-                    after,
-                });
-                state.lookup.results = response.results;
-                state.lookup.has_searched = true;
-            }
-            Err(error) => {
-                log::error!("Metadata lookup failed: {error}");
-                state.lookup.reset_results();
-                state.lookup.status = Some(LookupStatus::SearchFailed { after });
-            }
-        });
-        outcome_of(applied)
-    }
-
-    async fn select_title(
-        &self,
-        title: &QueuedTitle,
-        request: u64,
-        expected_binding: u64,
-    ) -> std::result::Result<bool, SessionOutcome> {
-        let bound = self.transition(|state| {
-            if state.lookup.request != request || state.binding != expected_binding {
-                return Err(SessionOutcome::Superseded);
-            }
-            Ok((|| {
-                let index = state.working_set.index_of(&title.title_id)?;
-                if state.working_set.files()[index].path != title.path {
-                    return None;
-                }
-                state.gate().ok()?;
-                state
-                    .working_set
-                    .select_file(index, SelectionModifiers::default());
-                Some(Bound {
-                    reads: state.rebind(),
-                    binding: state.binding,
-                })
-            })())
-        })?;
-        let Some(bound) = bound else {
-            return Ok(false);
-        };
-        let binding = bound.binding;
-        self.complete_reads(bound).await;
-        if self.lock().binding != binding {
-            return Err(SessionOutcome::Superseded);
-        }
-        Ok(true)
-    }
-
-    fn begin_lookup_apply(&self, index: usize, revision: u64) -> Rest {
-        let chosen = self.transition(|state| {
-            if state.lookup_revision() != revision {
-                return None;
-            }
-            let result = state.lookup.results.get(index)?.clone();
-            let Some(title) = state.lookup.current().cloned() else {
-                state.lookup.status = Some(LookupStatus::NoTitleQueued);
-                return None;
-            };
-            Some(ChosenResult {
-                result,
-                title,
-                replace_cover: state.lookup.replace_cover,
-                mode: state.lookup.apply_mode,
-                binding: state.binding,
-            })
-        });
-        match chosen {
-            Some(chosen) => Rest::LookupApply {
-                request: self.begin_lookup_action(),
-                chosen: Box::new(chosen),
-            },
-            None => Rest::Done(SessionOutcome::Applied),
-        }
-    }
-
-    async fn lookup_apply(&self, request: u64, chosen: ChosenResult) -> SessionOutcome {
-        let ChosenResult {
-            result,
-            title,
-            replace_cover,
-            mode,
-            binding,
-        } = chosen;
-
-        let mut cover = None;
-        let mut cover_failed = false;
-        if let Some(url) = result.cover_url.clone().filter(|_| replace_cover) {
-            match self
-                .inner
-                .network
-                .covers
-                .remote_full(&url)
-                .await
-                .map(|cover| cover.to_vec())
-            {
-                Ok(bytes) => cover = Some(bytes),
-                Err(error) => {
-                    log::warn!("Failed to load cover art from lookup: {error}");
-                    cover_failed = true;
-                }
-            }
-        }
-        let selected = match self.select_title(&title, request, binding).await {
-            Ok(selected) => selected,
-            Err(outcome) => return outcome,
-        };
-        let metadata = lookup::result_metadata(&result);
-        let applied = self.lookup_step(request, |state| {
-            let applied = selected && state.apply_lookup(&title, &metadata, cover);
-            state.lookup.status = Some(if applied {
-                LookupStatus::Applied { cover_failed }
-            } else {
-                LookupStatus::ApplyRejected
-            });
-            applied
-        });
-        match applied {
-            None => SessionOutcome::Superseded,
-            Some(true) if mode == LookupApplyMode::Queue => {
-                let step = if cover_failed {
-                    QueueStep::AppliedWithoutCover
-                } else {
-                    QueueStep::Applied
-                };
-                self.lookup_advance(request, step).await
-            }
-            Some(_) => SessionOutcome::Applied,
-        }
-    }
-
-    async fn lookup_advance(&self, request: u64, step: QueueStep) -> SessionOutcome {
-        let next = self.lookup_step(request, |state| {
-            let lookup = &mut state.lookup;
-            if lookup.queue.is_empty() {
-                return None;
-            }
-            let next = lookup.index + 1;
-            let Some(title) = lookup.queue.get(next).cloned() else {
-                lookup.status = Some(LookupStatus::QueueComplete {
-                    cover_failed: step == QueueStep::AppliedWithoutCover,
-                });
-                return None;
-            };
-            Some((next, title, state.binding))
-        });
-        let Some(next) = next else {
-            return SessionOutcome::Superseded;
-        };
-        let Some((next, title, binding)) = next else {
-            return SessionOutcome::Applied;
-        };
-
-        let selected = match self.select_title(&title, request, binding).await {
-            Ok(selected) => selected,
-            Err(outcome) => return outcome,
-        };
-        let moved = self.lookup_step(request, |state| {
-            if !selected {
-                state.lookup.status = Some(LookupStatus::NextTitleRejected);
-                return false;
-            }
-            let known = state.known_tags(&title.path);
-            state.lookup.index = next;
-            state.lookup.title_query = lookup::title_query(known.as_ref(), &title.path);
-            state.lookup.author_query = lookup::author_query(known.as_ref());
-            state.lookup.reset_results();
-            true
-        });
-        match moved {
-            None => SessionOutcome::Superseded,
-            Some(false) => SessionOutcome::Applied,
-            Some(true) => self.lookup_search(request, Some(step)).await,
-        }
-    }
-}
-
-fn outcome_of(applied: Option<()>) -> SessionOutcome {
-    match applied {
-        Some(()) => SessionOutcome::Applied,
-        None => SessionOutcome::Superseded,
-    }
-}
-
-enum CoverSource {
-    File(String),
-    Url(String),
-}
-
-struct Written {
-    items: Vec<bool>,
-    succeeded: usize,
-    failed: usize,
-    cancelled: usize,
-}
-
-fn list_acquired(
-    state: &mut SessionState,
-    job: &AcquisitionJob,
-    analyzed: Vec<crate::audio::AudioFile>,
-    titles: &[(String, PathBuf)],
-) -> std::result::Result<(Bound, usize), HandoffRefusal> {
-    let before = state.working_set.source_paths();
-    let default_audio = state.audio.request();
-    state.working_set.append_analyzed(analyzed, &default_audio);
-    let mut count = 0;
-    for file in state.working_set.files().to_vec() {
-        if before.contains(&file.path) {
-            continue;
-        }
-        let Some((title_id, _)) = titles.iter().find(|(_, path)| *path == file.path) else {
-            continue;
-        };
-        let assets = job
-            .supplemental_assets
-            .iter()
-            .filter(|asset| &asset.title_id == title_id)
-            .map(|asset| SupplementalProcessingAsset {
-                asset_id: asset.asset_id.clone(),
-                input_id: file.input_id.clone(),
-                title_id: asset.title_id.clone(),
-                path: asset.path.clone(),
-                file_name: asset.file_name.clone(),
-                size_bytes: asset.size_bytes,
-                sha256: asset.sha256.clone(),
-            })
-            .collect();
-        state
-            .staged
-            .register(&job.job_id, &file.input_id, file.path.clone(), assets);
-        count += 1;
-    }
-    if count == 0 {
-        return Err(HandoffRefusal::NothingAdded);
-    }
-    Ok((
-        Bound {
-            reads: state.rebind(),
-            binding: state.binding,
-        },
-        count,
-    ))
-}
-
-fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
-    job.materialized_files
-        .iter()
-        .map(|file| {
-            let path = std::fs::canonicalize(&file.path).unwrap_or_else(|_| file.path.clone());
-            (file.title_id.clone(), path)
-        })
-        .collect()
-}
-
-fn draft_title_id(draft: &Draft) -> String {
-    draft
-        .payload
-        .input_ids
-        .as_ref()
-        .and_then(|ids| ids.first().cloned().flatten())
-        .unwrap_or_default()
-}
-
-/// The time staged-download retries are measured in: tokio's clock, so a
-/// paused test runtime can move it.
-fn now() -> std::time::Instant {
-    tokio::time::Instant::now().into_std()
 }
 
 #[expect(clippy::disallowed_methods, reason = "joined by blocking")]
@@ -2042,6 +567,15 @@ async fn blocking<T: Send + 'static>(
     tokio::task::spawn_blocking(work)
         .await
         .map_err(|error| AppError::General(format!("Background task failed: {error}")))?
+}
+
+fn draft_rejected(block: GateBlock) -> SessionOutcome {
+    match block {
+        GateBlock::SaveInProgress => SessionOutcome::DraftRejected { message: None },
+        GateBlock::Invalid(message) => SessionOutcome::DraftRejected {
+            message: Some(message),
+        },
+    }
 }
 
 fn read_tags(path: &Path) -> Result<AudiobookMetadata> {
@@ -2075,8 +609,14 @@ async fn read_all(tickets: Vec<ReadTicket>) -> Vec<(ReadTicket, Result<Audiobook
     finished
 }
 
-#[path = "cover_request.rs"]
-mod cover_request;
+mod cover_flow;
+mod defaults_flow;
+mod download_flow;
+mod import_flow;
+mod lookup_flow;
+mod preview_flow;
+mod save_flow;
+mod submission_flow;
 
 #[cfg(test)]
 #[path = "runtime_tests.rs"]

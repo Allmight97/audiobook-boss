@@ -70,7 +70,7 @@ pub(crate) fn chapter_plans_for(
 #[derive(Debug, Clone)]
 pub(crate) struct PlanTicket {
     pub(crate) title_id: String,
-    key: String,
+    stamp: PlanStamp,
     request: TitleAudioRequest,
     sources: Vec<AudioFile>,
 }
@@ -111,11 +111,46 @@ pub(crate) struct PlanInput<'a> {
 
 #[derive(Debug, Default)]
 pub(crate) struct Plans {
-    entries: HashMap<String, (String, TitlePlan)>,
+    entries: HashMap<String, (PlanStamp, TitlePlan)>,
 }
 
-fn plan_key(request: &TitleAudioRequest, sources: &[AudioFile]) -> String {
-    serde_json::to_string(&(request, sources)).unwrap_or_default()
+#[derive(Debug, Clone, Default, PartialEq)]
+struct PlanStamp {
+    key: String,
+    fingerprints: Vec<Option<String>>,
+}
+
+impl PlanStamp {
+    fn of(request: &TitleAudioRequest, sources: &[AudioFile]) -> Self {
+        let read: Vec<AudioFile> = sources.iter().map(plan_read).collect();
+        Self {
+            key: serde_json::to_string(&(request, read)).unwrap_or_default(),
+            fingerprints: sources
+                .iter()
+                .map(|source| {
+                    source
+                        .chapter_plan
+                        .as_ref()
+                        .map(|plan| plan.source_fingerprint.clone())
+                })
+                .collect(),
+        }
+    }
+
+    fn keeps(&self, plan: &TitlePlan, next: &Self) -> bool {
+        self == next || (self.key == next.key && matches!(plan, TitlePlan::Resolved { .. }))
+    }
+}
+
+fn plan_read(source: &AudioFile) -> AudioFile {
+    let mut read = source.clone();
+    read.label.clear();
+    read.artist = None;
+    read.size = None;
+    if let Some(plan) = read.chapter_plan.as_mut() {
+        plan.source_fingerprint.clear();
+    }
+    read
 }
 
 impl Plans {
@@ -129,23 +164,23 @@ impl Plans {
             if title.choice_required {
                 next.insert(
                     title.title_id.to_string(),
-                    (String::new(), TitlePlan::ChoiceRequired),
+                    (PlanStamp::default(), TitlePlan::ChoiceRequired),
                 );
                 continue;
             }
-            let key = plan_key(title.request, &title.sources);
+            let stamp = PlanStamp::of(title.request, &title.sources);
             match self.entries.remove(title.title_id) {
-                Some((known, plan)) if known == key => {
-                    next.insert(title.title_id.to_string(), (key, plan));
+                Some((known, plan)) if known.keeps(&plan, &stamp) => {
+                    next.insert(title.title_id.to_string(), (stamp, plan));
                 }
                 _ => {
                     tickets.push(PlanTicket {
                         title_id: title.title_id.to_string(),
-                        key: key.clone(),
+                        stamp: stamp.clone(),
                         request: title.request.clone(),
                         sources: title.sources,
                     });
-                    next.insert(title.title_id.to_string(), (key, TitlePlan::Pending));
+                    next.insert(title.title_id.to_string(), (stamp, TitlePlan::Pending));
                 }
             }
         }
@@ -158,8 +193,8 @@ impl Plans {
         ticket: &PlanTicket,
         result: Result<TitleAudioPlan, PlanFailure>,
     ) {
-        if let Some((key, plan)) = self.entries.get_mut(&ticket.title_id) {
-            if *key == ticket.key {
+        if let Some((stamp, plan)) = self.entries.get_mut(&ticket.title_id) {
+            if *stamp == ticket.stamp {
                 *plan = match result {
                     Ok(plan) => TitlePlan::Resolved { plan },
                     Err(PlanFailure { message, field }) => TitlePlan::Failed { message, field },

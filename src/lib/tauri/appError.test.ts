@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { type AppErrorEnvelope, isCancellation, logAppError, toUserMessage } from './appError';
+import { describe, expect, it } from 'vitest';
+import { type AppErrorEnvelope, isCancellation, toUserMessage } from './appError';
 
 function envelope(partial: Partial<AppErrorEnvelope>): AppErrorEnvelope {
 	return {
@@ -52,25 +52,5 @@ describe('isCancellation', () => {
 			false,
 		);
 		expect(isCancellation(new Error('disk full'))).toBe(false);
-	});
-});
-
-describe('logAppError', () => {
-	it('logs only the scope, code and category, never the message or detail', () => {
-		const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-		logAppError(
-			'Scope',
-			envelope({
-				code: 'x',
-				category: 'io',
-				message: '/Users/me/secret.m4b',
-				detail: 'token=sk-abc',
-			}),
-		);
-		expect(spy).toHaveBeenCalledWith('Scope code=x category=io');
-		const logged = String(spy.mock.calls[0]?.[0]);
-		expect(logged).not.toContain('/Users/me');
-		expect(logged).not.toContain('sk-abc');
-		spy.mockRestore();
 	});
 });

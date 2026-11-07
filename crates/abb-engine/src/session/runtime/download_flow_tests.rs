@@ -1,0 +1,168 @@
+use super::*;
+
+impl Rig {
+    async fn removed_jobs(&self) -> Vec<String> {
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            loop {
+                let removed = self.removed.lock().expect("removed").clone();
+                if !removed.is_empty() && !self.session.inner.sweeping.load(Ordering::SeqCst) {
+                    return removed;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("a download is removed")
+    }
+}
+
+#[tokio::test]
+async fn an_acquired_title_is_listed_with_its_companions_and_its_download_goes_when_it_leaves() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+
+    let handoff = rig.session.import_acquired(acquired("job-1", &audio)).await;
+
+    assert_eq!(
+        handoff,
+        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
+    );
+    let titles = rig.session.snapshot().titles.expect("titles");
+    let input_id = titles.files[0].input_id.clone();
+    assert_eq!(titles.companions[&input_id], ["Guide.pdf"]);
+    assert!(rig.removed.lock().expect("removed").is_empty());
+
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+    assert!(rig
+        .session
+        .snapshot()
+        .titles
+        .expect("titles")
+        .companions
+        .is_empty());
+}
+
+#[tokio::test]
+async fn a_download_with_an_unreadable_file_is_not_listed_at_all() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+    let mut job = acquired("job-1", &audio);
+    let mut missing = job.materialized_files[0].clone();
+    missing.path = staging.path().join("part 2.wav");
+    job.materialized_files.push(missing);
+
+    let handoff = rig.session.import_acquired(job).await;
+
+    assert!(
+        matches!(
+            handoff,
+            crate::remote_source::AcquisitionHandoff::Removed {
+                reason: crate::remote_source::HandoffRefusal::ImportFailed { .. }
+            }
+        ),
+        "{handoff:?}"
+    );
+    assert!(rig.listed_paths().is_empty());
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_failed_removal_waits_out_the_retry_delay_before_the_next_change_retries_it() {
+    let rig = rig();
+    rig.failing_removals
+        .store(1, std::sync::atomic::Ordering::SeqCst);
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+    rig.session.import_acquired(acquired("job-1", &audio)).await;
+    let attempts = || rig.removed.lock().expect("removed").len();
+
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+    rig.send(SessionIntent::SetOutputDirectory {
+        directory: "/library".to_string(),
+    })
+    .await;
+    tokio::time::sleep(crate::session::staged::RETRY_DELAY / 2).await;
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(attempts(), 1);
+
+    tokio::time::sleep(crate::session::staged::RETRY_DELAY).await;
+    rig.send(SessionIntent::ClearAll).await;
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !rig.session.lock().staged.is_empty() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the change after the delay retries the removal");
+    assert_eq!(attempts(), 2);
+}
+
+#[tokio::test]
+async fn a_download_goes_once_its_title_is_exported() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let output = tempfile::TempDir::new().expect("output");
+    let audio = staged_wav(staging.path(), "book");
+    rig.session.import_acquired(acquired("job-1", &audio)).await;
+    assert!(rig.removed.lock().expect("removed").is_empty());
+
+    rig.send(SessionIntent::SetOutputDirectory {
+        directory: output.path().to_string_lossy().into_owned(),
+    })
+    .await;
+    rig.type_into(MetadataField::Title, "Book").await;
+    rig.send(SessionIntent::Submit).await;
+    assert!(
+        matches!(
+            rig.session.snapshot().output.expect("output").submission,
+            Some(SubmissionStatus::Submitted { .. })
+        ),
+        "{:?}",
+        rig.session.snapshot().output.expect("output").submission
+    );
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+    assert_eq!(
+        rig.session.snapshot().titles.expect("titles").files.len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    let draft = rig
+        .session
+        .transition(|state| {
+            state.output.set_directory("/library".to_string());
+            state.begin_submission(false)
+        })
+        .expect("a submission locks the list");
+
+    let audio = staged_wav(staging.path(), "book");
+    let session = rig.session.clone();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "joined by a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks"
+    )]
+    let handoff =
+        tokio::spawn(async move { session.import_acquired(acquired("job-1", &audio)).await });
+    for _ in 0..20 {
+        tokio::task::yield_now().await;
+    }
+    assert!(!handoff.is_finished(), "the download waits for the list");
+
+    rig.session
+        .end_submission(&draft, SubmissionStatus::Cancelled);
+    assert_eq!(
+        handoff.await.expect("handoff"),
+        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
+    );
+    assert!(rig.removed.lock().expect("removed").is_empty());
+}

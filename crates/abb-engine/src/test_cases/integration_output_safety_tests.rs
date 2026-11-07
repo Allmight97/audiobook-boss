@@ -60,6 +60,7 @@ async fn two_titles(desk: &Desk, seconds: f64) -> (PathBuf, PathBuf) {
     })
     .await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Title,
         value: "Beta".to_string(),
     })
@@ -82,6 +83,7 @@ async fn an_accepted_replace_puts_the_new_tags_at_the_same_path_and_touches_noth
     let folder = published.parent().expect("folder").to_path_buf();
     fs::write(folder.join("notes.txt"), b"mine").expect("notes");
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Genre,
         value: "Mystery".to_string(),
     })
@@ -137,6 +139,7 @@ async fn restarting_a_title_queued_behind_another_removes_its_folders_before_ret
     })
     .await;
     desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
         field: MetadataField::Author,
         value: "Other Author".to_string(),
     })

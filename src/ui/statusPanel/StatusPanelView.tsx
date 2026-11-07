@@ -6,22 +6,18 @@ import { useAppRuntime } from '../../app/runtime';
 import { Button, CoverImage, Progress } from '../foundation';
 import './statusPanelView.css';
 
-function jobPercentageText(item: JobListItem): string {
-	return typeof item.percentage === 'number' ? ` (${item.percentage.toFixed(1)}%)` : '';
-}
-
 function jobStatusLabel(item: JobListItem): string {
-	return `${item.statusText}${jobPercentageText(item)}`;
+	return `${item.statusText} (${item.percentage.toFixed(1)}%)`;
 }
 
-function jobStatusClass(item: JobListItem): string {
-	if (item.status === 'processing') return 'is-active';
-	if (item.status === 'queued') return 'is-queued';
-	if (item.status === 'completed' || item.status === 'skipped') return 'is-complete';
-	if (item.status === 'failed') return 'is-failed';
-	if (item.status === 'cancelled') return 'is-cancelled';
-	return '';
-}
+const JOB_STATUS_CLASS: Record<JobListItem['status'], string> = {
+	queued: 'is-queued',
+	running: 'is-active',
+	completed: 'is-complete',
+	skipped: 'is-complete',
+	failed: 'is-failed',
+	cancelled: 'is-cancelled',
+};
 
 function countItems(
 	items: ReadonlyArray<JobListItem>,
@@ -30,15 +26,25 @@ function countItems(
 	return items.filter((item) => statuses.includes(item.status)).length;
 }
 
-function activeStageLabel(stage?: JobListItem['stage']): string {
-	if (stage === 'writing') return 'writing';
-	if (stage === 'converting') return 'converting';
-	if (stage === 'analyzing') return 'analyzing';
-	return 'running';
+function activeStageLabel(stage: JobListItem['stage']): string {
+	switch (stage) {
+		case 'pending':
+		case 'analyzing':
+			return 'analyzing';
+		case 'converting':
+			return 'converting';
+		case 'writing':
+		case 'cleaning':
+			return 'writing';
+		case 'complete':
+		case 'failed':
+		case 'cancelled':
+			return 'running';
+	}
 }
 
 function activeChipLabel(items: ReadonlyArray<JobListItem>): string | null {
-	const activeItems = items.filter((item) => item.status === 'processing');
+	const activeItems = items.filter((item) => item.status === 'running');
 	if (activeItems.length === 0) return null;
 	const labels = new Set(activeItems.map((item) => activeStageLabel(item.stage)));
 	const label = labels.size === 1 ? Array.from(labels)[0] : 'running';
@@ -72,59 +78,39 @@ export function StatusPanelView(): JSX.Element {
 				<div class="progress-details">
 					<div class="status-progress-header">
 						<span class="status-progress-label">
-							Progress:{' '}
-							<span class="property-value" id="percentage-processed">
-								{view().progressPercentage.toFixed(1)}%
-							</span>
+							Progress: <span class="property-value">{view().progressPercentage.toFixed(1)}%</span>
 						</span>
-						<span id="status-text" class="status-text">
-							{view().statusText}
-						</span>
+						<span class="status-text">{view().statusText}</span>
 					</div>
 					<Progress
 						value={view().progressPercentage}
 						label="Progress"
 						active={view().progressActive}
 					/>
-					<div id="step-text" class="muted-text status-step" style={{ color: view().stepColor }}>
+					<div class="muted-text status-step" style={{ color: view().stepColor }}>
 						{view().stepText}
 					</div>
-					<div id="concurrency-status" class="muted-text status-concurrency">
-						{view().concurrencyText}
-					</div>
+					<div class="muted-text status-concurrency">{view().concurrencyText}</div>
 					<Show when={items().length > 0}>
-						<div class="queue-summary-row" id="queue-summary">
+						<div class="queue-summary-row">
 							<section class="queue-chip-group" aria-label="Queue status summary">
 								<Show when={activeChip()}>
-									{(label) => (
-										<span class="queue-chip is-active" data-testid="queue-chip-active">
-											{label()}
-										</span>
-									)}
+									{(label) => <span class="queue-chip is-active">{label()}</span>}
 								</Show>
 								<Show when={queuedCount() > 0}>
-									<span class="queue-chip is-queued" data-testid="queue-chip-queued">
-										{queuedCount()} queued
-									</span>
+									<span class="queue-chip is-queued">{queuedCount()} queued</span>
 								</Show>
 								<Show when={completeCount() > 0}>
-									<span class="queue-chip is-complete" data-testid="queue-chip-complete">
-										{completeCount()} complete
-									</span>
+									<span class="queue-chip is-complete">{completeCount()} complete</span>
 								</Show>
 								<Show when={failedCount() > 0}>
-									<span class="queue-chip is-failed" data-testid="queue-chip-failed">
-										{failedCount()} failed
-									</span>
+									<span class="queue-chip is-failed">{failedCount()} failed</span>
 								</Show>
 								<Show when={cancelledCount() > 0}>
-									<span class="queue-chip is-cancelled" data-testid="queue-chip-cancelled">
-										{cancelledCount()} cancelled
-									</span>
+									<span class="queue-chip is-cancelled">{cancelledCount()} cancelled</span>
 								</Show>
 							</section>
 							<button
-								id="queue-toggle-button"
 								class="queue-toggle-button"
 								type="button"
 								aria-expanded={queueExpanded() ? 'true' : 'false'}
@@ -140,17 +126,16 @@ export function StatusPanelView(): JSX.Element {
 						class="queue-job-list"
 						hidden={!queueExpanded() || items().length === 0}
 					>
-						<For each={items()}>
+						<For each={items()} keyed={(item) => item.childJobId}>
 							{(item) => (
-								<div class={`queue-job-row ${jobStatusClass(item)}`}>
-									<span class="queue-job-label">{item.label}</span>
-									<span class="queue-job-status">{jobStatusLabel(item)}</span>
+								<div class={`queue-job-row ${JOB_STATUS_CLASS[item().status]}`}>
+									<span class="queue-job-label">{item().label}</span>
+									<span class="queue-job-status">{jobStatusLabel(item())}</span>
 									<button
-										id={`cancel-${item.key}`}
 										class="job-cancel-button"
 										type="button"
-										disabled={view().cancelAllPending || !item.canCancel || !item.cancelId}
-										onClick={() => item.cancelId && item.onCancel?.(item.cancelId)}
+										disabled={!item().canCancel}
+										onClick={() => processing.cancelJob(item().childJobId)}
 									>
 										Cancel
 									</button>
@@ -169,8 +154,7 @@ export function StatusPanelView(): JSX.Element {
 						Start Processing
 					</Button>
 					<Button
-						id="cancel-all-button"
-						disabled={view().cancelAllPending || !view().isProcessing}
+						disabled={!processing.previewCancellable()}
 						onClick={() => processing.cancelAll()}
 					>
 						Cancel

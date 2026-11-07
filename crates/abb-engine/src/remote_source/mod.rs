@@ -16,7 +16,7 @@ mod ui;
 const AUTH_REGISTRATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 pub use ui::{
     IndexerDraftSnapshot, IndexerWorkSnapshot, ReleaseGrabSnapshot, ReleaseGrabStatus,
-    RemoteAuthStatus, RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiIntent, RemoteUiSnapshot,
+    RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiIntent, RemoteUiSnapshot,
 };
 pub(crate) use ui::{RemoteUiResult, RemoteUiRun};
 mod vault;
@@ -43,8 +43,6 @@ pub(crate) struct RemoteSourceConfig {
     pub(crate) app_identifier: String,
     pub(crate) power: crate::power::PowerManager,
     pub(crate) host: crate::host::Host,
-    /// Host-supplied helper location; `None` resolves it beside the executable.
-    pub(crate) aaxclean_helper: Option<PathBuf>,
     pub(crate) tasks: crate::engine::EngineTasks,
 }
 
@@ -72,8 +70,8 @@ struct RemoteSourceRuntimeInner {
     handoff: OnceLock<Handoff>,
     /// A connection Save or Reset holds this exclusively; searches and grabs share it.
     indexer_turn: Arc<tokio::sync::RwLock<()>>,
-    /// Releases sent since the last search, by `(indexer_id, guid)`.
-    sent_releases: Mutex<std::collections::HashSet<(i64, String)>>,
+    /// Releases sent since the last search, by `RemoteRelease::key`.
+    sent_releases: Mutex<std::collections::HashSet<String>>,
 }
 
 impl RemoteSourceRuntime {
@@ -92,7 +90,7 @@ impl RemoteSourceRuntime {
                 )),
                 lifecycle: RemoteAcquisitionLifecycle::new(
                     RemoteSourceStaging::new(config.cache_dir),
-                    AaxcleanMaterializer::new_for_helper(config.aaxclean_helper),
+                    AaxcleanMaterializer::new_for_helper(None),
                     config.host,
                     ui,
                     session_lifecycle::audible_acquire(),
@@ -110,6 +108,10 @@ impl RemoteSourceRuntime {
     /// Sets where finished acquisitions hand their files. Set once, by the
     /// engine, after the session exists.
     pub(crate) fn set_handoff(&self, handoff: Handoff) {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "set once by the engine after the session exists"
+        )]
         let _ = self.inner.handoff.set(handoff);
     }
 
@@ -154,10 +156,6 @@ impl RemoteSourceRuntime {
                 Ok(RemoteAuthStart {
                     provider_id,
                     authorization_url,
-                    handoff_path_hint:
-                        "Paste the final Amazon URL or use $TMPDIR/abb-audible-auth-response-url.txt / ABB_AUDIBLE_AUTH_RESPONSE_URL_PATH"
-                            .to_string(),
-                    message: "Open the authorization URL externally, sign in, then paste the final Amazon URL or save it to a local handoff file and complete auth from ABB.".to_string(),
                 })
             }
             RemoteProviderId::Indexer => Err(AppError::InvalidInput(
@@ -259,11 +257,12 @@ impl RemoteSourceRuntime {
         request: types::RemoteReleaseGrabRequest,
     ) -> Result<types::RemoteReleaseGrabResponse> {
         let _turn = self.indexer_turn()?;
-        let key = (request.release.indexer_id, request.release.guid.clone());
+        let key = request.release.key.clone();
         if !self.sent_releases().insert(key.clone()) {
             return Ok(types::RemoteReleaseGrabResponse {
                 provider_id: RemoteProviderId::Indexer,
                 accepted: true,
+                unconfirmed: false,
                 message: "Already sent to downloader.".to_string(),
                 diagnostics: Vec::new(),
             });
@@ -296,7 +295,7 @@ impl RemoteSourceRuntime {
         })
     }
 
-    fn sent_releases(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<(i64, String)>> {
+    fn sent_releases(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
         self.inner
             .sent_releases
             .lock()

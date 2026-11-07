@@ -5,7 +5,10 @@ use serde::Serialize;
 use super::audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, EditResult};
 use super::plans::{SizeEstimate, TitlePlan};
 use crate::app_settings::EncoderDefaults;
-use crate::audio::{AudiobookFormat, EncoderSettingsCapabilities, TitleAudioRequest};
+use crate::audio::{
+    AudioPlanField, AudiobookFormat, ChannelConfig, EncoderSettingsCapabilities, SampleRateConfig,
+    TitleAudioRequest,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -24,6 +27,29 @@ pub struct TitleAudio {
     pub plan: TitlePlan,
     /// Absent until the size can be estimated.
     pub estimate: Option<SizeEstimate>,
+    pub auto_sample_rate: AutoReading,
+    pub auto_channels: AutoReading,
+}
+
+impl TitleAudio {
+    pub(crate) fn new(
+        view: AudioChoiceView,
+        plan: TitlePlan,
+        estimate: Option<SizeEstimate>,
+    ) -> Self {
+        let title = [(&view.choice, &plan)];
+        let auto_sample_rate = auto_reading(AudioField::SampleRate, &[], &title);
+        let auto_channels = auto_reading(AudioField::Channels, &[], &title);
+        Self {
+            choice: view.choice,
+            facts: view.facts,
+            request: view.request,
+            plan,
+            estimate,
+            auto_sample_rate,
+            auto_channels,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
@@ -44,13 +70,31 @@ pub struct AudioSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectionAudio {
-    /// The titles this describes, in list order.
-    pub title_ids: Vec<String>,
     /// The first title's choice; `mixed` names where the others differ.
     pub choice: AudioChoice,
     /// Only what every selected title accepts is offered.
     pub facts: AudioChoiceFacts,
     pub mixed: Vec<AudioField>,
+    pub auto_sample_rate: AutoReading,
+    pub auto_channels: AutoReading,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoReading {
+    pub outcome: AutoOutcome,
+    pub problem: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum AutoOutcome {
+    #[default]
+    Unresolved,
+    Value {
+        value: u32,
+    },
+    Differs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
@@ -88,16 +132,67 @@ pub(crate) fn selection_audio(titles: &[(&String, &TitleAudio)]) -> Option<Selec
     for (_, title) in rest {
         share(&mut facts, &title.facts);
     }
-    let mixed = FIELDS
+    let mixed: Vec<AudioField> = FIELDS
         .into_iter()
         .filter(|field| rest.iter().any(|(_, title)| differs(*field, first, title)))
         .collect();
+    let audio: Vec<_> = titles
+        .iter()
+        .map(|(_, title)| (&title.choice, &title.plan))
+        .collect();
     Some(SelectionAudio {
-        title_ids: titles.iter().map(|(id, _)| (*id).clone()).collect(),
         choice: first.choice.clone(),
         facts,
+        auto_sample_rate: auto_reading(AudioField::SampleRate, &mixed, &audio),
+        auto_channels: auto_reading(AudioField::Channels, &mixed, &audio),
         mixed,
     })
+}
+
+fn auto_reading(
+    field: AudioField,
+    mixed: &[AudioField],
+    titles: &[(&AudioChoice, &TitlePlan)],
+) -> AutoReading {
+    let (plan_field, on_auto): (_, fn(&AudioChoice) -> bool) = match field {
+        AudioField::SampleRate => (AudioPlanField::SampleRate, |choice| {
+            choice.sample_rate == SampleRateConfig::Auto
+        }),
+        _ => (AudioPlanField::Channels, |choice| {
+            choice.channels == ChannelConfig::Auto
+        }),
+    };
+    let problem = titles.iter().find_map(|(_, plan)| match plan {
+        TitlePlan::Failed {
+            message,
+            field: Some(failed),
+        } if *failed == plan_field => Some(message.clone()),
+        _ => None,
+    });
+    if mixed.contains(&field) {
+        return AutoReading {
+            outcome: AutoOutcome::Unresolved,
+            problem,
+        };
+    }
+    let values: Option<Vec<u32>> = titles
+        .iter()
+        .map(|(choice, plan)| match plan {
+            TitlePlan::Resolved { plan } if on_auto(choice) => Some(match plan_field {
+                AudioPlanField::SampleRate => plan.sample_rate,
+                AudioPlanField::Channels => u32::from(plan.channels),
+            }),
+            _ => None,
+        })
+        .collect();
+    let outcome = match values {
+        Some(values) if values.iter().all(|value| *value == values[0]) => {
+            AutoOutcome::Value { value: values[0] }
+        }
+        Some(_) => AutoOutcome::Differs,
+        None => AutoOutcome::Unresolved,
+    };
+    AutoReading { outcome, problem }
 }
 
 const FIELDS: [AudioField; 10] = [
@@ -147,13 +242,7 @@ fn differs(field: AudioField, first: &TitleAudio, other: &TitleAudio) -> bool {
         AudioField::Quality => a.faac_quality != b.faac_quality,
         AudioField::NativeSpeed => a.native_speed != b.native_speed,
         AudioField::Bitrate => {
-            let kbps = |title: &TitleAudio| {
-                title
-                    .request
-                    .output
-                    .encoder_settings()
-                    .map(|settings| settings.bitrate_kbps)
-            };
+            let kbps = |title: &TitleAudio| title.request.output.encoder_settings().bitrate_kbps;
             kbps(first) != kbps(other)
         }
         AudioField::SampleRate => a.sample_rate != b.sample_rate,
@@ -234,3 +323,7 @@ impl AudioDefaults {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "audio_tests.rs"]
+mod tests;

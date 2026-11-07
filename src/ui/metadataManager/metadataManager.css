@@ -23,13 +23,3 @@
 .metadata-status-message {
 	margin-bottom: var(--space-2);
 }
-
-@media (max-width: 900px) {
-	.metadata-manager-layout {
-		grid-template-columns: 1fr;
-	}
-
-	.metadata-cover-cell {
-		justify-content: flex-start;
-	}
-}

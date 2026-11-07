@@ -14,10 +14,13 @@ use crate::output_artifact::NamingPreset;
 use crate::power::PowerManager;
 use crate::processing::JobRegistry;
 use crate::session::audio_choice::AudioEdit;
+use crate::session::cover_address::{self, tests::host_request};
 use crate::session::lookup::LookupSnapshot;
 use crate::session::lookup::LookupSource;
 use crate::session::metadata_form::MetadataField;
 use crate::session::state::MetadataSnapshot;
+use crate::session::submission::SubmissionStatus;
+use crate::session::working_set::InputNotice;
 
 type SearchReply = Result<MetadataLookupResponse>;
 /// A search as the provider saw it: the query and the sources asked.
@@ -45,7 +48,6 @@ struct Rig {
     searches: Arc<StdMutex<Vec<Search>>>,
     replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>>,
     cover: Arc<StdMutex<Result<Vec<u8>>>>,
-    cover_fetches: Arc<std::sync::atomic::AtomicUsize>,
     removed: Arc<StdMutex<Vec<String>>>,
     /// Removals that fail before one succeeds.
     failing_removals: Arc<std::sync::atomic::AtomicUsize>,
@@ -74,7 +76,6 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
     let replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>> =
         Arc::default();
     let cover: Arc<StdMutex<Result<Vec<u8>>>> = Arc::new(StdMutex::new(Ok(downloaded_cover())));
-    let cover_fetches: Arc<std::sync::atomic::AtomicUsize> = Arc::default();
     let network = Network {
         search: Box::new({
             let searches = Arc::clone(&searches);
@@ -92,10 +93,8 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
         }),
         covers: crate::cover_service::CoverService::new(Box::new({
             let cover = Arc::clone(&cover);
-            let cover_fetches = Arc::clone(&cover_fetches);
             let pending = StdMutex::new(pending);
             move |_url| {
-                cover_fetches.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let pending = pending.lock().expect("cover reply").take();
                 let result = match &*cover.lock().expect("cover") {
                     Ok(bytes) => Ok(bytes.clone()),
@@ -158,7 +157,6 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
         searches,
         replies,
         cover,
-        cover_fetches,
         removed,
         failing_removals,
         _config: config,
@@ -180,6 +178,7 @@ fn result(title: &str) -> OnlineMetadataResult {
         published_date: None,
         duration_seconds: None,
         cover_url: Some("https://example.com/cover.jpg".to_string()),
+        cover: None,
         audible_only: None,
     }
 }
@@ -264,6 +263,17 @@ impl Rig {
         self.session.dispatch(intent).await.outcome
     }
 
+    async fn type_into(&self, field: MetadataField, value: &str) {
+        let binding = self.metadata().binding;
+        let value = value.to_string();
+        self.send(SessionIntent::SetField {
+            binding,
+            field,
+            value,
+        })
+        .await;
+    }
+
     fn title_id(&self, index: usize) -> String {
         self.session
             .snapshot()
@@ -301,9 +311,9 @@ impl Rig {
     }
 
     async fn cover_shown(&self) -> Option<Vec<u8>> {
-        let revision = self.metadata().cover.image_revision;
+        let image = self.metadata().cover.image?;
         self.session
-            .cover(&format!("session/full/{revision}/"))
+            .cover(&host_request(&image))
             .await
             .expect("the displayed cover is served")
             .map(|cover| cover.to_vec())
@@ -361,434 +371,11 @@ impl Rig {
 }
 
 #[tokio::test]
-async fn lookup_opened_with_no_valid_title_says_so_and_does_not_search() {
-    let rig = rig();
-    rig.load(&["alpha", "beta"]);
-    rig.select(&[]).await;
-
-    rig.send(SessionIntent::LookupOpen).await;
-
-    let lookup = rig.lookup();
-    assert!(lookup.open);
-    assert_eq!(lookup.status, Some(LookupStatus::NoValidTitle));
-    assert!(rig.searches().is_empty());
-}
-
-#[tokio::test]
-async fn lookup_queues_the_selected_titles_and_searches_for_the_first() {
-    let rig = rig();
-    rig.load(&["alpha", "beta"]);
-    rig.select(&[0, 1]).await;
-    rig.answer_next_search(Ok(found(&["Found A", "Found B"])));
-
-    rig.send(SessionIntent::LookupOpen).await;
-
-    assert_eq!(
-        rig.searches(),
-        [(
-            "ALPHA Author".to_string(),
-            vec![MetadataSource::Audnexus, MetadataSource::Openlibrary]
-        )]
-    );
-    let lookup = rig.lookup();
-    assert!(lookup.is_queue_mode);
-    assert_eq!(lookup.apply_mode, LookupApplyMode::Queue);
-    assert_eq!(
-        lookup
-            .queue_position
-            .map(|at| (at.index, at.total, at.path)),
-        Some((0, 2, path("alpha")))
-    );
-    assert_eq!(
-        lookup.status,
-        Some(LookupStatus::Found {
-            count: 2,
-            partial: false,
-            after: None
-        })
-    );
-    assert!(lookup.has_searched);
-}
-
-#[tokio::test]
-async fn the_open_lookup_is_published_before_its_search_answers() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    let answer = rig.hold_next_search();
-
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by the_open_lookup_is_published_before_its_search_answers"
-    )]
-    let opening = tokio::spawn({
-        let session = rig.session.clone();
-        async move { session.dispatch(SessionIntent::LookupOpen).await }
-    });
-    while rig.searches().is_empty() {
-        tokio::task::yield_now().await;
-    }
-    let published = rig.events.0.lock().expect("events").clone();
-    let lookup = published
-        .iter()
-        .rev()
-        .find_map(|update| update.lookup.clone())
-        .expect("lookup was published");
-    assert!(lookup.open);
-    assert_eq!(lookup.status, Some(LookupStatus::Searching));
-
-    answer
-        .send(Ok(found(&["Found"])))
-        .unwrap_or_else(|_| panic!("search is waiting"));
-    opening.await.expect("open finishes");
-}
-
-#[tokio::test]
-async fn an_empty_search_asks_for_a_query_without_calling_a_provider() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    rig.send(SessionIntent::LookupOpen).await;
-    let searched = rig.searches().len();
-    rig.send(SessionIntent::LookupSetTitleQuery {
-        value: "  ".to_string(),
-    })
-    .await;
-    rig.send(SessionIntent::LookupSetAuthorQuery {
-        value: String::new(),
-    })
-    .await;
-
-    rig.send(SessionIntent::LookupSearch).await;
-
-    assert_eq!(rig.lookup().status, Some(LookupStatus::QueryRequired));
-    assert_eq!(rig.searches().len(), searched);
-}
-
-#[tokio::test]
-async fn a_search_sends_the_chosen_source_and_reports_partial_results() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    rig.send(SessionIntent::LookupOpen).await;
-    rig.send(SessionIntent::LookupSetSource {
-        source: LookupSource::Openlibrary,
-    })
-    .await;
-    rig.answer_next_search(Ok(MetadataLookupResponse {
-        diagnostics: vec![MetadataLookupDiagnostic {
-            kind: MetadataLookupDiagnosticKind::SourceFailedPartialResults,
-            source: Some(MetadataSource::Audnexus),
-            message: "Audnexus was unavailable".to_string(),
-        }],
-        ..found(&["Found"])
-    }));
-
-    rig.send(SessionIntent::LookupSearch).await;
-
-    assert_eq!(
-        rig.searches().last().map(|(_, sources)| sources.clone()),
-        Some(vec![MetadataSource::Openlibrary])
-    );
-    assert_eq!(
-        rig.lookup().status,
-        Some(LookupStatus::Found {
-            count: 1,
-            partial: true,
-            after: None
-        })
-    );
-}
-
-#[tokio::test]
-async fn a_failed_search_is_not_shown_as_no_matches() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    rig.answer_next_search(Ok(found(&["Found"])));
-    rig.send(SessionIntent::LookupOpen).await;
-    rig.answer_next_search(Err(AppError::General("network down".to_string())));
-
-    rig.send(SessionIntent::LookupSearch).await;
-
-    let lookup = rig.lookup();
-    assert_eq!(
-        lookup.status,
-        Some(LookupStatus::SearchFailed { after: None })
-    );
-    assert!(lookup.results.is_empty());
-    assert!(!lookup.has_searched);
-}
-
-#[tokio::test]
-async fn a_newer_search_keeps_its_results_when_an_earlier_one_answers_last() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    rig.send(SessionIntent::LookupOpen).await;
-    let slow = rig.hold_next_search();
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by a_newer_search_keeps_its_results_when_an_earlier_one_answers_last"
-    )]
-    let earlier = tokio::spawn({
-        let session = rig.session.clone();
-        async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
-    });
-    let searched = rig.searches().len();
-    while rig.searches().len() == searched {
-        tokio::task::yield_now().await;
-    }
-
-    rig.answer_next_search(Ok(found(&["Newer"])));
-    rig.send(SessionIntent::LookupSearch).await;
-    slow.send(Ok(found(&["Earlier"])))
-        .unwrap_or_else(|_| panic!("earlier search is waiting"));
-
-    assert_eq!(
-        earlier.await.expect("earlier search"),
-        SessionOutcome::Superseded
-    );
-    assert_eq!(rig.lookup().results[0].title, "Newer");
-}
-
-#[tokio::test]
-async fn applying_to_the_current_title_edits_its_form_and_stays_on_it() {
-    let rig = rig();
-    rig.load(&["alpha", "beta"]);
-    rig.select(&[0]).await;
-    rig.answer_next_search(Ok(found(&["Found"])));
-    rig.send(SessionIntent::LookupOpen).await;
-    let searched = rig.searches().len();
-
-    rig.send(rig.lookup_apply(0)).await;
-
-    assert_eq!(rig.title_shown(), "Found");
-    assert_eq!(
-        rig.lookup().status,
-        Some(LookupStatus::Applied {
-            cover_failed: false
-        })
-    );
-    assert_eq!(rig.searches().len(), searched, "no advance, no new search");
-    assert_eq!(rig.selected(), [0]);
-    assert!(
-        rig.pending("alpha").is_none(),
-        "applied values are form edits"
-    );
-}
-
-#[tokio::test]
-async fn applying_in_a_queue_stages_the_edit_moves_on_and_searches_the_next_title() {
-    let rig = rig();
-    rig.load(&["alpha", "beta"]);
-    rig.select(&[0, 1]).await;
-    rig.answer_next_search(Ok(found(&["Found A"])));
-    rig.send(SessionIntent::LookupOpen).await;
-    rig.answer_next_search(Ok(found(&["Found B"])));
-
-    rig.send(rig.lookup_apply(0)).await;
-
-    assert_eq!(
-        rig.pending("alpha"),
-        Some(MetadataIntentPatch {
-            title: Some(PatchOp::Set("Found A".to_string())),
-            album: Some(PatchOp::Set("Found A".to_string())),
-            ..Default::default()
-        })
-    );
-    assert_eq!(rig.selected(), [1]);
-    assert_eq!(
-        rig.searches().last().map(|(query, _)| query.as_str()),
-        Some("BETA Author")
-    );
-    let lookup = rig.lookup();
-    assert_eq!(lookup.queue_position.map(|at| at.index), Some(1));
-    assert_eq!(
-        lookup.status,
-        Some(LookupStatus::Found {
-            count: 1,
-            partial: false,
-            after: Some(QueueStep::Applied)
-        })
-    );
-    assert_eq!(lookup.results[0].title, "Found B");
-}
-
-#[tokio::test]
-async fn replacing_the_cover_stages_the_result_image_with_the_text() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    rig.answer_next_search(Ok(found(&["Found"])));
-    rig.send(SessionIntent::LookupOpen).await;
-    rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
-        .await;
-
-    rig.send(rig.lookup_apply(0)).await;
-
-    assert_eq!(
-        rig.pending("alpha").and_then(|patch| patch.cover_art),
-        Some(PatchOp::Set(written_cover()))
-    );
-    assert_eq!(rig.cover_shown().await, Some(written_cover()));
-    assert_eq!(rig.title_shown(), "Found");
-}
-
-#[tokio::test]
-async fn applying_a_result_reuses_the_cover_its_preview_downloaded() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    rig.answer_next_search(Ok(found(&["Found"])));
-    rig.send(SessionIntent::LookupOpen).await;
-    let shown = rig
-        .session
-        .cover("remote/full/0/https%253A%252F%252Fexample.com%252Fcover.jpg")
-        .await
-        .expect("a result's cover is served")
-        .expect("it has bytes");
-    assert_eq!(shown.to_vec(), written_cover());
-
-    rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
-        .await;
-    rig.send(rig.lookup_apply(0)).await;
-
-    assert_eq!(rig.cover_shown().await, Some(written_cover()));
-    assert_eq!(
-        rig.cover_fetches.load(std::sync::atomic::Ordering::SeqCst),
-        1
-    );
-}
-
-#[tokio::test]
-async fn a_cover_that_fails_to_load_does_not_stop_the_text_from_applying() {
-    let rig = rig();
-    rig.load(&["alpha", "beta"]);
-    rig.select(&[0, 1]).await;
-    rig.answer_next_search(Ok(found(&["Found A"])));
-    rig.send(SessionIntent::LookupOpen).await;
-    rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
-        .await;
-    *rig.cover.lock().expect("cover") = Err(AppError::General("unreachable".to_string()));
-
-    rig.send(rig.lookup_apply(0)).await;
-
-    let alpha = rig.pending("alpha").expect("text applied");
-    assert_eq!(alpha.title, Some(PatchOp::Set("Found A".to_string())));
-    assert_eq!(alpha.cover_art, None);
-    assert!(matches!(
-        rig.lookup().status,
-        Some(LookupStatus::Found {
-            after: Some(QueueStep::AppliedWithoutCover),
-            ..
-        })
-    ));
-}
-
-#[tokio::test]
-async fn skipping_leaves_the_title_untouched_and_the_last_skip_completes_the_queue() {
-    let rig = rig();
-    rig.load(&["alpha", "beta"]);
-    rig.select(&[0, 1]).await;
-    rig.send(SessionIntent::LookupOpen).await;
-
-    rig.send(SessionIntent::LookupSkip).await;
-    assert!(rig.pending("alpha").is_none());
-    assert_eq!(rig.lookup().queue_position.map(|at| at.index), Some(1));
-    assert!(matches!(
-        rig.lookup().status,
-        Some(LookupStatus::Found {
-            after: Some(QueueStep::Skipped),
-            ..
-        })
-    ));
-
-    rig.send(SessionIntent::LookupSkip).await;
-    assert_eq!(
-        rig.lookup().status,
-        Some(LookupStatus::QueueComplete {
-            cover_failed: false
-        })
-    );
-}
-
-#[tokio::test]
-async fn a_result_the_gate_rejects_keeps_the_queue_on_its_title() {
-    let rig = rig();
-    rig.load(&["alpha", "beta"]);
-    rig.select(&[0, 1]).await;
-    let invalid = OnlineMetadataResult {
-        published_date: Some("soon".to_string()),
-        ..result("Found A")
-    };
-    rig.answer_next_search(Ok(MetadataLookupResponse {
-        results: vec![invalid],
-        diagnostics: Vec::new(),
-    }));
-    rig.send(SessionIntent::LookupOpen).await;
-    let searched = rig.searches().len();
-
-    rig.send(rig.lookup_apply(0)).await;
-
-    let lookup = rig.lookup();
-    assert_eq!(lookup.status, Some(LookupStatus::NextTitleRejected));
-    assert_eq!(lookup.queue_position.map(|at| at.index), Some(0));
-    assert_eq!(lookup.results.len(), 1, "results stay for another try");
-    assert_eq!(rig.searches().len(), searched);
-    assert_eq!(rig.selected(), [0]);
-    assert!(
-        rig.pending("alpha").is_none(),
-        "an invalid edit is never staged"
-    );
-}
-
-#[tokio::test]
-async fn a_result_is_not_applied_when_its_title_cannot_be_selected() {
-    let rig = rig();
-    rig.load(&["alpha", "beta"]);
-    rig.select(&[0]).await;
-    rig.answer_next_search(Ok(found(&["Found"])));
-    rig.send(SessionIntent::LookupOpen).await;
-    rig.select(&[1]).await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Date,
-        value: "soon".to_string(),
-    })
-    .await;
-
-    rig.send(rig.lookup_apply(0)).await;
-
-    assert_eq!(rig.lookup().status, Some(LookupStatus::ApplyRejected));
-    assert_eq!(rig.selected(), [1]);
-    assert_eq!(rig.title_shown(), "BETA");
-}
-
-#[tokio::test]
-async fn an_unknown_result_index_changes_nothing() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    rig.answer_next_search(Ok(found(&["Found"])));
-    rig.send(SessionIntent::LookupOpen).await;
-    let before = rig.lookup();
-
-    rig.send(rig.lookup_apply(9)).await;
-
-    assert_eq!(rig.lookup().status, before.status);
-    assert_eq!(rig.title_shown(), "ALPHA");
-}
-
-#[tokio::test]
 async fn an_unknown_select_file_title_id_changes_nothing() {
     let rig = rig();
     rig.load(&["alpha", "beta"]);
     rig.select(&[0]).await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Date,
-        value: "soon".to_string(),
-    })
-    .await;
+    rig.type_into(MetadataField::Date, "soon").await;
     let before = rig.selected();
 
     let outcome = rig
@@ -837,96 +424,6 @@ async fn a_select_file_begun_after_a_reorder_still_targets_the_same_title() {
 }
 
 #[tokio::test]
-async fn applying_a_result_does_not_use_an_index_into_replaced_results() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    rig.answer_next_search(Ok(found(&["Old"])));
-    rig.send(SessionIntent::LookupOpen).await;
-    assert_eq!(rig.lookup().results[0].title, "Old");
-
-    let slow = rig.hold_next_search();
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by applying_a_result_does_not_use_an_index_into_replaced_results"
-    )]
-    let searching = tokio::spawn({
-        let session = rig.session.clone();
-        async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
-    });
-    let searched = rig.searches().len();
-    while rig.searches().len() == searched {
-        tokio::task::yield_now().await;
-    }
-    assert_eq!(rig.lookup().status, Some(LookupStatus::Searching));
-    assert_eq!(rig.lookup().results[0].title, "Old");
-    let rendered = rig.lookup().revision;
-
-    slow.send(Ok(found(&["New"])))
-        .unwrap_or_else(|_| panic!("search is waiting"));
-    assert_eq!(searching.await.expect("search"), SessionOutcome::Applied);
-    assert_eq!(rig.lookup().results[0].title, "New");
-
-    rig.send(SessionIntent::LookupApply {
-        index: 0,
-        revision: rendered,
-    })
-    .await;
-
-    assert_eq!(
-        rig.title_shown(),
-        "ALPHA",
-        "an apply that names the list the host rendered does not take an index into a later list"
-    );
-    assert_eq!(rig.lookup().results[0].title, "New");
-}
-
-#[tokio::test]
-async fn editing_the_lookup_query_drops_a_search_for_the_old_query() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    rig.answer_next_search(Ok(found(&["First"])));
-    rig.send(SessionIntent::LookupOpen).await;
-    assert_eq!(rig.lookup().results[0].title, "First");
-
-    let slow = rig.hold_next_search();
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by editing_the_lookup_query_drops_a_search_for_the_old_query"
-    )]
-    let earlier = tokio::spawn({
-        let session = rig.session.clone();
-        async move { session.dispatch(SessionIntent::LookupSearch).await.outcome }
-    });
-    let searched = rig.searches().len();
-    while rig.searches().len() == searched {
-        tokio::task::yield_now().await;
-    }
-
-    rig.send(SessionIntent::LookupSetTitleQuery {
-        value: "Changed".to_string(),
-    })
-    .await;
-    slow.send(Ok(found(&["Stale"])))
-        .unwrap_or_else(|_| panic!("earlier search is waiting"));
-
-    assert_eq!(
-        earlier.await.expect("earlier search"),
-        SessionOutcome::Superseded
-    );
-    assert_eq!(rig.lookup().title_query, "Changed");
-    assert!(
-        rig.lookup()
-            .results
-            .iter()
-            .all(|result| result.title != "Stale"),
-        "results for the old query must not land under the new query text: {:?}",
-        rig.lookup().results
-    );
-}
-
-#[tokio::test]
 async fn a_reply_carries_what_its_intent_changed() {
     let rig = rig();
     rig.load(&["alpha", "beta"]);
@@ -935,6 +432,7 @@ async fn a_reply_carries_what_its_intent_changed() {
     let reply = rig
         .session
         .dispatch(SessionIntent::SetField {
+            binding: rig.metadata().binding,
             field: MetadataField::Genre,
             value: "Mystery".to_string(),
         })
@@ -950,11 +448,7 @@ async fn a_rejected_selection_reports_why_and_leaves_the_selection() {
     let rig = rig();
     rig.load(&["alpha", "beta"]);
     rig.select(&[0]).await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Date,
-        value: "soon".to_string(),
-    })
-    .await;
+    rig.type_into(MetadataField::Date, "soon").await;
 
     let outcome = rig
         .send(SessionIntent::SelectFile {
@@ -971,112 +465,13 @@ async fn a_rejected_selection_reports_why_and_leaves_the_selection() {
 }
 
 #[tokio::test]
-async fn importing_a_folder_with_no_audio_explains_what_is_supported() {
-    let rig = rig();
-    let empty = tempfile::TempDir::new().expect("temp dir");
-
-    rig.send(SessionIntent::Import {
-        paths: vec![empty.path().to_string_lossy().into_owned()],
-    })
-    .await;
-
-    let titles = rig.session.snapshot().titles.expect("titles part");
-    assert!(titles.files.is_empty());
-    assert!(matches!(
-        titles.notice,
-        Some(InputNotice::NoSupportedFiles { .. })
-    ));
-}
-
-#[tokio::test]
-async fn importing_lists_what_it_read_and_names_what_it_skipped() {
-    let rig = rig();
-    let folder = tempfile::TempDir::new().expect("temp dir");
-    let book = staged_wav(folder.path(), "book");
-    let missing = folder.path().join("missing.wav");
-
-    rig.send(SessionIntent::Import {
-        paths: vec![
-            book.to_string_lossy().into_owned(),
-            missing.to_string_lossy().into_owned(),
-        ],
-    })
-    .await;
-
-    let titles = rig.session.snapshot().titles.expect("titles part");
-    assert_eq!(
-        rig.listed_paths(),
-        vec![book.canonicalize().expect("canonical book")]
-    );
-    let Some(InputNotice::SkippedPaths { skipped }) = titles.notice else {
-        panic!("expected the skipped path notice, got {:?}", titles.notice);
-    };
-    assert_eq!(skipped.len(), 1);
-    assert_eq!(skipped[0].path, missing.display().to_string());
-    assert!(
-        skipped[0]
-            .reason
-            .starts_with("File validation failed: Cannot read it:"),
-        "the path is listed beside the reason, not inside it: {}",
-        skipped[0].reason
-    );
-}
-
-#[tokio::test]
-async fn a_cover_url_is_required_before_anything_loads() {
+async fn clear_all_empties_the_session() {
     let rig = rig();
     rig.load(&["alpha"]);
     rig.select(&[0]).await;
+    rig.type_into(MetadataField::Genre, "Mystery").await;
 
-    let outcome = rig
-        .send(SessionIntent::LoadCoverFromUrl {
-            url: "   ".to_string(),
-        })
-        .await;
-
-    assert_eq!(outcome, SessionOutcome::CoverLoadFailed);
-    let cover = rig.metadata().cover;
-    assert_eq!(
-        cover.notice,
-        Some(crate::session::state::CoverNotice::UrlRequired)
-    );
-    assert!(!cover.loading);
-}
-
-#[tokio::test]
-async fn a_cover_loaded_from_a_url_is_staged_on_the_selected_title() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-
-    let outcome = rig
-        .send(SessionIntent::LoadCoverFromUrl {
-            url: " https://example.com/cover.jpg ".to_string(),
-        })
-        .await;
-
-    assert_eq!(outcome, SessionOutcome::Applied);
-    let cover = rig.metadata().cover;
-    assert!(cover.present && cover.custom && !cover.loading);
-    assert_eq!(
-        cover.notice,
-        Some(crate::session::state::CoverNotice::LoadedFromUrl)
-    );
-    assert_eq!(rig.cover_shown().await, Some(written_cover()));
-}
-
-#[tokio::test]
-async fn reset_empties_the_session() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Genre,
-        value: "Mystery".to_string(),
-    })
-    .await;
-
-    rig.send(SessionIntent::Reset).await;
+    rig.send(SessionIntent::ClearAll).await;
 
     let snapshot = rig.session.snapshot();
     assert!(snapshot.titles.expect("titles").files.is_empty());
@@ -1100,6 +495,7 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
         modifiers: SelectionModifiers::default(),
     });
     let edit = rig.session.begin(SessionIntent::SetField {
+        binding: rig.metadata().binding,
         field: MetadataField::Genre,
         value: "Mystery".to_string(),
     });
@@ -1117,56 +513,12 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
 }
 
 #[tokio::test]
-async fn opened_files_wait_for_unlock_without_a_host_request() {
-    let rig = rig();
-    let folder = tempfile::TempDir::new().expect("temp dir");
-    let opened = staged_wav(folder.path(), "opened");
-    rig.lock_order(true);
-    rig.session
-        .import_opened(vec![opened.clone(), opened.clone()])
-        .expect("opened files admitted");
-    tokio::task::yield_now().await;
-    assert!(rig.listed_paths().is_empty());
-    rig.lock_order(false);
-    rig.session.sources_released();
-    rig.wait_for_titles(1).await;
-    assert_eq!(
-        rig.listed_paths(),
-        vec![opened.canonicalize().expect("canonical opened path")]
-    );
-
-    rig.session
-        .import_opened(vec![opened])
-        .expect("opened again");
-    rig.wait_for_notice(InputNotice::DuplicatesOnly).await;
-    assert_eq!(rig.listed_paths().len(), 1);
-}
-
-#[tokio::test]
-async fn a_reset_drops_opened_files_still_waiting_and_closing_refuses_them() {
-    let rig = rig();
-    let folder = tempfile::TempDir::new().expect("temp dir");
-    let opened = staged_wav(folder.path(), "opened");
-    rig.lock_order(true);
-    rig.session
-        .import_opened(vec![opened.clone()])
-        .expect("opened files admitted");
-    rig.send(SessionIntent::Reset).await;
-    rig.lock_order(false);
-    rig.session.sources_released();
-    rig.session.inner.deps.tasks.close();
-    rig.session.inner.deps.tasks.wait().await;
-    assert!(rig.listed_paths().is_empty(), "the reset dropped them");
-
-    assert!(rig.session.import_opened(vec![opened]).is_err());
-}
-
-#[tokio::test]
 async fn repeated_removal_targets_one_title_and_preserves_its_neighbours_edits() {
     let rig = rig();
     rig.load(&["alpha", "beta"]);
     rig.select(&[1]).await;
     rig.send(SessionIntent::SetField {
+        binding: rig.metadata().binding,
         field: MetadataField::Genre,
         value: "Mystery".into(),
     })
@@ -1230,75 +582,8 @@ async fn a_host_that_attached_mid_intent_learns_its_result_from_an_event() {
     assert_eq!(latest.results.len(), 1);
 }
 
-#[tokio::test]
-async fn an_import_that_fails_after_a_reset_leaves_the_new_session_alone() {
-    let rig = rig();
-    let empty = tempfile::TempDir::new().expect("temp dir");
-    let import = rig.session.begin(SessionIntent::Import {
-        paths: vec![empty.path().to_string_lossy().into_owned()],
-    });
-    rig.send(SessionIntent::Reset).await;
-
-    assert_eq!(import.finish().await.outcome, SessionOutcome::Superseded);
-    let titles = rig.session.snapshot().titles.expect("titles part");
-    assert_eq!(titles.notice, None);
-}
-
-#[tokio::test]
-async fn a_cover_cleared_while_loading_is_not_replaced_by_the_load() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-
-    let load = rig.session.begin(SessionIntent::LoadCoverFromUrl {
-        url: "https://example.com/cover.jpg".to_string(),
-    });
-    rig.send(SessionIntent::ClearCover).await;
-
-    assert_eq!(load.finish().await.outcome, SessionOutcome::Superseded);
-    assert_eq!(rig.pending("alpha").and_then(|patch| patch.cover_art), None);
-    let cover = rig.metadata().cover;
-    assert!(!cover.loading && !cover.present);
-}
-
 fn audio(rig: &Rig) -> crate::session::AudioSnapshot {
     rig.session.snapshot().audio.expect("audio part")
-}
-
-#[tokio::test]
-async fn covers_are_served_only_for_what_the_session_shows() {
-    let rig = rig();
-    let folder = tempfile::TempDir::new().expect("temp dir");
-    let listed = staged_wav(folder.path(), "listed");
-    let unlisted = staged_wav(folder.path(), "unlisted");
-    rig.send(SessionIntent::Import {
-        paths: vec![listed.to_string_lossy().into_owned()],
-    })
-    .await;
-    let request = |path: &std::path::Path| {
-        let value = percent_encoding::utf8_percent_encode(
-            &path.canonicalize().expect("canonical").to_string_lossy(),
-            percent_encoding::NON_ALPHANUMERIC,
-        )
-        .to_string();
-        format!("audio/small/0/{value}")
-    };
-
-    assert_eq!(
-        rig.session.cover(&request(&listed)).await.expect("listed"),
-        None,
-        "a listed source with no cover has none"
-    );
-    assert!(rig.session.cover(&request(&unlisted)).await.is_err());
-    assert!(rig
-        .session
-        .cover("remote/small/0/https%3A%2F%2Fcovers.test%2Fnever-shown.jpg")
-        .await
-        .is_err());
-    assert_eq!(
-        rig.session.cover("session/full/0/").await.expect("session"),
-        None
-    );
 }
 
 fn output(rig: &Rig) -> crate::session::OutputSnapshot {
@@ -1310,113 +595,6 @@ fn preview_path(rig: &Rig) -> String {
         crate::session::OutputPreview::Path { path } => path,
         other => panic!("no preview path: {other:?}"),
     }
-}
-
-#[tokio::test]
-async fn the_output_preview_follows_the_form_the_directory_and_the_format() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    assert_eq!(
-        output(&rig).preview,
-        crate::session::OutputPreview::NoDirectory
-    );
-
-    rig.send(SessionIntent::SetOutputDirectory {
-        directory: "/out".to_string(),
-    })
-    .await;
-    let first = preview_path(&rig);
-    assert!(first.starts_with("/out/Author"), "{first}");
-    assert!(first.ends_with(".m4b"), "{first}");
-
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Title,
-        value: "Dune".to_string(),
-    })
-    .await;
-    rig.send(SessionIntent::SetTitleAudio {
-        title_ids: vec!["alpha".to_string()],
-        edit: AudioEdit::Format(AudiobookFormat::Mp3),
-    })
-    .await;
-    let renamed = preview_path(&rig);
-    assert!(
-        renamed.contains("Dune") && renamed.ends_with(".mp3"),
-        "{renamed}"
-    );
-}
-
-#[tokio::test(start_paused = true)]
-async fn output_choices_are_recorded_and_template_typing_once_it_pauses() {
-    let rig = rig();
-    let saved = || async {
-        rig.session
-            .inner
-            .deps
-            .settings
-            .snapshot()
-            .await
-            .settings
-            .output_defaults
-    };
-
-    rig.send(SessionIntent::SetNamingPreset {
-        preset: NamingPreset::CustomTemplate,
-    })
-    .await;
-    assert_eq!(
-        saved().await.output_naming.preset,
-        NamingPreset::CustomTemplate
-    );
-
-    for template in ["{a", "{author}", "{author}/{title}x"] {
-        rig.send(SessionIntent::SetNamingTemplate {
-            template: template.to_string(),
-        })
-        .await;
-    }
-    assert_eq!(saved().await.output_naming.custom_template, None);
-    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
-    assert_eq!(
-        saved().await.output_naming.custom_template.as_deref(),
-        Some("{author}/{title}x")
-    );
-}
-
-#[tokio::test]
-async fn ending_a_submission_wakes_a_save_waiting_on_its_sources() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    let draft = rig
-        .session
-        .transition(|state| {
-            state.output.set_directory("/library".to_string());
-            state.begin_submission(false)
-        })
-        .expect("the submission is prepared");
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Genre,
-        value: "Mystery".to_string(),
-    })
-    .await;
-    rig.send(SessionIntent::Save).await;
-    assert_eq!(rig.session.waiting_write_paths(), [path("alpha")]);
-
-    for _ in 0..20 {
-        tokio::task::yield_now().await;
-    }
-    rig.session
-        .end_submission(&draft, SubmissionStatus::Cancelled);
-
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        while !rig.session.waiting_write_paths().is_empty() {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the waiting write is attempted once its source is free");
 }
 
 fn staged_wav(dir: &std::path::Path, name: &str) -> PathBuf {
@@ -1480,399 +658,6 @@ fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::Acqu
     }
 }
 
-impl Rig {
-    async fn removed_jobs(&self) -> Vec<String> {
-        tokio::time::timeout(std::time::Duration::from_secs(30), async {
-            loop {
-                let removed = self.removed.lock().expect("removed").clone();
-                if !removed.is_empty() && !self.session.inner.sweeping.load(Ordering::SeqCst) {
-                    return removed;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .expect("a download is removed")
-    }
-}
-
-#[tokio::test]
-async fn an_acquired_title_is_listed_with_its_companions_and_its_download_goes_when_it_leaves() {
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let audio = staged_wav(staging.path(), "book");
-
-    let handoff = rig.session.import_acquired(acquired("job-1", &audio)).await;
-
-    assert_eq!(
-        handoff,
-        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
-    );
-    let titles = rig.session.snapshot().titles.expect("titles");
-    let input_id = titles.files[0].input_id.clone();
-    assert_eq!(titles.companions[&input_id], ["Guide.pdf"]);
-    assert!(rig.removed.lock().expect("removed").is_empty());
-
-    rig.send(SessionIntent::ClearAll).await;
-    assert_eq!(rig.removed_jobs().await, ["job-1"]);
-    assert!(rig
-        .session
-        .snapshot()
-        .titles
-        .expect("titles")
-        .companions
-        .is_empty());
-}
-
-#[tokio::test]
-async fn a_download_with_an_unreadable_file_is_not_listed_at_all() {
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let audio = staged_wav(staging.path(), "book");
-    let mut job = acquired("job-1", &audio);
-    let mut missing = job.materialized_files[0].clone();
-    missing.path = staging.path().join("part 2.wav");
-    job.materialized_files.push(missing);
-
-    let handoff = rig.session.import_acquired(job).await;
-
-    assert!(
-        matches!(
-            handoff,
-            crate::remote_source::AcquisitionHandoff::Removed {
-                reason: crate::remote_source::HandoffRefusal::ImportFailed { .. }
-            }
-        ),
-        "{handoff:?}"
-    );
-    assert!(rig.listed_paths().is_empty());
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_failed_removal_waits_out_the_retry_delay_before_the_next_change_retries_it() {
-    let rig = rig();
-    rig.failing_removals
-        .store(1, std::sync::atomic::Ordering::SeqCst);
-    let staging = tempfile::TempDir::new().expect("staging");
-    let audio = staged_wav(staging.path(), "book");
-    rig.session.import_acquired(acquired("job-1", &audio)).await;
-    let attempts = || rig.removed.lock().expect("removed").len();
-
-    rig.send(SessionIntent::ClearAll).await;
-    assert_eq!(rig.removed_jobs().await, ["job-1"]);
-    rig.send(SessionIntent::SetOutputDirectory {
-        directory: "/library".to_string(),
-    })
-    .await;
-    tokio::time::sleep(crate::session::staged::RETRY_DELAY / 2).await;
-    rig.send(SessionIntent::ClearAll).await;
-    assert_eq!(attempts(), 1);
-
-    tokio::time::sleep(crate::session::staged::RETRY_DELAY).await;
-    rig.send(SessionIntent::ClearAll).await;
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        while !rig.session.lock().staged.is_empty() {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the change after the delay retries the removal");
-    assert_eq!(attempts(), 2);
-}
-
-#[tokio::test]
-async fn a_download_goes_once_its_title_is_exported() {
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let output = tempfile::TempDir::new().expect("output");
-    let audio = staged_wav(staging.path(), "book");
-    rig.session.import_acquired(acquired("job-1", &audio)).await;
-    assert!(rig.removed.lock().expect("removed").is_empty());
-
-    rig.send(SessionIntent::SetOutputDirectory {
-        directory: output.path().to_string_lossy().into_owned(),
-    })
-    .await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Title,
-        value: "Book".to_string(),
-    })
-    .await;
-    rig.send(SessionIntent::Submit).await;
-    assert!(
-        matches!(
-            rig.session.snapshot().output.expect("output").submission,
-            Some(SubmissionStatus::Submitted { .. })
-        ),
-        "{:?}",
-        rig.session.snapshot().output.expect("output").submission
-    );
-    assert_eq!(rig.removed_jobs().await, ["job-1"]);
-    assert_eq!(
-        rig.session.snapshot().titles.expect("titles").files.len(),
-        1
-    );
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn reset_during_preflight_drops_the_review_and_unlocks_the_list() {
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let out = tempfile::TempDir::new().expect("output");
-    let audio = staged_wav(staging.path(), "book");
-    rig.session.import_acquired(acquired("job-1", &audio)).await;
-    rig.send(SessionIntent::SetOutputDirectory {
-        directory: out.path().to_string_lossy().into_owned(),
-    })
-    .await;
-    rig.send(SessionIntent::SetField {
-        field: MetadataField::Title,
-        value: "Book".to_string(),
-    })
-    .await;
-    let dest = preview_path(&rig);
-    if let Some(parent) = std::path::Path::new(&dest).parent() {
-        std::fs::create_dir_all(parent).expect("output parent");
-    }
-    std::fs::write(&dest, b"already there").expect("colliding output");
-
-    rig.send(SessionIntent::Submit).await;
-    assert!(
-        matches!(
-            output(&rig).submission,
-            Some(SubmissionStatus::ReviewRequired)
-        ),
-        "this output must collide so hold_for_review is reached: {:?}",
-        output(&rig).submission
-    );
-    let review_id = output(&rig)
-        .collision_review
-        .expect("held review")
-        .review_id;
-    rig.send(SessionIntent::CancelCollisionReview { review_id })
-        .await;
-    assert!(!rig.session.snapshot().titles.expect("titles").order_locked);
-
-    let submitting = rig.session.begin(SessionIntent::Submit);
-    let _reset = rig.session.begin(SessionIntent::Reset);
-    submitting.finish().await;
-
-    let titles = rig.session.snapshot().titles.expect("titles");
-    assert!(titles.files.is_empty());
-    assert!(
-        !titles.order_locked,
-        "a reset during preflight unlocks the list"
-    );
-    assert!(
-        output(&rig).collision_review.is_none(),
-        "a reset during preflight does not hold a review: {:?}",
-        output(&rig).collision_review
-    );
-    assert!(!output(&rig).submission_in_progress);
-}
-
-#[tokio::test]
-async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks() {
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    rig.load(&["alpha"]);
-    rig.select(&[0]).await;
-    let draft = rig
-        .session
-        .transition(|state| {
-            state.output.set_directory("/library".to_string());
-            state.begin_submission(false)
-        })
-        .expect("a submission locks the list");
-
-    let audio = staged_wav(staging.path(), "book");
-    let session = rig.session.clone();
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks"
-    )]
-    let handoff =
-        tokio::spawn(async move { session.import_acquired(acquired("job-1", &audio)).await });
-    for _ in 0..20 {
-        tokio::task::yield_now().await;
-    }
-    assert!(!handoff.is_finished(), "the download waits for the list");
-
-    rig.session
-        .end_submission(&draft, SubmissionStatus::Cancelled);
-    assert_eq!(
-        handoff.await.expect("handoff"),
-        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
-    );
-    assert!(rig.removed.lock().expect("removed").is_empty());
-}
-
-#[tokio::test]
-async fn reset_supersedes_an_acquired_handoff_waiting_for_an_earlier_import() {
-    use std::future::Future;
-    let rig = rig();
-    let staging = tempfile::TempDir::new().expect("staging");
-    let audio = staged_wav(staging.path(), "book");
-    let in_order = rig
-        .session
-        .inner
-        .imports
-        .wait(rig.session.inner.imports.take())
-        .await;
-    let mut handoff = Box::pin(
-        rig.session
-            .import_acquired(acquired("job-before-reset", &audio)),
-    );
-    std::future::poll_fn(|cx| {
-        assert!(handoff.as_mut().poll(cx).is_pending());
-        std::task::Poll::Ready(())
-    })
-    .await;
-    rig.send(SessionIntent::Reset).await;
-    drop(in_order);
-    assert_eq!(
-        handoff.await,
-        crate::remote_source::AcquisitionHandoff::Removed {
-            reason: HandoffRefusal::NothingAdded
-        }
-    );
-    assert_eq!(rig.removed_jobs().await, ["job-before-reset"]);
-    assert!(rig
-        .session
-        .snapshot()
-        .titles
-        .expect("titles")
-        .files
-        .is_empty());
-}
-
-#[tokio::test]
-async fn lookup_cover_reply_cannot_pull_the_selection_back_to_an_earlier_title() {
-    let (cover, pending) = tokio::sync::oneshot::channel();
-    let rig = rig_with_cover(Some(pending));
-    rig.load(&["alpha", "beta"]);
-    rig.select(&[0]).await;
-    rig.answer_next_search(Ok(found(&["Found Alpha"])));
-    rig.send(SessionIntent::LookupOpen).await;
-    rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
-        .await;
-    let applying = rig.session.begin(rig.lookup_apply(0));
-    rig.select(&[1]).await;
-    cover.send(Ok(vec![1, 2, 3])).expect("cover reply");
-    assert_eq!(applying.finish().await.outcome, SessionOutcome::Superseded);
-    assert_eq!(rig.selected(), vec![1]);
-    assert_eq!(rig.title_shown(), "BETA");
-    assert!(rig.pending("alpha").is_none());
-}
-
-#[tokio::test]
-async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply() {
-    let rig = rig();
-    let lane = crate::test_cases::media_fixtures::MediaLane::with_fixtures(&[0.2]);
-    let source = lane
-        .process(Some(AudiobookMetadata {
-            title: Some("Preview".to_string()),
-            ..Default::default()
-        }))
-        .await;
-    std::fs::create_dir_all(rig._config.path().join("previews")).expect("preview folder");
-    rig.send(SessionIntent::Import {
-        paths: vec![source.to_string_lossy().into_owned()],
-    })
-    .await;
-    rig.send(SessionIntent::SetOutputDirectory {
-        directory: rig
-            ._config
-            .path()
-            .join("previews")
-            .to_string_lossy()
-            .into_owned(),
-    })
-    .await;
-    let custom = rig._config.path().join("custom.png");
-    image::RgbImage::from_pixel(1, 1, image::Rgb([180, 20, 90]))
-        .save(&custom)
-        .expect("custom cover");
-    rig.send(SessionIntent::LoadCoverFromFile {
-        path: custom.to_string_lossy().into_owned(),
-    })
-    .await;
-    let cover = rig.cover_shown().await.expect("accepted normalized cover");
-    let jobs = &rig.session.inner.deps.jobs;
-    let (first, first_permit) = jobs.register_job().await.expect("hold first slot");
-    let (second, second_permit) = jobs.register_job().await.expect("hold second slot");
-    let run = rig.session.begin(SessionIntent::Preview);
-    drop(run);
-    let id = output(&rig)
-        .preview_run
-        .expect("accepted preview")
-        .operation
-        .operation_id;
-    wait_preview(&rig, crate::work_runtime::WorkOperationStatus::Running).await;
-    let shown = rig
-        .session
-        .cover(&format!("preview/small/0/{id}"))
-        .await
-        .expect("the running preview's artwork")
-        .expect("a custom cover");
-    assert_eq!(
-        shown.to_vec(),
-        crate::metadata::render_display_thumbnail(&cover).expect("thumbnail")
-    );
-    assert_eq!(
-        rig.send(SessionIntent::CancelPreview {
-            run_id: id.to_string(),
-            child_job_id: None
-        })
-        .await,
-        SessionOutcome::Applied
-    );
-    let preview = wait_preview(&rig, crate::work_runtime::WorkOperationStatus::Cancelled).await;
-    assert!(preview.operation.cancel_requested);
-    assert!(!preview.open_ready);
-    assert!(preview
-        .operation
-        .children
-        .iter()
-        .all(|child| child.output_path.is_none()
-            && child.progress.stage == crate::work_runtime::WorkProgressStage::Cancelled));
-    assert_eq!(
-        rig.send(SessionIntent::TakePreviewOutput {
-            run_id: id.to_string()
-        })
-        .await,
-        SessionOutcome::PreviewOutput { path: None }
-    );
-    assert!(!rig.session.snapshot().titles.expect("titles").order_locked);
-    jobs.complete_job(first).await;
-    jobs.complete_job(second).await;
-    drop((first_permit, second_permit));
-}
-
-#[tokio::test]
-async fn an_unsupported_cover_drop_publishes_the_ingestion_diagnostic() {
-    let rig = rig();
-    rig.load(&["alpha"]);
-    let file = rig._config.path().join("cover.gif");
-    std::fs::write(&file, b"GIF89a").expect("unsupported image fixture");
-    assert_eq!(
-        rig.send(SessionIntent::LoadCoverFromDrop {
-            paths: vec![file.to_string_lossy().into_owned()]
-        })
-        .await,
-        SessionOutcome::CoverLoadFailed
-    );
-    assert!(matches!(
-        rig.session
-            .snapshot()
-            .metadata
-            .expect("metadata")
-            .cover
-            .notice,
-        Some(crate::session::CoverNotice::LoadFailed { .. })
-    ));
-}
-
 #[tokio::test]
 async fn an_accepted_indexer_save_finishes_when_the_host_drops_its_reply() {
     use crate::remote_source::{RemoteDraftStatus, RemoteUiIntent};
@@ -1918,28 +703,6 @@ async fn an_accepted_indexer_save_finishes_when_the_host_drops_its_reply() {
         .expect("key fact for the saved URL"));
 }
 
-async fn wait_preview(
-    rig: &Rig,
-    status: crate::work_runtime::WorkOperationStatus,
-) -> super::super::preview::PreviewSnapshot {
-    tokio::time::timeout(Duration::from_secs(5), async {
-        loop {
-            let preview = output(rig).preview_run.expect("retained preview");
-            if preview.operation.status == status {
-                return preview;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .unwrap_or_else(|error| {
-        panic!(
-            "preview did not reach {status:?}: {error}; {:?}",
-            output(rig).preview_run
-        )
-    })
-}
-
 #[tokio::test]
 async fn moves_name_the_title_so_a_second_click_moves_the_same_title_again() {
     let rig = rig();
@@ -1966,3 +729,21 @@ async fn moves_name_the_title_so_a_second_click_moves_the_same_title_again() {
 
 #[path = "runtime_audio_tests.rs"]
 mod audio;
+#[path = "runtime/cover_flow_tests.rs"]
+mod cover_flow;
+#[path = "runtime/defaults_flow_tests.rs"]
+mod defaults_flow;
+#[path = "runtime/download_flow_tests.rs"]
+mod download_flow;
+#[path = "runtime_field_edit_tests.rs"]
+mod field_edit;
+#[path = "runtime/import_flow_tests.rs"]
+mod import_flow;
+#[path = "runtime/lookup_flow_tests.rs"]
+mod lookup_flow;
+#[path = "runtime/preview_flow_tests.rs"]
+mod preview_flow;
+#[path = "runtime/save_flow_tests.rs"]
+mod save_flow;
+#[path = "runtime/submission_flow_tests.rs"]
+mod submission_flow;

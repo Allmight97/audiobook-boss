@@ -14,17 +14,8 @@ import {
 import type { SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { SessionIntent } from '../../types/session';
-import type {
-	OperationId,
-	OperationSnapshot,
-	WorkOperationsSnapshot,
-} from '../../types/workRuntime';
+import type { OperationId } from '../../types/workRuntime';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
-import {
-	normalizeWorkOperationsUpdate,
-	normalizeSessionUpdate,
-	normalizeSettingsSnapshot,
-} from './normalizers';
 
 type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
 type RuntimeEventName = Exclude<EventName, AppEventName>;
@@ -37,21 +28,15 @@ type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
 async function listenWorkOperationsUpdate(
 	handler: WorkOperationsUpdateHandler,
 ): Promise<UnlistenFn> {
-	return generatedEvents.workOperationsUpdate.listen((event) => {
-		handler({ payload: normalizeWorkOperationsUpdate(event.payload) });
-	});
+	return generatedEvents.workOperationsUpdate.listen(handler);
 }
 
 async function listenSettingsUpdate(handler: SettingsUpdateHandler): Promise<UnlistenFn> {
-	return generatedEvents.settingsUpdate.listen((event) => {
-		handler({ payload: normalizeSettingsSnapshot(event.payload) });
-	});
+	return generatedEvents.settingsUpdate.listen(handler);
 }
 
 async function listenSessionUpdate(handler: SessionUpdateHandler): Promise<UnlistenFn> {
-	return generatedEvents.sessionUpdate.listen((event) => {
-		handler({ payload: normalizeSessionUpdate(event.payload) });
-	});
+	return generatedEvents.sessionUpdate.listen(handler);
 }
 
 function listen(
@@ -139,15 +124,9 @@ export const tauriClient = {
 		intent: SettingsIntent,
 	): Promise<CommandResult<'settings_dispatch'>> =>
 		commandSpecs.settings_dispatch({ client, sequence, intent }),
-	getSupportedAudioImportMetadata: (): Promise<
-		CommandResult<'get_supported_audio_import_metadata'>
-	> => commandSpecs.get_supported_audio_import_metadata(),
-	listWorkOperations: (): Promise<WorkOperationsSnapshot> => commandSpecs.list_work_operations(),
 	/** Cancels the whole operation, or only the title named by `childJobId`. */
-	cancelWorkOperation: (
-		operationId: OperationId,
-		childJobId?: string,
-	): Promise<OperationSnapshot> => commandSpecs.cancel_work_operation({ operationId, childJobId }),
+	cancelWorkOperation: (operationId: OperationId, childJobId?: string): Promise<void> =>
+		commandSpecs.cancel_work_operation({ operationId, childJobId }).then(() => undefined),
 	logFrontend: (entry: FrontendLogEntry): Promise<void> =>
 		commandSpecs.log_frontend({ entry }).then(() => undefined),
 	listen,
@@ -155,7 +134,7 @@ export const tauriClient = {
 	openFiles,
 	openDirectory,
 	revealPath: (path: string): Promise<void> => revealItemInDir(path),
-	openUrl: (url: string | URL, openWith?: string): Promise<void> => tauriOpenUrl(url, openWith),
+	openUrl: (url: string | URL): Promise<void> => tauriOpenUrl(url),
 };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.keys returns string[]; commandSpecs is keyed by TauriCommand.

@@ -56,6 +56,7 @@ pub struct AudioChoice {
     pub opus_bitrate_kbps: u16,
     /// The bitrate mode the saved settings carried, used until capabilities
     /// name the encoder's default.
+    #[serde(skip)]
     pub saved_mode: BitrateMode,
     pub faac_profile: FaacProfile,
     pub faac_rate_control: FaacRateControl,
@@ -111,11 +112,8 @@ pub struct AudioChoiceFacts {
     /// accept; the user must choose another before export.
     pub sample_rate_supported: bool,
     /// Total target kbps, or `None` when a quality setting owns the bitrate.
+    #[serde(skip)]
     pub estimate_kbps: Option<u16>,
-}
-
-fn is_opus(format: AudiobookFormat) -> bool {
-    matches!(format, AudiobookFormat::M4aOpus | AudiobookFormat::MkaOpus)
 }
 
 impl AudioChoice {
@@ -134,9 +132,7 @@ impl AudioChoice {
 
     pub(crate) fn for_title(&self, request: &TitleAudioRequest) -> Self {
         let mut choice = self.clone();
-        if let Some(settings) = request.output.encoder_settings() {
-            choice.take_settings(settings);
-        }
+        choice.take_settings(request.output.encoder_settings());
         choice.format = request.format();
         choice.intent = request.intent;
         choice.sample_rate = request.sample_rate;
@@ -235,24 +231,8 @@ impl AudioChoice {
 
     fn apply(&mut self, edit: AudioEdit, caps: Option<&EncoderSettingsCapabilities>) -> EditResult {
         match edit {
-            AudioEdit::Format(format) => {
-                let same = self.format == format;
-                self.format = format;
-                if format == AudiobookFormat::Mp3 {
-                    self.intent = AudioIntent::Preserve;
-                }
-                if same {
-                    EditResult::Same
-                } else {
-                    EditResult::Changed
-                }
-            }
-            AudioEdit::Intent(intent) => {
-                if self.format == AudiobookFormat::Mp3 && intent == AudioIntent::Encode {
-                    return EditResult::Refused;
-                }
-                set(&mut self.intent, intent)
-            }
+            AudioEdit::Format(format) => set(&mut self.format, format),
+            AudioEdit::Intent(intent) => set(&mut self.intent, intent),
             AudioEdit::Encoder(encoder) => {
                 let available = encoder_available(encoder, caps);
                 if encoder == EncoderType::Opus || !available {
@@ -285,7 +265,7 @@ impl AudioChoice {
                 if !(config.bitrate_kbps_min..=config.bitrate_kbps_max).contains(&kbps) {
                     return EditResult::Refused;
                 }
-                if is_opus(self.format) {
+                if self.format.is_opus() {
                     set(&mut self.opus_bitrate_kbps, kbps)
                 } else {
                     set(&mut self.aac_bitrate_kbps, kbps)
@@ -327,7 +307,7 @@ impl AudioChoice {
         &self,
         caps: Option<&EncoderSettingsCapabilities>,
     ) -> EncoderType {
-        if is_opus(self.format) {
+        if self.format.is_opus() {
             return EncoderType::Opus;
         }
         match (self.encoder, caps) {
@@ -348,7 +328,7 @@ impl AudioChoice {
     }
 
     fn uses_faac(&self) -> bool {
-        !is_opus(self.format) && self.encoder == EncoderType::Faac
+        !self.format.is_opus() && self.encoder == EncoderType::Faac
     }
 
     fn allowed_sample_rates(&self, caps: Option<&EncoderSettingsCapabilities>) -> Vec<u32> {
@@ -367,7 +347,7 @@ impl AudioChoice {
     }
 
     fn bitrate_mode(&self, caps: Option<&EncoderSettingsCapabilities>) -> BitrateMode {
-        if is_opus(self.format) {
+        if self.format.is_opus() {
             return BitrateMode::VbrTarget;
         }
         if self.encoder == EncoderType::Faac {
@@ -381,7 +361,7 @@ impl AudioChoice {
     }
 
     fn settings(&self, caps: Option<&EncoderSettingsCapabilities>) -> EncoderSettings {
-        let opus = is_opus(self.format);
+        let opus = self.format.is_opus();
         EncoderSettings {
             encoder_type: if opus {
                 EncoderType::Opus
@@ -441,7 +421,7 @@ impl AudioChoice {
                     .iter()
                     .copied()
                     .filter(|encoder| {
-                        if is_opus(self.format) {
+                        if self.format.is_opus() {
                             *encoder == EncoderType::Opus
                         } else {
                             !matches!(encoder, EncoderType::Opus | EncoderType::Auto)
@@ -453,7 +433,7 @@ impl AudioChoice {
                     })
                     .collect()
             }),
-            encoder_locked: is_opus(self.format) || caps.is_none(),
+            encoder_locked: self.format.is_opus() || caps.is_none(),
             downmix_warning: false,
             bitrate_mode,
             bitrate_kbps_min: config.map_or(1, |config| config.bitrate_kbps_min),

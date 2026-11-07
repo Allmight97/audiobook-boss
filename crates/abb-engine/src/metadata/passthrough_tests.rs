@@ -24,10 +24,73 @@ fn chapterless_sources_synthesize_one_chapter_per_file() {
 }
 
 #[test]
+fn a_source_with_no_length_is_named_because_it_shifts_later_chapters() {
+    let source = |path: &str, duration: Option<f64>| PassthroughSource {
+        chapters: None,
+        path: std::path::PathBuf::from(path),
+        duration,
+        is_valid: true,
+    };
+
+    let passthrough = extract_passthrough_metadata(&[
+        source("/books/one.m4b", None),
+        source("/books/two.m4b", Some(90.0)),
+    ]);
+
+    assert!(passthrough.warnings.contains(
+        &"one.m4b has no known length, so the chapters after it may start too early.".to_string()
+    ));
+    assert_eq!(passthrough.chapters.len(), 1);
+}
+
+#[test]
+fn a_source_with_no_length_is_named_only_when_a_later_source_has_chapters() {
+    let chapter = || ChapterSpec {
+        title: Some("Chapter".to_string()),
+        start_ms: 0,
+        end_ms: 1_000,
+    };
+    let source =
+        |path: &str, duration: Option<f64>, chapters: Vec<ChapterSpec>| PassthroughSource {
+            chapters: Some(chapters),
+            path: std::path::PathBuf::from(path),
+            duration,
+            is_valid: true,
+        };
+    let no_length_warnings = |sources: &[PassthroughSource]| -> Vec<String> {
+        extract_passthrough_metadata(sources)
+            .warnings
+            .into_iter()
+            .filter(|warning| warning.contains("no known length"))
+            .collect()
+    };
+    let one = "one.m4b has no known length, so the chapters after it may start too early.";
+
+    assert_eq!(
+        no_length_warnings(&[
+            source("/books/one.m4b", None, vec![chapter()]),
+            source("/books/two.m4b", Some(90.0), vec![chapter()]),
+        ]),
+        [one]
+    );
+    assert!(no_length_warnings(&[
+        source("/books/one.m4b", None, vec![chapter()]),
+        source("/books/two.m4b", Some(90.0), Vec::new()),
+    ])
+    .is_empty());
+    assert!(no_length_warnings(&[
+        source("/books/two.m4b", Some(90.0), vec![chapter()]),
+        source("/books/one.m4b", None, vec![chapter()]),
+    ])
+    .is_empty());
+}
+
+#[test]
 fn dropping_the_cover_leaves_nothing_when_only_the_cover_was_passed_through() {
     let passthrough = PassthroughMetadata {
         chapters: Vec::new(),
         cover_art: Some(vec![1, 2, 3]),
+        ..Default::default()
     };
 
     assert!(passthrough.without_cover_art().is_none());
@@ -43,6 +106,7 @@ fn cover_art_passthrough_policy_drops_only_cover_art_after_explicit_clear() {
             end_ms: 1_000,
         }],
         cover_art: Some(vec![1, 2, 3]),
+        ..Default::default()
     };
 
     let effective = CoverArtPassthroughPolicy::SuppressAfterExplicitClear
@@ -58,6 +122,7 @@ fn a_source_cover_fills_only_a_missing_cover() {
     let passthrough = PassthroughMetadata {
         chapters: Vec::new(),
         cover_art: Some(vec![1, 2, 3]),
+        ..Default::default()
     };
 
     let missing = merge_passthrough_cover_art(
@@ -106,6 +171,7 @@ fn prepare_output_cover_art_drops_passthrough_cover_after_adopting_jpeg() {
             end_ms: 1_000,
         }],
         cover_art: Some(jpeg.clone()),
+        ..Default::default()
     };
 
     let (metadata, passthrough, warning) =

@@ -141,6 +141,10 @@ impl TitleOutput {
     }
 
     pub(crate) fn on_change(&self, listener: Box<Listener>) {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "set once when the work runtime creates the title output"
+        )]
         let _ = self.on_change.set(listener);
     }
 

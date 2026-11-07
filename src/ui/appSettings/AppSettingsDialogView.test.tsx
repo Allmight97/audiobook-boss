@@ -12,6 +12,7 @@ describe('AppSettingsDialogView', () => {
 
 	afterEach(() => {
 		cleanup();
+		vi.restoreAllMocks();
 		runtime?.dispose();
 		runtime = undefined;
 	});
@@ -21,8 +22,7 @@ describe('AppSettingsDialogView', () => {
 	): Promise<AppRuntime> {
 		engine = createFakeEngine();
 		prepare(engine);
-		runtime = createAppRuntime({ engine });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine });
 		runtime.settings.openDialog();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -49,6 +49,31 @@ describe('AppSettingsDialogView', () => {
 		await vi.waitFor(() => expect(sent('reset')).toBe(1));
 	});
 
+	it('keeps Reset disabled and sends one reset while the reset is saving', async () => {
+		await renderOpenDialog();
+		const release = { done: () => {} };
+		engine.respondSettings = (intent) =>
+			intent.kind === 'reset'
+				? new Promise((resolve) => {
+						release.done = () => resolve(undefined);
+					})
+				: undefined;
+
+		fireEvent.click(screen.getByTestId('app-settings-reset'));
+		flush();
+		fireEvent.click(screen.getByTestId('app-settings-reset-confirm'));
+		flush();
+		await vi.waitFor(() => expect(sent('reset')).toBe(1));
+
+		const reset = screen.getByTestId('app-settings-reset');
+		expect(reset).toBeDisabled();
+		fireEvent.click(reset);
+		flush();
+		expect(screen.queryByTestId('app-settings-reset-confirm-prompt')).not.toBeInTheDocument();
+		expect(sent('reset')).toBe(1);
+		release.done();
+	});
+
 	it('shows an automatic save failure and retries without discarding the accepted choice', async () => {
 		await renderOpenDialog();
 		engine.change((state) => {
@@ -70,15 +95,15 @@ describe('AppSettingsDialogView', () => {
 			state.audio.defaults.facts.effectiveEncoder = 'faac';
 		});
 		const faac = {
-			...engine.settings().settings!.encoderDefaults,
+			...engine.settings().settings.encoderDefaults,
 			settings: {
-				...engine.settings().settings!.encoderDefaults.settings,
+				...engine.settings().settings.encoderDefaults.settings,
 				encoderType: 'faac' as const,
 			},
 		};
 		engine.seedAppSettings(
 			{ encoderDefaults: faac },
-			{ code: 'io_error', category: 'io', message: 'Disk full' },
+			{ code: 'io_error', category: 'io', message: 'Disk full', detail: null },
 		);
 		await vi.waitFor(() =>
 			expect(screen.getByRole('button', { name: 'Retry save' })).toBeInTheDocument(),
@@ -136,6 +161,8 @@ describe('AppSettingsDialogView', () => {
 		await vi.waitFor(() => expect(runtime!.settings.defaultAcquisitionLane()).toBe('indexer'));
 		expect(engine.settingsIntents).toContainEqual({
 			kind: 'remember',
+			encoderDefaults: null,
+			outputDefaults: null,
 			defaultAcquisitionLane: 'indexer',
 		});
 	});
@@ -164,7 +191,7 @@ describe('AppSettingsDialogView', () => {
 		engine.respondSettings = () => {
 			engine.seedAppSettings(
 				{ keepAwakeWhileWorking: false },
-				{ code: 'io_error', category: 'io', message: 'Disk full' },
+				{ code: 'io_error', category: 'io', message: 'Disk full', detail: null },
 			);
 			return undefined;
 		};
@@ -174,6 +201,33 @@ describe('AppSettingsDialogView', () => {
 		await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Disk full'));
 		expect(awake).not.toBeChecked();
 		expect(engine.settingsIntents).toContainEqual({ kind: 'setKeepAwake', enabled: false });
+	});
+
+	function runOn(userAgent: string): void {
+		vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(userAgent);
+	}
+
+	it('hides the Quitting setting where the Quit shortcut is not ABB’s', async () => {
+		runOn('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15');
+		await renderOpenDialog();
+
+		expect(screen.queryByText('Quitting')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('app-settings-press-quit-twice-checkbox')).not.toBeInTheDocument();
+	});
+
+	it('offers the second Quit press on by default and sends the choice to turn it off', async () => {
+		runOn('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15');
+		await renderOpenDialog();
+		expect(screen.getByText('Quitting')).toBeInTheDocument();
+		const twice = screen.getByTestId('app-settings-press-quit-twice-checkbox');
+		expect(twice).toBeChecked();
+
+		fireEvent.click(twice);
+		flush();
+
+		await vi.waitFor(() =>
+			expect(engine.settingsIntents).toContainEqual({ kind: 'setPressQuitTwice', enabled: false }),
+		);
 	});
 
 	it('sends the category choice unchanged and shows what the engine kept', async () => {

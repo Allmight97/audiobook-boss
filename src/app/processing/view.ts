@@ -1,4 +1,14 @@
-import type { JobListItem } from './viewTypes';
+import type { ChildJobSnapshot, WorkProgressStage } from '../../types/workRuntime';
+
+export type JobListItem = {
+	readonly childJobId: string;
+	readonly label: string;
+	readonly status: ChildJobSnapshot['status'];
+	readonly statusText: string;
+	readonly stage: WorkProgressStage;
+	readonly percentage: number;
+	readonly canCancel: boolean;
+};
 
 export type StatusView = {
 	readonly coverArtSrc: string | null;
@@ -8,10 +18,8 @@ export type StatusView = {
 	readonly stepText: string;
 	readonly stepColor: string;
 	readonly concurrencyText: string;
-	readonly isProcessing: boolean;
 	/** A preview is running or cancelling now; a queued one shows still progress. */
 	readonly progressActive: boolean;
-	readonly cancelAllPending: boolean;
 };
 
 export const DEFAULT_STATUS_VIEW: StatusView = {
@@ -19,18 +27,15 @@ export const DEFAULT_STATUS_VIEW: StatusView = {
 	jobItems: [],
 	progressPercentage: 0,
 	statusText: 'Idle',
-	stepText: 'Current Step: Waiting for files...',
+	stepText: 'Current Step: Ready',
 	stepColor: 'var(--text-primary)',
 	concurrencyText: '',
-	isProcessing: false,
 	progressActive: false,
-	cancelAllPending: false,
 };
 
 type StatusPublisher = (view: StatusView) => void;
 
 export type StatusViewStore = {
-	snapshot: () => StatusView;
 	bindPublisher: (next: StatusPublisher | null) => void;
 	reset: () => void;
 	setCoverArtSrc: (src: string | null) => void;
@@ -40,11 +45,8 @@ export type StatusViewStore = {
 	setStepText: (value: string) => void;
 	setStepColor: (value: string) => void;
 	setConcurrencyText: (value: string) => void;
-	setIsProcessing: (isProcessing: boolean) => void;
 	setProgressActive: (active: boolean) => void;
-	setCancelAllPending: (isPending: boolean) => void;
 	showError: (message: string) => void;
-	showInfo: (message: string) => void;
 };
 
 export function createStatusViewStore(): StatusViewStore {
@@ -61,7 +63,6 @@ export function createStatusViewStore(): StatusViewStore {
 	}
 
 	const store: StatusViewStore = {
-		snapshot: () => snapshot,
 		bindPublisher(next) {
 			publisher = next;
 			next?.(snapshot);
@@ -91,22 +92,12 @@ export function createStatusViewStore(): StatusViewStore {
 		setConcurrencyText(value) {
 			patch({ concurrencyText: value });
 		},
-		setIsProcessing(isProcessing) {
-			patch({ isProcessing });
-		},
 		setProgressActive(progressActive) {
 			patch({ progressActive });
-		},
-		setCancelAllPending(isPending) {
-			patch({ cancelAllPending: isPending });
 		},
 		showError(message) {
 			store.setStepText(`Error: ${message}`);
 			store.setStepColor('var(--text-error, #ef4444)');
-		},
-		showInfo(message) {
-			store.setStepText(message);
-			store.setStepColor(DEFAULT_STATUS_VIEW.stepColor);
 		},
 	};
 

@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use abb_engine::app_settings::{SettingsIntent, SettingsReply, SettingsSnapshot};
 use abb_engine::session::{SessionIntent, SessionOutcome, SessionReply, SessionUpdate};
+use abb_engine::work_runtime::WorkOperationsSnapshot;
 use abb_engine::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
 use serde::Serialize;
 
@@ -24,6 +25,7 @@ pub struct FrontendAttachment {
     pub client: u64,
     pub session: SessionUpdate,
     pub settings: SettingsSnapshot,
+    pub work_operations: WorkOperationsSnapshot,
 }
 
 fn refused(reason: Refused) -> AppErrorEnvelope {
@@ -51,6 +53,7 @@ pub async fn attach_frontend(
         client,
         session: engine.session_snapshot(),
         settings: engine.settings_snapshot().await,
+        work_operations: engine.list_work_operations()?,
     })
 }
 

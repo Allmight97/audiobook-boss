@@ -17,15 +17,30 @@ engine does not offer, add it to the engine's host interface.
   frontend is refused. An intent that arrives after a later one has run is
   refused, never applied out of order. The check and the claim happen in one
   step, so a reload between them cannot hand an old frontend's intent a turn.
+- **Log file.** `log_file.rs` sends the log to stderr and to `abb.log`. Why: a
+  Finder-launched app has no readable stderr. A launch appends, so a second copy
+  keeps a running copy's log. A panic reaches the file through the hook in
+  `init_logger`.
+- **Opened files.** `RunEvent::Opened` runs on the main thread with no Tokio
+  runtime, so `Engine::open_audio_files` is async and `opened_files` blocks on
+  it. On a cold launch it arrives before `setup`, so `opened_files` holds the
+  paths until the engine starts.
 - **Second copy.** When `Engine::start` fails with `AlreadyRunning`, setup
   hides the window, shows the message in a native dialog, and exits on OK
   without an engine. `Quit` and `FrontendLink` are managed before the engine
   starts so that exit path and the hidden webview's commands never panic.
 - **Quit.** `lib.rs` holds every quit until `Engine::shutdown` settles. Running
   work, a slow shutdown, and unsaved settings reach the user as choices. The
-  process exits early only when the user chooses Quit Now. Saves waiting only
-  behind a review or preview are written during shutdown, and the quit prompt
-  says so first.
+  process exits before the engine settles only when the user chooses Quit Now,
+  and with unsaved settings only when the user chooses Quit Anyway. Saves
+  waiting only behind a review or preview are written during shutdown, and the
+  quit prompt says so first.
+- **Quit item.** Tauri's default Quit item calls AppKit `terminate:`, which
+  raises no event ABB can hold: it ends in `RunEvent::Exit`. So on macOS
+  `take_over_quit_item` swaps in ABB's own item, which asks
+  `Engine::quit_pressed` and then `hold_quit`. Dock Quit and logout still take
+  the `terminate:` path, because tao has no `applicationShouldTerminate:`.
+  `settle_unheld_exit` runs `Engine::shutdown` there, with no question.
 
 ## Commands
 
@@ -49,7 +64,7 @@ engine does not offer, add it to the engine's host interface.
 - Register a new command in `ipc_contract.rs`, then run
   `bun run bindings:generate` (the host lane checks drift). Run it after an
   engine behavior change too: `src/lib/generated/fixtures/` records real engine
-  replies.
+  outcomes and the changed session snapshot parts.
 
 ## Tests
 
@@ -65,7 +80,8 @@ after the one before it: a gap stalls the test for `MISSING_INTENT_WAIT`, then
 `IntentOrder` skips the number and refuses it as late.
 
 `src/bin/export_bindings` records the fixtures from the real engine: the intent
-sequences are in `scenarios.json`. The check runs on macOS and Linux, so a value
-that differs between machines is pinned in `pin_machine_values`; a new one
+sequences are in `scenarios.json`; `"binding": "current"` in a step becomes the
+form binding the engine shows before that step. The check runs on macOS and
+Linux, so a value that differs between machines is pinned in `pin_machine_values`; a new one
 makes the other OS report a stale fixture. Name a title only after importing
 it, or the recorder panics.

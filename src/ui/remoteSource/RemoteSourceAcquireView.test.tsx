@@ -1,5 +1,5 @@
 import { flush } from 'solid-js';
-import { createFakeEngine, fakeEngine } from '../../test/fixtures/fakeEngine';
+import { createFakeEngine, fakeEngine, sessionUpdate } from '../../test/fixtures/fakeEngine';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -26,12 +26,12 @@ function acquisitionJob(percentage: number, terminal = false): AcquisitionJob {
 			percentage,
 			message: terminal ? 'Acquisition complete.' : 'Downloading audiobook.',
 			terminal,
+			bytesDownloaded: null,
+			bytesTotal: null,
 			currentTitleId: 'B000000001',
 			currentItemIndex: 1,
 			totalItems: 1,
 		},
-		materializedFiles: [],
-		supplementalAssets: [],
 		diagnostics: [],
 	};
 }
@@ -56,15 +56,14 @@ function remoteTitle(): RemoteTitle {
 		title: 'Example Book',
 		authors: ['Example Author'],
 		narrators: [],
-		durationSeconds: 3600,
+		cover: null,
 		supplementalPdfAvailable: false,
-		acquired: false,
 		availability: {
 			status: 'available',
 			acquirable: true,
 			label: 'Available',
+			detail: null,
 		},
-		unsupportedReasons: [],
 	};
 }
 
@@ -76,8 +75,7 @@ async function openConnected(
 	fakeEngine().change((state) => {
 		state.remote.lane = lane;
 		state.remote.providers = providerCapabilities();
-		state.remote.account = { providerId: lane, status: 'connected' };
-		state.remote.libraryStatus = { kind: 'succeeded' };
+		state.remote.account = { providerId: lane, status: 'connected', message: null };
 		state.remoteLibrary.titles = [remoteTitle()];
 	});
 	await runtime.remoteSource.open({ lane });
@@ -102,7 +100,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('hides on Escape or Close and leaves a running acquisition running', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -134,7 +132,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('renders engine acquisition snapshots only in the Audible lane', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -186,7 +184,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('exposes Audible controls and filters connected library titles', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -211,7 +209,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('switches source lanes from the enabled provider control', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -244,7 +242,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('renders engine auth busy and failures while preserving the handoff input for retry', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -252,11 +250,14 @@ describe('RemoteSourceAcquireView', () => {
 		));
 		fakeEngine().change((state) => {
 			state.remote.providers = providerCapabilities();
-			state.remote.account = { providerId: 'audible', status: 'needsAuth' };
-			state.remote.auth = { kind: 'starting' };
+			state.remote.account = {
+				providerId: 'audible',
+				status: 'needsAuth',
+				message: null,
+			};
 			state.remote.busy = true;
 		});
-		await runtime.remoteSource.open();
+		await runtime.remoteSource.open({ lane: 'audible' });
 		expect(screen.getByRole('button', { name: 'Connect Audible' })).toBeDisabled();
 		expect(screen.getByRole('button', { name: 'Complete Auth' })).toBeDisabled();
 		fireEvent.input(screen.getByLabelText('Auth Handoff'), {
@@ -264,15 +265,7 @@ describe('RemoteSourceAcquireView', () => {
 		});
 		flush();
 		fakeEngine().change((state) => {
-			state.remote.auth = {
-				kind: 'failed',
-				error: {
-					category: 'io',
-					code: 'io_error',
-					message: 'Authorization failed; retry.',
-					detail: null,
-				},
-			};
+			state.remote.audibleMessage = 'Authorization failed; retry.';
 			state.remote.busy = false;
 		});
 		flush();
@@ -290,7 +283,7 @@ describe('RemoteSourceAcquireView', () => {
 	});
 
 	it('shows connected Indexer search controls and searches on Enter in author or title', async () => {
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		const runAction = vi.spyOn(runtime.remoteSource, 'runAction');
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -314,19 +307,21 @@ describe('RemoteSourceAcquireView', () => {
 		expect(runAction).toHaveBeenCalledWith({ type: 'searchReleases' });
 	});
 
-	it('sends the clicked indexer identity and renders the engine’s selected and failed rows', async () => {
+	it('sends the clicked release key and renders the engine’s selected and failed rows', async () => {
 		const releases: RemoteRelease[] = [7, 8].map((indexerId) => ({
 			providerId: 'indexer',
+			key: `release-${indexerId}`,
 			guid: 'same-guid',
 			indexerId,
 			title: `Release from ${indexerId}`,
 			indexer: `Indexer ${indexerId}`,
 			sizeBytes: 1000,
 			protocol: 'torrent',
+			detailUrl: null,
 			seeders: indexerId === 8 ? 72 : 10,
 			categories: [{ id: 3030, name: 'Audio/Audiobook' }],
 		}));
-		runtime = createAppRuntime();
+		runtime = await createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -342,11 +337,11 @@ describe('RemoteSourceAcquireView', () => {
 		await vi.waitFor(() =>
 			expect(fakeEngine().sessionIntents).toContainEqual({
 				kind: 'remote',
-				intent: { kind: 'selectRelease', indexerId: 8, guid: 'same-guid', multi: false },
+				intent: { kind: 'selectRelease', key: 'release-8', multi: false },
 			}),
 		);
 		fakeEngine().change((state) => {
-			state.remote.indexer.selectedReleaseKeys = ['[8,"same-guid"]'];
+			state.remote.indexer.selectedReleaseKeys = ['release-8'];
 		});
 		flush();
 		expect(screen.getByRole('button', { name: /^Select Release from 8/ })).toHaveAttribute(
@@ -359,12 +354,12 @@ describe('RemoteSourceAcquireView', () => {
 		await vi.waitFor(() =>
 			expect(fakeEngine().sessionIntents).toContainEqual({
 				kind: 'remote',
-				intent: { kind: 'grabRelease', indexerId: 8, guid: 'same-guid' },
+				intent: { kind: 'grabRelease', key: 'release-8' },
 			}),
 		);
 		fakeEngine().change((state) => {
 			state.remote.indexer.releaseGrabs = {
-				'[8,"same-guid"]': { status: 'error', message: 'Downloader unavailable' },
+				'release-8': { status: 'error', message: 'Downloader unavailable' },
 			};
 		});
 		flush();
@@ -402,10 +397,12 @@ describe('RemoteSourceAcquireView during a download', () => {
 			progress(percentage: number) {
 				if (!deliver) throw new Error('not attached yet');
 				revision += 1;
-				deliver({
-					revision,
-					remoteAcquisition: { revision, acquiring: false, job: acquisitionJob(percentage) },
-				});
+				deliver(
+					sessionUpdate({
+						revision,
+						remoteAcquisition: { revision, job: acquisitionJob(percentage) },
+					}),
+				);
 				flush();
 			},
 		};
@@ -421,8 +418,11 @@ describe('RemoteSourceAcquireView during a download', () => {
 		engine.change((state) => {
 			state.remote.lane = 'audible';
 			state.remote.providers = providerCapabilities();
-			state.remote.account = { providerId: 'audible', status: 'connected' };
-			state.remote.libraryStatus = { kind: 'succeeded' };
+			state.remote.account = {
+				providerId: 'audible',
+				status: 'connected',
+				message: null,
+			};
 			state.remote.selectedTitleIds = [titles[1].titleId];
 			state.remote.includePdfByTitleId = Object.fromEntries(
 				titles.map((title) => [title.titleId, title.supplementalPdfAvailable]),
@@ -435,8 +435,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 	it('advances progress at 1,000 titles without re-running or rebuilding any row', async () => {
 		const host = engineWithUpdates();
 		seedLibrary(host.engine, 1000);
-		runtime = createAppRuntime({ engine: host.capability });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine: host.capability });
 		await runtime.remoteSource.open({ lane: 'audible' });
 		const owner = runtime.remoteSource;
 		const reads = { row: 0, list: 0, view: 0 };
@@ -492,8 +491,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 	it('keeps no title rows while closed and shows current choices on reopen', async () => {
 		const host = engineWithUpdates();
 		seedLibrary(host.engine, 20);
-		runtime = createAppRuntime({ engine: host.capability });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine: host.capability });
 		await runtime.remoteSource.open({ lane: 'audible' });
 		const app = runtime;
 		render(() => (
@@ -528,8 +526,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 	it('reopens each list where it was scrolled when closed', async () => {
 		const host = engineWithUpdates();
 		seedLibrary(host.engine, 20);
-		runtime = createAppRuntime({ engine: host.capability });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine: host.capability });
 		await runtime.remoteSource.open({ lane: 'audible' });
 		const app = runtime;
 		render(() => (
@@ -556,22 +553,27 @@ describe('RemoteSourceAcquireView during a download', () => {
 		host.engine.change((state) => {
 			state.remote.lane = 'indexer';
 			state.remote.providers = providerCapabilities();
-			state.remote.account = { providerId: 'indexer', status: 'connected' };
+			state.remote.account = {
+				providerId: 'indexer',
+				status: 'connected',
+				message: null,
+			};
 			state.remote.indexer.releases = Array.from({ length: 40 }, (_, index) => ({
 				providerId: 'indexer' as const,
+				key: `guid-${index}`,
 				guid: `guid-${index}`,
 				indexerId: 1,
 				title: `Release ${index}`,
 				indexer: 'Indexer',
 				sizeBytes: 1000,
 				protocol: 'torrent' as const,
+				detailUrl: null,
 				seeders: index,
 				categories: [],
 			}));
 			state.remoteAcquisition.job = acquisitionJob(10);
 		});
-		runtime = createAppRuntime({ engine: host.capability });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine: host.capability });
 		await runtime.remoteSource.open({ lane: 'indexer' });
 		const owner = runtime.remoteSource;
 		let views = 0;

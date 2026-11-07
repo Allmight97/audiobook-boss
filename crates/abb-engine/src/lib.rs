@@ -49,11 +49,11 @@ mod host;
 mod metadata;
 pub mod metadata_lookup;
 mod metadata_save;
-mod opened_audio;
 pub mod output_artifact;
 mod owned_dir;
 mod power;
 pub mod processing;
+mod quit_press;
 pub mod remote_source;
 pub mod session;
 pub mod work_runtime;
@@ -70,6 +70,7 @@ pub use metadata::{
     MetadataIntentPatch, MetadataIntentValidationResult, NamingMetadata, PassthroughSource,
     PatchOp,
 };
+pub use quit_press::QuitPress;
 
 pub(crate) type ManagedJobRegistry = std::sync::Arc<processing::JobRegistry>;
 

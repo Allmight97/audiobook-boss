@@ -18,8 +18,7 @@ describe('metadata owner', () => {
 		engine = createFakeEngine();
 		engine.loadTitles([audioFile('/books/alpha.m4b')], [0]);
 		engine.seedForm({ title: 'Alpha', author: 'Author' });
-		runtime = createAppRuntime({ engine });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine });
 		return runtime;
 	}
 
@@ -35,8 +34,8 @@ describe('metadata owner', () => {
 				? new Promise<SessionOutcome>((resolve) => replies.push(resolve))
 				: undefined;
 
-		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Al' });
-		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Alp' });
+		app.metadata.setFieldValue({ field: 'title', value: 'Al' });
+		app.metadata.setFieldValue({ field: 'title', value: 'Alp' });
 
 		expect(title(app)).toMatchObject({ value: 'Alp', dirty: true });
 		await vi.waitFor(() => expect(replies).toHaveLength(2));
@@ -46,8 +45,8 @@ describe('metadata owner', () => {
 		expect(title(app).value).toBe('Alp');
 		replies[1]?.({ kind: 'applied' });
 		expect(engine.sessionIntents.filter((intent) => intent.kind === 'setField')).toEqual([
-			{ kind: 'setField', field: 'title', value: 'Al' },
-			{ kind: 'setField', field: 'title', value: 'Alp' },
+			{ kind: 'setField', binding: 0, field: 'title', value: 'Al' },
+			{ kind: 'setField', binding: 0, field: 'title', value: 'Alp' },
 		]);
 	});
 
@@ -66,7 +65,7 @@ describe('metadata owner', () => {
 					}
 				: undefined;
 
-		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Typed' });
+		app.metadata.setFieldValue({ field: 'title', value: 'Typed' });
 		expect(title(app).value).toBe('Typed');
 
 		await vi.waitFor(() => expect(app.engine.refusal()).toBe('That title cannot be edited now.'));
@@ -91,23 +90,6 @@ describe('metadata owner', () => {
 		expect(app.metadata.save()).toBeUndefined();
 
 		await vi.waitFor(() => expect(app.engine.refusal()).toBe('Nothing to save.'));
-	});
-
-	it('maps each form control to the engine field it edits', async () => {
-		const app = await open();
-
-		app.metadata.setFieldValue({ inputId: 'meta-year', value: '2020' });
-		app.metadata.setFieldValue({ inputId: 'meta-narrator', value: 'Reader' });
-		app.metadata.setFieldAction({ actionId: 'meta-series-part-action', action: 'blank' });
-		app.metadata.setFieldValue({ inputId: 'not-a-field', value: 'ignored' });
-
-		await vi.waitFor(() =>
-			expect(engine.sessionIntents.slice(-3)).toEqual([
-				{ kind: 'setField', field: 'date', value: '2020' },
-				{ kind: 'setField', field: 'narrator', value: 'Reader' },
-				{ kind: 'setFieldAction', field: 'seriesPart', action: 'blank' },
-			]),
-		);
 	});
 
 	it('words what the engine reports about the form and the last save', async () => {
@@ -157,12 +139,26 @@ describe('metadata owner', () => {
 		);
 	});
 
+	it('names the titles whose tags could not be read beside the form that stands in for them', async () => {
+		const app = await open();
+
+		engine.status({ kind: 'tagReadFailed', label: 'alpha.m4b', more: 0 });
+		expect(app.metadata.view().statusMessage).toBe(
+			'Could not read the tags of alpha.m4b. The fields shown are not its tags.',
+		);
+
+		engine.status({ kind: 'tagReadFailed', label: 'alpha.m4b', more: 2 });
+		expect(app.metadata.view().statusMessage).toBe(
+			'Could not read the tags of alpha.m4b and 2 other files. The fields shown are not their tags.',
+		);
+	});
+
 	it('keeps typing for one title off the form of the next', async () => {
 		const app = await open();
 		engine.respond = (intent) =>
 			intent.kind === 'setField' ? new Promise<SessionOutcome>(() => undefined) : undefined;
 
-		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Typed for alpha' });
+		app.metadata.setFieldValue({ field: 'title', value: 'Typed for alpha' });
 		expect(title(app).value).toBe('Typed for alpha');
 
 		engine.change((state) => {
@@ -171,11 +167,28 @@ describe('metadata owner', () => {
 		expect(title(app).value).toBe('Alpha');
 	});
 
+	it('types into the form it shows, so the engine can refuse text meant for a form it replaced', async () => {
+		const app = await open();
+		engine.change((state) => {
+			state.metadata.binding = 7;
+		});
+
+		app.metadata.setFieldValue({ field: 'title', value: 'Typed' });
+		app.metadata.setFieldAction({ field: 'author', action: 'blank' });
+
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents.slice(-2)).toEqual([
+				{ kind: 'setField', binding: 7, field: 'title', value: 'Typed' },
+				{ kind: 'setFieldAction', binding: 7, field: 'author', action: 'blank' },
+			]),
+		);
+	});
+
 	it("shows the engine's cover at an address that names that image", async () => {
 		const app = await open();
 		engine.respond = (intent) => {
 			if (intent.kind !== 'loadCoverFromDrop') return undefined;
-			engine.seedCover([1, 2, 3]);
+			engine.seedCover();
 			return { kind: 'applied' };
 		};
 
@@ -186,16 +199,13 @@ describe('metadata owner', () => {
 			paths: ['/art/readme.txt', '/art/cover.PNG'],
 		});
 		await vi.waitFor(() => expect(app.metadata.view().cover.imageSrc).not.toBeNull());
-		expect(app.metadata.view().cover.imageSrc).toMatch(
-			coverSrc({ kind: 'session', revision: 0 }).replace(/0%2F$/, ''),
-		);
-		expect(app.metadata.view().cover.hasCustomCoverArt).toBe(true);
+		expect(app.metadata.view().cover.imageSrc).toBe(coverSrc('session/1/'));
 		const shown = app.metadata.view().cover.imageSrc;
-		app.metadata.setFieldValue({ inputId: 'meta-genre', value: 'Mystery' });
+		app.metadata.setFieldValue({ field: 'genre', value: 'Mystery' });
 		await vi.waitFor(() => expect(app.metadata.view().form.fields['meta-genre'].dirty).toBe(true));
 		expect(app.metadata.view().cover.imageSrc).toBe(shown);
 
-		engine.seedCover([4, 5, 6]);
+		engine.seedCover();
 		await vi.waitFor(() => expect(app.metadata.view().cover.imageSrc).not.toBe(shown));
 	});
 
@@ -204,7 +214,7 @@ describe('metadata owner', () => {
 		vi.useFakeTimers();
 		engine.respond = (intent) => {
 			if (intent.kind !== 'loadCoverFromUrl') return undefined;
-			engine.seedCover([1, 2, 3], { kind: 'loadedFromUrl' });
+			engine.seedCover({ kind: 'loadedFromUrl' });
 			return { kind: 'applied' };
 		};
 

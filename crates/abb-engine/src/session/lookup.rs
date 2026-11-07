@@ -52,7 +52,10 @@ pub enum QueueStep {
 pub enum LookupStatus {
     /// Lookup was opened with no valid title selected.
     NoValidTitle,
-    QueryRequired,
+    #[serde(rename_all = "camelCase")]
+    QueryRequired {
+        after: Option<QueueStep>,
+    },
     Searching,
     #[serde(rename_all = "camelCase")]
     Found {
@@ -64,8 +67,13 @@ pub enum LookupStatus {
     SearchFailed {
         after: Option<QueueStep>,
     },
+    /// The query or source changed while a search ran, so its answer was dropped.
+    SearchSuperseded,
     /// Apply was requested with no title queued.
     NoTitleQueued,
+    Applying,
+    /// The query or source changed, or the selection moved, while an apply ran, so it was dropped.
+    ApplySuperseded,
     /// The title's pending edits were not accepted, so the result was not applied.
     ApplyRejected,
     #[serde(rename_all = "camelCase")]
@@ -76,7 +84,10 @@ pub enum LookupStatus {
     QueueComplete {
         cover_failed: bool,
     },
-    NextTitleRejected,
+    #[serde(rename_all = "camelCase")]
+    NextTitleRejected {
+        cover_failed: bool,
+    },
     Failed,
 }
 
@@ -86,6 +97,7 @@ pub struct LookupQueuePosition {
     pub index: usize,
     pub total: usize,
     pub path: PathBuf,
+    pub label: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -109,6 +121,7 @@ pub struct LookupSnapshot {
 pub(crate) struct QueuedTitle {
     pub(crate) title_id: String,
     pub(crate) path: PathBuf,
+    pub(crate) label: String,
 }
 
 #[derive(Debug, Default)]
@@ -143,8 +156,19 @@ impl LookupState {
                 index: self.index,
                 total: self.queue.len(),
                 path: title.path.clone(),
+                label: title.label.clone(),
             }),
-            results: self.results.clone(),
+            results: self
+                .results
+                .iter()
+                .map(|result| OnlineMetadataResult {
+                    cover: result
+                        .cover_url
+                        .as_deref()
+                        .map(super::cover_address::remote),
+                    ..result.clone()
+                })
+                .collect(),
             is_queue_mode: self.queue.len() > 1,
             has_searched: self.has_searched,
         }

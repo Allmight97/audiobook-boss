@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use crate::metadata::{AudiobookMetadata, MetadataIntentPatch};
 
-/// Permission to apply one source read. A save, removal, or reset that
+/// Permission to apply one source read. A save, removal, or Clear All that
 /// happens while the read runs makes the ticket stale.
 #[derive(Debug)]
 pub(crate) struct ReadTicket {

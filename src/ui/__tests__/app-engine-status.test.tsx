@@ -10,19 +10,13 @@ function fakeInput(): InputCapability {
 	return {
 		openFiles: vi.fn(async () => null),
 		openDirectory: vi.fn(async () => null),
-		getSupportedAudioImportMetadata: vi.fn(async () => ({
-			formats: [],
-			extensions: [],
-			formatsText: '',
-			supportText: '',
-		})),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),
 	};
 }
 
-describe('app before and around the engine', () => {
+describe('app around the engine', () => {
 	let runtime: AppRuntime | undefined;
 
 	afterEach(() => {
@@ -31,8 +25,8 @@ describe('app before and around the engine', () => {
 		runtime = undefined;
 	});
 
-	function renderWith(engine: FakeEngine): void {
-		const app = createAppRuntime({ input: fakeInput(), engine });
+	async function renderWith(engine: FakeEngine): Promise<void> {
+		const app = await createAppRuntime({ input: fakeInput(), engine });
 		runtime = app;
 		render(() => (
 			<AppRuntimeProvider runtime={app}>
@@ -40,35 +34,6 @@ describe('app before and around the engine', () => {
 			</AppRuntimeProvider>
 		));
 	}
-
-	it('shows nothing the engine owns until its first snapshot arrives', async () => {
-		const engine = createFakeEngine();
-		const attach = engine.attach.bind(engine);
-		let release!: () => void;
-		const released = new Promise<void>((resolve) => {
-			release = resolve;
-		});
-		engine.attach = async () => {
-			await released;
-			return attach();
-		};
-		renderWith(engine);
-
-		expect(screen.queryByTestId('left-column')).toBeNull();
-		release();
-		expect(await screen.findByTestId('left-column')).toBeInTheDocument();
-	});
-
-	it('says so when the engine cannot be reached', async () => {
-		const engine = createFakeEngine();
-		engine.attach = async () => {
-			throw new Error('engine unavailable');
-		};
-		renderWith(engine);
-
-		expect(await screen.findByRole('alert')).toHaveTextContent('engine unavailable');
-		expect(screen.queryByTestId('left-column')).toBeNull();
-	});
 
 	it('shows a refused change until the user dismisses it', async () => {
 		const engine = createFakeEngine();
@@ -84,12 +49,23 @@ describe('app before and around the engine', () => {
 						},
 					}
 				: undefined;
-		renderWith(engine);
+		await renderWith(engine);
 		await screen.findByTestId('left-column');
 
 		runtime?.input.toggleSort();
 		expect(await screen.findByText('The list is locked.')).toBeInTheDocument();
 		await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
 		expect(screen.queryByText('The list is locked.')).toBeNull();
+	});
+
+	it('reminds the user to press Quit again, then clears when the window ends', async () => {
+		const engine = createFakeEngine();
+		await renderWith(engine);
+		await screen.findByTestId('left-column');
+
+		engine.pressQuitOnce(20);
+
+		expect(await screen.findByText('Press ⌘Q again to quit')).toBeInTheDocument();
+		await vi.waitFor(() => expect(screen.queryByText('Press ⌘Q again to quit')).toBeNull());
 	});
 });

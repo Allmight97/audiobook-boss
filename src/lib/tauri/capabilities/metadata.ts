@@ -1,6 +1,6 @@
 import { tauriClient } from '../client';
 
-export interface MetadataOpenFileOptions {
+interface MetadataOpenFileOptions {
 	readonly title?: string;
 	readonly filters?: ReadonlyArray<{
 		readonly name: string;

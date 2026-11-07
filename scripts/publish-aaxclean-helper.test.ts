@@ -14,7 +14,6 @@ import { afterAll, describe, expect, it } from 'vitest';
 import {
 	aaxcleanHelperBaseName,
 	aaxcleanHelperPublishTarget,
-	aaxcleanHelperTargetTriple,
 	type CommandRunner,
 	publishAaxcleanHelper,
 	resolveAaxcleanHelperPaths,
@@ -130,8 +129,13 @@ describe('publishAaxcleanHelper', () => {
 			publishAaxcleanHelper(repoRoot, { commandRunner: withSdk(commandRunner), force: true }),
 		).toBe(paths.sidecarPath);
 		expect(readFileSync(paths.sidecarPath, 'utf8')).toBe('fresh helper');
+		const hostTriples: Record<string, string> = {
+			'darwin/arm64': 'aarch64-apple-darwin',
+			'linux/x64': 'x86_64-unknown-linux-gnu',
+			'linux/arm64': 'aarch64-unknown-linux-gnu',
+		};
 		expect(path.basename(paths.sidecarPath)).toBe(
-			`${aaxcleanHelperBaseName}-${aaxcleanHelperTargetTriple}`,
+			`abb-aaxclean-helper-${hostTriples[`${process.platform}/${process.arch}`]}`,
 		);
 	});
 

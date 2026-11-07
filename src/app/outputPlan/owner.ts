@@ -2,15 +2,11 @@ import { createSignal, type Accessor } from 'solid-js';
 import type { AudioFile, CollisionPolicy } from '../../types/audio';
 import { formatFileSize } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
+import type { NamingPreset } from '../../lib/generated/tauri';
 import type { OutputPreview } from '../../types/session';
 import { createTypingEcho, type EngineLink } from '../engineLink';
 import { collisionView, type CollisionView } from './collision';
-import {
-	EMPTY_PREVIEW_TEXT,
-	EMPTY_PREVIEW_TITLE,
-	PREVIEW_UNAVAILABLE_TEXT,
-	type OutputView,
-} from './types';
+import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE, type OutputView } from './types';
 
 export type OutputPlanOwner = {
 	readonly view: Accessor<OutputView>;
@@ -38,13 +34,12 @@ function previewText(preview: OutputPreview, directory: string | null): string {
 		case 'path':
 			return preview.path;
 		case 'unavailable':
-			return PREVIEW_UNAVAILABLE_TEXT;
+			return preview.message;
 	}
 }
 
 export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	const { link } = deps;
-	let disposed = false;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	const typed = createTypingEcho<'template'>({
 		scopeOf: () => [],
@@ -70,28 +65,24 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	return {
 		view,
 		estimateTitleSizeText(file) {
-			if (!file.isValid) return null;
-			const estimate = link.audio().titles[file.inputId ?? file.path]?.estimate;
+			const estimate = link.audio().titles[file.inputId]?.estimate;
 			if (!estimate) return null;
 			return estimate.kind === 'bytes'
 				? `Est. ~ ${formatFileSize(estimate.bytes)}`
 				: 'Size varies with audio';
 		},
-		collision: () => {
-			rev();
-			return collisionView(disposed ? null : link.output().collisionReview);
-		},
+		collision: () => collisionView(link.output().collisionReview),
 		async browseDirectory() {
 			try {
 				const directory = await tauriClient.openDirectory({ title: 'Select Output Directory' });
 				if (directory) link.post({ kind: 'setOutputDirectory', directory });
 			} catch (cause) {
-				console.error('Error selecting directory:', cause);
+				link.refuse('openOutputDirectoryPicker', cause);
 			}
 		},
 		selectNamingPreset(value) {
-			const preset = value === 'customTemplate' ? 'customTemplate' : 'absDefault';
-			link.post({ kind: 'setNamingPreset', preset });
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the select offers only NamingPreset values.
+			link.post({ kind: 'setNamingPreset', preset: value as NamingPreset });
 		},
 		setAbsIncludeYear(includeYear) {
 			link.post({ kind: 'setIncludeYear', includeYear });
@@ -100,17 +91,16 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			typed.show('template', template, () =>
 				link
 					.send({ kind: 'setNamingTemplate', template })
-					.catch((error: unknown) => console.error('Failed to record the naming template:', error)),
+					.catch((error: unknown) => link.refuse('setNamingTemplate', error)),
 			);
 		},
 		chooseCollisionPolicy(reviewId, policy) {
-			if (!disposed) link.post({ kind: 'chooseCollisionPolicy', reviewId, policy });
+			link.post({ kind: 'chooseCollisionPolicy', reviewId, policy });
 		},
 		cancelCollisionReview(reviewId) {
-			if (!disposed) link.post({ kind: 'cancelCollisionReview', reviewId });
+			link.post({ kind: 'cancelCollisionReview', reviewId });
 		},
 		reset() {
-			disposed = true;
 			typed.clear();
 		},
 	};

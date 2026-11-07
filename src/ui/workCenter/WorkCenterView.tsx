@@ -10,7 +10,7 @@ import './workCenterView.css';
 
 function completedLabel(
 	label: string,
-	timing: { startedAtMs?: number; finishedAtMs?: number },
+	timing: { startedAtMs: number | null; finishedAtMs: number | null },
 ): string {
 	if (timing.startedAtMs == null || timing.finishedAtMs == null) return label;
 	const totalSeconds = Math.max(0, Math.round((timing.finishedAtMs - timing.startedAtMs) / 1000));
@@ -30,21 +30,8 @@ function operationStatusLabel(operation: OperationSnapshot): string {
 	return 'Mixed';
 }
 
-function acceptedQueuePosition(
-	operation: OperationSnapshot,
-	operations: ReadonlyArray<OperationSnapshot>,
-): number | null {
-	if (operation.status !== 'accepted') return null;
-	const accepted = operations
-		.filter((candidate) => candidate.status === 'accepted')
-		.toSorted((left, right) => left.sequence - right.sequence);
-	const index = accepted.findIndex((candidate) => candidate.operationId === operation.operationId);
-	return index >= 0 ? index + 1 : null;
-}
-
 function operationKindLabel(kind: OperationSnapshot['kind']): string {
 	if (kind === 'processingBatch') return 'Batch';
-	if (kind === 'remoteAcquisition') return 'Acquisition';
 	return 'Metadata';
 }
 
@@ -67,29 +54,19 @@ function revealLabel(): string {
 	return 'Show in Folder';
 }
 
-function canCancel(operation: OperationSnapshot): boolean {
-	return operation.cancellable && !operation.cancelRequested;
-}
-
 function canCancelSeparateTitle(operation: OperationSnapshot, child: ChildJobSnapshot): boolean {
-	return (
-		operation.children.length > 1 &&
-		canCancel(operation) &&
-		child.cancellable &&
-		!child.cancelRequested
-	);
-}
-
-function summaryText(operation: OperationSnapshot): string {
-	if (operation.terminalSummary) return operation.terminalSummary.message;
-	return operation.progress.message;
+	return operation.children.length > 1 && child.cancellable;
 }
 
 function childReason(child: ChildJobSnapshot): string | null {
 	if (child.status === 'failed') return child.message ?? null;
-	const notes = [child.supplementalWarning, ...child.warnings, outputUpdateText(child)].filter(
-		Boolean,
-	);
+	const endNote = child.status === 'skipped' || child.status === 'cancelled' ? child.message : null;
+	const notes = [
+		endNote,
+		child.supplementalWarning,
+		...child.warnings,
+		outputUpdateText(child),
+	].filter(Boolean);
 	return notes.length > 0 ? notes.join(' ') : null;
 }
 
@@ -138,31 +115,31 @@ export function WorkCenterView(): JSX.Element {
 				fallback={<div class="work-center-empty">No background work.</div>}
 			>
 				<div class="work-operation-list">
-					<For each={view().operations}>
+					<For each={view().operations} keyed={(operation) => operation.operationId}>
 						{(operation) => {
-							const queuePosition = () => acceptedQueuePosition(operation, view().operations);
+							const queuePosition = () => view().queuePosition(operation().operationId);
 							return (
-								<section class={`work-operation is-${operation.status}`}>
+								<section class={`work-operation is-${operation().status}`}>
 									<div class="work-operation-topline">
 										<div class="work-operation-title-group">
-											<span class="work-kind">{operationKindLabel(operation.kind)}</span>
-											<span class="work-title" title={operation.title}>
-												{operation.title}
+											<span class="work-kind">{operationKindLabel(operation().kind)}</span>
+											<span class="work-title" title={operation().title}>
+												{operation().title}
 											</span>
 										</div>
 										<div class="work-operation-actions">
-											<span class={`work-status is-${operation.status}`}>
-												{operationStatusLabel(operation)}
+											<span class={`work-status is-${operation().status}`}>
+												{operationStatusLabel(operation())}
 												<Show when={queuePosition()}>{(position) => <> #{position()}</>}</Show>
 											</span>
 											<button
 												class="work-action-button"
 												type="button"
 												disabled={
-													!canCancel(operation) ||
-													view().cancelPendingByOperationId[operation.operationId] === true
+													!operation().cancellable ||
+													view().cancelPendingByOperationId[operation().operationId] === true
 												}
-												onClick={() => void workOperations.cancel(operation.operationId)}
+												onClick={() => void workOperations.cancel(operation().operationId)}
 											>
 												Cancel
 											</button>
@@ -170,64 +147,69 @@ export function WorkCenterView(): JSX.Element {
 									</div>
 									<div class="work-progress-row">
 										<Progress
-											value={operation.progress.percentage}
-											label={`${operation.title} progress`}
-											active={isWorkRunning(operation.status)}
+											value={operation().progress.percentage}
+											label={`${operation().title} progress`}
+											active={isWorkRunning(operation().status)}
 											class="work-progress-track"
 										/>
 										<span class="work-progress-value">
-											{operation.progress.percentage.toFixed(0)}%
+											{operation().progress.percentage.toFixed(0)}%
 											<Show
 												when={
-													operation.status === 'running' && operation.progress.etaSeconds != null
+													operation().status === 'running' &&
+													operation().progress.etaSeconds != null
 												}
 											>
-												· {formatEtaRemaining(operation.progress.etaSeconds ?? 0)}
+												· {formatEtaRemaining(operation().progress.etaSeconds ?? 0)}
 											</Show>
 										</span>
 									</div>
-									<div class="work-summary" title={summaryText(operation)}>
-										{summaryText(operation)}
+									<div class="work-summary" title={operation().progress.message}>
+										{operation().progress.message}
 									</div>
-									<Show when={operation.logTail.length > 0}>
+									<Show when={operation().logTail.length > 0}>
 										<div class="work-log-tail" role="log" aria-label="Recent operation activity">
-											<For each={operation.logTail}>{(entry) => <div>{entry.message}</div>}</For>
+											<For each={operation().logTail}>{(entry) => <div>{entry.message}</div>}</For>
 										</div>
 									</Show>
 									<div class="work-child-list">
-										<For each={operation.children}>
+										<For each={operation().children} keyed={(child) => child.childJobId}>
 											{(child) => (
 												<>
-													<div class={`work-child-row is-${child.status}`}>
-														<span class="work-child-label" title={child.sourcePath ?? child.label}>
-															{child.label}
+													<div class={`work-child-row is-${child().status}`}>
+														<span
+															class="work-child-label"
+															title={child().sourcePath ?? child().label}
+														>
+															{child().label}
 														</span>
 														<span class="work-child-status">
-															{childStatusLabel(child)}
+															{childStatusLabel(child())}
 															<Show
 																when={
-																	child.status === 'running' && child.progress.etaSeconds != null
+																	child().status === 'running' &&
+																	child().progress.etaSeconds != null
 																}
 															>
-																· {formatEtaRemaining(child.progress.etaSeconds ?? 0)}
+																· {formatEtaRemaining(child().progress.etaSeconds ?? 0)}
 															</Show>
 														</span>
-														<Show when={canCancelSeparateTitle(operation, child)}>
+														<Show when={canCancelSeparateTitle(operation(), child())}>
 															<button
 																class="work-child-action"
 																type="button"
-																title={`Cancel ${child.label} only`}
+																title={`Cancel ${child().label} only`}
 																onClick={() =>
 																	void workOperations.cancel(
-																		operation.operationId,
-																		child.childJobId,
+																		operation().operationId,
+																		child().childJobId,
 																	)
 																}
 															>
 																Cancel
 															</button>
 														</Show>
-														<Show when={offerFor(operation, child)}>
+														<Show when={offerFor(operation(), child())}>
 															{(offer) => (
 																<>
 																	<button
@@ -249,18 +231,18 @@ export function WorkCenterView(): JSX.Element {
 																</>
 															)}
 														</Show>
-														<Show when={child.status === 'completed' && child.outputPath}>
+														<Show when={child().outputPath}>
 															<button
 																class="work-child-action"
 																type="button"
-																title={child.outputPath ?? undefined}
-																onClick={() => void workOperations.revealOutput(child)}
+																title={child().outputPath ?? undefined}
+																onClick={() => void workOperations.revealOutput(child())}
 															>
 																{revealLabel()}
 															</button>
 														</Show>
 													</div>
-													<Show when={childReason(child)}>
+													<Show when={childReason(child())}>
 														{(reason) => (
 															<div class="work-child-reason" title={reason()}>
 																{reason()}

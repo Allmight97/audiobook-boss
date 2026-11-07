@@ -41,9 +41,8 @@ fn connection(url: &str, categories: &[u32]) -> IndexerConnection {
     }
 }
 
-fn mp3_defaults() -> EncoderDefaults {
+fn kept_audio_defaults() -> EncoderDefaults {
     EncoderDefaults {
-        format: AudiobookFormat::Mp3,
         intent: AudioIntent::Preserve,
         ..EncoderDefaults::default()
     }
@@ -107,7 +106,15 @@ impl Drop for Rig {
     fn drop(&mut self) {
         let dir = config_dir(&self.root);
         if dir.is_file() {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the directory is usually absent before the test"
+            )]
             let _ = std::fs::remove_file(&dir);
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the test fails later if the directory is unusable"
+            )]
             let _ = std::fs::create_dir_all(&dir);
         }
     }
@@ -117,7 +124,7 @@ impl Drop for Rig {
 fn a_launch_starts_from_pinned_defaults_only_when_chosen_and_pinned() {
     let pinned = PinnedDefaults {
         max_concurrent_jobs: ConcurrencyPreference::Fixed(2),
-        encoder_defaults: mp3_defaults(),
+        encoder_defaults: kept_audio_defaults(),
         output_defaults: output_in("/pinned"),
     };
     let last_used = AppSettings {
@@ -229,8 +236,22 @@ async fn a_value_this_release_refuses_resets_only_its_setting_until_the_next_cha
     assert!(!rig.on_disk().keep_awake_while_working);
 }
 
+#[tokio::test]
+async fn choosing_one_press_to_quit_reaches_the_file_and_the_running_value() {
+    let rig = start();
+    assert!(rig.settings.press_quit_twice());
+
+    let reply = rig
+        .send(SettingsIntent::SetPressQuitTwice { enabled: false })
+        .await;
+
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert!(!rig.settings.press_quit_twice());
+    assert!(!rig.on_disk().press_quit_twice);
+}
+
 fn retired_encoder_in_last_state() -> String {
-    include_str!("samples/remember-last-state.toml")
+    include_str!("saved_settings/remember-last-state.toml")
         .replace("type = \"faac\"", "type = \"retired\"")
 }
 
@@ -253,11 +274,13 @@ async fn closing_leaves_a_reset_value_in_the_file_until_the_users_next_change() 
 
 #[tokio::test]
 async fn a_pinned_launch_does_not_report_last_used_values_it_did_not_start_from() {
-    let rig = start_from_file(&include_str!("samples/apple-aac-and-opus.toml").replacen(
-        "type = \"aac_at\"",
-        "type = \"retired\"",
-        1,
-    ));
+    let rig = start_from_file(
+        &include_str!("saved_settings/apple-aac-and-opus.toml").replacen(
+            "type = \"aac_at\"",
+            "type = \"retired\"",
+            1,
+        ),
+    );
 
     assert_eq!(
         storage::load(&config_dir(&rig.root)).reset,
@@ -383,7 +406,7 @@ async fn retry_writes_the_newest_accepted_defaults() {
     rig.send(remember_output("/first")).await;
     let reply = rig
         .send(SettingsIntent::Remember {
-            encoder_defaults: Some(mp3_defaults()),
+            encoder_defaults: Some(kept_audio_defaults()),
             output_defaults: Some(output_in("/second")),
             default_acquisition_lane: Some(AcquisitionLane::Indexer),
         })
@@ -400,7 +423,7 @@ async fn retry_writes_the_newest_accepted_defaults() {
     assert!(reply.snapshot.save_error.is_none());
     let saved = rig.on_disk();
     assert_eq!(saved.output_defaults, output_in("/second"));
-    assert_eq!(saved.encoder_defaults, mp3_defaults());
+    assert_eq!(saved.encoder_defaults, kept_audio_defaults());
     assert_eq!(saved.default_acquisition_lane, AcquisitionLane::Indexer);
 }
 
@@ -481,7 +504,7 @@ async fn pinning_captures_the_current_defaults() {
 #[tokio::test]
 async fn pinning_after_a_pinned_launch_keeps_the_defaults_on_screen() {
     let rig = start_with(AppSettingsPatch {
-        encoder_defaults: Some(mp3_defaults()),
+        encoder_defaults: Some(kept_audio_defaults()),
         output_defaults: Some(output_in("/last-used")),
         startup_behavior: Some(StartupBehavior::PinnedDefaults),
         pinned_defaults: Some(PinnedDefaults {

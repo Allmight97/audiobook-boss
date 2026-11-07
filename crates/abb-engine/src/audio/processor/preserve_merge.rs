@@ -1,4 +1,4 @@
-//! Packet-copy joining for matching AAC or MP3 sources with complete, contiguous frames.
+//! Packet-copy joining for matching AAC sources with complete, contiguous frames.
 //! Interior priming, padding and decoder resets require re-encoding.
 use crate::audio::{AudioFile, CleanupGuard, FileListInfo};
 use crate::errors::{AppError, Result};
@@ -44,21 +44,17 @@ fn open_source(file: &AudioFile) -> Result<(ff::format::context::Input, usize, C
         .best(ff::media::Type::Audio)
         .ok_or_else(|| incompatible("an audio stream is missing"))?;
     let params = stream.parameters();
-    if !matches!(params.id(), ff::codec::Id::AAC | ff::codec::Id::MP3) {
+    if params.id() != ff::codec::Id::AAC {
         return Err(incompatible(&format!(
-            "merging without re-encoding currently supports AAC or MP3; '{}' contains {}",
+            "merging without re-encoding currently supports AAC; '{}' contains {}",
             crate::errors::sanitize_path_for_display(&path),
             params.id().name().to_uppercase(),
         )));
     }
     let configuration = Configuration {
         codec: params.id(),
-        extradata: if params.id() == ff::codec::Id::MP3 {
-            Vec::new()
-        } else {
-            super::streams::read_codec_extradata(&params)
-                .ok_or_else(|| incompatible("AAC configuration is missing"))?
-        },
+        extradata: super::streams::read_codec_extradata(&params)
+            .ok_or_else(|| incompatible("AAC configuration is missing"))?,
         sample_rate: file.sample_rate,
         channels: file.channels,
         time_base: stream.time_base(),
@@ -78,7 +74,6 @@ fn visit_packets(
         .stream(stream_index)
         .ok_or_else(|| incompatible("an audio stream is missing"))?;
     let duration = stream.duration();
-    let mp3 = stream.parameters().id() == ff::codec::Id::MP3;
     if stream.start_time() != 0 || duration <= 0 {
         return Err(incompatible(
             "a source has a shifted or unknown playable interval",
@@ -101,9 +96,6 @@ fn visit_packets(
                 "a source has priming, gaps, or overlapping timestamps",
             ));
         }
-        if mp3 && end == 0 {
-            validate_mp3_start(packet.data().unwrap_or_default())?;
-        }
         let step = *frame_duration.get_or_insert(packet.duration());
         if step != packet.duration()
             || packet.side_data().any(|side| {
@@ -118,7 +110,7 @@ fn visit_packets(
             .ok_or_else(|| incompatible("the audio timeline is too long"))?;
         visit(packet)?;
     }
-    if !mp3 && end != duration {
+    if end != duration {
         return Err(incompatible(
             "a source's packet duration differs from its playable duration",
         ));
@@ -159,11 +151,7 @@ fn remux(files: &[AudioFile], destination: &Path, context: &ProcessingContext) -
     let mut stream = output.add_stream(ff::encoder::find(expected.codec))?;
     stream.set_parameters(parameters);
     stream.set_time_base(expected.time_base);
-    let mut options = ff::Dictionary::new();
-    if expected.codec == ff::codec::Id::MP3 {
-        options.set("write_xing", "0");
-    }
-    output.write_header_with(options)?;
+    output.write_header()?;
     let time_base = output.stream(0).expect("created stream").time_base();
     let mut offset = 0_i64;
     let mut durations = Vec::with_capacity(files.len());
@@ -263,10 +251,11 @@ pub(super) fn execute(
         return Err(AppError::cancelled());
     }
     let mut sources = super::passthrough_sources_from_audio_files(&copies);
-    if sources
+    let chapter_total = sources
         .iter()
-        .all(|source| source.chapters.as_ref().is_none_or(Vec::is_empty))
-    {
+        .map(|source| source.chapters.as_ref().map_or(0, Vec::len))
+        .sum();
+    if crate::metadata::synthesizes_chapter_per_source(sources.len(), chapter_total) {
         for (source, original) in sources.iter_mut().zip(&file_info.files) {
             source.chapters = Some(vec![crate::metadata::ChapterSpec {
                 title: original
@@ -278,9 +267,9 @@ pub(super) fn execute(
             }]);
         }
     }
-    let passthrough = cover_policy.apply_to_passthrough(
-        crate::metadata::extract_passthrough_metadata(&sources).into_option(),
-    );
+    let mut extracted = crate::metadata::extract_passthrough_metadata(&sources);
+    let passthrough_warnings = std::mem::take(&mut extracted.warnings);
+    let passthrough = cover_policy.apply_to_passthrough(extracted.into_option());
     let (metadata, passthrough, cover_warning) =
         crate::metadata::prepare_output_cover_art(metadata, passthrough, cover_policy)?;
     context
@@ -289,28 +278,11 @@ pub(super) fn execute(
     crate::metadata::finalize_artifact_metadata(&staged, metadata.as_ref(), passthrough.as_ref())?;
     Ok(super::AudioRunOutcome {
         message: super::finalize::complete_staged_output(&context, staged, &mut cleanup)?,
-        warnings: cover_warning.into_iter().collect(),
+        warnings: passthrough_warnings
+            .into_iter()
+            .chain(cover_warning)
+            .collect(),
     })
-}
-
-fn validate_mp3_start(frame: &[u8]) -> Result<()> {
-    if frame.len() < 8 || frame[0] != 0xff || frame[1] & 0xe6 != 0xe2 {
-        return Err(incompatible(
-            "an MP3 source begins with an incomplete frame",
-        ));
-    }
-    let side = 4 + if frame[1] & 1 == 0 { 2 } else { 0 };
-    let reservoir = if frame[1] & 0x18 == 0x18 {
-        u16::from(frame[side]) * 2 + u16::from(frame[side + 1] >> 7)
-    } else {
-        u16::from(frame[side])
-    };
-    if reservoir != 0 {
-        return Err(incompatible(
-            "an MP3 source depends on audio data before its first frame",
-        ));
-    }
-    Ok(())
 }
 
 #[cfg(test)]

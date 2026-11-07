@@ -22,17 +22,27 @@ second copy of owner state.
 - `engineLink` is the one connection to the engine. It keeps the newest copy of
   each snapshot part (titles, selection, metadata, lookup, audio, output,
   remote, remote library, remote acquisition, settings) by revision, and sends
-  intents. Adapters read the link. `workOperations` is the exception: it reads
-  WorkRuntime through `tauriClient`. The link listens before it attaches, so no
-  update published in between is missed; part revisions make applying one twice
-  harmless.
+  intents. `attachEngineLink` resolves once the engine's first snapshot is in
+  the link, so every part an adapter reads is engine truth; a reply missing a
+  part fails the attach. It listens before it attaches and applies what arrived
+  in between on top of the reply, so no update is missed; part revisions make
+  applying one twice harmless. WorkRuntime operations come with the attach
+  reply and then as `work-operations-update` events, merged by
+  `workOperations.ts` (newest snapshot per operation, newest order and queue). A cancel's
+  change arrives as one of those events; its reply carries nothing.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
   for intents whose outcome and completion nobody awaits; its refusal shows as
   the link's `refusal` (`RefusedChangeNotice`). A `send` caller with its own
   status line shows a rejection there (cover loads, processing, Remote
   Source); the metadata echo, lookup actions and file selection pass it to
   `link.refuse`, the same notice `post` uses. The host runs both in the order
-  called.
+  called; a gap in the numbering is skipped after `MISSING_INTENT_WAIT`
+  (`src-tauri/AGENTS.md`).
+- `send` itself sets the `refusal` for an outcome that changes nothing and shows
+  nothing else: `draftRejected` with no message (a Save is running), and
+  `editLost` for a field edit or cover load whose form was replaced.
+  `superseded` stays silent, where a newer request replacing it is the design
+  (a row click, a collision answer, a newer cover choice).
 - A part that arrives unchanged keeps object identity for its files and lookup
   results. A changed remote part keeps the objects of its unchanged selection
   lists, PDF choices, releases, and grab records. Solid rows are not rebuilt,
@@ -41,6 +51,7 @@ second copy of owner state.
   through `createTypingEcho`: at once, until the engine's reply for that
   keystroke arrives, and only in the scope the owner names (the form's
   `binding`, the lookup queue item). The echo is display only and never decides what is saved.
+  Form edits send the `binding` the form shows.
   The Remote Source URL echo does not use it: it drops only once the engine's
   URL matches the trimmed text, or at once when an applied settings Reset
   discards the typed connection edits (below).
@@ -59,9 +70,12 @@ second copy of owner state.
 
 ## State And Lifetime
 
-- `createAppRuntime()` creates the engine link and one instance of every owner
-  inside one Solid root and disposes them together. A late engine reply after
-  disposal changes nothing visible; a caller that awaited it still receives it.
+- `createAppRuntime()` attaches the engine link, then creates one instance of
+  every owner inside one Solid root, and disposes them together. It rejects
+  when the attach fails. `AppRoot` owns that wait: it renders nothing until the
+  runtime exists, the failure as an alert, and disposes a runtime that arrives
+  after it unmounted. A late engine reply after disposal changes nothing
+  visible; a caller that awaited it still receives it.
 - Accepted background operation truth lives in WorkRuntime.
 
 ## Workflow And Failure Shape
@@ -81,17 +95,23 @@ without a bullet has none. Engine paths name the owner of the truth.
   through `sendSettings` (their own numbered order); a dialog control's
   failure shows beside that control (`runDialogAction`). The session records
   audio and output defaults and announces them with `settings-update`; views
-  send Settings intents only.
+  send Settings intents only. `quittingAvailable` is display-only, read from
+  the user agent (macOS only): the Quit shortcut is macOS-only, and bindings
+  and fixtures must be the same on every OS.
 - `encoding` (session AGENTS): `project.ts` disables an option because the
   engine's facts say so. `editFor` turns a control value into an `AudioEdit`;
   a value no control offers sends nothing. What Auto resolves to comes from the
-  title's engine plan, never from source facts. Defaults describe future
+  engine's `autoSampleRate` and `autoChannels` readings on the title or the
+  selection, never from source facts or a plan; a selection's are plain Auto
+  while the field is mixed. Defaults describe future
   imports and name no source; existing titles change only through Apply App
   Settings. `selectionView` and `refusal` render engine facts and combine no
   titles.
-- `inputSession` (session AGENTS): chapter counts come from
-  `acceptedChapterCount`: the plan the file converts with, else its embedded
-  chapters. Why: a CUE plan replaces the embedded chapters.
+- `inputSession` (session AGENTS): a title's chapters, duration, and size
+  come from the engine's `titleTotals`; the combined size and Group as one
+  title availability come from `totalSizeBytes` and `canGroup`. A source row's
+  own count is `acceptedChapterCount`, the plan the file converts with. Why: a
+  CUE plan replaces the embedded chapters.
 - `metadataLookup` (session AGENTS): query text binds to its queued path and
   metadata `binding`. Advancing or rebinding drops the previous title's echo at
   once. Apply sends the lookup part revision the snapshot holds.
@@ -105,16 +125,20 @@ without a bullet has none. Engine paths name the owner of the truth.
   eligible question, and `restartOffers` feeds Work Center retry. Restart and
   Keep Location send the title and revision shown; teardown answers neither.
   Preview identity, progress, and terminal truth come from `output.previewRun`:
-  render its snapshot and aggregate nothing. `cancelPreview` carries the run
+  render its snapshot; the status panel only counts titles by status for its
+  chips. `resetToIdle` does nothing while `previewRun` is set, which tells a
+  preview's own ending from a later submission's outcome (the engine drops a
+  finished run at the next Start or Preview). `cancelPreview` carries the run
   identity and an optional child identity; whole-preview cancel needs no native
-  job id, and disposal does not cancel. After `artworkReady` the artwork shows
-  from the run's `coverSrc` address. A finished preview opens through
+  job id, and disposal does not cancel. The artwork shows from the run's
+  `cover` address once the engine offers one. A finished preview opens through
   `link.openPreview(runId)`, even when the requesting frontend is disposed
-  before the reply (host side: `src-tauri/AGENTS.md`). Submit and Cancel
-  availability follow the engine preview state, including for a frontend that
-  attaches to an active run. `preview()` sends no length: the engine owns the
-  preview length and content. Each owner instance owns its status store and
-  publisher.
+  before the reply (host side: `src-tauri/AGENTS.md`). Submit availability comes from
+  `output.submissionInProgress`; preview Cancel availability comes from the
+  run's `cancellable`, and a title's from its child `cancellable`.
+  `preview()` sends no length: the engine owns the preview length and content,
+  and `previewTooltip()` words `titles.previewLength`.
+  Each owner instance owns its status store and publisher.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and
   `selectLane` send only the lane intent. Connection editing sends write-only
   key, URL, and category intents; keys never come back from the engine, and
@@ -124,14 +148,14 @@ without a bullet has none. Engine paths name the owner of the truth.
   form shows the engine's default connection. Close
   leaves accepted work running. Disposal invalidates pending
   authorization-browser replies. An authorization URL occurs only in the
-  initiating intent outcome; snapshots never reopen a browser. Render
-  `settled` and `handoff` facts and infer no terminal precedence. `isBusy` is
-  the engine's `remote.busy`; no busy rule lives here. Status stays
-  with its originating provider, and a new request refusal shows even when an
-  older job has a retained message. A connected account message stays on the
-  idle status line, including after the library loads, so an ephemeral sign-in
-  stays visible. Filtering and sorting keep the engine's
-  selection. Release rows key on `(indexerId, guid)`, including Grab and Retry.
+  initiating intent outcome; snapshots never reopen a browser. The
+  status line is a local refusal, else a running job's progress message, else
+  the lane's engine line (`remote.audibleMessage`, `remote.indexer.message`);
+  the engine orders every other state. `isBusy` is the engine's `remote.busy`;
+  no busy rule lives here. Status stays with its originating provider, and a
+  new request refusal shows even when an older job has a retained message.
+  Filtering and sorting keep the engine's
+  selection. Release rows key on the engine's `RemoteRelease.key`, including Grab and Retry; the Grab button reads `remote.indexer.canGrabSelection`.
   Sent means the provider accepted, not that the download finished. `view()`
   changes with every remote update, a download tick included; the other
   `RemoteSourceOwner` accessors change only with their own fact. Filtered and
@@ -139,12 +163,15 @@ without a bullet has none. Engine paths name the owner of the truth.
 - `workOperations` (`crates/abb-engine/src/work_runtime/AGENTS.md`): WorkRuntime
   snapshots are the only progress source for accepted background operations.
   Terminal status comes from `abb_processing_core::classify_run_terminal`.
-  `model.ts` applies two rules: keep the newest snapshot per operation, and show
-  operations in the engine's order. `reset` invalidates pending responses.
+  Operations come from the link (Engine Link, above); the owner keeps only
+  cancel-pending state and error wording. After `reset`, a late cancel or
+  reveal reply changes nothing.
   `isWorkRunning` decides which work shows motion (running or cancelling), for
   the Work Center and the preview bar alike.
-  Only whole-operation cancels track pending state; title cancels are
-  idempotent in the backend.
+  `view()` changes with every progress tick, and Work Center rows read it: no
+  narrower accessor exists. Only whole-operation cancels track pending state
+  (the Cancel button disables while one is in flight); repeating any cancel
+  is harmless.
 
 ## Tests
 
@@ -154,7 +181,8 @@ appends imported files. It holds no product rule;
 `check-known-mistakes.ts` rejects an `intent.kind` branch in it other than
 `import`. Seed the engine's answer on the intent that asks for it (`respond`,
 `respondSettings`, `seedForm`, `seedSettings`, `change`). What the real engine answers to a
-sequence of intents is proved by `runtime/recordedWorkflows.contract.test.ts`;
+sequence of intents (outcomes and the changed snapshot parts, audio excluded)
+is proved by `runtime/recordedWorkflows.contract.test.ts`;
 a new engine-owned behavior a view depends on becomes a scenario in
 `src-tauri/src/bin/export_bindings/scenarios.json`, not a rule in the fake.
 

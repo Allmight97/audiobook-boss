@@ -2,25 +2,9 @@ import type { AppErrorCategory as WireErrorCategory } from '../generated/tauri';
 
 type PlainRecord = Record<string, unknown>;
 
-const APP_ERROR_CATEGORIES = [
-	'validation',
-	'cancellation',
-	'toolchain',
-	'resource',
-	'io',
-	'internal',
-	'auth',
-	'network',
-	'import',
-	'processing',
-	'unknown',
-] as const;
-
-export type AppErrorCategory = (typeof APP_ERROR_CATEGORIES)[number] | (string & {});
-
 export interface AppErrorEnvelope {
 	code: string;
-	category: AppErrorCategory;
+	category: string;
 	message: string;
 	detail?: string | null;
 }
@@ -122,14 +106,4 @@ export function toUserMessage(
 
 export function isCancellation(cause: unknown): boolean {
 	return normalizeAppError(cause).category === ('cancellation' satisfies WireErrorCategory);
-}
-
-/**
- * Log a normalized error with a consistent `code=/category=` shape. The
- * message and detail stay out of the console line because they can carry paths
- * or provider text.
- */
-export function logAppError(scope: string, cause: unknown): void {
-	const error = normalizeAppError(cause);
-	console.error(`${scope} code=${error.code} category=${error.category}`);
 }

@@ -16,8 +16,7 @@ describe('input owner', () => {
 
 	async function open(input = liveInputCapability): Promise<AppRuntime> {
 		engine = createFakeEngine();
-		runtime = createAppRuntime({ engine, input });
-		await runtime.initialize();
+		runtime = await createAppRuntime({ engine, input });
 		return runtime;
 	}
 
@@ -30,7 +29,6 @@ describe('input owner', () => {
 		expect(engine.sessionIntents).toContainEqual({ kind: 'import', paths: ['/books/a.m4b'] });
 		const view = app.input.view();
 		expect(view.files.map((file) => file.path)).toEqual(['/books/a.m4b']);
-		expect(view.totalDurationSeconds).toBe(60);
 	});
 
 	it('words the reason an import added nothing', async () => {
@@ -221,7 +219,7 @@ describe('input owner', () => {
 		expect(inspect().contextDetail).toBe('2 of 3');
 		engine.change((state) => {
 			state.titles.files = [files[0], files[2]];
-			state.titles.titleSourcesByIdentity = { [files[0].inputId!]: [files[0], files[1]] };
+			state.titles.titleSourcesByIdentity = { [files[0].inputId]: [files[0], files[1]] };
 			state.selection.selectedIndices = [0];
 		});
 		expect(inspect().contextText).toBe('2 files selected');

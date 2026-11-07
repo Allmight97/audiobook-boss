@@ -1,4 +1,4 @@
-import type { AudioChoice, AudioChoiceFacts, AudioEdit, TitlePlan } from '../../types/session';
+import type { AudioChoice, AudioChoiceFacts, AudioEdit, AutoReading } from '../../types/session';
 import type {
 	AudiobookFormat,
 	AudioIntent,
@@ -7,19 +7,9 @@ import type {
 	FaacProfile,
 } from '../../types/audio';
 
-export type EncodingField =
-	| 'format'
-	| 'intent'
-	| 'encoder'
-	| 'quality'
-	| 'faacProfile'
-	| 'rateControl'
-	| 'nativeSpeed'
-	| 'bitrate'
-	| 'sampleRate'
-	| 'channels';
+export type EncodingField = AudioEdit['field'];
 
-export type EncodingOption = {
+type EncodingOption = {
 	readonly value: string;
 	readonly label: string;
 	readonly disabled?: boolean;
@@ -28,7 +18,6 @@ export type EncodingOption = {
 export type EncodingView = {
 	readonly format: AudiobookFormat;
 	readonly intent: AudioIntent;
-	readonly flavor: string;
 	readonly effectiveFlavor: string;
 	readonly flavorOptions: ReadonlyArray<EncodingOption>;
 	readonly flavorDisabled: boolean;
@@ -50,11 +39,9 @@ export type EncodingView = {
 	readonly bitrateKbpsMin: number;
 	readonly sampleRate: string;
 	readonly sampleRateOptions: ReadonlyArray<EncodingOption>;
-	readonly sampleRateDisabled: boolean;
 	readonly sampleRateHint: string | null;
 	readonly channels: string;
 	readonly channelOptions: ReadonlyArray<EncodingOption>;
-	readonly channelsDisabled: boolean;
 	readonly channelsHint: string | null;
 };
 
@@ -62,7 +49,12 @@ export type EncodingSource = {
 	readonly choice: AudioChoice;
 	readonly facts: AudioChoiceFacts;
 	readonly capabilities: EncoderSettingsCapabilities | null;
-	readonly plans: readonly TitlePlan[] | null;
+	readonly auto: EncodingAuto | null;
+};
+
+export type EncodingAuto = {
+	readonly sampleRate: AutoReading;
+	readonly channels: AutoReading;
 };
 
 const ENCODER_PROFILES: Record<EncoderType, string> = {
@@ -78,8 +70,6 @@ const FAAC_PROFILES: Record<FaacProfile, string> = {
 	aac_lc: 'AAC-LC',
 	he_aac_v1: 'HE-AAC v1',
 };
-
-const opus = (format: AudiobookFormat) => format === 'm4aOpus' || format === 'mkaOpus';
 
 function rangeOptions(min: number, max: number): number[] {
 	const values: number[] = [];
@@ -102,38 +92,30 @@ function encoderLabel(value: EncoderType): string {
 	}
 }
 
-function qualityLabel(capabilities: EncoderSettingsCapabilities | null, value: number): string {
-	const standard = capabilities?.faacQualityDefault ?? 100;
+function qualityLabel(capabilities: EncoderSettingsCapabilities, value: number): string {
+	const standard = capabilities.faacQualityDefault;
 	const label = value === standard ? 'Standard' : value < standard ? 'Smaller' : 'Higher';
 	return `${label} (${value})`;
 }
 
 function sampleRateLabel(value: string): string {
-	return value === 'auto' ? 'Auto' : `${value} Hz`;
+	return `${value} Hz`;
 }
 
 function channelLabel(value: string): string {
-	switch (value) {
-		case 'auto':
-			return 'Auto';
-		case 'mono':
-			return 'Mono';
-		case 'stereo':
-			return 'Stereo';
-		default:
-			return value;
-	}
+	return value === 'mono' ? 'Mono' : 'Stereo';
 }
 
-function autoLabel(
-	plans: readonly TitlePlan[] | null,
-	auto: boolean,
-	value: (plan: Extract<TitlePlan, { kind: 'resolved' }>['plan']) => string,
-): string {
-	if (plans === null) return 'Auto · Source audio';
-	if (!auto || plans.length === 0 || plans.some((plan) => plan.kind !== 'resolved')) return 'Auto';
-	const values = new Set(plans.map((plan) => (plan.kind === 'resolved' ? value(plan.plan) : '')));
-	return values.size === 1 ? `Auto · ${[...values][0]}` : 'Auto · Differs by title';
+function autoLabel(reading: AutoReading | undefined, value: (count: number) => string): string {
+	if (reading === undefined) return 'Auto · Source audio';
+	switch (reading.outcome.kind) {
+		case 'value':
+			return `Auto · ${value(reading.outcome.value)}`;
+		case 'differs':
+			return 'Auto · Differs by title';
+		case 'unresolved':
+			return 'Auto';
+	}
 }
 
 function kHz(sampleRate: number): string {
@@ -144,67 +126,47 @@ function channelCount(channels: number): string {
 	return channels === 1 ? 'Mono' : channels === 2 ? 'Stereo' : `${channels} channels`;
 }
 
-function planProblem(
-	plans: readonly TitlePlan[] | null,
-	field: 'sampleRate' | 'channels',
-): string | null {
-	for (const plan of plans ?? []) {
-		if (plan.kind === 'failed' && plan.field === field) return plan.message;
-	}
-	return null;
-}
-
 function sampleRateHint(source: EncodingSource): string | null {
 	const { choice, facts, capabilities } = source;
 	if (choice.sampleRate !== 'auto' && capabilities && !facts.sampleRateSupported)
 		return 'Choose a supported sample rate for this encoder.';
-	return planProblem(source.plans, 'sampleRate');
+	return source.auto?.sampleRate.problem ?? null;
 }
 
 function channelsHint(source: EncodingSource): string | null {
-	const problem = planProblem(source.plans, 'channels');
+	const problem = source.auto?.channels.problem;
 	if (problem) return problem;
 	return source.facts.downmixWarning ? 'Surround downmix omits bass effects (LFE).' : null;
 }
 
 export function projectView(source: EncodingSource): EncodingView {
 	const { choice, facts, capabilities } = source;
-	const isOpus = opus(choice.format);
+	const isOpus = facts.effectiveEncoder === 'opus';
 	const sampleRate = choice.sampleRate === 'auto' ? 'auto' : String(choice.sampleRate.explicit);
-	const flavorOptions: EncodingOption[] =
-		capabilities === null
-			? [{ value: 'auto', label: 'Loading…', disabled: true }]
-			: facts.encoderOptions.map((option) => ({
-					value: option.encoder,
-					label: encoderLabel(option.encoder),
-					disabled: !option.available,
-				}));
+	const flavorOptions: EncodingOption[] = facts.encoderOptions.map((option) => ({
+		value: option.encoder,
+		label: encoderLabel(option.encoder),
+		disabled: !option.available,
+	}));
 	const sampleRateOptions = capabilities
 		? [
 				...(capabilities.sampleRateAuto ? ['auto'] : []),
 				...capabilities.explicitSampleRates.map(String),
 			].map((value) => ({
 				value,
-				label:
-					value === 'auto'
-						? autoLabel(source.plans, choice.sampleRate === 'auto', (plan) => kHz(plan.sampleRate))
-						: sampleRateLabel(value),
+				label: value === 'auto' ? autoLabel(source.auto?.sampleRate, kHz) : sampleRateLabel(value),
 				disabled: value !== 'auto' && !facts.allowedSampleRates.includes(Number(value)),
 			}))
 		: [];
 	const channelOptions = (capabilities?.channelOptions ?? []).map((value) => ({
 		value,
-		label:
-			value === 'auto'
-				? autoLabel(source.plans, choice.channels === 'auto', (plan) => channelCount(plan.channels))
-				: channelLabel(value),
+		label: value === 'auto' ? autoLabel(source.auto?.channels, channelCount) : channelLabel(value),
 	}));
 	const showQuality = facts.bitrateMode.mode === 'vbr';
 
 	return {
 		format: choice.format,
 		intent: choice.intent,
-		flavor: isOpus ? 'opus' : choice.encoder,
 		effectiveFlavor: facts.effectiveEncoder,
 		flavorOptions,
 		flavorDisabled: facts.encoderLocked,
@@ -229,25 +191,25 @@ export function projectView(source: EncodingSource): EncodingView {
 			label:
 				value === 0
 					? '0 · Full search (default)'
-					: value === 4
-						? '4 · Fastest search'
+					: value === capabilities?.nativeSpeedMax
+						? `${value} · Fastest search`
 						: String(value),
 		})),
 		showQuality,
 		quality: choice.faacQuality,
-		qualityOptions: (capabilities?.faacQualityPresets ?? []).map((value) => ({
-			value: String(value),
-			label: qualityLabel(capabilities, value),
-		})),
+		qualityOptions: capabilities
+			? capabilities.faacQualityPresets.map((value) => ({
+					value: String(value),
+					label: qualityLabel(capabilities, value),
+				}))
+			: [],
 		bitrate: isOpus ? choice.opusBitrateKbps : choice.aacBitrateKbps,
 		bitrateKbpsMin: facts.bitrateKbpsMin,
 		sampleRate,
 		sampleRateOptions,
-		sampleRateDisabled: sampleRateOptions.length === 0,
 		sampleRateHint: sampleRateHint(source),
 		channels: choice.channels,
 		channelOptions,
-		channelsDisabled: channelOptions.length === 0,
 		channelsHint: channelsHint(source),
 	};
 }
@@ -261,7 +223,7 @@ export function editFor(field: EncodingField, value: string): AudioEdit | null {
 	const whole = value.trim() !== '' && Number.isInteger(number) && number >= 0;
 	switch (field) {
 		case 'format':
-			return oneOf(['m4b', 'mp3', 'm4aOpus', 'mkaOpus'] as const, value)
+			return oneOf(['m4b', 'm4aOpus', 'mkaOpus'] as const, value)
 				? { field: 'format', value }
 				: null;
 		case 'intent':

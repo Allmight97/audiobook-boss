@@ -30,20 +30,38 @@ one host attachment.
   transport can reorder requests calls `begin` in the order the user acted.
 - The metadata part carries `binding`, which advances whenever the form binds
   to a different selection. A host shows typing the engine has not yet
-  confirmed only on the form it was typed into.
-- Covers are not in a snapshot. `Engine::cover` serves the kinds
-  `cover_request.rs` lists and refuses anything else. Loading is
+  confirmed only on the form it was typed into. `SetField` and `SetFieldAction`
+  carry the binding the host showed; the engine answers `EditLost` and writes
+  nothing when the form has since bound elsewhere. Why: an import can select a
+  title between a keystroke and the update that tells the host. A cover load
+  answers `EditLost` when the form changed while it ran, and `Superseded`
+  when only a newer cover choice replaced it.
+- Covers are not in a snapshot as bytes. Each view that offers a cover
+  carries its address as an opaque string: a source on `AudioFile`, a lookup
+  result, an Audible library title, the cover on screen, the preview.
+  `cover_address.rs` builds every address and parses it back; a source's
+  revision is the session-wide count of cover writes when its own cover was
+  last written, and no entry is dropped, so ABB's own Saves never make an address
+  name two images. A file retagged outside ABB and imported again keeps its
+  address.
+  `Engine::cover` serves the addresses a session offered through
+  `runtime/cover_flow.rs` and refuses anything else. Loading is
   `crate::cover_service`'s. Reasons and statuses are typed; the host words them.
 
 ## Where A Rule Goes
 
-- `state.rs` and the modules it uses hold every rule and do no I/O; the one
+- `state.rs`, its `state/` children, and the modules they use hold every rule
+  and do no I/O; the one
   exception is `PlanTicket::resolve`, which reads sources on a blocking thread.
   Each method is one atomic transition. Work that needs a file or the network
   leaves as data (a `ReadTicket`, a `SavePlan`, a `PlanTicket`) and returns as a
   completion the state accepts or drops. `check-known-mistakes.ts` rejects
-  direct file I/O in session files other than `runtime.rs`.
-- `runtime.rs` performs that work. It never holds the state lock across an
+  direct file I/O in session files other than `runtime.rs` and `runtime/`.
+- `runtime.rs` and `runtime/` perform that work. `runtime.rs` holds the intent
+  pipeline. `runtime/<x>_flow.rs` performs the I/O and ordering of one
+  workflow; its rules stay in the state modules. Their tests are children of
+  `runtime_tests.rs` (`runtime/<x>_flow_tests.rs`), so they share its `Rig`.
+  Runtime never holds the state lock across an
   await, and `Session::transition` re-derives snapshots (`settle`) after every
   transition. It may read WorkRuntime (`sources_in_use`, `sources_held`) under
   the state lock; WorkRuntime and `TitleOutput` callbacks never take the session
@@ -56,14 +74,24 @@ one host attachment.
   new write always finds a writer or starts one.
 - A preview holds concurrency fixed and is admitted after its cancel flags are
   visible, so shutdown either sees it to cancel or the preview sees shutdown.
-- With no tokio runtime (engine construction) plans stay pending until the next
-  change. A download finishing while the list is locked waits for the unlock.
+- A download finishing while the list is locked waits for the unlock.
   Source paths are canonical, so match both spellings of the staged root.
-  Tag-cache tokens and revisions keep counting across a reset, so nothing
+  Tag-cache tokens and revisions keep counting across Clear All, so nothing
   issued earlier matches afterward.
-- A new rule belongs in the state modules, tested beside the module that holds
-  it. It goes in `runtime.rs` only when it is about ordering between an intent
-  and its I/O.
+- A new rule belongs in the `state/` child that owns its concept, tested in
+  that child's `_tests.rs` through the `Desk` harness in `state_tests.rs`. It
+  goes in `runtime.rs` or `runtime/` only when it is about ordering between an
+  intent and its I/O.
+  - `bound_form.rs`: the form bound to the selection and the draft gate.
+  - `save.rs`: where each pending edit goes and what a finished write changes.
+  - `write_queue.rs`: which files are being written or wait to be written.
+    Its fields are private; `save.rs` and `submitting.rs` ask it.
+  - `submitting.rs`: a submission in flight, collision review, restart answers.
+  - `cover.rs`: the cover on screen and each source's cover address.
+  - `title_audio.rs`: each title's audio choice and background plan.
+  - `snapshots.rs`: the published parts and their revisions.
+  Fields shared across children (`status`, `form`, `bound`, `submitting`,
+  `audio_refusal`) stay on `SessionState`; grep `state/` before changing one.
 
 ## Rules That Are Easy To Break
 
@@ -78,7 +106,7 @@ one host attachment.
 - **Known tags.** The form shows the file's known tags with pending intent
   applied (`tag_cache.rs`), so it never shows a value that Save or processing
   would not send, and never contradicts the file. A source read begun before a
-  save, a removal, or a reset cannot land afterward. Saved values without a
+  save, a removal, or Clear All cannot land afterward. Saved values without a
   source read are partial knowledge: an unknown source value cannot justify
   dropping a Blank.
 - **Titles.** A title is one or more ordered sources and keeps its identity
@@ -88,13 +116,22 @@ one host attachment.
   hidden sources survive grouping, and a grouped title's draft is kept for its
   output and never written into a source.
 - **Import.** One import runs at a time, in the order the imports were accepted
-  (`import_order.rs`), whatever order their tasks start. A Reset drops an import
-  still running, including its failure notice. While the list is locked, an
-  import (and analysis that overlaps a submission) waits and appends after
-  unlock. A path that discovery skips (`audio/AGENTS.md`, Import Discovery)
+  (`import_order.rs`), whatever order their tasks start. While the list is
+  locked, an import (and analysis that overlaps a submission) waits and
+  appends after unlock. A path that discovery skips (`audio/AGENTS.md`, Import Discovery)
   is listed with its reason and the rest is added; the `SkippedPaths` notice
   is set in the transition that lists the titles, after `append_analyzed`
   (which clears the notice).
+- **Title totals.** `titles.titleTotals` (by title id), `titles.totalSizeBytes`,
+  and `selection.canGroup` are computed in `title_totals.rs` and `WorkingSet`,
+  and the list renders them. A title's chapter count is the chapters ABB sends
+  to the output: the sources' accepted chapters, or one per source when a
+  multi-source title has none (`metadata/chapter_count.rs`, shared with the
+  merge and passthrough writers). Per-source rows keep their own count. These
+  are packaging facts, not a statement that every container keeps them.
+  `titles.previewLength` spans the valid titles' preview lengths
+  (`PreviewConfig::title_seconds`), so the Preview Audio tooltip names the
+  length processing renders.
 - **Cover.** A cover change applies only when exactly one valid title is
   selected. A later cover choice or Clear supersedes a load still running.
 - **Save targets.** Save covers every pending edit on a valid single-source
@@ -107,11 +144,12 @@ one host attachment.
   one file never overlap.
 - **Collision review and restart offers.** `output.collision_review` is the held
   question, independent of a later request's refusal. Its `review_id` advances
-  for each review and survives Reset; choice and cancel intents name it, and
-  stale or duplicate answers are `Superseded`. A Reset during preflight, before
-  a review is held, drops that preflight and unlocks the list. Frontend teardown
-  is not a user cancellation. `output.submission_in_progress` owns the busy
-  fact.
+  for each review and survives Clear All; choice and cancel intents name it, and
+  stale or duplicate answers are `Superseded`. Frontend teardown is not a
+  user cancellation. `output.submission_in_progress` owns the busy
+  fact; the frontend also locks the concurrency controls while it is set, and
+  the engine refuses a concurrency change while jobs are active
+  (`processing/job_registry`).
   `output.restart_prompt` selects one unanswered current offer in title-id order
   only after the preceding answer's work settles; answering suppresses that
   offer's automatic question for the engine session, even if Restart or Keep
@@ -138,15 +176,27 @@ one host attachment.
   written edit becomes the title's known tags and a failed one is pending again
   for Save. A failed write stays recorded until its title returns and Save
   retries it; no background retry runs.
+- **Listed names.** `AudioFile::label` (title tag, else file name) and
+  `artist` are what the list, refusals, the lookup queue, and the draft label
+  show. Analysis and
+  every successful write (`WorkingSet::note_saved_names`) set them; the list
+  does not follow staged edits. The frontend renders them as given. A write
+  also sets the source's size (`note_tag_write`).
 - **Audio choice.** A title edit applies to every named title or none: one
   title that refuses it, or a locked list, changes nothing and sets
   `audio.refusal` until the selection or the lock changes. A defaults edit is
   recorded in the settings; a title edit is not. A settings reset returns the
   defaults and output choices to the reset settings; loaded titles keep their
   choices. `audio.selection` combines the selected titles: the first one's
-  choice, only the options every one accepts, and the fields that differ.
+  choice, only the options every one accepts, the fields that differ, and what Auto
+  resolves to for sample rate and channels: one value, `differs`, or
+  unresolved, with the plan problem. A mixed field reads plain Auto and still
+  carries the plan problem. Each title carries the same readings for itself.
 - **Title plans.** Each title's plan resolves in the background whenever its
-  request or sources change; a stale result is dropped (`plans.rs`). A CUE
+  request or what a plan reads from its sources changes; a stale result is
+  dropped (`plans.rs`). A tag Save changes nothing a plan reads, so a resolved
+  plan stays resolved; any other plan is read again, since it may have read the
+  file during the write. A CUE
   awaiting confirmation, or CUE chapters on a merged title, fails the plan with
   a reason.
 - **Output.** The output part carries the directory, naming, the naming
@@ -155,7 +205,9 @@ one host attachment.
   on screen. Output choices are recorded in the settings; template typing is
   recorded once it pauses.
 - **Preview.** `output.preview_run` owns stable identity from acceptance through
-  terminal state. `CancelPreview` sets actual per-title cancellation flags even
+  terminal state, and a finished run stays published until the next submission
+  begins, accepted or refused; that ends its claim on the output and cover too.
+  `CancelPreview` sets actual per-title cancellation flags even
   during preparation/review/scheduler wait; cancellation survives a dropped host
   reply and never grants an output for opening. Accepted custom cover or
   preserved source artwork is read by run identity; bytes stay outside
@@ -204,8 +256,9 @@ one host attachment.
 
 ## Proof
 
-- Rules: `state_tests.rs`, including its property test. Add a new sequence law
-  there as an assertion.
+- Rules: `state/<concept>_tests.rs` through the `Desk` harness in
+  `state_tests.rs`. The property test is `state/sequence_tests.rs`; add a new
+  sequence law there as an assertion.
 - Real files through `Engine`: `crates/abb-engine/src/test_cases/integration_session_tests.rs`
   and `integration_library_readback_tests.rs` (what a library reads from the export).
 - Saves through the session: `integration_session_save_tests.rs`.

@@ -298,6 +298,10 @@ pub(crate) fn setup_encoder(
 }
 
 fn encoder_log(message: &str) {
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "the log file is best-effort; the same message goes to the application log"
+    )]
     let _ = with_encoding_log_file(|file| {
         use std::io::Write as _;
         writeln!(file, "{message}")

@@ -1,7 +1,7 @@
-import { createRoot, runWithOwner } from 'solid-js';
+import { createRoot } from 'solid-js';
 import { createSettingsOwner } from '../appSettings';
 import { createEncodingOwner } from '../encoding';
-import { createEngineLink } from '../engineLink';
+import { attachEngineLink } from '../engineLink';
 import { createInputOwner } from '../inputSession';
 import { createMetadataLookupOwner } from '../metadataLookup';
 import { createMetadataOwner } from '../metadataSession';
@@ -11,73 +11,57 @@ import { createRemoteSourceOwner } from '../remoteSource';
 import { createWorkOperationsOwner } from '../workOperations';
 import type { AppRuntime, RuntimeCapabilities } from './types';
 
-export type { AppRuntime, EngineStatus, RuntimeCapabilities } from './types';
+export type { AppRuntime } from './types';
 
-export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRuntime {
-	let disposeRoot = (): void => {};
-	let disposed = false;
-	const runtime = runWithOwner(null, () =>
-		createRoot((dispose) => {
-			disposeRoot = dispose;
-			const link = createEngineLink(capabilities.engine);
-			const input = createInputOwner({ link, capability: capabilities.input });
-			const settings = createSettingsOwner({
-				link,
-				onAppliedReset: () => remoteSource.discardIndexerConnectionEdits(),
-			});
-			const metadata = createMetadataOwner({ link, capability: capabilities.metadata });
-			const encoding = createEncodingOwner({ link });
-			const output = createOutputOwner({ link });
-			const lookup = createMetadataLookupOwner({ link });
-			const remoteSource = createRemoteSourceOwner({ link, ...capabilities.remoteSource });
-			const processing = createProcessingOwner({ link, settings });
-			const workOperations = createWorkOperationsOwner();
-			function initialize(): Promise<void> {
-				return link.ready().catch((error: unknown) => {
-					if (!disposed) throw error;
-				});
-			}
-			return {
-				link,
-				engine: {
-					attachment: link.attachment,
-					refusal: link.refusal,
-					dismissRefusal: link.dismissRefusal,
-				},
-				initialize,
-				input,
-				metadata,
-				lookup,
-				encoding,
-				output,
-				remoteSource,
-				settings,
-				processing,
-				workOperations,
-			};
-		}),
-	);
-	const { link, ...owners } = runtime;
-	return {
-		...owners,
-		dispose(): void {
-			if (disposed) {
-				return;
-			}
-			disposed = true;
-			runtime.workOperations.reset();
-			runtime.processing.reset();
-			runtime.remoteSource.reset();
-			runtime.settings.reset();
-			runtime.output.reset();
-			runtime.encoding.reset();
-			runtime.lookup.reset();
-			runtime.metadata.reset();
-			runtime.input.reset();
-			link.dispose();
-			disposeRoot();
-		},
-	};
+/** Composes the owners once the engine has attached and sent its first snapshot. */
+export async function createAppRuntime(
+	capabilities: RuntimeCapabilities = {},
+): Promise<AppRuntime> {
+	const link = await attachEngineLink(capabilities.engine);
+	return createRoot((disposeRoot) => {
+		const input = createInputOwner({ link, capability: capabilities.input });
+		const settings = createSettingsOwner({
+			link,
+			onAppliedReset: () => remoteSource.discardIndexerConnectionEdits(),
+		});
+		const metadata = createMetadataOwner({ link, capability: capabilities.metadata });
+		const encoding = createEncodingOwner({ link });
+		const output = createOutputOwner({ link });
+		const lookup = createMetadataLookupOwner({ link });
+		const remoteSource = createRemoteSourceOwner({ link, ...capabilities.remoteSource });
+		const processing = createProcessingOwner({ link, settings });
+		const workOperations = createWorkOperationsOwner({ link });
+		let disposed = false;
+		return {
+			engine: {
+				refusal: link.refusal,
+				dismissRefusal: link.dismissRefusal,
+				quitReminder: link.quitReminder,
+			},
+			input,
+			metadata,
+			lookup,
+			encoding,
+			output,
+			remoteSource,
+			settings,
+			processing,
+			workOperations,
+			dispose(): void {
+				if (disposed) return;
+				disposed = true;
+				workOperations.reset();
+				processing.reset();
+				remoteSource.reset();
+				output.reset();
+				lookup.reset();
+				metadata.reset();
+				input.reset();
+				link.dispose();
+				disposeRoot();
+			},
+		};
+	});
 }
 
 export { AppRuntimeProvider, useAppRuntime } from './context';

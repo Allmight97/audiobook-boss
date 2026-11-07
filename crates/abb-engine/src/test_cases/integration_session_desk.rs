@@ -25,7 +25,6 @@ pub(super) fn engine_config(root: &Path) -> EngineConfig {
         config_dir: root.join("config"),
         app_identifier: "com.audiobook-boss.test".to_string(),
         events: Arc::new(abb_engine::DiscardEvents),
-        aaxclean_helper: None,
     }
 }
 
@@ -99,6 +98,7 @@ impl Desk {
 
     pub(super) async fn edit_genre_and_save(&self) -> MetadataSnapshot {
         self.send(SessionIntent::SetField {
+            binding: self.metadata().binding,
             field: MetadataField::Genre,
             value: "Mystery".to_string(),
         })

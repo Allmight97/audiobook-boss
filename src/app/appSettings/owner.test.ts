@@ -15,27 +15,25 @@ describe('settings owner', () => {
 		runtime = undefined;
 	});
 
-	function open(prepare: (engine: FakeEngine) => void = () => {}): AppRuntime {
+	async function open(prepare: (engine: FakeEngine) => void = () => {}): Promise<AppRuntime> {
 		engine = createFakeEngine();
 		prepare(engine);
-		runtime = createAppRuntime({ engine });
+		runtime = await createAppRuntime({ engine });
 		return runtime;
 	}
 
 	function unsaved(message: string) {
-		return { code: 'io_error', category: 'io', message } as const;
+		return { code: 'io_error', category: 'io', message, detail: null } as const;
 	}
 
 	it('words the job count as Auto → N or Max N from the engine snapshot', async () => {
-		const app = open();
-		await app.initialize();
+		const app = await open();
 
 		expect(app.settings.concurrency()).toMatchObject({
 			selection: 'auto',
 			effective: 4,
 			autoEffective: 4,
 			effectiveLabel: 'Auto → 4',
-			allowAuto: true,
 		});
 		engine.respondSettings = () => {
 			const { concurrency } = engine.settings();
@@ -54,11 +52,10 @@ describe('settings owner', () => {
 	});
 
 	it('shows an unsaved accepted default as an error until a retry saves it', async () => {
-		const app = open();
-		await app.initialize();
+		const app = await open();
 
 		engine.seedAppSettings(
-			{ encoderDefaults: { ...engine.settings().settings!.encoderDefaults, intent: 'preserve' } },
+			{ encoderDefaults: { ...engine.settings().settings.encoderDefaults, intent: 'preserve' } },
 			unsaved('Disk full'),
 		);
 
@@ -75,8 +72,7 @@ describe('settings owner', () => {
 	});
 
 	it('shows the default import source as saving until the engine replies', async () => {
-		const app = open();
-		await app.initialize();
+		const app = await open();
 		let release: () => void = () => {};
 		const replied = new Promise<void>((resolve) => {
 			release = resolve;
@@ -97,8 +93,7 @@ describe('settings owner', () => {
 	});
 
 	it('shows a refused default import source beside its choice', async () => {
-		const app = open();
-		await app.initialize();
+		const app = await open();
 		engine.settingsDispatch = async () => ({
 			outcome: {
 				kind: 'rejected',
@@ -121,8 +116,7 @@ describe('settings owner', () => {
 	});
 
 	it('keeps a dialog choice that could not be saved in effect and reports the save once', async () => {
-		const app = open();
-		await app.initialize();
+		const app = await open();
 		app.settings.openDialog();
 
 		engine.respondSettings = () => {
@@ -138,9 +132,9 @@ describe('settings owner', () => {
 			const { settings } = engine.settings();
 			engine.seedAppSettings({
 				pinnedDefaults: {
-					maxConcurrentJobs: settings!.maxConcurrentJobs,
-					encoderDefaults: settings!.encoderDefaults,
-					outputDefaults: settings!.outputDefaults,
+					maxConcurrentJobs: settings.maxConcurrentJobs,
+					encoderDefaults: settings.encoderDefaults,
+					outputDefaults: settings.outputDefaults,
 				},
 			});
 			return undefined;
@@ -155,6 +149,6 @@ describe('settings owner', () => {
 		};
 		await app.settings.resetAllAppSettings();
 		expect(app.settings.dialog().saveState).toBe('saved');
-		expect(app.settings.dialog().settings?.pinnedDefaults).toBeUndefined();
+		expect(app.settings.dialog().settings?.pinnedDefaults).toBeNull();
 	});
 });

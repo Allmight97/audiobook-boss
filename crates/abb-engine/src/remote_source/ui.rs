@@ -1,14 +1,13 @@
 use super::providers::audible::{AudibleRequestError, SIGN_IN_REJECTED_MESSAGE};
 use super::{
-    AcquisitionPlan, AcquisitionSelection, ProviderId, RemoteAcquisitionSnapshot,
-    RemoteIndexerConnectionTestResult, RemoteIndexerConnectionUpdate, RemoteRelease,
-    RemoteReleaseGrabRequest, RemoteReleaseSearchRequest, RemoteReleaseSearchResponse,
-    RemoteSourceRuntime, RemoteTitle,
+    AcquisitionPlan, ProviderId, RemoteAcquisitionSnapshot, RemoteIndexerConnectionTestResult,
+    RemoteIndexerConnectionUpdate, RemoteRelease, RemoteReleaseGrabRequest,
+    RemoteReleaseSearchRequest, RemoteReleaseSearchResponse, RemoteSourceRuntime, RemoteTitle,
 };
-use crate::app_settings::{normalize_base_url, IndexerConnection};
+use crate::app_settings::{normalize_base_url, validate_api_key, IndexerConnection};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -46,15 +45,13 @@ pub enum RemoteUiIntent {
     },
     #[serde(rename_all = "camelCase")]
     SelectRelease {
-        indexer_id: i64,
-        guid: String,
+        key: String,
         multi: bool,
     },
     GrabSelected,
     #[serde(rename_all = "camelCase")]
     GrabRelease {
-        indexer_id: i64,
-        guid: String,
+        key: String,
     },
     LoadConnection,
     #[serde(rename_all = "camelCase")]
@@ -92,8 +89,9 @@ pub struct IndexerDraftSnapshot {
     pub save: RemoteDraftStatus,
     pub test: RemoteDraftStatus,
     pub test_result: Option<RemoteIndexerConnectionTestResult>,
-    /// Why the last edit was refused. The draft keeps the values it accepted
-    /// before; Save and Test refuse until an edit is accepted.
+    /// Why the API key or the URL was refused, the key first. The draft keeps
+    /// the value it accepted before; Save and Test refuse until a new value
+    /// for each refused field is accepted.
     pub draft_error: Option<AppErrorEnvelope>,
     /// The last category edit chose none and was refused; the draft keeps
     /// its categories. A search needs at least one.
@@ -119,14 +117,15 @@ pub enum ReleaseGrabStatus {
 pub struct IndexerWorkSnapshot {
     pub releases: Vec<RemoteRelease>,
     pub selected_release_keys: Vec<String>,
+    pub can_grab_selection: bool,
     pub release_grabs: BTreeMap<String, ReleaseGrabSnapshot>,
     pub searching: bool,
+    #[serde(skip)]
     pub grabbing: bool,
     pub message: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RemoteAuthStatus {
     Idle,
     Starting,
@@ -152,8 +151,11 @@ pub struct RemoteUiSnapshot {
     pub lane: ProviderId,
     pub providers: Vec<super::RemoteSourceProviderCapabilities>,
     pub account: Option<super::RemoteSourceAccountState>,
+    #[serde(skip)]
     pub account_status: RemoteDraftStatus,
+    #[serde(skip)]
     pub auth: RemoteAuthStatus,
+    #[serde(skip)]
     pub library_status: RemoteDraftStatus,
     pub selected_title_ids: Vec<String>,
     pub include_pdf_by_title_id: BTreeMap<String, bool>,
@@ -161,6 +163,8 @@ pub struct RemoteUiSnapshot {
     pub connection: IndexerDraftSnapshot,
     /// The shown lane refuses new work now; hosts disable its actions.
     pub busy: bool,
+    /// The Audible lane's status line while no job is running.
+    pub audible_message: String,
 }
 
 pub(super) struct UiState {
@@ -172,7 +176,10 @@ pub(super) struct UiState {
     /// Audible refused the saved sign-in; the account shows NeedsAuth until
     /// a sign-in or disconnect, whatever a later keychain read says.
     sign_in_rejected: bool,
+    settled_job_line: Option<String>,
     api_key: Option<String>,
+    url_refusal: Option<AppErrorEnvelope>,
+    key_refusal: Option<AppErrorEnvelope>,
     edit_revision: u64,
     connection_loading: bool,
     connection_loaded: bool,
@@ -213,13 +220,17 @@ impl Default for UiState {
                     test_result: None,
                 },
                 busy: false,
+                audible_message: String::new(),
             }),
             library: parts::Part::default(),
             acquisition: parts::Part::default(),
             account_request: 0,
             disconnecting: false,
             sign_in_rejected: false,
+            settled_job_line: None,
             api_key: None,
+            url_refusal: None,
+            key_refusal: None,
             edit_revision: 0,
             connection_loading: false,
             connection_loaded: false,
@@ -234,15 +245,6 @@ impl Default for UiState {
 }
 
 impl UiState {
-    fn account_change_allowed(&self) -> Result<()> {
-        if self.snapshot.lane != ProviderId::Audible {
-            return Err(AppError::InvalidInput(
-                "Indexer uses connection settings instead of browser auth.".into(),
-            ));
-        }
-        self.disconnect_allowed()
-    }
-
     fn account_reply(
         &mut self,
         lane: ProviderId,
@@ -267,165 +269,6 @@ impl UiState {
         true
     }
 
-    /// Applies a finished sign-in; returns the library read it starts.
-    fn auth_completed(&mut self, result: &Result<super::RemoteSourceAccountState>) -> Option<u64> {
-        self.snapshot.auth = match result {
-            Ok(account) => {
-                self.sign_in_rejected = false;
-                self.snapshot.account = Some(account.clone());
-                self.snapshot.account_status = RemoteDraftStatus::Succeeded;
-                RemoteAuthStatus::Idle
-            }
-            Err(error) => RemoteAuthStatus::Failed {
-                error: error.into(),
-            },
-        };
-        self.changed();
-        result.is_ok().then(|| self.begin_library())
-    }
-
-    fn shown_account(
-        &self,
-        account: super::RemoteSourceAccountState,
-    ) -> super::RemoteSourceAccountState {
-        if !self.sign_in_rejected
-            || account.provider_id != ProviderId::Audible
-            || account.status != super::RemoteAccountStatus::Connected
-        {
-            return account;
-        }
-        super::RemoteSourceAccountState {
-            status: super::RemoteAccountStatus::NeedsAuth,
-            message: Some(SIGN_IN_REJECTED_MESSAGE.to_string()),
-            ..account
-        }
-    }
-
-    fn reject_sign_in(&mut self) {
-        self.sign_in_rejected = true;
-        if let Some(account) = self.snapshot.account.take() {
-            self.snapshot.account = Some(self.shown_account(account));
-        }
-    }
-
-    fn library_result(
-        &mut self,
-        request: u64,
-        result: &std::result::Result<super::RemoteLibraryResponse, AudibleRequestError>,
-    ) -> bool {
-        if request != self.library_request
-            || self.snapshot.lane != ProviderId::Audible
-            || self.disconnecting
-        {
-            return false;
-        }
-        match result {
-            Ok(library) => {
-                self.library_loaded_with_diagnostics(
-                    library.titles.clone(),
-                    library.diagnostics.clone(),
-                );
-                self.snapshot.library_status = RemoteDraftStatus::Succeeded;
-            }
-            Err(AudibleRequestError::AuthRejected) => {
-                self.reject_sign_in();
-                self.snapshot.library_status = RemoteDraftStatus::Failed {
-                    error: AudibleRequestError::AuthRejected.into_app_error().into(),
-                };
-                self.changed();
-            }
-            Err(AudibleRequestError::Failed(error)) => {
-                self.snapshot.library_status = RemoteDraftStatus::Failed {
-                    error: error.into(),
-                };
-                self.changed();
-            }
-        }
-        true
-    }
-
-    pub(super) fn begin_library(&mut self) -> u64 {
-        self.library_request += 1;
-        self.snapshot.library_status = RemoteDraftStatus::Running;
-        self.changed();
-        self.library_request
-    }
-
-    pub(super) fn disconnect_allowed(&self) -> Result<()> {
-        if self.disconnecting
-            || matches!(
-                self.snapshot.auth,
-                RemoteAuthStatus::Starting | RemoteAuthStatus::Completing
-            )
-        {
-            return Err(AppError::InvalidInput(
-                "Wait for the current account change to finish.".into(),
-            ));
-        }
-        if self.acquisition.busy() {
-            return Err(AppError::InvalidInput(
-                "Wait for the Audible acquisition and handoff before disconnecting.".into(),
-            ));
-        }
-        Ok(())
-    }
-
-    pub(super) fn account_disconnected(
-        &mut self,
-        account: Option<super::RemoteSourceAccountState>,
-    ) {
-        self.snapshot.account = account;
-        self.changed();
-    }
-
-    pub(super) fn disconnected(&mut self) {
-        self.library_request += 1;
-        self.account_request += 1;
-        self.snapshot.library_status = RemoteDraftStatus::Idle;
-        self.sign_in_rejected = false;
-        self.snapshot.auth = RemoteAuthStatus::Idle;
-        self.set_acquisition(|acquisition| acquisition.job = None);
-        self.library_loaded(Vec::new());
-    }
-
-    pub(super) fn library_loaded(&mut self, titles: Vec<RemoteTitle>) {
-        self.library_loaded_with_diagnostics(titles, Vec::new());
-    }
-
-    fn library_loaded_with_diagnostics(
-        &mut self,
-        titles: Vec<RemoteTitle>,
-        diagnostics: Vec<super::RemoteSourceDiagnostic>,
-    ) {
-        let acquirable: BTreeSet<_> = titles
-            .iter()
-            .filter(|title| title.availability.acquirable)
-            .map(|title| title.title_id.as_str())
-            .collect();
-        self.snapshot
-            .selected_title_ids
-            .retain(|id| acquirable.contains(id.as_str()));
-        self.snapshot.include_pdf_by_title_id = titles
-            .iter()
-            .map(|title| {
-                let included = title.supplemental_pdf_available
-                    && self
-                        .snapshot
-                        .include_pdf_by_title_id
-                        .get(&title.title_id)
-                        .copied()
-                        .unwrap_or(true);
-                (title.title_id.clone(), included)
-            })
-            .collect();
-        if self.library.titles != titles || self.library.diagnostics != diagnostics {
-            self.library.titles = titles;
-            self.library.diagnostics = diagnostics;
-            self.library.bump();
-        }
-        self.changed();
-    }
-
     fn accept(&mut self) -> Result<()> {
         if self.disconnecting {
             return Err(AppError::InvalidInput(
@@ -439,15 +282,7 @@ impl UiState {
     fn begin(&mut self, intent: RemoteUiIntent) -> Result<UiAction> {
         self.accept()?;
         match intent {
-            RemoteUiIntent::StartAuth => {
-                self.account_change_allowed()?;
-                self.account_request += 1;
-                self.library_request += 1;
-                self.snapshot.account_status = RemoteDraftStatus::Idle;
-                self.snapshot.library_status = RemoteDraftStatus::Idle;
-                self.snapshot.auth = RemoteAuthStatus::Starting;
-                return Ok(UiAction::StartAuth);
-            }
+            RemoteUiIntent::StartAuth => return self.begin_auth_start(),
             RemoteUiIntent::CompleteAuth {
                 response_url_handoff_path,
             } => return self.begin_auth_completion(response_url_handoff_path),
@@ -459,19 +294,11 @@ impl UiState {
             RemoteUiIntent::SelectLane { lane } => return self.select_lane(lane),
 
             RemoteUiIntent::SearchReleases { author, title } => return self.search(author, title),
-            RemoteUiIntent::SelectRelease {
-                indexer_id,
-                guid,
-                multi,
-            } => {
-                self.select_release(release_key(indexer_id, &guid), multi)?;
-            }
+            RemoteUiIntent::SelectRelease { key, multi } => self.select_release(key, multi)?,
             RemoteUiIntent::GrabSelected => {
                 return self.grab(self.snapshot.indexer.selected_release_keys.clone());
             }
-            RemoteUiIntent::GrabRelease { indexer_id, guid } => {
-                return self.grab(vec![release_key(indexer_id, &guid)]);
-            }
+            RemoteUiIntent::GrabRelease { key } => return self.grab(vec![key]),
             RemoteUiIntent::ClearTitles => self.snapshot.selected_title_ids.clear(),
             RemoteUiIntent::ToggleTitle { title_id } => self.toggle_title(title_id)?,
             RemoteUiIntent::TogglePdf { title_id } => self.toggle_pdf(title_id)?,
@@ -511,24 +338,6 @@ impl UiState {
             }
         }
         Ok(UiAction::Done)
-    }
-
-    fn begin_auth_completion(
-        &mut self,
-        response_url_handoff_path: Option<String>,
-    ) -> Result<UiAction> {
-        self.account_change_allowed()?;
-        if self.snapshot.auth != RemoteAuthStatus::AwaitingHandoff {
-            return Err(AppError::InvalidInput(
-                "Start Audible auth before completing the handoff.".into(),
-            ));
-        }
-        self.account_request += 1;
-        self.library_request += 1;
-        self.snapshot.account_status = RemoteDraftStatus::Idle;
-        self.snapshot.library_status = RemoteDraftStatus::Idle;
-        self.snapshot.auth = RemoteAuthStatus::Completing;
-        Ok(UiAction::CompleteAuth(response_url_handoff_path))
     }
 
     fn select_lane(&mut self, lane: ProviderId) -> Result<UiAction> {
@@ -576,112 +385,6 @@ impl UiState {
         })
     }
 
-    fn refresh_library(&mut self) -> Result<UiAction> {
-        if self.snapshot.lane != ProviderId::Audible
-            || self.acquisition.busy()
-            || self.disconnecting
-            || matches!(
-                self.snapshot.auth,
-                RemoteAuthStatus::Starting | RemoteAuthStatus::Completing
-            )
-            || self.snapshot.library_status == RemoteDraftStatus::Running
-        {
-            return Err(AppError::InvalidInput(
-                "Wait for the current Audible work before refreshing.".into(),
-            ));
-        }
-        let request = self.begin_library();
-        Ok(UiAction::Library(request))
-    }
-
-    fn begin_disconnect(&mut self) -> Result<UiAction> {
-        if self.snapshot.lane != ProviderId::Audible {
-            return Err(AppError::InvalidInput(
-                "That account is no longer the one shown. Try again.".into(),
-            ));
-        }
-        self.disconnect_allowed()?;
-        self.disconnecting = true;
-        self.account_request += 1;
-        self.library_request += 1;
-        self.snapshot.account_status = RemoteDraftStatus::Running;
-        self.snapshot.library_status = RemoteDraftStatus::Idle;
-        Ok(UiAction::Disconnect)
-    }
-
-    fn toggle_title(&mut self, title_id: String) -> Result<()> {
-        if !self
-            .library
-            .titles
-            .iter()
-            .any(|title| title.title_id == title_id && title.availability.acquirable)
-        {
-            return Err(AppError::InvalidInput(
-                "This title is not available for acquisition.".into(),
-            ));
-        }
-        if self.snapshot.selected_title_ids.contains(&title_id) {
-            self.snapshot
-                .selected_title_ids
-                .retain(|id| id != &title_id);
-        } else {
-            self.snapshot.selected_title_ids.push(title_id);
-        }
-
-        Ok(())
-    }
-    fn toggle_pdf(&mut self, title_id: String) -> Result<()> {
-        if !self
-            .library
-            .titles
-            .iter()
-            .any(|title| title.title_id == title_id && title.supplemental_pdf_available)
-        {
-            return Err(AppError::InvalidInput(
-                "This title has no supplemental PDF.".into(),
-            ));
-        }
-        let included = self
-            .snapshot
-            .include_pdf_by_title_id
-            .entry(title_id)
-            .or_default();
-        *included = !*included;
-
-        Ok(())
-    }
-    fn acquire_selected(&mut self) -> Result<UiAction> {
-        if self.disconnecting
-            || matches!(
-                self.snapshot.auth,
-                RemoteAuthStatus::Starting | RemoteAuthStatus::Completing
-            )
-            || self.acquisition.busy()
-            || self.snapshot.lane != ProviderId::Audible
-            || self.snapshot.selected_title_ids.is_empty()
-        {
-            return Err(AppError::InvalidInput(
-                "Select Audible titles before acquiring.".into(),
-            ));
-        }
-        self.set_acquisition(|acquisition| acquisition.acquiring = true);
-        Ok(UiAction::Acquire(AcquisitionPlan {
-            selections: self
-                .snapshot
-                .selected_title_ids
-                .iter()
-                .map(|id| AcquisitionSelection {
-                    title_id: id.clone(),
-                    include_supplemental_pdf: self
-                        .snapshot
-                        .include_pdf_by_title_id
-                        .get(id)
-                        .copied()
-                        .unwrap_or(false),
-                })
-                .collect(),
-        }))
-    }
     fn ensure_draft_usable(&self) -> Result<()> {
         if self.snapshot.connection.draft_error.is_some() {
             return Err(AppError::InvalidInput(
@@ -691,38 +394,55 @@ impl UiState {
         Ok(())
     }
 
+    pub(super) fn clear_draft_refusals(&mut self) {
+        self.url_refusal = None;
+        self.key_refusal = None;
+        self.snapshot.connection.draft_error = None;
+    }
+
     fn edit_connection(
         &mut self,
         base_url: Option<String>,
         category_ids: Option<Vec<u32>>,
         api_key: Option<String>,
     ) -> Result<()> {
-        let url = match base_url
-            .map(|url| normalize_base_url(url).map(Option::unwrap_or_default))
-            .transpose()
-        {
-            Ok(url) => url,
-            Err(error) => {
-                self.snapshot.connection.draft_error = Some(AppErrorEnvelope::from(&error));
-                self.changed();
-                return Err(error);
+        let mut refusal = None;
+        if let Some(url) = base_url {
+            match normalize_base_url(url) {
+                Ok(url) => {
+                    self.url_refusal = None;
+                    self.snapshot.connection.base_url = url.unwrap_or_default();
+                }
+                Err(error) => {
+                    self.url_refusal = Some(AppErrorEnvelope::from(&error));
+                    refusal = Some(error);
+                }
             }
-        };
-        self.snapshot.connection.draft_error = None;
+        }
+        if let Some(key) = api_key {
+            match validate_api_key(key.trim()) {
+                Ok(()) => {
+                    self.key_refusal = None;
+                    self.api_key = (!key.trim().is_empty()).then(|| key.trim().to_string());
+                }
+                Err(error) => {
+                    self.key_refusal = Some(AppErrorEnvelope::from(&error));
+                    refusal = Some(error);
+                }
+            }
+        }
+        self.snapshot.connection.draft_error = self
+            .key_refusal
+            .clone()
+            .or_else(|| self.url_refusal.clone());
         let refused = category_ids
             .as_ref()
             .is_some_and(|ids| ids.iter().all(|id| *id == 0));
         self.snapshot.connection.empty_categories_refused = refused;
         let category_ids = category_ids.filter(|_| !refused);
         self.edit_revision += 1;
-        if let Some(url) = url {
-            self.snapshot.connection.base_url = url;
-        }
         if let Some(ids) = category_ids {
             self.snapshot.connection.category_ids = ids;
-        }
-        if let Some(key) = api_key {
-            self.api_key = (!key.trim().is_empty()).then(|| key.trim().to_string());
         }
         self.snapshot.connection.api_key_entered = self.api_key.is_some();
         if !self.connection_saving {
@@ -730,7 +450,13 @@ impl UiState {
         }
         self.snapshot.connection.test = RemoteDraftStatus::Idle;
         self.snapshot.connection.test_result = None;
-        Ok(())
+        match refusal {
+            Some(error) => {
+                self.changed();
+                Err(error)
+            }
+            None => Ok(()),
+        }
     }
 
     fn connection_update(&self) -> RemoteIndexerConnectionUpdate {
@@ -814,9 +540,6 @@ impl UiState {
     }
 }
 
-fn release_key(indexer_id: i64, guid: &str) -> String {
-    serde_json::to_string(&(indexer_id, guid)).expect("release identity is serializable")
-}
 impl UiState {
     fn indexer_available(&self) -> Result<()> {
         if self.snapshot.lane != ProviderId::Indexer
@@ -861,7 +584,7 @@ impl UiState {
             .indexer
             .releases
             .iter()
-            .any(|release| release_key(release.indexer_id, &release.guid) == key)
+            .any(|release| release.key == key)
         {
             return Err(AppError::InvalidInput(
                 "Search again before selecting this release.".into(),
@@ -886,13 +609,12 @@ impl UiState {
             .releases
             .iter()
             .filter(|release| {
-                let key = release_key(release.indexer_id, &release.guid);
-                keys.contains(&key)
+                keys.contains(&release.key)
                     && !self
                         .snapshot
                         .indexer
                         .release_grabs
-                        .get(&key)
+                        .get(&release.key)
                         .is_some_and(|grab| grab.status == ReleaseGrabStatus::Sent)
             })
             .cloned()
@@ -904,7 +626,7 @@ impl UiState {
         }
         for release in &releases {
             self.snapshot.indexer.release_grabs.insert(
-                release_key(release.indexer_id, &release.guid),
+                release.key.clone(),
                 ReleaseGrabSnapshot {
                     status: ReleaseGrabStatus::Queued,
                     message: "Waiting to send.".into(),
@@ -987,13 +709,6 @@ impl RemoteSourceRuntime {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
-    pub(crate) fn library_offers_cover(&self, url: &str) -> bool {
-        self.ui()
-            .library
-            .titles
-            .iter()
-            .any(|title| title.cover_url.as_deref() == Some(url))
-    }
     pub(crate) fn ui_begin(&self, intent: RemoteUiIntent) -> RemoteUiRun {
         let action = if matches!(intent, RemoteUiIntent::SaveConnection) {
             self.begin_save()
@@ -1017,10 +732,10 @@ impl RemoteSourceRuntime {
 impl RemoteSourceRuntime {
     async fn grab_ui_batch(&self, releases: Vec<RemoteRelease>) {
         let turn = self.indexer_turn();
+        let mut unconfirmed = 0;
         for release in &releases {
-            let key = release_key(release.indexer_id, &release.guid);
             self.ui().snapshot.indexer.release_grabs.insert(
-                key.clone(),
+                release.key.clone(),
                 ReleaseGrabSnapshot {
                     status: ReleaseGrabStatus::Sending,
                     message: "Sending to downloader via Indexer…".into(),
@@ -1037,6 +752,9 @@ impl RemoteSourceRuntime {
                 }
                 Err(error) => Err(AppError::InvalidInput(error.to_string())),
             };
+            if result.as_ref().is_ok_and(|response| response.unconfirmed) {
+                unconfirmed += 1;
+            }
             let outcome = match result {
                 Ok(response) => ReleaseGrabSnapshot {
                     status: if response.accepted {
@@ -1064,20 +782,14 @@ impl RemoteSourceRuntime {
                 .snapshot
                 .indexer
                 .release_grabs
-                .insert(key, outcome);
+                .insert(release.key.clone(), outcome);
             self.ui().changed();
             self.publish_ui();
         }
         let mut state = self.ui();
         let outcomes: Vec<_> = releases
             .iter()
-            .filter_map(|release| {
-                state
-                    .snapshot
-                    .indexer
-                    .release_grabs
-                    .get(&release_key(release.indexer_id, &release.guid))
-            })
+            .filter_map(|release| state.snapshot.indexer.release_grabs.get(&release.key))
             .collect();
         let sent = outcomes
             .iter()
@@ -1086,10 +798,7 @@ impl RemoteSourceRuntime {
         state.snapshot.indexer.message = if outcomes.len() == 1 {
             outcomes[0].message.clone()
         } else {
-            format!(
-                "{sent} releases sent. {} failed; retry their rows.",
-                outcomes.len() - sent
-            )
+            lane_status::grab_batch_line(sent, outcomes.len() - sent - unconfirmed, unconfirmed)
         };
         state.snapshot.indexer.grabbing = false;
         state.changed();
@@ -1097,28 +806,6 @@ impl RemoteSourceRuntime {
 }
 
 impl RemoteSourceRuntime {
-    async fn refresh_ui_library(&self, request: u64) -> Result<RemoteUiResult> {
-        let result = async {
-            let auth = self
-                .vault_blocking(|runtime| {
-                    super::AudibleProvider::stored_auth(runtime.inner.vault.as_ref())
-                })
-                .await?;
-            self.inner
-                .tasks
-                .until_closing(async { Ok(super::AudibleProvider::load_library(auth).await) })
-                .await?
-        }
-        .await;
-        if !self.ui().library_result(request, &result) {
-            return Ok(RemoteUiResult::Superseded);
-        }
-        self.publish_ui();
-        result
-            .map(|_| RemoteUiResult::Applied)
-            .map_err(AudibleRequestError::into_app_error)
-    }
-
     async fn refresh_ui_account(&self, lane: ProviderId, request: u64) -> Result<RemoteUiResult> {
         let runtime = self.clone();
         let result = self
@@ -1149,50 +836,11 @@ impl RemoteSourceRuntime {
         result?;
         if library_eligible {
             if let Ok(request) = self.inner.tasks.admit(|| self.ui().begin_library()) {
+                self.publish_ui();
                 return self.refresh_ui_library(request).await;
             }
         }
         Ok(RemoteUiResult::Applied)
-    }
-
-    async fn complete_ui_auth(&self, path: Option<String>) -> Result<()> {
-        let result = self
-            .complete_auth(super::RemoteAuthCompletionRequest {
-                provider_id: ProviderId::Audible,
-                response_url_handoff_path: path.map(std::path::PathBuf::from),
-            })
-            .await;
-        let refresh = self.ui().auth_completed(&result);
-        self.publish_ui();
-        result?;
-        if let Some(request) = refresh {
-            self.refresh_ui_library(request).await?;
-        }
-        Ok(())
-    }
-
-    async fn disconnect_ui(&self) -> Result<()> {
-        let runtime = self.clone();
-        #[expect(clippy::disallowed_methods, reason = "joined by disconnect_ui")]
-        let result = tokio::task::spawn_blocking(move || runtime.disconnect_credentials())
-            .await
-            .map_err(|_| AppError::General("Account disconnect failed.".into()))
-            .and_then(|result| result);
-        let mut state = self.ui();
-        state.disconnecting = false;
-        match &result {
-            Ok(account) => {
-                state.snapshot.account = Some(account.clone());
-                state.snapshot.account_status = RemoteDraftStatus::Succeeded;
-            }
-            Err(error) => {
-                state.snapshot.account_status = RemoteDraftStatus::Failed {
-                    error: error.into(),
-                }
-            }
-        }
-        state.changed();
-        result.map(|_| ())
     }
 }
 
@@ -1272,6 +920,12 @@ mod tests;
 
 #[path = "ui_parts.rs"]
 mod parts;
+
+#[path = "audible_lane.rs"]
+mod audible_lane;
+
+#[path = "lane_status.rs"]
+mod lane_status;
 
 #[path = "indexer_save.rs"]
 mod indexer_save;

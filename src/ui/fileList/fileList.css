@@ -492,12 +492,6 @@
 	grid-template-columns: minmax(5.5rem, 0.38fr) minmax(0, 1fr);
 	gap: 8px;
 }
-@media (max-width: 380px) {
-	.title-audio-plan .encoder-field-row {
-		grid-template-columns: 1fr;
-		gap: 4px;
-	}
-}
 .title-audio-plan .encoder-field-row select,
 .title-audio-plan .encoder-field-row input {
 	width: 100%;

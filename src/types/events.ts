@@ -1,3 +1,4 @@
+import type { QuitPressAgainEvent } from '../lib/generated/tauri';
 import type { SettingsSnapshot } from './appSettings';
 import type { SessionUpdate } from './session';
 import type { WorkOperationsUpdate } from './workRuntime';
@@ -6,13 +7,14 @@ export const EVENTS = {
 	WORK_OPERATIONS_UPDATE: 'work-operations-update',
 	SESSION_UPDATE: 'session-update',
 	SETTINGS_UPDATE: 'settings-update',
+	QUIT_PRESS_AGAIN: 'quit-press-again',
 } as const;
 
 export type WorkOperationsUpdateEvent = WorkOperationsUpdate;
 export type SessionUpdateEvent = SessionUpdate;
 export type SettingsUpdateEvent = SettingsSnapshot;
 
-export interface TauriFileDropEvents {
+interface TauriFileDropEvents {
 	'tauri://drag-drop': { paths: string[]; position: { x: number; y: number } };
 	'tauri://drag-enter': { paths: string[]; position: { x: number; y: number } };
 	'tauri://drag-over': { position: { x: number; y: number } };
@@ -23,10 +25,10 @@ export interface ApplicationEvents extends TauriFileDropEvents {
 	[EVENTS.WORK_OPERATIONS_UPDATE]: WorkOperationsUpdateEvent;
 	[EVENTS.SESSION_UPDATE]: SessionUpdateEvent;
 	[EVENTS.SETTINGS_UPDATE]: SettingsUpdateEvent;
+	[EVENTS.QUIT_PRESS_AGAIN]: QuitPressAgainEvent;
 }
 
 export type EventName = keyof ApplicationEvents;
-export type EventPayload<T extends EventName> = ApplicationEvents[T];
 
 type DragDropPayload = TauriFileDropEvents['tauri://drag-drop'];
 

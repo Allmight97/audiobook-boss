@@ -87,6 +87,10 @@ async fn dropped_admission_does_not_block_reconfiguration() {
     sleep(Duration::from_millis(20)).await;
 
     waiting.abort();
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "the aborted task reports a cancellation, which is the point"
+    )]
     let _ = waiting.await;
 
     assert_eq!(

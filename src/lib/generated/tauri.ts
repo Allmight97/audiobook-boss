@@ -22,18 +22,22 @@ export const commands = {
 	 *  Settings intents run one at a time in `sequence` order.
 	 */
 	settingsDispatch: (client: number, sequence: number, intent: SettingsIntent) => typedError<SettingsReply, AppErrorEnvelope>(__TAURI_INVOKE("settings_dispatch", { client, sequence, intent })),
-	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
-	listWorkOperations: () => typedError<WorkOperationsSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
-	cancelWorkOperation: (operationId: OperationId, childJobId: string | null) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId, childJobId })),
+	cancelWorkOperation: (operationId: OperationId, childJobId: string | null) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId, childJobId })),
 	logFrontend: (entry: FrontendLogEntry) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("log_frontend", { entry })),
 };
 
 /** Events */
 export const events = {
+	quitPressAgain: makeEvent<QuitPressAgainEvent>("quit-press-again"),
 	sessionUpdate: makeEvent<SessionUpdateEvent>("session-update"),
 	settingsUpdate: makeEvent<SettingsUpdateEvent>("settings-update"),
 	workOperationsUpdate: makeEvent<WorkOperationsUpdateEvent>("work-operations-update"),
 };
+
+/* Constants */
+export const SUPPORTED_AUDIO_IMPORT_EXTENSIONS = ["mka","mp3","m4a","m4b","aac","wav","flac"] as const;
+
+export const SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT = "Supports MKA, MP3, M4A/M4B, AAC, WAV, and FLAC audio files" as const;
 
 /* Types */
 /**
@@ -49,12 +53,6 @@ export type AacDecoder =
  */
 "faad";
 
-export type AccountRef = {
-	providerId: ProviderId,
-	accountId: string,
-	displayName: string,
-};
-
 export type AcquisitionHandoff = { kind: "imported"; count: number } |
 /**  Nothing was imported, so the engine removes the staged files. */
 { kind: "removed"; reason: HandoffRefusal };
@@ -64,8 +62,6 @@ export type AcquisitionJob = {
 	providerId: ProviderId,
 	status: RemoteAcquisitionStatus,
 	progress: AcquisitionProgress,
-	materializedFiles: MaterializedSourceFile[],
-	supplementalAssets: SupplementalAsset[],
 	diagnostics: RemoteSourceDiagnostic[],
 	/**  Set once the engine has tried to import the job's files. */
 	handoff?: AcquisitionHandoff | null,
@@ -105,6 +101,7 @@ export type AppErrorEnvelope = {
 
 export type AppSettings = {
 	keepAwakeWhileWorking: boolean,
+	pressQuitTwice: boolean,
 	maxConcurrentJobs: ConcurrencyPreference,
 	encoderDefaults: EncoderDefaults,
 	outputDefaults: OutputDefaults,
@@ -122,11 +119,6 @@ export type AudioChoice = {
 	encoder: EncoderType,
 	aacBitrateKbps: number,
 	opusBitrateKbps: number,
-	/**
-	 *  The bitrate mode the saved settings carried, used until capabilities
-	 *  name the encoder's default.
-	 */
-	savedMode: BitrateMode,
 	faacProfile: FaacProfile,
 	faacRateControl: FaacRateControl,
 	faacQuality: number,
@@ -155,8 +147,6 @@ export type AudioChoiceFacts = {
 	 *  accept; the user must choose another before export.
 	 */
 	sampleRateSupported: boolean,
-	/**  Total target kbps, or `None` when a quality setting owns the bitrate. */
-	estimateKbps: number | null,
 };
 
 export type AudioChoiceView = {
@@ -188,15 +178,11 @@ export type AudioFile = {
 	sampleRate: number | null,
 	channels: number | null,
 	codecLabel: string | null,
-	/**
-	 *  Whether this source can be copied without re-encoding and whether the
-	 *  source meets the automatic low-bitrate recommendation.
-	 */
-	preservation: AudioPreservation | null,
 	/**  Display only. */
 	selectedDecoder: string | null,
-	tagTitle: string | null,
-	tagArtist: string | null,
+	/**  What the title list calls this source: the title tag, else the file name. */
+	label: string,
+	artist: string | null,
 	/**  Chapters embedded in this individual source file, normalized to milliseconds. */
 	chapters: ChapterSpec[],
 	chapterPlan: ChapterPlan | null,
@@ -205,6 +191,11 @@ export type AudioFile = {
 	/**  An exported download that ABB removed. The title is finished, not failed. */
 	sourceRemoved: boolean,
 	error: string | null,
+	/**
+	 *  The address of this source's embedded cover, set by the session on
+	 *  the sources it lists; absent when the source is not valid.
+	 */
+	cover: string | null,
 };
 
 export type AudioHandling = { handling: "encode"; settings: EncoderSettings } | { handling: "preserve" };
@@ -213,10 +204,6 @@ export type AudioIntent = "auto" | "preserve" | "encode";
 
 /**  The audio setting a title's plan failed on, when one setting is the cause. */
 export type AudioPlanField = "sampleRate" | "channels";
-
-export type AudioPreservation = {
-	canPreserve: boolean,
-};
 
 export type AudioRefusal =
 /**  A submission holds the list. */
@@ -240,7 +227,14 @@ export type AudioSnapshot = {
 	refusal: AudioRefusal | null,
 };
 
-export type AudiobookFormat = "m4b" | "mp3" | "m4aOpus" | "mkaOpus";
+export type AudiobookFormat = "m4b" | "m4aOpus" | "mkaOpus";
+
+export type AutoOutcome = { kind: "unresolved" } | { kind: "value"; value: number } | { kind: "differs" };
+
+export type AutoReading = {
+	outcome: AutoOutcome,
+	problem: string | null,
+};
 
 export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "abr" } | { mode: "vbr"; value: number } |
 /**  Variable bitrate driven by target kbps (Opus). */
@@ -270,12 +264,10 @@ export type ChildJobSnapshot = {
 	/**  First active progress and final completion, authored by WorkRuntime. */
 	startedAtMs: number | null,
 	finishedAtMs: number | null,
-	lane: ResourceLane,
 	progress: ProgressSnapshot,
 	sourcePath: string | null,
 	inputIndex: number | null,
 	inputId: string | null,
-	sourceInputIds: string[],
 	jobId: string | null,
 	cancellable: boolean,
 	cancelRequested: boolean,
@@ -314,18 +306,13 @@ export type ConcurrencySnapshot = {
 	capabilities: MaxConcurrentJobsCapabilities,
 };
 
-export type CoverNotice = { kind: "urlRequired" } | { kind: "loadedFromUrl" } | { kind: "loadFailed"; error: AppErrorEnvelope };
+export type CoverNotice = { kind: "urlRequired" } | { kind: "notAnImageUrl" } | { kind: "loadedFromUrl" } | { kind: "loadFailed"; error: AppErrorEnvelope };
 
 export type CoverSnapshot = {
-	/**
-	 *  Advances whenever the displayed image changes; fetch the bytes with
-	 *  the session's cover query.
-	 */
-	imageRevision: number,
-	present: boolean,
+	/**  The address of the displayed image; absent when there is none. */
+	image: string | null,
 	/**  The user replaced the cover and has not saved or staged it yet. */
 	custom: boolean,
-	removalRequested: boolean,
 	loading: boolean,
 	notice: CoverNotice | null,
 	/**  Advances with every notice, so a repeated notice is still new. */
@@ -345,27 +332,6 @@ export type CueSource = {
 };
 
 export type CueStatus = "ready" | "needsConfirmation" | "invalid" | "ignored" | "embeddedPreferred";
-
-export type EncoderAvailability = {
-	aacAtAvailable: boolean,
-	nativeAacAvailable: boolean,
-	autoEncoder: EncoderType,
-};
-
-/**
- *  Encoder-specific settings facts that cannot be represented by the global
- *  controls below. In particular, FAAC's explicit HE-AAC sample-rate support
- *  is narrower than the rates accepted by the other encoders.
- */
-export type EncoderConfigurationCapability = {
-	encoderType: EncoderType,
-	bitrateKbpsMin: number,
-	bitrateKbpsMax: number,
-	allowedModes: BitrateModeKind[],
-	defaultMode: BitrateMode,
-	explicitSampleRates: number[],
-	faacProfiles: FaacProfileCapability[],
-};
 
 export type EncoderDefaults = {
 	format: AudiobookFormat,
@@ -394,9 +360,6 @@ export type EncoderSettings = {
 };
 
 export type EncoderSettingsCapabilities = {
-	availability: EncoderAvailability,
-	encoderTypes: EncoderType[],
-	encoderConfigurations: EncoderConfigurationCapability[],
 	nativeSpeedMax: number,
 	faacQualityPresets: number[],
 	faacQualityDefault: number,
@@ -413,11 +376,6 @@ export type EncoderType =
 
 /**  FAAC resolves Auto once from the requested output configuration. */
 export type FaacProfile = "auto" | "aac_lc" | "he_aac_v1";
-
-export type FaacProfileCapability = {
-	profile: FaacProfile,
-	explicitSampleRates: number[],
-};
 
 export type FaacRateControl = "abr" | "vbr";
 
@@ -443,6 +401,7 @@ export type FrontendAttachment = {
 	client: number,
 	session: SessionUpdate,
 	settings: SettingsSnapshot,
+	workOperations: WorkOperationsSnapshot,
 };
 
 export type FrontendLogEntry = {
@@ -475,8 +434,9 @@ export type IndexerDraftSnapshot = {
 	test: RemoteDraftStatus,
 	testResult: RemoteIndexerConnectionTestResult | null,
 	/**
-	 *  Why the last edit was refused. The draft keeps the values it accepted
-	 *  before; Save and Test refuse until an edit is accepted.
+	 *  Why the API key or the URL was refused, the key first. The draft keeps
+	 *  the value it accepted before; Save and Test refuse until a new value
+	 *  for each refused field is accepted.
 	 */
 	draftError: AppErrorEnvelope | null,
 	/**
@@ -489,9 +449,9 @@ export type IndexerDraftSnapshot = {
 export type IndexerWorkSnapshot = {
 	releases: RemoteRelease[],
 	selectedReleaseKeys: string[],
+	canGrabSelection: boolean,
 	releaseGrabs: { [key in string]: ReleaseGrabSnapshot },
 	searching: boolean,
-	grabbing: boolean,
 	message: string,
 };
 
@@ -517,6 +477,7 @@ export type LookupQueuePosition = {
 	index: number,
 	total: number,
 	path: string,
+	label: string,
 };
 
 export type LookupSnapshot = {
@@ -541,27 +502,20 @@ export type LookupSource =
 /**  The lookup's last outcome. Hosts word these. */
 export type LookupStatus =
 /**  Lookup was opened with no valid title selected. */
-{ kind: "noValidTitle" } | { kind: "queryRequired" } | { kind: "searching" } | { kind: "found"; count: number;
+{ kind: "noValidTitle" } | { kind: "queryRequired"; after: QueueStep | null } | { kind: "searching" } | { kind: "found"; count: number;
 /**  Some lookup data was unavailable; the results shown are partial. */
 partial: boolean; after: QueueStep | null } | { kind: "searchFailed"; after: QueueStep | null } |
+/**  The query or source changed while a search ran, so its answer was dropped. */
+{ kind: "searchSuperseded" } |
 /**  Apply was requested with no title queued. */
-{ kind: "noTitleQueued" } |
+{ kind: "noTitleQueued" } | { kind: "applying" } |
+/**  The query or source changed, or the selection moved, while an apply ran, so it was dropped. */
+{ kind: "applySuperseded" } |
 /**  The title's pending edits were not accepted, so the result was not applied. */
-{ kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } | { kind: "nextTitleRejected" } | { kind: "failed" };
-
-export type MaterializedSourceFile = {
-	inputId: string,
-	titleId: string,
-	path: string,
-	sizeBytes: number,
-	sha256: string,
-};
+{ kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } | { kind: "nextTitleRejected"; coverFailed: boolean } | { kind: "failed" };
 
 export type MaxConcurrentJobsCapabilities = {
-	allowAuto: boolean,
 	autoEffective: number,
-	fixedMin: number,
-	fixedMax: number,
 	fixedOptions: number[],
 };
 
@@ -595,8 +549,6 @@ export type MetadataSnapshot = {
 	saveInProgress: boolean,
 	status: MetadataStatus | null,
 	hasPendingEdits: boolean,
-	/**  Files with a Save waiting for the exports reading them to finish. */
-	waitingWrites: string[],
 };
 
 export type MetadataSource = "audnexus" | "openlibrary";
@@ -610,7 +562,12 @@ export type MetadataStatus =
 /**  Local sources an export is still reading; written when it finishes. */
 waiting: number;
 /**  Temporary downloads; never written, their edits go with exports. */
-held: number; outputs: OutputEdits } | { kind: "saveCancelled" } | { kind: "saveFailed"; error: AppErrorEnvelope } |
+held: number; outputs: OutputEdits } | { kind: "saveCancelled" } |
+/**
+ *  The shown form is not the tags of `label` or of `more` other selected
+ *  titles, whose tags could not be read.
+ */
+{ kind: "tagReadFailed"; label: string; more: number } | { kind: "saveFailed"; error: AppErrorEnvelope } |
 /**
  *  Saves that waited for an export have run. A failed write keeps its
  *  edit pending on a title still in the list, so Save retries it.
@@ -623,7 +580,6 @@ export type NamingPreset = "absDefault" | "customTemplate";
 
 export type OnlineMetadataResult = {
 	source: MetadataSource,
-	sourceId: string,
 	title: string,
 	authors: string[],
 	narrators: string[],
@@ -634,13 +590,14 @@ export type OnlineMetadataResult = {
 	description: string | null,
 	publishedDate: string | null,
 	durationSeconds: number | null,
-	coverUrl: string | null,
+	/**  The address of this result's cover, set by the session that offers it. */
+	cover: string | null,
 	audibleOnly: boolean | null,
 };
 
 export type OperationId = string;
 
-export type OperationKind = "processingBatch" | "remoteAcquisition" | "metadataSave";
+export type OperationKind = "processingBatch" | "metadataSave";
 
 /**
  *  Bounded per-operation activity tail rendered by the Work Center's op-card
@@ -648,7 +605,6 @@ export type OperationKind = "processingBatch" | "remoteAcquisition" | "metadataS
  *  lifecycle transitions) — the frontend never accumulates its own history.
  */
 export type OperationLogEntry = {
-	timestampMs: number,
 	message: string,
 	stage: WorkProgressStage | null,
 	childJobId: string | null,
@@ -670,34 +626,19 @@ export type OperationSnapshot = {
 	kind: OperationKind,
 	status: WorkOperationStatus,
 	title: string,
-	createdAtMs: number,
 	startedAtMs: number | null,
 	finishedAtMs: number | null,
 	cancellable: boolean,
 	cancelRequested: boolean,
-	lanes: ResourceLane[],
-	sourceInputIds: string[],
 	progress: ProgressSnapshot,
 	children: ChildJobSnapshot[],
-	terminalSummary: OperationTerminalSummary | null,
-	errors: string[],
 	logTail: OperationLogEntry[],
 };
 
-export type OperationTerminalSummary = {
-	total: number,
-	succeeded: number,
-	skipped: number,
-	cancelled: number,
-	failed: number,
-	message: string,
-};
-
-export type OutputAudio = { format: "m4b"; settings: EncoderSettings } | { format: "mp3" } | { format: "m4aOpus"; settings: EncoderSettings } | { format: "mkaOpus"; settings: EncoderSettings };
+export type OutputAudio = { format: "m4b"; settings: EncoderSettings } | { format: "m4aOpus"; settings: EncoderSettings } | { format: "mkaOpus"; settings: EncoderSettings };
 
 export type OutputCollisionInfo = {
 	kind: OutputCollisionKind,
-	conflictingPath: string | null,
 	detail: string | null,
 };
 
@@ -736,7 +677,6 @@ export type OutputPreview = { kind: "noDirectory" } | { kind: "noTitle" } | { ki
 { kind: "unavailable"; message: string };
 
 export type OutputReviewRequirement = {
-	canProceed: boolean,
 	message: string,
 };
 
@@ -792,7 +732,6 @@ export type PlannedOutput = {
 	kind: OutputKind,
 	requestedPath: string,
 	resolvedPath: string,
-	renameCandidate: string | null,
 	collision: OutputCollisionInfo | null,
 	review: OutputReviewRequirement | null,
 	action: PlannedOutputAction,
@@ -800,11 +739,17 @@ export type PlannedOutput = {
 
 export type PlannedOutputAction = "write" | "replace_existing" | "rename_new" | "skip_existing" | "review_required";
 
+/**  How long Preview Audio runs for the titles in the list, in whole seconds. */
+export type PreviewLength = {
+	shortestSeconds: number,
+	longestSeconds: number,
+};
+
 export type PreviewSnapshot = {
 	operation: OperationSnapshot,
 	/**  A successful single preview may be claimed for opening once, across hosts. */
 	openReady: boolean,
-	artworkReady: boolean,
+	cover: string | null,
 };
 
 export type ProcessCommandResult = {
@@ -847,10 +792,6 @@ export type ProgressSnapshot = {
 	stage: WorkProgressStage,
 	percentage: number,
 	message: string,
-	currentItemIndex: number | null,
-	totalItems: number | null,
-	bytesDownloaded: number | null,
-	bytesTotal: number | null,
 	etaSeconds: number | null,
 };
 
@@ -858,6 +799,14 @@ export type ProviderId = "audible" | "indexer";
 
 /**  What happened to the previous queued title before this search ran. */
 export type QueueStep = "applied" | "appliedWithoutCover" | "skipped";
+
+/**
+ *  The Quit shortcut was pressed once; a second press inside `window_ms`
+ *  quits.
+ */
+export type QuitPressAgainEvent = {
+	windowMs: number,
+};
 
 export type ReleaseGrabSnapshot = {
 	status: ReleaseGrabStatus,
@@ -884,12 +833,10 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
  *  The user asked for the title's Supplemental PDF and Audible offers
  *  none. Non-blocking: the audiobook is imported without it.
  */
-"supplementalPdfUnavailable" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
+"supplementalPdfUnavailable" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
 
 export type RemoteAcquisitionSnapshot = {
 	revision: number,
-	/**  An accepted request whose job is not registered yet. */
-	acquiring: boolean,
 	job: AcquisitionSnapshot | null,
 };
 
@@ -898,11 +845,7 @@ export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" |
 export type RemoteAuthStartResponse = {
 	providerId: ProviderId,
 	authorizationUrl: string,
-	handoffPathHint: string,
-	message: string,
 };
-
-export type RemoteAuthStatus = { kind: "idle" } | { kind: "starting" } | { kind: "awaitingHandoff" } | { kind: "completing" } | { kind: "failed"; error: AppErrorEnvelope };
 
 export type RemoteDraftStatus = { kind: "idle" } | { kind: "running" } | { kind: "succeeded" } | { kind: "failed"; error: AppErrorEnvelope };
 
@@ -919,6 +862,7 @@ export type RemoteLibrarySnapshot = {
 
 export type RemoteRelease = {
 	providerId: ProviderId,
+	key: string,
 	guid: string,
 	indexerId: number,
 	title: string,
@@ -927,7 +871,7 @@ export type RemoteRelease = {
 	sizeBytes: number,
 	protocol: RemoteReleaseProtocol,
 	seeders: number | null,
-	categories?: RemoteReleaseCategory[],
+	categories: RemoteReleaseCategory[],
 };
 
 export type RemoteReleaseCategory = {
@@ -940,7 +884,6 @@ export type RemoteReleaseProtocol = "usenet" | "torrent" | "unknown";
 export type RemoteSourceAccountState = {
 	providerId: ProviderId,
 	status: RemoteAccountStatus,
-	account: AccountRef | null,
 	message: string | null,
 };
 
@@ -961,12 +904,10 @@ export type RemoteTitle = {
 	title: string,
 	authors: string[],
 	narrators: string[],
-	durationSeconds: number | null,
-	coverUrl: string | null,
+	/**  The address of this title's cover. */
+	cover: string | null,
 	supplementalPdfAvailable: boolean,
-	acquired: boolean,
 	availability: RemoteTitleAvailability,
-	unsupportedReasons: RemoteAcquisitionFailureKind[],
 };
 
 export type RemoteTitleAvailability = {
@@ -983,25 +924,22 @@ export type RemoteUiIntent = { kind: "startAuth" } | { kind: "completeAuth"; res
  *  Disconnects the Audible sign-in; refused unless Audible is the lane on
  *  screen. The Indexer has no sign-in to remove.
  */
-{ kind: "disconnect" } | { kind: "refreshLibrary" } | { kind: "selectLane"; lane: ProviderId } | { kind: "toggleTitle"; titleId: string } | { kind: "clearTitles" } | { kind: "togglePdf"; titleId: string } | { kind: "acquireSelected" } | { kind: "cancelAcquisition"; jobId: string } | { kind: "searchReleases"; author: string; title: string } | { kind: "selectRelease"; indexerId: number; guid: string; multi: boolean } | { kind: "grabSelected" } | { kind: "grabRelease"; indexerId: number; guid: string } | { kind: "loadConnection" } | { kind: "editConnection"; baseUrl: string | null; categoryIds: number[] | null; apiKey: string | null } | { kind: "saveConnection" } | { kind: "testConnection" };
+{ kind: "disconnect" } | { kind: "refreshLibrary" } | { kind: "selectLane"; lane: ProviderId } | { kind: "toggleTitle"; titleId: string } | { kind: "clearTitles" } | { kind: "togglePdf"; titleId: string } | { kind: "acquireSelected" } | { kind: "cancelAcquisition"; jobId: string } | { kind: "searchReleases"; author: string; title: string } | { kind: "selectRelease"; key: string; multi: boolean } | { kind: "grabSelected" } | { kind: "grabRelease"; key: string } | { kind: "loadConnection" } | { kind: "editConnection"; baseUrl: string | null; categoryIds: number[] | null; apiKey: string | null } | { kind: "saveConnection" } | { kind: "testConnection" };
 
 export type RemoteUiSnapshot = {
 	revision: number,
 	lane: ProviderId,
 	providers: RemoteSourceProviderCapabilities[],
 	account: RemoteSourceAccountState | null,
-	accountStatus: RemoteDraftStatus,
-	auth: RemoteAuthStatus,
-	libraryStatus: RemoteDraftStatus,
 	selectedTitleIds: string[],
 	includePdfByTitleId: { [key in string]: boolean },
 	indexer: IndexerWorkSnapshot,
 	connection: IndexerDraftSnapshot,
 	/**  The shown lane refuses new work now; hosts disable its actions. */
 	busy: boolean,
+	/**  The Audible lane's status line while no job is running. */
+	audibleMessage: string,
 };
-
-export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer" | "metadataWrite" | "outputCommit" | "analysis";
 
 /**
  *  An edit that would move a title's unpublished output. Hosts ask whether
@@ -1027,13 +965,13 @@ export type SampleRateConfig =
 { explicit: number };
 
 export type SelectionAudio = {
-	/**  The titles this describes, in list order. */
-	titleIds: string[],
 	/**  The first title's choice; `mixed` names where the others differ. */
 	choice: AudioChoice,
 	/**  Only what every selected title accepts is offered. */
 	facts: AudioChoiceFacts,
 	mixed: AudioField[],
+	autoSampleRate: AutoReading,
+	autoChannels: AutoReading,
 };
 
 export type SelectionModifiers = {
@@ -1046,6 +984,7 @@ export type SelectionSnapshot = {
 	revision: number,
 	selectedIndices: number[],
 	selectedAnchor: number | null,
+	canGroup: boolean,
 };
 
 /**  Non-blocking advice about the book number. Hosts word these. */
@@ -1066,7 +1005,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  *  Moves a title one place. Named by identity, so a second click sent
  *  before the first is answered moves the same title again.
  */
-{ kind: "moveFile"; titleId: string; direction: MoveDirection } | { kind: "reorderFiles"; titleId: string; to: number } | { kind: "toggleSort" } | { kind: "restoreImportOrder" } | { kind: "groupSelected" } | { kind: "ungroup"; titleId: string } | { kind: "reorderSources"; titleId: string; from: number; to: number } | { kind: "chooseCue"; inputId: string; choice: CueChoice } | { kind: "reset" } |
+{ kind: "moveFile"; titleId: string; direction: MoveDirection } | { kind: "reorderFiles"; titleId: string; to: number } | { kind: "toggleSort" } | { kind: "restoreImportOrder" } | { kind: "groupSelected" } | { kind: "ungroup"; titleId: string } | { kind: "reorderSources"; titleId: string; from: number; to: number } | { kind: "chooseCue"; inputId: string; choice: CueChoice } |
 /**  Exports every valid title. */
 { kind: "submit" } |
 /**
@@ -1100,7 +1039,12 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  *  Edits the audio choice of each named title. Refused while the list is
  *  locked.
  */
-{ kind: "setTitleAudio"; titleIds: string[]; edit: AudioEdit } | { kind: "applyDefaultAudio"; titleIds: string[] } | { kind: "setField"; field: MetadataField; value: string } | { kind: "setFieldAction"; field: MetadataField; action: FieldAction } | { kind: "loadCoverFromFile"; path: string } | { kind: "loadCoverFromDrop"; paths: string[] } | { kind: "loadCoverFromUrl"; url: string } | { kind: "clearCover" } |
+{ kind: "setTitleAudio"; titleIds: string[]; edit: AudioEdit } | { kind: "applyDefaultAudio"; titleIds: string[] } |
+/**
+ *  Types into the form whose `MetadataSnapshot::binding` is `binding`.
+ *  A form that has since bound to a different selection refuses it.
+ */
+{ kind: "setField"; binding: number; field: MetadataField; value: string } | { kind: "setFieldAction"; binding: number; field: MetadataField; action: FieldAction } | { kind: "loadCoverFromFile"; path: string } | { kind: "loadCoverFromDrop"; paths: string[] } | { kind: "loadCoverFromUrl"; url: string } | { kind: "clearCover" } |
 /**  Writes every pending edit that can be written now. */
 { kind: "save" } | { kind: "lookupOpen" } | { kind: "lookupClose" } | { kind: "lookupSearch" } | { kind: "lookupApply"; index: number;
 /**  Lookup part revision the host rendered; a mismatch changes nothing. */
@@ -1115,8 +1059,13 @@ export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } | { k
  *  is absent when a save in progress is what blocked the change.
  */
 { kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } | { kind: "previewOutput"; path: string | null } |
-/**  A newer request or a reset replaced this one before it finished. */
-{ kind: "superseded" };
+/**  A newer request replaced this one before it finished. */
+{ kind: "superseded" } |
+/**
+ *  The form this edit or cover load was for was replaced, so it did not
+ *  land.
+ */
+{ kind: "editLost" };
 
 export type SessionReply = {
 	outcome: SessionOutcome,
@@ -1156,6 +1105,8 @@ export type SettingsIntent =
 { kind: "remember"; encoderDefaults: EncoderDefaults | null; outputDefaults: OutputDefaults | null; defaultAcquisitionLane: AcquisitionLane | null } |
 /**  Changes how many titles export at once. Refused while jobs run. */
 { kind: "setConcurrency"; preference: ConcurrencyPreference } | { kind: "setKeepAwake"; enabled: boolean } |
+/**  Chooses whether the Quit shortcut needs a second press. */
+{ kind: "setPressQuitTwice"; enabled: boolean } |
 /**
  *  Chooses the decoder for AAC sources in imports, previews, and exports
  *  accepted from now on.
@@ -1192,11 +1143,6 @@ export type SettingsSnapshot = {
 	saveError: AppErrorEnvelope | null,
 	concurrency: ConcurrencySnapshot,
 	/**
-	 *  The defaults a host shows at launch: the pinned ones when the user
-	 *  chose that and has pinned some, otherwise the last used.
-	 */
-	startupDefaults: PinnedDefaults,
-	/**
 	 *  What this launch could not keep from the saved settings. Absent after
 	 *  the next accepted change.
 	 */
@@ -1207,7 +1153,7 @@ export type SettingsSnapshot = {
  *  A setting that loading recovers on its own: a saved value this release
  *  refuses resets only that setting.
  */
-export type SettingsUnit = "keepAwake" | "jobLimit" | "acquisitionLane" | "aacDecoder" | "indexerConnection" | "encoderDefaults" | "outputDefaults" | "startupBehavior" | "pinnedDefaults";
+export type SettingsUnit = "keepAwake" | "pressQuitTwice" | "jobLimit" | "acquisitionLane" | "aacDecoder" | "indexerConnection" | "encoderDefaults" | "outputDefaults" | "startupBehavior" | "pinnedDefaults";
 
 /**  The settings after a change made outside a settings intent. */
 export type SettingsUpdateEvent = SettingsSnapshot;
@@ -1238,7 +1184,9 @@ export type StartupBehavior = "rememberLastState" |
 
 export type SubmissionStatus = { kind: "preparing"; preview: boolean } | { kind: "refused"; reason: SubmitRefusal } |
 /**  Some outputs already exist; `OutputSnapshot::collision_review` holds the question. */
-{ kind: "reviewRequired" } | { kind: "blocked"; message: string } | { kind: "failed"; error: AppErrorEnvelope } | { kind: "submitted"; operationId: OperationId; title: string } | { kind: "previewing" } | { kind: "previewFinished"; result: ProcessCommandResult } |
+{ kind: "reviewRequired" } | { kind: "blocked"; message: string } | { kind: "failed"; error: AppErrorEnvelope } | { kind: "submitted"; operationId: OperationId; title: string;
+/**  Invalid titles the submission left out. */
+leftOut: number } | { kind: "previewing" } | { kind: "previewFinished"; result: ProcessCommandResult } |
 /**  The user cancelled the collision review. */
 { kind: "cancelled" } |
 /**
@@ -1274,28 +1222,6 @@ export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | {
 
 export type SubseriesPartWarning = { kind: "invalid"; message: string } | { kind: "missingNumber" };
 
-export type SupplementalAsset = {
-	assetId: string,
-	inputId: string,
-	titleId: string,
-	path: string,
-	fileName: string,
-	sizeBytes: number,
-	sha256: string,
-};
-
-export type SupportedAudioImportFormat = {
-	extension: string,
-	label: string,
-};
-
-export type SupportedAudioImportMetadata = {
-	formats: SupportedAudioImportFormat[],
-	extensions: string[],
-	formatsText: string,
-	supportText: string,
-};
-
 /**
  *  The tags the values on screen become. Title is also the album; author is
  *  also the album artist.
@@ -1311,8 +1237,8 @@ export type TagPreview = {
 	subseries: string,
 	subseriesPart: string,
 	/**
-	 *  The album sort processing would write: the TSOA frame in MP3, the
-	 *  sort-album atom in the MP4 family.
+	 *  The album sort processing would write: the sort-album atom in the MP4
+	 *  family.
 	 */
 	albumSort: string,
 	year: string,
@@ -1326,6 +1252,8 @@ export type TitleAudio = {
 	plan: TitlePlan,
 	/**  Absent until the size can be estimated. */
 	estimate: SizeEstimate | null,
+	autoSampleRate: AutoReading,
+	autoChannels: AutoReading,
 };
 
 export type TitleAudioPlan = {
@@ -1351,6 +1279,13 @@ export type TitlePlan = { kind: "pending" } | { kind: "resolved"; plan: TitleAud
 /**  Grouped sources disagree about their audio; the user must choose. */
 { kind: "choiceRequired" };
 
+export type TitleTotals = {
+	/**  The chapters ABB sends to the output for this title. */
+	chapterCount: number,
+	durationSeconds: number | null,
+	sizeBytes: number | null,
+};
+
 /**
  *  The output titles as a host sees them. Selection travels separately
  *  because it changes far more often than the titles do.
@@ -1360,19 +1295,17 @@ export type TitlesSnapshot = {
 	files: AudioFile[],
 	/**  Ordered sources for grouped titles, keyed by the title's identity. */
 	titleSourcesByIdentity: { [key in string]: AudioFile[] },
-	/**  Grouped titles whose sources disagreed on audio handling. */
-	audioChoiceRequired: string[],
+	/**  What each title sends to the output, keyed by the title's identity. */
+	titleTotals: { [key in string]: TitleTotals },
+	/**  Bytes of every valid source in the list. */
+	totalSizeBytes: number | null,
+	previewLength: PreviewLength,
 	sortDirection: SortDirection,
 	orderLocked: boolean,
 	notice: InputNotice | null,
 	orderDiffersFromImport: boolean,
 	/**  Companion PDF names of downloaded titles, by input id. */
 	companions: { [key in string]: string[] },
-	/**
-	 *  Advances whenever a Save writes a cover into a source, so an address
-	 *  for a source's cover names its current image.
-	 */
-	coversRevision: number,
 };
 
 export type WorkOperationStatus = "accepted" | "running" | "cancelling" | "completed" | "cancelled" | "failed" | "mixed";
@@ -1385,24 +1318,31 @@ export type WorkOperationsSnapshot = {
 	/**  Advances with every change to any operation or to the order. */
 	revision: number,
 	order: OperationId[],
+	/**
+	 *  The accepted operations in the order they will start; a host shows an
+	 *  operation's place in the queue as its place here.
+	 */
+	queue: OperationId[],
 	operations: OperationSnapshot[],
 };
 
 /**
  *  One change. A host keeps the newest `changed` per operation (by its own
- *  `revision`) and the `order` with the highest `revision`, so updates may
- *  arrive in any order; an operation missing from that order is not shown.
+ *  `revision`) and the `order` and `queue` with the highest `revision`, so
+ *  updates may arrive in any order; an operation missing from that order is
+ *  not shown.
  */
 export type WorkOperationsUpdate = {
 	revision: number,
 	order: OperationId[],
+	queue: OperationId[],
 	changed: OperationSnapshot,
 };
 
-/**  An accepted operation changed, with the display order as of then. */
+/**  An accepted operation changed, with the display order and queue as of then. */
 export type WorkOperationsUpdateEvent = WorkOperationsUpdate;
 
-export type WorkProgressStage = "pending" | "analyzing" | "converting" | "writing" | "downloading" | "decrypting" | "committing" | "cleaning" | "complete" | "failed" | "cancelled";
+export type WorkProgressStage = "pending" | "analyzing" | "converting" | "writing" | "cleaning" | "complete" | "failed" | "cancelled";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

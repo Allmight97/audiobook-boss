@@ -9,44 +9,22 @@ use super::extensions::{audio_format_for_path, SUPPORTED_AUDIO_FORMATS};
 use super::path_validation::{validate_input_audio_path, validate_input_directory_path};
 use crate::errors::{sanitize_path_for_display, AppError};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SupportedAudioImportFormat {
-    pub extension: String,
-    pub label: String,
+pub fn supported_audio_import_extensions() -> Vec<&'static str> {
+    SUPPORTED_AUDIO_FORMATS
+        .iter()
+        .map(|format| format.extension)
+        .collect()
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SupportedAudioImportMetadata {
-    pub formats: Vec<SupportedAudioImportFormat>,
-    pub extensions: Vec<String>,
-    pub formats_text: String,
-    pub support_text: String,
+pub fn supported_audio_import_formats_text() -> String {
+    join_display_labels(&unique_supported_labels())
 }
 
-pub fn supported_audio_import_metadata() -> SupportedAudioImportMetadata {
-    let formats = SUPPORTED_AUDIO_FORMATS
-        .iter()
-        .map(|format| SupportedAudioImportFormat {
-            extension: format.extension.to_string(),
-            label: format.label.to_string(),
-        })
-        .collect::<Vec<_>>();
-    let extensions = formats
-        .iter()
-        .map(|format| format.extension.clone())
-        .collect::<Vec<_>>();
-    let labels = unique_supported_labels();
-    let formats_text = join_display_labels(&labels);
-    let support_text = format!("Supports {formats_text} audio files");
-
-    SupportedAudioImportMetadata {
-        formats,
-        extensions,
-        formats_text,
-        support_text,
-    }
+pub fn supported_audio_import_support_text() -> String {
+    format!(
+        "Supports {} audio files",
+        supported_audio_import_formats_text()
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]

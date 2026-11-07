@@ -44,8 +44,12 @@ session files, Supplemental Assets, and staging cleanup.
 - Indexer grabs create no acquisition jobs and materialize no files into Input.
   Grab logging correlates start, HTTP response, and outcome with a request ID
   and keeps credentials, release GUIDs/URLs, and raw response bodies out of the
-  entries. Release detail URLs are optional source-provided HTTP(S) links
-  without embedded credentials, never inferred from a release GUID.
+  entries. Why: Prowlarr's error text can hold indexer download URLs that carry
+  a tracker passkey. A failed grab logs only its status and the body's JSON
+  `message`, cut to 200 characters with URLs replaced; its row shows one line
+  naming the side that is down. Release detail URLs are optional
+  source-provided HTTP(S) links without embedded credentials, never inferred
+  from a release GUID.
 - The Indexer URL and categories are App Settings' `IndexerConnection`, whose
   `validate` rejects embedded credentials on save and draft testing.
   `remote_source` reads them with `SettingsRuntime::indexer_connection` and
@@ -97,12 +101,14 @@ its rustdoc in `session_lifecycle.rs`.
 A finished job hands its files to the session through the engine-set `Handoff`
 and records the outcome on the job. From then on the session decides when the
 download goes (`crate::session`, `staged.rs`) and calls `purge_session`, which
-also drops the job's record. Cancel does nothing to a job that already finished,
-so it cannot remove files the session holds. Materialized handoff files stay
-usable after provider logout. A Disconnect refuses unfinished
-acquisition/handoff; its scope is on `RemoteUiIntent::Disconnect`. Job changes
-update `SessionUpdate.remote_acquisition` (admission `acquiring` and the current
-job), a part with its own revision; download progress is published at most every
+drops the lifecycle registry's record of the job. The snapshot's job stays
+until a disconnect or the next job replaces it. Cancel does nothing to a job
+that already finished, so it cannot remove files the session holds.
+Materialized handoff files stay usable after provider logout. A Disconnect
+refuses unfinished acquisition/handoff; its scope is on
+`RemoteUiIntent::Disconnect`. Job changes update
+`SessionUpdate.remote_acquisition` (admission `acquiring` and the current job),
+a part with its own revision; download progress is published at most every
 100 ms, a stage change at once, and a progress tick carries no other part. The
 change that settles the job or rejects the sign-in also carries the remote part.
 Why: a tick stays one job's size at any library size and cannot drop a crossing
@@ -112,9 +118,18 @@ selection change. Snapshot `terminal` and `settled` facts belong here.
 
 - `ui.rs` owns accepted title/PDF/release choices, normalized connection drafts,
   request generations, and batch outcomes. Its intent match is routing; effect
-  execution stays in `RemoteUiRun`; `indexer_save.rs` owns the Indexer Save
-  and Reset effects on the draft. Accepted runs execute on `EngineTasks`
+  execution stays in `RemoteUiRun`; `audible_lane.rs` owns sign-in, library, and
+  title and PDF choices; `indexer_save.rs` owns the Indexer Save and Reset
+  effects on the draft. Accepted runs execute on `EngineTasks`
   through the session, whether or not a host awaits the reply.
+- `lane_status.rs` words each lane's status line, called in `UiState::snapshot`
+  as `busy` is. `audibleMessage` is a pure ladder over auth, account, library,
+  and `settled_job_line`, the one ordering fact: a job's line stays until a
+  library load, a sign-in, or a disconnect replaces it, and only the settle
+  writes it. A running job's text stays on the acquisition part. On the Indexer
+  lane the snapshot's `indexer.message` adds the account failure and connected
+  note to the stored last-event line. `auth`, `accountStatus`, and
+  `libraryStatus` are engine inputs and never reach the wire.
 - SelectLane reads the selected account and, for connected Audible outside an
   acquisition/handoff, its library; repeated entry coalesces pending reads.
   Account and library requests carry generations: replaced lanes and accepted
@@ -157,6 +172,10 @@ selection change. Snapshot `terminal` and `settled` facts belong here.
   Save is not sent again (the grab answers "Already sent"): it is claimed in
   `sent_releases` before the send and released again if the send is not
   accepted.
+- A release is identified by `RemoteRelease.key`, set once where the Indexer
+  adapter maps a hit. Select and Grab intents carry only that key; selection,
+  grab outcomes, and `sent_releases` all index by it. `indexer.canGrabSelection`
+  (some selected release is not Sent) is computed in `UiState::snapshot`.
 - The draft starts from the saved settings; Load reads only whether a key is
   stored for the saved URL. An applied Reset replaces the draft, clears its
   errors, failures, and search results, and rereads the account when the Indexer

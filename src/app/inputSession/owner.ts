@@ -1,13 +1,12 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile } from '../../types/audio';
+import { SUPPORTED_AUDIO_IMPORT_EXTENSIONS, type AudioFile } from '../../types/audio';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
-import type { SessionIntent } from '../../types/session';
+import type { SessionIntent, TitleTotals } from '../../types/session';
 import type { EngineLink } from '../engineLink';
 import { companionSummary, type CompanionSummary } from './companions';
 import { toInputView } from './display';
 import {
-	DEFAULT_SUPPORT_TEXT,
 	fileIdentityKey,
 	type ImportIntent,
 	type InputView,
@@ -18,15 +17,14 @@ export type InputOwner = {
 	readonly view: Accessor<InputView>;
 	readonly capability: Accessor<InputCapability>;
 	sourcesFor: (file: AudioFile) => ReadonlyArray<AudioFile>;
+	totalsFor: (file: AudioFile) => TitleTotals | undefined;
 	groupSelected: () => void;
 	ungroup: (file: AudioFile) => void;
 	reorderSources: (file: AudioFile, from: number, to: number) => void;
-	audioChoiceRequired: (file: AudioFile) => boolean;
 	hasCompanions: (inputId: string | undefined) => boolean;
 	companionSummary: (inputIds: ReadonlyArray<string | undefined>) => CompanionSummary;
 	/** Resolves once the picker closes and the import is sent, before it lands. */
 	importIntent: (intent: ImportIntent) => Promise<void>;
-	hydrateSupportText: () => Promise<void>;
 	/** Resolves true when the selection changed and its tags have loaded. */
 	selectFile: (command: {
 		readonly index: number;
@@ -57,7 +55,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	let localError = '';
 	let isDragOver = false;
-	let supportText = DEFAULT_SUPPORT_TEXT;
 	function changed(): void {
 		bump((n) => n + 1);
 	}
@@ -67,7 +64,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		return toInputView(link.titles(), link.selection(), {
 			errorMessage: localError,
 			isDragOver,
-			supportText,
 		});
 	};
 
@@ -75,11 +71,15 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		return link.titles().titleSourcesByIdentity[fileIdentityKey(file)] ?? [file];
 	}
 
+	function totalsFor(file: AudioFile): TitleTotals | undefined {
+		return link.titles().titleTotals[fileIdentityKey(file)];
+	}
+
 	async function applied(intent: SessionIntent): Promise<boolean> {
 		try {
 			return (await link.send(intent)).kind === 'applied';
 		} catch (error) {
-			link.refuse(intent, error);
+			link.refuse(intent.kind, error);
 			return false;
 		}
 	}
@@ -104,12 +104,15 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	async function runImport(intent: ImportIntent): Promise<void> {
 		switch (intent.type) {
 			case 'pickFiles': {
-				const selected = await pick(async () => {
-					const supported = await capabilityValue.getSupportedAudioImportMetadata();
-					return capabilityValue.openFiles({
-						filters: [{ name: 'Audio Files', extensions: [...supported.extensions] }],
-					});
-				}, 'Failed to open file dialog. Please try again.');
+				const selected = await pick(
+					() =>
+						capabilityValue.openFiles({
+							filters: [
+								{ name: 'Audio Files', extensions: [...SUPPORTED_AUDIO_IMPORT_EXTENSIONS] },
+							],
+						}),
+					'Failed to open file dialog. Please try again.',
+				);
 				if (selected?.length) importPaths(selected);
 				return;
 			}
@@ -128,9 +131,7 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 
 	return {
 		sourcesFor,
-		audioChoiceRequired(file) {
-			return link.titles().audioChoiceRequired.includes(fileIdentityKey(file));
-		},
+		totalsFor,
 		hasCompanions(inputId) {
 			return Boolean(inputId && link.titles().companions[inputId]?.length);
 		},
@@ -144,7 +145,12 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 			link.post({ kind: 'ungroup', titleId: fileIdentityKey(file) });
 		},
 		reorderSources(file, from, to) {
-			link.post({ kind: 'reorderSources', titleId: fileIdentityKey(file), from, to });
+			link.post({
+				kind: 'reorderSources',
+				titleId: fileIdentityKey(file),
+				from,
+				to,
+			});
 		},
 		view,
 		capability,
@@ -157,13 +163,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 				changed();
 			}
 			await runImport(intent);
-		},
-		async hydrateSupportText() {
-			try {
-				const supported = await capabilityValue.getSupportedAudioImportMetadata();
-				supportText = supported.supportText || supportText;
-				changed();
-			} catch {}
 		},
 		selectFile(command) {
 			const file = link.titles().files[command.index];
@@ -203,7 +202,11 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		reorderFiles(command) {
 			const file = link.titles().files[command.fromIndex];
 			if (!file) return;
-			link.post({ kind: 'reorderFiles', titleId: fileIdentityKey(file), to: command.toIndex });
+			link.post({
+				kind: 'reorderFiles',
+				titleId: fileIdentityKey(file),
+				to: command.toIndex,
+			});
 		},
 		toggleSort() {
 			link.post({ kind: 'toggleSort' });
@@ -214,7 +217,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		reset() {
 			localError = '';
 			isDragOver = false;
-			supportText = DEFAULT_SUPPORT_TEXT;
 			changed();
 		},
 	};

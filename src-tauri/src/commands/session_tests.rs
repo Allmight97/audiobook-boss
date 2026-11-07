@@ -11,6 +11,7 @@ fn reply(outcome: SessionOutcome) -> SessionReply {
                 revision: 41,
                 selected_indices: vec![0],
                 selected_anchor: Some(0),
+                can_group: false,
             }),
             metadata: None,
             lookup: None,

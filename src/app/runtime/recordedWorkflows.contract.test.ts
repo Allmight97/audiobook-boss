@@ -23,8 +23,7 @@ describe('workflows recorded from the real engine', () => {
 	});
 
 	async function open(): Promise<AppRuntime> {
-		app = createAppRuntime();
-		await app.initialize();
+		app = await createAppRuntime();
 		return app;
 	}
 
@@ -68,9 +67,9 @@ describe('workflows recorded from the real engine', () => {
 		await vi.waitFor(() => expect(form(runtime).selectionCount).toBe(3));
 		expect(form(runtime).fields['meta-genre']).toMatchObject({ mixed: true, value: '' });
 
-		runtime.metadata.setFieldValue({ inputId: 'meta-genre', value: '' });
+		runtime.metadata.setFieldValue({ field: 'genre', value: '' });
 		await vi.waitFor(() => expect(form(runtime).fields['meta-genre'].action).toBe('blank'));
-		runtime.metadata.setFieldAction({ actionId: 'meta-author-action', action: 'blank' });
+		runtime.metadata.setFieldAction({ field: 'author', action: 'blank' });
 		await vi.waitFor(() => expect(form(runtime).fields['meta-author'].action).toBe('blank'));
 		replay.finish();
 	});
@@ -84,9 +83,9 @@ describe('workflows recorded from the real engine', () => {
 		runtime.input.selectAll();
 		await vi.waitFor(() => expect(form(runtime).selectionCount).toBe(3));
 
-		runtime.metadata.setFieldValue({ inputId: 'meta-genre', value: '' });
+		runtime.metadata.setFieldValue({ field: 'genre', value: '' });
 		expect(form(runtime).fields['meta-genre'].dirty).toBe(true);
-		runtime.metadata.setFieldAction({ actionId: 'meta-author-action', action: 'blank' });
+		runtime.metadata.setFieldAction({ field: 'author', action: 'blank' });
 		runtime.input.clearSelection();
 
 		await vi.waitFor(() => expect(form(runtime).mode).toBe('single'));
@@ -160,7 +159,7 @@ describe('workflows recorded from the real engine', () => {
 
 		await runtime.settings.setStartupBehavior('pinnedDefaults');
 		expect(runtime.settings.dialog().settings?.startupBehavior).toBe('pinnedDefaults');
-		expect(runtime.settings.dialog().settings?.pinnedDefaults).toBeUndefined();
+		expect(runtime.settings.dialog().settings?.pinnedDefaults).toBeNull();
 		await runtime.settings.saveCurrentSettingsAsPinnedDefaults();
 		expect(runtime.settings.dialog().settings?.pinnedDefaults).toBeDefined();
 		await runtime.settings.setDefaultAcquisitionLane('indexer');
@@ -171,7 +170,7 @@ describe('workflows recorded from the real engine', () => {
 			startupBehavior: 'rememberLastState',
 			defaultAcquisitionLane: 'audible',
 		});
-		expect(runtime.settings.dialog().settings?.pinnedDefaults).toBeUndefined();
+		expect(runtime.settings.dialog().settings?.pinnedDefaults).toBeNull();
 		replay.finish();
 	});
 

@@ -24,7 +24,10 @@ the lanes still unproven, from these receipts. PATH is not part of a receipt's
 environment, so a pass recorded in one harness's shell counts in another; the
 recorded tool versions still invalidate it.
 
-- Frontend (`frontend`).
+- Frontend (`frontend`). `knip` fails on an unused export, including one in a
+  `scripts/*.ts` entry file.
+  `lint:check` also fails on an empty block (a swallowed `catch`) and on a
+  `console` call in `src/` outside tests; report through the log bridge.
 - A core crate (`core`).
 - Engine rules, session, settings, metadata intent: `core` for complexity,
   then `engine`. The doctests guard which engine internals hosts can reach.
@@ -53,6 +56,9 @@ recorded tool versions still invalidate it.
   each naming its crate (`scripts/audit-ignores.test.ts` fails when
   `Cargo.lock` no longer resolves it); license, source, and single-version
   rules in `deny.toml`.
+- `scripts/tauri-contract.test.ts` (`tooling`) also fails on a wire intent in
+  `SessionIntent`, `SettingsIntent`, or `RemoteUiIntent` that no non-test source
+  sends; the Rust variant and its sender go together.
 
 For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.
@@ -73,6 +79,9 @@ Traps:
   and fails on a file missing from either side. After an engine behavior
   changes, regenerate; the recorded contract tests then fail where the UI
   disagrees. Recorder traps: `src-tauri/AGENTS.md`.
+- Clippy rejects `let _ =` on a `#[must_use]` value and `.ok()` on a result
+  (`let_underscore_must_use`, `unused_result_ok`). A benign site takes
+  `#[expect(..., reason = "...")]`; any other failure is logged or returned.
 - Each git worktree holds its own `target/`. Remove finished worktrees.
 
 A change to CI or validation speed quotes before and after numbers from

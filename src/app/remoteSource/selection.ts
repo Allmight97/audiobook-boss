@@ -1,6 +1,6 @@
 import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import type { RemoteSourceView } from './types';
-import { isTitleAcquirable, releaseProtocolLabel } from './display';
+import { releaseProtocolLabel } from './display';
 
 export type RemoteTitleFilterOptions = {
 	titleFilter: string;
@@ -20,7 +20,7 @@ export function visibleRemoteTitles(
 		: titles;
 
 	if (options.hideUnavailableTitles) {
-		facetTitles = facetTitles.filter(isTitleAcquirable);
+		facetTitles = facetTitles.filter((title) => title.availability.acquirable);
 	}
 
 	if (!normalizedFilter) return facetTitles;
@@ -45,7 +45,7 @@ export function visibleRemoteReleases(
 					release.indexer,
 					release.protocol,
 					releaseProtocolLabel(release.protocol),
-					...(release.categories ?? []).map((category) => category.name),
+					...release.categories.map((category) => category.name),
 				]
 					.join(' ')
 					.toLowerCase()
@@ -84,8 +84,4 @@ export function selectedRemoteTitleSummaryText(
 
 	const hiddenLabel = hiddenCount === 1 ? 'title' : 'titles';
 	return `${count} ${titleLabel} selected (${hiddenCount} ${hiddenLabel} hidden by filter)`;
-}
-
-export function releaseKey(release: Pick<RemoteRelease, 'guid' | 'indexerId'>): string {
-	return JSON.stringify([release.indexerId, release.guid]);
 }

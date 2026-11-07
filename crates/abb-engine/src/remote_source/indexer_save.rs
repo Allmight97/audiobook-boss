@@ -191,6 +191,10 @@ impl RemoteSourceRuntime {
         };
         drop(write);
         if let Some(request) = refresh {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the refresh records its own failure in the account status"
+            )]
             let _ = self.refresh_ui_account(ProviderId::Indexer, request).await;
         }
         result.map(|_| RemoteUiResult::Saved)
@@ -228,8 +232,8 @@ impl RemoteSourceRuntime {
             let saved = self.inner.settings.indexer_connection();
             let mut state = self.ui();
             state.shows_saved(&saved, false);
+            state.clear_draft_refusals();
             let connection = &mut state.snapshot.connection;
-            connection.draft_error = None;
             connection.empty_categories_refused = false;
             connection.save = RemoteDraftStatus::Idle;
             connection.test = RemoteDraftStatus::Idle;
@@ -244,6 +248,10 @@ impl RemoteSourceRuntime {
         };
         self.publish_ui();
         if let Some(request) = refresh {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the refresh records its own failure in the account status"
+            )]
             let _ = self.refresh_ui_account(ProviderId::Indexer, request).await;
         }
     }

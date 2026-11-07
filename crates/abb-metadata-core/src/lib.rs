@@ -353,7 +353,10 @@ impl MetadataIntentPatch {
     /// to project pending edits over known tags.
     pub fn overlay(&self, base: &AudiobookMetadata) -> AudiobookMetadata {
         let mut metadata = base.clone();
-        // Processing semantics never fail: set assigns and clear removes.
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "processing semantics never fail: set assigns and clear removes"
+        )]
         let _ = apply_shared_metadata_patch_fields(
             self,
             &mut metadata,

@@ -63,8 +63,6 @@
 	margin-top: 0.5rem;
 }
 
-input.dirty-field,
-textarea.dirty-field,
 input[data-dirty="true"],
 textarea[data-dirty="true"] {
 	box-shadow:
@@ -72,8 +70,6 @@ textarea[data-dirty="true"] {
 		var(--shadow-sm);
 }
 
-input.dirty-field:focus,
-textarea.dirty-field:focus,
 input[data-dirty="true"]:focus,
 textarea[data-dirty="true"]:focus {
 	box-shadow:
