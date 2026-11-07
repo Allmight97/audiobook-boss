@@ -164,7 +164,7 @@ fn a_cover_changed_while_a_save_ran_is_still_unsaved_afterward() {
     desk.state.finish_save(
         epoch,
         &paths_of(&plan.immediate),
-        &plan.immediate,
+        &written_outcomes(&plan.immediate),
         MetadataStatus::SaveComplete {
             succeeded: 1,
             failed: 0,

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use super::super::exports::OutputEdit;
-use super::{MetadataStatus, SaveItem, SessionState, StageOutcome};
+use super::{MetadataStatus, SaveItem, SessionState, StageOutcome, WriteOutcome};
 
 #[derive(Debug)]
 pub(crate) struct SavePlan {
@@ -102,34 +102,50 @@ impl SessionState {
         &mut self,
         epoch: u64,
         written: &[PathBuf],
-        saved: &[SaveItem],
+        outcomes: &[WriteOutcome],
         status: MetadataStatus,
     ) {
         self.writes.release(written);
-        if epoch != self.epoch {
-            return;
-        }
-        let owner = self.cover_owner();
-        for item in saved {
-            self.exports.acknowledge(&item.path, &item.patch);
-            let cover_was_submitted = item.patch.cover_art.is_some();
-            if cover_was_submitted {
-                self.source_covers.record_write(&item.path);
-            }
-            self.tags
-                .commit_saved(&item.path, &item.patch, item.revision);
-            let cover_still_pending = self
-                .tags
-                .pending(&item.path)
-                .is_some_and(|pending| pending.patch.cover_art.is_some());
-            if cover_was_submitted && !cover_still_pending && owner.as_ref() == Some(&item.path) {
-                self.cover.custom = false;
+        let current = epoch == self.epoch;
+        if current {
+            let loaded = self.working_set.source_paths();
+            let owner = self.cover_owner();
+            for outcome in outcomes.iter().filter(|outcome| outcome.written) {
+                let item = &outcome.item;
+                let cover_was_submitted = item.patch.cover_art.is_some();
+                self.record_written(outcome, loaded.contains(&item.path));
+                let cover_still_pending = self
+                    .tags
+                    .pending(&item.path)
+                    .is_some_and(|pending| pending.patch.cover_art.is_some());
+                if cover_was_submitted && !cover_still_pending && owner.as_ref() == Some(&item.path)
+                {
+                    self.cover.custom = false;
+                }
             }
         }
         if !written.is_empty() {
             self.writes.end_save();
         }
-        self.status = Some(status);
+        if current {
+            self.status = Some(status);
+        }
+    }
+
+    fn record_written(&mut self, outcome: &WriteOutcome, loaded: bool) {
+        let item = &outcome.item;
+        self.working_set.note_saved_names(&item.path, &item.patch);
+        if let Some(rewrite) = &outcome.rewrite {
+            self.working_set.note_tag_write(&item.path, rewrite);
+        }
+        self.exports.acknowledge(&item.path, &item.patch);
+        if item.patch.cover_art.is_some() {
+            self.source_covers.record_write(&item.path);
+        }
+        if loaded {
+            self.tags
+                .commit_saved(&item.path, &item.patch, item.revision);
+        }
     }
 
     pub(crate) fn take_ready_deferred(&mut self, in_use: &HashSet<PathBuf>) -> Vec<SaveItem> {
@@ -145,27 +161,22 @@ impl SessionState {
         self.writes.waiting_paths()
     }
 
-    pub(crate) fn finish_deferred(&mut self, results: &[(SaveItem, bool)]) {
+    pub(crate) fn finish_deferred(&mut self, results: &[WriteOutcome]) {
         let loaded = self.working_set.source_paths();
         let mut written_count = 0;
-        for (item, written) in results {
-            self.writes.finish_write(item, *written);
-            if *written {
-                self.exports.acknowledge(&item.path, &item.patch);
-                if item.patch.cover_art.is_some() {
-                    self.source_covers.record_write(&item.path);
-                }
-                if loaded.contains(&item.path) {
-                    self.tags
-                        .commit_saved(&item.path, &item.patch, item.revision);
-                }
+        for outcome in results {
+            self.writes.finish_write(&outcome.item, outcome.written);
+            if outcome.written {
+                self.record_written(outcome, loaded.contains(&outcome.item.path));
             }
-            written_count += usize::from(*written);
+            written_count += usize::from(outcome.written);
         }
         self.restore_failed_writes();
-        let shown = results
-            .iter()
-            .any(|(item, _)| self.bound.iter().any(|title| title.path == item.path));
+        let shown = results.iter().any(|outcome| {
+            self.bound
+                .iter()
+                .any(|title| title.path == outcome.item.path)
+        });
         if shown {
             let fresh = self.form_from_known_tags();
             self.form.rehydrate(fresh);

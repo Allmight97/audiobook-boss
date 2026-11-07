@@ -38,6 +38,18 @@ fn audio_request() -> TitleAudioRequest {
     TitleAudioRequest::default_m4b(AudioIntent::Auto)
 }
 
+fn written_outcomes(items: &[SaveItem]) -> Vec<WriteOutcome> {
+    items.iter().cloned().map(written_outcome).collect()
+}
+
+fn written_outcome(item: SaveItem) -> WriteOutcome {
+    WriteOutcome {
+        item,
+        written: true,
+        rewrite: None,
+    }
+}
+
 fn paths_of(items: &[SaveItem]) -> Vec<PathBuf> {
     items.iter().map(|item| item.path.clone()).collect()
 }
@@ -259,8 +271,12 @@ impl Desk {
             outputs: Default::default(),
         };
         let epoch = self.state.epoch;
-        self.state
-            .finish_save(epoch, &paths_of(&plan.immediate), &saved, status);
+        self.state.finish_save(
+            epoch,
+            &paths_of(&plan.immediate),
+            &written_outcomes(&saved),
+            status,
+        );
         self.state.settle();
         Some(plan)
     }
@@ -287,17 +303,20 @@ impl Desk {
     /// Finishes taken writes; `fail` names files whose write fails.
     fn end_deferred(&mut self, taken: Vec<SaveItem>, fail: &[&str]) {
         let failing: Vec<PathBuf> = fail.iter().map(|name| path(name)).collect();
-        let results: Vec<(SaveItem, bool)> = taken
+        let results: Vec<WriteOutcome> = taken
             .into_iter()
             .map(|item| {
-                let written = !failing.contains(&item.path);
-                (item, written)
+                if failing.contains(&item.path) {
+                    WriteOutcome::failed(item)
+                } else {
+                    written_outcome(item)
+                }
             })
             .collect();
         let saved: Vec<SaveItem> = results
             .iter()
-            .filter(|(_, written)| *written)
-            .map(|(item, _)| item.clone())
+            .filter(|outcome| outcome.written)
+            .map(|outcome| outcome.item.clone())
             .collect();
         self.record_writes(&saved);
         self.state.finish_deferred(&results);

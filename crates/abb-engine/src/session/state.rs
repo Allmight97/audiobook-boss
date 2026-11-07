@@ -31,8 +31,8 @@ pub(crate) use lookup::{ApplyStart, ChosenResult, NextTitle, QueuedTitle};
 pub(crate) use save::SavePlan;
 use snapshots::Parts;
 use submitting::Submitting;
-pub(crate) use write_queue::SaveItem;
 use write_queue::WriteQueue;
+pub(crate) use write_queue::{SaveItem, WriteOutcome};
 
 /// Why the last metadata action ended the way it did. Hosts word these.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]

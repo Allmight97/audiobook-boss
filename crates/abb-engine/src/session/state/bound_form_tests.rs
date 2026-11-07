@@ -411,7 +411,7 @@ fn selection_cannot_change_while_a_save_is_in_progress() {
     desk.state.finish_save(
         epoch,
         &paths_of(&plan.immediate),
-        &plan.immediate,
+        &written_outcomes(&plan.immediate),
         MetadataStatus::SaveFailed {
             error: crate::errors::AppErrorEnvelope::from(&crate::errors::AppError::General(
                 "write failed".into(),

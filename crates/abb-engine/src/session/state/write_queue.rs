@@ -2,12 +2,30 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::metadata::MetadataIntentPatch;
+use crate::metadata_save::Rewrite;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SaveItem {
     pub(crate) path: PathBuf,
     pub(crate) patch: MetadataIntentPatch,
     pub(crate) revision: u64,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct WriteOutcome {
+    pub(crate) item: SaveItem,
+    pub(crate) written: bool,
+    pub(crate) rewrite: Option<Rewrite>,
+}
+
+impl WriteOutcome {
+    pub(crate) fn failed(item: SaveItem) -> Self {
+        Self {
+            item,
+            written: false,
+            rewrite: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

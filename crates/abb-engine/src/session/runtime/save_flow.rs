@@ -10,10 +10,10 @@ use crate::processing::title_output::UpdateReply;
 use crate::processing::OutputUpdateStatus;
 use crate::session::exports::{OutputEdit, OutputEdits};
 use crate::session::intent::SessionOutcome;
-use crate::session::state::{MetadataStatus, SaveItem, SavePlan};
+use crate::session::state::{MetadataStatus, SaveItem, SavePlan, WriteOutcome};
 
 struct Written {
-    items: Vec<bool>,
+    outcomes: Vec<WriteOutcome>,
     succeeded: usize,
     failed: usize,
     cancelled: usize,
@@ -47,24 +47,15 @@ impl Session {
             .collect();
         let result = save_metadata_batch(&deps.host, &deps.work, &deps.jobs, requests).await?;
         let mut written = Written {
-            items: vec![false; items.len()],
+            outcomes: items.iter().cloned().map(WriteOutcome::failed).collect(),
             succeeded: result.summary.succeeded,
             failed: result.summary.failed,
             cancelled: result.summary.cancelled,
         };
-        let mut state = self.lock();
         for entry in result.results {
-            if let Some(slot) = written.items.get_mut(entry.input_index) {
-                *slot = entry.status == MetadataSaveResultStatus::Success;
-            }
-            let Some(item) = items.get(entry.input_index) else {
-                continue;
-            };
-            if entry.status == MetadataSaveResultStatus::Success {
-                state.working_set.note_saved_names(&item.path, &item.patch);
-            }
-            if let Some(rewrite) = &entry.rewrite {
-                state.working_set.note_tag_write(&item.path, rewrite);
+            if let Some(outcome) = written.outcomes.get_mut(entry.input_index) {
+                outcome.written = entry.status == MetadataSaveResultStatus::Success;
+                outcome.rewrite = entry.rewrite;
             }
         }
         Ok(written)
@@ -111,17 +102,13 @@ impl Session {
                 }
                 continue;
             }
-            let written = self.write(&ready).await;
-            let results: Vec<(SaveItem, bool)> = ready
-                .into_iter()
-                .enumerate()
-                .map(|(index, item)| {
-                    let ok = written
-                        .as_ref()
-                        .is_ok_and(|written| written.items.get(index) == Some(&true));
-                    (item, ok)
-                })
-                .collect();
+            let results = match self.write(&ready).await {
+                Ok(written) => written.outcomes,
+                Err(error) => {
+                    log::error!("Failed to save waiting metadata: {error}");
+                    ready.into_iter().map(WriteOutcome::failed).collect()
+                }
+            };
             self.transition(|state| state.finish_deferred(&results));
             self.publish();
         }
@@ -156,7 +143,7 @@ impl Session {
         }
         let outputs = self.update_outputs(plan.outputs).await;
 
-        let mut saved = Vec::new();
+        let mut outcomes = Vec::new();
         let mut status = MetadataStatus::SaveComplete {
             succeeded: 0,
             failed: 0,
@@ -193,12 +180,7 @@ impl Session {
                         held: plan.held,
                         outputs,
                     };
-                    saved = plan
-                        .immediate
-                        .into_iter()
-                        .zip(written.items)
-                        .filter_map(|(item, written)| written.then_some(item))
-                        .collect();
+                    outcomes = written.outcomes;
                 }
                 Err(error) => {
                     log::error!("Failed to save metadata: {error}");
@@ -208,7 +190,7 @@ impl Session {
                 }
             }
         }
-        self.transition(|state| state.finish_save(epoch, &written_paths, &saved, status));
+        self.transition(|state| state.finish_save(epoch, &written_paths, &outcomes, status));
         self.sources_released();
         SessionOutcome::Applied
     }

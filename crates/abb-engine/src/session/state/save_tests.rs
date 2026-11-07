@@ -377,7 +377,7 @@ fn no_download_is_removed_while_a_save_writes() {
     desk.state.finish_save(
         epoch,
         &paths_of(&plan.immediate),
-        &plan.immediate,
+        &written_outcomes(&plan.immediate),
         MetadataStatus::SaveComplete {
             succeeded: 1,
             failed: 0,
@@ -521,7 +521,7 @@ fn a_save_with_nothing_to_write_never_ends_the_save_running_after_it() {
     desk.state.finish_save(
         epoch,
         &paths_of(&running.immediate),
-        &running.immediate,
+        &written_outcomes(&running.immediate),
         MetadataStatus::SaveFailed {
             error: crate::errors::AppErrorEnvelope::from(&crate::errors::AppError::General(
                 "write failed".into(),
@@ -551,4 +551,82 @@ fn a_save_with_nothing_to_write_that_finishes_after_clear_all_leaves_the_empty_s
         .finish_save(epoch, &[], &[], MetadataStatus::NoPendingChanges);
 
     assert_eq!(desk.metadata().status, None);
+}
+
+#[test]
+fn a_write_that_finishes_after_the_epoch_moved_still_ends_the_save() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.type_into(MetadataField::Genre, "Mystery");
+    let plan = desk
+        .state
+        .begin_save(&HashSet::new(), |_| false)
+        .expect("save begins");
+    assert!(desk.metadata().save_in_progress);
+    let epoch = desk.state.epoch;
+    desk.state.reset_metadata();
+
+    desk.state.finish_save(
+        epoch,
+        &paths_of(&plan.immediate),
+        &written_outcomes(&plan.immediate),
+        MetadataStatus::SaveFailed {
+            error: crate::errors::AppErrorEnvelope::from(&crate::errors::AppError::General(
+                "write failed".into(),
+            )),
+        },
+    );
+
+    assert!(!desk.metadata().save_in_progress);
+    assert_eq!(desk.metadata().status, None);
+}
+
+fn rewritten(item: SaveItem) -> WriteOutcome {
+    WriteOutcome {
+        item,
+        written: true,
+        rewrite: Some(crate::metadata_save::Rewrite {
+            before: "before".into(),
+            after: "after".into(),
+            after_bytes: 4242,
+        }),
+    }
+}
+
+#[test]
+fn an_immediate_write_names_the_listed_title_and_carries_the_new_size() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.type_into(MetadataField::Title, "Written Title");
+    let plan = desk
+        .state
+        .begin_save(&HashSet::new(), |_| false)
+        .expect("save begins");
+    let outcomes: Vec<_> = plan.immediate.iter().cloned().map(rewritten).collect();
+
+    let epoch = desk.state.epoch;
+    desk.state.finish_save(
+        epoch,
+        &paths_of(&plan.immediate),
+        &outcomes,
+        MetadataStatus::NoPendingChanges,
+    );
+
+    let file = &desk.state.working_set.files()[0];
+    assert_eq!(file.label, "Written Title");
+    assert_eq!(file.size, Some(4242.0));
+}
+
+#[test]
+fn a_waiting_write_names_the_listed_title_and_carries_the_new_size() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.type_into(MetadataField::Title, "Written Title");
+    let reading = HashSet::from([path("alpha")]);
+    desk.state.begin_save(&reading, |_| false).expect("save");
+    let taken = desk.begin_deferred(&HashSet::new());
+    let outcomes: Vec<_> = taken.into_iter().map(rewritten).collect();
+
+    desk.state.finish_deferred(&outcomes);
+
+    let file = &desk.state.working_set.files()[0];
+    assert_eq!(file.label, "Written Title");
+    assert_eq!(file.size, Some(4242.0));
 }
