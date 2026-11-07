@@ -251,7 +251,7 @@ async fn choosing_one_press_to_quit_reaches_the_file_and_the_running_value() {
 }
 
 fn retired_encoder_in_last_state() -> String {
-    include_str!("samples/remember-last-state.toml")
+    include_str!("saved_settings/remember-last-state.toml")
         .replace("type = \"faac\"", "type = \"retired\"")
 }
 
@@ -274,11 +274,13 @@ async fn closing_leaves_a_reset_value_in_the_file_until_the_users_next_change() 
 
 #[tokio::test]
 async fn a_pinned_launch_does_not_report_last_used_values_it_did_not_start_from() {
-    let rig = start_from_file(&include_str!("samples/apple-aac-and-opus.toml").replacen(
-        "type = \"aac_at\"",
-        "type = \"retired\"",
-        1,
-    ));
+    let rig = start_from_file(
+        &include_str!("saved_settings/apple-aac-and-opus.toml").replacen(
+            "type = \"aac_at\"",
+            "type = \"retired\"",
+            1,
+        ),
+    );
 
     assert_eq!(
         storage::load(&config_dir(&rig.root)).reset,

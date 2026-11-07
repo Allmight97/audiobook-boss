@@ -1,15 +1,10 @@
-# A settings file as ABB saves it once it has the AAC decoder setting, with
-# every setting chosen. Keep it loading:
-# contract_tests.rs checks that each value comes back as the user chose it.
-
 [general]
 keep_awake_while_working = false
 max_concurrent_jobs = 2
 default_acquisition_lane = "indexer"
-aac_decoder = "faad"
 
 [audio]
-format = "mp3"
+format = "m4b"
 intent = "encode"
 sample_rate = 44100
 

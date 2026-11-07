@@ -383,7 +383,7 @@ describe('check-known-mistakes', () => {
 	});
 });
 
-const SAMPLES = 'crates/abb-engine/src/app_settings/samples';
+const SAMPLES = 'crates/abb-engine/src/app_settings/saved_settings';
 
 function sampleRepo(body: (root: string, git: (...args: string[]) => string) => void): void {
 	const root = mkdtempSync(path.join(os.tmpdir(), 'abb-samples-'));

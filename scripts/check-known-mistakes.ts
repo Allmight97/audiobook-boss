@@ -360,7 +360,7 @@ export function checkFile(file: string, text: string): Finding[] {
 	return findings;
 }
 
-const SAMPLES_DIR = 'crates/abb-engine/src/app_settings/samples/';
+const SAMPLES_DIR = 'crates/abb-engine/src/app_settings/saved_settings/';
 const CHANGE_VERB: Record<string, string> = {
 	M: 'modified',
 	D: 'deleted',

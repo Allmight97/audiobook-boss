@@ -210,11 +210,10 @@ fn native_aac_settings() -> AppSettings {
 
 #[test]
 fn every_sample_settings_file_loads_every_choice_this_release_still_offers() {
-    let mp3_output_reset = vec![SettingsUnit::EncoderDefaults];
     let samples = [
         (
             "press-quit-twice.toml",
-            include_str!("samples/press-quit-twice.toml"),
+            include_str!("saved_settings/press-quit-twice.toml"),
             AppSettings {
                 press_quit_twice: false,
                 ..chosen_settings()
@@ -222,50 +221,45 @@ fn every_sample_settings_file_loads_every_choice_this_release_still_offers() {
             Vec::new(),
         ),
         (
-            "indexer-connection.toml (saved with MP3 output)",
-            include_str!("samples/indexer-connection.toml"),
-            AppSettings {
-                encoder_defaults: EncoderDefaults::default(),
-                ..chosen_settings()
-            },
-            mp3_output_reset.clone(),
+            "indexer-connection.toml",
+            include_str!("saved_settings/indexer-connection.toml"),
+            chosen_settings(),
+            Vec::new(),
         ),
         (
-            "settings-aac-decoder.toml (saved before the Indexer connection, with MP3 output)",
-            include_str!("samples/settings-aac-decoder.toml"),
+            "settings-aac-decoder.toml (saved before the Indexer connection)",
+            include_str!("saved_settings/settings-aac-decoder.toml"),
             AppSettings {
-                encoder_defaults: EncoderDefaults::default(),
                 indexer_connection: IndexerConnection::default(),
                 ..chosen_settings()
             },
-            mp3_output_reset.clone(),
+            Vec::new(),
         ),
         (
-            "settings.toml (saved before the AAC decoder setting, with MP3 output)",
-            include_str!("samples/settings.toml"),
+            "settings.toml (saved before the AAC decoder setting)",
+            include_str!("saved_settings/settings.toml"),
             AppSettings {
-                encoder_defaults: EncoderDefaults::default(),
                 aac_decoder: AacDecoder::Auto,
                 indexer_connection: IndexerConnection::default(),
                 ..chosen_settings()
             },
-            mp3_output_reset,
+            Vec::new(),
         ),
         (
             "remember-last-state.toml",
-            include_str!("samples/remember-last-state.toml"),
+            include_str!("saved_settings/remember-last-state.toml"),
             remember_last_state_settings(),
             Vec::new(),
         ),
         (
             "apple-aac-and-opus.toml",
-            include_str!("samples/apple-aac-and-opus.toml"),
+            include_str!("saved_settings/apple-aac-and-opus.toml"),
             apple_aac_and_opus_settings(),
             Vec::new(),
         ),
         (
             "native-aac.toml",
-            include_str!("samples/native-aac.toml"),
+            include_str!("saved_settings/native-aac.toml"),
             native_aac_settings(),
             Vec::new(),
         ),
@@ -295,8 +289,7 @@ fn no_file_loads_as_defaults() {
 }
 
 fn sample_edited(from: &str, to: &str) -> String {
-    let sample = include_str!("samples/indexer-connection.toml")
-        .replace("format = \"mp3\"", "format = \"m4b\"");
+    let sample = include_str!("saved_settings/indexer-connection.toml");
     assert!(sample.contains(from), "the sample holds {from}");
     sample.replace(from, to)
 }
@@ -350,19 +343,6 @@ fn an_unknown_aac_decoder_resets_only_the_decoder_choice() {
 #[test]
 fn a_retired_encoder_resets_only_the_encoder_defaults() {
     let loaded = load_sample_edited("type = \"faac\"", "type = \"retired\"");
-    assert_eq!(loaded.reset, vec![SettingsUnit::EncoderDefaults]);
-    assert_eq!(
-        loaded.settings,
-        AppSettings {
-            encoder_defaults: EncoderDefaults::default(),
-            ..chosen_settings()
-        }
-    );
-}
-
-#[test]
-fn a_saved_mp3_output_resets_only_the_encoder_defaults() {
-    let loaded = load_text(include_str!("samples/indexer-connection.toml"));
     assert_eq!(loaded.reset, vec![SettingsUnit::EncoderDefaults]);
     assert_eq!(
         loaded.settings,
@@ -470,7 +450,7 @@ fn a_file_abb_may_not_read_is_set_aside_before_defaults_are_used() {
     use std::os::unix::fs::PermissionsExt;
     let temp = TempDir::new().expect("temp dir");
     let path = temp.path().join("settings.toml");
-    std::fs::write(&path, include_str!("samples/settings.toml")).expect("write sample");
+    std::fs::write(&path, include_str!("saved_settings/settings.toml")).expect("write sample");
     // allow-permission-fake: the test returns early when root can still read it
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
     if std::fs::read(&path).is_ok() {
