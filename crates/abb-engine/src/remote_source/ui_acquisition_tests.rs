@@ -316,3 +316,42 @@ fn indexer_work_makes_only_the_indexer_lane_busy() {
     ui.snapshot.lane = ProviderId::Indexer;
     assert!(ui.snapshot().busy);
 }
+
+#[tokio::test]
+async fn disconnect_is_refused_while_an_acquisition_is_accepted_or_unsettled_with_one_message() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let runtime = crate::remote_source::tests::test_runtime(&root);
+    let refusal = "Wait for the Audible acquisition and handoff before disconnecting.";
+
+    runtime
+        .ui()
+        .set_acquisition(|acquisition| acquisition.acquiring = true);
+    let accepted = runtime.ui_begin(RemoteUiIntent::Disconnect).finish().await;
+    assert_eq!(
+        accepted.err().expect("accepted").to_string(),
+        format!("Invalid input: {refusal}")
+    );
+
+    runtime
+        .ui()
+        .set_acquisition(|acquisition| acquisition.acquiring = false);
+    let running = crate::remote_source::job_state::tests::running(
+        "job-1",
+        abb_remote_source_core::AcquisitionStage::Download,
+    );
+    runtime.ui().acquisition_changed(running.snapshot());
+    let unsettled = runtime.ui_begin(RemoteUiIntent::Disconnect).finish().await;
+    assert_eq!(
+        unsettled.err().expect("unsettled").to_string(),
+        format!("Invalid input: {refusal}")
+    );
+
+    runtime.ui().acquisition_changed(
+        crate::remote_source::job_state::tests::imported("job-1", 1, Vec::new()).snapshot(),
+    );
+    runtime
+        .ui_begin(RemoteUiIntent::Disconnect)
+        .finish()
+        .await
+        .expect("a settled job lets Disconnect through");
+}

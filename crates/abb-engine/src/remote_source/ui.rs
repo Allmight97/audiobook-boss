@@ -707,12 +707,6 @@ impl RemoteSourceRuntime {
     pub(crate) fn ui_begin(&self, intent: RemoteUiIntent) -> RemoteUiRun {
         let action = if matches!(intent, RemoteUiIntent::SaveConnection) {
             self.begin_save()
-        } else if matches!(intent, RemoteUiIntent::Disconnect)
-            && self.inner.lifecycle.has_unsettled_acquisition()
-        {
-            Err(AppError::InvalidInput(
-                "Wait for the Audible acquisition and handoff before disconnecting.".into(),
-            ))
         } else {
             self.ui().begin(intent)
         };

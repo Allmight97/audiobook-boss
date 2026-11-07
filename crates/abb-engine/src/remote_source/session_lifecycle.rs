@@ -375,11 +375,6 @@ impl RemoteAcquisitionLifecycle {
         }
     }
 
-    pub(super) fn has_unsettled_acquisition(&self) -> bool {
-        self.jobs
-            .lock()
-            .map_or(true, |jobs| jobs.values().any(|job| !job.settled()))
-    }
     /// Downloads still in progress, by job state: a task handle can outlive
     /// a job that failed before its handle was stored.
     pub(super) fn running_acquisitions(&self) -> Vec<String> {
