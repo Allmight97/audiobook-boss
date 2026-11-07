@@ -21,11 +21,6 @@ export type WorkOperationsOwner = {
 const CANCEL_ERROR_PREFIX = 'Failed to cancel';
 const REVEAL_ERROR_PREFIX = 'Failed to show the exported file';
 
-/** Work runs now, a cancel included until it lands; only running work shows motion. */
-export function isWorkRunning(status: OperationSnapshot['status']): boolean {
-	return status === 'running' || status === 'cancelling';
-}
-
 export function createWorkOperationsOwner(deps: {
 	readonly link: EngineLink;
 }): WorkOperationsOwner {

@@ -1,7 +1,6 @@
 import { formatEtaRemaining } from '../../lib/format/eta';
 import type { StatusViewStore } from './view';
 import type { OutputSnapshot, WorkProgressStage } from '../../lib/generated/tauri';
-import { isWorkRunning } from '../workOperations';
 
 export type ConcurrencyRead = {
 	readonly selection: string;
@@ -55,12 +54,9 @@ export function renderConcurrencyStatus(view: StatusViewStore, concurrency: Conc
 export function renderPreview(view: StatusViewStore, preview: OutputSnapshot['previewRun']): void {
 	if (!preview) return;
 	const { operation } = preview;
-	const active =
-		operation.status === 'accepted' ||
-		operation.status === 'running' ||
-		operation.status === 'cancelling';
+	const active = operation.phase !== 'finished';
 	renderStatus(view, operation.progress);
-	view.setProgressActive(isWorkRunning(operation.status));
+	view.setProgressActive(operation.phase === 'active');
 	if (operation.status === 'mixed') view.setStatusText('Mixed result');
 	if (operation.status === 'cancelling') view.setStatusText('Cancelling');
 	view.setJobItems(

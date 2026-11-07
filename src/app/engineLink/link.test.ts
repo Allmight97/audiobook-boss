@@ -20,6 +20,7 @@ function operation(operationId: string): OperationSnapshot {
 		revision: 1,
 		kind: 'processingBatch',
 		status: 'running',
+		phase: 'active',
 		title: 'Listed',
 		startedAtMs: null,
 		finishedAtMs: null,

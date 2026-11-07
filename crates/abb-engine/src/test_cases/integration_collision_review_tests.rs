@@ -8,9 +8,7 @@ use abb_engine::session::{
 use abb_engine::work_runtime::WorkOperationStatus;
 use abb_engine::ShutdownOutcome;
 
-use super::integration_session_desk::{
-    collision_review, finished, genre_on_disk, submission, Desk,
-};
+use super::integration_session_desk::{collision_review, genre_on_disk, submission, Desk};
 
 #[tokio::test]
 async fn submit_exports_the_session_reviews_a_collision_and_previews() {
@@ -39,7 +37,7 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
     };
     assert_eq!(title, "Alpha");
     desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&operation_id))
+        desk.export_finished(&operation_id)
     })
     .await;
     assert_eq!(
@@ -113,7 +111,7 @@ async fn shutdown_answers_a_pending_collision_review_so_a_waiting_save_lands() {
     desk.import(&book).await;
     let first = desk.export().await;
     desk.wait_until("the first export finishes", |desk| {
-        finished(desk.export_status(&first))
+        desk.export_finished(&first)
     })
     .await;
     desk.send(SessionIntent::Submit).await;
@@ -164,7 +162,7 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
     .await;
     let first = desk.export().await;
     desk.wait_until("the first export finishes", |desk| {
-        finished(desk.export_status(&first))
+        desk.export_finished(&first)
     })
     .await;
     let outputs = |desk: &Desk| -> Vec<PathBuf> { walk(&desk.root.path().join("exports")) };
@@ -245,7 +243,7 @@ async fn finish_export(desk: &Desk) {
         panic!("submitted: {:?}", submission(desk));
     };
     desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&operation_id))
+        desk.export_finished(&operation_id)
     })
     .await;
     assert_eq!(

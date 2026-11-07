@@ -1,9 +1,7 @@
 use std::time::{Duration, Instant};
 
 use abb_engine::session::{MetadataField, MetadataStatus, SessionIntent};
-use abb_engine::work_runtime::{
-    ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus,
-};
+use abb_engine::work_runtime::{ChildJobStatus, OperationId, OperationPhase, OperationSnapshot};
 use abb_engine::Engine;
 
 use super::send;
@@ -38,12 +36,7 @@ fn operation_of(engine: &Engine, operation_id: &OperationId) -> Result<Operation
 }
 
 fn is_active(operation: &OperationSnapshot) -> bool {
-    matches!(
-        operation.status,
-        WorkOperationStatus::Accepted
-            | WorkOperationStatus::Running
-            | WorkOperationStatus::Cancelling
-    )
+    operation.phase != OperationPhase::Finished
 }
 
 fn is_reading(operation: &OperationSnapshot) -> bool {

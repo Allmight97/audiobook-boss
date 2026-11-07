@@ -84,3 +84,8 @@
 - `stage_table.rs` is the one table relating result status, event stage, child
   status, finished operation status, and display stage. `Cleaning` is the wire
   value that shows an operation as cancelling (`CANCELLING_STAGE`).
+- `OperationSnapshot.phase` (`accepted`, `active`, `finished`) is the only
+  answer to "has it started" and "is it over". `active` means running or
+  cancelling. `OperationSnapshot::set_status` is the one writer of `status`
+  and derives `phase` from the stage table. Hosts, `abb-dev`, session
+  previews and the UI read `phase` and keep no status list of their own.

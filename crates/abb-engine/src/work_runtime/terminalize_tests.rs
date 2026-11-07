@@ -1,6 +1,6 @@
 use super::snapshot::new_processing_snapshot;
 use super::state::WorkRuntimeState;
-use super::{ChildJobStatus, OperationId, WorkOperationStatus, WorkProgressStage};
+use super::{ChildJobStatus, OperationId, OperationPhase, WorkOperationStatus, WorkProgressStage};
 use crate::processing::{
     EventStage, OperationKind, OperationResultSummary, ProcessCommandResult, ProcessResultEntry,
     ProcessResultStatus, ProgressEvent,
@@ -118,4 +118,35 @@ fn a_single_title_cancel_event_mirrors_the_stage_and_leaves_the_export_running()
     assert_eq!(snapshot.status, WorkOperationStatus::Running);
     assert_eq!(snapshot.progress.stage, WorkProgressStage::Cancelled);
     assert_eq!(snapshot.children[0].status, ChildJobStatus::Cancelled);
+}
+
+#[test]
+fn the_snapshot_phase_follows_every_status_change_an_operation_goes_through() {
+    let (mut state, operation_id) = accepted_state();
+    let phase = |state: &WorkRuntimeState| {
+        state
+            .operation(operation_id.as_str())
+            .expect("operation is listed")
+            .phase
+    };
+    assert_eq!(phase(&state), OperationPhase::Accepted);
+
+    state.mark_running(&operation_id, 100).expect("running");
+    assert_eq!(phase(&state), OperationPhase::Active);
+
+    state
+        .request_cancel(&operation_id, 150)
+        .expect("cancelling");
+    let cancelling = state
+        .operation(operation_id.as_str())
+        .expect("operation is listed");
+    assert_eq!(cancelling.status, WorkOperationStatus::Cancelling);
+    assert_eq!(cancelling.phase, OperationPhase::Active);
+
+    let finished = state
+        .cancel(&operation_id, "Processing was cancelled".to_string(), 200)
+        .expect("cancelled");
+    assert_eq!(finished.status, WorkOperationStatus::Cancelled);
+    assert_eq!(finished.phase, OperationPhase::Finished);
+    assert!(finished.is_finished());
 }

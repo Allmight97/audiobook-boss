@@ -1,6 +1,7 @@
 use super::types::{
-    ChildJobStatus, OperationId, OperationLogEntry, OperationSnapshot, WorkOperationStatus,
-    WorkOperationsSnapshot, WorkOperationsUpdate, WorkProgressStage, OPERATION_LOG_TAIL_CAP,
+    ChildJobStatus, OperationId, OperationLogEntry, OperationPhase, OperationSnapshot,
+    WorkOperationStatus, WorkOperationsSnapshot, WorkOperationsUpdate, WorkProgressStage,
+    OPERATION_LOG_TAIL_CAP,
 };
 use crate::errors::{AppError, Result};
 use crate::processing::ProgressEvent;
@@ -11,8 +12,7 @@ use std::collections::BTreeMap;
 
 use super::stage_table::{for_event, CANCELLING_STAGE};
 use super::terminal::{
-    is_terminal, operation_terminal_summary, terminal_summary_from_summary,
-    work_status_from_summary,
+    operation_terminal_summary, terminal_summary_from_summary, work_status_from_summary,
 };
 use super::terminalize::{apply_terminal_plan, ChildOutcome, TerminalPlan};
 
@@ -98,12 +98,10 @@ impl WorkRuntimeState {
     fn ordered(&self) -> Vec<&OperationSnapshot> {
         let mut operations = self.operations.values().collect::<Vec<_>>();
         operations.sort_by_key(|operation| {
-            let bucket = if is_terminal(operation.status) {
-                2
-            } else if operation.status == WorkOperationStatus::Accepted {
-                1
-            } else {
-                0
+            let bucket = match operation.phase {
+                OperationPhase::Active => 0,
+                OperationPhase::Accepted => 1,
+                OperationPhase::Finished => 2,
             };
             (bucket, std::cmp::Reverse(operation.sequence))
         });
@@ -120,12 +118,12 @@ impl WorkRuntimeState {
         now_ms: i64,
     ) -> Result<OperationSnapshot> {
         let snapshot = self.snapshot_mut(operation_id)?;
-        if !is_terminal(snapshot.status) {
+        if !snapshot.is_finished() {
             snapshot.started_at_ms.get_or_insert(now_ms);
             if snapshot.cancel_requested || snapshot.status == WorkOperationStatus::Cancelling {
                 return Ok(snapshot.clone());
             }
-            snapshot.status = WorkOperationStatus::Running;
+            snapshot.set_status(WorkOperationStatus::Running);
             snapshot.progress.stage = WorkProgressStage::Analyzing;
             snapshot.progress.message = "Processing started.".to_string();
             push_operation_log(
@@ -151,7 +149,7 @@ impl WorkRuntimeState {
         now_ms: i64,
     ) -> Result<OperationSnapshot> {
         let snapshot = self.snapshot_mut(operation_id)?;
-        if is_terminal(snapshot.status) {
+        if snapshot.is_finished() {
             return Ok(snapshot.clone());
         }
 
@@ -230,8 +228,8 @@ impl WorkRuntimeState {
         now_ms: i64,
     ) -> Result<OperationSnapshot> {
         let snapshot = self.snapshot_mut(operation_id)?;
-        if !is_terminal(snapshot.status) {
-            snapshot.status = WorkOperationStatus::Cancelling;
+        if !snapshot.is_finished() {
+            snapshot.set_status(WorkOperationStatus::Cancelling);
             snapshot.cancel_requested = true;
             snapshot.cancellable = false;
             snapshot.progress.message = "Cancellation requested.".to_string();
@@ -266,7 +264,7 @@ impl WorkRuntimeState {
                 "Items in this operation can't be cancelled one at a time.".to_string(),
             ));
         }
-        let operation_terminal = is_terminal(snapshot.status);
+        let operation_terminal = snapshot.is_finished();
         let child = snapshot
             .children
             .iter_mut()

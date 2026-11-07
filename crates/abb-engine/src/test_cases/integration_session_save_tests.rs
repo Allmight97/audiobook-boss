@@ -8,7 +8,7 @@ use abb_engine::session::{
 use abb_engine::work_runtime::WorkOperationStatus;
 use abb_engine::{read_metadata, AudiobookMetadata, ShutdownOutcome};
 
-use super::integration_session_desk::{finished, Desk};
+use super::integration_session_desk::Desk;
 
 fn id_of(desk: &Desk, name: &str) -> String {
     desk.engine
@@ -198,10 +198,8 @@ async fn a_second_save_on_a_finished_output_keeps_the_first_saves_tag() {
         .await;
     desk.import(&source).await;
     let export = desk.export().await;
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&export))
-    })
-    .await;
+    desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
+        .await;
     assert_eq!(desk.export_status(&export), WorkOperationStatus::Completed);
     let output = desk.output_of(&export);
 

@@ -27,6 +27,7 @@ fn export_verdict_requires_the_requested_title_to_be_cancelled() {
             "operationId": "export", "sequence": 1, "revision": 1,
             "kind": "processingBatch", "title": "export",
             "status": if statuses.contains(&"cancelled") { "mixed" } else { "completed" },
+            "phase": "finished",
             "cancellable": false, "cancelRequested": true,
             "progress": progress,
             "children": children, "logTail": [],

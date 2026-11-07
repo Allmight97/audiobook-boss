@@ -10,9 +10,7 @@ use abb_engine::work_runtime::{
 };
 use abb_engine::ShutdownOutcome;
 
-use super::integration_session_desk::{
-    collision_review, finished, genre_on_disk, submission, Desk,
-};
+use super::integration_session_desk::{collision_review, genre_on_disk, submission, Desk};
 use crate::output_artifact::lock_output_file;
 
 fn names_in(folder: &Path) -> Vec<String> {
@@ -77,7 +75,7 @@ async fn an_accepted_replace_puts_the_new_tags_at_the_same_path_and_touches_noth
     desk.import(&book).await;
     let source_bytes = fs::read(&book).expect("source");
     let first = desk.export().await;
-    desk.wait_until("first", |d| finished(d.export_status(&first)))
+    desk.wait_until("first", |d| d.export_finished(&first))
         .await;
     let published = desk.output_of(&first);
     let folder = published.parent().expect("folder").to_path_buf();
@@ -104,7 +102,7 @@ async fn an_accepted_replace_puts_the_new_tags_at_the_same_path_and_touches_noth
     let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(&desk) else {
         panic!("{:?}", submission(&desk))
     };
-    desk.wait_until("replace", |d| finished(d.export_status(&operation_id)))
+    desk.wait_until("replace", |d| d.export_finished(&operation_id))
         .await;
     assert_eq!(
         desk.export_status(&operation_id),
@@ -181,7 +179,7 @@ async fn restarting_a_title_queued_behind_another_removes_its_folders_before_ret
         panic!("{:?}", submission(&desk))
     };
     desk.wait_until("both", |d| {
-        finished(d.export_status(&first)) && finished(d.export_status(&operation_id))
+        d.export_finished(&first) && d.export_finished(&operation_id)
     })
     .await;
     assert!(desk
@@ -209,8 +207,7 @@ async fn cancelling_one_title_keeps_its_sibling_and_leaves_no_residue() {
         .cancel_work_operation(first.clone(), Some(beta))
         .expect("cancel");
     drop(hold);
-    desk.wait_until("done", |d| finished(d.export_status(&first)))
-        .await;
+    desk.wait_until("done", |d| d.export_finished(&first)).await;
     let op = operation(&desk, &first);
     assert_eq!(op.status, WorkOperationStatus::Mixed);
     assert_eq!(op.children[1].status, ChildJobStatus::Cancelled);

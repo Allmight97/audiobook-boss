@@ -12,8 +12,7 @@ use abb_engine::{read_metadata, Engine, RunningWork, ShutdownOutcome};
 use tempfile::TempDir;
 
 use super::integration_session_desk::{
-    collision_review, engine_config, finished, genre_on_disk, start_once_the_lock_frees,
-    submission, Desk,
+    collision_review, engine_config, genre_on_disk, start_once_the_lock_frees, submission, Desk,
 };
 use super::media_fixtures::oversized_jpeg;
 
@@ -173,10 +172,8 @@ async fn a_source_cover_too_large_to_prepare_is_dropped_with_a_warning() {
     desk.import(&book).await;
 
     let export = desk.export().await;
-    desk.wait_until("the export ends", |desk| {
-        finished(desk.export_status(&export))
-    })
-    .await;
+    desk.wait_until("the export ends", |desk| desk.export_finished(&export))
+        .await;
 
     let operations = desk.engine.list_work_operations().expect("operations");
     let title = &operations
@@ -267,10 +264,8 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
 
     // The write lands once the export stops reading the source, which can
     // be just before the export reports finishing.
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&export))
-    })
-    .await;
+    desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
+        .await;
     assert_eq!(desk.export_status(&export), WorkOperationStatus::Completed);
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
     assert!(!desk.metadata().has_pending_edits);
@@ -311,10 +306,8 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
     );
     assert_eq!(desk.engine.running_work().waiting_writes, 0);
 
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&export))
-    })
-    .await;
+    desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
+        .await;
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     assert_eq!(fs::read(&book).expect("read download"), before);
@@ -334,10 +327,8 @@ async fn a_naming_edit_retags_a_finished_output_where_it_is() {
         .await;
     desk.import(&book).await;
     let export = desk.export().await;
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&export))
-    })
-    .await;
+    desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
+        .await;
     let output = desk.output_of(&export);
 
     desk.send(SessionIntent::SetField {
@@ -420,7 +411,7 @@ async fn restarting_a_title_moves_its_unfinished_export_to_the_new_location() {
     })
     .await;
     desk.wait_until("the restarted export finishes", |desk| {
-        finished(desk.export_status(&second))
+        desk.export_finished(&second)
     })
     .await;
     let output = desk.output_of(&second);
@@ -481,7 +472,7 @@ async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_w
         .expect("shutdown settles");
     assert_eq!(outcome, ShutdownOutcome::Settled);
 
-    assert!(finished(desk.export_status(&export)));
+    assert!(desk.export_finished(&export));
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
     assert_eq!(desk.engine.running_work(), RunningWork::default());
     desk.send(SessionIntent::Submit).await;
@@ -504,10 +495,8 @@ async fn quit_consent_survives_finished_work_and_closes_admission() {
     let export = desk.export().await;
     let asked = desk.engine.running_work();
     assert_eq!(asked.exports, 1);
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&export))
-    })
-    .await;
+    desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
+        .await;
 
     desk.engine
         .close_for_quit(&asked.consent)
@@ -539,7 +528,7 @@ async fn quit_consent_names_work_not_counts_and_follows_an_export_from_review_to
         .expect_err("work that started after the question needs consent");
     assert_eq!(asked_for_first.exports, 1);
     desk.wait_until("the first export finishes", |desk| {
-        finished(desk.export_status(&first))
+        desk.export_finished(&first)
     })
     .await;
 
@@ -650,7 +639,7 @@ async fn save_updates_finished_outputs_in_every_supported_container() {
             panic!("{format:?}: {:?}", submission(&desk));
         };
         desk.wait_until("container export", |desk| {
-            finished(desk.export_status(&operation_id))
+            desk.export_finished(&operation_id)
         })
         .await;
         assert_eq!(
@@ -700,10 +689,8 @@ async fn save_updates_a_grouped_output_without_writing_its_individual_sources() 
     desk.send(SessionIntent::SelectAll).await;
     desk.send(SessionIntent::GroupSelected).await;
     let operation = desk.export().await;
-    desk.wait_until("grouped export", |desk| {
-        finished(desk.export_status(&operation))
-    })
-    .await;
+    desk.wait_until("grouped export", |desk| desk.export_finished(&operation))
+        .await;
     let metadata = desk.edit_genre_and_save().await;
     assert!(
         matches!(
@@ -802,10 +789,8 @@ async fn keep_location_writes_the_latest_offered_tags_to_the_original_export_pat
         .await,
         SessionOutcome::Applied
     );
-    desk.wait_until("kept export", |desk| {
-        finished(desk.export_status(&operation))
-    })
-    .await;
+    desk.wait_until("kept export", |desk| desk.export_finished(&operation))
+        .await;
     let output = desk.output_of(&operation);
     assert_eq!(output, offer.from);
     assert_eq!(

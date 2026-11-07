@@ -62,7 +62,7 @@ pub(super) fn apply_terminal_plan(
     let stage = for_finished_operation(plan.status)
         .expect("a terminal plan names a finished operation status")
         .stage;
-    snapshot.status = plan.status;
+    snapshot.set_status(plan.status);
     snapshot.finished_at_ms = Some(now_ms);
     snapshot.cancellable = false;
     snapshot.cancel_requested |= plan.cancel_requested;

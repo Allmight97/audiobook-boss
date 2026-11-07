@@ -1,2 +1,2 @@
-export { createWorkOperationsOwner, isWorkRunning } from './owner';
+export { createWorkOperationsOwner } from './owner';
 export type { WorkOperationsOwner } from './owner';

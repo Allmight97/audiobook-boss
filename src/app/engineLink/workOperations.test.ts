@@ -36,6 +36,7 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 		revision: 1,
 		kind: 'processingBatch',
 		status: 'accepted',
+		phase: 'accepted',
 		title: `Operation ${id}`,
 		startedAtMs: null,
 		finishedAtMs: null,

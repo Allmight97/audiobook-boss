@@ -6,7 +6,7 @@ use abb_engine::session::{InputNotice, MetadataField, SessionIntent, SubmissionS
 use abb_engine::work_runtime::{ChildJobStatus, OperationId, WorkOperationStatus};
 use abb_engine::ShutdownOutcome;
 
-use super::integration_session_desk::{collision_review, finished, submission, Desk};
+use super::integration_session_desk::{collision_review, submission, Desk};
 use super::media_fixtures::{chapters_of, duration_ms, mux_chapters, write_sine_mp3};
 use super::wav_fixture::write_wav;
 
@@ -47,7 +47,7 @@ async fn finish_submitted_export(desk: &Desk) -> OperationId {
         panic!("export not accepted: {:?}", submission(desk));
     };
     desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&operation_id))
+        desk.export_finished(&operation_id)
     })
     .await;
     operation_id

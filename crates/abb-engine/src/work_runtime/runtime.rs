@@ -332,7 +332,7 @@ impl WorkRuntime {
             .into_iter()
             .filter(|operation| {
                 operation.kind == crate::processing::OperationKind::ProcessingBatch
-                    && !super::terminal::is_terminal(operation.status)
+                    && !operation.is_finished()
             })
             .map(|operation| operation.operation_id)
             .collect()

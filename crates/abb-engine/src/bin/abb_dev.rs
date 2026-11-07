@@ -21,9 +21,7 @@ use abb_engine::session::{
     AudioEdit, CollisionReview, MetadataField, MetadataStatus, SessionIntent, SessionOutcome,
     SessionUpdate, SubmissionStatus,
 };
-use abb_engine::work_runtime::{
-    ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus,
-};
+use abb_engine::work_runtime::{ChildJobStatus, OperationId, OperationPhase, OperationSnapshot};
 use abb_engine::{Engine, EngineConfig, EngineEvent, EventSink};
 
 #[path = "abb_dev/during_export.rs"]
@@ -396,12 +394,7 @@ async fn follow(
                 cancelled = true;
             }
         }
-        if !matches!(
-            operation.status,
-            WorkOperationStatus::Accepted
-                | WorkOperationStatus::Running
-                | WorkOperationStatus::Cancelling
-        ) {
+        if operation.phase == OperationPhase::Finished {
             return Ok(operation);
         }
         tokio::time::sleep(Duration::from_millis(100)).await;

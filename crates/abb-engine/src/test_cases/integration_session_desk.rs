@@ -178,6 +178,21 @@ impl Desk {
             .status
     }
 
+    pub(super) fn export_finished(
+        &self,
+        operation: &abb_engine::work_runtime::OperationId,
+    ) -> bool {
+        self.engine
+            .list_work_operations()
+            .expect("operations")
+            .operations
+            .into_iter()
+            .find(|snapshot| &snapshot.operation_id == operation)
+            .expect("export is listed")
+            .phase
+            == abb_engine::work_runtime::OperationPhase::Finished
+    }
+
     pub(super) fn output_of(&self, operation: &abb_engine::work_runtime::OperationId) -> PathBuf {
         let operations = self.engine.list_work_operations().expect("operations");
         let export = operations
@@ -231,16 +246,6 @@ pub(super) fn genre_on_disk(path: &Path) -> Option<String> {
     read_metadata(path.to_string_lossy().as_ref())
         .expect("read tags back")
         .genre
-}
-
-pub(super) fn finished(status: WorkOperationStatus) -> bool {
-    matches!(
-        status,
-        WorkOperationStatus::Completed
-            | WorkOperationStatus::Failed
-            | WorkOperationStatus::Cancelled
-            | WorkOperationStatus::Mixed
-    )
 }
 
 pub(super) fn submission(desk: &Desk) -> Option<abb_engine::session::SubmissionStatus> {

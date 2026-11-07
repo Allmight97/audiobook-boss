@@ -614,6 +614,8 @@ export type OperationLogEntry = {
 	childJobId: string | null,
 };
 
+export type OperationPhase = "accepted" | "active" | "finished";
+
 export type OperationResultSummary = {
 	total: number,
 	succeeded: number,
@@ -629,6 +631,7 @@ export type OperationSnapshot = {
 	revision: number,
 	kind: OperationKind,
 	status: WorkOperationStatus,
+	phase: OperationPhase,
 	title: string,
 	startedAtMs: number | null,
 	finishedAtMs: number | null,

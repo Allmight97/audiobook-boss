@@ -166,8 +166,9 @@ without a bullet has none. Engine paths name the owner of the truth.
   Operations come from the link (Engine Link, above); the owner keeps only
   cancel-pending state and error wording. After `reset`, a late cancel or
   reveal reply changes nothing.
-  `isWorkRunning` decides which work shows motion (running or cancelling), for
-  the Work Center and the preview bar alike.
+  `phase === 'active'` (running or cancelling) decides which work shows
+  motion, for the Work Center and the preview bar alike; `phase` is the
+  engine's answer, so no view keeps its own status list.
   `view()` changes with every progress tick, and Work Center rows read it: no
   narrower accessor exists. Only whole-operation cancels track pending state
   (the Cancel button disables while one is in flight); repeating any cancel

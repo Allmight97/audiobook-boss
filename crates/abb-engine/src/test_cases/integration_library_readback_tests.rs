@@ -8,7 +8,7 @@ use abb_engine::session::{
 use abb_engine::work_runtime::WorkOperationStatus;
 use abb_engine::{AudiobookMetadata, MetadataIntentPatch, PatchOp, ShutdownOutcome};
 
-use super::integration_session_desk::{finished, submission, Desk};
+use super::integration_session_desk::{submission, Desk};
 use super::media_fixtures::{
     assert_ffprobe_tag, chapters_of, decode_pcm_f32, ffprobe_format_tags, write_sine_mp3,
     SAMPLE_RATE,
@@ -75,7 +75,7 @@ async fn export_to(desk: &Desk, folder: &str, edits: &[AudioEdit]) -> PathBuf {
         panic!("export not accepted: {:?}", submission(desk));
     };
     desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&operation_id))
+        desk.export_finished(&operation_id)
     })
     .await;
     assert_eq!(

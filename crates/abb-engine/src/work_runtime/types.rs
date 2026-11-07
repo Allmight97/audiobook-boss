@@ -42,6 +42,14 @@ pub enum WorkOperationStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
+pub enum OperationPhase {
+    Accepted,
+    Active,
+    Finished,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum ChildJobStatus {
     Queued,
     Running,
@@ -150,6 +158,7 @@ pub struct OperationSnapshot {
     pub revision: u64,
     pub kind: OperationKind,
     pub status: WorkOperationStatus,
+    pub phase: OperationPhase,
     pub title: String,
     pub started_at_ms: Option<i64>,
     pub finished_at_ms: Option<i64>,
@@ -160,6 +169,17 @@ pub struct OperationSnapshot {
     #[serde(skip)]
     pub terminal_summary: Option<OperationTerminalSummary>,
     pub log_tail: Vec<OperationLogEntry>,
+}
+
+impl OperationSnapshot {
+    pub(crate) fn set_status(&mut self, status: WorkOperationStatus) {
+        self.status = status;
+        self.phase = super::terminal::phase_of(status);
+    }
+
+    pub(crate) fn is_finished(&self) -> bool {
+        self.phase == OperationPhase::Finished
+    }
 }
 
 /// The operations a host shows, in display order. Active operations come

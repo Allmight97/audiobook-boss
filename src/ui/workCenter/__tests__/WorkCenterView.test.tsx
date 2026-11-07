@@ -25,6 +25,7 @@ function completedOperation(): OperationSnapshot {
 		revision: 1,
 		kind: 'processingBatch',
 		status: 'completed',
+		phase: 'finished',
 		title: 'Batch encode (2 files)',
 		startedAtMs: 1_000,
 		finishedAtMs: 20_000,
@@ -163,6 +164,7 @@ it('shows why a finished title has no cover', async () => {
 it('cancels one title in a running batch and hides title cancel for a single title', async () => {
 	const operation = completedOperation();
 	operation.status = 'running';
+	operation.phase = 'active';
 	operation.cancellable = true;
 	operation.children = operation.children.map((child) => ({
 		...child,
@@ -184,6 +186,7 @@ it('cancels one title in a running batch and hides title cancel for a single tit
 it('keeps each row and its buttons across a progress update', async () => {
 	const operation = completedOperation();
 	operation.status = 'running';
+	operation.phase = 'active';
 	operation.cancellable = true;
 	operation.children = operation.children.map((child) => ({
 		...child,

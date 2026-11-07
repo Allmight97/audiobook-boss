@@ -7,7 +7,7 @@ use abb_engine::audio::{
 use abb_engine::session::{AudioEdit, MetadataField, SessionIntent, SubmissionStatus, TitlePlan};
 use abb_engine::work_runtime::WorkOperationStatus;
 
-use super::integration_session_desk::{finished, submission, Desk};
+use super::integration_session_desk::{submission, Desk};
 use super::media_fixtures::{audio_duration_ts, decode_pcm_f32, MediaLane};
 use super::media_fixtures::{audio_packet_bytes, ffmpeg, ffprobe};
 
@@ -140,7 +140,7 @@ async fn export_when_planned(desk: &Desk) -> PathBuf {
     let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(desk) else {
         panic!("{:?}", submission(desk))
     };
-    desk.wait_until("export", |d| finished(d.export_status(&operation_id)))
+    desk.wait_until("export", |d| d.export_finished(&operation_id))
         .await;
     assert_eq!(
         desk.export_status(&operation_id),

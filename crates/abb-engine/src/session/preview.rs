@@ -1,7 +1,7 @@
 use super::submission::{Draft, SubmissionStatus};
 use crate::processing::{ProcessResultStatus, ProgressEvent};
 use crate::work_runtime::{
-    is_terminal, new_processing_snapshot, now_ms, OperationId, OperationSnapshot, WorkRuntimeState,
+    new_processing_snapshot, now_ms, OperationId, OperationSnapshot, WorkRuntimeState,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -73,7 +73,7 @@ impl Preview {
         let finished = self.id.as_ref().is_some_and(|id| {
             self.state
                 .operation(id.as_str())
-                .is_some_and(|operation| is_terminal(operation.status))
+                .is_some_and(OperationSnapshot::is_finished)
         });
         if finished {
             *self = Self::default();

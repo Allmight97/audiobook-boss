@@ -60,3 +60,27 @@ fn only_finished_operations_have_a_row_and_cancelling_shows_the_cleaning_stage()
     }
     assert_eq!(CANCELLING_STAGE, WorkProgressStage::Cleaning);
 }
+
+#[test]
+fn an_operation_is_finished_exactly_where_the_stage_table_has_a_finished_row() {
+    use super::terminal::phase_of;
+    use super::OperationPhase as Phase;
+    use WorkOperationStatus as Status;
+    let rows = [
+        (Status::Accepted, Phase::Accepted),
+        (Status::Running, Phase::Active),
+        (Status::Cancelling, Phase::Active),
+        (Status::Completed, Phase::Finished),
+        (Status::Mixed, Phase::Finished),
+        (Status::Cancelled, Phase::Finished),
+        (Status::Failed, Phase::Finished),
+    ];
+    for (status, phase) in rows {
+        assert_eq!(phase_of(status), phase, "{status:?}");
+        assert_eq!(
+            for_finished_operation(status).is_some(),
+            phase == Phase::Finished,
+            "{status:?}"
+        );
+    }
+}

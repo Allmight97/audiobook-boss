@@ -1,4 +1,4 @@
-use super::types::{OperationTerminalSummary, WorkOperationStatus};
+use super::types::{OperationPhase, OperationTerminalSummary, WorkOperationStatus};
 use crate::processing::{classify_run_terminal, OperationResultSummary, RunTerminalClass};
 
 pub(crate) fn operation_terminal_summary(
@@ -36,8 +36,14 @@ fn work_status_from_terminal_class(class: RunTerminalClass) -> WorkOperationStat
     }
 }
 
-pub(crate) fn is_terminal(status: WorkOperationStatus) -> bool {
-    super::stage_table::for_finished_operation(status).is_some()
+pub(super) fn phase_of(status: WorkOperationStatus) -> OperationPhase {
+    if super::stage_table::for_finished_operation(status).is_some() {
+        OperationPhase::Finished
+    } else if status == WorkOperationStatus::Accepted {
+        OperationPhase::Accepted
+    } else {
+        OperationPhase::Active
+    }
 }
 
 fn terminal_message(summary: &OperationResultSummary) -> String {

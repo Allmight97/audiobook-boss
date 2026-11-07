@@ -26,6 +26,7 @@ function preview(): NonNullable<OutputSnapshot['previewRun']> {
 			revision: 2,
 			kind: 'processingBatch',
 			status: 'running',
+			phase: 'active',
 			title: 'Edited book',
 			startedAtMs: 1,
 			finishedAtMs: null,
@@ -133,6 +134,7 @@ describe('engine preview adapter', () => {
 		const engine = createFakeEngine();
 		const queued = preview();
 		queued.operation.status = 'accepted';
+		queued.operation.phase = 'accepted';
 		engine.change((state) => {
 			state.output.previewRun = queued;
 		});
@@ -151,6 +153,7 @@ describe('engine preview adapter', () => {
 		await vi.waitFor(() => expect(bar()).toHaveAttribute('data-active'));
 		const done = preview();
 		done.operation.status = 'completed';
+		done.operation.phase = 'finished';
 		engine.change((state) => {
 			state.output.previewRun = done;
 		});
@@ -197,6 +200,7 @@ describe('engine preview adapter', () => {
 		await vi.waitFor(() => expect(cancel()).toBeEnabled());
 		const cancelling = preview();
 		cancelling.operation.status = 'cancelling';
+		cancelling.operation.phase = 'active';
 		cancelling.operation.cancellable = false;
 		cancelling.operation.cancelRequested = true;
 		engine.change((state) => {

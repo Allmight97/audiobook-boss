@@ -70,7 +70,7 @@ fn work_operation_record_format_is_stable_and_path_free() {
     );
     assert!(!accepted.contains("/private/library"));
 
-    snapshot.status = WorkOperationStatus::Mixed;
+    snapshot.set_status(WorkOperationStatus::Mixed);
     snapshot.terminal_summary = Some(super::super::OperationTerminalSummary {
         total: 2,
         succeeded: 1,
