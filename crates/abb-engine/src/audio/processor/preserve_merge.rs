@@ -1,6 +1,7 @@
 //! Packet-copy joining for matching AAC sources with complete, contiguous frames.
 //! Interior priming, padding and decoder resets require re-encoding.
-use crate::audio::{AudioFile, FileListInfo};
+use super::workspace::Workspace;
+use crate::audio::AudioFile;
 use crate::errors::{AppError, Result};
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::ProcessingContext;
@@ -190,49 +191,23 @@ fn remux(files: &[AudioFile], destination: &Path, context: &ProcessingContext) -
     Ok(durations)
 }
 
-pub(super) fn execute(
-    context: ProcessingContext,
-    file_info: FileListInfo,
+pub(super) fn write_fresh_mux(
+    context: &ProcessingContext,
+    workspace: &Workspace,
+    mut copies: Vec<AudioFile>,
     metadata: Option<AudiobookMetadata>,
     cover_policy: CoverArtPassthroughPolicy,
-) -> Result<super::AudioRunOutcome> {
-    let mut workspace = super::workspace::Workspace::open(&context)?;
-    context
-        .new_emitter()
-        .emit_converting_start("Preserving original audio...");
-    let mut copies = Vec::new();
-    for (index, file) in file_info.files.iter().enumerate() {
-        let fingerprint = file
-            .chapter_plan
-            .as_ref()
-            .ok_or_else(|| incompatible("source identity is missing"))?
-            .source_fingerprint
-            .as_str();
-        let folder = workspace.dir().join(format!("source-{index}"));
-        std::fs::create_dir_all(&folder).map_err(AppError::Io)?;
-        let path = folder.join(file.path.file_name().unwrap_or_default());
-        super::preserve::copy_with_cancellation(
-            &file.path,
-            fingerprint,
-            &path,
-            &context,
-            (0.5 * index as f32 / file_info.files.len() as f32)
-                ..(0.5 * (index + 1) as f32 / file_info.files.len() as f32),
-        )?;
-        let mut copy = file.clone();
-        copy.path = path;
-        copies.push(copy);
-    }
+) -> Result<(PathBuf, Vec<String>)> {
     let staged: PathBuf = workspace
         .dir()
         .join("merged")
         .with_extension(context.output.final_path().extension().unwrap_or_default());
     super::preserve::emit_progress(
-        &context,
+        context,
         0.5,
         "Joining original audio without re-encoding...",
     );
-    let durations = remux(&copies, &staged, &context)?;
+    let durations = remux(&copies, &staged, context)?;
     for (file, duration) in copies.iter_mut().zip(durations) {
         file.duration = Some(duration);
     }
@@ -249,13 +224,13 @@ pub(super) fn execute(
         .new_emitter()
         .emit_metadata_start("Writing title metadata and chapters...");
     crate::metadata::finalize_artifact_metadata(&staged, metadata.as_ref(), passthrough.as_ref())?;
-    Ok(super::AudioRunOutcome {
-        message: super::finalize::complete_staged_output(&context, staged, &mut workspace)?,
-        warnings: passthrough_warnings
+    Ok((
+        staged,
+        passthrough_warnings
             .into_iter()
             .chain(cover_warning)
             .collect(),
-    })
+    ))
 }
 
 #[cfg(test)]

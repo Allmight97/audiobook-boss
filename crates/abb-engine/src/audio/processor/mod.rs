@@ -163,23 +163,17 @@ pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<P
 #[expect(clippy::disallowed_methods, reason = "joined by execute_preserved")]
 async fn execute_preserved(request: AudioExecutionRequest) -> Result<AudioRunOutcome> {
     tokio::task::spawn_blocking(move || {
-        if request.file_info.files.len() > 1 {
-            return preserve_merge::execute(
-                request.context,
-                request.file_info,
-                request.metadata,
-                request.cover_art_passthrough,
-            );
-        }
-        preserve::execute_preserved_audio(
-            request.context,
-            request.file_info,
-            request.metadata_intent,
-        )
-        .map(|message| AudioRunOutcome {
-            message,
-            warnings: Vec::new(),
-        })
+        let strategy = if request.file_info.files.len() > 1 {
+            preserve::MetadataStrategy::WriteFreshMux {
+                metadata: request.metadata,
+                cover_policy: request.cover_art_passthrough,
+            }
+        } else {
+            preserve::MetadataStrategy::PatchStagedCopy {
+                patch: request.metadata_intent,
+            }
+        };
+        preserve::execute(request.context, request.file_info, strategy)
     })
     .await
     .map_err(|error| {
