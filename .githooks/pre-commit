@@ -60,10 +60,6 @@ if has '^\.github/workflows/'; then
 	require bun
 	bun scripts/check-pr-workflow-policy.ts
 fi
-if has '\.(sh|rs)$|^\.githooks/|^src/.*\.tsx$|^crates/abb-engine/src/app_settings/saved_settings/'; then
-	require bun
-	bun scripts/check-known-mistakes.ts
-fi
 shell_files=()
 for file in "${staged[@]}"; do
 	if [[ "${file}" == *.sh || "${file}" == .githooks/* ]]; then
@@ -75,4 +71,5 @@ if [[ ${#shell_files[@]} -gt 0 ]]; then
 	shellcheck -S warning "${shell_files[@]}"
 fi
 require bun
+bun scripts/check-known-mistakes.ts
 bun scripts/check-file-size.mjs "${staged[@]}"
