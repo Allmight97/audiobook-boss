@@ -40,9 +40,9 @@ second copy of owner state.
   (`src-tauri/AGENTS.md`).
 - `send` itself sets the `refusal` for an outcome that changes nothing and shows
   nothing else: `draftRejected` with no message (a Save is running), and
-  `superseded` for a field edit or cover load whose form changed. `superseded`
-  stays silent for any other intent, where a newer request replacing it is the
-  design (a row click, a collision answer).
+  `editLost` for a field edit or cover load whose form was replaced.
+  `superseded` stays silent, where a newer request replacing it is the design
+  (a row click, a collision answer, a newer cover choice).
 - A part that arrives unchanged keeps object identity for its files and lookup
   results. A changed remote part keeps the objects of its unchanged selection
   lists, PDF choices, releases, and grab records. Solid rows are not rebuilt,

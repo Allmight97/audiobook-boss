@@ -61,6 +61,45 @@ async fn a_cover_cleared_while_loading_is_not_replaced_by_the_load() {
 }
 
 #[tokio::test]
+async fn a_cover_loaded_for_a_form_that_was_replaced_reports_the_lost_edit() {
+    let (release, pending) = tokio::sync::oneshot::channel();
+    let rig = rig_with_cover(Some(pending));
+    rig.load(&["alpha", "beta"]);
+    rig.select(&[0]).await;
+
+    let load = rig.session.begin(SessionIntent::LoadCoverFromUrl {
+        url: "https://example.com/cover.jpg".to_string(),
+    });
+    rig.select(&[1]).await;
+    release.send(Ok(downloaded_cover())).expect("release cover");
+
+    assert_eq!(load.finish().await.outcome, SessionOutcome::EditLost);
+    assert_eq!(rig.pending("alpha").and_then(|patch| patch.cover_art), None);
+    assert_eq!(rig.pending("beta").and_then(|patch| patch.cover_art), None);
+}
+
+#[tokio::test]
+async fn a_cover_overtaken_by_a_newer_choice_on_the_same_form_is_superseded() {
+    let (release, pending) = tokio::sync::oneshot::channel();
+    let rig = rig_with_cover(Some(pending));
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+
+    let first = rig.session.begin(SessionIntent::LoadCoverFromUrl {
+        url: "https://example.com/first.jpg".to_string(),
+    });
+    let second = rig
+        .send(SessionIntent::LoadCoverFromUrl {
+            url: "https://example.com/second.jpg".to_string(),
+        })
+        .await;
+    release.send(Ok(downloaded_cover())).expect("release cover");
+
+    assert_eq!(second, SessionOutcome::Applied);
+    assert_eq!(first.finish().await.outcome, SessionOutcome::Superseded);
+}
+
+#[tokio::test]
 async fn covers_are_served_only_for_what_the_session_shows() {
     let rig = rig();
     let folder = tempfile::TempDir::new().expect("temp dir");

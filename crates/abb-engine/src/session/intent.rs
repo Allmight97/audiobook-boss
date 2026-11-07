@@ -214,9 +214,11 @@ pub enum SessionOutcome {
     PreviewOutput {
         path: Option<String>,
     },
-    /// A newer request or a change of the form it was typed into
-    /// replaced this one before it finished.
+    /// A newer request replaced this one before it finished.
     Superseded,
+    /// The form this edit or cover load was for was replaced, so it did not
+    /// land.
+    EditLost,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]

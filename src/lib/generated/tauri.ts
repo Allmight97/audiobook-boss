@@ -1058,11 +1058,13 @@ export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } | { k
  *  is absent when a save in progress is what blocked the change.
  */
 { kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } | { kind: "previewOutput"; path: string | null } |
+/**  A newer request replaced this one before it finished. */
+{ kind: "superseded" } |
 /**
- *  A newer request or a change of the form it was typed into
- *  replaced this one before it finished.
+ *  The form this edit or cover load was for was replaced, so it did not
+ *  land.
  */
-{ kind: "superseded" };
+{ kind: "editLost" };
 
 export type SessionReply = {
 	outcome: SessionOutcome,

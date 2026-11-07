@@ -57,7 +57,10 @@ impl Session {
                 .map(|cover| cover.to_vec()),
         };
         self.transition(|state| {
-            if (state.binding, state.cover_request()) != started {
+            if state.binding != started.0 {
+                return SessionOutcome::EditLost;
+            }
+            if state.cover_request() != started.1 {
                 return SessionOutcome::Superseded;
             }
             let loaded = result.is_ok();

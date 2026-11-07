@@ -31,9 +31,11 @@ one host attachment.
 - The metadata part carries `binding`, which advances whenever the form binds
   to a different selection. A host shows typing the engine has not yet
   confirmed only on the form it was typed into. `SetField` and `SetFieldAction`
-  carry the binding the host showed; the engine answers `Superseded` and writes
+  carry the binding the host showed; the engine answers `EditLost` and writes
   nothing when the form has since bound elsewhere. Why: an import can select a
-  title between a keystroke and the update that tells the host.
+  title between a keystroke and the update that tells the host. A cover load
+  answers `EditLost` when the form changed while it ran, and `Superseded`
+  when only a newer cover choice replaced it.
 - Covers are not in a snapshot as bytes. Each view that offers a cover
   carries its address as an opaque string: a source on `AudioFile`, a lookup
   result, an Audible library title, the cover on screen, the preview.

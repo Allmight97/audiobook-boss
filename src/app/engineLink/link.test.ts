@@ -327,44 +327,10 @@ describe('engine link', () => {
 		it.each<[SessionIntent]>([
 			[{ kind: 'setField', binding: 0, field: 'title', value: 'A' }],
 			[{ kind: 'setFieldAction', binding: 0, field: 'title', action: 'blank' }],
-		])('says the edit was lost when %j is superseded', async (intent) => {
-			expect(await refusalAfter(intent, { kind: 'superseded' })).toBe(editLost);
-		});
-
-		const coverLoads: SessionIntent[] = [
-			{ kind: 'loadCoverFromFile', path: '/c.jpg' },
-			{ kind: 'loadCoverFromDrop', paths: ['/c.jpg'] },
-			{ kind: 'loadCoverFromUrl', url: 'https://example.com/c.jpg' },
-		];
-
-		async function coverRefusal(intent: SessionIntent, bindingChanges: boolean) {
-			const engine = createFakeEngine();
-			engine.respond = () => ({ kind: 'superseded' });
-			const dispatch = engine.sessionDispatch.bind(engine);
-			engine.sessionDispatch = async (client, sequence, sent) => {
-				const reply = await dispatch(client, sequence, sent);
-				if (bindingChanges && reply.update.metadata) {
-					reply.update.metadata = {
-						...reply.update.metadata,
-						binding: reply.update.metadata.binding + 1,
-					};
-				}
-				return reply;
-			};
-			const link = await linkTo(engine);
-			await link.send(intent);
-			return link.refusal();
-		}
-
-		it.each(coverLoads)(
-			'stays silent when a newer cover choice overtakes %j on the same form',
-			async (intent) => {
-				expect(await coverRefusal(intent, false)).toBeNull();
-			},
-		);
-
-		it.each(coverLoads)('says the edit was lost when the form changed under %j', async (intent) => {
-			expect(await coverRefusal(intent, true)).toBe(editLost);
+			[{ kind: 'loadCoverFromFile', path: '/c.jpg' }],
+			[{ kind: 'loadCoverFromUrl', url: 'https://example.com/c.jpg' }],
+		])('says the edit was lost when the engine reports %j as lost', async (intent) => {
+			expect(await refusalAfter(intent, { kind: 'editLost' })).toBe(editLost);
 		});
 
 		it.each<[SessionIntent]>([
@@ -376,6 +342,7 @@ describe('engine link', () => {
 				},
 			],
 			[{ kind: 'chooseCollisionPolicy', reviewId: 1, policy: 'skip_existing' }],
+			[{ kind: 'loadCoverFromUrl', url: 'https://example.com/c.jpg' }],
 		])('stays silent when a newer %j replaces it', async (intent) => {
 			expect(await refusalAfter(intent, { kind: 'superseded' })).toBeNull();
 		});

@@ -511,7 +511,7 @@ impl Session {
         Rest::Done(if self.transition(change) {
             SessionOutcome::Applied
         } else {
-            SessionOutcome::Superseded
+            SessionOutcome::EditLost
         })
     }
 

@@ -29,7 +29,7 @@ async fn a_keystroke_typed_before_an_import_selected_a_title_does_not_dirty_it()
         })
         .await;
 
-    assert_eq!(outcome, SessionOutcome::Superseded);
+    assert_eq!(outcome, SessionOutcome::EditLost);
     let genre = field_of(&rig, MetadataField::Genre);
     assert!(!genre.dirty && genre.value != "stray");
     assert_eq!(rig.pending("book"), None);
@@ -51,6 +51,6 @@ async fn a_field_action_aimed_at_a_form_that_was_replaced_changes_nothing() {
         })
         .await;
 
-    assert_eq!(outcome, SessionOutcome::Superseded);
+    assert_eq!(outcome, SessionOutcome::EditLost);
     assert!(!field_of(&rig, MetadataField::Genre).dirty);
 }
