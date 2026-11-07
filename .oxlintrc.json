@@ -127,6 +127,7 @@
 				"scripts/dev-log-analysis.ts",
 				"scripts/verification.ts",
 				"src/app/encoding/project.ts",
+				// Keep: one view over the audio plan states, with no rule of its own. Split it when it gains another control.
 				"src/ui/fileList/AudioHandlingControl.tsx",
 				"src/ui/remoteSource/RemoteSourceAcquireView.tsx"
 			],

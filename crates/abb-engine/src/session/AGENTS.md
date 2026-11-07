@@ -44,8 +44,7 @@ one host attachment.
   last written, and no entry is dropped, so ABB's own Saves never make an address
   name two images. A file retagged outside ABB and imported again keeps its
   address.
-  A grouped title's sources take no revision from a write that finishes after
-  grouping. `Engine::cover` serves the addresses a session offered through
+  `Engine::cover` serves the addresses a session offered through
   `runtime/cover_flow.rs` and refuses anything else. Loading is
   `crate::cover_service`'s. Reasons and statuses are typed; the host words them.
 
@@ -75,8 +74,7 @@ one host attachment.
   new write always finds a writer or starts one.
 - A preview holds concurrency fixed and is admitted after its cancel flags are
   visible, so shutdown either sees it to cancel or the preview sees shutdown.
-- With no tokio runtime (engine construction) plans stay pending until the next
-  change. A download finishing while the list is locked waits for the unlock.
+- A download finishing while the list is locked waits for the unlock.
   Source paths are canonical, so match both spellings of the staged root.
   Tag-cache tokens and revisions keep counting across Clear All, so nothing
   issued earlier matches afterward.

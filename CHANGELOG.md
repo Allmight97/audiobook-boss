@@ -18,7 +18,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Opening an audio file while ABB is closed now imports it, instead of starting with an empty
   list.
 - A failed Indexer grab now says in one line which side is down (Prowlarr, the downloader, or
-  the indexer) and names it, instead of Prowlarr's raw JSON cut off mid-word.
+  the indexer) and names it, instead of Prowlarr's raw JSON cut off mid-word. It names a
+  downloader only if that downloader is in the group Prowlarr sends to.
+- A grab batch counts releases Prowlarr never confirmed apart from failed ones.
 - A title joined from sources that already have chapters now warns in Work Center when a
   source's length is unknown and the later chapters may start too early, as it already did
   for sources without chapters.
@@ -28,28 +30,14 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   applied, or while a queue Apply moves on to its next title, now says "Apply stopped because
   the search changed. Apply again." instead of leaving the earlier "Found" or "Applied" line
   in place.
-- Choosing another cover, or clearing it, while a cover loads no longer says "Your edit was
-  not applied because the selection changed."; that notice stays for a cover load lost because
-  the selection changed.
-- A title whose tags were read once, when a second read of it fails, no longer says its tags
-  cannot be read.
 - A queue Apply whose chosen cover failed to load still says so when the next title has no
   search text or cannot be selected, instead of dropping the cover failure.
-- Opening a second copy of ABB no longer moves the running copy's log aside, so the next
-  launch no longer loses it. The log now grows across launches, and moves to
-  `abb.previous.log` only at a launch that finds it over 5 MB.
-- Keep original audio on a source no output format can keep (MP3) now says "This audio cannot
-  be kept unchanged in any output format. Choose encoding settings." instead of advising a
-  format change that cannot help.
-- The Indexer settings panel keeps the reason an edit was refused (for example a bad URL or API
-  key) in its error line after Save or Test are refused for it, instead of replacing it with
-  a generic message.
+- A refused Indexer URL or API key stays refused until you replace it, and its reason stays
+  in the error line. Before, editing another field cleared the error, and Save stored the old
+  value while the field still showed the refused one.
 - When the drag-and-drop listener cannot start, the import area now says drag and drop is not
   working and points to Add Folder; the Opus "Player compatibility" link says why when the
   page does not open.
-- A title whose source could not be opened for its chapters or cover, or whose length was
-  unknown so later chapters shift, now finishes with a warning in Work Center instead of
-  reporting Done with nothing said.
 - When a selected file's tags cannot be read, the status line now names the file and says
   the fields shown are not its tags, so a Save no longer writes over tags you could not see
   without warning.
@@ -75,7 +63,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   instead of only the count imported.
 - The app writes a log file (`~/Library/Logs/com.audiobook-boss/abb.log` on macOS), so a
   failure in an app opened from Finder can be read. Failures the window used to show
-  only in its console now reach that file too.
+  only in its console now reach that file too. It moves to `abb.previous.log` at a launch
+  that finds it over 5 MB.
 - With nothing running in this window, the step line reads "Ready" instead of
   "Waiting for files...", which it showed even with files loaded.
 - Work Center's "Failed to show the exported file" message clears when a later
@@ -90,6 +79,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   when its title is removed and imported again and a later Save changes another field.
 - When a waiting Save failed and a newer one for the same file succeeded, the form
   no longer returns to the failed value, which the next Save would have written back.
+- When two waiting Saves to one file both fail, the form keeps your newest value after the
+  title is imported again.
 - Reordering several selected titles no longer loses what you typed into the form
   when an import or download finishes afterward.
 - A Save that only updates finished outputs no longer marks a later Save as done
@@ -116,6 +107,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   loads and failures, sign-in guidance, and the sign-in warning instead of
   keeping the old download result. A running download also shows its progress
   over an older sign-in or account failure.
+- A good Audible library load now replaces an earlier sign-in or account failure in the
+  status line.
 - The Auto sample rate and channels options no longer read "Differs by title"
   when only some of the selected titles use Auto.
 - A title made of several files with no chapters now shows the chapters ABB
@@ -132,7 +125,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 ### Removed
 
 - MP3 is no longer an output format. MP3 files still import, and export to M4B or
-  another output format.
+  another output format. Keep original audio on an MP3 source now asks you to choose
+  encoding settings.
 
 ## [1.17.1] - 2026-11-05
 

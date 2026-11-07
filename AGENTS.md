@@ -50,8 +50,9 @@ simpler design.
   rules go there. The Tauri host and the frontend send intents and render
   snapshots; a rule added there is a second copy no engine test can prove.
   Tiers: `crates/AGENTS.md`.
-- ABB ships one Tauri host and this UI, for macOS and Linux. Windows users run
-  it under WSL. No native UI is planned.
+- ABB ships one Tauri host and this UI, for macOS and Linux. Windows has no
+  native build; the plan is WSL, which #557 has yet to prove. No native UI is
+  planned.
 - The engine builds metadata intent from the session's field edits;
   `crate::metadata` and `abb-metadata-core` validate and normalize it.
 - Greenfield: internal payloads and aliases change freely. Interoperability
