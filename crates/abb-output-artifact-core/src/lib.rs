@@ -95,6 +95,12 @@ pub struct PlannedOutput {
     pub action: PlannedOutputAction,
 }
 
+impl PlannedOutput {
+    pub fn verdict(&self) -> OutputVerdict {
+        output_verdict(self.action, self.collision.as_ref().map(|value| value.kind))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputCollision {
     pub kind: OutputCollisionKind,
@@ -231,19 +237,67 @@ pub fn action_requires_output_write(action: PlannedOutputAction) -> bool {
     )
 }
 
-pub fn collision_is_hard_block(collision: Option<&OutputCollision>) -> bool {
-    collision.is_some_and(|value| {
+impl OutputCollisionKind {
+    /// A collision with an input source: no policy may write there.
+    pub fn is_hard_block(self) -> bool {
         matches!(
-            value.kind,
-            OutputCollisionKind::SourceDestinationOverlap
-                | OutputCollisionKind::CanonicalPathOverlap
+            self,
+            Self::SourceDestinationOverlap | Self::CanonicalPathOverlap
         )
-    })
+    }
 }
 
-pub fn plan_is_hard_block(plan: &ResolvedOutputPlan) -> bool {
-    matches!(plan.action, PlannedOutputAction::ReviewRequired)
-        && collision_is_hard_block(plan.collision.as_ref())
+pub fn collision_is_hard_block(collision: Option<&OutputCollision>) -> bool {
+    collision.is_some_and(|value| value.kind.is_hard_block())
+}
+
+/// What the collision policy does with one output. `claimed_conflict` says the
+/// path the collision names is one an earlier output of this batch claimed.
+pub fn resolve_action(
+    kind: Option<OutputCollisionKind>,
+    claimed_conflict: bool,
+    policy: CollisionPolicy,
+) -> PlannedOutputAction {
+    let Some(kind) = kind else {
+        return PlannedOutputAction::Write;
+    };
+    if kind.is_hard_block() {
+        return PlannedOutputAction::ReviewRequired;
+    }
+    let batch_like = match kind {
+        OutputCollisionKind::BatchDuplicate => true,
+        OutputCollisionKind::CaseInsensitiveMatch => claimed_conflict,
+        _ => false,
+    };
+    match policy {
+        CollisionPolicy::Fail => PlannedOutputAction::ReviewRequired,
+        CollisionPolicy::ReplaceExisting if batch_like => PlannedOutputAction::RenameNew,
+        CollisionPolicy::ReplaceExisting => PlannedOutputAction::ReplaceExisting,
+        CollisionPolicy::RenameNew => PlannedOutputAction::RenameNew,
+        CollisionPolicy::SkipExisting => PlannedOutputAction::SkipExisting,
+    }
+}
+
+/// Whether an output may be written as planned, needs the owner's decision,
+/// or can never be written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputVerdict {
+    Proceed,
+    Review,
+    Blocked,
+}
+
+pub fn output_verdict(
+    action: PlannedOutputAction,
+    collision: Option<OutputCollisionKind>,
+) -> OutputVerdict {
+    match (action, collision) {
+        (PlannedOutputAction::ReviewRequired, Some(kind)) if kind.is_hard_block() => {
+            OutputVerdict::Blocked
+        }
+        (PlannedOutputAction::ReviewRequired, _) => OutputVerdict::Review,
+        _ => OutputVerdict::Proceed,
+    }
 }
 
 impl OutputCollision {
@@ -260,6 +314,10 @@ impl OutputCollision {
 }
 
 impl ResolvedOutputPlan {
+    pub fn verdict(&self) -> OutputVerdict {
+        output_verdict(self.action, self.collision.as_ref().map(|value| value.kind))
+    }
+
     pub fn to_public(&self, input_index: usize, input_path: &Path) -> PlannedOutput {
         PlannedOutput {
             input_index,
@@ -292,7 +350,7 @@ pub fn output_plan_review_message(output: &ResolvedOutputPlan, destination: &str
 
 fn output_review_requirement(output: &ResolvedOutputPlan) -> Option<OutputReviewRequirement> {
     (output.action == PlannedOutputAction::ReviewRequired).then(|| OutputReviewRequirement {
-        can_proceed: !plan_is_hard_block(output),
+        can_proceed: output.verdict() != OutputVerdict::Blocked,
         message: output_plan_review_message(
             output,
             &output

@@ -26,11 +26,11 @@ pub(crate) use review::{enforce_output_plan_review, OutputPlanReview};
 pub(crate) use supplemental::{
     commit_supplemental_output_assets_for_output, SupplementalOutputAssetsCommitRequest,
 };
-pub(crate) use types::ResolvedOutputPlan;
 pub use types::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,
     OutputNamingConfig, OutputReviewRequirement, PlannedOutput, PlannedOutputAction,
 };
+pub(crate) use types::{OutputVerdict, ResolvedOutputPlan};
 
 impl From<abb_output_artifact_core::OutputArtifactCoreError> for AppError {
     fn from(error: abb_output_artifact_core::OutputArtifactCoreError) -> Self {

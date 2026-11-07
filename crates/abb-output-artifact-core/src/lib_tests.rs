@@ -297,5 +297,115 @@ fn pure_action_helpers_classify_write_and_hard_blocks() {
         }),
         action: PlannedOutputAction::ReviewRequired,
     };
-    assert!(plan_is_hard_block(&plan));
+    assert_eq!(plan.verdict(), OutputVerdict::Blocked);
+}
+
+const ALL_KINDS: [OutputCollisionKind; 5] = [
+    OutputCollisionKind::ExistingFile,
+    OutputCollisionKind::BatchDuplicate,
+    OutputCollisionKind::SourceDestinationOverlap,
+    OutputCollisionKind::CanonicalPathOverlap,
+    OutputCollisionKind::CaseInsensitiveMatch,
+];
+
+#[test]
+fn every_collision_kind_under_every_policy_resolves_to_its_pinned_action() {
+    use CollisionPolicy::{Fail, RenameNew, ReplaceExisting, SkipExisting};
+    use PlannedOutputAction::{
+        RenameNew as Rename, ReplaceExisting as Replace, ReviewRequired as Review,
+        SkipExisting as Skip,
+    };
+    let policies = [Fail, ReplaceExisting, RenameNew, SkipExisting];
+    let table = [
+        (
+            OutputCollisionKind::ExistingFile,
+            false,
+            [Review, Replace, Rename, Skip],
+        ),
+        (
+            OutputCollisionKind::ExistingFile,
+            true,
+            [Review, Replace, Rename, Skip],
+        ),
+        (
+            OutputCollisionKind::BatchDuplicate,
+            false,
+            [Review, Rename, Rename, Skip],
+        ),
+        (
+            OutputCollisionKind::BatchDuplicate,
+            true,
+            [Review, Rename, Rename, Skip],
+        ),
+        (
+            OutputCollisionKind::CaseInsensitiveMatch,
+            false,
+            [Review, Replace, Rename, Skip],
+        ),
+        (
+            OutputCollisionKind::CaseInsensitiveMatch,
+            true,
+            [Review, Rename, Rename, Skip],
+        ),
+        (
+            OutputCollisionKind::SourceDestinationOverlap,
+            false,
+            [Review; 4],
+        ),
+        (
+            OutputCollisionKind::SourceDestinationOverlap,
+            true,
+            [Review; 4],
+        ),
+        (
+            OutputCollisionKind::CanonicalPathOverlap,
+            false,
+            [Review; 4],
+        ),
+        (OutputCollisionKind::CanonicalPathOverlap, true, [Review; 4]),
+    ];
+    assert_eq!(table.len(), ALL_KINDS.len() * 2);
+    for (kind, claimed, expected) in table {
+        for (policy, action) in policies.into_iter().zip(expected) {
+            assert_eq!(
+                resolve_action(Some(kind), claimed, policy),
+                action,
+                "{kind:?} claimed={claimed} under {policy:?}"
+            );
+        }
+    }
+    for policy in policies {
+        assert_eq!(
+            resolve_action(None, false, policy),
+            PlannedOutputAction::Write
+        );
+    }
+}
+
+#[test]
+fn only_a_review_required_output_needs_a_decision_and_a_source_overlap_can_never_proceed() {
+    for kind in ALL_KINDS {
+        let expected = if kind.is_hard_block() {
+            OutputVerdict::Blocked
+        } else {
+            OutputVerdict::Review
+        };
+        assert_eq!(
+            output_verdict(PlannedOutputAction::ReviewRequired, Some(kind)),
+            expected,
+            "{kind:?}"
+        );
+        for action in [
+            PlannedOutputAction::Write,
+            PlannedOutputAction::ReplaceExisting,
+            PlannedOutputAction::RenameNew,
+            PlannedOutputAction::SkipExisting,
+        ] {
+            assert_eq!(output_verdict(action, Some(kind)), OutputVerdict::Proceed);
+        }
+    }
+    assert_eq!(
+        output_verdict(PlannedOutputAction::Write, None),
+        OutputVerdict::Proceed
+    );
 }

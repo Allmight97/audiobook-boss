@@ -8,6 +8,10 @@
 - Pure naming, collision, and review data facts live in
   `abb-output-artifact-core`; this directory owns runtime file I/O and final
   commit behavior.
+- The core owns the collision action table (`resolve_action`) and each
+  output's verdict (`OutputVerdict`: Proceed, Review, Blocked). `plan.rs`
+  passes the claimed-by-this-batch check in as a bool. Review signature checks
+  stay in `review.rs`; the session aggregates verdicts into one answer.
 
 ## Private Cluster
 
