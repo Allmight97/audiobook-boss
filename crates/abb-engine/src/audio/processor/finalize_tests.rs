@@ -1,5 +1,9 @@
-use super::complete_staged_output;
+use super::{complete_staged_output, settle_published};
 use crate::audio::CleanupGuard;
+use crate::output_artifact::{
+    commit_output_artifact, finalized_output_success, OutputCommitRequest, OutputKind,
+    PlannedOutputAction,
+};
 use crate::processing::{JobRegistry, OutputConfig, ProcessingContext, ProcessingSession};
 use crate::test_cases::media_fixtures::SAMPLE_RATE;
 use std::fs;
@@ -228,4 +232,74 @@ async fn a_cleanup_failure_after_publication_is_a_success_with_a_warning_and_a_r
         .cleanup_now()
         .expect("the retry succeeds once the blocker is gone");
     assert_eq!(fs::read(&final_output).expect("read final"), b"audio");
+}
+
+#[test]
+fn a_cancel_after_publication_keeps_the_published_output_and_still_cleans_the_workspace() {
+    let root = TempDir::new().expect("temp root");
+    let temp_dir = root.path().join("worker-temp");
+    fs::create_dir_all(&temp_dir).expect("create worker temp dir");
+    let temp_output = temp_dir.join("worker-output.m4b");
+    fs::write(&temp_output, b"payload").expect("write temp output");
+    let final_output = root.path().join("final-output.m4b");
+    let mut cleanup_guard = CleanupGuard::new("commit-test".to_string());
+    cleanup_guard.add_path(&temp_dir);
+    cleanup_guard.add_path(&temp_output);
+
+    let published = commit_output_artifact(
+        OutputCommitRequest::new(&final_output, PlannedOutputAction::Write),
+        temp_output.clone(),
+    )
+    .expect("commit should succeed");
+    let outcome = settle_published(published, &temp_output, &mut cleanup_guard, || true);
+
+    assert!(outcome.cancelled, "expected cancellation after move");
+    assert!(final_output.exists(), "moved output should be preserved");
+    assert!(
+        !temp_dir.exists(),
+        "temp directory should still be cleaned after post-move cancellation"
+    );
+}
+
+#[test]
+fn committed_output_survives_cleanup_failure_with_visible_warning_and_retry() {
+    let root = TempDir::new().expect("create isolated test directory");
+    let workspace = root.path().join("workspace");
+    let backup = root.path().join("workspace-backup");
+    fs::create_dir(&workspace).expect("create test workspace");
+    let staged = workspace.join("staged.m4b");
+    let output = root.path().join("book.m4b");
+    fs::write(&staged, b"complete book").expect("write test fixture");
+    let mut guard = CleanupGuard::new("cleanup-warning".into());
+    let published = commit_output_artifact(
+        OutputCommitRequest::new(&output, PlannedOutputAction::Write),
+        staged.clone(),
+    )
+    .expect("publication remains successful when staged cleanup fails");
+    let outcome = settle_published(published, &staged, &mut guard, || {
+        crate::test_cases::move_test_file(&workspace, &backup);
+        fs::write(&workspace, b"blocks cleanup traversal").expect("write test fixture");
+        false
+    });
+    assert_eq!(
+        fs::read(&output).expect("read published artifact"),
+        b"complete book"
+    );
+    let success = finalized_output_success(
+        OutputKind::Final,
+        &output,
+        false,
+        outcome.cleanup_warning.as_deref(),
+    );
+    assert!(success
+        .result_message
+        .contains("temporary files could not be removed"));
+    fs::remove_file(&workspace).expect("remove test traversal blocker");
+    crate::test_cases::move_test_file(&backup, &workspace);
+    drop(guard);
+    assert!(!staged.exists());
+    assert_eq!(
+        fs::read(&output).expect("read published artifact"),
+        b"complete book"
+    );
 }

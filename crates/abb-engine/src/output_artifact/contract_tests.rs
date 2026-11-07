@@ -1,4 +1,3 @@
-use crate::audio::CleanupGuard;
 use crate::output_artifact::{
     commit_output_artifact, commit_supplemental_output_assets_for_output, CollisionPolicy,
     OutputCollisionKind, OutputCommitRequest, OutputKind, OutputPlanLedger, PlannedOutputAction,
@@ -153,12 +152,9 @@ fn a_240_byte_final_name_without_a_companion_pdf_plans_and_commits() {
         .expect("a name that fits plans");
     assert_eq!(plan.action, PlannedOutputAction::Write);
 
-    let mut cleanup_guard = CleanupGuard::new("long-name".to_string());
     commit_output_artifact(
         OutputCommitRequest::new(&plan.resolved_path, plan.action),
         staged,
-        &mut cleanup_guard,
-        || false,
     )
     .expect("a name that fits commits");
     assert!(requested.exists());

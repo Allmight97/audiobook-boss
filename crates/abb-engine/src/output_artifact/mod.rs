@@ -16,7 +16,9 @@ use crate::errors::{AppError, Result};
 use crate::metadata::NamingMetadata;
 use std::path::{Path, PathBuf};
 
-pub(crate) use commit::{commit_output_artifact, finalized_output_success, OutputCommitRequest};
+pub(crate) use commit::{
+    cleanup_failure_warning, commit_output_artifact, finalized_output_success, OutputCommitRequest,
+};
 pub(crate) use file_lock::{lock_output_file, FileIdentity};
 pub(crate) use parent_dirs::{ensure_output_parent_dirs, OutputParentDirCleanup};
 pub(crate) use plan::OutputPlanLedger;

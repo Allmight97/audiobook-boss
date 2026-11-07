@@ -1,6 +1,5 @@
 use super::collision::path_entry_exists;
 use super::types::{OutputKind, PlannedOutputAction};
-use crate::audio::CleanupGuard;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::file_replace::SiblingTemp;
 use std::io::ErrorKind;
@@ -196,7 +195,7 @@ pub(super) fn remove_stale_replacement_temps(final_path: &Path) {
     let Ok(entries) = std::fs::read_dir(parent) else {
         return;
     };
-    let prefix = format!(".abb_{tag}_");
+    let prefix = SiblingTemp::name_prefix(&tag);
     for entry in entries.flatten() {
         let entry_name = entry.file_name();
         let Some(entry_name) = entry_name.to_str() else {
@@ -310,12 +309,6 @@ fn commit_temp_output_to_artifact(
     replace_existing_from_staged_output(&temp_output, final_path)
 }
 
-pub(crate) struct OutputCommitOutcome {
-    pub final_output: PathBuf,
-    pub cancelled: bool,
-    pub cleanup_warning: Option<String>,
-}
-
 pub(crate) struct OutputCommitRequest<'a> {
     final_path: &'a Path,
     action: PlannedOutputAction,
@@ -332,32 +325,16 @@ pub(crate) struct FinalizedOutputSuccess {
     pub result_message: String,
 }
 
-pub(crate) fn commit_output_artifact<C>(
+pub(crate) fn commit_output_artifact(
     request: OutputCommitRequest<'_>,
     temp_output: PathBuf,
-    cleanup_guard: &mut CleanupGuard,
-    is_cancelled: C,
-) -> Result<OutputCommitOutcome>
-where
-    C: FnOnce() -> bool,
-{
-    let final_output =
-        commit_temp_output_to_artifact(temp_output.clone(), request.final_path, request.action)?;
-    cleanup_guard.add_path(temp_output);
+) -> Result<PathBuf> {
+    commit_temp_output_to_artifact(temp_output, request.final_path, request.action)
+}
 
-    cleanup_guard.forget_path(&final_output);
-
-    let cancelled = is_cancelled();
-    let cleanup_warning = cleanup_guard.cleanup_now().err().map(|error| {
-        log::warn!("Final output committed; temporary cleanup will retry on drop: {error}");
-        "The output is ready, but some temporary files could not be removed.".to_string()
-    });
-
-    Ok(OutputCommitOutcome {
-        final_output,
-        cancelled,
-        cleanup_warning,
-    })
+pub(crate) fn cleanup_failure_warning(error: &AppError) -> String {
+    log::warn!("Final output committed; temporary cleanup will retry on drop: {error}");
+    "The output is ready, but some temporary files could not be removed.".to_string()
 }
 
 pub(crate) fn finalized_output_success(

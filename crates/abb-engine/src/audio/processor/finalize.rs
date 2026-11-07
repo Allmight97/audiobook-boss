@@ -1,14 +1,20 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::audio::CleanupGuard;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::AudiobookMetadata;
 use crate::output_artifact::{
-    commit_output_artifact, finalized_output_success, OutputCommitRequest,
+    cleanup_failure_warning, commit_output_artifact, finalized_output_success, OutputCommitRequest,
 };
 use crate::processing::ProcessingContext;
 
 use super::ProcessingWorkflow;
+
+struct PublishedOutput {
+    path: PathBuf,
+    cancelled: bool,
+    cleanup_warning: Option<String>,
+}
 
 fn ensure_not_cancelled_before_commit(context: &ProcessingContext) -> Result<()> {
     if context.is_cancelled() {
@@ -16,6 +22,26 @@ fn ensure_not_cancelled_before_commit(context: &ProcessingContext) -> Result<()>
     }
 
     Ok(())
+}
+
+fn settle_published(
+    path: PathBuf,
+    staged_output: &Path,
+    cleanup_guard: &mut CleanupGuard,
+    is_cancelled: impl FnOnce() -> bool,
+) -> PublishedOutput {
+    cleanup_guard.add_path(staged_output);
+    cleanup_guard.forget_path(&path);
+    let cancelled = is_cancelled();
+    let cleanup_warning = cleanup_guard
+        .cleanup_now()
+        .err()
+        .map(|error| cleanup_failure_warning(&error));
+    PublishedOutput {
+        path,
+        cancelled,
+        cleanup_warning,
+    }
 }
 
 pub(super) fn complete_staged_output(
@@ -35,12 +61,16 @@ pub(super) fn complete_staged_output(
     let commit = || {
         ensure_not_cancelled_before_commit(context)?;
         crate::diagnostics::stage("publish", &staged_output, || {
-            commit_output_artifact(commit_request, staged_output.clone(), cleanup_guard, || {
-                context.is_cancelled()
-            })
+            let path = commit_output_artifact(commit_request, staged_output.clone())?;
+            Ok(settle_published(
+                path,
+                &staged_output,
+                cleanup_guard,
+                || context.is_cancelled(),
+            ))
         })
         .map(|outcome| {
-            let published = outcome.final_output.clone();
+            let published = outcome.path.clone();
             (outcome, published)
         })
     };
@@ -51,17 +81,17 @@ pub(super) fn complete_staged_output(
     log::info!(
         "media_handoff stage=published job_id={} output_path={:?} artifact={} {}",
         context.identity.job_id.as_deref().unwrap_or("unscoped"),
-        outcome.final_output,
-        crate::diagnostics::artifact_id(&outcome.final_output),
-        crate::diagnostics::file_state(&outcome.final_output)
+        outcome.path,
+        crate::diagnostics::artifact_id(&outcome.path),
+        crate::diagnostics::file_state(&outcome.path)
     );
     log::info!(
         "✓ File moved successfully to: {}",
-        sanitize_path_for_display(&outcome.final_output)
+        sanitize_path_for_display(&outcome.path)
     );
     let success = finalized_output_success(
         context.output.output_kind(),
-        &outcome.final_output,
+        &outcome.path,
         outcome.cancelled,
         outcome.cleanup_warning.as_deref(),
     );

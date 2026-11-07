@@ -7,7 +7,6 @@ use super::{
     commit_output_artifact, enforce_output_plan_review, CollisionPolicy, OutputCollisionKind,
     OutputCommitRequest, OutputKind, OutputPlanLedger, OutputPlanReview, PlannedOutputAction,
 };
-use crate::audio::CleanupGuard;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -190,12 +189,9 @@ fn publish(scenario: &Scenario, plan: &super::ResolvedOutputPlan, label: &str, f
         .map(|path| fs::read(path).expect("protected book"))
         .collect();
     let existed = plan.resolved_path.exists();
-    let mut guard = CleanupGuard::new("plan-table".into());
     let committed = commit_output_artifact(
         OutputCommitRequest::new(&plan.resolved_path, plan.action),
         staged.clone(),
-        &mut guard,
-        || false,
     );
     match plan.action {
         PlannedOutputAction::ReviewRequired | PlannedOutputAction::SkipExisting => {
@@ -227,10 +223,6 @@ fn publish(scenario: &Scenario, plan: &super::ResolvedOutputPlan, label: &str, f
                 path.display()
             );
         }
-    }
-    drop(guard);
-    if abb_output_artifact_core::action_requires_output_write(plan.action) {
-        assert!(!staged.exists(), "{label}: the staged copy is gone");
     }
 }
 

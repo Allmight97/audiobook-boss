@@ -9,6 +9,10 @@ pub(crate) struct SiblingTemp {
 }
 
 impl SiblingTemp {
+    pub(crate) fn name_prefix(tag: &str) -> String {
+        format!(".abb_{tag}_")
+    }
+
     pub(crate) fn beside(destination: &Path, tag: &str, extension: &str) -> io::Result<Self> {
         let parent = destination.parent().ok_or_else(|| {
             io::Error::new(
@@ -17,7 +21,11 @@ impl SiblingTemp {
             )
         })?;
         Ok(Self {
-            path: parent.join(format!(".abb_{tag}_{}{extension}", uuid::Uuid::new_v4())),
+            path: parent.join(format!(
+                "{}{}{extension}",
+                Self::name_prefix(tag),
+                uuid::Uuid::new_v4()
+            )),
             committed: false,
         })
     }
