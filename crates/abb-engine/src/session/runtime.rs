@@ -78,8 +78,7 @@ struct SessionInner {
     deps: SessionDeps,
     network: Network,
     imports: super::import_order::ImportOrder,
-    /// The revision the last event carried.
-    published: AtomicU64,
+    last_published_revision: AtomicU64,
     sources_freed: tokio::sync::Notify,
     list_unlocked: tokio::sync::Notify,
     preview_cancels: Mutex<Vec<CancellationToken>>,
@@ -233,7 +232,7 @@ impl Session {
                 deps,
                 network,
                 imports: super::import_order::ImportOrder::default(),
-                published: AtomicU64::new(0),
+                last_published_revision: AtomicU64::new(0),
                 sources_freed: tokio::sync::Notify::new(),
                 list_unlocked: tokio::sync::Notify::new(),
                 preview_cancels: Mutex::default(),
@@ -285,7 +284,7 @@ impl Session {
             let state = self.lock();
             let since = self
                 .inner
-                .published
+                .last_published_revision
                 .swap(state.revision(), Ordering::SeqCst);
             if since == state.revision() {
                 return;

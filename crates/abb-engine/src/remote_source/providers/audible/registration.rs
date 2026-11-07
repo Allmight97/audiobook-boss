@@ -108,7 +108,6 @@ fn registration_request_body(
     })
 }
 
-// Complexity: one required-token `?` per field of the saved device.
 fn registration_from_reply(reply: &Value, device_serial: &str) -> Result<Registration> {
     let success = &reply["response"]["success"];
     let tokens = &success["tokens"];

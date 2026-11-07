@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 
 use crate::errors::Result;
 
-/// A title's output after it was published.
 pub(crate) struct PublishedOutput {
     pub(crate) path: PathBuf,
     pub(crate) cancelled: bool,

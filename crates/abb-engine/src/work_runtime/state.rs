@@ -23,11 +23,9 @@ const TERMINAL_CHILD_STATUSES: [ChildJobStatus; 4] = [
     ChildJobStatus::Failed,
 ];
 
-/// Appends to the operation's bounded activity tail. Consecutive entries that
-/// are identical in message, stage, AND child collapse (progress spam must not
-/// rotate real history out, but distinct children or stage transitions with
-/// the same wording are real history); the tail drops oldest past
-/// `OPERATION_LOG_TAIL_CAP`.
+/// Consecutive identical entries collapse so progress spam does not rotate
+/// real history out; entries for another child or stage are kept even with the
+/// same wording.
 pub(super) fn push_operation_log(
     snapshot: &mut OperationSnapshot,
     message: &str,
