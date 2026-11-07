@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use super::audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, EditResult};
+use super::audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, EditResult, EditScope};
 use super::plans::{SizeEstimate, TitlePlan};
 use crate::app_settings::EncoderDefaults;
 use crate::audio::{
@@ -97,9 +97,21 @@ pub enum AutoOutcome {
     Differs,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum AudioField {
+macro_rules! audio_fields {
+    ($($field:ident),+ $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+        #[serde(rename_all = "camelCase")]
+        pub enum AudioField {
+            $($field),+
+        }
+
+        impl AudioField {
+            const ALL: [Self; [$(Self::$field),+].len()] = [$(Self::$field),+];
+        }
+    };
+}
+
+audio_fields!(
     Format,
     Intent,
     Encoder,
@@ -110,7 +122,7 @@ pub enum AudioField {
     Bitrate,
     SampleRate,
     Channels,
-}
+);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -132,7 +144,7 @@ pub(crate) fn selection_audio(titles: &[(&String, &TitleAudio)]) -> Option<Selec
     for (_, title) in rest {
         share(&mut facts, &title.facts);
     }
-    let mixed: Vec<AudioField> = FIELDS
+    let mixed: Vec<AudioField> = AudioField::ALL
         .into_iter()
         .filter(|field| rest.iter().any(|(_, title)| differs(*field, first, title)))
         .collect();
@@ -194,19 +206,6 @@ fn auto_reading(
     };
     AutoReading { outcome, problem }
 }
-
-const FIELDS: [AudioField; 10] = [
-    AudioField::Format,
-    AudioField::Intent,
-    AudioField::Encoder,
-    AudioField::FaacProfile,
-    AudioField::RateControl,
-    AudioField::Quality,
-    AudioField::NativeSpeed,
-    AudioField::Bitrate,
-    AudioField::SampleRate,
-    AudioField::Channels,
-];
 
 fn share(facts: &mut AudioChoiceFacts, other: &AudioChoiceFacts) {
     for option in &mut facts.encoder_options {
@@ -285,7 +284,10 @@ impl AudioDefaults {
     }
 
     pub(crate) fn edit(&mut self, edit: AudioEdit) -> Option<EncoderDefaults> {
-        (self.choice.edit(edit, self.caps.as_ref(), false) == EditResult::Changed)
+        (self
+            .choice
+            .edit(edit, self.caps.as_ref(), EditScope::Defaults)
+            == EditResult::Changed)
             .then(|| self.choice.defaults(self.caps.as_ref()))
     }
 
@@ -299,7 +301,7 @@ impl AudioDefaults {
         edit: AudioEdit,
     ) -> Option<TitleAudioRequest> {
         let mut choice = self.title_choice(request);
-        (choice.edit(edit, self.caps.as_ref(), true) != EditResult::Refused)
+        (choice.edit(edit, self.caps.as_ref(), EditScope::Title) != EditResult::Refused)
             .then(|| choice.request(self.caps.as_ref()))
     }
 

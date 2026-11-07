@@ -45,6 +45,18 @@ pub(crate) enum EditResult {
     Refused,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EditScope {
+    Defaults,
+    Title,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RateOffer {
+    by_any_encoder: bool,
+    by_this_encoder: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioChoice {
@@ -188,7 +200,7 @@ impl AudioChoice {
         }
         self.native_speed = self.native_speed.min(caps.native_speed_max);
         if let SampleRateConfig::Explicit(rate) = self.sample_rate {
-            if !caps.explicit_sample_rates.contains(&rate) {
+            if !self.rate_offer(rate, caps).by_any_encoder {
                 self.sample_rate = if caps.sample_rate_auto {
                     SampleRateConfig::Auto
                 } else {
@@ -215,12 +227,12 @@ impl AudioChoice {
         &mut self,
         edit: AudioEdit,
         caps: Option<&EncoderSettingsCapabilities>,
-        select_encode_on_same: bool,
+        scope: EditScope,
     ) -> EditResult {
         let result = self.apply(edit, caps);
         let selects = match result {
             EditResult::Changed => true,
-            EditResult::Same => select_encode_on_same,
+            EditResult::Same => scope == EditScope::Title,
             EditResult::Refused => false,
         };
         if selects && edit.selects_encode() {
@@ -271,24 +283,21 @@ impl AudioChoice {
                     set(&mut self.aac_bitrate_kbps, kbps)
                 }
             }
-            AudioEdit::SampleRate(rate) => {
-                if let SampleRateConfig::Explicit(hz) = rate {
-                    if !self.allowed_sample_rates(caps).contains(&hz) {
-                        return EditResult::Refused;
-                    }
-                }
-                let offered = match (rate, caps) {
-                    (SampleRateConfig::Auto, Some(caps)) => caps.sample_rate_auto,
-                    (SampleRateConfig::Explicit(hz), Some(caps)) => {
-                        caps.explicit_sample_rates.contains(&hz)
-                    }
-                    (SampleRateConfig::Auto, None) => true,
-                    (SampleRateConfig::Explicit(_), None) => false,
+            AudioEdit::SampleRate(SampleRateConfig::Auto) => {
+                set(&mut self.sample_rate, SampleRateConfig::Auto)
+            }
+            AudioEdit::SampleRate(SampleRateConfig::Explicit(hz)) => {
+                let Some(caps) = caps else {
+                    return EditResult::Refused;
                 };
+                let offer = self.rate_offer(hz, caps);
+                if !offer.by_this_encoder {
+                    return EditResult::Refused;
+                }
                 set(
                     &mut self.sample_rate,
-                    if offered {
-                        rate
+                    if offer.by_any_encoder {
+                        SampleRateConfig::Explicit(hz)
                     } else {
                         SampleRateConfig::Auto
                     },
@@ -346,6 +355,13 @@ impl AudioChoice {
         config.explicit_sample_rates.clone()
     }
 
+    fn rate_offer(&self, hz: u32, caps: &EncoderSettingsCapabilities) -> RateOffer {
+        RateOffer {
+            by_any_encoder: caps.explicit_sample_rates.contains(&hz),
+            by_this_encoder: self.allowed_sample_rates(Some(caps)).contains(&hz),
+        }
+    }
+
     fn bitrate_mode(&self, caps: Option<&EncoderSettingsCapabilities>) -> BitrateMode {
         if self.format.is_opus() {
             return BitrateMode::VbrTarget;
@@ -381,7 +397,7 @@ impl AudioChoice {
     fn request_sample_rate(&self, caps: Option<&EncoderSettingsCapabilities>) -> SampleRateConfig {
         match (self.sample_rate, caps) {
             (SampleRateConfig::Explicit(hz), Some(caps))
-                if !caps.explicit_sample_rates.contains(&hz) =>
+                if !self.rate_offer(hz, caps).by_any_encoder =>
             {
                 SampleRateConfig::Auto
             }
@@ -439,11 +455,11 @@ impl AudioChoice {
                     .map(|entry| entry.profile)
                     .collect()
             }),
-            sample_rate_supported: match self.sample_rate {
-                SampleRateConfig::Explicit(hz) => {
-                    caps.is_none() || allowed_sample_rates.contains(&hz)
+            sample_rate_supported: match (self.sample_rate, caps) {
+                (SampleRateConfig::Explicit(hz), Some(caps)) => {
+                    self.rate_offer(hz, caps).by_this_encoder
                 }
-                SampleRateConfig::Auto => true,
+                _ => true,
             },
             allowed_sample_rates,
             estimate_kbps: bitrate_mode.fixed_kbps(self.settings(caps).bitrate_kbps),
