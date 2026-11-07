@@ -97,15 +97,17 @@ describe('Tauri contract between the frontend and src-tauri', () => {
 			.filter((file) => !file.endsWith('_tests.rs'))
 			.map(read)
 			.join('\n');
-		const unsent = ['SessionIntent', 'SettingsIntent', 'RemoteUiIntent'].flatMap((union) =>
-			intentKinds(generated, union)
+		const unsent = ['SessionIntent', 'SettingsIntent', 'RemoteUiIntent'].flatMap((union) => {
+			const kinds = intentKinds(generated, union);
+			expect(kinds.length, `${union} yields no intent kinds; was it renamed?`).toBeGreaterThan(0);
+			return kinds
 				.filter(
 					(kind) =>
 						!new RegExp(`\\bkind:\\s*['"]${kind}['"]`).test(frontend) &&
 						!new RegExp(`\\b${union}::${pascal(kind)}\\b`).test(host),
 				)
-				.map((kind) => `${union}.${kind}`),
-		);
+				.map((kind) => `${union}.${kind}`);
+		});
 		expect(unsent, 'Remove each intent from the Rust enum, or send it from non-test code').toEqual(
 			[],
 		);

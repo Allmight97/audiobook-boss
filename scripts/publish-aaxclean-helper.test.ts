@@ -129,6 +129,14 @@ describe('publishAaxcleanHelper', () => {
 			publishAaxcleanHelper(repoRoot, { commandRunner: withSdk(commandRunner), force: true }),
 		).toBe(paths.sidecarPath);
 		expect(readFileSync(paths.sidecarPath, 'utf8')).toBe('fresh helper');
+		const hostTriples: Record<string, string> = {
+			'darwin/arm64': 'aarch64-apple-darwin',
+			'linux/x64': 'x86_64-unknown-linux-gnu',
+			'linux/arm64': 'aarch64-unknown-linux-gnu',
+		};
+		expect(path.basename(paths.sidecarPath)).toBe(
+			`abb-aaxclean-helper-${hostTriples[`${process.platform}/${process.arch}`]}`,
+		);
 	});
 
 	it('republishes when the sidecar is a leftover stub', () => {

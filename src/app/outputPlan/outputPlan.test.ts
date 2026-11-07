@@ -110,7 +110,7 @@ describe('output plan owner', () => {
 	it('words each title estimate from the engine', async () => {
 		const app = await open();
 		const [title] = app.input.view().files;
-		const id = title.inputId ?? title.path;
+		const id = title.inputId;
 		expect(app.output.estimateTitleSizeText(title)).toBeNull();
 
 		engine.seedTitleAudio(id, titleAudioRequest(), {

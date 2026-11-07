@@ -11,8 +11,11 @@ export function ConcurrencyControl(): JSX.Element {
 
 	return (
 		<div class="concurrency-control" title="Concurrent Jobs">
-			<span class="concurrency-label">Number of Jobs:</span>
+			<label class="concurrency-label" for="concurrency-select">
+				Number of Jobs:
+			</label>
 			<select
+				id="concurrency-select"
 				class="concurrency-select"
 				value={view().selection}
 				disabled={!view().controlsEnabled}

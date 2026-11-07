@@ -380,16 +380,7 @@ describe('Solid input workbench', () => {
 	});
 
 	it("shows a grouped title's chapter total from the engine", async () => {
-		const chapter = { title: 'One', startMs: 0, endMs: 1000 };
-		const files = ['part1.mp3', 'part2.mp3'].map((name) =>
-			analyzedFile(`/books/${name}`, {
-				chapterPlan: {
-					chapters: [chapter],
-					fromCue: false,
-					sourceFingerprint: '',
-				},
-			}),
-		);
+		const files = ['part1.mp3', 'part2.mp3'].map((name) => analyzedFile(`/books/${name}`));
 		runtime = await runtimeFor({ files });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
@@ -398,6 +389,11 @@ describe('Solid input workbench', () => {
 		});
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
 		engine.seedGroup(files);
+		engine.change((state) => {
+			state.titles.titleTotals = {
+				[files[0].inputId]: { chapterCount: 2, durationSeconds: 2, sizeBytes: 2000 },
+			};
+		});
 		await waitFor(() => {
 			const row = screen.getByRole('option', { name: 'part1.mp3' });
 			expect(row).toHaveTextContent('2 chapters');

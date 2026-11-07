@@ -109,11 +109,11 @@ describe('encoding owner', () => {
 				};
 			};
 			readings(
-				alpha.inputId ?? '',
+				alpha.inputId,
 				{ outcome: { kind: 'value', value: 48000 }, problem: null },
 				{ outcome: { kind: 'value', value: 2 }, problem: null },
 			);
-			readings(beta.inputId ?? '', unresolved, {
+			readings(beta.inputId, unresolved, {
 				outcome: { kind: 'unresolved' },
 				problem: 'Choose Mono or Stereo to downmix.',
 			});

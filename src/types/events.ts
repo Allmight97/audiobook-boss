@@ -1,3 +1,4 @@
+import type { QuitPressAgainEvent } from '../lib/generated/tauri';
 import type { SettingsSnapshot } from './appSettings';
 import type { SessionUpdate } from './session';
 import type { WorkOperationsUpdate } from './workRuntime';
@@ -12,7 +13,6 @@ export const EVENTS = {
 export type WorkOperationsUpdateEvent = WorkOperationsUpdate;
 export type SessionUpdateEvent = SessionUpdate;
 export type SettingsUpdateEvent = SettingsSnapshot;
-export type QuitPressAgainEvent = { windowMs: number };
 
 interface TauriFileDropEvents {
 	'tauri://drag-drop': { paths: string[]; position: { x: number; y: number } };

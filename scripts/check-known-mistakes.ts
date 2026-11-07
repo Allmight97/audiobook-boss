@@ -157,7 +157,10 @@ const RULES: Rule[] = [
 	{
 		appliesTo: (file) => file === 'src/test/fixtures/fakeEngine.ts',
 		comment: /^\s*(\/\/|\*|\/\*)/,
-		findIn: (line) => line.match(/\bintent\.kind\b(?!\s*===\s*'import')/)?.[0] ?? null,
+		findIn: (line) =>
+			line.match(
+				/\bintent\.kind\b(?!\s*===\s*'import')|\.(?:titleTotals|totalSizeBytes|canGroup)\s*=(?!=)/,
+			)?.[0] ?? null,
 		message:
 			'puts a product rule in the fake engine. Fix: seed the answer on the intent, or add a recorded scenario (src/app/AGENTS.md, Tests).',
 	},

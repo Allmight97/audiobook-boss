@@ -69,14 +69,14 @@ function outcomeNotice(outcome: SessionOutcome): string | null {
 function shareUnchangedFiles(previous: SessionTitles, next: SessionTitles): SessionTitles {
 	const known = new Map<string, { file: AudioFile; content: string }>();
 	const remember = (file: AudioFile) =>
-		known.set(file.inputId ?? file.path, {
+		known.set(file.inputId, {
 			file,
 			content: JSON.stringify(file),
 		});
 	previous.files.forEach(remember);
 	Object.values(previous.titleSourcesByIdentity).flat().forEach(remember);
 	const share = (file: AudioFile): AudioFile => {
-		const existing = known.get(file.inputId ?? file.path);
+		const existing = known.get(file.inputId);
 		return existing && existing.content === JSON.stringify(file) ? existing.file : file;
 	};
 	return {

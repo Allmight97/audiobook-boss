@@ -35,5 +35,5 @@ export type ImportIntent =
 	| { readonly type: 'importPaths'; readonly paths: ReadonlyArray<string> };
 
 export function fileIdentityKey(file: AudioFile): string {
-	return file.inputId ?? file.path;
+	return file.inputId;
 }
