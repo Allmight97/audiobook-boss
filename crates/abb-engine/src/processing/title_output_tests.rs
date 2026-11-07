@@ -34,7 +34,7 @@ fn title(folder: &Path) -> (Arc<TitleOutput>, Writes) {
     let mut plan = TitleOutputPlan {
         anchor: PathBuf::from("/books/alpha.m4b"),
         sources: Vec::new(),
-        base: Some(base()),
+        base: base(),
         accepted: None,
         output_dir: folder.to_path_buf(),
         naming: OutputNamingConfig::default(),

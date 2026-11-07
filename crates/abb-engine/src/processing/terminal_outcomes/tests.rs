@@ -55,7 +55,7 @@ mod entry_tests {
 
     fn planned_batch_job(index: usize, action: PlannedOutputAction) -> PlannedProcessingJob {
         PlannedProcessingJob {
-            source_metadata: None,
+            source_metadata: crate::metadata::AudiobookMetadata::default(),
             source_paths: vec![],
             input_index: index,
             input_path: PathBuf::from(format!("/tmp/input-{index}.m4b")),

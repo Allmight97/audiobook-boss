@@ -354,10 +354,6 @@ impl MetadataIntentPatch {
         apply_album_sort_patch(&patch.album_sort, &mut base);
         Ok(base)
     }
-
-    pub fn to_processing_overlay(&self) -> Result<AudiobookMetadata> {
-        self.apply_to_metadata(AudiobookMetadata::new())
-    }
 }
 
 impl MetadataIntentValidationResult {

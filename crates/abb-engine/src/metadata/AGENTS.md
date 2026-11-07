@@ -13,6 +13,16 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   intents; `abb-dev` reads through `Engine::read_audio_metadata`. Real file
   saves route through `save_metadata_intent`, so series validation can see
   source metadata.
+- `read_chapters` is the one reader of a file's chapters (titles from the
+  `title` tag, starts and ends rounded to milliseconds); import, passthrough
+  and verification call it, so they agree. `ResolvedCover` is the one choice
+  of the cover to embed (the output's own cover, else the source's) with its
+  failure rule: a failed source cover warns and the title continues, a failed
+  chosen cover fails the title. The native encoder and the remux both use it.
+- `container::Container` names a file's container once, from an FFmpeg demuxer
+  or muxer name or an extension (MP4 family, Matroska, MP3, other). Ask it
+  whether chapter ends are stored, which album-sort key applies and which
+  muxer writes it; never compare FFmpeg name strings.
 - Audio maps `AudioFile` to `PassthroughSource` at call sites
   (`check-known-mistakes.ts` rejects `crate::audio::AudioFile` here).
 - `finish_artifact_tags` is the last step after a native mux or a remux:

@@ -1,8 +1,6 @@
 use crate::audio::FileListInfo;
 use crate::errors::{AppError, Result};
-use crate::metadata::{
-    plan_metadata_outcome, CoverArtPassthroughPolicy, MetadataOutcomePlan, MetadataOutcomeRequest,
-};
+use crate::metadata::{plan_metadata_outcome, CoverArtPassthroughPolicy, MetadataOutcomePlan};
 use crate::output_artifact::OutputNamingConfig;
 use crate::output_artifact::{
     build_output_path_preview, enforce_output_plan_review, ensure_output_parent_dirs,
@@ -27,7 +25,7 @@ pub(crate) struct PlannedProcessingJob {
     pub(crate) output: ResolvedOutputPlan,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
     /// The anchor's own tags as read for this plan.
-    pub(crate) source_metadata: Option<crate::metadata::AudiobookMetadata>,
+    pub(crate) source_metadata: crate::metadata::AudiobookMetadata,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
     pub(crate) audio_plan: crate::audio::TitleAudioPlan,
     pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
@@ -294,14 +292,11 @@ fn build_title_processing_jobs(
             .map(|source| crate::audio::validate_input_audio_path(Path::new(&source.path)))
             .collect::<Result<Vec<_>>>()?;
         let file_patch = metadata.and_then(|map| map.get(input)).cloned();
-        let metadata_outcome = plan_metadata_outcome(MetadataOutcomeRequest {
-            input_path: Some(&path),
-            intent_patch: file_patch.as_ref(),
-        })?;
+        let metadata_outcome = plan_metadata_outcome(&path, file_patch.as_ref())?;
         let metadata_outcome: MetadataOutcomePlan = metadata_outcome;
         let requested_output = build_output_path_preview(
             &inputs.base_output_dir,
-            metadata_outcome.naming_metadata.as_ref(),
+            Some(&metadata_outcome.naming_metadata),
             inputs.output_naming.clone(),
             Some(&path),
             payload.audio_requests[index].format().extension(),
@@ -325,7 +320,7 @@ fn build_title_processing_jobs(
             source_paths,
             output,
             source_metadata: metadata_outcome.source_metadata,
-            metadata: metadata_outcome.effective_metadata,
+            metadata: Some(metadata_outcome.effective_metadata),
             cover_art_passthrough: metadata_outcome.cover_art_passthrough,
             audio_plan,
             metadata_intent: metadata_outcome.write_intent,

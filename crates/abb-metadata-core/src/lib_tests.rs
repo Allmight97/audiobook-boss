@@ -220,7 +220,7 @@ fn series_family_validation_rejects_touched_orphan_shapes() {
         ..Default::default()
     };
     assert!(subseries_only
-        .to_processing_overlay()
+        .apply_to_metadata(AudiobookMetadata::default())
         .expect_err("orphan subseries should fail")
         .to_string()
         .contains("Sub-series requires a Series"));
@@ -230,7 +230,7 @@ fn series_family_validation_rejects_touched_orphan_shapes() {
         ..Default::default()
     };
     assert!(part_only
-        .to_processing_overlay()
+        .apply_to_metadata(AudiobookMetadata::default())
         .expect_err("orphan series part should fail")
         .to_string()
         .contains("requires a Series"));
@@ -242,7 +242,7 @@ fn series_family_validation_rejects_touched_orphan_shapes() {
         ..Default::default()
     };
     assert!(subseries_part_without_primary_part
-        .to_processing_overlay()
+        .apply_to_metadata(AudiobookMetadata::default())
         .expect_err("subseries part without primary part should fail")
         .to_string()
         .contains("requires Series, Series sequence"));
@@ -263,22 +263,6 @@ fn unrelated_edits_do_not_reject_inherited_orphan_series_tags() {
         .apply_to_metadata(source.clone())
         .expect("non-series intent preserves inherited orphan");
     assert_eq!(merged.series_part.as_deref(), Some("7"));
-}
-
-#[test]
-fn processing_patch_into_overlay_applies_without_source_metadata() {
-    let patch = MetadataIntentPatch {
-        title: Some(PatchOp::Set("Overlay Title".to_string())),
-        series: Some(PatchOp::Set("Series Name".to_string())),
-        ..Default::default()
-    };
-
-    let resolved = patch
-        .to_processing_overlay()
-        .expect("overlay-only patch should resolve");
-
-    assert_eq!(resolved.title.as_deref(), Some("Overlay Title"));
-    assert_eq!(resolved.series.as_deref(), Some("Series Name"));
 }
 
 #[test]

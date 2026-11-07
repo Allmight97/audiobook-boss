@@ -167,22 +167,7 @@ fn validate_audio_format(
                 0.0
             }
         };
-        let chapters = ictx
-            .chapters()
-            .map(|chapter| AudioChapter {
-                title: chapter.metadata().get("title").map(str::to_string),
-                start_ms: ff::Rescale::rescale(
-                    &chapter.start(),
-                    chapter.time_base(),
-                    ff::Rational(1, 1_000),
-                ),
-                end_ms: ff::Rescale::rescale(
-                    &chapter.end(),
-                    chapter.time_base(),
-                    ff::Rational(1, 1_000),
-                ),
-            })
-            .collect();
+        let chapters = crate::metadata::read_chapters(&ictx);
         let display_tags = crate::metadata::display_tags_from_ffmpeg_dict(&ictx.metadata());
         let container_name = ictx.format().name().to_string();
         let length_estimated = crate::metadata::length_is_estimated(&ictx);

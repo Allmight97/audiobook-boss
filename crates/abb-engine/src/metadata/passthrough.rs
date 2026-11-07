@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use ffmpeg_next as ff;
 
+use super::container::Container;
 use crate::errors::Result;
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 
@@ -168,19 +169,14 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
         let chapters_before = passthrough.chapters.len();
         match ff::format::input(&file.path) {
             Ok(ictx) => {
-                if file.chapters.is_none() && ictx.nb_chapters() > 0 {
-                    for chapter in ictx.chapters() {
-                        let title = chapter.metadata().get("title").map(str::to_string);
-                        let start_ms = rescale_to_ms(chapter.start(), chapter.time_base())
-                            + cumulative_offset_ms;
-                        let end_ms = rescale_to_ms(chapter.end(), chapter.time_base())
-                            + cumulative_offset_ms;
-                        passthrough.chapters.push(ChapterSpec {
-                            title,
-                            start_ms,
-                            end_ms,
-                        });
-                    }
+                if file.chapters.is_none() {
+                    passthrough
+                        .chapters
+                        .extend(read_chapters(&ictx).into_iter().map(|chapter| ChapterSpec {
+                            start_ms: chapter.start_ms + cumulative_offset_ms,
+                            end_ms: chapter.end_ms + cumulative_offset_ms,
+                            ..chapter
+                        }));
                 }
 
                 if passthrough.cover_art.is_none() {
@@ -242,6 +238,20 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
     passthrough
 }
 
+/// The chapters a file carries, titled from the `title` tag, with starts and
+/// ends rounded to milliseconds. Import, passthrough and the final
+/// verification read chapters through this, so they agree.
+pub fn read_chapters(input: &ff::format::context::Input) -> Vec<ChapterSpec> {
+    input
+        .chapters()
+        .map(|chapter| ChapterSpec {
+            title: chapter.metadata().get("title").map(str::to_string),
+            start_ms: rescale_to_ms(chapter.start(), chapter.time_base()),
+            end_ms: rescale_to_ms(chapter.end(), chapter.time_base()),
+        })
+        .collect()
+}
+
 pub fn add_chapters_to_output(
     octx: &mut ff::format::context::Output,
     chapters: &[ChapterSpec],
@@ -290,15 +300,8 @@ fn verify_chapters_inner(path: &std::path::Path, expected: &[ChapterSpec]) -> Re
         return Ok(());
     }
     let input = ff::format::input(path)?;
-    let actual: Vec<_> = input
-        .chapters()
-        .map(|chapter| ChapterSpec {
-            title: chapter.metadata().get("title").map(str::to_string),
-            start_ms: rescale_to_ms(chapter.start(), chapter.time_base()),
-            end_ms: rescale_to_ms(chapter.end(), chapter.time_base()),
-        })
-        .collect();
-    let ends_stored = !input.format().name().split(',').any(|name| name == "mp4");
+    let actual = read_chapters(&input);
+    let ends_stored = Container::of_input(&input).stores_chapter_ends();
     let mismatch = first_chapter_difference(&actual, expected, ends_stored);
     log::info!(
         "metadata_chapters artifact={} expected={} actual={} first_mismatch={:?}",

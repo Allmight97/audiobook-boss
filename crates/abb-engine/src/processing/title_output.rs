@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::errors::{AppError, Result};
 use crate::metadata::{
-    plan_metadata_outcome_from, AudiobookMetadata, MetadataIntentPatch, MetadataOutcomeRequest,
-    PassthroughSource, PatchOp,
+    plan_metadata_outcome_from, AudiobookMetadata, MetadataIntentPatch, PassthroughSource, PatchOp,
 };
 use crate::output_artifact::{
     build_output_path_preview, lock_output_file, FileIdentity, OutputNamingConfig,
@@ -57,7 +56,7 @@ pub(crate) struct TitleOutputPlan {
     pub(crate) anchor: PathBuf,
     pub(crate) sources: Vec<PassthroughSource>,
     /// The anchor's own tags as read when the export was planned.
-    pub(crate) base: Option<AudiobookMetadata>,
+    pub(crate) base: AudiobookMetadata,
     pub(crate) accepted: Option<MetadataIntentPatch>,
     pub(crate) output_dir: PathBuf,
     pub(crate) naming: OutputNamingConfig,
@@ -392,18 +391,12 @@ impl TitleOutput {
 
 impl TitleOutputPlan {
     fn tags(&self, intent: Option<&MetadataIntentPatch>) -> Result<(Tags, PathBuf)> {
-        let outcome = plan_metadata_outcome_from(
-            self.base.clone(),
-            MetadataOutcomeRequest {
-                input_path: Some(&self.anchor),
-                intent_patch: intent,
-            },
-        )?;
-        let mut text = outcome.effective_metadata.unwrap_or_default();
+        let outcome = plan_metadata_outcome_from(self.base.clone(), intent)?;
+        let mut text = outcome.effective_metadata;
         text.cover_art = None;
         let location = build_output_path_preview(
             &self.output_dir,
-            outcome.naming_metadata.as_ref(),
+            Some(&outcome.naming_metadata),
             self.naming.clone(),
             Some(&self.anchor),
             &self.extension,
@@ -433,7 +426,7 @@ impl TitleOutputPlan {
     }
 
     fn source_cover(&self) -> Result<Option<Vec<u8>>> {
-        let own = self.base.as_ref().and_then(|base| base.cover_art.clone());
+        let own = self.base.cover_art.clone();
         let cover =
             own.or_else(|| crate::metadata::extract_passthrough_metadata(&self.sources).cover_art);
         cover

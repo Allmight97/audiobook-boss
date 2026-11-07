@@ -151,7 +151,7 @@ fn link_both(desk: &mut Desk) -> Vec<Arc<TitleOutput>> {
                 TitleOutputPlan {
                     anchor: path(name),
                     sources: Vec::new(),
-                    base: None,
+                    base: crate::metadata::AudiobookMetadata::default(),
                     accepted: None,
                     output_dir: PathBuf::from("/library"),
                     naming: OutputNamingConfig::default(),

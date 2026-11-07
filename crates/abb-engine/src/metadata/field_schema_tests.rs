@@ -149,10 +149,6 @@ fn key_sets_compare_ignoring_case() {
 }
 
 #[test]
-fn the_album_sort_key_follows_the_container() {
-    assert_eq!(album_sort_key("mp3"), "album-sort");
-    for container in ["mp4", "matroska,webm", "flac", "ogg"] {
-        assert_eq!(album_sort_key(container), "sort_album", "{container}");
-    }
+fn both_album_sort_spellings_are_read_id3_first() {
     assert_eq!(ALBUM_SORT_KEYS, ["album-sort", "sort_album"]);
 }

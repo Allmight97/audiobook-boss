@@ -7,7 +7,7 @@ fn output() -> Arc<TitleOutput> {
         TitleOutputPlan {
             anchor: PathBuf::from("/books/alpha.m4b"),
             sources: Vec::new(),
-            base: None,
+            base: crate::metadata::AudiobookMetadata::default(),
             accepted: None,
             output_dir: PathBuf::from("/library"),
             naming: OutputNamingConfig::default(),

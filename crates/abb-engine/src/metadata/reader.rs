@@ -1,3 +1,4 @@
+use super::container::Container;
 use super::field_schema::{comment_key_rank, position_keys, text_keys, KeySet, ALBUM_SORT_KEYS};
 use super::{mp4ameta_bridge, normalize_publication_date, split_series_list, AudiobookMetadata};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
@@ -17,9 +18,8 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
 
     ff::init().map_err(AppError::Ffmpeg)?;
     let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
-    let route = super::container::classify_format_name(ictx.format().name());
 
-    if matches!(route, super::container::ContainerRoute::Mp4Family) {
+    if Container::of_input(&ictx).is_mp4_family() {
         drop(ictx);
         let mut metadata = mp4ameta_bridge::read_metadata(path)?;
         metadata.cover_art = normalize_cover_art(metadata.cover_art);

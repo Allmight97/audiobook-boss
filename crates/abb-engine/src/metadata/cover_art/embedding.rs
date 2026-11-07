@@ -1,6 +1,7 @@
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 
+use super::super::container::Container;
 use super::super::ffi::set_attached_pic_disposition;
 use super::format::{detect_cover_art_format, detect_image_dimensions, CoverFormat};
 
@@ -19,7 +20,7 @@ pub fn add_cover_art_stream_pre_header(
         ));
     };
 
-    if octx.format().name() == "matroska" {
+    if Container::of_output(octx) == Container::Matroska {
         return add_matroska_cover(octx, cover_data, format).map(Some);
     }
     let codec_id = format.codec_id();

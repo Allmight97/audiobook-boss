@@ -13,16 +13,6 @@ pub(super) const MP4_ALBUM_SORT_KEY: &str = "sort_album";
 /// Both FFmpeg spellings of the album sort, in read precedence.
 pub(super) const ALBUM_SORT_KEYS: [&str; 2] = [ID3_ALBUM_SORT_KEY, MP4_ALBUM_SORT_KEY];
 
-/// The FFmpeg key a container stores the album sort under: MP3 names the ID3
-/// frame `album-sort`; every other container, Matroska included, `sort_album`.
-pub(super) fn album_sort_key(container: &str) -> &'static str {
-    if container == "mp3" {
-        ID3_ALBUM_SORT_KEY
-    } else {
-        MP4_ALBUM_SORT_KEY
-    }
-}
-
 /// A set of FFmpeg dictionary keys, compared ignoring case.
 #[derive(Debug, Clone, Copy)]
 pub(super) enum KeySet {

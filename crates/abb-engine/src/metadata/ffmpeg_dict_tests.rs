@@ -31,7 +31,7 @@ fn comment_edits_replace_language_aliases_and_preserve_technical_comments() {
             comment: comment.map(str::to_owned),
             ..Default::default()
         });
-        let merged = merge_metadata_with_plan(source, &plan, "mp4");
+        let merged = merge_metadata_with_plan(source, &plan, &Container::Mp4);
         assert_eq!(merged.get("comment-iTunSMPB-eng"), Some("gapless timing"));
         assert_eq!(merged.get("comment-iTunNORM-eng"), Some("normalization"));
         for key in [
@@ -66,7 +66,7 @@ fn clearing_author_and_date_removes_their_alias_keys() {
         ..Default::default()
     });
 
-    let merged = merge_metadata_with_plan(source, &plan, "mp4");
+    let merged = merge_metadata_with_plan(source, &plan, &Container::Mp4);
 
     for key in ["artist", "album_artist", "date", "year"] {
         assert_eq!(merged.get(key), None, "{key}");
@@ -105,7 +105,7 @@ fn clearing_series_removes_every_series_alias_whatever_its_key_case() {
             ..Default::default()
         });
 
-        let merged = merge_metadata_with_plan(source, &plan, "matroska,webm");
+        let merged = merge_metadata_with_plan(source, &plan, &Container::Matroska);
 
         for key in series_keys.iter().chain(&part_keys) {
             assert_eq!(merged.get(key), None, "{key}");
@@ -124,7 +124,7 @@ fn replacing_an_album_sort_drops_the_old_one_whatever_its_key_case() {
         ..Default::default()
     });
 
-    let merged = merge_metadata_with_plan(source, &plan, "mp4");
+    let merged = merge_metadata_with_plan(source, &plan, &Container::Mp4);
 
     assert_eq!(merged.get("sort_album"), Some("Requested Sort"));
     assert_eq!(merged.get("album-sort"), None);
@@ -137,7 +137,7 @@ fn merge_metadata_preserves_album_sort_without_explicit_intent() {
         ..Default::default()
     });
 
-    let merged = merge_metadata_with_plan(base_dict(), &plan, "mp4");
+    let merged = merge_metadata_with_plan(base_dict(), &plan, &Container::Mp4);
 
     assert_eq!(merged.get("genre"), Some("Sci-Fi"));
     assert_eq!(merged.get("sort_album"), Some("Custom Sort"));
@@ -149,14 +149,14 @@ fn merge_metadata_sets_and_clears_album_sort_explicitly() {
         album_sort: Some("Requested Sort".to_string()),
         ..Default::default()
     });
-    let set = merge_metadata_with_plan(base_dict(), &set_plan, "mp4");
+    let set = merge_metadata_with_plan(base_dict(), &set_plan, &Container::Mp4);
     assert_eq!(set.get("sort_album"), Some("Requested Sort"));
 
     let clear_plan = plan_of(AudiobookMetadata {
         album_sort: Some(String::new()),
         ..Default::default()
     });
-    let cleared = merge_metadata_with_plan(base_dict(), &clear_plan, "mp4");
+    let cleared = merge_metadata_with_plan(base_dict(), &clear_plan, &Container::Mp4);
     assert_eq!(cleared.get("sort_album"), None);
 }
 
@@ -178,7 +178,7 @@ fn an_mp3_album_sort_goes_under_the_id3_key_and_drops_the_old_one() {
         )
         .expect("album sort patch plans"),
     ] {
-        let merged = merge_metadata_with_plan(existing.clone(), &plan, "mp3");
+        let merged = merge_metadata_with_plan(existing.clone(), &plan, &Container::Mp3);
         assert_eq!(merged.get("album-sort"), Some("Requested Sort"));
         assert_eq!(merged.get("sort_album"), None);
     }
@@ -187,7 +187,7 @@ fn an_mp3_album_sort_goes_under_the_id3_key_and_drops_the_old_one() {
         album_sort: Some(String::new()),
         ..Default::default()
     });
-    let cleared = merge_metadata_with_plan(existing, &clear_plan, "mp3");
+    let cleared = merge_metadata_with_plan(existing, &clear_plan, &Container::Mp3);
     assert_eq!(cleared.get("album-sort"), None);
     assert_eq!(cleared.get("sort_album"), None);
 }
@@ -198,7 +198,7 @@ fn an_mp3_save_that_leaves_album_sort_alone_keeps_both_keys_it_was_given() {
     existing.set("album-sort", "Frame Sort");
     let plan = plan_of(AudiobookMetadata::default());
 
-    let merged = merge_metadata_with_plan(existing, &plan, "mp3");
+    let merged = merge_metadata_with_plan(existing, &plan, &Container::Mp3);
 
     assert_eq!(merged.get("album-sort"), Some("Frame Sort"));
     assert_eq!(merged.get("sort_album"), Some("Custom Sort"));
