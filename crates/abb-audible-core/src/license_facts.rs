@@ -1,7 +1,5 @@
 use abb_media_core::{MediaContainerKind, MediaProtectionKind};
-use abb_remote_source_core::{
-    materialized_source_kind_for_container, AcquisitionStrategy, MaterializedSourceKind,
-};
+use abb_remote_source_core::AcquisitionStrategy;
 use serde_json::Value;
 use std::path::Path;
 
@@ -10,7 +8,6 @@ use crate::json_probe::find_nearest_non_empty_string_for_keys;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LicenseFacts {
     pub content_url: Option<String>,
-    pub content_kind: MaterializedSourceKind,
     pub media_container: MediaContainerKind,
     pub media_protection: MediaProtectionKind,
     pub drm_kind: Option<String>,
@@ -88,12 +85,10 @@ pub fn license_facts_from_value(value: &Value) -> LicenseFacts {
     let drm_kind = find_nearest_non_empty_string_for_keys(value, &["drm_type", "drmType", "drm"]);
     let media_protection =
         abb_media_core::protection_for_container(media_container, drm_kind.as_deref());
-    let content_kind = materialized_source_kind_for_container(media_container);
     let supplemental_pdf_url =
         find_nearest_non_empty_string_for_keys(value, &["pdf_url", "pdfUrl"]);
     LicenseFacts {
         content_url,
-        content_kind,
         media_container,
         media_protection,
         drm_kind,

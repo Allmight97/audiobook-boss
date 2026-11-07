@@ -1,46 +1,5 @@
 use super::*;
 
-#[cfg(unix)]
-use std::ffi::OsString;
-#[cfg(unix)]
-use std::os::unix::ffi::OsStringExt;
-#[cfg(unix)]
-use std::path::PathBuf;
-
-#[test]
-fn materialized_sources_classify_and_only_m4b_family_is_import_ready() {
-    let cases = [
-        ("book.m4b", MaterializedSourceKind::ImportReadyM4b, true),
-        ("book.m4a", MaterializedSourceKind::ImportReadyM4b, true),
-        ("book.aax", MaterializedSourceKind::EncryptedAax, false),
-        ("book.aaxc", MaterializedSourceKind::EncryptedAaxc, false),
-        ("book.pdf", MaterializedSourceKind::SupplementalPdf, false),
-        ("book.mpd", MaterializedSourceKind::Unsupported, false),
-        ("book.mp3", MaterializedSourceKind::Unsupported, false),
-    ];
-
-    for (path, kind, import_ready) in cases {
-        assert_eq!(
-            classify_materialized_source_path(Path::new(path)),
-            kind,
-            "{path}"
-        );
-        assert_eq!(
-            materialized_source_is_import_ready(kind),
-            import_ready,
-            "{path}"
-        );
-    }
-
-    #[cfg(unix)]
-    {
-        let path = PathBuf::from(OsString::from_vec(b"book.\xFFaax".to_vec()));
-        let kind = classify_materialized_source_path(&path);
-        assert_eq!(kind, MaterializedSourceKind::Unsupported);
-        assert!(!materialized_source_is_import_ready(kind));
-    }
-}
-
 #[test]
 fn progress_plan_uses_truthful_stage_bands() {
     let licensing = acquisition_progress(AcquisitionStage::License, Some(0.5), None, None);

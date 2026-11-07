@@ -72,7 +72,6 @@ fn license_response_facts_classify_content_protection_and_voucher() {
 
     let facts = license_facts_from_value(&response);
 
-    assert_eq!(facts.content_kind, MaterializedSourceKind::EncryptedAaxc);
     assert_eq!(facts.media_container, MediaContainerKind::Aaxc);
     assert_eq!(facts.media_protection, MediaProtectionKind::AudibleAaxc);
     assert!(facts.content_url.is_some());
@@ -135,7 +134,6 @@ fn granted_license_has_no_denial() {
 fn license_facts_choose_acquisition_strategy() {
     let import_ready = LicenseFacts {
         content_url: Some("https://cdn.example.test/book.m4b".to_string()),
-        content_kind: MaterializedSourceKind::ImportReadyM4b,
         media_container: MediaContainerKind::M4b,
         media_protection: MediaProtectionKind::None,
         drm_kind: None,
@@ -149,7 +147,6 @@ fn license_facts_choose_acquisition_strategy() {
 
     let encrypted_aax = LicenseFacts {
         content_url: Some("https://cdn.example.test/book.aax".to_string()),
-        content_kind: MaterializedSourceKind::EncryptedAax,
         media_container: MediaContainerKind::Aax,
         media_protection: MediaProtectionKind::AudibleAax,
         drm_kind: Some("Mpeg".to_string()),
@@ -163,7 +160,6 @@ fn license_facts_choose_acquisition_strategy() {
 
     let widevine_protected = LicenseFacts {
         content_url: Some("https://cdn.example.test/book.aaxc".to_string()),
-        content_kind: MaterializedSourceKind::EncryptedAaxc,
         media_container: MediaContainerKind::Aaxc,
         media_protection: MediaProtectionKind::Widevine,
         drm_kind: Some("Widevine".to_string()),
@@ -177,7 +173,6 @@ fn license_facts_choose_acquisition_strategy() {
 
     let missing_url = LicenseFacts {
         content_url: None,
-        content_kind: MaterializedSourceKind::Unsupported,
         media_container: MediaContainerKind::Unknown,
         media_protection: MediaProtectionKind::None,
         drm_kind: None,

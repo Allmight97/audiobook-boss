@@ -1,7 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::path::Path;
-
-pub use abb_media_core::{MediaContainerKind, MediaProtectionKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -13,16 +10,6 @@ pub enum AcquisitionStage {
     ImportHandoff,
     Failed,
     Cancelled,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
-pub enum MaterializedSourceKind {
-    ImportReadyM4b,
-    EncryptedAax,
-    EncryptedAaxc,
-    SupplementalPdf,
-    Unsupported,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -49,14 +36,6 @@ pub struct AcquisitionProgress {
     pub current_item_index: Option<u32>,
     pub total_items: Option<u32>,
     pub terminal: bool,
-}
-
-pub fn classify_materialized_source_path(path: &Path) -> MaterializedSourceKind {
-    materialized_source_kind_for_container(abb_media_core::classify_media_container_path(path))
-}
-
-pub fn materialized_source_is_import_ready(kind: MaterializedSourceKind) -> bool {
-    matches!(kind, MaterializedSourceKind::ImportReadyM4b)
 }
 
 pub fn acquisition_progress(
@@ -109,20 +88,6 @@ pub fn acquisition_progress_for_current_title(
     progress.current_item_index = Some(item_index);
     progress.total_items = Some(total_items);
     progress
-}
-
-pub fn materialized_source_kind_for_container(
-    container: MediaContainerKind,
-) -> MaterializedSourceKind {
-    match container {
-        MediaContainerKind::M4b | MediaContainerKind::M4a => MaterializedSourceKind::ImportReadyM4b,
-        MediaContainerKind::Aax => MaterializedSourceKind::EncryptedAax,
-        MediaContainerKind::Aaxc => MaterializedSourceKind::EncryptedAaxc,
-        MediaContainerKind::SupplementalPdf => MaterializedSourceKind::SupplementalPdf,
-        MediaContainerKind::Dash | MediaContainerKind::Unknown => {
-            MaterializedSourceKind::Unsupported
-        }
-    }
 }
 
 #[cfg(test)]

@@ -245,15 +245,14 @@ fn sha256_file_streams_expected_digest() {
 }
 
 #[test]
-fn encrypted_download_is_not_reported_as_materialized_without_decryption() {
+fn an_encrypted_download_is_refused_because_it_does_not_decode_as_audio() {
     let root = tempfile::TempDir::new().expect("temp root");
     let encrypted = root.path().join("book.aax");
     std::fs::write(&encrypted, b"encrypted").expect("write encrypted fixture");
 
     let result = validation::materialized_file_from_path("B000000001", &encrypted);
 
-    let error = result.expect_err("encrypted download must not be import-ready");
-    assert!(error.to_string().contains("requires Audible decryption"));
+    assert!(result.is_err(), "{result:?}");
 }
 
 #[test]

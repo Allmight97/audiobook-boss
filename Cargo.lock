@@ -112,7 +112,6 @@ dependencies = [
 name = "abb-remote-source-core"
 version = "0.1.0"
 dependencies = [
- "abb-media-core",
  "serde",
  "specta",
  "specta-typescript",
