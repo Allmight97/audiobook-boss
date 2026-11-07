@@ -176,10 +176,7 @@ impl ReqwestProwlarrAdapter {
                     status.as_u16(),
                     error.without_url()
                 );
-                return Ok(ProwlarrGrabOutcome {
-                    unconfirmed: status.is_success(),
-                    ..grab_failed(ANSWER_UNREADABLE)
-                });
+                return Ok(unreadable_answer(status));
             }
         };
 
@@ -550,8 +547,21 @@ const GRAB_UNCONFIRMED: &str = "Prowlarr did not answer in time, so this release
 
 const ANSWER_UNREADABLE: &str = "Prowlarr's answer could not be read. Details are in the log.";
 
+const ANSWER_UNREADABLE_MAY_BE_SENT: &str = "Prowlarr's answer could not be read, so this release may already be sent. Check your downloader before you Retry.";
+
 const PROWLARR_NOT_RESPONDING: &str =
     "Prowlarr is not responding. Check that it is running, then Retry.";
+
+fn unreadable_answer(status: StatusCode) -> ProwlarrGrabOutcome {
+    if status.is_success() {
+        ProwlarrGrabOutcome {
+            unconfirmed: true,
+            ..grab_failed(ANSWER_UNREADABLE_MAY_BE_SENT)
+        }
+    } else {
+        grab_failed(ANSWER_UNREADABLE)
+    }
+}
 
 fn grab_failed(line: &str) -> ProwlarrGrabOutcome {
     ProwlarrGrabOutcome {

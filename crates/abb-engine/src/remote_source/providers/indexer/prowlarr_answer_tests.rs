@@ -4,7 +4,18 @@ use std::time::Duration;
 
 #[tokio::test]
 async fn an_answer_that_cannot_be_read_shows_a_fixed_line_without_the_address() {
-    for (status, unconfirmed) in [("200 OK", true), ("500 Internal Server Error", false)] {
+    for (status, unconfirmed, line) in [
+        (
+            "200 OK",
+            true,
+            "Prowlarr's answer could not be read, so this release may already be sent. Check your downloader before you Retry.",
+        ),
+        (
+            "500 Internal Server Error",
+            false,
+            "Prowlarr's answer could not be read. Details are in the log.",
+        ),
+    ] {
         let (listener, addr) = start_listener().await;
         #[expect(
             clippy::disallowed_methods,
@@ -36,9 +47,6 @@ async fn an_answer_that_cannot_be_read_shows_a_fixed_line_without_the_address() 
         server.await.expect("server");
         assert!(!outcome.accepted, "{status}");
         assert_eq!(outcome.unconfirmed, unconfirmed, "{status}");
-        assert_eq!(
-            outcome.message, "Prowlarr's answer could not be read. Details are in the log.",
-            "{status}"
-        );
+        assert_eq!(outcome.message, line, "{status}");
     }
 }
