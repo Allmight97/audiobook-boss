@@ -1,11 +1,13 @@
 import { createEffect, createSignal, type Accessor } from 'solid-js';
 import { toUserMessage } from '../../lib/tauri/appError';
-import type { RemoteUiIntent } from '../../lib/generated/tauri';
+import type { IndexerCategoryOption, RemoteUiIntent } from '../../lib/generated/tauri';
 import { createTypingEcho, type EngineLink } from '../engineLink';
 
 export type IndexerConnectionSettingsView = {
 	baseUrlDraft: string;
+	usesHttp: boolean;
 	categoryIdsDraft: number[];
+	categoryOptions: readonly IndexerCategoryOption[];
 	categoriesRefused: boolean;
 	apiKeyDraft: string;
 	apiKeyConfigured: boolean;
@@ -67,7 +69,9 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 						: localError;
 			return {
 				baseUrlDraft: typed.valueOf('baseUrl') ?? draft.baseUrl,
+				usesHttp: draft.usesHttp,
 				categoryIdsDraft: draft.categoryIds,
+				categoryOptions: draft.categoryOptions,
 				categoriesRefused: draft.emptyCategoriesRefused,
 				apiKeyDraft: keyEcho,
 				apiKeyConfigured: draft.apiKeyConfigured,

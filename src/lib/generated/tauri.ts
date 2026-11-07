@@ -446,6 +446,12 @@ export type HandoffRefusal = { kind: "importFailed"; error: AppErrorEnvelope } |
 /**  The files were already listed, or a reset dropped the import. */
 { kind: "nothingAdded" };
 
+export type IndexerCategoryOption = {
+	id: number,
+	label: string,
+	recommended: boolean,
+};
+
 /**
  *  The Indexer server and categories a search uses. The API key lives in the
  *  credential store, under the URL.
@@ -457,7 +463,14 @@ export type IndexerConnection = {
 
 export type IndexerDraftSnapshot = {
 	baseUrl: string,
+	/**  The draft URL is plain HTTP, so the form warns that it is unencrypted. */
+	usesHttp: boolean,
 	categoryIds: number[],
+	/**
+	 *  Every category the form offers: the known ones, then any other
+	 *  category the draft or the saved connection holds, so it can be unchecked.
+	 */
+	categoryOptions: IndexerCategoryOption[],
 	apiKeyConfigured: boolean,
 	apiKeyEntered: boolean,
 	save: RemoteDraftStatus,

@@ -1,6 +1,6 @@
 use super::{
-    lane_status, ProviderId, ReleaseGrabStatus, RemoteAcquisitionSnapshot, RemoteDraftStatus,
-    RemoteLibrarySnapshot, RemoteUiSnapshot,
+    indexer_lane, lane_status, ProviderId, ReleaseGrabStatus, RemoteAcquisitionSnapshot,
+    RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiSnapshot,
 };
 use crate::host::EngineEvent;
 use crate::remote_source::{RemoteRevisions, RemoteSourceRuntime};
@@ -83,6 +83,10 @@ impl super::UiState {
         let remote = &*self.snapshot;
         let mut snapshot = remote.clone();
         snapshot.busy = self.lane_busy();
+        snapshot.connection.uses_http = indexer_lane::uses_http(&remote.connection.base_url);
+        snapshot.connection.category_options = self
+            .indexer
+            .category_options(&remote.connection.category_ids);
         snapshot.audible_message =
             lane_status::audible_message(remote, &self.audible, &self.library);
         if remote.lane == ProviderId::Indexer {

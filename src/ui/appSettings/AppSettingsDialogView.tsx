@@ -1,7 +1,11 @@
-import { createEffect, createMemo, createSignal, onSettled, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
-import type { AcquisitionLane, AppSettings } from '../../lib/generated/tauri';
+import type {
+	AcquisitionLane,
+	AppSettings,
+	IndexerCategoryOption,
+} from '../../lib/generated/tauri';
 import { bitrateModeLabel, encoderLabel } from '../../app/encoding';
 import { useAppRuntime } from '../../app/runtime';
 import { QUIT_SHORTCUT } from '../../lib/platform';
@@ -12,17 +16,12 @@ import './appSettingsDialog.css';
 
 const RESET_CONFIRM_MS = 4000;
 
-const INDEXER_CATEGORY_OPTIONS: ReadonlyArray<{ readonly id: number; readonly label: string }> = [
-	{ id: 3030, label: 'Audiobooks (3030)' },
-	{ id: 3000, label: 'Audio (3000)' },
-];
-
-function indexerCategorySummary(selected: readonly number[]): string {
+function indexerCategorySummary(
+	options: readonly IndexerCategoryOption[],
+	selected: readonly number[],
+): string {
 	return selected
-		.map(
-			(id) =>
-				INDEXER_CATEGORY_OPTIONS.find((option) => option.id === id)?.label ?? `Category ${id}`,
-		)
+		.map((id) => options.find((option) => option.id === id)?.label ?? `Category ${id}`)
 		.join(', ');
 }
 
@@ -31,6 +30,7 @@ function toggledIndexerCategories(selected: readonly number[], id: number): numb
 }
 
 function IndexerCategoryPicker(props: {
+	readonly options: readonly IndexerCategoryOption[];
 	readonly selected: readonly number[];
 	readonly refused: boolean;
 	readonly onChange: (ids: number[]) => void;
@@ -60,7 +60,7 @@ function IndexerCategoryPicker(props: {
 				aria-expanded={open() ? 'true' : 'false'}
 				onClick={() => setOpen(!open())}
 			>
-				<span>{indexerCategorySummary(props.selected)}</span>
+				<span>{indexerCategorySummary(props.options, props.selected)}</span>
 				<span class="app-settings-category-caret" aria-hidden="true">
 					▼
 				</span>
@@ -70,20 +70,27 @@ function IndexerCategoryPicker(props: {
 				role="listbox"
 				aria-multiselectable="true"
 			>
-				{INDEXER_CATEGORY_OPTIONS.map((option) => (
-					<label class="app-settings-category-option">
-						<input
-							type="checkbox"
-							checked={props.selected.includes(option.id)}
-							onChange={() => props.onChange(toggledIndexerCategories(props.selected, option.id))}
-						/>
-						{option.label}
-					</label>
-				))}
+				<For each={props.options} keyed={(option) => option.id}>
+					{(option) => (
+						<label class="app-settings-category-option">
+							<input
+								type="checkbox"
+								checked={props.selected.includes(option().id)}
+								onChange={() =>
+									props.onChange(toggledIndexerCategories(props.selected, option().id))
+								}
+							/>
+							{option().label}
+						</label>
+					)}
+				</For>
 			</div>
 			<Show when={props.refused}>
 				<p class="field-hint" role="status" data-testid="indexer-category-required">
-					One category is required. Audiobooks (3030) is recommended.
+					One category is required.{' '}
+					<Show when={props.options.find((option) => option.recommended)}>
+						{(option) => <>{option().label} is recommended.</>}
+					</Show>
 				</p>
 			</Show>
 		</div>
@@ -172,7 +179,6 @@ export function AppSettingsDialogView(): JSX.Element {
 	const isOpen = createMemo(() => state().isOpen);
 	const indexerConnection = remoteSource.indexerConnection;
 	const [indexerHelpOpen, setIndexerHelpOpen] = createSignal(false);
-	const usesHttp = () => /^http:\/\//i.test(indexerConnection().baseUrlDraft.trim());
 	createEffect(isOpen, (open) => {
 		if (!open) setIndexerHelpOpen(false);
 	});
@@ -434,7 +440,7 @@ export function AppSettingsDialogView(): JSX.Element {
 						/>
 					</div>
 					<p id="app-settings-connection-security" class="app-settings-connection-security">
-						<Show when={usesHttp()} fallback="HTTPS recommended.">
+						<Show when={indexerConnection().usesHttp} fallback="HTTPS recommended.">
 							<strong>HTTP is unencrypted.</strong> Your API key, searches, and results could be
 							read or modified by someone able to intercept this connection.
 						</Show>
@@ -444,6 +450,7 @@ export function AppSettingsDialogView(): JSX.Element {
 							Categories
 						</label>
 						<IndexerCategoryPicker
+							options={indexerConnection().categoryOptions}
 							selected={indexerConnection().categoryIdsDraft}
 							refused={indexerConnection().categoriesRefused}
 							onChange={(categoryIdsDraft) =>

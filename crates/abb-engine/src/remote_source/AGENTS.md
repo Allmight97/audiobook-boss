@@ -195,6 +195,10 @@ selection change.
   the URL's refusal (`draft_error`); Test and Save normalize as they always
   did, and a finished Save shows the saved value. Why: rewriting the field
   under the user's cursor loses keystrokes.
+- The draft snapshot supplies what the Settings form shows about it:
+  `category_options` (the known categories with labels, then any saved or
+  drafted id, so a saved category the list does not know can be unchecked) and
+  `uses_http`. The form holds no category list and no URL rule.
 - The draft starts from the saved settings; Load reads only whether a key is
   stored for the saved URL. An applied Reset replaces the draft, clears its
   errors, failures, and search results, and rereads the account when the Indexer

@@ -296,6 +296,18 @@
         3000,
         3030
       ],
+      "categoryOptions": [
+        {
+          "id": 3030,
+          "label": "Audiobooks (3030)",
+          "recommended": true
+        },
+        {
+          "id": 3000,
+          "label": "Audio (3000)",
+          "recommended": false
+        }
+      ],
       "draftError": null,
       "emptyCategoriesRefused": false,
       "save": {
@@ -304,7 +316,8 @@
       "test": {
         "kind": "idle"
       },
-      "testResult": null
+      "testResult": null,
+      "usesHttp": false
     },
     "includePdfByTitleId": {},
     "indexer": {

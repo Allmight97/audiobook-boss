@@ -84,9 +84,22 @@ pub enum RemoteDraftStatus {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
+pub struct IndexerCategoryOption {
+    pub id: u32,
+    pub label: String,
+    pub recommended: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct IndexerDraftSnapshot {
     pub base_url: String,
+    /// The draft URL is plain HTTP, so the form warns that it is unencrypted.
+    pub uses_http: bool,
     pub category_ids: Vec<u32>,
+    /// Every category the form offers: the known ones, then any other
+    /// category the draft or the saved connection holds, so it can be unchecked.
+    pub category_options: Vec<IndexerCategoryOption>,
     pub api_key_configured: bool,
     pub api_key_entered: bool,
     pub save: RemoteDraftStatus,
@@ -196,7 +209,9 @@ impl Default for UiState {
                 indexer: IndexerWorkSnapshot::default(),
                 connection: IndexerDraftSnapshot {
                     base_url: String::new(),
+                    uses_http: false,
                     category_ids: IndexerConnection::default().category_ids,
+                    category_options: Vec::new(),
                     api_key_configured: false,
                     api_key_entered: false,
                     draft_error: None,

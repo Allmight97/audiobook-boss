@@ -1,10 +1,10 @@
 use super::super::RemoteIndexerConnectionTestResult;
 use super::lane_status;
 use super::{
-    AppErrorEnvelope, IndexerConnection, IndexerWorkSnapshot, ProviderId, ReleaseGrabSnapshot,
-    ReleaseGrabStatus, RemoteDraftStatus, RemoteIndexerConnectionUpdate, RemoteRelease,
-    RemoteReleaseGrabRequest, RemoteReleaseSearchRequest, RemoteReleaseSearchResponse,
-    RemoteSourceRuntime, UiAction, UiState,
+    AppErrorEnvelope, IndexerCategoryOption, IndexerConnection, IndexerWorkSnapshot, ProviderId,
+    ReleaseGrabSnapshot, ReleaseGrabStatus, RemoteDraftStatus, RemoteIndexerConnectionUpdate,
+    RemoteRelease, RemoteReleaseGrabRequest, RemoteReleaseSearchRequest,
+    RemoteReleaseSearchResponse, RemoteSourceRuntime, UiAction, UiState,
 };
 use crate::app_settings::{normalize_base_url, validate_api_key};
 use crate::errors::{AppError, Result};
@@ -22,6 +22,41 @@ pub(super) struct IndexerLane {
     pub(super) test_request: u64,
     pub(super) search_request: u64,
     pub(super) save_request: u64,
+    pub(super) saved_category_ids: Vec<u32>,
+}
+
+const RECOMMENDED_CATEGORY: u32 = 3030;
+const KNOWN_CATEGORIES: [(u32, &str); 2] = [(3030, "Audiobooks (3030)"), (3000, "Audio (3000)")];
+
+impl IndexerLane {
+    pub(super) fn category_options(&self, draft_ids: &[u32]) -> Vec<IndexerCategoryOption> {
+        let mut others: Vec<u32> = self
+            .saved_category_ids
+            .iter()
+            .chain(draft_ids)
+            .copied()
+            .filter(|id| KNOWN_CATEGORIES.iter().all(|(known, _)| known != id))
+            .collect();
+        others.sort_unstable();
+        others.dedup();
+        KNOWN_CATEGORIES
+            .iter()
+            .map(|(id, label)| (*id, (*label).to_string()))
+            .chain(others.into_iter().map(|id| (id, format!("Category {id}"))))
+            .map(|(id, label)| IndexerCategoryOption {
+                recommended: id == RECOMMENDED_CATEGORY,
+                id,
+                label,
+            })
+            .collect()
+    }
+}
+
+pub(super) fn uses_http(base_url: &str) -> bool {
+    base_url
+        .trim()
+        .get(..7)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("http://"))
 }
 
 impl IndexerLane {
@@ -138,6 +173,7 @@ impl UiState {
     pub(super) fn apply_connection(&mut self, connection: &IndexerConnection) {
         self.snapshot.connection.base_url = connection.base_url.clone().unwrap_or_default();
         self.snapshot.connection.category_ids = connection.category_ids.clone();
+        self.indexer.saved_category_ids = connection.category_ids.clone();
         self.indexer.api_key = None;
         self.snapshot.connection.api_key_entered = false;
     }
@@ -171,6 +207,7 @@ impl UiState {
         match result {
             Ok(configured) => {
                 self.indexer.loaded = true;
+                self.indexer.saved_category_ids = connection.category_ids.clone();
                 self.snapshot.connection.api_key_configured = *configured;
                 if self.indexer.edit_revision == revision {
                     self.apply_connection(connection);

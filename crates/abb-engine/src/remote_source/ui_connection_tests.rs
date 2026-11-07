@@ -189,3 +189,70 @@ fn a_test_sends_the_trimmed_typed_url_for_the_provider_to_normalize() {
 
     assert_eq!(update.base_url.as_deref(), Some("HTTPS://Host:443/"));
 }
+
+fn option_ids(ui: &UiState) -> Vec<u32> {
+    ui.snapshot()
+        .connection
+        .category_options
+        .iter()
+        .map(|option| option.id)
+        .collect()
+}
+
+#[test]
+fn the_snapshot_lists_the_category_options_with_labels_and_the_recommended_one() {
+    let ui = UiState::default();
+
+    let options = ui.snapshot().connection.category_options;
+
+    let shown: Vec<_> = options
+        .iter()
+        .map(|option| (option.id, option.label.as_str(), option.recommended))
+        .collect();
+    assert_eq!(
+        shown,
+        vec![
+            (3030, "Audiobooks (3030)", true),
+            (3000, "Audio (3000)", false)
+        ]
+    );
+}
+
+#[test]
+fn a_saved_category_outside_the_known_list_stays_an_option_after_it_is_unchecked() {
+    let mut ui = UiState::seeded(&IndexerConnection {
+        base_url: None,
+        category_ids: vec![3030, 3040],
+    });
+    assert_eq!(option_ids(&ui), vec![3030, 3000, 3040]);
+    assert_eq!(
+        ui.snapshot()
+            .connection
+            .category_options
+            .last()
+            .map(|option| option.label.as_str()),
+        Some("Category 3040")
+    );
+
+    ui.begin(edit(None, Some(vec![3030]), None))
+        .expect("unchecking 3040 is accepted");
+
+    assert_eq!(ui.snapshot().connection.category_ids, vec![3030]);
+    assert_eq!(option_ids(&ui), vec![3030, 3000, 3040]);
+}
+
+#[test]
+fn the_snapshot_says_whether_the_draft_url_is_plain_http() {
+    let mut ui = UiState::default();
+    for (url, plain_http) in [
+        ("http://indexer.test", true),
+        ("  HTTP://indexer.test", true),
+        ("https://indexer.test", false),
+        ("indexer.test", false),
+        ("", false),
+    ] {
+        let accepted = ui.begin(edit(Some(url), None, None)).is_ok();
+        assert_eq!(accepted, url != "indexer.test", "{url:?}");
+        assert_eq!(ui.snapshot().connection.uses_http, plain_http, "{url:?}");
+    }
+}
