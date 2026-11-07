@@ -232,8 +232,8 @@ impl RemoteSourceRuntime {
             let saved = self.inner.settings.indexer_connection();
             let mut state = self.ui();
             state.shows_saved(&saved, false);
+            state.clear_draft_refusals();
             let connection = &mut state.snapshot.connection;
-            connection.draft_error = None;
             connection.empty_categories_refused = false;
             connection.save = RemoteDraftStatus::Idle;
             connection.test = RemoteDraftStatus::Idle;

@@ -89,8 +89,9 @@ pub struct IndexerDraftSnapshot {
     pub save: RemoteDraftStatus,
     pub test: RemoteDraftStatus,
     pub test_result: Option<RemoteIndexerConnectionTestResult>,
-    /// Why the last edit was refused. The draft keeps the values it accepted
-    /// before; Save and Test refuse until an edit is accepted.
+    /// Why the API key or the URL was refused, the key first. The draft keeps
+    /// the value it accepted before; Save and Test refuse until a new value
+    /// for each refused field is accepted.
     pub draft_error: Option<AppErrorEnvelope>,
     /// The last category edit chose none and was refused; the draft keeps
     /// its categories. A search needs at least one.
@@ -177,6 +178,8 @@ pub(super) struct UiState {
     sign_in_rejected: bool,
     settled_job_line: Option<String>,
     api_key: Option<String>,
+    url_refusal: Option<AppErrorEnvelope>,
+    key_refusal: Option<AppErrorEnvelope>,
     edit_revision: u64,
     connection_loading: bool,
     connection_loaded: bool,
@@ -226,6 +229,8 @@ impl Default for UiState {
             sign_in_rejected: false,
             settled_job_line: None,
             api_key: None,
+            url_refusal: None,
+            key_refusal: None,
             edit_revision: 0,
             connection_loading: false,
             connection_loaded: false,
@@ -389,44 +394,55 @@ impl UiState {
         Ok(())
     }
 
+    pub(super) fn clear_draft_refusals(&mut self) {
+        self.url_refusal = None;
+        self.key_refusal = None;
+        self.snapshot.connection.draft_error = None;
+    }
+
     fn edit_connection(
         &mut self,
         base_url: Option<String>,
         category_ids: Option<Vec<u32>>,
         api_key: Option<String>,
     ) -> Result<()> {
-        let checked = base_url
-            .map(|url| normalize_base_url(url).map(Option::unwrap_or_default))
-            .transpose()
-            .and_then(|url| {
-                if let Some(key) = api_key.as_deref() {
-                    validate_api_key(key.trim())?;
+        let mut refusal = None;
+        if let Some(url) = base_url {
+            match normalize_base_url(url) {
+                Ok(url) => {
+                    self.url_refusal = None;
+                    self.snapshot.connection.base_url = url.unwrap_or_default();
                 }
-                Ok(url)
-            });
-        let url = match checked {
-            Ok(url) => url,
-            Err(error) => {
-                self.snapshot.connection.draft_error = Some(AppErrorEnvelope::from(&error));
-                self.changed();
-                return Err(error);
+                Err(error) => {
+                    self.url_refusal = Some(AppErrorEnvelope::from(&error));
+                    refusal = Some(error);
+                }
             }
-        };
-        self.snapshot.connection.draft_error = None;
+        }
+        if let Some(key) = api_key {
+            match validate_api_key(key.trim()) {
+                Ok(()) => {
+                    self.key_refusal = None;
+                    self.api_key = (!key.trim().is_empty()).then(|| key.trim().to_string());
+                }
+                Err(error) => {
+                    self.key_refusal = Some(AppErrorEnvelope::from(&error));
+                    refusal = Some(error);
+                }
+            }
+        }
+        self.snapshot.connection.draft_error = self
+            .key_refusal
+            .clone()
+            .or_else(|| self.url_refusal.clone());
         let refused = category_ids
             .as_ref()
             .is_some_and(|ids| ids.iter().all(|id| *id == 0));
         self.snapshot.connection.empty_categories_refused = refused;
         let category_ids = category_ids.filter(|_| !refused);
         self.edit_revision += 1;
-        if let Some(url) = url {
-            self.snapshot.connection.base_url = url;
-        }
         if let Some(ids) = category_ids {
             self.snapshot.connection.category_ids = ids;
-        }
-        if let Some(key) = api_key {
-            self.api_key = (!key.trim().is_empty()).then(|| key.trim().to_string());
         }
         self.snapshot.connection.api_key_entered = self.api_key.is_some();
         if !self.connection_saving {
@@ -434,7 +450,13 @@ impl UiState {
         }
         self.snapshot.connection.test = RemoteDraftStatus::Idle;
         self.snapshot.connection.test_result = None;
-        Ok(())
+        match refusal {
+            Some(error) => {
+                self.changed();
+                Err(error)
+            }
+            None => Ok(()),
+        }
     }
 
     fn connection_update(&self) -> RemoteIndexerConnectionUpdate {

@@ -434,8 +434,9 @@ export type IndexerDraftSnapshot = {
 	test: RemoteDraftStatus,
 	testResult: RemoteIndexerConnectionTestResult | null,
 	/**
-	 *  Why the last edit was refused. The draft keeps the values it accepted
-	 *  before; Save and Test refuse until an edit is accepted.
+	 *  Why the API key or the URL was refused, the key first. The draft keeps
+	 *  the value it accepted before; Save and Test refuse until a new value
+	 *  for each refused field is accepted.
 	 */
 	draftError: AppErrorEnvelope | null,
 	/**

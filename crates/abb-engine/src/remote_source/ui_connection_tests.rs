@@ -73,3 +73,75 @@ fn a_category_edit_that_chooses_none_is_refused_and_the_draft_keeps_its_categori
     assert_eq!(connection.category_ids, [3000, 3030]);
     assert!(!connection.empty_categories_refused);
 }
+
+fn edit(
+    base_url: Option<&str>,
+    category_ids: Option<Vec<u32>>,
+    api_key: Option<&str>,
+) -> RemoteUiIntent {
+    RemoteUiIntent::EditConnection {
+        base_url: base_url.map(Into::into),
+        category_ids,
+        api_key: api_key.map(Into::into),
+    }
+}
+
+#[test]
+fn a_refused_api_key_stays_refused_through_a_url_edit_until_a_new_key_arrives() {
+    let mut ui = UiState::default();
+    ui.begin(edit(None, None, Some("old-key")))
+        .expect("old key");
+    assert!(ui.begin(edit(None, None, Some("key\nrefused"))).is_err());
+
+    ui.begin(edit(Some("https://indexer.test"), None, None))
+        .expect("the URL edit is accepted");
+
+    let error = ui.snapshot().connection.draft_error.expect("still refused");
+    assert!(error.message.contains("API key"), "{}", error.message);
+    assert!(ui.save_connection().is_err());
+    assert!(ui.begin(RemoteUiIntent::TestConnection).is_err());
+
+    ui.begin(edit(None, None, Some("new-key")))
+        .expect("new key");
+    assert!(ui.snapshot().connection.draft_error.is_none());
+    assert!(ui.save_connection().is_ok());
+}
+
+#[test]
+fn a_refused_url_stays_refused_through_a_category_edit_until_a_new_url_arrives() {
+    let mut ui = UiState::default();
+    assert!(ui
+        .begin(edit(Some("ftp://indexer.test"), None, None))
+        .is_err());
+
+    ui.begin(edit(None, Some(vec![3030]), None))
+        .expect("the category edit is accepted");
+
+    assert!(ui.snapshot().connection.draft_error.is_some());
+    assert!(ui.save_connection().is_err());
+
+    ui.begin(edit(Some("https://indexer.test"), None, None))
+        .expect("new URL");
+    assert!(ui.snapshot().connection.draft_error.is_none());
+}
+
+#[test]
+fn each_field_keeps_its_own_refusal_and_the_key_is_shown_first() {
+    let mut ui = UiState::default();
+    assert!(ui
+        .begin(edit(Some("ftp://indexer.test"), None, None))
+        .is_err());
+    assert!(ui.begin(edit(None, None, Some("key\nrefused"))).is_err());
+    let shown = ui.snapshot().connection.draft_error.expect("refused");
+    assert!(shown.message.contains("API key"), "{}", shown.message);
+
+    ui.begin(edit(None, None, Some("a-plain-key")))
+        .expect("key");
+    let shown = ui
+        .snapshot()
+        .connection
+        .draft_error
+        .expect("URL still refused");
+    assert!(shown.message.contains("Indexer URL"), "{}", shown.message);
+    assert!(ui.save_connection().is_err());
+}
