@@ -13,7 +13,6 @@ name = "abb-audible-core"
 version = "0.1.0"
 dependencies = [
  "abb-media-core",
- "abb-remote-source-core",
  "aes",
  "base64 0.23.1",
  "cbc",

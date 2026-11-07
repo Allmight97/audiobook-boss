@@ -1,6 +1,5 @@
 use super::*;
-use abb_audible_core::DecryptKind;
-use abb_remote_source_core::AcquisitionStrategy;
+use abb_audible_core::{AcquisitionStrategy, DecryptKind};
 use secrecy::ExposeSecret;
 use serde_json::json;
 

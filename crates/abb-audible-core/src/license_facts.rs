@@ -1,5 +1,5 @@
+use crate::strategy::AcquisitionStrategy;
 use abb_media_core::{MediaContainerKind, MediaProtectionKind};
-use abb_remote_source_core::AcquisitionStrategy;
 use serde_json::Value;
 use std::path::Path;
 

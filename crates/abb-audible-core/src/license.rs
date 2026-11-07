@@ -1,4 +1,4 @@
-use abb_remote_source_core::AcquisitionStrategy;
+use crate::strategy::AcquisitionStrategy;
 use aes::Aes128;
 use base64::{
     engine::general_purpose::{

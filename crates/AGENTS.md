@@ -14,9 +14,9 @@
 ## Ownership
 
 - `abb-*-core` crates are package boundaries, not additional Public API Strips.
-- `abb-remote-source-core` stays provider-neutral (stages, strategies,
-  progress; `check-known-mistakes.ts` rejects a provider
-  name there). Provider protocol interpretation, such as Audible license keys
-  and strategy choice, lives in that provider's core.
+- `abb-remote-source-core` stays provider-neutral (stages, progress;
+  `check-known-mistakes.ts` rejects a provider name there). Provider protocol
+  interpretation, such as Audible license keys and strategy choice, lives in
+  that provider's core.
 - Engine owners and the engine's host interface: `crates/abb-engine/AGENTS.md`.
 - Host rules: `src-tauri/AGENTS.md`.

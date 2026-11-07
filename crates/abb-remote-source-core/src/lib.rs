@@ -12,17 +12,6 @@ pub enum AcquisitionStage {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum AcquisitionStrategy {
-    DownloadImportReady,
-    DownloadThenDecryptAax,
-    DownloadThenDecryptAaxc,
-    DownloadThenDecryptDash,
-    ProtectedUnsupported,
-    ProviderProtocolFailed,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AcquisitionProgress {

@@ -1,9 +1,9 @@
 use abb_audible_core::{
     audible_decryption_material_from_license, choose_acquisition_strategy,
-    find_first_string_for_keys, license_facts_from_value, title_ref, AudibleDecryptionMaterial,
-    AudibleLicenseDecryptContext, DecryptKind, LicenseDenial, LicenseFacts,
+    find_first_string_for_keys, license_facts_from_value, title_ref, AcquisitionStrategy,
+    AudibleDecryptionMaterial, AudibleLicenseDecryptContext, DecryptKind, LicenseDenial,
+    LicenseFacts,
 };
-use abb_remote_source_core::AcquisitionStrategy;
 use serde_json::Value;
 
 use crate::remote_source::RemoteAcquisitionFailureKind;

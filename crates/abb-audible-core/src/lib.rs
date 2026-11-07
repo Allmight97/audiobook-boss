@@ -3,6 +3,7 @@ mod json_probe;
 mod license;
 mod license_facts;
 mod naming;
+mod strategy;
 
 pub use download::{classify_download_response, DownloadResponseError, ParsedContentRange};
 pub use json_probe::{find_first_string_for_key, find_first_string_for_keys};
@@ -17,3 +18,4 @@ pub use license_facts::{
 pub use naming::{
     remote_materialized_filename_stem, supplemental_pdf_display_file_name, title_ref,
 };
+pub use strategy::AcquisitionStrategy;
