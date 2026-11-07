@@ -4,7 +4,7 @@ use abb_engine::session::{MetadataField, MetadataStatus, SessionIntent};
 use abb_engine::work_runtime::{ChildJobStatus, OperationId, OperationPhase, OperationSnapshot};
 use abb_engine::Engine;
 
-use super::send;
+use super::{send, AbbDevStatus, OperationFeed};
 
 const POLL: Duration = Duration::from_millis(10);
 const START_LIMIT: Duration = Duration::from_secs(60);
@@ -47,22 +47,22 @@ fn is_reading(operation: &OperationSnapshot) -> bool {
             .any(|child| child.status == ChildJobStatus::Running)
 }
 
-async fn await_reading(engine: &Engine, operation_id: &OperationId) -> Result<(), String> {
-    let started = Instant::now();
-    loop {
-        let operation = operation_of(engine, operation_id)?;
-        if is_reading(&operation) {
-            return Ok(());
-        }
-        if !is_active(&operation) {
-            return Err(
-                "the export finished before it was seen reading; use a longer input".to_string(),
-            );
-        }
-        if started.elapsed() > START_LIMIT {
-            return Err("the export never started reading".to_string());
-        }
-        tokio::time::sleep(POLL).await;
+async fn await_reading(feed: &mut OperationFeed, operation_id: &OperationId) -> Result<(), String> {
+    let seen = tokio::time::timeout(
+        START_LIMIT,
+        feed.wait_for(|operations| {
+            operations
+                .get(operation_id)
+                .is_some_and(|operation| is_reading(operation) || !is_active(operation))
+        }),
+    )
+    .await
+    .map_err(|_| "the export never started reading".to_string())?
+    .map_err(|_| "the engine stopped reporting the export".to_string())?;
+    if seen.get(operation_id).is_some_and(is_reading) {
+        Ok(())
+    } else {
+        Err("the export finished before it was seen reading; use a longer input".to_string())
     }
 }
 
@@ -136,6 +136,7 @@ async fn reimport(engine: &Engine, paths: &[String]) -> Result<(), String> {
 
 pub(super) async fn run_steps(
     engine: &Engine,
+    feed: &mut OperationFeed,
     operation_id: &OperationId,
     paths: &[String],
     steps: &[DuringExport],
@@ -143,7 +144,7 @@ pub(super) async fn run_steps(
     if steps.is_empty() {
         return Ok(());
     }
-    await_reading(engine, operation_id).await?;
+    await_reading(feed, operation_id).await?;
     for step in steps {
         require_reading(engine, operation_id, step)?;
         match step {
@@ -155,11 +156,11 @@ pub(super) async fn run_steps(
     Ok(())
 }
 
-pub(super) async fn await_landed(engine: &Engine) -> Result<(), String> {
+pub(super) async fn await_landed(engine: &Engine) -> Result<(), AbbDevStatus> {
     let started = Instant::now();
     while engine.running_work().waiting_writes > 0 {
         if started.elapsed() > LAND_LIMIT {
-            return Err("waiting writes did not land".to_string());
+            return Err("waiting writes did not land".into());
         }
         tokio::time::sleep(POLL).await;
     }
@@ -168,9 +169,9 @@ pub(super) async fn await_landed(engine: &Engine) -> Result<(), String> {
         .metadata
         .and_then(|metadata| metadata.status)
     {
-        Some(MetadataStatus::DeferredWritesFinished { failed, .. }) if failed > 0 => {
-            Err(format!("Save could not write {failed} file(s)"))
-        }
+        Some(MetadataStatus::DeferredWritesFinished { failed, .. }) if failed > 0 => Err(
+            AbbDevStatus::SaveFailed(format!("Save could not write {failed} file(s)")),
+        ),
         _ => Ok(()),
     }
 }

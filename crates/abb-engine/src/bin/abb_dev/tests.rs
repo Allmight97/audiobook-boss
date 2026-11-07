@@ -72,3 +72,85 @@ fn a_during_export_edit_needs_a_known_field_and_a_value() {
         assert!(parse(args.iter().map(|arg| arg.to_string())).is_err());
     }
 }
+
+fn snapshot(revision: u64, status: &str, phase: &str, child: &str) -> OperationSnapshot {
+    let progress = serde_json::json!({
+        "stage": "converting", "percentage": 10.0, "message": "working",
+    });
+    serde_json::from_value(serde_json::json!({
+        "operationId": "export", "sequence": 1, "revision": revision,
+        "kind": "processingBatch", "title": "export",
+        "status": status, "phase": phase,
+        "cancellable": false, "cancelRequested": false,
+        "progress": progress,
+        "children": [{
+            "childJobId": "0", "operationId": "export", "label": "0",
+            "status": child, "progress": progress,
+            "cancellable": false, "cancelRequested": false, "warnings": [],
+        }],
+        "logTail": [],
+    }))
+    .expect("export snapshot")
+}
+
+fn report(progress: &PrintProgress, operation: OperationSnapshot) {
+    progress.emit(EngineEvent::WorkOperations(
+        abb_engine::work_runtime::WorkOperationsUpdate {
+            revision: operation.revision,
+            order: vec![operation.operation_id.clone()],
+            changed: operation,
+        },
+    ));
+}
+
+#[tokio::test]
+async fn the_wait_ends_on_the_finished_snapshot_reported_while_it_waits() {
+    let progress = Arc::new(PrintProgress::default());
+    let mut feed = progress.feed();
+    let id = OperationId("export".into());
+    let reporter = async {
+        for (revision, status, phase, child) in [
+            (1, "accepted", "accepted", "queued"),
+            (2, "running", "active", "running"),
+            (3, "completed", "finished", "completed"),
+        ] {
+            report(&progress, snapshot(revision, status, phase, child));
+            tokio::task::yield_now().await;
+        }
+    };
+    let mut phases = Vec::new();
+    let (finished, ()) = tokio::join!(
+        await_finished(&mut feed, &id, |operation| {
+            phases.push(operation.phase);
+            Ok(())
+        }),
+        reporter
+    );
+    let finished = finished.expect("finished");
+    assert_eq!(finished.revision, 3);
+    assert_eq!(phases.last(), Some(&OperationPhase::Finished));
+}
+
+#[tokio::test]
+async fn a_snapshot_reported_before_the_wait_began_still_ends_it() {
+    let progress = PrintProgress::default();
+    report(&progress, snapshot(2, "completed", "finished", "completed"));
+    let mut feed = progress.feed();
+    let finished = await_finished(&mut feed, &OperationId("export".into()), |_| Ok(()))
+        .await
+        .expect("finished");
+    assert_eq!(finished.revision, 2);
+}
+
+#[test]
+fn an_older_snapshot_never_replaces_a_newer_one() {
+    let progress = PrintProgress::default();
+    let feed = progress.feed();
+    report(&progress, snapshot(3, "completed", "finished", "completed"));
+    report(&progress, snapshot(2, "running", "active", "running"));
+    let operations = feed.borrow();
+    let known = operations
+        .get(&OperationId("export".into()))
+        .expect("known");
+    assert_eq!(known.revision, 3);
+}
