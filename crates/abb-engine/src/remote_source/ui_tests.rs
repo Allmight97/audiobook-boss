@@ -369,7 +369,7 @@ async fn shutdown_drops_an_indexer_search_waiting_on_a_silent_server() {
         .await
         .expect("the search ends at shutdown, not after the server's timeout")
         .expect("search task");
-    assert!(ended.is_err());
+    assert!(matches!(ended, Err(AppError::Closing)));
 }
 
 fn account_read_failure() -> AppError {

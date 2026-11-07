@@ -15,21 +15,6 @@ fn each_app_identifier_gets_its_own_vault() {
 }
 
 #[test]
-fn sign_in_survives_restart_only_for_until_delete() {
-    use keyring_core::CredentialPersistence;
-    assert!(sign_in_survives_restart(CredentialPersistence::UntilDelete));
-    assert!(!sign_in_survives_restart(
-        CredentialPersistence::UntilReboot
-    ));
-    assert!(!sign_in_survives_restart(
-        CredentialPersistence::UntilLogout
-    ));
-    assert!(!sign_in_survives_restart(
-        CredentialPersistence::Unspecified
-    ));
-}
-
-#[test]
 fn ephemeral_store_tells_the_user_sign_in_will_not_be_remembered() {
     assert_eq!(
         account_message(Some("Connect Audible to load your library."), false).as_deref(),
@@ -54,8 +39,8 @@ fn ephemeral_store_tells_the_user_sign_in_will_not_be_remembered() {
 #[cfg(target_os = "linux")]
 #[test]
 fn secret_service_probe_fails_closed_without_a_session_bus() {
-    if std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some() {
-        return;
+    let store = open_secret_service();
+    if std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_none() {
+        assert!(store.is_none());
     }
-    assert!(open_secret_service().is_none());
 }

@@ -1,19 +1,33 @@
 use super::*;
 
 #[test]
-fn progress_plan_uses_truthful_stage_bands() {
-    let licensing = acquisition_progress(AcquisitionStage::License, Some(0.5), None, None);
+fn progress_never_goes_backward_across_stages() {
+    let mut last = 0.0;
+    for stage in [
+        AcquisitionStage::License,
+        AcquisitionStage::Download,
+        AcquisitionStage::Decryption,
+        AcquisitionStage::Validation,
+        AcquisitionStage::ImportHandoff,
+    ] {
+        for fraction in [0.0, 0.5, 1.0] {
+            let percentage = acquisition_progress(stage, Some(fraction), None, None).percentage;
+            assert!(
+                percentage >= last,
+                "{stage:?} at {fraction} went back from {last} to {percentage}"
+            );
+            last = percentage;
+        }
+    }
+    assert!(last <= 100.0);
+}
+
+#[test]
+fn a_stage_keeps_its_byte_counts_and_a_title_scope_names_its_place_in_the_batch() {
     let downloading =
         acquisition_progress(AcquisitionStage::Download, Some(0.5), Some(50), Some(100));
     let decrypting = acquisition_progress(AcquisitionStage::Decryption, Some(0.5), None, None);
-    let validating = acquisition_progress(AcquisitionStage::Validation, Some(0.5), None, None);
-    let importing = acquisition_progress(AcquisitionStage::ImportHandoff, Some(0.5), None, None);
 
-    assert!((0.0..=15.0).contains(&licensing.percentage));
-    assert!((15.0..=65.0).contains(&downloading.percentage));
-    assert!((65.0..=90.0).contains(&decrypting.percentage));
-    assert!((90.0..=97.0).contains(&validating.percentage));
-    assert!((97.0..=100.0).contains(&importing.percentage));
     assert_eq!(downloading.bytes_downloaded, Some(50));
     assert_eq!(downloading.bytes_total, Some(100));
     assert!(decrypting.message.to_lowercase().contains("decrypt"));

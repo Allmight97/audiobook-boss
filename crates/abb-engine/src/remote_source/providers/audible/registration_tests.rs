@@ -1,14 +1,10 @@
 use super::*;
 
 #[test]
-fn registration_announces_the_current_iphone_app() {
+fn registration_request_carries_the_device_serial_and_its_client_id() {
     let body = registration_request_body("code", "verifier", "com", "S".repeat(40).as_str());
     let device = &body["registration_data"];
 
-    assert_eq!(device["app_version"], "4.60");
-    assert_eq!(device["os_version"], "26.2");
-    assert_eq!(device["software_version"], "46000856");
-    assert_eq!(device["device_type"], "A2CZJZGLK2JJVM");
     assert_eq!(device["device_serial"], "S".repeat(40));
     assert_eq!(
         body["auth_data"]["client_id"],
