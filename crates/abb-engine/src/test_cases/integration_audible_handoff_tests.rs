@@ -64,7 +64,7 @@ fn session_acquiring(root: &TempDir, acquire: AcquireTitles) -> (Session, Remote
     let (settings, jobs, _) =
         SettingsRuntime::start(root.path().join("config"), PowerManager::default());
     let remote = test_runtime_acquiring(root, settings.clone(), acquire);
-    let tasks = crate::engine::EngineTasks::default();
+    let tasks = crate::engine_tasks::EngineTasks::default();
     let session = Session::new(SessionDeps {
         host: crate::host::Host::new(Arc::new(crate::DiscardEvents), PowerManager::default()),
         remote: remote.clone(),

@@ -61,7 +61,7 @@ pub(crate) struct SessionDeps {
     /// Source files under this root are temporary downloads.
     pub(crate) temporary_root: PathBuf,
     pub(crate) settings: SettingsRuntime,
-    pub(crate) tasks: crate::engine::EngineTasks,
+    pub(crate) tasks: crate::engine_tasks::EngineTasks,
     pub(crate) workspace_root: PathBuf,
     pub(crate) remove_staged: RemoveStaged,
 }

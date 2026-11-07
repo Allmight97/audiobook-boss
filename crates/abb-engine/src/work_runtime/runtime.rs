@@ -33,13 +33,13 @@ struct WorkRuntimeInner {
     /// Source files each accepted processing title reads, by operation id and
     /// title index. An entry lives until its operation finishes.
     title_sources: Mutex<TitleSources>,
-    tasks: crate::engine::EngineTasks,
+    tasks: crate::engine_tasks::EngineTasks,
     changes: tokio::sync::watch::Sender<u64>,
     sequence: AtomicU64,
 }
 
 impl WorkRuntime {
-    pub(crate) fn new(tasks: crate::engine::EngineTasks) -> Self {
+    pub(crate) fn new(tasks: crate::engine_tasks::EngineTasks) -> Self {
         Self {
             inner: Arc::new(WorkRuntimeInner {
                 tasks,

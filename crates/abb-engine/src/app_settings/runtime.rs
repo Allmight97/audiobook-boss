@@ -280,7 +280,7 @@ impl SettingsRuntime {
     pub(crate) fn begin(
         &self,
         intent: SettingsIntent,
-        tasks: &crate::engine::EngineTasks,
+        tasks: &crate::engine_tasks::EngineTasks,
     ) -> SettingsRun {
         self.enqueue(Change::Intent(intent), None, tasks)
     }
@@ -290,7 +290,7 @@ impl SettingsRuntime {
     pub(crate) fn set_indexer_connection(
         &self,
         connection: IndexerConnection,
-        tasks: &crate::engine::EngineTasks,
+        tasks: &crate::engine_tasks::EngineTasks,
     ) -> SettingsRun {
         self.enqueue(Change::IndexerConnection(connection), None, tasks)
     }
@@ -299,7 +299,7 @@ impl SettingsRuntime {
         &self,
         output: OutputDefaults,
         latest: Arc<std::sync::atomic::AtomicU64>,
-        tasks: &crate::engine::EngineTasks,
+        tasks: &crate::engine_tasks::EngineTasks,
     ) -> SettingsRun {
         let revision = latest.load(std::sync::atomic::Ordering::SeqCst);
         self.enqueue(
@@ -321,7 +321,7 @@ impl SettingsRuntime {
         &self,
         change: Change,
         pause: Option<(Arc<std::sync::atomic::AtomicU64>, u64, tokio::time::Instant)>,
-        tasks: &crate::engine::EngineTasks,
+        tasks: &crate::engine_tasks::EngineTasks,
     ) -> SettingsRun {
         let (done, next) = tokio::sync::oneshot::channel();
         let previous = self

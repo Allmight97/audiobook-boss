@@ -66,14 +66,14 @@ fn remember_output(directory: &str) -> SettingsIntent {
 impl Rig {
     async fn send(&self, intent: SettingsIntent) -> SettingsReply {
         self.settings
-            .begin(intent, &crate::engine::EngineTasks::default())
+            .begin(intent, &crate::engine_tasks::EngineTasks::default())
             .finish()
             .await
     }
 
     async fn send_connection(&self, connection: IndexerConnection) -> SettingsReply {
         self.settings
-            .set_indexer_connection(connection, &crate::engine::EngineTasks::default())
+            .set_indexer_connection(connection, &crate::engine_tasks::EngineTasks::default())
             .finish()
             .await
     }
@@ -589,7 +589,7 @@ async fn a_reset_that_cannot_be_saved_still_applies_and_saves_on_retry() {
 #[tokio::test]
 async fn reset_follows_earlier_template_typing_and_preserves_a_later_choice() {
     let rig = start();
-    let tasks = crate::engine::EngineTasks::default();
+    let tasks = crate::engine_tasks::EngineTasks::default();
     let revision = Arc::new(std::sync::atomic::AtomicU64::new(1));
     let before =
         rig.settings
@@ -605,7 +605,7 @@ async fn reset_follows_earlier_template_typing_and_preserves_a_later_choice() {
 #[tokio::test]
 async fn accepted_settings_preserve_independent_patches_without_host_reply_ordering() {
     let rig = start();
-    let tasks = crate::engine::EngineTasks::default();
+    let tasks = crate::engine_tasks::EngineTasks::default();
     let output = rig.settings.begin(remember_output("/chosen"), &tasks);
     let concurrency = rig.settings.begin(
         SettingsIntent::SetConcurrency {

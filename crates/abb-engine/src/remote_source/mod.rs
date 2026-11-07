@@ -43,7 +43,7 @@ pub(crate) struct RemoteSourceConfig {
     pub(crate) app_identifier: String,
     pub(crate) power: crate::power::PowerManager,
     pub(crate) host: crate::host::Host,
-    pub(crate) tasks: crate::engine::EngineTasks,
+    pub(crate) tasks: crate::engine_tasks::EngineTasks,
 }
 
 pub(crate) type Handoff = Arc<
@@ -66,7 +66,7 @@ struct RemoteSourceRuntimeInner {
     lifecycle: RemoteAcquisitionLifecycle,
     pending_audible_auth: Mutex<Option<PendingAudibleAuth>>,
     indexer_adapter: ReqwestProwlarrAdapter,
-    tasks: crate::engine::EngineTasks,
+    tasks: crate::engine_tasks::EngineTasks,
     handoff: OnceLock<Handoff>,
     /// A connection Save or Reset holds this exclusively; searches and grabs share it.
     indexer_turn: Arc<tokio::sync::RwLock<()>>,

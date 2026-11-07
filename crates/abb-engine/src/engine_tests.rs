@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::Mutex;
 
 fn config(root: &Path) -> EngineConfig {
     EngineConfig {

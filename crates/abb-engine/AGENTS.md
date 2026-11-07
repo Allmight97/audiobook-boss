@@ -16,8 +16,10 @@ app, a test, and the `abb-dev` tool drive the same code
   the methods. Remote account, auth, library, and acquisition work uses
   session intents and snapshots; its vocabulary is in
   `remote_source/AGENTS.md`.
-- The engine runs on the host's tokio runtime: `Engine::start` and every
-  async method run inside one. A host with no runtime builds one.
+- `Engine::start` is synchronous and runs with no Tokio runtime. Async
+  methods need the host's runtime; `open_audio_files` is async only so its
+  caller supplies one (the macOS opened-files thread uses `block_on` in
+  `src-tauri/src/opened_files.rs`).
 - The working session and the settings each take typed intents and return
   snapshots: `session/AGENTS.md` and `app_settings/AGENTS.md`.
 - A new host need (a directory, a platform service, an event) goes into
@@ -27,8 +29,9 @@ app, a test, and the `abb-dev` tool drive the same code
   `Engine::shutdown`. A quit never stops work the user was not asked about:
   `running_work` and `close_for_quit` enforce that (rustdoc in `engine.rs`).
 - `clippy.toml` `disallowed-methods` routes spawns through the one
-  `EngineTasks` owner over a `TaskTracker`, so shutdown can wait for them; a
-  child joined by a tracked parent is the one exception.
+  `EngineTasks` owner (`engine_tasks.rs`, a leaf below every owner) over a
+  `TaskTracker`, so shutdown can wait for them; a child joined by a tracked
+  parent is the one exception.
   Admission and shutdown share one lock: registering visible work and its
   cancellation handles finishes before shutdown enumerates work to stop.
 - An accepted intent belongs to the engine. `SessionRun::finish` and settings

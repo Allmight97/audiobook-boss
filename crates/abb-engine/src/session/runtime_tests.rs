@@ -115,7 +115,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
     let (settings, _, _) =
         SettingsRuntime::start(config.path().to_path_buf(), PowerManager::default());
     let remote = crate::remote_source::tests::test_runtime_over(&config, settings.clone());
-    let tasks = crate::engine::EngineTasks::default();
+    let tasks = crate::engine_tasks::EngineTasks::default();
     let session = Session::with_network(
         SessionDeps {
             remote,

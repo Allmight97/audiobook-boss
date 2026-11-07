@@ -112,7 +112,7 @@ async fn a_save_runs_while_every_export_slot_is_held_and_stays_a_tracked_job() {
         active_jobs: Default::default(),
     });
     let host = Host::new(probe.clone(), crate::power::PowerManager::default());
-    let runtime = WorkRuntime::new(crate::engine::EngineTasks::default());
+    let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
     let (held_job, held_slot) = registry.register_job().await.expect("hold the only slot");
     registry.complete_job(held_job).await;
     let items = vec![MetadataSaveRequest {

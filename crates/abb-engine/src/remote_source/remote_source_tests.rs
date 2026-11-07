@@ -122,7 +122,7 @@ fn build_runtime(
             ),
             pending_audible_auth: Mutex::new(None),
             indexer_adapter: ReqwestProwlarrAdapter::new(),
-            tasks: crate::engine::EngineTasks::default(),
+            tasks: crate::engine_tasks::EngineTasks::default(),
             handoff: OnceLock::new(),
             indexer_turn: Arc::default(),
             sent_releases: Mutex::default(),
