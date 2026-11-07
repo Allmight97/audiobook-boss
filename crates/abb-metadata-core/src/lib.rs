@@ -748,21 +748,19 @@ fn apply_shared_metadata_patch_fields(
     metadata: &mut AudiobookMetadata,
     semantics: PatchFieldSemantics,
 ) -> Result<()> {
-    let apply_string = match semantics {
+    let apply_string: fn(Option<&PatchOp<String>>, &mut Option<String>) = match semantics {
         PatchFieldSemantics::Processing => apply_processing_string_patch,
         PatchFieldSemantics::WritePlan => apply_string_patch,
     };
 
-    apply_string(&patch.title, &mut metadata.title);
-    apply_string(&patch.artist, &mut metadata.artist);
-    apply_string(&patch.album, &mut metadata.album);
-    apply_string(&patch.composer, &mut metadata.composer);
-    apply_string(&patch.genre, &mut metadata.genre);
-    apply_string(&patch.description, &mut metadata.description);
-    apply_string(&patch.series, &mut metadata.series);
-    apply_string(&patch.series_part, &mut metadata.series_part);
-    apply_string(&patch.subseries, &mut metadata.subseries);
-    apply_string(&patch.subseries_part, &mut metadata.subseries_part);
+    for field in TextField::ALL {
+        if field == TextField::Date {
+            continue;
+        }
+        apply_string(patch.text(field), metadata.text_mut(field));
+    }
+    apply_string(patch.subseries.as_ref(), &mut metadata.subseries);
+    apply_string(patch.subseries_part.as_ref(), &mut metadata.subseries_part);
 
     match (&patch.date, semantics) {
         (Some(PatchOp::Set(date)), _) => metadata.date = Some(date.clone()),
@@ -782,13 +780,9 @@ fn apply_shared_metadata_patch_fields(
         (None, _) => {}
     }
 
-    apply_string(&patch.comment, &mut metadata.comment);
-
-    for (op, slot) in [
-        (&patch.track, &mut metadata.track),
-        (&patch.disk, &mut metadata.disk),
-    ] {
-        match (op, semantics) {
+    for field in PositionField::ALL {
+        let slot = metadata.position_mut(field);
+        match (patch.position(field), semantics) {
             (Some(PatchOp::Set(position)), _) => *slot = Some(*position),
             (Some(PatchOp::Clear), PatchFieldSemantics::Processing) => *slot = None,
             (Some(PatchOp::Clear), PatchFieldSemantics::WritePlan) => {
@@ -801,7 +795,7 @@ fn apply_shared_metadata_patch_fields(
     Ok(())
 }
 
-fn apply_string_patch(patch: &Option<PatchOp<String>>, output: &mut Option<String>) {
+fn apply_string_patch(patch: Option<&PatchOp<String>>, output: &mut Option<String>) {
     match patch {
         Some(PatchOp::Set(value)) => *output = Some(value.clone()),
         Some(PatchOp::Clear) => *output = Some(String::new()),
@@ -809,7 +803,7 @@ fn apply_string_patch(patch: &Option<PatchOp<String>>, output: &mut Option<Strin
     }
 }
 
-fn apply_processing_string_patch(patch: &Option<PatchOp<String>>, output: &mut Option<String>) {
+fn apply_processing_string_patch(patch: Option<&PatchOp<String>>, output: &mut Option<String>) {
     match patch {
         Some(PatchOp::Set(value)) => *output = Some(value.clone()),
         Some(PatchOp::Clear) => *output = None,
@@ -856,10 +850,12 @@ fn scrub_invalid_series_part_for_naming(value: &mut Option<String>) {
 }
 
 mod chapters;
+mod fields;
 pub use chapters::{
     normalize_embedded_chapters, parse_cue, validate_chapters, ChapterSpec, CueInterpretation,
     CueSheet,
 };
+pub use fields::{PositionField, TagField, TextField};
 
 #[cfg(test)]
 #[path = "lib_tests.rs"]

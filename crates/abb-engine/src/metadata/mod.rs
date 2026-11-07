@@ -1,7 +1,6 @@
 use crate::errors::{AppError, Result};
 
 pub mod reader;
-pub(crate) mod tag_registry;
 
 mod container;
 mod cue;

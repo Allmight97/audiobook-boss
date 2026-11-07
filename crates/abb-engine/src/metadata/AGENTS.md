@@ -60,10 +60,17 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 
 ## Private Cluster
 
-- `field_schema` + `metadata_ops` own container-neutral tag mapping, read
-  aliases, clear groups, and field op planning (fan-outs, track/disk tuples).
-  Container adapters (`ffmpeg_dict`, `mp4ameta_bridge`, `reader`) apply ops
-  only.
+- `field_schema` holds one row per field (`TextField`, `PositionField` from
+  `abb-metadata-core`) with each backend's keys: FFmpeg read aliases in
+  precedence order, write keys, keys a Set drops, keys a Clear drops, and the
+  mp4ameta freeform names. `metadata_ops` plans field ops (fan-outs, track/disk
+  tuples). Container adapters (`ffmpeg_dict`, `mp4ameta_bridge`, `reader`) apply
+  ops and read through the rows; they hold no key lists of their own. Adding a
+  field or alias means one row, plus the MP4 atom effects in `metadata_sinks`.
+- FFmpeg dictionary write order is part of the file (replacing a key moves the
+  last entry into its slot), so sinks write in op order: title, artist,
+  album_artist, album, composer, genre, date, year, comment, description,
+  series, series-part, track, disc, media_type, then the album sort.
 - `cover_art` and the audiobook media type (`MetadataOp::SetMediaTypeAudiobook`)
   stay sink-owned outside the neutral field-op loop (encode-path embed vs mp4
   artwork; unconditional audiobook media type).
@@ -140,8 +147,11 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   clear candidates. This policy lives in `field_schema::comment_key_rank`.
 - `----:com.apple.iTunes:SERIES` / `SERIES-PART` are FFmpeg read and clear
   keys, never write keys; the mp4ameta sink writes the MP4 mirrors. So a stray
-  tag from an older ABB still reads and a series edit removes it. Series
-  strategy: the `audiobook-metadata` skill.
+  tag from an older ABB still reads, and clearing the series removes it on
+  FFmpeg backends. A series Set there replaces only `series` /
+  `series-part` and leaves the stray key; mp4ameta's Set removes both mirrors
+  and `tvsh`/`sosn` (`tves`/`tven` for the number). Series strategy: the
+  `audiobook-metadata` skill.
 - MP4 artist and composer reads join repeated values with `;`, matching
   FFmpeg's text projection. Artist values take precedence over album-artist
   fallback. Unrelated save intent preserves repeated source values; processing

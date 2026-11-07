@@ -1,10 +1,8 @@
-use crate::metadata::field_schema::TagField;
+use crate::metadata::field_schema::{position_keys, text_keys, KeySet, ITUNES_MEAN};
 use crate::metadata::metadata_ops::MetadataOp;
 use crate::metadata::publication_year_from_date;
-use crate::metadata::tag_registry::{
-    ITUNES_MEAN, SERIES, SERIES_FREEFORM_NAME, SERIES_PART, SERIES_PART_FREEFORM_NAME,
-};
 use crate::metadata::AudiobookMetadata;
+use abb_metadata_core::{PositionField, TagField, TextField};
 use ffmpeg_next as ff;
 use mp4ameta::{Data, FreeformIdent, MediaType, Tag};
 
@@ -19,90 +17,76 @@ impl<'a> Mp4ametaSink<'a> {
 }
 
 impl Mp4ametaSink<'_> {
-    fn set_string(&mut self, field: TagField, value: &str) {
+    fn set_text(&mut self, field: TextField, value: &str) {
         match field {
-            TagField::Title => self.tag.set_title(value),
-            TagField::Artist => {
+            TextField::Title => self.tag.set_title(value),
+            TextField::Artist => {
                 self.tag.set_artist(value);
                 self.tag.set_album_artist(value);
             }
-            TagField::Album => self.tag.set_album(value),
-            TagField::Composer => self.tag.set_composer(value),
-            TagField::Genre => self.tag.set_genre(value),
-            TagField::Date => self.tag.set_year(value.to_string()),
-            TagField::Comment => self.tag.set_comment(value),
-            TagField::Description => self.tag.set_description(value),
-            TagField::Series => {
-                let canonical_ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES);
-                let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_FREEFORM_NAME);
-                self.tag.remove_data_of(&canonical_ident);
-                self.tag.remove_data_of(&ident);
-                self.tag.remove_tv_show_name();
-                self.tag.remove_tv_show_name_sort_order();
-                self.tag
-                    .set_data(canonical_ident, Data::Utf8(value.to_string()));
-                self.tag.set_data(ident, Data::Utf8(value.to_string()));
+            TextField::Album => self.tag.set_album(value),
+            TextField::Composer => self.tag.set_composer(value),
+            TextField::Genre => self.tag.set_genre(value),
+            TextField::Date => self.tag.set_year(value.to_string()),
+            TextField::Comment => self.tag.set_comment(value),
+            TextField::Description => self.tag.set_description(value),
+            TextField::Series | TextField::SeriesPart => {
+                self.remove_series_atoms(field);
+                for name in text_keys(field).mp4_freeform {
+                    self.tag.set_data(
+                        FreeformIdent::new_static(ITUNES_MEAN, name),
+                        Data::Utf8(value.to_string()),
+                    );
+                }
             }
-            TagField::SeriesPart => {
-                let canonical_ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART);
-                let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART_FREEFORM_NAME);
-                self.tag.remove_data_of(&canonical_ident);
-                self.tag.remove_data_of(&ident);
-                self.tag.remove_tv_episode();
-                self.tag.remove_tv_episode_name();
-                self.tag
-                    .set_data(canonical_ident, Data::Utf8(value.to_string()));
-                self.tag.set_data(ident, Data::Utf8(value.to_string()));
-            }
-            TagField::Track | TagField::Disk => {}
         }
     }
 
-    fn clear_field(&mut self, field: TagField) {
+    fn clear_text(&mut self, field: TextField) {
         match field {
-            TagField::Title => self.tag.remove_title(),
-            TagField::Artist => {
+            TextField::Title => self.tag.remove_title(),
+            TextField::Artist => {
                 self.tag.remove_artists();
                 self.tag.remove_album_artists();
             }
-            TagField::Album => self.tag.remove_album(),
-            TagField::Composer => self.tag.remove_composers(),
-            TagField::Genre => self.tag.remove_genres(),
-            TagField::Date => self.tag.remove_year(),
-            TagField::Comment => self.tag.remove_comments(),
-            TagField::Description => self.tag.remove_descriptions(),
-            TagField::Series => {
-                let canonical_ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES);
-                let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_FREEFORM_NAME);
-                self.tag.remove_data_of(&canonical_ident);
-                self.tag.remove_data_of(&ident);
-                self.tag.remove_tv_show_name();
-                self.tag.remove_tv_show_name_sort_order();
-            }
-            TagField::SeriesPart => {
-                let canonical_ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART);
-                let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART_FREEFORM_NAME);
-                self.tag.remove_data_of(&canonical_ident);
-                self.tag.remove_data_of(&ident);
-                self.tag.remove_tv_episode();
-                self.tag.remove_tv_episode_name();
-            }
-            TagField::Track => self.tag.remove_track(),
-            TagField::Disk => self.tag.remove_disc(),
+            TextField::Album => self.tag.remove_album(),
+            TextField::Composer => self.tag.remove_composers(),
+            TextField::Genre => self.tag.remove_genres(),
+            TextField::Date => self.tag.remove_year(),
+            TextField::Comment => self.tag.remove_comments(),
+            TextField::Description => self.tag.remove_descriptions(),
+            TextField::Series | TextField::SeriesPart => self.remove_series_atoms(field),
         }
     }
 
-    fn set_track(&mut self, number: u32, total: Option<u32>) {
-        let total = total.unwrap_or(0);
-        if number <= u16::MAX as u32 && total <= u16::MAX as u32 {
-            self.tag.set_track(number as u16, total as u16);
+    fn remove_series_atoms(&mut self, field: TextField) {
+        for name in text_keys(field).mp4_freeform {
+            self.tag
+                .remove_data_of(&FreeformIdent::new_static(ITUNES_MEAN, name));
+        }
+        if field == TextField::Series {
+            self.tag.remove_tv_show_name();
+            self.tag.remove_tv_show_name_sort_order();
+        } else {
+            self.tag.remove_tv_episode();
+            self.tag.remove_tv_episode_name();
         }
     }
 
-    fn set_disk(&mut self, number: u32, total: Option<u32>) {
+    fn set_position(&mut self, field: PositionField, number: u32, total: Option<u32>) {
         let total = total.unwrap_or(0);
         if number <= u16::MAX as u32 && total <= u16::MAX as u32 {
-            self.tag.set_disc(number as u16, total as u16);
+            match field {
+                PositionField::Track => self.tag.set_track(number as u16, total as u16),
+                PositionField::Disk => self.tag.set_disc(number as u16, total as u16),
+            }
+        }
+    }
+
+    fn clear_position(&mut self, field: PositionField) {
+        match field {
+            PositionField::Track => self.tag.remove_track(),
+            PositionField::Disk => self.tag.remove_disc(),
         }
     }
 
@@ -114,10 +98,14 @@ impl Mp4ametaSink<'_> {
 pub fn apply_metadata_ops(sink: &mut Mp4ametaSink<'_>, ops: &[MetadataOp]) {
     for op in ops {
         match op {
-            MetadataOp::SetString { field, value } => sink.set_string(*field, value),
-            MetadataOp::Clear(field) => sink.clear_field(*field),
-            MetadataOp::SetTrack { number, total } => sink.set_track(*number, *total),
-            MetadataOp::SetDisk { number, total } => sink.set_disk(*number, *total),
+            MetadataOp::SetText { field, value } => sink.set_text(*field, value),
+            MetadataOp::Clear(TagField::Text(field)) => sink.clear_text(*field),
+            MetadataOp::Clear(TagField::Position(field)) => sink.clear_position(*field),
+            MetadataOp::SetPosition {
+                field,
+                number,
+                total,
+            } => sink.set_position(*field, *number, *total),
             MetadataOp::SetMediaTypeAudiobook => sink.set_media_type_audiobook(),
         }
     }
@@ -138,22 +126,26 @@ pub fn apply_ops_to_ffmpeg_dict(
 ) -> crate::errors::Result<()> {
     for op in ops {
         match op {
-            MetadataOp::SetString { field, value } => {
-                for key in field.ffmpeg_write_keys() {
+            MetadataOp::SetText { field, value } => {
+                for key in text_keys(*field).write {
                     dict.set(key, value);
                 }
-                if *field == TagField::Date {
+                if *field == TextField::Date {
                     if let Some(year) = publication_year_from_date(Some(value)) {
                         dict.set("year", &year.to_string());
                     }
                 }
             }
             MetadataOp::Clear(_) => {}
-            MetadataOp::SetTrack { number, total } => {
-                dict.set("track", &format_position_field(*number, *total));
-            }
-            MetadataOp::SetDisk { number, total } => {
-                dict.set("disc", &format_position_field(*number, *total));
+            MetadataOp::SetPosition {
+                field,
+                number,
+                total,
+            } => {
+                dict.set(
+                    position_keys(*field).write,
+                    &format_position_field(*number, *total),
+                );
             }
             MetadataOp::SetMediaTypeAudiobook => {
                 dict.set("media_type", "2");
@@ -164,36 +156,30 @@ pub fn apply_ops_to_ffmpeg_dict(
 }
 
 /// Existing-dictionary keys a merge drops before this metadata's values are
-/// written: every alias of a field the planner clears, and every user-comment
-/// alias when the comment is set or cleared.
+/// written, from each planned op's row in the field table: a Set drops what
+/// its field's `drop_on_set` names, a Clear what `drop_on_clear` names.
 pub(crate) struct ExistingKeyRemoval {
-    cleared: Vec<TagField>,
-    comment_touched: bool,
+    dropped: Vec<KeySet>,
 }
 
 impl ExistingKeyRemoval {
     pub(crate) fn for_metadata(metadata: &AudiobookMetadata) -> Self {
-        let cleared = crate::metadata::metadata_ops::plan_metadata_field_ops(metadata)
+        let dropped = crate::metadata::metadata_ops::plan_metadata_field_ops(metadata)
             .into_iter()
             .filter_map(|op| match op {
-                MetadataOp::Clear(field) => Some(field),
-                _ => None,
+                MetadataOp::SetText { field, .. } => Some(text_keys(field).drop_on_set),
+                MetadataOp::Clear(TagField::Text(field)) => Some(text_keys(field).drop_on_clear),
+                MetadataOp::Clear(TagField::Position(field)) => {
+                    Some(position_keys(field).drop_on_clear)
+                }
+                MetadataOp::SetPosition { .. } | MetadataOp::SetMediaTypeAudiobook => None,
             })
             .collect();
-        Self {
-            cleared,
-            comment_touched: metadata.comment.is_some(),
-        }
+        Self { dropped }
     }
 
     pub(crate) fn removes(&self, key: &str) -> bool {
-        (self.comment_touched && super::field_schema::comment_key_rank(key).is_some())
-            || self.cleared.iter().any(|field| {
-                field
-                    .clear_keys()
-                    .iter()
-                    .any(|held| held.eq_ignore_ascii_case(key))
-            })
+        self.dropped.iter().any(|set| set.contains(key))
     }
 }
 

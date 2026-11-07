@@ -1,7 +1,7 @@
-use super::ffmpeg_dict::{ID3_ALBUM_SORT_KEY, MP4_ALBUM_SORT_KEY};
+use super::field_schema::{comment_key_rank, position_keys, text_keys, KeySet, ALBUM_SORT_KEYS};
 use super::{mp4ameta_bridge, normalize_publication_date, split_series_list, AudiobookMetadata};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::metadata::field_schema::TagField;
+use abb_metadata_core::{PositionField, TextField};
 use ffmpeg_next as ff;
 use std::path::Path;
 
@@ -34,58 +34,47 @@ fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<
 
     let mut metadata = AudiobookMetadata::new();
 
-    metadata.title = dict.get("title").map(str::to_string);
-    metadata.artist = dict.get("artist").map(str::to_string);
-    metadata.album = dict.get("album").map(str::to_string);
-    metadata.composer = dict.get("composer").map(str::to_string);
-    metadata.genre = dict.get("genre").map(str::to_string);
-    metadata.comment = read_comment(&dict);
-    metadata.description = dict.get("description").map(str::to_string);
-    metadata.album_sort = dict
-        .get(ID3_ALBUM_SORT_KEY)
-        .or_else(|| dict.get(MP4_ALBUM_SORT_KEY))
-        .map(str::to_string);
-    metadata.track = parse_position_field(
-        first_tag(&dict, TagField::Track).as_deref(),
-        first_tag_keys(
-            &dict,
-            TagField::Track.read_total_keys().expect("track totals"),
-        )
-        .as_deref(),
-    );
-    metadata.disk = parse_position_field(
-        first_tag(&dict, TagField::Disk).as_deref(),
-        first_tag_keys(
-            &dict,
-            TagField::Disk.read_total_keys().expect("disk totals"),
-        )
-        .as_deref(),
-    );
-
-    let series_raw = first_tag(&dict, TagField::Series);
-    let series_part_raw = first_tag(&dict, TagField::SeriesPart);
-    let (series, subseries) = split_series_list(series_raw.as_deref());
-    let (series_part, subseries_part) = split_series_list(series_part_raw.as_deref());
-    metadata.series = series;
-    metadata.series_part = series_part;
-    metadata.subseries = subseries;
-    metadata.subseries_part = subseries_part;
-
-    metadata.date = dict
-        .get("date")
-        .or_else(|| dict.get("year"))
-        .and_then(normalize_publication_date);
+    for field in TextField::ALL {
+        let value = read_text(&dict, field);
+        match field {
+            TextField::Date => {
+                metadata.date = value.as_deref().and_then(normalize_publication_date);
+            }
+            TextField::Series => {
+                (metadata.series, metadata.subseries) = split_series_list(value.as_deref());
+            }
+            TextField::SeriesPart => {
+                (metadata.series_part, metadata.subseries_part) =
+                    split_series_list(value.as_deref());
+            }
+            _ => *metadata.text_mut(field) = value,
+        }
+    }
+    metadata.album_sort = first_tag_keys(&dict, &ALBUM_SORT_KEYS);
+    for field in PositionField::ALL {
+        let keys = position_keys(field);
+        *metadata.position_mut(field) = parse_position_field(
+            first_tag_keys(&dict, keys.read_number).as_deref(),
+            first_tag_keys(&dict, keys.read_total).as_deref(),
+        );
+    }
 
     metadata.cover_art = extract_attached_pic(ictx);
 
     Ok(metadata)
 }
 
+fn read_text(dict: &ff::DictionaryRef<'_>, field: TextField) -> Option<String> {
+    match text_keys(field).read {
+        KeySet::Keys(keys) => first_tag_keys(dict, keys),
+        KeySet::UserComments => read_comment(dict),
+    }
+}
+
 fn read_comment(dict: &ff::DictionaryRef<'_>) -> Option<String> {
     dict.iter()
         .filter_map(|(key, value)| {
-            super::field_schema::comment_key_rank(key)
-                .map(|rank| (rank, key.to_ascii_lowercase(), value))
+            comment_key_rank(key).map(|rank| (rank, key.to_ascii_lowercase(), value))
         })
         .min_by(|left, right| (left.0, &left.1).cmp(&(right.0, &right.1)))
         .map(|(_, _, value)| value.to_owned())
@@ -102,16 +91,12 @@ where
     keys.iter().find_map(|key| lookup(key))
 }
 
-fn first_tag(dict: &ff::DictionaryRef<'_>, field: TagField) -> Option<String> {
-    first_tag_keys(dict, field.read_keys())
-}
-
 pub fn display_tags_from_ffmpeg_dict(
     dict: &ff::DictionaryRef<'_>,
 ) -> (Option<String>, Option<String>) {
     (
-        first_tag(dict, TagField::Title),
-        first_tag(dict, TagField::Artist),
+        read_text(dict, TextField::Title),
+        read_text(dict, TextField::Artist),
     )
 }
 

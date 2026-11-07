@@ -1,6 +1,6 @@
 use super::{plan_metadata_field_ops, MetadataOp};
-use crate::metadata::field_schema::TagField;
 use crate::metadata::AudiobookMetadata;
+use abb_metadata_core::{PositionField, TagField, TextField};
 
 #[test]
 fn partial_subseries_name_writes_combined_series_without_part_clear() {
@@ -12,19 +12,19 @@ fn partial_subseries_name_writes_combined_series_without_part_clear() {
 
     let ops = plan_metadata_field_ops(&metadata);
 
-    assert!(ops.contains(&MetadataOp::SetString {
-        field: TagField::Series,
+    assert!(ops.contains(&MetadataOp::SetText {
+        field: TextField::Series,
         value: "Primary; Sub".to_string(),
     }));
     assert!(
         !ops.iter()
-            .any(|op| matches!(op, MetadataOp::Clear(TagField::SeriesPart))),
+            .any(|op| matches!(op, MetadataOp::Clear(TagField::Text(TextField::SeriesPart)))),
         "a representable subseries name must not clear series-part"
     );
 }
 
-fn set_string(field: TagField, value: &str) -> MetadataOp {
-    MetadataOp::SetString {
+fn set_string(field: TextField, value: &str) -> MetadataOp {
+    MetadataOp::SetText {
         field,
         value: value.to_string(),
     }
@@ -40,7 +40,7 @@ fn field_ops_plan_each_metadata_shape_in_write_order() {
                 ..Default::default()
             },
             vec![
-                MetadataOp::Clear(TagField::Comment),
+                MetadataOp::Clear(TagField::Text(TextField::Comment)),
                 MetadataOp::SetMediaTypeAudiobook,
             ],
         ),
@@ -54,13 +54,15 @@ fn field_ops_plan_each_metadata_shape_in_write_order() {
                 ..Default::default()
             },
             vec![
-                set_string(TagField::Series, "Wheel of Time"),
-                set_string(TagField::SeriesPart, "3"),
-                MetadataOp::SetTrack {
+                set_string(TextField::Series, "Wheel of Time"),
+                set_string(TextField::SeriesPart, "3"),
+                MetadataOp::SetPosition {
+                    field: PositionField::Track,
                     number: 7,
                     total: Some(42),
                 },
-                MetadataOp::SetDisk {
+                MetadataOp::SetPosition {
+                    field: PositionField::Disk,
                     number: 2,
                     total: Some(5),
                 },
@@ -77,8 +79,8 @@ fn field_ops_plan_each_metadata_shape_in_write_order() {
                 ..Default::default()
             },
             vec![
-                set_string(TagField::Series, "Primary; Sub"),
-                set_string(TagField::SeriesPart, "1; 2"),
+                set_string(TextField::Series, "Primary; Sub"),
+                set_string(TextField::SeriesPart, "1; 2"),
                 MetadataOp::SetMediaTypeAudiobook,
             ],
         ),
@@ -90,7 +92,7 @@ fn field_ops_plan_each_metadata_shape_in_write_order() {
                 ..Default::default()
             },
             vec![
-                set_string(TagField::Title, "Title"),
+                set_string(TextField::Title, "Title"),
                 MetadataOp::SetMediaTypeAudiobook,
             ],
         ),

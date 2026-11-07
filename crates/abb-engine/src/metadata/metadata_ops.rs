@@ -1,34 +1,45 @@
-use crate::metadata::field_schema::TagField;
 use crate::metadata::{build_series_list, AudiobookMetadata};
+use abb_metadata_core::{PositionField, TagField, TextField};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MetadataOp {
-    SetString { field: TagField, value: String },
-    SetTrack { number: u32, total: Option<u32> },
-    SetDisk { number: u32, total: Option<u32> },
+    SetText {
+        field: TextField,
+        value: String,
+    },
+    SetPosition {
+        field: PositionField,
+        number: u32,
+        total: Option<u32>,
+    },
     Clear(TagField),
     SetMediaTypeAudiobook,
 }
 
+/// The text fields whose tag value is the field itself; the series fields
+/// combine the primary and sub-series (`push_series_ops`).
+const PLAIN_TEXT_FIELDS: [TextField; 8] = [
+    TextField::Title,
+    TextField::Artist,
+    TextField::Album,
+    TextField::Composer,
+    TextField::Genre,
+    TextField::Date,
+    TextField::Comment,
+    TextField::Description,
+];
+
 pub fn plan_metadata_field_ops(metadata: &AudiobookMetadata) -> Vec<MetadataOp> {
     let mut ops = Vec::new();
 
-    push_string_op(&mut ops, metadata.title.as_ref(), TagField::Title);
-    push_string_op(&mut ops, metadata.artist.as_ref(), TagField::Artist);
-    push_string_op(&mut ops, metadata.album.as_ref(), TagField::Album);
-    push_string_op(&mut ops, metadata.composer.as_ref(), TagField::Composer);
-    push_string_op(&mut ops, metadata.genre.as_ref(), TagField::Genre);
-    push_string_op(&mut ops, metadata.date.as_ref(), TagField::Date);
-    push_string_op(&mut ops, metadata.comment.as_ref(), TagField::Comment);
-    push_string_op(
-        &mut ops,
-        metadata.description.as_ref(),
-        TagField::Description,
-    );
+    for field in PLAIN_TEXT_FIELDS {
+        push_text_op(&mut ops, metadata.text(field), field);
+    }
 
     push_series_ops(metadata, &mut ops);
-    push_position_op(&mut ops, metadata.track, TagField::Track);
-    push_position_op(&mut ops, metadata.disk, TagField::Disk);
+    for field in PositionField::ALL {
+        push_position_op(&mut ops, metadata.position(field), field);
+    }
 
     if !ops.is_empty() {
         ops.push(MetadataOp::SetMediaTypeAudiobook);
@@ -37,17 +48,17 @@ pub fn plan_metadata_field_ops(metadata: &AudiobookMetadata) -> Vec<MetadataOp> 
     ops
 }
 
-fn push_string_op(ops: &mut Vec<MetadataOp>, value: Option<&String>, field: TagField) {
+fn push_text_op(ops: &mut Vec<MetadataOp>, value: Option<&String>, field: TextField) {
     let Some(value) = value else {
         return;
     };
 
     if value.trim().is_empty() {
-        ops.push(MetadataOp::Clear(field));
+        ops.push(MetadataOp::Clear(TagField::Text(field)));
     } else {
-        ops.push(MetadataOp::SetString {
+        ops.push(MetadataOp::SetText {
             field,
-            value: if field == TagField::Date {
+            value: if field == TextField::Date {
                 value.trim().to_string()
             } else {
                 value.to_string()
@@ -56,22 +67,24 @@ fn push_string_op(ops: &mut Vec<MetadataOp>, value: Option<&String>, field: TagF
     }
 }
 
-fn push_position_op(ops: &mut Vec<MetadataOp>, value: Option<(u32, Option<u32>)>, field: TagField) {
+fn push_position_op(
+    ops: &mut Vec<MetadataOp>,
+    value: Option<(u32, Option<u32>)>,
+    field: PositionField,
+) {
     let Some((number, total)) = value else {
         return;
     };
 
     if number == abb_metadata_core::POSITION_CLEAR_NUMBER {
-        ops.push(MetadataOp::Clear(field));
-        return;
+        ops.push(MetadataOp::Clear(TagField::Position(field)));
+    } else {
+        ops.push(MetadataOp::SetPosition {
+            field,
+            number,
+            total,
+        });
     }
-
-    let op = match field {
-        TagField::Track => MetadataOp::SetTrack { number, total },
-        TagField::Disk => MetadataOp::SetDisk { number, total },
-        _ => return,
-    };
-    ops.push(op);
 }
 
 fn push_series_ops(metadata: &AudiobookMetadata, ops: &mut Vec<MetadataOp>) {
@@ -92,18 +105,18 @@ fn push_series_ops(metadata: &AudiobookMetadata, ops: &mut Vec<MetadataOp>) {
     );
 
     if metadata.series.is_some() || metadata.subseries.is_some() {
-        push_built_series_op(ops, series_value, TagField::Series);
+        push_built_series_op(ops, series_value, TextField::Series);
     }
 
     if metadata.series_part.is_some() || metadata.subseries_part.is_some() {
-        push_built_series_op(ops, series_part_value, TagField::SeriesPart);
+        push_built_series_op(ops, series_part_value, TextField::SeriesPart);
     }
 }
 
-fn push_built_series_op(ops: &mut Vec<MetadataOp>, value: Option<String>, field: TagField) {
+fn push_built_series_op(ops: &mut Vec<MetadataOp>, value: Option<String>, field: TextField) {
     match value {
-        Some(value) if !value.trim().is_empty() => ops.push(MetadataOp::SetString { field, value }),
-        _ => ops.push(MetadataOp::Clear(field)),
+        Some(value) if !value.trim().is_empty() => ops.push(MetadataOp::SetText { field, value }),
+        _ => ops.push(MetadataOp::Clear(TagField::Text(field))),
     }
 }
 
@@ -132,16 +145,15 @@ pub(crate) fn log_field_decisions(
             {
                 "clear"
             } else if ops.iter().any(|op| match op {
-                MetadataOp::SetString { field: f, .. } => f == field,
-                MetadataOp::SetTrack { .. } => *field == TagField::Track,
-                MetadataOp::SetDisk { .. } => *field == TagField::Disk,
+                MetadataOp::SetText { field: f, .. } => TagField::Text(*f) == *field,
+                MetadataOp::SetPosition { field: f, .. } => TagField::Position(*f) == *field,
                 _ => false,
             }) {
                 "set"
             } else {
                 "preserve"
             };
-            format!("{field:?}={action}")
+            format!("{field}={action}")
         })
         .collect();
     log::info!(

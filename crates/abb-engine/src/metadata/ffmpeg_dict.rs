@@ -1,3 +1,4 @@
+use super::field_schema::{album_sort_key, ALBUM_SORT_KEYS, MP4_ALBUM_SORT_KEY};
 use super::{AlbumSortWriteAction, AudiobookMetadata, MetadataWritePlan};
 use crate::errors::Result;
 use crate::metadata::metadata_sinks::{
@@ -20,17 +21,6 @@ pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dicti
     Ok(dict)
 }
 
-pub(crate) const MP4_ALBUM_SORT_KEY: &str = "sort_album";
-pub(crate) const ID3_ALBUM_SORT_KEY: &str = "album-sort";
-
-pub(crate) fn album_sort_key(container: &str) -> &'static str {
-    if container == "mp3" {
-        ID3_ALBUM_SORT_KEY
-    } else {
-        MP4_ALBUM_SORT_KEY
-    }
-}
-
 pub(crate) fn merge_metadata_with_plan<'a>(
     existing: ff::Dictionary<'a>,
     plan: &MetadataWritePlan,
@@ -47,8 +37,9 @@ pub(crate) fn merge_metadata_with_plan<'a>(
         plan.album_sort == AlbumSortWriteAction::Clear || new_album_sort.is_some();
     let mut merged = ff::Dictionary::new();
     for (key, value) in existing.iter() {
-        let is_album_sort = key.eq_ignore_ascii_case(MP4_ALBUM_SORT_KEY)
-            || key.eq_ignore_ascii_case(ID3_ALBUM_SORT_KEY);
+        let is_album_sort = ALBUM_SORT_KEYS
+            .iter()
+            .any(|sort_key| key.eq_ignore_ascii_case(sort_key));
         if (replaces_album_sort && is_album_sort) || removal.removes(key) {
             continue;
         }
