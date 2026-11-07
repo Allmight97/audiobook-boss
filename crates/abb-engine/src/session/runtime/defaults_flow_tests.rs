@@ -62,7 +62,13 @@ async fn output_choices_are_recorded_and_template_typing_once_it_pauses() {
         .await;
     }
     assert_eq!(saved().await.output_naming.custom_template, None);
-    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while saved().await.output_naming.custom_template.is_none() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the typed template is saved once its pause ends");
     assert_eq!(
         saved().await.output_naming.custom_template.as_deref(),
         Some("{author}/{title}x")

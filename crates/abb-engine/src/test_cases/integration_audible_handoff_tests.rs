@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use tempfile::TempDir;
 
+use super::support::form::field_of;
 use super::support::poll::until;
 use crate::app_settings::SettingsRuntime;
 use crate::audio::{AudioIntent, EncoderType};
@@ -83,13 +84,7 @@ async fn acquire(session: &Session) -> Box<AcquisitionSnapshot> {
 
 fn shown(session: &Session, field: MetadataField) -> String {
     let metadata = session.snapshot().metadata.expect("metadata part");
-    metadata
-        .form
-        .fields
-        .into_iter()
-        .find(|snapshot| snapshot.field == field)
-        .expect("field")
-        .value
+    field_of(&metadata.form, field).value
 }
 
 #[tokio::test]

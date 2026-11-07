@@ -196,12 +196,7 @@ impl Desk {
     }
 
     fn field(&mut self, field: MetadataField) -> FieldSnapshot {
-        self.metadata()
-            .form
-            .fields
-            .into_iter()
-            .find(|snapshot| snapshot.field == field)
-            .expect("field")
+        crate::test_cases::support::form::field_of(&self.metadata().form, field)
     }
 
     fn metadata(&mut self) -> MetadataSnapshot {

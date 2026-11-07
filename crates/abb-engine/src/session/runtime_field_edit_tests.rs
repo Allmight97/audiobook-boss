@@ -1,13 +1,6 @@
 use super::*;
 
-fn field_of(rig: &Rig, field: MetadataField) -> crate::session::FieldSnapshot {
-    rig.metadata()
-        .form
-        .fields
-        .into_iter()
-        .find(|snapshot| snapshot.field == field)
-        .expect("field")
-}
+use crate::test_cases::support::form::field_of;
 
 #[tokio::test]
 async fn a_keystroke_typed_before_an_import_selected_a_title_does_not_dirty_it() {
@@ -30,7 +23,7 @@ async fn a_keystroke_typed_before_an_import_selected_a_title_does_not_dirty_it()
         .await;
 
     assert_eq!(outcome, SessionOutcome::EditLost);
-    let genre = field_of(&rig, MetadataField::Genre);
+    let genre = field_of(&rig.metadata().form, MetadataField::Genre);
     assert!(!genre.dirty && genre.value != "stray");
     assert_eq!(rig.pending("book"), None);
 }
@@ -52,5 +45,5 @@ async fn a_field_action_aimed_at_a_form_that_was_replaced_changes_nothing() {
         .await;
 
     assert_eq!(outcome, SessionOutcome::EditLost);
-    assert!(!field_of(&rig, MetadataField::Genre).dirty);
+    assert!(!field_of(&rig.metadata().form, MetadataField::Genre).dirty);
 }

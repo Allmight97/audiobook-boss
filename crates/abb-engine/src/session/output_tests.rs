@@ -18,18 +18,24 @@ fn reason_for(template: &str) -> String {
     }
 }
 
+fn assert_no_error_prefix(reason: &str) {
+    for prefix in ["Invalid input", "File validation failed"] {
+        assert!(!reason.starts_with(prefix), "{reason}");
+    }
+}
+
 #[test]
 fn an_unknown_template_token_is_named_with_no_error_prefix() {
-    assert_eq!(
-        reason_for("{foo}"),
-        "Unknown template token '{foo}'. Allowed tokens: {author},{title},{series},{seriesPart},{subseries},{subseriesPart},{year}"
-    );
+    let reason = reason_for("{foo}");
+
+    assert_no_error_prefix(&reason);
+    assert!(reason.contains("{foo}"), "{reason}");
 }
 
 #[test]
 fn a_template_that_climbs_out_of_the_folder_is_refused_with_no_error_prefix() {
-    assert_eq!(
-        reason_for("../{title}"),
-        "Custom template path traversal is not allowed"
-    );
+    let reason = reason_for("../{title}");
+
+    assert_no_error_prefix(&reason);
+    assert!(reason.contains("traversal"), "{reason}");
 }

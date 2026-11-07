@@ -53,6 +53,26 @@ async fn importing_lists_what_it_read_and_names_what_it_skipped() {
 }
 
 #[tokio::test]
+async fn importing_while_a_submission_holds_the_list_shows_the_order_locked_notice() {
+    let rig = rig();
+    rig.load(&["held"]);
+    rig.lock_order(true);
+    let folder = tempfile::TempDir::new().expect("temp dir");
+    let book = staged_wav(folder.path(), "book");
+
+    rig.send(SessionIntent::Import {
+        paths: vec![book.to_string_lossy().into_owned()],
+    })
+    .await;
+
+    assert_eq!(
+        rig.session.snapshot().titles.expect("titles").notice,
+        Some(InputNotice::OrderLocked)
+    );
+    assert_eq!(rig.listed_paths(), vec![path("held")]);
+}
+
+#[tokio::test]
 async fn opened_files_wait_for_unlock_without_a_host_request() {
     let rig = rig();
     let folder = tempfile::TempDir::new().expect("temp dir");

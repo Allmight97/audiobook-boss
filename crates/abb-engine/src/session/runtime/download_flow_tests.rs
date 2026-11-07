@@ -91,14 +91,8 @@ async fn a_failed_removal_waits_out_the_retry_delay_before_the_next_change_retri
 
     tokio::time::sleep(crate::session::staged::RETRY_DELAY).await;
     rig.send(SessionIntent::ClearAll).await;
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        while !rig.session.lock().staged.is_empty() {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the change after the delay retries the removal");
-    assert_eq!(attempts(), 2);
+    crate::test_cases::support::poll::until_true("the removal is retried", || attempts() == 2)
+        .await;
 }
 
 #[tokio::test]

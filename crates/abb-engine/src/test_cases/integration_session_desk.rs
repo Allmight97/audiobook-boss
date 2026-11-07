@@ -14,6 +14,7 @@ use crate::{Engine, EngineConfig};
 use tempfile::TempDir;
 
 use super::media_fixtures::MediaLane;
+use super::support::form::field_of;
 use super::support::poll::until_true;
 
 pub(super) struct Desk {
@@ -128,13 +129,7 @@ impl Desk {
     }
 
     pub(super) fn shown(&self, field: MetadataField) -> String {
-        self.metadata()
-            .form
-            .fields
-            .into_iter()
-            .find(|snapshot| snapshot.field == field)
-            .expect("field")
-            .value
+        field_of(&self.metadata().form, field).value
     }
 
     pub(super) fn title_ids(&self) -> Vec<String> {

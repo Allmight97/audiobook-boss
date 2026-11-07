@@ -269,10 +269,6 @@ impl WorkingSet {
         default_audio: &TitleAudioRequest,
     ) {
         self.touch();
-        if self.order_locked {
-            self.notice = Some(InputNotice::OrderLocked);
-            return;
-        }
         let mut seen = self.source_paths();
         let replace = self.files.is_empty();
         let mut appended = Vec::new();

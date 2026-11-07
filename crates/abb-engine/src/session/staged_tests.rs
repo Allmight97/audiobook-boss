@@ -3,6 +3,7 @@ use crate::audio::{AudioFile, AudioIntent, TitleAudioRequest};
 use crate::session::metadata_form::MetadataField;
 use crate::session::state::SessionState;
 use crate::session::working_set::SelectionModifiers;
+use crate::test_cases::support::form::field_of;
 
 fn path(name: &str) -> PathBuf {
     PathBuf::from(format!("/staged/{name}.m4b"))
@@ -171,13 +172,7 @@ fn typed(state: &mut SessionState, value: &str) {
 fn shown_genre(state: &mut SessionState) -> String {
     state.settle();
     let metadata = state.update_since(None).metadata.expect("metadata part");
-    metadata
-        .form
-        .fields
-        .into_iter()
-        .find(|snapshot| snapshot.field == MetadataField::Genre)
-        .expect("genre")
-        .value
+    field_of(&metadata.form, MetadataField::Genre).value
 }
 
 fn pending_genre(state: &SessionState, name: &str) -> bool {
@@ -197,12 +192,7 @@ fn typing_on_a_title_survives_its_download_leaving_even_when_invalid() {
 
     assert_eq!(shown_genre(&mut state), "Mystery");
     let metadata = state.update_since(None).metadata.expect("metadata part");
-    let date = metadata
-        .form
-        .fields
-        .iter()
-        .find(|snapshot| snapshot.field == MetadataField::Date)
-        .expect("date");
+    let date = field_of(&metadata.form, MetadataField::Date);
     assert_eq!(date.value, "soon");
     assert!(date.dirty);
 }

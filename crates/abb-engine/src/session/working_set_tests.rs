@@ -189,7 +189,7 @@ fn reordering_and_sorting_keep_the_selected_titles_selected() {
 }
 
 #[test]
-fn a_locked_order_blocks_every_mutation_and_explains_a_refused_import() {
+fn a_locked_order_blocks_every_mutation() {
     let mut set = set_with(&["a", "b", "c"]);
     set.select_file(0, NO_MODIFIERS);
     set.select_file(1, MULTI);
@@ -203,11 +203,8 @@ fn a_locked_order_blocks_every_mutation_and_explains_a_refused_import() {
     assert!(!set.clear_all());
     assert!(!set.group_selected());
     set.set_audio_request("a", request(AudioIntent::Encode));
-    set.append_analyzed(vec![file("d")], &request(AudioIntent::Auto));
 
     assert_eq!(names(&set), ["a", "b", "c"]);
-    let snapshot = set.titles(0);
-    assert_eq!(snapshot.notice, Some(InputNotice::OrderLocked));
     assert_eq!(
         set.audio_request("a").expect("request").intent,
         AudioIntent::Auto

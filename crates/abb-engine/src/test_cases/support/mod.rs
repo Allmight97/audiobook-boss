@@ -1,5 +1,7 @@
 #[path = "encoders.rs"]
 pub(crate) mod encoders;
+#[path = "form.rs"]
+pub(crate) mod form;
 #[path = "fs_listing.rs"]
 pub(crate) mod fs_listing;
 #[path = "poll.rs"]
