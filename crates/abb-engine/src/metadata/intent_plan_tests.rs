@@ -158,6 +158,7 @@ fn a_source_with_legacy_series_parts_names_its_output_without_them() {
         Some(&naming),
         OutputNamingConfig::default(),
         Some(input_path),
+        "m4b",
     )
     .expect("legacy source naming should no longer fail");
     assert!(output_path.to_string_lossy().contains("Legacy Source"));
@@ -208,6 +209,7 @@ fn a_title_edit_names_the_output_by_the_new_title_without_legacy_parts() {
         Some(&naming),
         OutputNamingConfig::default(),
         Some(input_path),
+        "m4b",
     )
     .expect("a title edit should not fail on an inherited legacy part");
     assert!(output_path.to_string_lossy().contains("Renamed"));

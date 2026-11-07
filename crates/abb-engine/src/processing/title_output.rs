@@ -406,8 +406,8 @@ impl TitleOutputPlan {
             outcome.naming_metadata.as_ref(),
             self.naming.clone(),
             Some(&self.anchor),
-        )?
-        .with_extension(&self.extension);
+            &self.extension,
+        )?;
         let tags = Tags {
             text,
             cover: intent.and_then(|intent| intent.cover_art.clone()),

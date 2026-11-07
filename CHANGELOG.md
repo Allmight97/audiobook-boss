@@ -4,6 +4,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- A preview of an Opus title now matches the final file's name and container. An M4A Opus
+  preview was named `.m4b`, and an MKA Opus preview was written as an MP4 file named `.m4b`.
+
 ### Changed
 
 - Imported files now sort the way the Sort button does. `Chapter 01 - Part 1` comes before

@@ -7,10 +7,7 @@ use crate::app_settings::OutputDefaults;
 use crate::audio::AudiobookFormat;
 use crate::errors::AppError;
 use crate::metadata::{AudiobookMetadata, NamingMetadata};
-use crate::output_artifact::{
-    build_output_path_preview, derive_output_artifact_path, NamingPreset, OutputKind,
-    OutputNamingConfig,
-};
+use crate::output_artifact::{build_output_path_preview, NamingPreset, OutputNamingConfig};
 
 /// A custom naming template left empty names files this way.
 pub const DEFAULT_CUSTOM_TEMPLATE: &str = "{author}/{title}";
@@ -147,14 +144,11 @@ impl OutputPlan {
             Some(&naming),
             self.naming(),
             Some(source),
-        )
-        .and_then(|requested| derive_output_artifact_path(&requested, OutputKind::Final));
+            format.extension(),
+        );
         match path {
             Ok(path) => OutputPreview::Path {
-                path: path
-                    .with_extension(format.extension())
-                    .to_string_lossy()
-                    .into_owned(),
+                path: path.to_string_lossy().into_owned(),
             },
             Err(AppError::InvalidInput(message) | AppError::FileValidation(message)) => {
                 OutputPreview::Unavailable { message }

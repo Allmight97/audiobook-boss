@@ -136,7 +136,15 @@ pub fn derive_output_artifact_path(
                 .file_stem()
                 .map(|value| value.to_string_lossy())
                 .unwrap_or_else(|| "output".into());
-            Ok(parent.join(format!("{stem}.preview.m4b")))
+            let extension = requested_final_path
+                .extension()
+                .map(|value| value.to_string_lossy())
+                .ok_or_else(|| {
+                    OutputArtifactCoreError::InvalidInput(
+                        "The output path has no extension".to_string(),
+                    )
+                })?;
+            Ok(parent.join(format!("{stem}.preview.{extension}")))
         }
     }
 }
@@ -208,9 +216,10 @@ pub fn build_output_path_preview(
     metadata: Option<&NamingMetadata>,
     naming: OutputNamingConfig,
     source_path: Option<&Path>,
+    extension: &str,
 ) -> Result<PathBuf> {
     let values = collect_naming_values(metadata, source_path)?;
-    build_output_path_inner(base_dir, &values, &naming)
+    build_output_path_inner(base_dir, &values, &naming, extension)
 }
 
 pub fn action_requires_output_write(action: PlannedOutputAction) -> bool {
@@ -520,7 +529,7 @@ fn render_custom_template(template: &str, values: &NamingValues) -> Result<Strin
     Ok(trimmed.to_string())
 }
 
-fn sanitize_template_relative_path(rendered: &str) -> Result<PathBuf> {
+fn sanitize_template_relative_path(rendered: &str, extension: &str) -> Result<PathBuf> {
     let rendered_path = Path::new(rendered);
     if rendered_path.is_absolute() {
         return Err(OutputArtifactCoreError::FileValidation(
@@ -566,9 +575,14 @@ fn sanitize_template_relative_path(rendered: &str) -> Result<PathBuf> {
     }
 
     if let Some(last) = segments.last_mut() {
-        if !last.to_ascii_lowercase().ends_with(".m4b") {
-            last.push_str(".m4b");
+        const TEMPLATE_SUFFIX: &str = ".m4b";
+        if last.len() > TEMPLATE_SUFFIX.len()
+            && last.to_ascii_lowercase().ends_with(TEMPLATE_SUFFIX)
+        {
+            last.truncate(last.len() - TEMPLATE_SUFFIX.len());
         }
+        last.push('.');
+        last.push_str(extension);
     }
 
     let mut relative = PathBuf::new();
@@ -582,6 +596,7 @@ fn build_output_path_inner(
     base_dir: &Path,
     values: &NamingValues,
     naming: &OutputNamingConfig,
+    extension: &str,
 ) -> Result<PathBuf> {
     let mut dir = base_dir.to_path_buf();
     let filename = match naming.preset {
@@ -603,7 +618,7 @@ fn build_output_path_inner(
             let title_folder =
                 build_abs_title(&values.title, book_part, values.year, naming.include_year);
             dir = dir.join(&title_folder);
-            format!("{title_folder}.m4b")
+            format!("{title_folder}.{extension}")
         }
         NamingPreset::CustomTemplate => {
             let template = naming.custom_template.as_deref().ok_or_else(|| {
@@ -612,7 +627,7 @@ fn build_output_path_inner(
                 )
             })?;
             let rendered = render_custom_template(template, values)?;
-            let relative = sanitize_template_relative_path(&rendered)?;
+            let relative = sanitize_template_relative_path(&rendered, extension)?;
             let parent = relative.parent().unwrap_or_else(|| Path::new(""));
             if !parent.as_os_str().is_empty() {
                 dir = dir.join(parent);

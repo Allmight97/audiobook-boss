@@ -38,6 +38,50 @@ fn derive_output_artifact_path_suffixes_only_previews() {
 }
 
 #[test]
+fn a_preview_keeps_the_extension_of_the_file_it_previews() {
+    for extension in ["m4b", "m4a", "mka"] {
+        let title = Path::new("/tmp").join(format!("Vol. 2.{extension}"));
+        assert_eq!(
+            derive_output_artifact_path(&title, OutputKind::Preview).expect("preview"),
+            Path::new("/tmp").join(format!("Vol. 2.preview.{extension}"))
+        );
+    }
+    assert!(derive_output_artifact_path(Path::new("/tmp/Book"), OutputKind::Preview).is_err());
+}
+
+#[test]
+fn the_requested_extension_ends_every_naming_preset() {
+    let naming = |template: Option<&str>| OutputNamingConfig {
+        preset: if template.is_some() {
+            NamingPreset::CustomTemplate
+        } else {
+            NamingPreset::AbsDefault
+        },
+        include_year: false,
+        custom_template: template.map(str::to_string),
+    };
+    let name = |template: Option<&str>, extension: &str| {
+        build_output_path_preview(
+            Path::new("/out"),
+            Some(&sample_naming_metadata()),
+            naming(template),
+            None,
+            extension,
+        )
+        .expect("path")
+        .file_name()
+        .and_then(|value| value.to_str().map(str::to_string))
+        .expect("file name")
+    };
+    assert_eq!(name(None, "mka"), "Book 1 - Dune.mka");
+    assert_eq!(name(Some("{title}"), "m4a"), "Dune.m4a");
+    assert_eq!(name(Some("{title}.m4b"), "m4a"), "Dune.m4a");
+    assert_eq!(name(Some("{title}.M4B"), "mka"), "Dune.mka");
+    assert_eq!(name(Some("{title}.m4a"), "m4a"), "Dune.m4a.m4a");
+    assert_eq!(name(Some("{title}.m4b.m4b"), "m4b"), "Dune.m4b.m4b");
+}
+
+#[test]
 fn normalize_subseries_folder_keeps_existing_prefix() {
     assert_eq!(
         normalize_subseries_folder("Part 2 - Rogue Castes", Some("2")),
@@ -64,6 +108,7 @@ fn abs_default_builds_author_series_book_path() {
             ..Default::default()
         },
         None,
+        "m4b",
     )
     .expect("path");
 
@@ -80,6 +125,7 @@ fn abs_default_builds_subseries_book_path() {
         Some(&sample_naming_metadata()),
         OutputNamingConfig::default(),
         None,
+        "m4b",
     )
     .expect("path");
 
@@ -104,6 +150,7 @@ fn default_naming_never_turns_a_dots_only_tag_into_a_folder_step() {
         Some(&metadata),
         OutputNamingConfig::default(),
         None,
+        "m4b",
     )
     .expect("path");
     assert!(path.starts_with("/out"));
@@ -127,6 +174,7 @@ fn custom_template_rejects_path_traversal() {
             custom_template: Some("../escape/{title}".to_string()),
         },
         Some(Path::new("/tmp/source.m4b")),
+        "m4b",
     )
     .expect_err("traversal should fail");
 
@@ -141,6 +189,7 @@ fn custom_template_rejects_path_traversal() {
             custom_template: Some("/{author}/{title}".to_string()),
         },
         None,
+        "m4b",
     )
     .expect_err("absolute path should fail");
     assert!(absolute_err.to_string().contains("relative path"));
@@ -157,6 +206,7 @@ fn custom_template_substitutes_whitelisted_tokens() {
             custom_template: Some("{author}/{series}/{title}-{seriesPart}-{year}".to_string()),
         },
         None,
+        "m4b",
     )
     .expect("custom template");
 
@@ -177,6 +227,7 @@ fn custom_template_rejects_unknown_tokens() {
             custom_template: Some("{author}/{bogus}/{title}".to_string()),
         },
         None,
+        "m4b",
     )
     .expect_err("unknown token should fail");
 
@@ -194,6 +245,7 @@ fn custom_template_appends_m4b_extension() {
             custom_template: Some("{author}/{title}".to_string()),
         },
         None,
+        "m4b",
     )
     .expect("custom template");
 
@@ -219,6 +271,7 @@ fn custom_template_skips_empty_series_segment() {
             custom_template: Some("{series}/{title}".to_string()),
         },
         None,
+        "m4b",
     )
     .expect("custom template");
 

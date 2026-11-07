@@ -54,7 +54,14 @@ pub(crate) fn build_output_path_preview(
     metadata: Option<&NamingMetadata>,
     naming: OutputNamingConfig,
     source_path: Option<&Path>,
+    extension: &str,
 ) -> Result<PathBuf> {
-    abb_output_artifact_core::build_output_path_preview(base_dir, metadata, naming, source_path)
-        .map_err(Into::into)
+    abb_output_artifact_core::build_output_path_preview(
+        base_dir,
+        metadata,
+        naming,
+        source_path,
+        extension,
+    )
+    .map_err(Into::into)
 }

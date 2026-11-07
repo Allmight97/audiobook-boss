@@ -2,7 +2,6 @@ use crate::audio::FileListInfo;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::{
     plan_metadata_outcome, CoverArtPassthroughPolicy, MetadataOutcomePlan, MetadataOutcomeRequest,
-    NamingMetadata,
 };
 use crate::output_artifact::OutputNamingConfig;
 use crate::output_artifact::{
@@ -145,15 +144,6 @@ fn build_plan_signature(
     }
 
     lines.join("\n")
-}
-
-fn build_requested_output_path(
-    base_output_dir: &Path,
-    metadata: Option<&NamingMetadata>,
-    output_naming: OutputNamingConfig,
-    source_path: Option<&Path>,
-) -> Result<PathBuf> {
-    build_output_path_preview(base_output_dir, metadata, output_naming, source_path)
 }
 
 fn build_processing_inputs(
@@ -323,11 +313,12 @@ fn build_title_processing_jobs(
             intent_patch: file_patch.as_ref(),
         })?;
         let metadata_outcome: MetadataOutcomePlan = metadata_outcome;
-        let requested_output = build_requested_output_path(
+        let requested_output = build_output_path_preview(
             &inputs.base_output_dir,
             metadata_outcome.naming_metadata.as_ref(),
             inputs.output_naming.clone(),
             Some(&path),
+            payload.audio_requests[index].format().extension(),
         )?;
         let info = title_file_info(file_info, &source_paths)?;
         let audio_plan = crate::audio::resolve_title_audio(
@@ -335,7 +326,6 @@ fn build_title_processing_jobs(
             &info,
             inputs.preview,
         )?;
-        let requested_output = requested_output.with_extension(audio_plan.format.extension());
         let output = output_ledger.resolve(
             &requested_output,
             resolve_output_kind(inputs.preview),
