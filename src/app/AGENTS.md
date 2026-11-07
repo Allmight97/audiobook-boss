@@ -115,7 +115,12 @@ without a bullet has none. Engine paths name the owner of the truth.
   come from the engine's `titleTotals`; the combined size and Group as one
   title availability come from `totalSizeBytes` and `canGroup`. A source row's
   own count is `acceptedChapterCount`, the plan the file converts with. Why: a
-  CUE plan replaces the embedded chapters.
+  CUE plan replaces the embedded chapters. Views and the owner branch on a
+  title's or source's engine `status` (`ready`, `failed`, `removedFinished`),
+  never on `isValid` or `sourceRemoved`. The owner words a title's detail line
+  (`detailsFor`) and its CUE notice (`cueNoticeFor`): a CUE button shows only
+  for an action the CUE source lists. `view().selectedTitles` and
+  `isSelected(file)` name the selection by title identity.
 - `metadataLookup` (session AGENTS): query text binds to its queued path and
   metadata `binding`. Advancing or rebinding drops the previous title's echo at
   once. Apply sends the lookup part revision the snapshot holds.

@@ -73,7 +73,7 @@ function inspectorFromFiles(
 		const file = selectedFiles[0];
 		const index = selectedIndices[0] ?? 0;
 		const companion = companionSummaryForInputIds([file.inputId]);
-		if (!file.isValid) {
+		if (file.status !== 'ready') {
 			return {
 				...EMPTY_INSPECTOR_VIEW,
 				combinedSizeText,

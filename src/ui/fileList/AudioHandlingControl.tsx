@@ -22,8 +22,6 @@ export function AudioHandlingControl(props: {
 	let pinned = false,
 		dismissed = false;
 	const request = () => runtime.encoding.audioRequest(props.file);
-	const sources = () => runtime.input.sourcesFor(props.file);
-	const sourceRemoved = () => sources().some((source) => source.sourceRemoved);
 	const resolved = () => runtime.encoding.plan(props.file);
 	const plan = (): TitleAudioPlan | undefined => {
 		const current = resolved();
@@ -142,7 +140,7 @@ export function AudioHandlingControl(props: {
 		},
 	);
 	return (
-		<Show when={!sourceRemoved()}>
+		<Show when={props.file.status !== 'removedFinished'}>
 			<button
 				type="button"
 				ref={(el) => {

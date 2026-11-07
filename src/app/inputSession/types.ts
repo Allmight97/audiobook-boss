@@ -9,6 +9,7 @@ export type InputView = {
 	readonly files: ReadonlyArray<AudioFile>;
 	readonly sourceFiles: ReadonlyArray<AudioFile>;
 	readonly selectedSourceFiles: ReadonlyArray<AudioFile>;
+	readonly selectedTitles: ReadonlyArray<AudioFile>;
 	readonly selectedIndices: ReadonlyArray<number>;
 	readonly selectedAnchor: number;
 	readonly fileCount: number;

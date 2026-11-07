@@ -224,4 +224,59 @@ describe('input owner', () => {
 		});
 		expect(inspect().contextText).toBe('2 files selected');
 	});
+
+	it('shows no audio facts for a selected title the engine marks failed or removed', async () => {
+		const app = await open();
+		const facts = { sampleRate: 44100, channels: 2, bitrate: 64000, codecLabel: 'AAC' };
+		engine.loadTitles([
+			audioFile('/books/ok.m4b', facts),
+			audioFile('/books/bad.m4b', { ...facts, isValid: false }),
+			audioFile('/books/gone.m4b', { ...facts, isValid: false, sourceRemoved: true }),
+		]);
+		const inspect = (index: number) => {
+			engine.change((state) => {
+				state.selection.selectedIndices = [index];
+			});
+			return toInspectorViewFromInput(app.input.view(), app.input.companionSummary);
+		};
+		expect(inspect(0).codecText).toBe('AAC');
+		expect(inspect(1).codecText).toBe('---');
+		expect(inspect(2).codecText).toBe('---');
+	});
+
+	it('reports the selected titles and whether one is selected by identity', async () => {
+		engine = createFakeEngine();
+		engine.loadTitles(
+			[audioFile('/books/a.m4b'), audioFile('/books/b.m4b'), audioFile('/books/c.m4b')],
+			[0, 2],
+		);
+		runtime = await createAppRuntime({ engine });
+		const [a, b, c] = runtime.input.view().files;
+
+		expect(runtime.input.view().selectedTitles.map((file) => file.inputId)).toEqual([
+			a.inputId,
+			c.inputId,
+		]);
+		expect(runtime.input.isSelected(a)).toBe(true);
+		expect(runtime.input.isSelected(b)).toBe(false);
+		expect(runtime.input.isSelected(c)).toBe(true);
+	});
+
+	it('words a grouped title from the engine totals', async () => {
+		engine = createFakeEngine();
+		const parts = [audioFile('/books/p1.m4b'), audioFile('/books/p2.m4b')];
+		engine.loadTitles(parts);
+		engine.seedGroup(parts);
+		engine.change((state) => {
+			state.titles.titleTotals[parts[0].inputId] = {
+				chapterCount: 4,
+				durationSeconds: 120,
+				sizeBytes: 2048,
+			};
+		});
+		runtime = await createAppRuntime({ engine });
+		const [title] = runtime.input.view().files;
+
+		expect(runtime.input.detailsFor(title)).toBe('2:00 • 2.0 KB • m4b • 4 chapters');
+	});
 });

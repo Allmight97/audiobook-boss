@@ -1,6 +1,7 @@
 import { createSignal, type Accessor } from 'solid-js';
 import {
 	type AudioFile,
+	type CueChoice,
 	SUPPORTED_AUDIO_IMPORT_EXTENSIONS,
 	type SessionIntent,
 	type TitleTotals,
@@ -9,7 +10,8 @@ import { toUserMessage } from '../../lib/tauri/appError';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
 import type { EngineLink } from '../engineLink';
 import { companionSummary, type CompanionSummary } from './companions';
-import { toInputView } from './display';
+import { cueNotice, type CueNotice } from './cueNotice';
+import { titleDetails, toInputView } from './display';
 import {
 	fileIdentityKey,
 	type ImportIntent,
@@ -22,6 +24,10 @@ export type InputOwner = {
 	readonly capability: Accessor<InputCapability>;
 	sourcesFor: (file: AudioFile) => ReadonlyArray<AudioFile>;
 	totalsFor: (file: AudioFile) => TitleTotals | undefined;
+	/** The detail line under a title: its own, or the combined line of a group. */
+	detailsFor: (file: AudioFile) => string;
+	cueNoticeFor: (file: AudioFile) => CueNotice | null;
+	isSelected: (file: AudioFile) => boolean;
 	groupSelected: () => void;
 	ungroup: (file: AudioFile) => void;
 	reorderSources: (file: AudioFile, from: number, to: number) => void;
@@ -43,7 +49,7 @@ export type InputOwner = {
 	reorderFiles: (command: { readonly fromIndex: number; readonly toIndex: number }) => void;
 	toggleSort: () => void;
 	restoreImportOrder: () => void;
-	chooseCue: (inputId: string, choice: 'confirmHundredths' | 'ignore') => void;
+	chooseCue: (inputId: string, choice: CueChoice) => void;
 	reset: () => void;
 };
 
@@ -77,6 +83,10 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 
 	function totalsFor(file: AudioFile): TitleTotals | undefined {
 		return link.titles().titleTotals[fileIdentityKey(file)];
+	}
+
+	function detailsFor(file: AudioFile): string {
+		return titleDetails(file, sourcesFor(file).length > 1, totalsFor(file));
 	}
 
 	async function applied(intent: SessionIntent): Promise<boolean> {
@@ -136,6 +146,13 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	return {
 		sourcesFor,
 		totalsFor,
+		detailsFor,
+		cueNoticeFor: cueNotice,
+		isSelected(file) {
+			return link
+				.selection()
+				.selectedIndices.some((index) => link.titles().files[index]?.inputId === file.inputId);
+		},
 		hasCompanions(inputId) {
 			return Boolean(inputId && link.titles().companions[inputId]?.length);
 		},

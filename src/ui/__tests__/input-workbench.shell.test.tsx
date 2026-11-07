@@ -276,7 +276,7 @@ describe('Solid input workbench', () => {
 		expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
 	});
 
-	it('shows an invalid source in the grouped title status', async () => {
+	it('shows a grouped title the engine marks failed as failed, with its error', async () => {
 		const files = [
 			analyzedFile('/books/valid.m4b'),
 			analyzedFile('/books/broken.m4b', {
@@ -292,10 +292,14 @@ describe('Solid input workbench', () => {
 		});
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
 		engine.seedGroup(files);
+		engine.change((state) => {
+			const anchor = state.titles.files.find((file) => file.path === files[0].path);
+			if (anchor) Object.assign(anchor, { status: 'failed', error: 'Broken audio source' });
+		});
 		await waitFor(() => {
 			const row = screen.getByRole('option', { name: 'valid.m4b' });
 			expect(row).toHaveClass('invalid');
-			expect(row).toHaveTextContent('Broken audio source');
+			expect(row).toHaveTextContent('Error: Broken audio source');
 		});
 	});
 
@@ -324,42 +328,6 @@ describe('Solid input workbench', () => {
 		expect(row).not.toHaveTextContent('Choose audio');
 		expect(screen.queryByRole('button', { name: 'Audio plan for done.m4b' })).toBeNull();
 		expect(screen.queryByTitle('Estimated output size')).toBeNull();
-	});
-
-	it('shows a grouped title of removed downloads as finished but keeps a broken source failed', async () => {
-		const gone = analyzedFile('/books/gone.m4b', {
-			isValid: false,
-			sourceRemoved: true,
-			error: REMOVED_NOTICE,
-		});
-		const goneToo = analyzedFile('/books/gone-too.m4b', {
-			isValid: false,
-			sourceRemoved: true,
-			error: REMOVED_NOTICE,
-		});
-		const broken = analyzedFile('/books/broken.m4b', {
-			isValid: false,
-			error: 'Broken audio source',
-		});
-		runtime = await runtimeFor({ files: [gone, goneToo, broken] });
-		await renderApp(runtime);
-		await runtime.input.importIntent({
-			type: 'importPaths',
-			paths: [gone.path, goneToo.path, broken.path],
-		});
-		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(3));
-		engine.seedGroup([gone, goneToo]);
-		const finished = await screen.findByRole('option', { name: 'gone.m4b' });
-		expect(finished.querySelector('.file-status')).toHaveClass('file-status-valid');
-		expect(finished).toHaveTextContent(REMOVED_NOTICE);
-		expect(finished).not.toHaveTextContent('Error:');
-
-		engine.seedGroup([gone, broken]);
-		await waitFor(() => {
-			const row = screen.getByRole('option', { name: 'gone.m4b' });
-			expect(row.querySelector('.file-status')).toHaveClass('file-status-invalid');
-			expect(row).toHaveTextContent('Error: Broken audio source');
-		});
 	});
 
 	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {

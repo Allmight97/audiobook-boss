@@ -6,11 +6,8 @@ import './fileList.css';
 
 export function SelectedAudioSettings(): JSX.Element {
 	const runtime = useAppRuntime();
-	const selected = () => {
-		const { files, selectedIndices } = runtime.input.view();
-		return files.filter((_, index) => selectedIndices.includes(index));
-	};
-	const selectionKey = () => JSON.stringify(selected().map((file) => file.path));
+	const selected = () => runtime.input.view().selectedTitles;
+	const selectionKey = () => JSON.stringify(selected().map((file) => file.inputId));
 	const [openedFor, setOpenedFor] = createSignal<string | undefined>(undefined);
 	const [position, setPosition] = createSignal({ left: 12, top: 12 });
 	const open = () =>
