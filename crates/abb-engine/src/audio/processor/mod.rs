@@ -1,19 +1,20 @@
 use crate::audio::file_list::FileListInfo;
 use crate::audio::settings_encoder::EncoderSettings;
 use crate::audio::AudioFile;
+use crate::audio::AudioHandling;
 use crate::errors::Result;
+use crate::execution::ProcessingContext;
 use crate::metadata::{
     extract_passthrough_metadata, prepare_output_cover_art, AudiobookMetadata,
     CoverArtPassthroughPolicy, PassthroughSource,
 };
-use crate::processing::AudioHandling;
-use crate::processing::ProcessingContext;
 
 mod decoder;
 mod encode;
 mod encoder;
 mod engine;
 mod engine_orchestrator;
+mod eta;
 mod faad_decoder;
 mod finalize;
 mod frame_pipeline;

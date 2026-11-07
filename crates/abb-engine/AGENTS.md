@@ -48,10 +48,14 @@ app, a test, and the `abb-dev` tool drive the same code
 
 - Media execution crosses `crate::audio`; processor adapter selection and
   engine internals stay private to Audio.
-- Shared lifecycle vocabulary, internal progress values, active jobs, and
-  terminal summaries belong to `crate::processing`. Accepted operation
-  identity, snapshots, retention, and operation cancellation belong to
-  `crate::work_runtime`.
+- What one title's job carries while it runs (identity, cancellation, output
+  config, progress events and bands) and the `PublishGate` its publication
+  passes through belong to `crate::execution`, a leaf beside `engine_tasks.rs`:
+  audio imports it and never imports `crate::processing`, which re-exports
+  its names. It names `audio::AacDecoder` as a type only. Shared lifecycle
+  vocabulary, active jobs, and terminal summaries belong to
+  `crate::processing`. Accepted operation identity, snapshots, retention, and
+  operation cancellation belong to `crate::work_runtime`.
 - The titles being prepared, their metadata drafts, lookup, Save, and
   submission belong to `crate::session`. It writes tags through
   `metadata_save.rs` (one WorkRuntime operation per batch). `cover_source.rs`

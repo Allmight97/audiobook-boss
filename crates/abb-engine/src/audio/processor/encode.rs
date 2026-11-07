@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::audio::constants::TEMP_MERGED_FILENAME;
 use crate::audio::{AudioFile, EncoderSettings};
 use crate::errors::{AppError, Result};
-use crate::processing::ProcessingContext;
+use crate::execution::ProcessingContext;
 
 use super::engine;
 use super::plan::MediaProcessingPlan;

@@ -1,7 +1,7 @@
 use crate::audio::AudioFile;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::processing::preview_config;
-use crate::processing::ProcessingContext;
+use crate::execution::preview_config;
+use crate::execution::ProcessingContext;
 
 use super::workspace::Workspace;
 use super::ProcessingWorkflow;

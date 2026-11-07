@@ -1,5 +1,5 @@
 use super::*;
-use crate::processing::{JobRegistry, OutputConfig, ProcessingSession};
+use crate::execution::{OutputConfig, ProcessingSession};
 use crate::test_cases::media_fixtures::SAMPLE_RATE;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -54,7 +54,7 @@ fn copying_title_sources_advances_one_shared_progress_interval() {
     );
     assert!(
         progress.last().expect("copy reports progress")
-            < &crate::processing::converting_percentage(1.0),
+            < &crate::execution::converting_percentage(1.0),
         "joining must retain its own progress interval"
     );
 }
@@ -139,12 +139,13 @@ async fn preserve_copy_stops_after_cancellation_during_progress() {
     let staged = tmp.path().join("staged.m4a");
     std::fs::write(&source, vec![7_u8; 4 * 1024 * 1024]).expect("write copy source");
     let source_fingerprint = inspect_source_fingerprint(&source);
-    let registry = JobRegistry::new(1);
-    let (job_id, _permit) = registry.register_job().await.expect("register copy job");
     let cancelled = CancellationToken::new();
-    let checker = crate::processing::CancellationChecker::new(Some(cancelled.clone()));
+    let checker = crate::execution::CancellationChecker::new(Some(cancelled.clone()));
     let mut context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
+        Arc::new(ProcessingSession::with_cancellation(
+            uuid::Uuid::new_v4(),
+            checker,
+        )),
         SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("final.m4a")),
         tmp.path().join("workspace"),

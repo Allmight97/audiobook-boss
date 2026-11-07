@@ -1,4 +1,3 @@
-mod cancel;
 mod permit;
 #[cfg(test)]
 mod tests;
@@ -14,9 +13,6 @@ use tokio::task::{Id, JoinSet};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-#[cfg(test)]
-pub(crate) use cancel::cancelled_token;
-pub use cancel::CancellationChecker;
 pub use types::{JobId, MaxConcurrentJobsCapabilities};
 
 pub const MIN_CONCURRENT_JOBS: usize = 1;

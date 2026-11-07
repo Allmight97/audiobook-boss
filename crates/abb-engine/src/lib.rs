@@ -45,6 +45,7 @@ mod diagnostics;
 mod engine;
 mod engine_tasks;
 mod errors;
+mod execution;
 mod file_replace;
 mod host;
 mod metadata;

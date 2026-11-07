@@ -1,13 +1,14 @@
 use crate::audio;
 use crate::audio::{AudioExecutionRequest, FileListInfo};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
+use crate::execution::{CancellationChecker, PublishGate};
 use crate::host::Host;
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{
     commit_supplemental_output_assets_for_output, OutputKind, ResolvedOutputPlan,
     SupplementalOutputAssetsCommitRequest,
 };
-use crate::processing::job_registry::{CancellationChecker, JobId};
+use crate::processing::job_registry::JobId;
 use crate::processing::ProgressEventListener;
 use crate::processing::{
     AudioHandling, JobIdentity, OperationKind, OutputConfig, ProcessPayload, ProcessResultEntry,
@@ -315,7 +316,7 @@ pub(crate) async fn register_job_and_validate_output(
 }
 
 struct ProcessingContextRequest {
-    cancellation_checker: crate::processing::job_registry::CancellationChecker,
+    cancellation_checker: CancellationChecker,
     job_id: JobId,
     identity: JobIdentity,
     sample_rate: u32,
@@ -339,7 +340,9 @@ fn build_processing_context(request: ProcessingContextRequest) -> ProcessingCont
         identity: request.identity,
         operation_kind: request.operation_kind,
         progress_listener: request.progress_listener,
-        title_output: request.title_output,
+        publish_gate: request
+            .title_output
+            .map(|output| output as Arc<dyn PublishGate>),
     };
 
     if context.is_preview() {

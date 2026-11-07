@@ -1,9 +1,6 @@
 mod emitter;
-mod eta;
 
-pub use eta::EtaEstimator;
-
-use crate::processing::OperationKind;
+use abb_processing_core::OperationKind;
 use serde::Serialize;
 
 pub const PROGRESS_ANALYZING_START: f32 = 0.0;
@@ -59,7 +56,7 @@ pub fn converting_percentage(fraction: f32) -> f32 {
 }
 
 pub(crate) use emitter::EmitContext;
-pub use emitter::ProgressEmitter;
+pub(crate) use emitter::ProgressEmitter;
 pub(crate) use emitter::ProgressEventListener;
 
 #[cfg(test)]

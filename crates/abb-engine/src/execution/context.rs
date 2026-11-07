@@ -1,7 +1,6 @@
+use super::{JobIdentity, ProcessingSession, ProgressEventListener, PublishGate};
 use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
-use crate::processing::session::ProcessingSession;
-use crate::processing::OperationKind;
-use crate::processing::{JobIdentity, ProgressEventListener};
+use abb_processing_core::OperationKind;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -62,7 +61,7 @@ pub struct ProcessingContext {
     pub operation_kind: OperationKind,
     pub(crate) progress_listener: Option<ProgressEventListener>,
     /// The export title's output record; publication goes through it.
-    pub(crate) title_output: Option<Arc<crate::processing::TitleOutput>>,
+    pub(crate) publish_gate: Option<Arc<dyn PublishGate>>,
 }
 
 impl std::fmt::Debug for ProcessingContext {
@@ -76,7 +75,7 @@ impl std::fmt::Debug for ProcessingContext {
             .field("identity", &self.identity)
             .field("operation_kind", &self.operation_kind)
             .field("progress_listener", &self.progress_listener.is_some())
-            .field("title_output", &self.title_output.is_some())
+            .field("publish_gate", &self.publish_gate.is_some())
             .finish()
     }
 }
@@ -102,7 +101,7 @@ impl ProcessingContext {
             },
             operation_kind: OperationKind::ProcessingBatch,
             progress_listener: None,
-            title_output: None,
+            publish_gate: None,
         }
     }
 
@@ -114,13 +113,11 @@ impl ProcessingContext {
         self.session.is_cancelled()
     }
 
-    pub fn new_emitter(&self) -> crate::processing::progress::ProgressEmitter {
-        crate::processing::progress::ProgressEmitter::with_context(
-            crate::processing::progress::EmitContext {
-                operation_kind: self.operation_kind,
-                identity: self.identity.clone(),
-            },
-        )
+    pub fn new_emitter(&self) -> super::ProgressEmitter {
+        super::ProgressEmitter::with_context(super::EmitContext {
+            operation_kind: self.operation_kind,
+            identity: self.identity.clone(),
+        })
         .with_progress_listener(self.progress_listener.clone())
     }
 

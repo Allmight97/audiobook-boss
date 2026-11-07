@@ -9,7 +9,7 @@ use super::run_diagnostics::{
 };
 use crate::audio::processor::plan::MediaProcessingPlan;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::processing::ProcessingContext;
+use crate::execution::ProcessingContext;
 
 struct EncodingRunDiagnostics {
     timing: super::run_diagnostics::RunTiming,

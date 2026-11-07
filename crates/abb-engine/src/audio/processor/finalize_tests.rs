@@ -1,10 +1,10 @@
 use super::{complete_staged_output, settle_published};
 use crate::audio::processor::workspace::Workspace;
+use crate::execution::{OutputConfig, ProcessingContext, ProcessingSession};
 use crate::output_artifact::{
     commit_output_artifact, finalized_output_success, OutputCommitRequest, OutputKind,
     PlannedOutputAction,
 };
-use crate::processing::{JobRegistry, OutputConfig, ProcessingContext, ProcessingSession};
 use crate::test_cases::media_fixtures::SAMPLE_RATE;
 use std::fs;
 use std::path::Path;
@@ -29,13 +29,14 @@ async fn context_for(
     final_output: &Path,
     cancelled: bool,
 ) -> (ProcessingContext, Workspace) {
-    let registry = JobRegistry::new(1);
-    let (job_id, _permit) = registry.register_job().await.expect("register job");
-    let checker = crate::processing::CancellationChecker::new(
-        cancelled.then(crate::processing::cancelled_token),
+    let checker = crate::execution::CancellationChecker::new(
+        cancelled.then(crate::execution::cancelled_token),
     );
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
+        Arc::new(ProcessingSession::with_cancellation(
+            uuid::Uuid::new_v4(),
+            checker,
+        )),
         SAMPLE_RATE,
         OutputConfig::new(final_output),
         local.path().join("processing").join("sessions"),
@@ -94,7 +95,7 @@ async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
         !stages
             .lock()
             .expect("stages")
-            .contains(&crate::processing::EventStage::Completed),
+            .contains(&crate::execution::EventStage::Completed),
         "a title whose publish failed must never report Completed"
     );
     assert_eq!(
@@ -176,7 +177,7 @@ async fn a_cleanup_failure_after_publication_is_a_success_with_a_warning_and_a_r
         .lock()
         .expect("events")
         .iter()
-        .filter(|(stage, _)| *stage == crate::processing::EventStage::Completed)
+        .filter(|(stage, _)| *stage == crate::execution::EventStage::Completed)
         .map(|(_, message)| message.clone())
         .collect();
     assert_eq!(

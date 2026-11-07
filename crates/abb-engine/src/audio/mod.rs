@@ -237,8 +237,8 @@ mod contract_tests;
 
 mod output_plan;
 pub use output_plan::{
-    AudioIntent, AudioPlanField, AudiobookFormat, OutputAudio, TitleAudioError, TitleAudioPlan,
-    TitleAudioRequest,
+    AudioHandling, AudioIntent, AudioPlanField, AudiobookFormat, OutputAudio, TitleAudioError,
+    TitleAudioPlan, TitleAudioRequest,
 };
 
 pub(crate) use output_plan::resolve_title_audio;

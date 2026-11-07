@@ -75,6 +75,18 @@ describe('check-known-mistakes', () => {
 			found('crates/abb-engine/src/metadata/save.rs', 'use crate::audio::AudioIntent;'),
 		).toEqual([]);
 		expect(
+			found(
+				'crates/abb-engine/src/audio/processor/finalize.rs',
+				'use crate::processing::ProcessingContext;',
+			),
+		).toHaveLength(1);
+		expect(
+			found(
+				'crates/abb-engine/src/audio/processor/finalize.rs',
+				'use crate::execution::ProcessingContext;',
+			),
+		).toEqual([]);
+		expect(
 			found('crates/abb-engine/src/processing/run.rs', 'use crate::remote_source::RemoteTitle;'),
 		).toHaveLength(1);
 		expect(

@@ -1,10 +1,8 @@
+use crate::audio::AudioHandling;
 use crate::audio::{AacDecoder, AudioExecutionRequest};
 use crate::errors::AppError;
+use crate::execution::{CancellationChecker, OutputConfig, ProcessingContext, ProcessingSession};
 use crate::metadata::CoverArtPassthroughPolicy;
-use crate::processing::{
-    AudioHandling, CancellationChecker, JobRegistry, OutputConfig, ProcessingContext,
-    ProcessingSession,
-};
 use crate::test_cases::media_fixtures::SAMPLE_RATE;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -24,12 +22,13 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
     let destination = tmp.path().join("out").join("Joined.m4b");
     std::fs::create_dir_all(destination.parent().expect("output parent")).expect("output dir");
     let workspace = tmp.path().join("workspace");
-    let registry = JobRegistry::new(1);
-    let (job_id, _permit) = registry.register_job().await.expect("register join job");
     let cancelled = CancellationToken::new();
     let checker = CancellationChecker::new(Some(cancelled.clone()));
     let mut context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
+        Arc::new(ProcessingSession::with_cancellation(
+            uuid::Uuid::new_v4(),
+            checker,
+        )),
         SAMPLE_RATE,
         OutputConfig::new(&destination),
         workspace.clone(),

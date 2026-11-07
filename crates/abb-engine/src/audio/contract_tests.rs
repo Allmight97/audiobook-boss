@@ -2,8 +2,8 @@ use crate::audio::EncoderSettings;
 
 #[test]
 fn requests_carry_their_encoder_settings_and_pass_through_plans_carry_none() {
+    use crate::audio::AudioHandling;
     use crate::audio::TitleAudioRequest;
-    use crate::processing::AudioHandling;
     let m4b: TitleAudioRequest = serde_json::from_value(serde_json::json!({
         "format": "m4b",
         "settings": EncoderSettings::default(),

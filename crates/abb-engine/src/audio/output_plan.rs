@@ -1,9 +1,19 @@
 use super::{AudioFile, EncoderSettings, FileListInfo, SampleRateConfig};
-use crate::{
-    errors::{AppError, Result},
-    processing::AudioHandling,
-};
+use crate::errors::{AppError, Result};
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(tag = "handling", rename_all = "camelCase")]
+pub enum AudioHandling {
+    Encode { settings: EncoderSettings },
+    Preserve,
+}
+
+impl AudioHandling {
+    pub fn preserves(&self) -> bool {
+        matches!(self, Self::Preserve)
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

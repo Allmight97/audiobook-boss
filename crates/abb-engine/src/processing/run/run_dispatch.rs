@@ -2,10 +2,10 @@ use super::run_job::{run_processing_job, supplemental_assets_for_input, Processi
 use super::ProcessingRunOptions;
 use crate::audio;
 use crate::errors::{AppError, Result};
+use crate::execution::EmitContext;
 use crate::host::Host;
 use crate::output_artifact::OutputParentDirCleanup;
 use crate::processing::plan::{ExecutionProcessingPlan, ResolvedProcessingPlan};
-use crate::processing::progress::EmitContext;
 use crate::processing::terminal_outcomes::{
     build_all_skipped_batch_result, collect_batch_results, emit_terminal_cancelled_event,
     emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,

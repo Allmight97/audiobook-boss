@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::audio::cleanup::CleanupGuard;
 use crate::errors::Result;
-use crate::processing::ProcessingContext;
+use crate::execution::ProcessingContext;
 
 /// The one temp folder of a job. Every staged file lives under it, and it is
 /// removed when the job ends: by `published`, or on drop for any other end. A

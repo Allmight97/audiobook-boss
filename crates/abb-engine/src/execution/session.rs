@@ -1,4 +1,4 @@
-use crate::processing::job_registry::CancellationChecker;
+use super::cancel::CancellationChecker;
 use uuid::Uuid;
 
 #[derive(Debug)]

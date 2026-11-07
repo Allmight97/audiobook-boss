@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::{AppError, Result};
+use crate::execution::{PublishGate, PublishedOutput};
 use crate::metadata::{
     plan_metadata_outcome_from, AudiobookMetadata, MetadataIntentPatch, PassthroughSource, PatchOp,
 };
@@ -233,35 +234,6 @@ impl TitleOutput {
         Ok(published)
     }
 
-    pub(crate) fn publish<T>(
-        &self,
-        staged: &Path,
-        final_path: &Path,
-        commit: impl FnOnce() -> Result<(T, PathBuf)>,
-    ) -> Result<T> {
-        let _title = self.writing.lock().unwrap_or_else(PoisonError::into_inner);
-        let _file = lock_output_file(final_path);
-        self.write_wanted(staged);
-        let (value, published) = commit()?;
-        let identity = FileIdentity::of(&published)
-            .map_err(|error| {
-                log::warn!("title_output status=identity_unreadable err={error}");
-            })
-            .ok();
-        self.lock().phase = Phase::Published {
-            path: published.clone(),
-            identity,
-        };
-        if identity.is_some() {
-            self.write_wanted(&published);
-            self.record_identity(&published);
-        } else {
-            self.fail_wanted("The output was published, but ABB could not capture its identity. Its tags were not updated after publication.".into());
-        }
-        self.settled.send_replace(Some(true));
-        Ok(value)
-    }
-
     pub(crate) fn apply_published(&self) {
         let _title = self.writing.lock().unwrap_or_else(PoisonError::into_inner);
         let (path, identity) = match &self.lock().phase {
@@ -386,6 +358,38 @@ impl TitleOutput {
 
     fn lock(&self) -> std::sync::MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl PublishGate for TitleOutput {
+    fn publish(
+        &self,
+        staged: &Path,
+        final_path: &Path,
+        commit: &mut dyn FnMut() -> Result<PublishedOutput>,
+    ) -> Result<PublishedOutput> {
+        let _title = self.writing.lock().unwrap_or_else(PoisonError::into_inner);
+        let _file = lock_output_file(final_path);
+        self.write_wanted(staged);
+        let value = commit()?;
+        let published = value.path.clone();
+        let identity = FileIdentity::of(&published)
+            .map_err(|error| {
+                log::warn!("title_output status=identity_unreadable err={error}");
+            })
+            .ok();
+        self.lock().phase = Phase::Published {
+            path: published.clone(),
+            identity,
+        };
+        if identity.is_some() {
+            self.write_wanted(&published);
+            self.record_identity(&published);
+        } else {
+            self.fail_wanted("The output was published, but ABB could not capture its identity. Its tags were not updated after publication.".into());
+        }
+        self.settled.send_replace(Some(true));
+        Ok(value)
     }
 }
 

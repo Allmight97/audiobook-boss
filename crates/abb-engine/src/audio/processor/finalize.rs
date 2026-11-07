@@ -1,20 +1,14 @@
 use std::path::PathBuf;
 
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::execution::{ProcessingContext, PublishedOutput};
 use crate::metadata::AudiobookMetadata;
 use crate::output_artifact::{
     cleanup_failure_warning, commit_output_artifact, finalized_output_success, OutputCommitRequest,
 };
-use crate::processing::ProcessingContext;
 
 use super::workspace::Workspace;
 use super::ProcessingWorkflow;
-
-struct PublishedOutput {
-    path: PathBuf,
-    cancelled: bool,
-    cleanup_warning: Option<String>,
-}
 
 fn ensure_not_cancelled_before_commit(context: &ProcessingContext) -> Result<()> {
     if context.is_cancelled() {
@@ -49,26 +43,24 @@ pub(super) fn complete_staged_output(
     ensure_not_cancelled_before_commit(context)?;
     super::run_diagnostics::log_output_observation(context, &staged_output);
 
-    let commit_request =
-        OutputCommitRequest::new(context.output.final_path(), context.output.commit_action());
     log::info!("media_handoff stage=publish session_id={} job_id={} source_artifact={} destination_artifact={} destination_state={:?}",
         context.session.id(), context.identity.job_id.as_deref().unwrap_or("unscoped"),
         crate::diagnostics::artifact_id(&staged_output), crate::diagnostics::artifact_id(context.output.final_path()),
         crate::diagnostics::file_state(context.output.final_path()));
-    let commit = || {
+    let mut commit = || {
         ensure_not_cancelled_before_commit(context)?;
         crate::diagnostics::stage("publish", &staged_output, || {
-            let path = commit_output_artifact(commit_request, staged_output.clone())?;
+            let request = OutputCommitRequest::new(
+                context.output.final_path(),
+                context.output.commit_action(),
+            );
+            let path = commit_output_artifact(request, staged_output.clone())?;
             Ok(settle_published(path, workspace, || context.is_cancelled()))
         })
-        .map(|outcome| {
-            let published = outcome.path.clone();
-            (outcome, published)
-        })
     };
-    let outcome = match &context.title_output {
-        Some(title) => title.publish(&staged_output, context.output.final_path(), commit)?,
-        None => commit()?.0,
+    let outcome = match &context.publish_gate {
+        Some(gate) => gate.publish(&staged_output, context.output.final_path(), &mut commit)?,
+        None => commit()?,
     };
     log::info!(
         "media_handoff stage=published job_id={} output_path={:?} artifact={} {}",

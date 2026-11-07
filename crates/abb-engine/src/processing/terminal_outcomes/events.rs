@@ -1,4 +1,4 @@
-use crate::processing::progress::EmitContext;
+use crate::execution::EmitContext;
 use crate::processing::ProgressEmitter;
 use crate::processing::ProgressEventListener;
 

@@ -2,8 +2,8 @@ use super::workspace::Workspace;
 use super::AudioRunOutcome;
 use crate::audio::{AudioFile, FileListInfo};
 use crate::errors::{AppError, Result};
+use crate::execution::ProcessingContext;
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch};
-use crate::processing::ProcessingContext;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
@@ -211,7 +211,7 @@ pub(super) fn copy_with_cancellation(
 
 pub(super) fn emit_progress(context: &ProcessingContext, fraction: f32, message: &str) {
     context.new_emitter().emit_converting_progress(
-        crate::processing::converting_percentage(fraction),
+        crate::execution::converting_percentage(fraction),
         message,
         None,
         None,

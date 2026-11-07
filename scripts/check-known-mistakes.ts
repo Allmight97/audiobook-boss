@@ -140,6 +140,13 @@ const RULES: Rule[] = [
 			'reads the audio import model from metadata. Fix: pass the paths or tag facts metadata needs (crates/abb-engine/src/metadata/AGENTS.md).',
 	},
 	{
+		appliesTo: ENGINE_DIR('audio'),
+		comment: /^\s*\/\//,
+		findIn: (line) => line.match(/\bcrate::processing\b/)?.[0] ?? null,
+		message:
+			'reaches up into processing from the audio pipeline. Fix: import the leaf name from crate::execution (crates/abb-engine/AGENTS.md, Owner Routes).',
+	},
+	{
 		appliesTo: (file) => PROVIDER_NEUTRAL_OWNERS.some((dir) => ENGINE_DIR(dir)(file)),
 		comment: /^\s*\/\//,
 		findIn: (line) => line.match(/\bcrate::remote_source\b/)?.[0] ?? null,

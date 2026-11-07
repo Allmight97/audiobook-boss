@@ -55,7 +55,7 @@ pub(super) fn write_run_header(
 )]
 pub(super) fn write_run_identity(
     output: &mut String,
-    context: &crate::processing::ProcessingContext,
+    context: &crate::execution::ProcessingContext,
     target_duration_seconds: f64,
 ) {
     let _ = writeln!(
@@ -115,7 +115,7 @@ pub(crate) fn write_common_run_fields(
     );
 }
 
-pub(super) fn log_output_observation(context: &crate::processing::ProcessingContext, path: &Path) {
+pub(super) fn log_output_observation(context: &crate::execution::ProcessingContext, path: &Path) {
     if !encoding_log_enabled() && !log::log_enabled!(log::Level::Info) {
         return;
     }

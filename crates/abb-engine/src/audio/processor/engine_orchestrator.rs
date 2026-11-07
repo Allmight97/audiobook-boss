@@ -3,7 +3,7 @@ use crate::audio::processor::frame_pipeline::{flush_accumulator_tail, FramePipel
 use crate::audio::processor::plan::MediaProcessingPlan;
 use crate::audio::processor::preview_state::PreviewState;
 use crate::errors::{sanitize_path_for_display, Result};
-use crate::processing::{ProcessingContext, ProgressEmitter};
+use crate::execution::{ProcessingContext, ProgressEmitter};
 
 use super::engine;
 
@@ -20,11 +20,11 @@ pub(crate) fn process_input_files(
 ) -> Result<i64> {
     let mut running_pts: i64 = 0;
     let mut last_emit = std::time::Instant::now();
-    let mut eta_estimator = crate::processing::EtaEstimator::new();
+    let mut eta_estimator = super::eta::EtaEstimator::new();
     let file_count = plan.input_file_paths.len();
     let mut preview_state_storage = context.is_preview().then(|| {
         let per_file_samples =
-            crate::processing::preview_config::per_file_samples(file_count, io.enc_ctx.rate());
+            crate::execution::preview_config::per_file_samples(file_count, io.enc_ctx.rate());
         log::info!(
             "preview: {file_count} file(s) × {per_file_samples} samples at {} Hz",
             io.enc_ctx.rate()

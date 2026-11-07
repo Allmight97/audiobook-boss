@@ -58,13 +58,21 @@ fn title(folder: &Path) -> (Arc<TitleOutput>, Writes) {
     (title, writes)
 }
 
+fn published_at(path: &Path) -> PublishedOutput {
+    PublishedOutput {
+        path: path.to_path_buf(),
+        cancelled: false,
+        cleanup_warning: None,
+    }
+}
+
 fn publish(title: &TitleOutput, staged: &Path) -> PathBuf {
     let path = title.plan.requested.clone();
     std::fs::create_dir_all(path.parent().expect("parent")).expect("folder");
     title
-        .publish(staged, &path, || {
+        .publish(staged, &path, &mut || {
             std::fs::write(&path, b"audiobook").expect("publish");
-            Ok(((), path.clone()))
+            Ok(published_at(&path))
         })
         .expect("published");
     path
@@ -127,10 +135,10 @@ fn an_edit_accepted_during_publication_reaches_the_published_file() {
     std::fs::create_dir_all(path.parent().expect("parent")).expect("folder");
 
     title
-        .publish(&folder.path().join("staged.m4b"), &path, || {
+        .publish(&folder.path().join("staged.m4b"), &path, &mut || {
             std::fs::write(&path, b"audiobook").expect("publish");
             title.update(1, &genre("Mystery")).expect("update");
-            Ok(((), path.clone()))
+            Ok(published_at(&path))
         })
         .expect("published");
 
@@ -270,8 +278,8 @@ async fn unreadable_publication_identity_still_settles_as_published_and_refuses_
     let (title, writes) = title(folder.path());
     let missing = folder.path().join("published-but-no-longer-readable.m4b");
     title
-        .publish(&folder.path().join("staged.m4b"), &missing, || {
-            Ok(((), missing.clone()))
+        .publish(&folder.path().join("staged.m4b"), &missing, &mut || {
+            Ok(published_at(&missing))
         })
         .expect("publication succeeded");
     assert!(title.settled().await, "publication cannot remain pending");

@@ -2,7 +2,8 @@ use super::{
     EventStage, ProgressEvent, PROGRESS_ANALYZING_START, PROGRESS_COMPLETE,
     PROGRESS_CONVERTING_START, PROGRESS_FINALIZING, PROGRESS_METADATA_START,
 };
-use crate::processing::{JobIdentity, OperationKind};
+use crate::execution::JobIdentity;
+use abb_processing_core::OperationKind;
 use std::sync::Arc;
 
 pub(crate) type ProgressEventListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
@@ -13,7 +14,7 @@ pub(crate) struct EmitContext {
     pub(crate) identity: JobIdentity,
 }
 
-pub struct ProgressEmitter {
+pub(crate) struct ProgressEmitter {
     operation_kind: OperationKind,
     identity: JobIdentity,
     progress_listener: Option<ProgressEventListener>,
