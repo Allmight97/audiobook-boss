@@ -27,20 +27,16 @@ describe('tauriClient', () => {
 		});
 
 		const reply = await tauriClient.commands.settingsDispatch(7, 2, {
-			kind: 'remember',
-			encoderDefaults: null,
-			outputDefaults: null,
-			defaultAcquisitionLane: 'indexer',
+			kind: 'setDefaultAcquisitionLane',
+			lane: 'indexer',
 		});
 
 		expect(invoke).toHaveBeenLastCalledWith('settings_dispatch', {
 			client: 7,
 			sequence: 2,
 			intent: {
-				kind: 'remember',
-				encoderDefaults: null,
-				outputDefaults: null,
-				defaultAcquisitionLane: 'indexer',
+				kind: 'setDefaultAcquisitionLane',
+				lane: 'indexer',
 			},
 		});
 		expect(reply.outcome).toEqual({ kind: 'applied' });

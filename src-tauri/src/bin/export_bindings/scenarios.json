@@ -36,7 +36,7 @@
       "steps": [
         { "kind": "setStartupBehavior", "behavior": "pinnedDefaults" },
         { "kind": "pinCurrentDefaults" },
-        { "kind": "remember", "encoderDefaults": null, "outputDefaults": null, "defaultAcquisitionLane": "indexer" },
+        { "kind": "setDefaultAcquisitionLane", "lane": "indexer" },
         { "kind": "reset" }
       ]
     },

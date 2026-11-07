@@ -1146,10 +1146,10 @@ export type SessionUpdateEvent = SessionUpdate;
 
 export type SettingsIntent =
 /**
- *  Records defaults a panel has accepted. They stay in effect even when
+ *  Chooses the source an import starts from. It stays in effect even when
  *  the write fails; the snapshot then reports the failure for retry.
  */
-{ kind: "remember"; encoderDefaults: EncoderDefaults | null; outputDefaults: OutputDefaults | null; defaultAcquisitionLane: AcquisitionLane | null } |
+{ kind: "setDefaultAcquisitionLane"; lane: AcquisitionLane } |
 /**  Changes how many titles export at once. Refused while jobs run. */
 { kind: "setConcurrency"; preference: ConcurrencyPreference } | { kind: "setKeepAwake"; enabled: boolean } |
 /**  Chooses whether the Quit shortcut needs a second press. */

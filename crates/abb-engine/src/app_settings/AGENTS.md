@@ -27,6 +27,9 @@ session records reaches hosts as `EngineEvent::Settings`.
   intents. Template typing reserves its turn immediately and writes after a
   pause only if still latest. Reset follows earlier edits; choices accepted
   afterward remain on screen and on disk even if reset finishes later.
+- No `SettingsIntent` sets the audio or output defaults: only the session
+  records them. The default import source has its own intent,
+  `SetDefaultAcquisitionLane`.
 - The session counts each change to its default audio and output choices
   (`EditStamp`) under its state lock and sends each save with the stamp it
   left. Settings keeps the last stamp it handled per part and puts it in the

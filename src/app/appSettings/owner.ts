@@ -232,10 +232,8 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		},
 		async setDefaultAcquisitionLane(defaultAcquisitionLane) {
 			await runDialogAction('lane', {
-				kind: 'remember',
-				encoderDefaults: null,
-				outputDefaults: null,
-				defaultAcquisitionLane,
+				kind: 'setDefaultAcquisitionLane',
+				lane: defaultAcquisitionLane,
 			});
 		},
 		setControlsEnabled(enabled) {

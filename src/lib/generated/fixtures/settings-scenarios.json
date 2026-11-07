@@ -243,10 +243,8 @@
       },
       {
         "intent": {
-          "defaultAcquisitionLane": "indexer",
-          "encoderDefaults": null,
-          "kind": "remember",
-          "outputDefaults": null
+          "kind": "setDefaultAcquisitionLane",
+          "lane": "indexer"
         },
         "outcome": {
           "kind": "applied"

@@ -18,13 +18,10 @@ use crate::ManagedJobRegistry;
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SettingsIntent {
-    /// Records defaults a panel has accepted. They stay in effect even when
+    /// Chooses the source an import starts from. It stays in effect even when
     /// the write fails; the snapshot then reports the failure for retry.
-    #[serde(rename_all = "camelCase")]
-    Remember {
-        encoder_defaults: Option<EncoderDefaults>,
-        output_defaults: Option<OutputDefaults>,
-        default_acquisition_lane: Option<AcquisitionLane>,
+    SetDefaultAcquisitionLane {
+        lane: AcquisitionLane,
     },
     /// Changes how many titles export at once. Refused while jobs run.
     SetConcurrency {
@@ -415,17 +412,11 @@ impl SettingsRuntime {
 
     async fn apply(&self, state: &mut State, intent: SettingsIntent) -> SettingsOutcome {
         match intent {
-            SettingsIntent::Remember {
-                encoder_defaults,
-                output_defaults,
-                default_acquisition_lane,
-            } => {
+            SettingsIntent::SetDefaultAcquisitionLane { lane } => {
                 self.accept(
                     state,
                     AppSettingsPatch {
-                        encoder_defaults,
-                        output_defaults,
-                        default_acquisition_lane,
+                        default_acquisition_lane: Some(lane),
                         ..Default::default()
                     },
                 )
