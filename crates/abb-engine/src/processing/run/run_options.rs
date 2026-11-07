@@ -1,4 +1,4 @@
-use crate::processing::context::processing::ProgressEventListener;
+use crate::processing::ProgressEventListener;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 

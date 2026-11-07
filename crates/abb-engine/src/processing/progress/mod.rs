@@ -3,8 +3,7 @@ mod eta;
 
 pub use eta::EtaEstimator;
 
-use crate::processing::lifecycle::OperationKind;
-use crate::processing::ProcessingStage;
+use crate::processing::OperationKind;
 use serde::Serialize;
 
 pub const PROGRESS_ANALYZING_START: f32 = 0.0;
@@ -28,24 +27,6 @@ pub enum EventStage {
     Skipped,
     Failed,
     Cancelled,
-}
-
-impl From<&ProcessingStage> for EventStage {
-    fn from(stage: &ProcessingStage) -> Self {
-        match stage {
-            ProcessingStage::Analyzing => EventStage::Analyzing,
-            ProcessingStage::Converting => EventStage::Converting,
-            ProcessingStage::WritingMetadata => EventStage::Writing,
-            ProcessingStage::Completed => EventStage::Completed,
-            ProcessingStage::Failed(_) => EventStage::Failed,
-        }
-    }
-}
-
-impl From<ProcessingStage> for EventStage {
-    fn from(stage: ProcessingStage) -> Self {
-        EventStage::from(&stage)
-    }
 }
 
 #[derive(Clone, Serialize, specta::Type)]
@@ -77,6 +58,7 @@ pub fn converting_percentage(fraction: f32) -> f32 {
     PROGRESS_CONVERTING_START + fraction.clamp(0.0, 1.0) * PROGRESS_CONVERTING_SPAN
 }
 
+pub(crate) use emitter::ProgressEventListener;
 pub use emitter::{EmitContext, ProgressEmitter};
 
 #[cfg(test)]

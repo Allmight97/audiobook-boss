@@ -11,7 +11,7 @@
   order.
 - Shared lifecycle vocabulary comes from `crate::processing`'s `pub use` list.
   `ProgressEmitter` passes progress to the owning engine reducer.
-  `operation_kind_log_label` is the stable dev-log label that
+  `OperationKind::log_label` is the stable dev-log label that
   `scripts/dev-log-analysis.ts` parses.
 - `TitleOutput` is engine-internal; `OutputUpdate` and `OutputUpdateStatus` are
   host vocabulary (`title_output.rs`).
@@ -67,8 +67,7 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 ## Progress and stages
 
 - Processing emits internal `ProgressEvent` values to its supplied listener.
-- `EventStage` in `progress/mod.rs` maps internal `ProcessingStage` into
-  reducer input.
+- `EventStage` in `progress/mod.rs` is the stage every emitted event carries.
 - A cancelled stage returns `AppError::cancelled()` and emits nothing. The
   title runner (`run/run_dispatch.rs`) emits Cancelled once, after the title's
   folders and `TitleOutput` end. Why: a Cancelled event that arrives earlier
@@ -83,7 +82,7 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   starts. It records the job and acquires its permit before execution. A
   metadata Save is a tag write, not an encode: it registers through
   `register_job_without_permit`, so it counts as active work and never waits
-  behind export slots. `BatchScheduler` keeps result order deterministic,
+  behind export slots. `JobRegistry::run_batch` keeps result order deterministic,
   keeps issuing queued work after per-task errors, and gives every scheduled
   index a terminal result. A queued title whose cancel token is cancelled starts out
   of turn the moment it is cancelled, so it fails fast and never waits behind

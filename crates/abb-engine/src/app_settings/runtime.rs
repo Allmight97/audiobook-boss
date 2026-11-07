@@ -541,7 +541,7 @@ impl SettingsRuntime {
             return rejected(&error);
         }
         let requested = preference.requested_value(JobRegistry::default_max());
-        let effective = match self.inner.jobs.update_max_concurrent(requested).await {
+        let effective = match self.inner.jobs.update_max_concurrent(requested) {
             Ok(effective) => effective,
             Err(error) => return rejected(&error),
         };
@@ -574,7 +574,7 @@ impl SettingsRuntime {
     }
 
     async fn reset(&self, state: &mut State) -> SettingsOutcome {
-        if self.inner.jobs.reset_to_auto().await.is_err() {
+        if self.inner.jobs.reset_to_auto().is_err() {
             return rejected(&AppError::InvalidInput(
                 "Settings can't be reset while exports are running. Try again when they finish."
                     .to_string(),

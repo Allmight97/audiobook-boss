@@ -1,4 +1,4 @@
-use super::lifecycle::OperationResultSummary;
+use super::OperationResultSummary;
 use crate::audio;
 use crate::errors::AppErrorEnvelope;
 use crate::output_artifact::{CollisionPolicy, OutputNamingConfig, PlannedOutput};
@@ -126,8 +126,6 @@ pub struct SupplementalProcessingAsset {
     pub sha256: String,
 }
 
-pub type ProcessResultSummary = OperationResultSummary;
-
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessingPreflightPlan {
@@ -161,7 +159,7 @@ pub struct ProcessResultEntry {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessCommandResult {
-    pub summary: ProcessResultSummary,
+    pub summary: OperationResultSummary,
     /// Backend-owned terminal classification of the run. The UI renders this
     /// instead of re-deriving success/mixed/failed/skipped/cancelled precedence.
     pub terminal_class: abb_processing_core::RunTerminalClass,

@@ -196,11 +196,6 @@ pub(super) fn execute(
     metadata: Option<AudiobookMetadata>,
     cover_policy: CoverArtPassthroughPolicy,
 ) -> Result<super::AudioRunOutcome> {
-    if context.preview.is_some() {
-        return Err(AppError::InvalidInput(
-            "Preserve audio cannot be used for a preview.".into(),
-        ));
-    }
     let workspace = super::staging::create_processing_workspace_dir(
         context.session.uuid(),
         context.processing_workspace_root(),

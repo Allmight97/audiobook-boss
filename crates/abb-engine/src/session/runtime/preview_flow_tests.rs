@@ -105,7 +105,7 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
         SessionOutcome::PreviewOutput { path: None }
     );
     assert!(!rig.session.snapshot().titles.expect("titles").order_locked);
-    jobs.complete_job(first).await;
-    jobs.complete_job(second).await;
+    jobs.complete_job(first);
+    jobs.complete_job(second);
     drop((first_permit, second_permit));
 }

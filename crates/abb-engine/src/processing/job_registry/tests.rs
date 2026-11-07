@@ -32,11 +32,10 @@ async fn external_cancel_interrupts_waiting_permit_acquire_without_waiting_for_a
         AppError::Cancellation(_)
     ));
     drop(held_permit);
-    registry.complete_job(first_job).await;
+    registry.complete_job(first_job);
     assert_eq!(
         registry
             .update_max_concurrent(2)
-            .await
             .expect("the cancelled admission is no longer tracked"),
         2
     );
@@ -61,7 +60,7 @@ async fn a_cancelled_token_refuses_registration_before_it_is_tracked() {
 async fn reconfiguration_rejects_a_job_waiting_for_admission() {
     let registry = Arc::new(JobRegistry::new(1));
     let (finished_job, finishing_permit) = registry.register_job().await.expect("first job");
-    registry.complete_job(finished_job).await;
+    registry.complete_job(finished_job);
     let waiting_registry = Arc::clone(&registry);
     #[expect(
         clippy::disallowed_methods,
@@ -70,7 +69,7 @@ async fn reconfiguration_rejects_a_job_waiting_for_admission() {
     let waiting = tokio::spawn(async move { waiting_registry.register_job().await });
     sleep(Duration::from_millis(20)).await;
 
-    let result = registry.update_max_concurrent(4).await;
+    let result = registry.update_max_concurrent(4);
 
     assert!(
         result.is_err(),
@@ -82,21 +81,15 @@ async fn reconfiguration_rejects_a_job_waiting_for_admission() {
         .await
         .expect("join waiting job")
         .expect("waiting job admitted");
-    registry.complete_job(job_id).await;
-    assert_eq!(
-        registry
-            .update_max_concurrent(4)
-            .await
-            .expect("idle update"),
-        4
-    );
+    registry.complete_job(job_id);
+    assert_eq!(registry.update_max_concurrent(4).expect("idle update"), 4);
 }
 
 #[tokio::test]
 async fn dropped_admission_does_not_block_reconfiguration() {
     let registry = Arc::new(JobRegistry::new(1));
     let (finished_job, _finishing_permit) = registry.register_job().await.expect("first job");
-    registry.complete_job(finished_job).await;
+    registry.complete_job(finished_job);
     let waiting_registry = Arc::clone(&registry);
     #[expect(
         clippy::disallowed_methods,
@@ -115,7 +108,6 @@ async fn dropped_admission_does_not_block_reconfiguration() {
     assert_eq!(
         registry
             .update_max_concurrent(2)
-            .await
             .expect("abandoned admission must not stay tracked"),
         2
     );
@@ -129,13 +121,13 @@ async fn a_job_without_a_permit_is_tracked_but_never_waits_or_takes_a_slot() {
     let tagging = registry.register_job_without_permit();
 
     assert_eq!(registry.active_jobs(), 2);
-    assert!(registry.update_max_concurrent(2).await.is_err());
-    registry.complete_job(held_job).await;
+    assert!(registry.update_max_concurrent(2).is_err());
+    registry.complete_job(held_job);
     assert!(
-        registry.update_max_concurrent(2).await.is_err(),
+        registry.update_max_concurrent(2).is_err(),
         "the permit-free job still counts as active"
     );
-    registry.fail_job(tagging, "tag write failed".into()).await;
+    registry.fail_job(tagging, "tag write failed".into());
     drop(held_permit);
-    assert_eq!(registry.update_max_concurrent(2).await.expect("idle"), 2);
+    assert_eq!(registry.update_max_concurrent(2).expect("idle"), 2);
 }

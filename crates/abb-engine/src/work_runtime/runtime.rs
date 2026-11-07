@@ -505,7 +505,7 @@ fn format_work_operation_record(
         "work_operation event={} operation_id={} kind={} status={} total={} succeeded={} skipped={} cancelled={} failed={}",
         work_operation_event_label(event),
         snapshot.operation_id,
-        crate::processing::operation_kind_log_label(snapshot.kind),
+        snapshot.kind.log_label(),
         work_operation_status_label(snapshot.status),
         counts.total,
         counts.succeeded,

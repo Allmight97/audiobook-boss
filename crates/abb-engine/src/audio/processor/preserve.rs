@@ -10,11 +10,6 @@ pub(super) fn execute_preserved_audio(
     file_info: FileListInfo,
     metadata_intent: Option<MetadataIntentPatch>,
 ) -> Result<String> {
-    if context.preview.is_some() {
-        return Err(AppError::InvalidInput(
-            "Preserve audio cannot be used for a preview.".to_string(),
-        ));
-    }
     let file = file_info.files.first().ok_or_else(|| {
         AppError::InvalidInput("Preserve audio requires one inspected input.".to_string())
     })?;

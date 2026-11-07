@@ -44,15 +44,7 @@ impl Drop for ActiveRun {
     }
 }
 
-pub struct BatchScheduler<'a> {
-    registry: &'a JobRegistry,
-}
-
-impl<'a> BatchScheduler<'a> {
-    fn new(registry: &'a JobRegistry) -> Self {
-        Self { registry }
-    }
-
+impl JobRegistry {
     /// Runs the futures `max_concurrent` at a time, in order. A queued future
     /// whose token (same position in `cancels`) is cancelled starts at once,
     /// so it fails fast instead of waiting behind the futures ahead of it.
@@ -69,7 +61,7 @@ impl<'a> BatchScheduler<'a> {
             return Vec::new();
         }
 
-        let max_in_flight = self.registry.max_concurrent().max(1);
+        let max_in_flight = self.max_concurrent().max(1);
         let total_tasks = futures.len();
         let mut pending: VecDeque<(usize, Fut)> = futures.into_iter().enumerate().collect();
         let mut join_set: JoinSet<Result<R>> = JoinSet::new();
@@ -171,13 +163,8 @@ impl JobRegistry {
     }
 
     pub fn auto() -> Self {
-        let cores = Self::detected_cores();
-        let max_concurrent = Self::normalize_max(cores / 2);
-        log::info!(
-            "JobRegistry auto-configured: {} cores detected, max_concurrent = {}",
-            cores,
-            max_concurrent
-        );
+        let max_concurrent = Self::default_max();
+        log::info!("JobRegistry auto-configured: max_concurrent = {max_concurrent}");
         Self::new(max_concurrent)
     }
 
@@ -207,17 +194,13 @@ impl JobRegistry {
         }
     }
 
-    pub fn scheduler(&self) -> BatchScheduler<'_> {
-        BatchScheduler::new(self)
-    }
-
-    pub async fn complete_job(&self, job_id: JobId) {
+    pub fn complete_job(&self, job_id: JobId) {
         if self.remove_job(job_id) {
             log::info!("Job {} completed", job_id);
         }
     }
 
-    pub async fn fail_job(&self, job_id: JobId, error: String) {
+    pub fn fail_job(&self, job_id: JobId, error: String) {
         if self.remove_job(job_id) {
             log::error!("Job {} failed: {}", job_id, error);
         }
@@ -244,7 +227,7 @@ impl JobRegistry {
         self.max_concurrent.load(Ordering::SeqCst)
     }
 
-    pub async fn update_max_concurrent(&self, max: usize) -> Result<usize> {
+    pub fn update_max_concurrent(&self, max: usize) -> Result<usize> {
         let effective = Self::normalize_max(max);
         let mut admission = self.admission();
         if !admission.jobs.is_empty() || admission.runs > 0 {
@@ -257,8 +240,8 @@ impl JobRegistry {
         Ok(effective)
     }
 
-    pub async fn reset_to_auto(&self) -> Result<usize> {
-        self.update_max_concurrent(Self::default_max()).await
+    pub fn reset_to_auto(&self) -> Result<usize> {
+        self.update_max_concurrent(Self::default_max())
     }
 }
 

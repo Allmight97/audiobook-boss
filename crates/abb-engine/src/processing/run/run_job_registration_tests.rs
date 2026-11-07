@@ -28,7 +28,7 @@ async fn registration_accepts_each_formats_own_extension() {
             register_job_and_validate_output(&registry, &output, format, None, log_context())
                 .await
                 .expect("the format's own extension should be accepted");
-        registry.complete_job(registered.job_id).await;
+        registry.complete_job(registered.job_id);
     }
     assert_eq!(
         std::fs::read(existing).expect("read untouched library file"),

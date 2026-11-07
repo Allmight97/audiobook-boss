@@ -1,13 +1,11 @@
 use crate::audio::SampleRateConfig;
 use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
-use crate::processing::lifecycle::OperationKind;
 use crate::processing::preview_config::PreviewConfig;
 use crate::processing::session::ProcessingSession;
-use crate::processing::ProgressEvent;
+use crate::processing::OperationKind;
+use crate::processing::ProgressEventListener;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-
-pub(crate) type ProgressEventListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
 
 #[derive(Debug, Clone)]
 pub struct OutputConfig {

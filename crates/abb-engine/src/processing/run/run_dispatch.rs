@@ -4,7 +4,6 @@ use crate::audio;
 use crate::errors::{AppError, Result};
 use crate::host::Host;
 use crate::output_artifact::OutputParentDirCleanup;
-use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::plan::{ExecutionProcessingPlan, ResolvedProcessingPlan};
 use crate::processing::progress::EmitContext;
 use crate::processing::terminal_outcomes::{
@@ -12,6 +11,7 @@ use crate::processing::terminal_outcomes::{
     emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,
 };
 use crate::processing::ProcessResultStatus;
+use crate::processing::ProgressEventListener;
 use crate::processing::{OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry};
 use std::future::Future;
 use std::path::PathBuf;
@@ -62,12 +62,6 @@ async fn dispatch_batch_plan(
         file_info,
         folders,
     } = batch;
-    if payload.input_files.is_empty() {
-        return Err(AppError::InvalidInput(
-            "No input files provided for processing".to_string(),
-        ));
-    }
-
     if let Some(result) = build_all_skipped_batch_result(&plan) {
         return Ok(result);
     }
@@ -128,10 +122,7 @@ async fn dispatch_batch_plan(
         scheduled_jobs.push(Box::pin(run_title_job(request, Arc::clone(&folders))));
     }
 
-    let outcomes = registry
-        .scheduler()
-        .run_batch(scheduled_jobs, queue_cancels)
-        .await;
+    let outcomes = registry.run_batch(scheduled_jobs, queue_cancels).await;
     let finalized_results = finalize_batch_results(outcomes, options.progress_listener.as_ref())?;
 
     Ok(ProcessCommandResult::new(finalized_results))

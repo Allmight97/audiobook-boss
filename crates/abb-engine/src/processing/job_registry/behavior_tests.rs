@@ -25,12 +25,11 @@ async fn test_fail_job() {
     let registry = JobRegistry::new(2);
     let (job_id, _permit) = registry.register_job().await.expect("Should register job");
 
-    registry.fail_job(job_id, "Test error".to_string()).await;
+    registry.fail_job(job_id, "Test error".to_string());
 
     assert_eq!(
         registry
             .update_max_concurrent(1)
-            .await
             .expect("failed job is untracked"),
         1
     );
@@ -41,7 +40,7 @@ async fn test_update_max_rejected_when_active() {
     let registry = Arc::new(JobRegistry::new(2));
     let (_job_id, _permit) = registry.register_job().await.expect("Should register job");
 
-    let result = registry.update_max_concurrent(1).await;
+    let result = registry.update_max_concurrent(1);
     assert!(result.is_err(), "Should not allow update while active");
     assert_eq!(registry.max_concurrent(), 2);
 }
@@ -77,7 +76,7 @@ async fn test_stress_concurrent_registration_respects_limit() {
             tokio::time::sleep(Duration::from_millis(5)).await;
             active.fetch_sub(1, Ordering::SeqCst);
             drop(permit);
-            reg.complete_job(job_id).await;
+            reg.complete_job(job_id);
         });
         handles.push(handle);
     }
@@ -93,7 +92,6 @@ async fn test_stress_concurrent_registration_respects_limit() {
     assert_eq!(
         registry
             .update_max_concurrent(1)
-            .await
             .expect("every job untracked after the batch"),
         1
     );
@@ -130,7 +128,7 @@ async fn test_scheduler_respects_max_in_flight() {
 
     let cancels = vec![None; futures.len()];
 
-    let results = registry.scheduler().run_batch(futures, cancels).await;
+    let results = registry.run_batch(futures, cancels).await;
 
     assert_eq!(results.len(), 12);
     assert!(results.into_iter().all(|item| item.is_ok()));
@@ -156,7 +154,7 @@ async fn test_scheduler_preserves_input_order() {
 
     let cancels = vec![None; futures.len()];
 
-    let results = registry.scheduler().run_batch(futures, cancels).await;
+    let results = registry.run_batch(futures, cancels).await;
 
     let ordered: Vec<usize> = results
         .into_iter()
@@ -192,7 +190,7 @@ async fn test_scheduler_continues_scheduling_after_error_and_preserves_order() {
 
     let cancels = vec![None; futures.len()];
 
-    let outcomes = registry.scheduler().run_batch(futures, cancels).await;
+    let outcomes = registry.run_batch(futures, cancels).await;
     assert_eq!(outcomes.len(), 6);
     assert_eq!(
         started.load(Ordering::SeqCst),
@@ -238,7 +236,7 @@ async fn test_scheduler_preserves_index_for_panicking_tasks() {
 
     let cancels = vec![None; futures.len()];
 
-    let outcomes = registry.scheduler().run_batch(futures, cancels).await;
+    let outcomes = registry.run_batch(futures, cancels).await;
 
     assert_eq!(outcomes.len(), 4);
     assert_eq!(
@@ -260,11 +258,11 @@ async fn concurrency_cannot_change_while_a_run_is_held_even_between_its_jobs() {
     let registry = Arc::new(JobRegistry::new(2));
     let run = registry.hold_run();
 
-    assert!(registry.update_max_concurrent(1).await.is_err());
-    assert!(registry.reset_to_auto().await.is_err());
+    assert!(registry.update_max_concurrent(1).is_err());
+    assert!(registry.reset_to_auto().is_err());
 
     drop(run);
-    assert_eq!(registry.update_max_concurrent(1).await.expect("idle"), 1);
+    assert_eq!(registry.update_max_concurrent(1).expect("idle"), 1);
 }
 
 #[tokio::test(start_paused = true)]
@@ -297,8 +295,7 @@ async fn a_cancelled_queued_job_starts_without_waiting_for_the_job_ahead() {
         Ok(1)
     });
     let token = CancellationToken::new();
-    let scheduler = registry.scheduler();
-    let batch = scheduler.run_batch(vec![ahead, queued], vec![None, Some(token.clone())]);
+    let batch = registry.run_batch(vec![ahead, queued], vec![None, Some(token.clone())]);
     let begun = Instant::now();
     let cancel_and_wait = async move {
         token.cancel();
@@ -354,8 +351,7 @@ async fn a_queued_job_whose_token_is_cancelled_later_starts_out_of_turn_and_sibl
         Ok(2)
     });
     let token = CancellationToken::new();
-    let scheduler = registry.scheduler();
-    let batch = scheduler.run_batch(
+    let batch = registry.run_batch(
         vec![ahead, waiting, cancelled],
         vec![None, Some(CancellationToken::new()), Some(token.clone())],
     );

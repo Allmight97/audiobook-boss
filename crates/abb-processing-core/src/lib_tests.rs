@@ -76,12 +76,38 @@ fn whole_operation_summary_constructors_are_consistent() {
 }
 
 #[test]
-fn classifier_treats_all_errors_cancelled_only_when_no_success_skip_or_failure() {
-    let mut classifier = RunTerminalClassifier::default();
-    classifier.observe_cancelled();
-    assert!(classifier.is_fully_cancelled());
+fn a_run_with_one_kind_of_result_has_that_class_and_two_kinds_are_mixed() {
+    let class_of = |statuses: &[ProcessResultStatus]| {
+        classify_run_terminal(&summarize_result_statuses(statuses.iter().copied()))
+    };
+    assert_eq!(
+        class_of(&[
+            ProcessResultStatus::Cancelled,
+            ProcessResultStatus::Cancelled
+        ]),
+        RunTerminalClass::Cancelled
+    );
+    assert_eq!(
+        class_of(&[ProcessResultStatus::Skipped]),
+        RunTerminalClass::Skipped
+    );
+    assert_eq!(
+        class_of(&[ProcessResultStatus::Cancelled, ProcessResultStatus::Success]),
+        RunTerminalClass::Mixed
+    );
+    assert_eq!(
+        class_of(&[ProcessResultStatus::Cancelled, ProcessResultStatus::Failed]),
+        RunTerminalClass::Mixed
+    );
+}
 
-    classifier.observe_status(ProcessResultStatus::Success);
-    assert!(!classifier.is_fully_cancelled());
-    assert_eq!(classifier.class(), RunTerminalClass::Mixed);
+#[test]
+fn operation_kind_log_labels_cover_every_variant() {
+    assert_eq!(
+        [
+            OperationKind::ProcessingBatch.log_label(),
+            OperationKind::MetadataSave.log_label(),
+        ],
+        ["processing_batch", "metadata_save"]
+    );
 }

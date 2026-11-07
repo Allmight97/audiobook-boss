@@ -22,8 +22,6 @@ pub(in crate::processing) fn classify_processing_error(
     }
 }
 
-pub(super) type RunTerminalClassifier = abb_processing_core::RunTerminalClassifier;
-
 pub(super) fn is_cancellation_error(error: &AppError) -> bool {
     matches!(error, AppError::Cancellation(_))
 }

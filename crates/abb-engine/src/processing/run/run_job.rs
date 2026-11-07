@@ -7,8 +7,8 @@ use crate::output_artifact::{
     commit_supplemental_output_assets_for_output, OutputKind, ResolvedOutputPlan,
     SupplementalOutputAssetsCommitRequest,
 };
-use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::job_registry::{CancellationChecker, JobId};
+use crate::processing::ProgressEventListener;
 use crate::processing::{
     AudioHandling, OperationKind, OutputConfig, PreviewConfig, ProcessPayload, ProcessResultEntry,
     ProcessResultStatus, ProcessingContext, ProcessingSession, SupplementalProcessingAsset,
@@ -134,7 +134,7 @@ async fn settle_job(
             supplemental_warning,
             warnings,
         } => {
-            registry.complete_job(job_id).await;
+            registry.complete_job(job_id);
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Success);
             Ok(ProcessResultEntry {
                 input_index,
@@ -148,12 +148,12 @@ async fn settle_job(
             })
         }
         ProcessingJobTerminalOutcome::Cancelled(error) => {
-            registry.complete_job(job_id).await;
+            registry.complete_job(job_id);
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Cancelled);
             Err(error)
         }
         ProcessingJobTerminalOutcome::Failed(envelope) => {
-            registry.fail_job(job_id, envelope.message.clone()).await;
+            registry.fail_job(job_id, envelope.message.clone());
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
             Ok(terminal_failure_result(
                 input_index,
@@ -314,7 +314,7 @@ pub(crate) async fn register_job_and_validate_output(
     if let Err(error) = validation {
         let envelope = AppErrorEnvelope::from(&error);
         lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
-        registry.fail_job(job_id, error.to_string()).await;
+        registry.fail_job(job_id, error.to_string());
         return Err(error);
     }
 
@@ -446,7 +446,7 @@ fn format_processing_job_record(
         operation_id,
         identity.job_id,
         identity.input_index,
-        crate::processing::operation_kind_log_label(identity.operation_kind),
+        identity.operation_kind.log_label(),
         processing_job_status_label(status),
     );
     if let Some(elapsed_ms) = elapsed_ms {

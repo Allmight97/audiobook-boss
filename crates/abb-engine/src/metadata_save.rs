@@ -125,8 +125,8 @@ pub(crate) async fn save_metadata_batch(
     .await;
 
     match &result {
-        Ok(_) => registry.complete_job(job_id).await,
-        Err(error) => registry.fail_job(job_id, error.to_string()).await,
+        Ok(_) => registry.complete_job(job_id),
+        Err(error) => registry.fail_job(job_id, error.to_string()),
     }
 
     match result {

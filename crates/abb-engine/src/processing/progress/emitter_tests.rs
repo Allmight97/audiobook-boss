@@ -40,7 +40,7 @@ fn terminal_events_share_context_and_reset_progress() {
 fn emitted_progress_normalizes_non_finite_percentage() {
     let captured = Arc::new(std::sync::Mutex::new(None));
     let listener_capture = Arc::clone(&captured);
-    let listener: ProgressListener = Arc::new(move |event| {
+    let listener: ProgressEventListener = Arc::new(move |event| {
         *listener_capture.lock().expect("capture progress event") = Some(event.clone());
     });
     let emitter = ProgressEmitter::with_context(EmitContext {

@@ -624,7 +624,6 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
     assert_eq!(
         registry
             .update_max_concurrent(1)
-            .await
             .expect("idle registry should allow concurrency updates"),
         1
     );

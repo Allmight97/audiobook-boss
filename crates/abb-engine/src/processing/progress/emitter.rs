@@ -3,10 +3,9 @@ use super::{
     PROGRESS_CONVERTING_START, PROGRESS_FINALIZING, PROGRESS_METADATA_START,
 };
 use crate::processing::OperationKind;
-use crate::processing::ProcessingStage;
 use std::sync::Arc;
 
-type ProgressListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
+pub(crate) type ProgressEventListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
 
 #[derive(Clone)]
 pub struct EmitContext {
@@ -19,7 +18,7 @@ pub struct ProgressEmitter {
     operation_kind: OperationKind,
     job_id: Option<String>,
     input_index: Option<usize>,
-    progress_listener: Option<ProgressListener>,
+    progress_listener: Option<ProgressEventListener>,
 }
 
 impl ProgressEmitter {
@@ -34,7 +33,7 @@ impl ProgressEmitter {
 
     pub(crate) fn with_progress_listener(
         mut self,
-        progress_listener: Option<ProgressListener>,
+        progress_listener: Option<ProgressEventListener>,
     ) -> Self {
         self.progress_listener = progress_listener;
         self
@@ -64,7 +63,7 @@ impl ProgressEmitter {
 
     pub fn emit_analyzing_start(&self, message: &str) {
         self.emit_event(
-            ProcessingStage::Analyzing,
+            EventStage::Analyzing,
             PROGRESS_ANALYZING_START,
             message,
             None,
@@ -74,7 +73,7 @@ impl ProgressEmitter {
 
     pub fn emit_converting_start(&self, message: &str) {
         self.emit_event(
-            ProcessingStage::Converting,
+            EventStage::Converting,
             PROGRESS_CONVERTING_START,
             message,
             None,
@@ -90,7 +89,7 @@ impl ProgressEmitter {
         eta_seconds: Option<f64>,
     ) {
         self.emit_event(
-            ProcessingStage::Converting,
+            EventStage::Converting,
             percentage,
             message,
             current_file,
@@ -100,7 +99,7 @@ impl ProgressEmitter {
 
     pub fn emit_metadata_start(&self, message: &str) {
         self.emit_event(
-            ProcessingStage::WritingMetadata,
+            EventStage::Writing,
             PROGRESS_METADATA_START,
             message,
             None,
@@ -110,7 +109,7 @@ impl ProgressEmitter {
 
     pub fn emit_finalizing(&self, message: &str) {
         self.emit_event(
-            ProcessingStage::WritingMetadata,
+            EventStage::Writing,
             PROGRESS_FINALIZING,
             message,
             None,
@@ -120,7 +119,7 @@ impl ProgressEmitter {
 
     pub fn emit_complete(&self, message: &str) {
         self.emit_event(
-            ProcessingStage::Completed,
+            EventStage::Completed,
             PROGRESS_COMPLETE,
             message,
             None,
@@ -142,7 +141,7 @@ impl ProgressEmitter {
 
     fn emit_event(
         &self,
-        stage: ProcessingStage,
+        stage: EventStage,
         percentage: f32,
         message: &str,
         current_file: Option<String>,
@@ -155,7 +154,7 @@ impl ProgressEmitter {
         };
         let event = ProgressEvent {
             operation_kind: self.operation_kind,
-            stage: EventStage::from(&stage),
+            stage,
             percentage,
             message: message.to_string(),
             current_file,
