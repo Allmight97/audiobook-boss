@@ -1,18 +1,3 @@
-export type {
-	AudioFile,
-	AudiobookFormat,
-	AudioIntent,
-	CollisionPolicy,
-	EncoderSettingsCapabilities,
-	EncoderType,
-	FaacProfile,
-	OutputCollisionKind,
-	OutputNamingConfig,
-	PlannedOutput,
-	TitleAudioPlan,
-	TitleAudioRequest,
-} from '../lib/generated/tauri';
-
 export const formatDuration = (seconds: number | null): string => {
 	if (seconds == null || Number.isNaN(seconds)) {
 		return '---';
@@ -48,8 +33,3 @@ export const formatFileSize = (bytes: number | null): string => {
 /** Imported audio bitrate is bits per second; encoder targets use kilobits per second. */
 export const formatAudioBitrate = (bitsPerSecond: number | null): string =>
 	bitsPerSecond ? `${Math.round(bitsPerSecond / 100) / 10} kbps` : 'N/A';
-
-export {
-	SUPPORTED_AUDIO_IMPORT_EXTENSIONS,
-	SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
-} from '../lib/generated/tauri';

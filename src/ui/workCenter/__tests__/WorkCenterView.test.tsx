@@ -1,8 +1,7 @@
 import { cleanup, render, screen } from '@solidjs/testing-library';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../../app/runtime';
-import type { RestartOffer } from '../../../types/session';
-import type { OperationSnapshot } from '../../../types/workRuntime';
+import type { OperationSnapshot, RestartOffer } from '../../../lib/generated/tauri';
 import { createFakeEngine } from '../../../test/fixtures/fakeEngine';
 import { WorkCenterView } from '..';
 

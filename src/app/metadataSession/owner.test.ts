@@ -1,7 +1,7 @@
 import { coverSrc } from '../../lib/tauri/coverSrc';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
-import type { SessionOutcome } from '../../types/session';
+import type { SessionOutcome } from '../../lib/generated/tauri';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 
 describe('metadata owner', () => {

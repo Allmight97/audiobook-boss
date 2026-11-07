@@ -1,13 +1,13 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../runtime';
-import type { AcquisitionJob } from '../../types/remoteSource';
+import type { AcquisitionSnapshot } from '../../lib/generated/tauri';
 
 const runtimes: AppRuntime[] = [];
 afterEach(() => {
 	for (const runtime of runtimes.splice(0)) runtime.dispose();
 });
-const job: AcquisitionJob = {
+const job: AcquisitionSnapshot = {
 	jobId: 'download-1',
 	providerId: 'audible',
 	status: 'acquiring',

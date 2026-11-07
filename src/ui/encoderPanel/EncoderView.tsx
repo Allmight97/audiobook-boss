@@ -2,7 +2,7 @@ import { For, Show, createMemo, createUniqueId, type Accessor } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { useAppRuntime } from '../../app/runtime';
-import type { AudioFile } from '../../types/audio';
+import type { AudioFile } from '../../lib/generated/tauri';
 import type { EncodingField, EncodingView } from '../../app/encoding';
 import './encoderView.css';
 

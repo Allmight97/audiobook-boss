@@ -1,6 +1,6 @@
 import { createEffect, createSignal, type Accessor } from 'solid-js';
 import { toUserMessage } from '../../lib/tauri/appError';
-import type { RemoteUiIntent } from '../../types/session';
+import type { RemoteUiIntent } from '../../lib/generated/tauri';
 import type { EngineLink } from '../engineLink';
 
 export type IndexerConnectionSettingsView = {

@@ -3,9 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
 
-import type { AudioFile } from '../../types/audio';
+import type { AudioFile, OnlineMetadataResult } from '../../lib/generated/tauri';
 import { createFakeEngine, defaultAppSettings } from '../../test/fixtures/fakeEngine';
-import type { OnlineMetadataResult } from '../../types/metadata';
 import { App } from '../App';
 
 const native = vi.hoisted(() => ({

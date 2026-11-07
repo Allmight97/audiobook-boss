@@ -1,4 +1,4 @@
-import type { AcquisitionProgress, RemoteTitle } from '../../types/remoteSource';
+import type { AcquisitionProgress, RemoteTitle } from '../../lib/generated/tauri';
 
 export function formatReleaseSizeBytes(sizeBytes: number): string {
 	if (sizeBytes <= 0) return 'Unknown size';

@@ -3,7 +3,7 @@ import type { JSX } from '@solidjs/web';
 import { useAppRuntime } from '../../app/runtime';
 import { formatFileDetails, formatAudioProperties } from '../../app/inputSession';
 import { pathBasename } from '../../lib/path/basename';
-import type { AudioFile } from '../../types/audio';
+import type { AudioFile } from '../../lib/generated/tauri';
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 
 export function TitleSources(props: {

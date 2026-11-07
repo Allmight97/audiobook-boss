@@ -5,12 +5,12 @@ import { AppRuntimeProvider } from '../../runtime';
 import { StatusPanelView } from '../../../ui/statusPanel';
 import { PreviewAudioControls } from '../../../ui/previewAudio';
 import { createFakeEngine } from '../../../test/fixtures/fakeEngine';
-import type { SessionOutput } from '../../../types/session';
+import type { OutputSnapshot } from '../../../lib/generated/tauri';
 import { createAppRuntime, type AppRuntime } from '../../runtime';
 
 const PREVIEW_COVER = 'preview/0/preview-1';
 
-function preview(): NonNullable<SessionOutput['previewRun']> {
+function preview(): NonNullable<OutputSnapshot['previewRun']> {
 	const progress = {
 		stage: 'converting' as const,
 		percentage: 42,

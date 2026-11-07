@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { OperationSnapshot } from '../../types/workRuntime';
+import type { OperationSnapshot } from '../../lib/generated/tauri';
 import { applyWorkOperations, emptyWorkCenterModel, visibleOperations } from './workOperations';
 
 function operation(id: string, sequence: number, childCount = 1): OperationSnapshot {

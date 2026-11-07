@@ -5,7 +5,7 @@ import { formatEtaRemaining } from '../../lib/format/eta';
 import { useAppRuntime } from '../../app/runtime';
 import { isWorkRunning } from '../../app/workOperations';
 import { Progress } from '../foundation';
-import type { ChildJobSnapshot, OperationSnapshot } from '../../types/workRuntime';
+import type { ChildJobSnapshot, OperationSnapshot } from '../../lib/generated/tauri';
 import './workCenterView.css';
 
 function completedLabel(

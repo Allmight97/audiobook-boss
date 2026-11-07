@@ -1,12 +1,12 @@
 import {
-	formatDuration,
-	formatFileSize,
-	formatAudioBitrate,
-	SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
 	type AudioFile,
-} from '../../types/audio';
+	type InputNotice,
+	SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
+	type SelectionSnapshot,
+	type TitlesSnapshot,
+} from '../../lib/generated/tauri';
+import { formatAudioBitrate, formatDuration, formatFileSize } from '../../lib/format/audio';
 import { toUserMessage } from '../../lib/tauri/appError';
-import type { InputNotice, SessionSelection, SessionTitles } from '../../types/session';
 import { fileIdentityKey, type InputView } from './types';
 
 export function acceptedChapterCount(file: AudioFile): number {
@@ -54,8 +54,8 @@ function inputNoticeText(notice: InputNotice | null): string {
 }
 
 export function toInputView(
-	titles: SessionTitles,
-	selection: SessionSelection,
+	titles: TitlesSnapshot,
+	selection: SelectionSnapshot,
 	local: {
 		readonly errorMessage: string;
 		readonly isDragOver: boolean;

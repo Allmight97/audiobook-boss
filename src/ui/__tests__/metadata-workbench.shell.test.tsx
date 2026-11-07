@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { MetadataField } from '../../types/session';
+import type { MetadataField } from '../../lib/generated/tauri';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import type { InputCapability } from '../../lib/tauri/capabilities/input';

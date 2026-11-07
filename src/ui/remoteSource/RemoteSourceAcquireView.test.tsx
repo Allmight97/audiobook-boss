@@ -5,16 +5,16 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
-import type { SessionUpdate } from '../../types/session';
 import type {
-	AcquisitionJob,
+	AcquisitionSnapshot,
+	RemoteRelease,
 	RemoteSourceProviderCapabilities,
 	RemoteTitle,
-	RemoteRelease,
-} from '../../types/remoteSource';
+	SessionUpdate,
+} from '../../lib/generated/tauri';
 import { RemoteSourceAcquireView } from './RemoteSourceAcquireView';
 
-function acquisitionJob(percentage: number, terminal = false): AcquisitionJob {
+function acquisitionJob(percentage: number, terminal = false): AcquisitionSnapshot {
 	return {
 		settled: terminal,
 		terminal,

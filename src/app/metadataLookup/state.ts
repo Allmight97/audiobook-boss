@@ -1,5 +1,10 @@
-import type { MetadataSource, OnlineMetadataResult } from '../../types/metadata';
-import type { LookupStatus, QueueStep, SessionLookup } from '../../types/session';
+import type {
+	LookupSnapshot,
+	LookupStatus,
+	MetadataSource,
+	OnlineMetadataResult,
+	QueueStep,
+} from '../../lib/generated/tauri';
 
 type MetadataLookupStatusVariant = 'error' | 'success' | 'info';
 export type MetadataLookupApplyMode = 'current' | 'queue';
@@ -90,7 +95,7 @@ function statusOf(status: LookupStatus | null): Status {
 }
 
 export function toLookupState(
-	lookup: SessionLookup,
+	lookup: LookupSnapshot,
 	typed: { readonly titleQuery?: string; readonly authorQuery?: string },
 ): MetadataLookupState {
 	const status = statusOf(lookup.status);

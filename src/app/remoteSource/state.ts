@@ -1,5 +1,8 @@
-import type { RemoteAcquisitionSnapshot, RemoteUiSnapshot } from '../../types/session';
-import type { ProviderId } from '../../types/remoteSource';
+import type {
+	ProviderId,
+	RemoteAcquisitionSnapshot,
+	RemoteUiSnapshot,
+} from '../../lib/generated/tauri';
 import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { toUserMessage } from '../../lib/tauri/appError';
 import {

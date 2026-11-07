@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
-import type { AcquisitionLane, AppSettings } from '../../types/appSettings';
+import type { AcquisitionLane, AppSettings } from '../../lib/generated/tauri';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Dialog } from '../foundation';
 import { EncoderView } from '../encoderPanel';

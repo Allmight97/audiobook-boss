@@ -1,4 +1,4 @@
-import type { FrontendLogLevel } from '../types/frontendLog';
+import type { FrontendLogLevel } from './generated/tauri';
 import { isAppErrorEnvelope } from './tauri/appError';
 import { tauriClient } from './tauri/client';
 

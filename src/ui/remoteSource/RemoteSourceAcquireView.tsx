@@ -4,7 +4,7 @@ import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { coverSrc } from '../../lib/tauri/coverSrc';
 
-import type { AcquisitionLane } from '../../types/appSettings';
+import type { AcquisitionLane, RemoteRelease, RemoteTitle } from '../../lib/generated/tauri';
 import {
 	bytesLabel,
 	formatReleaseSizeBytes,
@@ -14,7 +14,6 @@ import {
 } from '../../app/remoteSource';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, CoverImage, CoverThumb, Dialog, Progress } from '../foundation';
-import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import './remoteSourceAcquire.css';
 
 function RemoteTitleCover(props: { readonly title: RemoteTitle }): JSX.Element {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AcquisitionJob } from '../../types/remoteSource';
+import type { AcquisitionSnapshot } from '../../lib/generated/tauri';
 import { audioFile, createFakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime } from './index';
 
@@ -11,7 +11,7 @@ function createDeferred<T>() {
 	return { promise, resolve };
 }
 
-function runningJob(): AcquisitionJob {
+function runningJob(): AcquisitionSnapshot {
 	return {
 		settled: false,
 		terminal: false,

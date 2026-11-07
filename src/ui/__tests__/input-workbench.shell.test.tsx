@@ -3,11 +3,11 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/te
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+	type AudioFile,
 	SUPPORTED_AUDIO_IMPORT_EXTENSIONS,
 	SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
-	type AudioFile,
-} from '../../types/audio';
-import type { SessionOutcome } from '../../types/session';
+	type SessionOutcome,
+} from '../../lib/generated/tauri';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';

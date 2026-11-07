@@ -3,7 +3,7 @@ import type { JSX } from '@solidjs/web';
 
 import { nativeDropTargetAtPoint } from '../../app/inputSession';
 import { useAppRuntime } from '../../app/runtime';
-import type { AcquisitionLane } from '../../types/appSettings';
+import type { AcquisitionLane } from '../../lib/generated/tauri';
 import { isFileDropEvent } from '../../types/events';
 import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { createSubscriptionGroup } from '../../lib/tauri/subscriptionGroup';

@@ -1,16 +1,16 @@
 import { createEffect, createSignal, untrack, type Accessor } from 'solid-js';
-import type {
-	MetadataField,
-	MetadataStatus,
-	OutputEdits,
-	SessionIntent,
-	TagPreview,
-	SessionMetadata,
-} from '../../types/session';
+import {
+	COVER_IMAGE_EXTENSIONS,
+	type MetadataField,
+	type MetadataSnapshot,
+	type MetadataStatus,
+	type OutputEdits,
+	type SessionIntent,
+	type TagPreview,
+} from '../../lib/generated/tauri';
 import { coverSrc } from '../../lib/tauri/coverSrc';
 import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { toUserMessage } from '../../lib/tauri/appError';
-import { COVER_IMAGE_EXTENSIONS } from '../../types/metadata';
 import {
 	liveMetadataCapability,
 	type MetadataCapability,
@@ -171,7 +171,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		},
 	);
 
-	function coverMessage(metadata: SessionMetadata): CoverArtMessage {
+	function coverMessage(metadata: MetadataSnapshot): CoverArtMessage {
 		if (localMessage.kind !== 'hidden') return localMessage;
 		if (metadata.cover.noticeSerial <= hiddenNoticeSerial) return HIDDEN_COVER_MESSAGE;
 		return coverNoticeMessage(metadata.cover.notice);

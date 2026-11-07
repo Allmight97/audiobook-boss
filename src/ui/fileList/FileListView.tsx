@@ -9,8 +9,7 @@ import { coverSrc } from '../../lib/tauri/coverSrc';
 import { Button, CoverImage } from '../foundation';
 import { createSignal, createEffect, Show, For, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
-import type { AudioFile } from '../../types/audio';
-import type { TitleTotals } from '../../types/session';
+import type { AudioFile, TitleTotals } from '../../lib/generated/tauri';
 
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 import { TitleSources } from './TitleSources';

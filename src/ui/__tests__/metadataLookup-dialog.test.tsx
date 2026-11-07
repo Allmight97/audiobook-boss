@@ -1,8 +1,11 @@
 import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { OnlineMetadataResult } from '../../types/metadata';
-import type { SessionIntent, SessionLookup } from '../../types/session';
+import type {
+	LookupSnapshot,
+	OnlineMetadataResult,
+	SessionIntent,
+} from '../../lib/generated/tauri';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
@@ -53,7 +56,7 @@ function applyButton(): HTMLButtonElement {
 	return button;
 }
 
-function queued(index: number, patch: Partial<SessionLookup> = {}): Partial<SessionLookup> {
+function queued(index: number, patch: Partial<LookupSnapshot> = {}): Partial<LookupSnapshot> {
 	return {
 		open: true,
 		isQueueMode: true,
@@ -82,12 +85,12 @@ describe('metadata lookup dialog', () => {
 	});
 
 	async function openLookupOverTwoTitles(
-		answers: Partial<Record<SessionIntent['kind'], Partial<SessionLookup>>> = {},
+		answers: Partial<Record<SessionIntent['kind'], Partial<LookupSnapshot>>> = {},
 	) {
 		engine = createFakeEngine();
 		engine.analyze = (paths) =>
 			paths.map((path) => audioFile(path, { label: path.includes('beta') ? 'Beta' : 'Alpha' }));
-		const lookupAfter: Partial<Record<SessionIntent['kind'], Partial<SessionLookup>>> = {
+		const lookupAfter: Partial<Record<SessionIntent['kind'], Partial<LookupSnapshot>>> = {
 			lookupOpen: queued(0),
 			...answers,
 		};

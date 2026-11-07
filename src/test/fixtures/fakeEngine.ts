@@ -2,32 +2,33 @@ import { recordedFresh } from '../../lib/tauri/recordedFresh';
 import type { EngineCapability } from '../../lib/tauri/capabilities/engine';
 import type {
 	AppSettings,
-	SettingsIntent,
-	SettingsOutcome,
-	SettingsSnapshot,
-} from '../../types/appSettings';
-import type { AudioFile, TitleAudioRequest } from '../../types/audio';
-import type {
+	AudioFile,
+	AudioSnapshot,
 	CoverNotice,
+	LookupSnapshot,
 	MetadataField,
+	MetadataSnapshot,
 	MetadataStatus,
+	OperationId,
+	OperationSnapshot,
+	OutputSnapshot,
 	RemoteAcquisitionSnapshot,
 	RemoteLibrarySnapshot,
 	RemoteUiSnapshot,
-	SessionAudio,
+	SelectionSnapshot,
 	SessionIntent,
-	SessionLookup,
-	SessionMetadata,
 	SessionOutcome,
-	SessionOutput,
-	SessionSelection,
-	SessionTitles,
 	SessionUpdate,
+	SettingsIntent,
+	SettingsOutcome,
+	SettingsSnapshot,
 	SizeEstimate,
 	TitleAudio,
+	TitleAudioRequest,
 	TitlePlan,
-} from '../../types/session';
-import type { OperationId, OperationSnapshot, WorkOperationsUpdate } from '../../types/workRuntime';
+	TitlesSnapshot,
+	WorkOperationsUpdate,
+} from '../../lib/generated/tauri';
 
 const FORM_FIELDS: readonly MetadataField[] = [
 	'title',
@@ -43,12 +44,12 @@ const FORM_FIELDS: readonly MetadataField[] = [
 ];
 
 type SessionParts = {
-	titles: SessionTitles;
-	selection: SessionSelection;
-	metadata: SessionMetadata;
-	lookup: SessionLookup;
-	audio: SessionAudio;
-	output: SessionOutput;
+	titles: TitlesSnapshot;
+	selection: SelectionSnapshot;
+	metadata: MetadataSnapshot;
+	lookup: LookupSnapshot;
+	audio: AudioSnapshot;
+	output: OutputSnapshot;
 	remote: RemoteUiSnapshot;
 	remoteLibrary: RemoteLibrarySnapshot;
 	remoteAcquisition: RemoteAcquisitionSnapshot;

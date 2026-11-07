@@ -1,5 +1,5 @@
 import { toUserMessage } from '../../lib/tauri/appError';
-import type { CoverNotice } from '../../types/session';
+import type { CoverNotice } from '../../lib/generated/tauri';
 
 export type CoverArtMessage =
 	| { readonly kind: 'hidden' }

@@ -3,7 +3,7 @@ import type {
 	OperationSnapshot,
 	WorkOperationsSnapshot,
 	WorkOperationsUpdate,
-} from '../../types/workRuntime';
+} from '../../lib/generated/tauri';
 
 export interface WorkCenterModel {
 	revision: number;

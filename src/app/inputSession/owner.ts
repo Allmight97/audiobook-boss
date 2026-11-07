@@ -1,8 +1,12 @@
 import { createSignal, type Accessor } from 'solid-js';
-import { SUPPORTED_AUDIO_IMPORT_EXTENSIONS, type AudioFile } from '../../types/audio';
+import {
+	type AudioFile,
+	SUPPORTED_AUDIO_IMPORT_EXTENSIONS,
+	type SessionIntent,
+	type TitleTotals,
+} from '../../lib/generated/tauri';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
-import type { SessionIntent, TitleTotals } from '../../types/session';
 import type { EngineLink } from '../engineLink';
 import { companionSummary, type CompanionSummary } from './companions';
 import { toInputView } from './display';

@@ -1,5 +1,5 @@
 import { toUserMessage } from '../../lib/tauri/appError';
-import type { SubmissionStatus, SubmitRefusal } from '../../types/session';
+import type { SubmissionStatus, SubmitRefusal } from '../../lib/generated/tauri';
 
 export interface SubmissionDisplay {
 	showStep: (message: string) => void;

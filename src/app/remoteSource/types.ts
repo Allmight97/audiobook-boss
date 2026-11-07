@@ -1,10 +1,10 @@
-import type { RemoteUiSnapshot } from '../../types/session';
 import type {
 	ProviderId,
 	RemoteRelease,
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
-} from '../../types/remoteSource';
+	RemoteUiSnapshot,
+} from '../../lib/generated/tauri';
 
 type AcquisitionState = {
 	isBusy: boolean;

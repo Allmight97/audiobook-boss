@@ -2,7 +2,7 @@ import { createSignal, type Accessor } from 'solid-js';
 import type { EngineLink } from '../engineLink';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
-import type { OperationId, OperationSnapshot } from '../../types/workRuntime';
+import type { OperationId, OperationSnapshot } from '../../lib/generated/tauri';
 
 export type WorkOperationsView = {
 	readonly operations: ReadonlyArray<OperationSnapshot>;

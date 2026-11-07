@@ -5,8 +5,12 @@ import {
 	sessionUpdate,
 	type FakeEngine,
 } from '../../test/fixtures/fakeEngine';
-import type { SessionIntent, SessionOutcome, SessionUpdate } from '../../types/session';
-import type { OperationSnapshot } from '../../types/workRuntime';
+import type {
+	OperationSnapshot,
+	SessionIntent,
+	SessionOutcome,
+	SessionUpdate,
+} from '../../lib/generated/tauri';
 import { attachEngineLink, type EngineLink } from './link';
 
 function operation(operationId: string): OperationSnapshot {

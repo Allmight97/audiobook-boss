@@ -1,4 +1,5 @@
-import { formatAudioBitrate, formatFileSize, type AudioFile } from '../../types/audio';
+import type { AudioFile } from '../../lib/generated/tauri';
+import { formatAudioBitrate, formatFileSize } from '../../lib/format/audio';
 import { pathBasename } from '../../lib/path/basename';
 import type { InputView } from './types';
 

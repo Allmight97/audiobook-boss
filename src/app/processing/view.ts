@@ -1,4 +1,4 @@
-import type { ChildJobSnapshot, WorkProgressStage } from '../../types/workRuntime';
+import type { ChildJobSnapshot, WorkProgressStage } from '../../lib/generated/tauri';
 
 export type JobListItem = {
 	readonly childJobId: string;

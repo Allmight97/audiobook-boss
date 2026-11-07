@@ -2,33 +2,37 @@ import { createSignal, type Accessor } from 'solid-js';
 import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
 import { liveEngineCapability, type EngineCapability } from '../../lib/tauri/capabilities/engine';
-import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../types/appSettings';
-import type { AudioFile } from '../../types/audio';
 import type {
+	AudioFile,
+	AudioSnapshot,
+	LookupSnapshot,
+	MetadataSnapshot,
+	OperationId,
+	OperationSnapshot,
+	OutputSnapshot,
 	RemoteAcquisitionSnapshot,
 	RemoteLibrarySnapshot,
 	RemoteUiSnapshot,
+	SelectionSnapshot,
 	SessionIntent,
-	SessionAudio,
-	SessionLookup,
-	SessionOutput,
-	SessionMetadata,
 	SessionOutcome,
 	SessionReply,
-	SessionSelection,
-	SessionTitles,
 	SessionUpdate,
-} from '../../types/session';
-import type { OperationId, OperationSnapshot, WorkOperationsUpdate } from '../../types/workRuntime';
+	SettingsIntent,
+	SettingsOutcome,
+	SettingsSnapshot,
+	TitlesSnapshot,
+	WorkOperationsUpdate,
+} from '../../lib/generated/tauri';
 import { applyWorkOperations, emptyWorkCenterModel, visibleOperations } from './workOperations';
 
 export type EngineLink = {
-	readonly titles: Accessor<SessionTitles>;
-	readonly selection: Accessor<SessionSelection>;
-	readonly metadata: Accessor<SessionMetadata>;
-	readonly lookup: Accessor<SessionLookup>;
-	readonly audio: Accessor<SessionAudio>;
-	readonly output: Accessor<SessionOutput>;
+	readonly titles: Accessor<TitlesSnapshot>;
+	readonly selection: Accessor<SelectionSnapshot>;
+	readonly metadata: Accessor<MetadataSnapshot>;
+	readonly lookup: Accessor<LookupSnapshot>;
+	readonly audio: Accessor<AudioSnapshot>;
+	readonly output: Accessor<OutputSnapshot>;
 	readonly remote: Accessor<RemoteUiSnapshot>;
 	readonly remoteLibrary: Accessor<RemoteLibrarySnapshot>;
 	readonly remoteAcquisition: Accessor<RemoteAcquisitionSnapshot>;
@@ -64,7 +68,7 @@ function outcomeNotice(outcome: SessionOutcome): string | null {
 	return outcome.kind === 'editLost' ? EDIT_LOST_NOTICE : null;
 }
 
-function shareUnchangedFiles(previous: SessionTitles, next: SessionTitles): SessionTitles {
+function shareUnchangedFiles(previous: TitlesSnapshot, next: TitlesSnapshot): TitlesSnapshot {
 	const known = new Map<string, { file: AudioFile; content: string }>();
 	const remember = (file: AudioFile) =>
 		known.set(file.inputId, {
@@ -86,7 +90,7 @@ function shareUnchangedFiles(previous: SessionTitles, next: SessionTitles): Sess
 	};
 }
 
-function shareUnchangedResults(previous: SessionLookup, next: SessionLookup): SessionLookup {
+function shareUnchangedResults(previous: LookupSnapshot, next: LookupSnapshot): LookupSnapshot {
 	const known = new Map(previous.results.map((result) => [JSON.stringify(result), result]));
 	return {
 		...next,

@@ -4,7 +4,7 @@ import { useAppRuntime } from '../../app/runtime';
 import { EncoderView } from '../encoderPanel';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
-import type { AudioFile, TitleAudioPlan } from '../../types/audio';
+import type { AudioFile, TitleAudioPlan } from '../../lib/generated/tauri';
 
 export function AudioHandlingControl(props: {
 	readonly file: AudioFile;

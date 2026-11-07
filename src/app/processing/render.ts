@@ -1,7 +1,6 @@
 import { formatEtaRemaining } from '../../lib/format/eta';
 import type { StatusViewStore } from './view';
-import type { SessionOutput } from '../../types/session';
-import type { WorkProgressStage } from '../../types/workRuntime';
+import type { OutputSnapshot, WorkProgressStage } from '../../lib/generated/tauri';
 import { isWorkRunning } from '../workOperations';
 
 export type ConcurrencyRead = {
@@ -53,7 +52,7 @@ export function renderConcurrencyStatus(view: StatusViewStore, concurrency: Conc
 	view.setConcurrencyText(`Max jobs: ${concurrency.effective}${suffix}`);
 }
 
-export function renderPreview(view: StatusViewStore, preview: SessionOutput['previewRun']): void {
+export function renderPreview(view: StatusViewStore, preview: OutputSnapshot['previewRun']): void {
 	if (!preview) return;
 	const { operation } = preview;
 	const active =

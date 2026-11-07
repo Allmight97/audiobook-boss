@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../runtime';
-import type { AutoReading, SelectionAudio } from '../../types/session';
+import type { AutoReading, SelectionAudio } from '../../lib/generated/tauri';
 import type { EncodingView } from './project';
 
 describe('encoding owner', () => {

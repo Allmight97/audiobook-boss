@@ -1,4 +1,4 @@
-import type { TitleAudioRequest } from '../../types/audio';
+import type { TitleAudioRequest } from '../../lib/generated/tauri';
 
 export function titleAudioRequest(): TitleAudioRequest {
 	return {

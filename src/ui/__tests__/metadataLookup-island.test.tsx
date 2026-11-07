@@ -1,6 +1,6 @@
 import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { OnlineMetadataResult } from '../../types/metadata';
+import type { OnlineMetadataResult } from '../../lib/generated/tauri';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import { coverSrc } from '../../lib/tauri/coverSrc';

@@ -1,7 +1,9 @@
-import type { QuitPressAgainEvent } from '../lib/generated/tauri';
-import type { SettingsSnapshot } from './appSettings';
-import type { SessionUpdate } from './session';
-import type { WorkOperationsUpdate } from './workRuntime';
+import type {
+	QuitPressAgainEvent,
+	SessionUpdate,
+	SettingsSnapshot,
+	WorkOperationsUpdate,
+} from '../lib/generated/tauri';
 
 export const EVENTS = {
 	WORK_OPERATIONS_UPDATE: 'work-operations-update',

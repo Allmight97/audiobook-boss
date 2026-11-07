@@ -1,6 +1,11 @@
 import type { Accessor } from 'solid-js';
-import type { AudioFile, TitleAudioRequest } from '../../types/audio';
-import type { AudioChoiceView, AutoReading, TitlePlan } from '../../types/session';
+import type {
+	AudioChoiceView,
+	AudioFile,
+	AutoReading,
+	TitleAudioRequest,
+	TitlePlan,
+} from '../../lib/generated/tauri';
 import type { EngineLink } from '../engineLink';
 import {
 	editFor,

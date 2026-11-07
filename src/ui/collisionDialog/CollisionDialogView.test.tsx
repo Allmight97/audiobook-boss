@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
-import type { PlannedOutput } from '../../types/audio';
+import type { PlannedOutput } from '../../lib/generated/tauri';
 import { CollisionDialogView } from './CollisionDialogView';
 
 const offer = {

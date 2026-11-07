@@ -1,8 +1,12 @@
 import { createMemo, createSignal, onCleanup, type Accessor } from 'solid-js';
-import type { AcquisitionLane } from '../../types/appSettings';
+import type {
+	AcquisitionLane,
+	AcquisitionSnapshot,
+	RemoteRelease,
+	RemoteTitle,
+	RemoteUiIntent,
+} from '../../lib/generated/tauri';
 import { tauriClient } from '../../lib/tauri/client';
-import type { RemoteUiIntent } from '../../types/session';
-import type { AcquisitionJob, RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import {
 	createIndexerConnectionSettings,
 	type IndexerConnectionSettingsView,
@@ -43,7 +47,7 @@ function accountIntent(
 function actionIntent(
 	action: RemoteSourceAction,
 	view: RemoteSourceView,
-	job: AcquisitionJob | null,
+	job: AcquisitionSnapshot | null,
 ): RemoteUiIntent | null {
 	switch (action.type) {
 		case 'searchReleases':
@@ -77,7 +81,7 @@ export type RemoteSourceOwner = {
 	isReleaseSelected: (key: string) => boolean;
 	releaseGrab: (key: string) => RemoteSourceView['releaseGrabs'][string] | undefined;
 	readonly hiddenReleaseSelectionCount: Accessor<number>;
-	readonly acquisition: Accessor<AcquisitionJob | null>;
+	readonly acquisition: Accessor<AcquisitionSnapshot | null>;
 	readonly acquisitionTitle: Accessor<RemoteTitle | undefined>;
 	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
 	open: (options: { readonly lane: AcquisitionLane }) => Promise<void>;

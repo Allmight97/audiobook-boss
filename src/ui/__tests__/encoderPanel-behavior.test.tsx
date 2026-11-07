@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@solidjs/testing-library';
 import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
-import type { AudioChoiceView, SessionAudio } from '../../types/session';
+import type { AudioChoiceView, AudioSnapshot } from '../../lib/generated/tauri';
 import { EncoderView } from '../encoderPanel';
 
 const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
@@ -19,7 +19,7 @@ describe('encoder panel behavior controls', () => {
 		runtime = undefined;
 	});
 
-	async function renderEncoder(seed: (defaults: AudioChoiceView, audio: SessionAudio) => void) {
+	async function renderEncoder(seed: (defaults: AudioChoiceView, audio: AudioSnapshot) => void) {
 		engine = createFakeEngine();
 		engine.change((state) => {
 			state.audio.defaults.choice.intent = 'encode';

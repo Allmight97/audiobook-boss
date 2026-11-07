@@ -4,7 +4,7 @@ import type {
 	MetadataFormSnapshot,
 	SeriesPartWarning,
 	SubseriesPartWarning,
-} from '../../types/session';
+} from '../../lib/generated/tauri';
 
 type MetadataFormMode = 'single' | 'multi';
 export type MetadataFieldAction = FieldAction;

@@ -2,7 +2,7 @@ import { createEffect, createSignal, onCleanup, untrack, type Accessor } from 's
 import type { SettingsOwner } from '../appSettings';
 import type { EngineLink } from '../engineLink';
 import { toUserMessage } from '../../lib/tauri/appError';
-import type { RestartOffer, SessionIntent } from '../../types/session';
+import type { RestartOffer, SessionIntent } from '../../lib/generated/tauri';
 import { renderSubmission } from './submit';
 import { renderConcurrencyStatus, renderPreview, renderStatus } from './render';
 import { coverSrc } from '../../lib/tauri/coverSrc';

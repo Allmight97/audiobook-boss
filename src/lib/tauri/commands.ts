@@ -1,8 +1,10 @@
 import { commands as generatedCommands } from '../generated/tauri';
-import type { SettingsIntent } from '../../types/appSettings';
-import type { FrontendLogEntry } from '../../types/frontendLog';
-import type { SessionIntent } from '../../types/session';
-import type { OperationId } from '../../types/workRuntime';
+import type {
+	FrontendLogEntry,
+	OperationId,
+	SessionIntent,
+	SettingsIntent,
+} from '../generated/tauri';
 import { unwrapGeneratedResult } from './appError';
 
 type GeneratedResult<T> = { status: 'ok'; data: T } | { status: 'error'; error: unknown };

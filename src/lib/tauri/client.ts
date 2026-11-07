@@ -11,10 +11,12 @@ import {
 	type SettingsUpdateEvent,
 	type WorkOperationsUpdateEvent,
 } from '../../types/events';
-import type { SettingsIntent } from '../../types/appSettings';
-import type { FrontendLogEntry } from '../../types/frontendLog';
-import type { SessionIntent } from '../../types/session';
-import type { OperationId } from '../../types/workRuntime';
+import type {
+	FrontendLogEntry,
+	OperationId,
+	SessionIntent,
+	SettingsIntent,
+} from '../generated/tauri';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 
 type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];

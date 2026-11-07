@@ -8,7 +8,7 @@ import type {
 	SettingsOutcome,
 	SettingsUnit,
 	StartupBehavior,
-} from '../../types/appSettings';
+} from '../../lib/generated/tauri';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { EngineLink } from '../engineLink';
 

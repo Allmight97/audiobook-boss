@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createFakeEngine } from '../../test/fixtures/fakeEngine';
-import type { SessionIntent, SessionOutcome } from '../../types/session';
+import type { SessionIntent, SessionOutcome } from '../../lib/generated/tauri';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 let runtime: AppRuntime | undefined;
 afterEach(() => runtime?.dispose());

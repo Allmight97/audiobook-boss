@@ -1,12 +1,16 @@
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import type { SettingsIntent, SettingsReply, SettingsSnapshot } from '../../../types/appSettings';
-import { EVENTS } from '../../../types/events';
-import type { SessionIntent, SessionReply, SessionUpdate } from '../../../types/session';
 import type {
 	OperationId,
+	SessionIntent,
+	SessionReply,
+	SessionUpdate,
+	SettingsIntent,
+	SettingsReply,
+	SettingsSnapshot,
 	WorkOperationsSnapshot,
 	WorkOperationsUpdate,
-} from '../../../types/workRuntime';
+} from '../../generated/tauri';
+import { EVENTS } from '../../../types/events';
 import { tauriClient } from '../client';
 
 export interface EngineCapability {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
+import type { RemoteRelease, RemoteTitle } from '../../lib/generated/tauri';
 import {
 	selectedRemoteTitleSummaryText,
 	visibleRemoteReleases,

@@ -1,5 +1,4 @@
-import type { CollisionReview } from '../../types/session';
-import type { PlannedOutput } from '../../types/audio';
+import type { CollisionReview, PlannedOutput } from '../../lib/generated/tauri';
 
 export type CollisionView = {
 	readonly reviewId: number | null;

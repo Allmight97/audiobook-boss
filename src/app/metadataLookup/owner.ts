@@ -1,6 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js';
 import { createTypingEcho, type EngineLink } from '../engineLink';
-import type { SessionIntent } from '../../types/session';
+import type { SessionIntent } from '../../lib/generated/tauri';
 import {
 	toLookupState,
 	type MetadataLookupApplyMode,

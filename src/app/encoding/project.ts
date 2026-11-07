@@ -1,11 +1,14 @@
-import type { AudioChoice, AudioChoiceFacts, AudioEdit, AutoReading } from '../../types/session';
 import type {
-	AudiobookFormat,
+	AudioChoice,
+	AudioChoiceFacts,
+	AudioEdit,
 	AudioIntent,
+	AudiobookFormat,
+	AutoReading,
 	EncoderSettingsCapabilities,
 	EncoderType,
 	FaacProfile,
-} from '../../types/audio';
+} from '../../lib/generated/tauri';
 
 export type EncodingField = AudioEdit['field'];
 

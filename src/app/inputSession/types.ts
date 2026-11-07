@@ -1,4 +1,4 @@
-import type { AudioFile } from '../../types/audio';
+import type { AudioFile } from '../../lib/generated/tauri';
 
 type InputSortDirection = 'none' | 'ascending' | 'descending';
 
