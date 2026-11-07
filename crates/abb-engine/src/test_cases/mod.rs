@@ -24,6 +24,8 @@ mod integration_media_cue_scale_tests;
 mod integration_media_encoded_run_tests;
 #[path = "integration_media_encoding_choice_tests.rs"]
 mod integration_media_encoding_choice_tests;
+#[path = "integration_media_merge_chapters_tests.rs"]
+mod integration_media_merge_chapters_tests;
 #[path = "integration_media_opus_tests.rs"]
 mod integration_media_opus_tests;
 #[path = "integration_media_preserve_decision_tests.rs"]

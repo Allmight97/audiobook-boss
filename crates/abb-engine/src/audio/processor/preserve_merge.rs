@@ -218,9 +218,9 @@ pub(super) fn execute(
             .ok_or_else(|| incompatible("source identity is missing"))?
             .source_fingerprint
             .as_str();
-        let path = workspace
-            .join(format!("source-{index}"))
-            .with_extension(file.path.extension().unwrap_or_default());
+        let folder = workspace.join(format!("source-{index}"));
+        std::fs::create_dir_all(&folder).map_err(AppError::Io)?;
+        let path = folder.join(file.path.file_name().unwrap_or_default());
         cleanup.add_path(&path);
         super::preserve::copy_with_cancellation(
             &file.path,
@@ -250,23 +250,7 @@ pub(super) fn execute(
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
-    let mut sources = super::passthrough_sources_from_audio_files(&copies);
-    let chapter_total = sources
-        .iter()
-        .map(|source| source.chapters.as_ref().map_or(0, Vec::len))
-        .sum();
-    if crate::metadata::synthesizes_chapter_per_source(sources.len(), chapter_total) {
-        for (source, original) in sources.iter_mut().zip(&file_info.files) {
-            source.chapters = Some(vec![crate::metadata::ChapterSpec {
-                title: original
-                    .path
-                    .file_stem()
-                    .map(|name| name.to_string_lossy().into_owned()),
-                start_ms: 0,
-                end_ms: (source.duration.unwrap_or(0.0) * 1000.0).round() as i64,
-            }]);
-        }
-    }
+    let sources = super::passthrough_sources_from_audio_files(&copies);
     let mut extracted = crate::metadata::extract_passthrough_metadata(&sources);
     let passthrough_warnings = std::mem::take(&mut extracted.warnings);
     let passthrough = cover_policy.apply_to_passthrough(extracted.into_option());

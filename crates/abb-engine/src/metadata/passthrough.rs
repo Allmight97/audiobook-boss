@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use ffmpeg_next as ff;
 
+use super::chapter_count::{join_chapters, no_length_warning, source_name, JoinedSource};
 use super::container::Container;
 use crate::errors::Result;
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
@@ -106,49 +107,6 @@ pub(crate) fn prepare_output_cover_art(
     Ok((metadata, passthrough, None))
 }
 
-fn source_name(path: &std::path::Path) -> String {
-    path.file_name().map_or_else(
-        || path.display().to_string(),
-        |name| name.to_string_lossy().into_owned(),
-    )
-}
-
-fn no_length_warning(name: &str) -> String {
-    format!("{name} has no known length, so the chapters after it may start too early.")
-}
-
-fn synthesize_chapters_from_files(files: &[PassthroughSource]) -> (Vec<ChapterSpec>, Vec<String>) {
-    let mut chapters = Vec::new();
-    let mut unmeasured = Vec::new();
-    let mut offset_ms: i64 = 0;
-
-    for file in files.iter().filter(|f| f.is_valid) {
-        let Some(duration) = file.duration else {
-            log::warn!(
-                "Skipping synthetic chapter for {} due to missing duration",
-                file.path.display()
-            );
-            unmeasured.push(source_name(&file.path));
-            continue;
-        };
-        let duration_ms = (duration * 1000.0).round() as i64;
-        let title = file
-            .path
-            .file_stem()
-            .map(|s| s.to_string_lossy().to_string());
-
-        chapters.push(ChapterSpec {
-            title,
-            start_ms: offset_ms,
-            end_ms: offset_ms + duration_ms,
-        });
-
-        offset_ms += duration_ms;
-    }
-
-    (chapters, unmeasured)
-}
-
 /// Extract chapters and original cover art from all valid input files.
 /// Chapters are normalized to milliseconds and offset by cumulative durations
 /// to preserve ordering for multi-file merges.
@@ -163,7 +121,7 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
     let mut cumulative_offset_ms: i64 = 0;
 
     let valid: Vec<&PassthroughSource> = files.iter().filter(|f| f.is_valid).collect();
-    let mut adds_chapters = Vec::with_capacity(valid.len());
+    let mut chapter_counts = Vec::with_capacity(valid.len());
     let mut unmeasured = Vec::new();
     for (position, file) in valid.iter().enumerate() {
         let chapters_before = passthrough.chapters.len();
@@ -202,7 +160,7 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
                 }));
         }
 
-        adds_chapters.push(passthrough.chapters.len() > chapters_before);
+        chapter_counts.push(passthrough.chapters.len() - chapters_before);
 
         // Rounded like the synthetic-chapter math so both paths agree.
         match file.duration {
@@ -211,28 +169,31 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
         }
     }
     for (position, name) in unmeasured {
-        if adds_chapters[position + 1..].contains(&true) {
+        if chapter_counts[position + 1..]
+            .iter()
+            .any(|&count| count > 0)
+        {
             passthrough.warnings.push(no_length_warning(&name));
         }
     }
 
-    if super::synthesizes_chapter_per_source(valid.len(), passthrough.chapters.len()) {
-        let (synthetic, unmeasured) = synthesize_chapters_from_files(files);
-        for name in unmeasured {
-            let warning = no_length_warning(&name);
-            if !passthrough.warnings.contains(&warning) {
-                passthrough.warnings.push(warning);
-            }
-        }
-        if !synthetic.is_empty() {
-            log::info!(
-                "Synthesized {} chapters from input file order (no source chapters present)",
-                synthetic.len()
-            );
-            passthrough.chapters = synthetic;
-        } else {
-            log::warn!("Could not synthesize chapters due to missing durations");
-        }
+    let joined_sources: Vec<_> = valid
+        .iter()
+        .zip(&chapter_counts)
+        .map(|(file, &chapters)| JoinedSource {
+            path: &file.path,
+            duration: file.duration,
+            chapters,
+        })
+        .collect();
+    let joined = join_chapters(&joined_sources);
+    passthrough.warnings.extend(joined.warnings);
+    if !joined.synthetic.is_empty() {
+        log::info!(
+            "Synthesized {} chapters from input file order (no source chapters present)",
+            joined.synthetic.len()
+        );
+        passthrough.chapters = joined.synthetic;
     }
 
     passthrough

@@ -36,7 +36,7 @@ pub use abb_metadata_core::{
     AlbumSortPatchOp, AudiobookMetadata, MetadataCoreError, MetadataIntentPatch,
     MetadataIntentValidationField, MetadataIntentValidationResult, NamingMetadata, PatchOp,
 };
-pub(crate) use chapter_count::{output_chapter_count, synthesizes_chapter_per_source};
+pub(crate) use chapter_count::{join_chapters, JoinedSource};
 pub use intent_plan::CoverArtPassthroughPolicy;
 pub(crate) use intent_plan::{
     plan_metadata_outcome, plan_metadata_outcome_from, plan_metadata_write_for_path,
