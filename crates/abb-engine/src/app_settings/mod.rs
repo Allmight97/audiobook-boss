@@ -16,3 +16,6 @@ pub use types::{
 
 #[cfg(test)]
 mod contract_tests;
+
+#[cfg(test)]
+mod saved_format_tests;

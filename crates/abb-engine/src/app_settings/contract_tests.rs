@@ -246,6 +246,12 @@ fn every_sample_settings_file_loads_every_choice_this_release_still_offers() {
             Vec::new(),
         ),
         (
+            "all-defaults.toml",
+            include_str!("saved_settings/all-defaults.toml"),
+            AppSettings::default(),
+            Vec::new(),
+        ),
+        (
             "remember-last-state.toml",
             include_str!("saved_settings/remember-last-state.toml"),
             remember_last_state_settings(),

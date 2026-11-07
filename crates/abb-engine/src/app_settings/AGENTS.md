@@ -83,6 +83,9 @@ session records reaches hosts as `EngineEvent::Settings`.
   with the owner's approval. A new saved field needs a
   default so earlier samples still load, and a new sample of the new shape.
   `scripts/check-known-mistakes.ts` rejects a changed, renamed, or deleted sample.
+  The enums the saved structs embed keep their serde spellings: a test per enum
+  in `saved_format_tests.rs` lists every spelling, and golden-bytes tests there
+  hold the written text of an unchanged setting.
 - Encoder format and copy/encode validation stay Audio-owned; App Settings
   checks durable choices with the owning runtime APIs and leaves encoder and
   JobRegistry rules to them.
