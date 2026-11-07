@@ -1,4 +1,8 @@
-import type { AcquisitionProgress, RemoteTitle } from '../../lib/generated/tauri';
+import type {
+	AcquisitionProgress,
+	RemoteReleaseProtocol,
+	RemoteTitle,
+} from '../../lib/generated/tauri';
 
 export function formatReleaseSizeBytes(sizeBytes: number): string {
 	if (sizeBytes <= 0) return 'Unknown size';
@@ -9,7 +13,7 @@ export function formatReleaseSizeBytes(sizeBytes: number): string {
 	return `${mb.toFixed(1)} MB`;
 }
 
-export function releaseProtocolLabel(protocol: 'usenet' | 'torrent' | 'unknown'): string {
+export function releaseProtocolLabel(protocol: RemoteReleaseProtocol): string {
 	switch (protocol) {
 		case 'usenet':
 			return 'nzb';

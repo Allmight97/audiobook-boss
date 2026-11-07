@@ -1,6 +1,7 @@
 import { createEffect, createSignal, untrack, type Accessor } from 'solid-js';
 import {
 	COVER_IMAGE_EXTENSIONS,
+	type FieldAction,
 	type MetadataField,
 	type MetadataSnapshot,
 	type MetadataStatus,
@@ -23,7 +24,7 @@ import {
 	type CoverArtMessage,
 	type CoverUiState,
 } from './cover';
-import { toFormState, type MetadataFieldAction, type MetadataFormState } from './fields';
+import { toFormState, type MetadataFormState } from './fields';
 
 type MetadataView = {
 	readonly form: MetadataFormState;
@@ -38,7 +39,7 @@ export type MetadataOwner = {
 	setFieldValue: (command: { readonly field: MetadataField; readonly value: string }) => void;
 	setFieldAction: (command: {
 		readonly field: MetadataField;
-		readonly action: MetadataFieldAction;
+		readonly action: FieldAction;
 	}) => void;
 	setCoverHovered: (hovered: boolean) => void;
 	setCoverDragOver: (dragOver: boolean) => void;

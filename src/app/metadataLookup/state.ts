@@ -1,4 +1,5 @@
 import type {
+	LookupApplyMode,
 	LookupSnapshot,
 	LookupStatus,
 	MetadataSource,
@@ -7,7 +8,6 @@ import type {
 } from '../../lib/generated/tauri';
 
 type MetadataLookupStatusVariant = 'error' | 'success' | 'info';
-export type MetadataLookupApplyMode = 'current' | 'queue';
 export type MetadataLookupSource = 'auto' | MetadataSource;
 
 export type MetadataLookupState = {
@@ -15,7 +15,7 @@ export type MetadataLookupState = {
 	titleQuery: string;
 	authorQuery: string;
 	source: MetadataLookupSource;
-	applyMode: MetadataLookupApplyMode;
+	applyMode: LookupApplyMode;
 	replaceCoverArt: boolean;
 	statusMessage: string;
 	statusVariant: MetadataLookupStatusVariant;

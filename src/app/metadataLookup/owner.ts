@@ -1,12 +1,7 @@
 import { createSignal, type Accessor } from 'solid-js';
 import { createTypingEcho, type EngineLink } from '../engineLink';
-import type { SessionIntent } from '../../lib/generated/tauri';
-import {
-	toLookupState,
-	type MetadataLookupApplyMode,
-	type MetadataLookupSource,
-	type MetadataLookupState,
-} from './state';
+import type { LookupApplyMode, SessionIntent } from '../../lib/generated/tauri';
+import { toLookupState, type MetadataLookupSource, type MetadataLookupState } from './state';
 
 type MetadataLookupAction =
 	| { type: 'applyResult'; index: number }
@@ -22,7 +17,7 @@ export type MetadataLookupOwner = {
 	setTitleQuery: (value: string) => void;
 	setAuthorQuery: (value: string) => void;
 	setSource: (value: MetadataLookupSource) => void;
-	setApplyMode: (value: MetadataLookupApplyMode) => void;
+	setApplyMode: (value: LookupApplyMode) => void;
 	setReplaceCover: (value: boolean) => void;
 	reset: () => void;
 };
