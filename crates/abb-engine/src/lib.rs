@@ -19,13 +19,11 @@
 //! processing outside the session's safety rules.
 //!
 //! ```compile_fail
-//! fn disconnect(engine: &abb_engine::Engine) {
-//!     let _ = engine.remote_source().logout(abb_engine::remote_source::ProviderId::Audible);
-//! }
+//! use abb_engine::remote_source::RemoteSourceRuntime;
 //! ```
 //!
 //! ```compile_fail
-//! use abb_engine::save_metadata_intent;
+//! use abb_engine::metadata::save_metadata_intent;
 //! ```
 //! ```compile_fail
 //! use abb_engine::audio::execute_audio_engine;

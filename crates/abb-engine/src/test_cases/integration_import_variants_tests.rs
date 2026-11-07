@@ -230,12 +230,8 @@ async fn a_hundred_file_group_exports_in_order_with_a_chapter_each() {
     })
     .await;
 
-    desk.export().await;
-    desk.wait_until("the book is published", |desk| {
-        !files_under(&desk.root.path().join("exports")).is_empty()
-    })
-    .await;
-    let output = files_under(&desk.root.path().join("exports")).remove(0);
+    let export = desk.export_and_finish().await;
+    let output = desk.output_of(&export);
 
     let chapters = chapters_of(&output);
     assert_eq!(chapters.len(), 100);

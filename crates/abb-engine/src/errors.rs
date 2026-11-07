@@ -232,3 +232,7 @@ impl specta::Type for AppError {
         <String as specta::Type>::definition(types)
     }
 }
+
+#[cfg(test)]
+#[path = "errors_tests.rs"]
+mod tests;

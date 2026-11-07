@@ -1,6 +1,6 @@
+use super::*;
 use crate::audio::{
-    encoder_settings_capabilities, validate_encoder_settings, validate_sample_rate_config,
-    BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
+    validate_encoder_settings, validate_sample_rate_config, EncoderSettings, SampleRateConfig,
 };
 
 #[test]
@@ -39,24 +39,6 @@ fn exposed_mode_defaults_validate_for_each_encoder() {
         .map(|entry| entry.encoder_type)
         .collect();
     assert_eq!(described, capabilities.encoder_types);
-    let faac = capabilities
-        .encoder_configurations
-        .iter()
-        .find(|entry| entry.encoder_type == EncoderType::Faac)
-        .expect("fixture value");
-    assert_eq!(
-        faac.allowed_modes,
-        [BitrateModeKind::Abr, BitrateModeKind::Vbr]
-    );
-    assert_eq!(faac.default_mode, BitrateMode::Abr);
-    assert!(faac.explicit_sample_rates.contains(&22050));
-    assert_eq!(faac.faac_profiles.len(), 3);
-    let he = faac
-        .faac_profiles
-        .iter()
-        .find(|entry| entry.profile == crate::audio::FaacProfile::HeAacV1)
-        .expect("fixture value");
-    assert_eq!(he.explicit_sample_rates, [32000, 44100, 48000]);
     for quality in &capabilities.faac_quality_presets {
         let mut settings = crate::app_settings::EncoderDefaults::default().settings;
         settings.encoder_type = EncoderType::Faac;

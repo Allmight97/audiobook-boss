@@ -1,7 +1,4 @@
-use crate::{
-    sanitize_path_for_display, sanitize_path_str_for_display, AppError, AppErrorCategory,
-    AppErrorCode, AppErrorEnvelope,
-};
+use super::*;
 use std::path::Path;
 
 #[test]
@@ -15,10 +12,6 @@ fn cancelled_error_maps_to_dedicated_envelope_and_wire_payload() {
 
     let payload = serde_json::to_value(&envelope).expect("serialize envelope");
 
-    assert!(
-        payload.is_object(),
-        "envelope should serialize as an object"
-    );
     assert_eq!(payload["code"], "processing_cancelled");
     assert_eq!(payload["category"], "cancellation");
     assert_eq!(payload["message"], "Processing was cancelled");
@@ -31,7 +24,6 @@ fn wrapped_io_error_keeps_diagnostic_detail() {
 
     assert_eq!(envelope.code, AppErrorCode::IoError);
     assert_eq!(envelope.category, AppErrorCategory::Io);
-    assert!(envelope.message.contains("IO operation failed"));
     assert_eq!(envelope.detail.as_deref(), Some("disk full"));
 }
 

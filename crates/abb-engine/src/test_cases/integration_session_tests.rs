@@ -303,7 +303,10 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
 
     desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
         .await;
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    desk.wait_until("no work is left running", |desk| {
+        desk.engine.running_work() == crate::RunningWork::default()
+    })
+    .await;
 
     assert_eq!(fs::read(&book).expect("read download"), before);
     assert_eq!(

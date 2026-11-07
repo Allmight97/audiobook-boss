@@ -197,8 +197,9 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
     let mut all_preserve = payload.clone();
     all_preserve.input_files.truncate(3);
     all_preserve.audio_requests.truncate(3);
+    let rate_ignored_while_passing_through = 1;
     for request in &mut all_preserve.audio_requests {
-        request.sample_rate = SampleRateConfig::Explicit(1); // irrelevant while passing through
+        request.sample_rate = SampleRateConfig::Explicit(rate_ignored_while_passing_through);
     }
     let original_plan = preflight_payload(all_preserve.clone(), Some(metadata.clone()), false)
         .expect("fixture value");

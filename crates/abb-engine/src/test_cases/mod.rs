@@ -68,14 +68,6 @@ pub(crate) mod support;
 pub(crate) mod tag_interop_dump;
 #[path = "tag_interop_seed.rs"]
 pub(crate) mod tag_interop_seed;
-#[path = "unit_error_envelope_tests.rs"]
-mod unit_error_envelope_tests;
-#[path = "unit_runtime_settings_capabilities_tests.rs"]
-mod unit_runtime_settings_capabilities_tests;
-#[path = "unit_settings_encoder_tests.rs"]
-mod unit_settings_encoder_tests;
-#[path = "unit_settings_validation_tests.rs"]
-mod unit_settings_validation_tests;
 
 #[expect(
     clippy::disallowed_methods,
