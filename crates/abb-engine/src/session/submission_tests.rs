@@ -227,6 +227,27 @@ fn a_finished_grouped_title_is_left_out_of_both_start_and_preview() {
 }
 
 #[test]
+fn a_group_with_one_removed_and_one_failed_source_still_refuses() {
+    let part1 = removed("part1");
+    let part2 = file("part2", false);
+    let mixed = [part1.clone(), part2];
+    let next = file("next", true);
+
+    let refusal = build_draft(
+        &[
+            title(&part1, &mixed),
+            title(&next, std::slice::from_ref(&next)),
+        ],
+        inputs(),
+        no_edits,
+        title_label,
+    )
+    .err();
+
+    assert!(matches!(refusal, Some(SubmitRefusal::InvalidSource)));
+}
+
+#[test]
 fn a_group_with_one_removed_and_one_valid_source_is_history() {
     let part1 = removed("part1");
     let part2 = file("part2", true);

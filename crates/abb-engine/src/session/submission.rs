@@ -174,9 +174,11 @@ pub(crate) fn build_draft(
         return Err(SubmitRefusal::NoTitles);
     }
     if titles.iter().any(|title| {
-        !title.is_finished()
-            && title.sources.len() > 1
-            && title.sources.iter().any(|source| !source.is_valid)
+        title.sources.len() > 1
+            && title
+                .sources
+                .iter()
+                .any(|source| !source.is_valid && !source.source_removed)
     }) {
         return Err(SubmitRefusal::InvalidSource);
     }
