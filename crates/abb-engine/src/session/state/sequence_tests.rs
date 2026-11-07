@@ -352,28 +352,17 @@ proptest! {
             let desk = &mut run.desk;
 
             // A source's cover address changes exactly when a cover was written
-            // into it, except for the sources of a grouped title.
+            // into it.
             let wrote_cover: HashSet<PathBuf> = desk.written[written_before..]
                 .iter()
                 .filter(|(_, patch)| patch.cover_art.is_some())
                 .map(|(path, _)| path.clone())
                 .collect();
-            let grouped_sources: HashSet<PathBuf> = desk
-                .state
-                .working_set
-                .files()
-                .iter()
-                .map(|file| desk.state.working_set.sources_for(file))
-                .filter(|sources| sources.len() > 1)
-                .flatten()
-                .map(|source| source.path.clone())
-                .collect();
             for (path, after) in desk.source_covers() {
                 let Some(before) = covers_before.get(&path) else {
                     continue;
                 };
-                let expected = wrote_cover.contains(&path) && !grouped_sources.contains(&path);
-                prop_assert_eq!(*before != after, expected, "cover address of {:?}", path);
+                prop_assert_eq!(*before != after, wrote_cover.contains(&path), "cover address of {:?}", path);
             }
 
             // An accepted edit stays pending until a write or a removal takes it.
