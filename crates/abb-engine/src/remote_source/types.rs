@@ -61,7 +61,6 @@ pub struct RemoteTitle {
     pub title: String,
     pub authors: Vec<String>,
     pub narrators: Vec<String>,
-    /// The address of this title's cover.
     pub cover: Option<String>,
     pub supplemental_pdf_available: bool,
     pub availability: RemoteTitleAvailability,

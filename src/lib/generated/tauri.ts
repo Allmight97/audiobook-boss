@@ -133,7 +133,6 @@ export type AudioChoice = {
 
 export type AudioChoiceFacts = {
 	formatOptions: FormatOption[],
-	/**  The codec family of the chosen format. */
 	codecFamily: CodecFamily,
 	intentOptions: AudioIntent[],
 	channelOptions: ChannelConfig[],
@@ -951,7 +950,6 @@ export type RemoteTitle = {
 	title: string,
 	authors: string[],
 	narrators: string[],
-	/**  The address of this title's cover. */
 	cover: string | null,
 	supplementalPdfAvailable: boolean,
 	availability: RemoteTitleAvailability,

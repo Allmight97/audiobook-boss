@@ -116,7 +116,6 @@ pub struct FormatOption {
 #[serde(rename_all = "camelCase")]
 pub struct AudioChoiceFacts {
     pub format_options: Vec<FormatOption>,
-    /// The codec family of the chosen format.
     pub codec_family: CodecFamily,
     pub intent_options: Vec<AudioIntent>,
     pub channel_options: Vec<ChannelConfig>,
