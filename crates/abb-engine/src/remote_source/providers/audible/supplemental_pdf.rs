@@ -18,22 +18,65 @@ const SIGN_IN_PATH: &str = "/ap/signin";
 const SIGN_IN_PAGE_SCAN_BYTES: u64 = 64 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PdfFailure {
+    InvalidLocation,
+    MissingCookieAuth,
+    InvalidCookieAuth,
+    MissingLocation,
+    RedirectNonHttps,
+    Request,
+    Cancelled,
+    File,
+    Empty,
+    SignIn,
+    PdfMagic,
+    Canonicalize,
+    RedirectLimit,
+    Status,
+    SizeLimit,
+    Read,
+}
+
+impl std::fmt::Display for PdfFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidLocation => "invalid_location",
+            Self::MissingCookieAuth => "missing_cookie_auth",
+            Self::InvalidCookieAuth => "invalid_cookie_auth",
+            Self::MissingLocation => "missing_location",
+            Self::RedirectNonHttps => "redirect_non_https",
+            Self::Request => "request",
+            Self::Cancelled => "cancelled",
+            Self::File => "file",
+            Self::Empty => "empty",
+            Self::SignIn => "sign_in",
+            Self::PdfMagic => "pdf_magic",
+            Self::Canonicalize => "canonicalize",
+            Self::RedirectLimit => "redirect_limit",
+            Self::Status => "status",
+            Self::SizeLimit => "size_limit",
+            Self::Read => "read",
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct SupplementalPdfFailure {
-    pub(super) category: &'static str,
+    pub(super) category: PdfFailure,
     pub(super) status: Option<reqwest::StatusCode>,
 }
 
 impl SupplementalPdfFailure {
-    fn new(category: &'static str, status: Option<reqwest::StatusCode>) -> Self {
+    fn new(category: PdfFailure, status: Option<reqwest::StatusCode>) -> Self {
         Self { category, status }
     }
 }
 
 fn companion_file_url(title_id: &str) -> std::result::Result<reqwest::Url, SupplementalPdfFailure> {
     let mut url = reqwest::Url::parse(&format!("https://www.audible.{DOMAIN}/"))
-        .map_err(|_| SupplementalPdfFailure::new("invalid_location", None))?;
+        .map_err(|_| SupplementalPdfFailure::new(PdfFailure::InvalidLocation, None))?;
     url.path_segments_mut()
-        .map_err(|_| SupplementalPdfFailure::new("invalid_location", None))?
+        .map_err(|_| SupplementalPdfFailure::new(PdfFailure::InvalidLocation, None))?
         .extend(["companion-file", title_id]);
     Ok(url)
 }
@@ -61,11 +104,14 @@ fn supplemental_pdf_cookie_header(
     }
 
     if values.is_empty() {
-        return Err(SupplementalPdfFailure::new("missing_cookie_auth", None));
+        return Err(SupplementalPdfFailure::new(
+            PdfFailure::MissingCookieAuth,
+            None,
+        ));
     }
 
     HeaderValue::from_str(&values.join("; "))
-        .map_err(|_| SupplementalPdfFailure::new("invalid_cookie_auth", None))
+        .map_err(|_| SupplementalPdfFailure::new(PdfFailure::InvalidCookieAuth, None))
 }
 
 fn should_send_audible_website_cookie(url: &reqwest::Url) -> bool {
@@ -98,15 +144,19 @@ fn supplemental_pdf_redirect_target(
     location: Option<&HeaderValue>,
     transport_policy: SupplementalPdfTransportPolicy,
 ) -> std::result::Result<reqwest::Url, SupplementalPdfFailure> {
-    let location = location.ok_or_else(|| SupplementalPdfFailure::new("missing_location", None))?;
+    let location =
+        location.ok_or_else(|| SupplementalPdfFailure::new(PdfFailure::MissingLocation, None))?;
     let location = location
         .to_str()
-        .map_err(|_| SupplementalPdfFailure::new("invalid_location", None))?;
+        .map_err(|_| SupplementalPdfFailure::new(PdfFailure::InvalidLocation, None))?;
     let next = current_url
         .join(location)
-        .map_err(|_| SupplementalPdfFailure::new("invalid_location", None))?;
+        .map_err(|_| SupplementalPdfFailure::new(PdfFailure::InvalidLocation, None))?;
     if !transport_policy.allows(&next) {
-        return Err(SupplementalPdfFailure::new("redirect_non_https", None));
+        return Err(SupplementalPdfFailure::new(
+            PdfFailure::RedirectNonHttps,
+            None,
+        ));
     }
     Ok(next)
 }
@@ -148,7 +198,8 @@ pub(super) async fn download_supplemental_pdf(
     request: SupplementalPdfRequest<'_>,
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<(SupplementalAsset, ProvisionalCommittedFile), SupplementalPdfFailure> {
-    let client = no_redirect_client().map_err(|_| SupplementalPdfFailure::new("request", None))?;
+    let client =
+        no_redirect_client().map_err(|_| SupplementalPdfFailure::new(PdfFailure::Request, None))?;
     let url = companion_file_url(request.title_id)?;
     download_supplemental_pdf_with_client(
         &client,
@@ -168,11 +219,11 @@ async fn download_supplemental_pdf_with_client(
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<(SupplementalAsset, ProvisionalCommittedFile), SupplementalPdfFailure> {
     if is_cancelled() {
-        return Err(SupplementalPdfFailure::new("cancelled", None));
+        return Err(SupplementalPdfFailure::new(PdfFailure::Cancelled, None));
     }
     tokio::fs::create_dir_all(request.job_dir)
         .await
-        .map_err(|_| SupplementalPdfFailure::new("file", None))?;
+        .map_err(|_| SupplementalPdfFailure::new(PdfFailure::File, None))?;
     let path = generated_staging_path(request.job_dir, "pdf");
     let mut staged = StagedTempFile::new(&path);
     staged.prepare().map_err(|error| {
@@ -181,7 +232,7 @@ async fn download_supplemental_pdf_with_client(
             request.job_id,
             title_ref(request.title_id),
         );
-        SupplementalPdfFailure::new("file", None)
+        SupplementalPdfFailure::new(PdfFailure::File, None)
     })?;
     log_supplemental_pdf_download_start(
         request.job_id,
@@ -206,13 +257,13 @@ async fn download_supplemental_pdf_with_client(
     .await?;
 
     if identity.size_bytes == 0 {
-        return Err(SupplementalPdfFailure::new("empty", None));
+        return Err(SupplementalPdfFailure::new(PdfFailure::Empty, None));
     }
     if !identity.has_pdf_magic {
         let category = if is_sign_in_page(staged.partial_path()).await {
-            "sign_in"
+            PdfFailure::SignIn
         } else {
-            "pdf_magic"
+            PdfFailure::PdfMagic
         };
         return Err(SupplementalPdfFailure::new(category, None));
     }
@@ -222,7 +273,7 @@ async fn download_supplemental_pdf_with_client(
             request.job_id,
             title_ref(request.title_id),
         );
-        SupplementalPdfFailure::new("file", None)
+        SupplementalPdfFailure::new(PdfFailure::File, None)
     })?;
     let committed = ProvisionalCommittedFile::new(path.clone());
     let canonical = match path.canonicalize() {
@@ -233,7 +284,7 @@ async fn download_supplemental_pdf_with_client(
                 request.job_id,
                 title_ref(request.title_id),
             );
-            return Err(SupplementalPdfFailure::new("canonicalize", None));
+            return Err(SupplementalPdfFailure::new(PdfFailure::Canonicalize, None));
         }
     };
     log_supplemental_pdf_download_complete(request.job_id, request.title_id, identity.size_bytes);
@@ -264,17 +315,20 @@ async fn fetch_pdf_to_partial(
     let mut redirect_count = 0_usize;
     loop {
         if is_cancelled() {
-            return Err(SupplementalPdfFailure::new("cancelled", None));
+            return Err(SupplementalPdfFailure::new(PdfFailure::Cancelled, None));
         }
         if !transport_policy.allows(&url) {
-            return Err(SupplementalPdfFailure::new("redirect_non_https", None));
+            return Err(SupplementalPdfFailure::new(
+                PdfFailure::RedirectNonHttps,
+                None,
+            ));
         }
         let response = build_supplemental_pdf_get_request(client, url.clone(), cookie)
             .send()
             .await
-            .map_err(|_| SupplementalPdfFailure::new("request", None))?;
+            .map_err(|_| SupplementalPdfFailure::new(PdfFailure::Request, None))?;
         if is_cancelled() {
-            return Err(SupplementalPdfFailure::new("cancelled", None));
+            return Err(SupplementalPdfFailure::new(PdfFailure::Cancelled, None));
         }
 
         let status = response.status();
@@ -291,7 +345,10 @@ async fn fetch_pdf_to_partial(
                 false,
             );
             if redirect_count >= MAX_DOWNLOAD_REDIRECTS {
-                return Err(SupplementalPdfFailure::new("redirect_limit", Some(status)));
+                return Err(SupplementalPdfFailure::new(
+                    PdfFailure::RedirectLimit,
+                    Some(status),
+                ));
             }
             let next = supplemental_pdf_redirect_target(
                 &url,
@@ -299,7 +356,10 @@ async fn fetch_pdf_to_partial(
                 transport_policy,
             )?;
             if is_sign_in_url(&next) {
-                return Err(SupplementalPdfFailure::new("sign_in", Some(status)));
+                return Err(SupplementalPdfFailure::new(
+                    PdfFailure::SignIn,
+                    Some(status),
+                ));
             }
             redirect_count += 1;
             url = next;
@@ -316,7 +376,10 @@ async fn fetch_pdf_to_partial(
                 0,
                 false,
             );
-            return Err(SupplementalPdfFailure::new("status", Some(status)));
+            return Err(SupplementalPdfFailure::new(
+                PdfFailure::Status,
+                Some(status),
+            ));
         }
         if response
             .content_length()
@@ -331,7 +394,7 @@ async fn fetch_pdf_to_partial(
                 0,
                 false,
             );
-            return Err(SupplementalPdfFailure::new("size_limit", None));
+            return Err(SupplementalPdfFailure::new(PdfFailure::SizeLimit, None));
         }
 
         let identity = stream_pdf_body(response, partial_path, is_cancelled).await?;
@@ -382,15 +445,15 @@ async fn stream_pdf_body(
         .truncate(true)
         .open(partial_path)
         .await
-        .map_err(|_| SupplementalPdfFailure::new("file", None))?;
+        .map_err(|_| SupplementalPdfFailure::new(PdfFailure::File, None))?;
     let mut identity = SupplementalPdfIdentityBuilder::new();
     while let Some(chunk) = response
         .chunk()
         .await
-        .map_err(|_| SupplementalPdfFailure::new("read", None))?
+        .map_err(|_| SupplementalPdfFailure::new(PdfFailure::Read, None))?
     {
         if is_cancelled() {
-            return Err(SupplementalPdfFailure::new("cancelled", None));
+            return Err(SupplementalPdfFailure::new(PdfFailure::Cancelled, None));
         }
         if chunk.is_empty() {
             continue;
@@ -398,25 +461,25 @@ async fn stream_pdf_body(
         let next_size = identity
             .size_bytes()
             .checked_add(chunk.len() as u64)
-            .ok_or_else(|| SupplementalPdfFailure::new("size_limit", None))?;
+            .ok_or_else(|| SupplementalPdfFailure::new(PdfFailure::SizeLimit, None))?;
         if next_size > MAX_SUPPLEMENTAL_PDF_BYTES {
-            return Err(SupplementalPdfFailure::new("size_limit", None));
+            return Err(SupplementalPdfFailure::new(PdfFailure::SizeLimit, None));
         }
         identity.update(&chunk);
         file.write_all(&chunk)
             .await
-            .map_err(|_| SupplementalPdfFailure::new("file", None))?;
+            .map_err(|_| SupplementalPdfFailure::new(PdfFailure::File, None))?;
     }
     file.sync_all()
         .await
-        .map_err(|_| SupplementalPdfFailure::new("file", None))?;
+        .map_err(|_| SupplementalPdfFailure::new(PdfFailure::File, None))?;
     Ok(identity.finalize())
 }
 
 pub(super) fn supplemental_pdf_failure_message(failure: SupplementalPdfFailure) -> String {
     match failure.category {
-        "sign_in" => "Sign in to Audible again to get the PDF.".to_string(),
-        "missing_cookie_auth" | "invalid_cookie_auth" => {
+        PdfFailure::SignIn => "Sign in to Audible again to get the PDF.".to_string(),
+        PdfFailure::MissingCookieAuth | PdfFailure::InvalidCookieAuth => {
             "Audible Supplemental PDF authentication material was unavailable. Provider-private details were withheld from UI and logs.".to_string()
         }
         _ => "Audible Supplemental PDF could not be downloaded through the authenticated companion-file route. Provider-private details were withheld from UI and logs.".to_string(),

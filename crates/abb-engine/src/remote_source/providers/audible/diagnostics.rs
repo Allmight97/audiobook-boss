@@ -1,5 +1,6 @@
 use super::http::AudibleRequestError;
 use crate::errors::AppError;
+use crate::remote_source::cancellation::remote_acquisition_cancelled;
 use crate::remote_source::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
 
 #[derive(Debug)]
@@ -51,13 +52,24 @@ impl AudibleAcquisitionError {
         Self::new(RemoteAcquisitionFailureKind::SupplementalPdfFailed, error)
     }
 
-    pub(super) fn cancellation(error: AppError) -> Self {
-        Self::new(RemoteAcquisitionFailureKind::Cancelled, error)
+    pub(super) fn cancelled() -> Self {
+        Self::new(
+            RemoteAcquisitionFailureKind::Cancelled,
+            remote_acquisition_cancelled(),
+        )
+    }
+
+    pub(super) fn ensure_not_cancelled(
+        is_cancelled: &impl Fn() -> bool,
+    ) -> std::result::Result<(), Self> {
+        if is_cancelled() {
+            return Err(Self::cancelled());
+        }
+        Ok(())
     }
 
     pub(super) fn is_cancellation(&self) -> bool {
         self.kind == RemoteAcquisitionFailureKind::Cancelled
-            || matches!(&self.error, AppError::Cancellation(_))
     }
 
     pub(super) fn into_app_error(self) -> AppError {

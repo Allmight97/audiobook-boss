@@ -16,6 +16,7 @@ use crate::remote_source::materializer::AaxcleanMaterializer;
 use crate::remote_source::staging::RemoteSourceStaging;
 use crate::remote_source::{types, AcquisitionJob as RemoteAcquisitionJob};
 
+use super::cancellation::remote_acquisition_cancelled;
 use super::{RemoteProviderId, RemoteSourceRuntime};
 
 const PROGRESS_EVENT_INTERVAL: Duration = Duration::from_millis(100);
@@ -254,30 +255,26 @@ impl RemoteAcquisitionLifecycle {
         self.remove_acquisition_task(&job_id);
 
         match result {
-            Ok(job) if self.job_is_cancelled(&job_id) => {
-                self.cleanup_cancelled_job_session(&job_id);
-                self.mark_job_cancelled(&job_id);
+            Ok(_) if self.job_is_cancelled(&job_id) => {
+                self.finish_cancelled(&job_id);
                 log::info!(
                     "remote_source acquisition job_id={} status=cancelled_preserved",
                     job_id
                 );
-                let _ = job;
             }
             Ok(job) => {
                 self.replace_job_if_active(job.clone());
                 self.hand_off(&runtime, job).await;
             }
             Err(AppError::Cancellation(_)) => {
-                self.cleanup_cancelled_job_session(&job_id);
-                self.mark_job_cancelled(&job_id);
+                self.finish_cancelled(&job_id);
                 log::info!(
                     "remote_source acquisition job_id={} status=cancelled",
                     job_id
                 );
             }
             Err(_error) if self.job_is_cancelled(&job_id) => {
-                self.cleanup_cancelled_job_session(&job_id);
-                self.mark_job_cancelled(&job_id);
+                self.finish_cancelled(&job_id);
                 log::info!(
                     "remote_source acquisition job_id={} status=cancelled provider_error_suppressed=true",
                     job_id
@@ -376,7 +373,12 @@ impl RemoteAcquisitionLifecycle {
         self.publish(job_id);
     }
 
-    pub(super) fn mark_job_cancelled(&self, job_id: &str) {
+    fn finish_cancelled(&self, job_id: &str) {
+        self.cleanup_cancelled_job_session(job_id);
+        self.mark_job_cancelled(job_id);
+    }
+
+    fn mark_job_cancelled(&self, job_id: &str) {
         if let Ok(mut jobs) = self.jobs.lock() {
             let job = jobs
                 .entry(job_id.to_string())
@@ -532,7 +534,7 @@ fn mark_cancelled(job: &mut RemoteAcquisitionJob) {
         job.diagnostics.push(types::RemoteSourceDiagnostic {
             kind: types::RemoteAcquisitionFailureKind::Cancelled,
             title_id: None,
-            message: "Remote source acquisition was cancelled.".to_string(),
+            message: remote_acquisition_cancelled().to_string(),
         });
     }
 }

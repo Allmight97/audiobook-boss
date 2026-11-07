@@ -167,9 +167,7 @@ fn record_title_outcome(
     Ok(())
 }
 
-pub(in crate::remote_source::providers::audible) use crate::remote_source::cancellation::{
-    ensure_not_cancelled, remote_acquisition_cancelled,
-};
+pub(in crate::remote_source::providers::audible) use crate::remote_source::cancellation::ensure_not_cancelled;
 
 async fn acquire_one(
     api: &AudibleApi,
@@ -179,7 +177,7 @@ async fn acquire_one(
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> AudibleAcquisitionResult<AcquiredTitle> {
-    ensure_not_cancelled(is_cancelled).map_err(AudibleAcquisitionError::cancellation)?;
+    AudibleAcquisitionError::ensure_not_cancelled(is_cancelled)?;
     let TitleAcquisitionRequest {
         title_id,
         include_pdf,
@@ -237,7 +235,7 @@ async fn acquire_one(
     )
     .await
     .map_err(AudibleAcquisitionError::download)?;
-    ensure_not_cancelled(is_cancelled).map_err(AudibleAcquisitionError::cancellation)?;
+    AudibleAcquisitionError::ensure_not_cancelled(is_cancelled)?;
     progress(title_progress(
         progress_context,
         AcquisitionStage::Validation,

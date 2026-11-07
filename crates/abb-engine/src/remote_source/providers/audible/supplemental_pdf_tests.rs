@@ -60,7 +60,7 @@ fn supplemental_pdf_downloader_requires_cookie_auth() {
 
     let failure = supplemental_pdf_cookie_header(&auth).expect_err("missing cookies");
 
-    assert_eq!(failure.category, "missing_cookie_auth");
+    assert_eq!(failure.category, PdfFailure::MissingCookieAuth);
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn supplemental_pdf_downloader_rejects_cleartext_redirects() {
     )
     .expect_err("cleartext redirect");
 
-    assert_eq!(failure.category, "redirect_non_https");
+    assert_eq!(failure.category, PdfFailure::RedirectNonHttps);
 }
 
 #[tokio::test]
@@ -238,7 +238,7 @@ async fn supplemental_pdf_download_rejects_non_pdf_without_provider_details() {
     stub.finished().await;
     let message = supplemental_pdf_failure_message(failure);
 
-    assert_eq!(failure.category, "pdf_magic");
+    assert_eq!(failure.category, PdfFailure::PdfMagic);
     assert!(!message.contains("B000000001"));
     assert!(!message.contains("http://"));
     assert!(
@@ -338,7 +338,7 @@ async fn other_html_keeps_the_not_a_pdf_failure() {
     )
     .await;
 
-    assert_eq!(failure.category, "pdf_magic");
+    assert_eq!(failure.category, PdfFailure::PdfMagic);
     assert_ne!(
         supplemental_pdf_failure_message(failure),
         "Sign in to Audible again to get the PDF."
@@ -381,7 +381,7 @@ async fn supplemental_pdf_download_rejects_oversized_content_length() {
     .expect_err("oversized content should fail");
     stub.finished().await;
 
-    assert_eq!(failure.category, "size_limit");
+    assert_eq!(failure.category, PdfFailure::SizeLimit);
     assert!(
         std::fs::read_dir(root.path())
             .expect("read temp root")
@@ -433,7 +433,7 @@ async fn supplemental_pdf_download_cleans_partial_on_cancelled_stream() {
     .expect_err("stream cancellation should fail");
     stub.finished().await;
 
-    assert_eq!(failure.category, "cancelled");
+    assert_eq!(failure.category, PdfFailure::Cancelled);
     assert!(
         std::fs::read_dir(root.path())
             .expect("read temp root")
@@ -480,8 +480,32 @@ async fn supplemental_pdf_download_maps_http_failure_without_provider_details() 
     stub.finished().await;
     let message = supplemental_pdf_failure_message(failure);
 
-    assert_eq!(failure.category, "status");
+    assert_eq!(failure.category, PdfFailure::Status);
     assert_eq!(failure.status, Some(reqwest::StatusCode::FORBIDDEN));
     assert!(!message.contains("B000000001"));
     assert!(!message.contains("http://"));
+}
+
+#[test]
+fn failure_categories_log_under_their_snake_case_names() {
+    for (category, logged) in [
+        (PdfFailure::InvalidLocation, "invalid_location"),
+        (PdfFailure::MissingCookieAuth, "missing_cookie_auth"),
+        (PdfFailure::InvalidCookieAuth, "invalid_cookie_auth"),
+        (PdfFailure::MissingLocation, "missing_location"),
+        (PdfFailure::RedirectNonHttps, "redirect_non_https"),
+        (PdfFailure::Request, "request"),
+        (PdfFailure::Cancelled, "cancelled"),
+        (PdfFailure::File, "file"),
+        (PdfFailure::Empty, "empty"),
+        (PdfFailure::SignIn, "sign_in"),
+        (PdfFailure::PdfMagic, "pdf_magic"),
+        (PdfFailure::Canonicalize, "canonicalize"),
+        (PdfFailure::RedirectLimit, "redirect_limit"),
+        (PdfFailure::Status, "status"),
+        (PdfFailure::SizeLimit, "size_limit"),
+        (PdfFailure::Read, "read"),
+    ] {
+        assert_eq!(category.to_string(), logged);
+    }
 }

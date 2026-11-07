@@ -274,3 +274,20 @@ async fn cleartext_urls_are_rejected_without_fetching() {
     assert!(!target.exists());
     assert!(!partial_sibling(&target).exists());
 }
+
+#[test]
+fn retry_reasons_log_and_report_under_their_old_names() {
+    for (reason, logged) in [
+        (RetryReason::Request, "request"),
+        (RetryReason::Read, "read"),
+        (RetryReason::Incomplete, "incomplete"),
+    ] {
+        assert_eq!(reason.to_string(), logged);
+        assert_eq!(
+            download_failure(reason).to_string(),
+            format!(
+                "Operation failed: Audible download {logged} failed. Provider-private details were withheld from UI and logs."
+            )
+        );
+    }
+}

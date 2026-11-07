@@ -1,11 +1,11 @@
+use super::AudibleAcquisitionResult;
 use super::TitleAcquisitionCtx;
-use super::{ensure_not_cancelled, remote_acquisition_cancelled, AudibleAcquisitionResult};
 use crate::errors::AppError;
 use crate::remote_source::providers::audible::diagnostics::AudibleAcquisitionError;
 use crate::remote_source::providers::audible::license::{AudibleTitleDetails, LicenseLane};
 use crate::remote_source::providers::audible::supplemental_pdf::{
     download_supplemental_pdf, log_supplemental_pdf_failed, supplemental_pdf_failure_message,
-    SupplementalPdfFailure, SupplementalPdfRequest,
+    PdfFailure, SupplementalPdfFailure, SupplementalPdfRequest,
 };
 use crate::remote_source::{
     MaterializedSourceFile, RemoteAcquisitionFailureKind, RemoteSourceDiagnostic, SupplementalAsset,
@@ -56,11 +56,11 @@ pub(super) async fn download_if_requested(
     let mut assets = Vec::new();
     let mut diagnostics = Vec::new();
     if !include_pdf {
-        ensure_not_cancelled(is_cancelled).map_err(AudibleAcquisitionError::cancellation)?;
+        AudibleAcquisitionError::ensure_not_cancelled(is_cancelled)?;
         return Ok((assets, diagnostics));
     }
 
-    ensure_not_cancelled(is_cancelled).map_err(AudibleAcquisitionError::cancellation)?;
+    AudibleAcquisitionError::ensure_not_cancelled(is_cancelled)?;
     if !requested_pdf_is_required(include_pdf, api_pdf_hint_present) {
         diagnostics.push(RemoteSourceDiagnostic {
             kind: RemoteAcquisitionFailureKind::SupplementalPdfUnavailable,
@@ -89,10 +89,8 @@ pub(super) async fn download_if_requested(
             assets.push(asset);
             Some(committed)
         }
-        Err(failure) if failure.category == "cancelled" => {
-            return Err(AudibleAcquisitionError::cancellation(
-                remote_acquisition_cancelled(),
-            ));
+        Err(failure) if failure.category == PdfFailure::Cancelled => {
+            return Err(AudibleAcquisitionError::cancelled());
         }
         Err(failure) => {
             log_supplemental_pdf_failed(job_id, title_id, failure);
@@ -101,7 +99,7 @@ pub(super) async fn download_if_requested(
             ));
         }
     };
-    ensure_not_cancelled(is_cancelled).map_err(AudibleAcquisitionError::cancellation)?;
+    AudibleAcquisitionError::ensure_not_cancelled(is_cancelled)?;
     if let Some(committed) = committed_pdf {
         committed.permanent();
     }
