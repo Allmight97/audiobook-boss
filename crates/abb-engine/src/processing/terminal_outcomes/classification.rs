@@ -1,5 +1,4 @@
 use crate::errors::{AppError, AppErrorEnvelope};
-use crate::processing::{ProcessResultEntry, ProcessResultStatus};
 
 #[derive(Debug)]
 pub(in crate::processing) enum ProcessingJobTerminalOutcome {
@@ -27,14 +26,4 @@ pub(super) type RunTerminalClassifier = abb_processing_core::RunTerminalClassifi
 
 pub(super) fn is_cancellation_error(error: &AppError) -> bool {
     matches!(error, AppError::Cancellation(_))
-}
-
-pub(super) fn cancellation_error_for_failed_entry(entry: &ProcessResultEntry) -> Option<AppError> {
-    let envelope = entry.error.as_ref()?;
-    if entry.status == ProcessResultStatus::Failed
-        && envelope.category == crate::errors::AppErrorCategory::Cancellation
-    {
-        return Some(AppError::Cancellation(envelope.message.clone()));
-    }
-    None
 }

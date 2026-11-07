@@ -87,25 +87,12 @@ struct MetadataSaveProgress {
 
 impl MetadataSaveBatchResult {
     fn new(results: Vec<MetadataSaveResultEntry>) -> Self {
-        let succeeded = results
-            .iter()
-            .filter(|result| result.status == MetadataSaveResultStatus::Success)
-            .count();
-        let cancelled = results
-            .iter()
-            .filter(|result| result.status == MetadataSaveResultStatus::Cancelled)
-            .count();
-        let failed = results.len().saturating_sub(succeeded + cancelled);
-        Self {
-            summary: OperationResultSummary {
-                total: results.len(),
-                succeeded,
-                skipped: 0,
-                cancelled,
-                failed,
-            },
-            results,
-        }
+        let summary = abb_processing_core::summarize_result_statuses(
+            results
+                .iter()
+                .map(|result| ProcessResultStatus::from(result.status)),
+        );
+        Self { summary, results }
     }
 }
 

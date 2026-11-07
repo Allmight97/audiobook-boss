@@ -1,6 +1,4 @@
-use super::classification::{
-    cancellation_error_for_failed_entry, is_cancellation_error, RunTerminalClassifier,
-};
+use super::classification::{is_cancellation_error, RunTerminalClassifier};
 use super::entries::{terminal_cancelled_result, terminal_failure_result};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::processing::{ProcessResultEntry, ProcessResultStatus};
@@ -59,15 +57,6 @@ fn normalize_batch_entry(
     failure_events: &mut Vec<TerminalFailureEvent>,
     classifier: &mut RunTerminalClassifier,
 ) -> ProcessResultEntry {
-    if let Some(error) = cancellation_error_for_failed_entry(&entry) {
-        classifier.observe_cancelled();
-        return terminal_cancelled_result(
-            entry.input_index,
-            entry.job_id.clone(),
-            error.to_string(),
-        );
-    }
-
     classifier.observe_status(entry.status);
     match entry.status {
         ProcessResultStatus::Failed => {

@@ -95,34 +95,23 @@ impl<'a> BatchScheduler<'a> {
             };
             match joined {
                 Ok((task_id, outcome)) => {
-                    let Some(index) = task_indices.remove(&task_id) else {
-                        log::error!(
-                            "Batch scheduler completed task id {} without an index mapping",
-                            task_id
-                        );
-                        continue;
-                    };
+                    let index = task_indices
+                        .remove(&task_id)
+                        .expect("every spawned task records its index");
                     ordered_results[index] = Some(outcome);
                 }
                 Err(join_error) => {
                     let error = AppError::General(format!("Batch task join error: {join_error}"));
                     let task_id = join_error.id();
-                    if let Some(index) = task_indices.remove(&task_id) {
-                        let slot = ordered_results
-                            .get_mut(index)
-                            .expect("task index should be within ordered result bounds");
-                        *slot = Some(Err(error));
-                        log::error!(
-                            "Batch task join error preserved task index {} via task id {}",
-                            index,
-                            task_id
-                        );
-                    } else {
-                        log::error!(
-                            "Batch task join error for task id {} had no tracked input index",
-                            task_id
-                        );
-                    }
+                    let index = task_indices
+                        .remove(&task_id)
+                        .expect("every spawned task records its index");
+                    ordered_results[index] = Some(Err(error));
+                    log::error!(
+                        "Batch task join error preserved task index {} via task id {}",
+                        index,
+                        task_id
+                    );
                 }
             }
 
@@ -136,14 +125,7 @@ impl<'a> BatchScheduler<'a> {
 
         ordered_results
             .into_iter()
-            .enumerate()
-            .map(|(index, value)| {
-                value.unwrap_or_else(|| {
-                    Err(AppError::General(format!(
-                        "Batch scheduler missing result for task index {index}"
-                    )))
-                })
-            })
+            .map(|value| value.expect("every task index gets a result"))
             .collect()
     }
 }
