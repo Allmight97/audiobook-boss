@@ -1,0 +1,260 @@
+# seed
+container: mp3
+format tags, in file order:
+  title="Seed Title"
+  artist="Seed Author"
+  album_artist="Seed Album Artist"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02-03"
+  album-sort="Seed Sort A"
+  track="0"
+  disc="1/3"
+  comment-eng="Seed Comment"
+  comment-Notes-eng="Seed Notes"
+  comment-fra="Seed Commentaire"
+  comment-iTunNORM-eng=" 00000000 00000000"
+  description="Seed Description"
+  series="Lower Series"
+  series-part="1"
+  ----:com.apple.iTunes:SERIES="Stray iTunes Series"
+  ----:com.apple.iTunes:SERIES-PART="7"
+  show="Show Series"
+  episode_sort="5"
+  sort_album="Seed Sort B"
+  year="1999"
+  ASIN="B000000001"
+  encoder=<varies>
+streams:
+  0 audio MP3 Disposition(0x0)
+  1 video PNG Disposition(ATTACHED_PIC)
+    comment="Other"
+    picture 73 bytes sha256 c175e8295a7be547
+  2 video MJPEG Disposition(ATTACHED_PIC)
+    comment="Cover (front)"
+    picture 1303 bytes sha256 f20e86d37462cf39
+  3 video PNG Disposition(ATTACHED_PIC)
+    comment="Cover (back)"
+    picture 73 bytes sha256 661e96d71ecc8d91
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment"
+  description="Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Seed Sort A"
+  track="(0, None)"
+  disk="(1, Some(3))"
+  cover_art="73 bytes sha256 c175e8295a7be547"
+ID3 frames, in file order:
+  TIT2
+  TPE1
+  TPE2
+  TALB
+  TCOM
+  TCON
+  TDRC
+  TSOA
+  TRCK
+  TPOS
+  COMM eng ""
+  COMM eng "Notes"
+  COMM fra ""
+  COMM eng "iTunNORM"
+  TXXX "description"
+  TXXX "series"
+  TXXX "SERIES"
+  TXXX "series-part"
+  TXXX "SERIES-PART"
+  TXXX "----:com.apple.iTunes:SERIES"
+  TXXX "----:com.apple.iTunes:SERIES-PART"
+  TXXX "show"
+  TXXX "episode_sort"
+  TXXX "sort_album"
+  TXXX "year"
+  TXXX "ASIN"
+  APIC image/png type 0
+  APIC image/jpeg type 3
+  APIC image/png type 4
+
+# save untouched
+container: mp3
+format tags, in file order:
+  title="Seed Title"
+  artist="Seed Author"
+  album_artist="Seed Album Artist"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02-03"
+  album-sort="Seed Sort A"
+  track="0"
+  disc="1/3"
+  comment-eng="Seed Comment"
+  comment-Notes-eng="Seed Notes"
+  comment-fra="Seed Commentaire"
+  comment-iTunNORM-eng=" 00000000 00000000"
+  description="Seed Description"
+  series="Lower Series"
+  series-part="1"
+  ----:com.apple.iTunes:SERIES="Stray iTunes Series"
+  ----:com.apple.iTunes:SERIES-PART="7"
+  show="Show Series"
+  episode_sort="5"
+  sort_album="Seed Sort B"
+  year="1999"
+  ASIN="B000000001"
+  media_type="2"
+  encoder=<varies>
+streams:
+  0 audio MP3 Disposition(0x0)
+  1 video PNG Disposition(ATTACHED_PIC)
+    comment="Other"
+    picture 73 bytes sha256 c175e8295a7be547
+  2 video MJPEG Disposition(ATTACHED_PIC)
+    comment="Cover (front)"
+    picture 1303 bytes sha256 f20e86d37462cf39
+  3 video PNG Disposition(ATTACHED_PIC)
+    comment="Cover (back)"
+    picture 73 bytes sha256 661e96d71ecc8d91
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment"
+  description="Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Seed Sort A"
+  track="(0, None)"
+  disk="(1, Some(3))"
+  cover_art="73 bytes sha256 c175e8295a7be547"
+ID3 frames, in file order:
+  TIT2
+  TPE1
+  TPE2
+  TALB
+  TCOM
+  TCON
+  TDRC
+  TSOA
+  TRCK
+  TPOS
+  COMM eng ""
+  COMM eng "Notes"
+  COMM fra ""
+  COMM eng "iTunNORM"
+  TXXX "description"
+  TXXX "series"
+  TXXX "series-part"
+  TXXX "----:com.apple.iTunes:SERIES"
+  TXXX "----:com.apple.iTunes:SERIES-PART"
+  TXXX "show"
+  TXXX "episode_sort"
+  TXXX "sort_album"
+  TXXX "year"
+  TXXX "ASIN"
+  TXXX "media_type"
+  TSSE <varies>
+  APIC image/png type 0
+  APIC image/jpeg type 3
+  APIC image/png type 4
+
+# save set-all
+container: mp3
+format tags, in file order:
+  album-sort="Set Sort"
+  title="Set Title"
+  artist="Set Author"
+  album_artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  series-part="2; 3"
+  track="2/9"
+  comment-iTunNORM-eng=" 00000000 00000000"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series; Set Subseries"
+  ----:com.apple.iTunes:SERIES="Stray iTunes Series"
+  ----:com.apple.iTunes:SERIES-PART="7"
+  show="Show Series"
+  episode_sort="5"
+  date="2020-05"
+  ASIN="B000000001"
+  year="2020"
+  disc="1/2"
+  media_type="2"
+  encoder=<varies>
+streams:
+  0 audio MP3 Disposition(0x0)
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    comment="Other"
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+ID3 frames, in file order:
+  TSOA
+  TIT2
+  TPE1
+  TPE2
+  TALB
+  TCOM
+  TCON
+  TXXX "series-part"
+  TRCK
+  COMM eng "iTunNORM"
+  COMM und ""
+  TXXX "description"
+  TXXX "series"
+  TXXX "----:com.apple.iTunes:SERIES"
+  TXXX "----:com.apple.iTunes:SERIES-PART"
+  TXXX "show"
+  TXXX "episode_sort"
+  TDRC
+  TXXX "ASIN"
+  TXXX "year"
+  TPOS
+  TXXX "media_type"
+  TSSE <varies>
+  APIC image/jpeg type 0
+
+# save clear-all
+container: mp3
+format tags, in file order:
+  comment-iTunNORM-eng=" 00000000 00000000"
+  ASIN="B000000001"
+  media_type="2"
+  encoder=<varies>
+streams:
+  0 audio MP3 Disposition(0x0)
+as ABB reads it:
+ID3 frames, in file order:
+  COMM eng "iTunNORM"
+  TXXX "ASIN"
+  TXXX "media_type"
+  TSSE <varies>

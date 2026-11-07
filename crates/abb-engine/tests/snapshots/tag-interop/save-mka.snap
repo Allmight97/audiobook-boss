@@ -1,0 +1,181 @@
+# seed
+container: matroska,webm
+format tags, in file order:
+  title="Seed Title"
+  ASIN="B000000001"
+  ARTIST="Seed Author"
+  ALBUM_ARTIST="Seed Album Artist"
+  ALBUM="Seed Album"
+  COMPOSER="Seed Narrator"
+  GENRE="Seed Genre"
+  DATE="2001-02-03"
+  YEAR="1999"
+  COMMENT="Seed Comment"
+  COMMENT-eng="Seed Commentaire"
+  COMMENT-NOTES="Seed Notes"
+  DESCRIPTION="Seed Description"
+  SERIES="Lower Series"
+  SERIES-PART="1"
+  ----:COM.APPLE.ITUNES:SERIES="Stray iTunes Series"
+  ----:COM.APPLE.ITUNES:SERIES-PART="7"
+  SHOW="Show Series"
+  EPISODE_SORT="5"
+  ALBUM-SORT="Seed Sort A"
+  SORT_ALBUM="Seed Sort B"
+  track="0"
+  DISC="1/3"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    ENCODER=<varies>
+    DURATION=<varies>
+  1 video PNG Disposition(ATTACHED_PIC)
+    filename="other.png"
+    mimetype="image/png"
+    picture 73 bytes sha256 c175e8295a7be547
+  2 video MJPEG Disposition(ATTACHED_PIC)
+    filename="cover.jpg"
+    mimetype="image/jpeg"
+    picture 1303 bytes sha256 f20e86d37462cf39
+  3 video PNG Disposition(ATTACHED_PIC)
+    filename="back.png"
+    mimetype="image/png"
+    picture 73 bytes sha256 661e96d71ecc8d91
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment"
+  description="Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Seed Sort A"
+  track="(0, None)"
+  disk="(1, Some(3))"
+  cover_art="73 bytes sha256 c175e8295a7be547"
+
+# save untouched
+container: matroska,webm
+format tags, in file order:
+  title="Seed Title"
+  MEDIA_TYPE="2"
+  ASIN="B000000001"
+  ARTIST="Seed Author"
+  ALBUM_ARTIST="Seed Album Artist"
+  ALBUM="Seed Album"
+  COMPOSER="Seed Narrator"
+  GENRE="Seed Genre"
+  DATE="2001-02-03"
+  YEAR="1999"
+  COMMENT="Seed Comment"
+  COMMENT-eng="Seed Commentaire"
+  COMMENT-NOTES="Seed Notes"
+  DESCRIPTION="Seed Description"
+  SERIES="Lower Series"
+  SERIES-PART="1"
+  ----:COM.APPLE.ITUNES:SERIES="Stray iTunes Series"
+  ----:COM.APPLE.ITUNES:SERIES-PART="7"
+  SHOW="Show Series"
+  EPISODE_SORT="5"
+  ALBUM-SORT="Seed Sort A"
+  SORT_ALBUM="Seed Sort B"
+  track="0"
+  DISC="1/3"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    ENCODER=<varies>
+    DURATION=<varies>
+  1 video PNG Disposition(ATTACHED_PIC)
+    filename="other.png"
+    mimetype="image/png"
+    picture 73 bytes sha256 c175e8295a7be547
+  2 video MJPEG Disposition(ATTACHED_PIC)
+    filename="cover.jpg"
+    mimetype="image/jpeg"
+    picture 1303 bytes sha256 f20e86d37462cf39
+  3 video PNG Disposition(ATTACHED_PIC)
+    filename="back.png"
+    mimetype="image/png"
+    picture 73 bytes sha256 661e96d71ecc8d91
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment"
+  description="Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Seed Sort A"
+  track="(0, None)"
+  disk="(1, Some(3))"
+  cover_art="73 bytes sha256 c175e8295a7be547"
+
+# save set-all
+container: matroska,webm
+format tags, in file order:
+  title="Set Title"
+  MEDIA_TYPE="2"
+  SORT_ALBUM="Set Sort"
+  ASIN="B000000001"
+  ARTIST="Set Author"
+  ALBUM_ARTIST="Set Author"
+  ALBUM="Set Album"
+  COMPOSER="Set Narrator"
+  GENRE="Set Genre"
+  DATE="2020-05"
+  COMMENT="Set Comment"
+  DESCRIPTION="Set Description"
+  SERIES="Set Series; Set Subseries"
+  ----:COM.APPLE.ITUNES:SERIES="Stray iTunes Series"
+  ----:COM.APPLE.ITUNES:SERIES-PART="7"
+  SHOW="Show Series"
+  EPISODE_SORT="5"
+  SERIES-PART="2; 3"
+  track="2/9"
+  YEAR="2020"
+  DISC="1/2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    ENCODER=<varies>
+    DURATION=<varies>
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    filename="cover.jpg"
+    mimetype="image/jpeg"
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+
+# save clear-all
+container: matroska,webm
+format tags, in file order:
+  MEDIA_TYPE="2"
+  ASIN="B000000001"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    ENCODER=<varies>
+    DURATION=<varies>
+as ABB reads it:

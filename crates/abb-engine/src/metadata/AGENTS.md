@@ -123,6 +123,11 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   files on each affected route. Direct engine tests with supplied metadata
   cannot prove planner forwarding. Also prove source tags stay untouched by
   processing and retain Save's distinct policy.
+- `tests/snapshots/tag-interop/` pins what every tag-writing route leaves in a
+  seeded file: Save, encode, preserved remux, container change, and preserved
+  merge, for M4B, MP3, FLAC, and MKA sources (MP4 Saves by SHA-256). A refactor
+  leaves each snapshot identical. Rewrite one with `ABB_BLESS_TAG_SNAPSHOTS=1`
+  only for an intended output change, and name that change in the commit.
 - Keep `set | clear | absent` field semantics (absent keeps the source value)
   across save, processing projection, naming projection, write plans,
   validation/normalization, and cover-art handling. Clear intent is the

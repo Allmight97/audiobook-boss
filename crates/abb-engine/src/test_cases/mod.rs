@@ -34,6 +34,8 @@ mod integration_media_preserve_tests;
 mod integration_media_route_parity_tests;
 #[path = "integration_media_tag_save_tests.rs"]
 mod integration_media_tag_save_tests;
+#[path = "integration_media_tag_snapshot_tests.rs"]
+mod integration_media_tag_snapshot_tests;
 #[path = "integration_output_safety_tests.rs"]
 mod integration_output_safety_tests;
 #[path = "integration_preview_tests.rs"]
@@ -48,6 +50,10 @@ mod integration_session_tests;
 mod integration_settings_relaunch_tests;
 #[path = "media_fixtures.rs"]
 pub(crate) mod media_fixtures;
+#[path = "tag_interop_dump.rs"]
+pub(crate) mod tag_interop_dump;
+#[path = "tag_interop_seed.rs"]
+pub(crate) mod tag_interop_seed;
 #[path = "unit_error_envelope_tests.rs"]
 mod unit_error_envelope_tests;
 #[path = "unit_runtime_settings_capabilities_tests.rs"]

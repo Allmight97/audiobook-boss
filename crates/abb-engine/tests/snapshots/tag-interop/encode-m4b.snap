@@ -1,0 +1,584 @@
+# m4b m4b-untouched
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  title="Seed Title"
+  artist="Seed Author"
+  album_artist="Seed Author"
+  composer="Seed Narrator"
+  album="Seed Album"
+  date="2001-02"
+  encoder=<varies>
+  comment="Seed Comment"
+  genre="Seed Genre"
+  description="Seed Description"
+  media_type="2"
+  disc="1/3"
+  SERIES="Lower Series"
+  SERIES-PART="1"
+  sort_album="Lower Series 01 - Seed Title"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    picture 630 bytes sha256 7cdbae51ccf7b3a8
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment"
+  description="Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Lower Series 01 - Seed Title"
+  disk="(1, Some(3))"
+  cover_art="630 bytes sha256 7cdbae51ccf7b3a8"
+MP4 atoms, in file order:
+  ©nam "Seed Title"
+  ©ART "Seed Author"
+  aART "Seed Author"
+  ©wrt "Seed Narrator"
+  ©alb "Seed Album"
+  ©day "2001-02"
+  ©too <varies>
+  ©cmt "Seed Comment"
+  ©gen "Seed Genre"
+  desc "Seed Description"
+  stik [2]
+  covr jpeg 630 bytes sha256 7cdbae51ccf7b3a8
+  disk [0, 0, 0, 1, 0, 3, 0, 0]
+  ----:com.apple.iTunes:series "Lower Series"
+  ----:com.apple.iTunes:SERIES "Lower Series"
+  ----:com.apple.iTunes:series-part "1"
+  ----:com.apple.iTunes:SERIES-PART "1"
+  soal "Lower Series 01 - Seed Title"
+
+# m4b m4b-set-all
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  title="Set Title"
+  artist="Set Author"
+  album_artist="Set Author"
+  composer="Set Narrator"
+  album="Set Album"
+  date="2020-05"
+  encoder=<varies>
+  comment="Set Comment"
+  genre="Set Genre"
+  description="Set Description"
+  media_type="2"
+  track="2/9"
+  disc="1/2"
+  SERIES="Set Series; Set Subseries"
+  SERIES-PART="2; 3"
+  sort_album="Set Sort"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+MP4 atoms, in file order:
+  ©nam "Set Title"
+  ©ART "Set Author"
+  aART "Set Author"
+  ©wrt "Set Narrator"
+  ©alb "Set Album"
+  ©day "2020-05"
+  ©too <varies>
+  ©cmt "Set Comment"
+  ©gen "Set Genre"
+  desc "Set Description"
+  stik [2]
+  covr jpeg 1303 bytes sha256 f20e86d37462cf39
+  trkn [0, 0, 0, 2, 0, 9, 0, 0]
+  disk [0, 0, 0, 1, 0, 2, 0, 0]
+  ----:com.apple.iTunes:series "Set Series; Set Subseries"
+  ----:com.apple.iTunes:SERIES "Set Series; Set Subseries"
+  ----:com.apple.iTunes:series-part "2; 3"
+  ----:com.apple.iTunes:SERIES-PART "2; 3"
+  soal "Set Sort"
+
+# m4b m4b-clear-all
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  encoder=<varies>
+  media_type="2"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+as ABB reads it:
+MP4 atoms, in file order:
+  ©too <varies>
+  stik [2]
+
+# mp3 m4b-untouched
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  title="Seed Title"
+  artist="Seed Author"
+  album_artist="Seed Author"
+  composer="Seed Narrator"
+  album="Seed Album"
+  date="2001-02"
+  encoder=<varies>
+  comment="Seed Comment"
+  genre="Seed Genre"
+  description="Seed Description"
+  media_type="2"
+  disc="1/3"
+  SERIES="Lower Series"
+  SERIES-PART="1"
+  sort_album="Lower Series 01 - Seed Title"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    picture 630 bytes sha256 7cdbae51ccf7b3a8
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment"
+  description="Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Lower Series 01 - Seed Title"
+  disk="(1, Some(3))"
+  cover_art="630 bytes sha256 7cdbae51ccf7b3a8"
+MP4 atoms, in file order:
+  ©nam "Seed Title"
+  ©ART "Seed Author"
+  aART "Seed Author"
+  ©wrt "Seed Narrator"
+  ©alb "Seed Album"
+  ©day "2001-02"
+  ©too <varies>
+  ©cmt "Seed Comment"
+  ©gen "Seed Genre"
+  desc "Seed Description"
+  stik [2]
+  covr jpeg 630 bytes sha256 7cdbae51ccf7b3a8
+  disk [0, 0, 0, 1, 0, 3, 0, 0]
+  ----:com.apple.iTunes:series "Lower Series"
+  ----:com.apple.iTunes:SERIES "Lower Series"
+  ----:com.apple.iTunes:series-part "1"
+  ----:com.apple.iTunes:SERIES-PART "1"
+  soal "Lower Series 01 - Seed Title"
+
+# mp3 m4b-set-all
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  title="Set Title"
+  artist="Set Author"
+  album_artist="Set Author"
+  composer="Set Narrator"
+  album="Set Album"
+  date="2020-05"
+  encoder=<varies>
+  comment="Set Comment"
+  genre="Set Genre"
+  description="Set Description"
+  media_type="2"
+  track="2/9"
+  disc="1/2"
+  SERIES="Set Series; Set Subseries"
+  SERIES-PART="2; 3"
+  sort_album="Set Sort"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+MP4 atoms, in file order:
+  ©nam "Set Title"
+  ©ART "Set Author"
+  aART "Set Author"
+  ©wrt "Set Narrator"
+  ©alb "Set Album"
+  ©day "2020-05"
+  ©too <varies>
+  ©cmt "Set Comment"
+  ©gen "Set Genre"
+  desc "Set Description"
+  stik [2]
+  covr jpeg 1303 bytes sha256 f20e86d37462cf39
+  trkn [0, 0, 0, 2, 0, 9, 0, 0]
+  disk [0, 0, 0, 1, 0, 2, 0, 0]
+  ----:com.apple.iTunes:series "Set Series; Set Subseries"
+  ----:com.apple.iTunes:SERIES "Set Series; Set Subseries"
+  ----:com.apple.iTunes:series-part "2; 3"
+  ----:com.apple.iTunes:SERIES-PART "2; 3"
+  soal "Set Sort"
+
+# mp3 m4b-clear-all
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  encoder=<varies>
+  media_type="2"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+as ABB reads it:
+MP4 atoms, in file order:
+  ©too <varies>
+  stik [2]
+
+# flac m4b-untouched
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  title="Seed Title"
+  artist="Seed Author"
+  album_artist="Seed Author"
+  composer="Seed Narrator"
+  album="Seed Album"
+  date="2001-02"
+  encoder=<varies>
+  comment="Seed Comment;Seed Description"
+  genre="Seed Genre"
+  media_type="2"
+  disc="1/3"
+  SERIES="Lower Series"
+  SERIES-PART="1"
+  sort_album="Lower Series 01 - Seed Title"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    picture 630 bytes sha256 7cdbae51ccf7b3a8
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment;Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Lower Series 01 - Seed Title"
+  disk="(1, Some(3))"
+  cover_art="630 bytes sha256 7cdbae51ccf7b3a8"
+MP4 atoms, in file order:
+  ©nam "Seed Title"
+  ©ART "Seed Author"
+  aART "Seed Author"
+  ©wrt "Seed Narrator"
+  ©alb "Seed Album"
+  ©day "2001-02"
+  ©too <varies>
+  ©cmt "Seed Comment;Seed Description"
+  ©gen "Seed Genre"
+  stik [2]
+  covr jpeg 630 bytes sha256 7cdbae51ccf7b3a8
+  disk [0, 0, 0, 1, 0, 3, 0, 0]
+  ----:com.apple.iTunes:series "Lower Series"
+  ----:com.apple.iTunes:SERIES "Lower Series"
+  ----:com.apple.iTunes:series-part "1"
+  ----:com.apple.iTunes:SERIES-PART "1"
+  soal "Lower Series 01 - Seed Title"
+
+# flac m4b-set-all
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  title="Set Title"
+  artist="Set Author"
+  album_artist="Set Author"
+  composer="Set Narrator"
+  album="Set Album"
+  date="2020-05"
+  encoder=<varies>
+  comment="Set Comment"
+  genre="Set Genre"
+  description="Set Description"
+  media_type="2"
+  track="2/9"
+  disc="1/2"
+  SERIES="Set Series; Set Subseries"
+  SERIES-PART="2; 3"
+  sort_album="Set Sort"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+MP4 atoms, in file order:
+  ©nam "Set Title"
+  ©ART "Set Author"
+  aART "Set Author"
+  ©wrt "Set Narrator"
+  ©alb "Set Album"
+  ©day "2020-05"
+  ©too <varies>
+  ©cmt "Set Comment"
+  ©gen "Set Genre"
+  desc "Set Description"
+  stik [2]
+  covr jpeg 1303 bytes sha256 f20e86d37462cf39
+  trkn [0, 0, 0, 2, 0, 9, 0, 0]
+  disk [0, 0, 0, 1, 0, 2, 0, 0]
+  ----:com.apple.iTunes:series "Set Series; Set Subseries"
+  ----:com.apple.iTunes:SERIES "Set Series; Set Subseries"
+  ----:com.apple.iTunes:series-part "2; 3"
+  ----:com.apple.iTunes:SERIES-PART "2; 3"
+  soal "Set Sort"
+
+# flac m4b-clear-all
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  encoder=<varies>
+  media_type="2"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+as ABB reads it:
+MP4 atoms, in file order:
+  ©too <varies>
+  stik [2]
+
+# mka m4b-untouched
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  title="Seed Title"
+  artist="Seed Author"
+  album_artist="Seed Author"
+  composer="Seed Narrator"
+  album="Seed Album"
+  date="2001-02"
+  encoder=<varies>
+  comment="Seed Comment"
+  genre="Seed Genre"
+  description="Seed Description"
+  media_type="2"
+  disc="1/3"
+  SERIES="Lower Series"
+  SERIES-PART="1"
+  sort_album="Lower Series 01 - Seed Title"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    picture 630 bytes sha256 7cdbae51ccf7b3a8
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment"
+  description="Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Lower Series 01 - Seed Title"
+  disk="(1, Some(3))"
+  cover_art="630 bytes sha256 7cdbae51ccf7b3a8"
+MP4 atoms, in file order:
+  ©nam "Seed Title"
+  ©ART "Seed Author"
+  aART "Seed Author"
+  ©wrt "Seed Narrator"
+  ©alb "Seed Album"
+  ©day "2001-02"
+  ©too <varies>
+  ©cmt "Seed Comment"
+  ©gen "Seed Genre"
+  desc "Seed Description"
+  stik [2]
+  covr jpeg 630 bytes sha256 7cdbae51ccf7b3a8
+  disk [0, 0, 0, 1, 0, 3, 0, 0]
+  ----:com.apple.iTunes:series "Lower Series"
+  ----:com.apple.iTunes:SERIES "Lower Series"
+  ----:com.apple.iTunes:series-part "1"
+  ----:com.apple.iTunes:SERIES-PART "1"
+  soal "Lower Series 01 - Seed Title"
+
+# mka m4b-set-all
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  title="Set Title"
+  artist="Set Author"
+  album_artist="Set Author"
+  composer="Set Narrator"
+  album="Set Album"
+  date="2020-05"
+  encoder=<varies>
+  comment="Set Comment"
+  genre="Set Genre"
+  description="Set Description"
+  media_type="2"
+  track="2/9"
+  disc="1/2"
+  SERIES="Set Series; Set Subseries"
+  SERIES-PART="2; 3"
+  sort_album="Set Sort"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+MP4 atoms, in file order:
+  ©nam "Set Title"
+  ©ART "Set Author"
+  aART "Set Author"
+  ©wrt "Set Narrator"
+  ©alb "Set Album"
+  ©day "2020-05"
+  ©too <varies>
+  ©cmt "Set Comment"
+  ©gen "Set Genre"
+  desc "Set Description"
+  stik [2]
+  covr jpeg 1303 bytes sha256 f20e86d37462cf39
+  trkn [0, 0, 0, 2, 0, 9, 0, 0]
+  disk [0, 0, 0, 1, 0, 2, 0, 0]
+  ----:com.apple.iTunes:series "Set Series; Set Subseries"
+  ----:com.apple.iTunes:SERIES "Set Series; Set Subseries"
+  ----:com.apple.iTunes:series-part "2; 3"
+  ----:com.apple.iTunes:SERIES-PART "2; 3"
+  soal "Set Sort"
+
+# mka m4b-clear-all
+handling: encode
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="isom"
+  minor_version="512"
+  compatible_brands="isomiso2mp41"
+  encoder=<varies>
+  media_type="2"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+as ABB reads it:
+MP4 atoms, in file order:
+  ©too <varies>
+  stik [2]
