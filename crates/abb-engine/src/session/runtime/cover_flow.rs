@@ -63,9 +63,7 @@ impl Session {
             if state.cover_request() != started.1 {
                 return SessionOutcome::Superseded;
             }
-            let loaded = result.is_ok();
-            state.cover_load_finished(from_url, result);
-            if loaded {
+            if state.cover_load_finished(from_url, result) {
                 SessionOutcome::Applied
             } else {
                 SessionOutcome::CoverLoadFailed

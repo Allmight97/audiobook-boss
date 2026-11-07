@@ -738,10 +738,31 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
     }
     assert_eq!(runtime.ui_snapshot().selected_title_ids, ["selected"]);
     assert!(completion.finish().await.is_err());
+    let snapshot = runtime.ui_snapshot();
+    assert_eq!(snapshot.auth, RemoteAuthStatus::AwaitingHandoff);
     assert!(matches!(
-        runtime.ui_snapshot().auth,
-        RemoteAuthStatus::Failed { .. }
+        snapshot.account_status,
+        RemoteDraftStatus::Failed { .. }
     ));
+
+    let retry = runtime.ui_begin(RemoteUiIntent::CompleteAuth {
+        response_url_handoff_path: Some(
+            root.path()
+                .join("other-missing-handoff")
+                .to_string_lossy()
+                .into_owned(),
+        ),
+    });
+    assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Completing);
+    assert_eq!(
+        runtime.ui_snapshot().account_status,
+        RemoteDraftStatus::Idle
+    );
+    assert!(retry.finish().await.is_err());
+    assert_eq!(
+        runtime.ui_snapshot().auth,
+        RemoteAuthStatus::AwaitingHandoff
+    );
 }
 
 #[tokio::test]
@@ -886,7 +907,7 @@ fn a_refused_sign_in_needs_auth_keeps_the_library_and_survives_an_account_reread
 fn signing_in_again_or_disconnecting_clears_a_refused_sign_in() {
     let mut ui = UiState::default();
     refuse_library_sign_in(&mut ui);
-    ui.auth_completed(&Ok(connected_audible()));
+    ui.auth_completed(&Ok(connected_audible()), false);
     assert_eq!(
         reread_account(&mut ui).status,
         super::super::RemoteAccountStatus::Connected
@@ -902,6 +923,9 @@ fn signing_in_again_or_disconnecting_clears_a_refused_sign_in() {
 
 #[path = "ui_acquisition_tests.rs"]
 mod acquisition;
+
+#[path = "ui_auth_tests.rs"]
+mod auth;
 
 #[path = "ui_connection_tests.rs"]
 mod connection;

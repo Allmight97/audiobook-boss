@@ -8,7 +8,7 @@ use tauri::Emitter;
 // Rust does not allow implementing `tauri_specta::Event` here for a type the
 // engine defines, so each engine payload gets a host-owned event type.
 
-/// An accepted operation changed, with the display order and queue as of then.
+/// An accepted operation changed, with the display order as of then.
 #[derive(Clone, Serialize, specta::Type)]
 #[serde(transparent)]
 pub struct WorkOperationsUpdateEvent(pub WorkOperationsUpdate);

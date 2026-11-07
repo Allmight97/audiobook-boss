@@ -412,7 +412,11 @@ fn selection_cannot_change_while_a_save_is_in_progress() {
         epoch,
         &paths_of(&plan.immediate),
         &plan.immediate,
-        MetadataStatus::SaveCancelled,
+        MetadataStatus::SaveFailed {
+            error: crate::errors::AppErrorEnvelope::from(&crate::errors::AppError::General(
+                "write failed".into(),
+            )),
+        },
     );
     assert!(desk.select(&[1]).is_ok());
 }

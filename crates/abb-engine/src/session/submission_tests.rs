@@ -191,3 +191,111 @@ fn the_operation_is_named_after_the_edited_title_and_carries_pending_edits() {
     assert_eq!(draft.payload.chapter_plans.expect("plans").len(), 1);
     assert_eq!(title_label(&alpha), "Tagged");
 }
+
+fn removed(name: &str) -> AudioFile {
+    let mut file = file(name, false);
+    file.source_removed = true;
+    file
+}
+
+#[test]
+fn a_finished_grouped_title_is_left_out_of_both_start_and_preview() {
+    let part1 = removed("part1");
+    let part2 = removed("part2");
+    let finished = [part1.clone(), part2];
+    let next = file("next", true);
+
+    for preview in [false, true] {
+        let draft = build_draft(
+            &[
+                title(&part1, &finished),
+                title(&next, std::slice::from_ref(&next)),
+            ],
+            DraftInputs {
+                preview,
+                ..inputs()
+            },
+            no_edits,
+            title_label,
+        )
+        .expect("draft");
+
+        assert_eq!(draft.payload.input_files, ["/books/next.m4b"]);
+        assert_eq!(draft.sources, std::slice::from_ref(&next.path));
+        assert_eq!(draft.left_out, 1);
+    }
+}
+
+#[test]
+fn a_group_with_one_removed_and_one_failed_source_still_refuses() {
+    let part1 = removed("part1");
+    let part2 = file("part2", false);
+    let mixed = [part1.clone(), part2];
+    let next = file("next", true);
+
+    let refusal = build_draft(
+        &[
+            title(&part1, &mixed),
+            title(&next, std::slice::from_ref(&next)),
+        ],
+        inputs(),
+        no_edits,
+        title_label,
+    )
+    .err();
+
+    assert!(matches!(refusal, Some(SubmitRefusal::InvalidSource)));
+}
+
+#[test]
+fn a_group_with_one_removed_and_one_valid_source_is_history() {
+    let part1 = removed("part1");
+    let part2 = file("part2", true);
+    let mixed = [part1.clone(), part2];
+    let next = file("next", true);
+
+    let draft = build_draft(
+        &[
+            title(&part1, &mixed),
+            title(&next, std::slice::from_ref(&next)),
+        ],
+        inputs(),
+        no_edits,
+        title_label,
+    )
+    .expect("draft");
+
+    assert_eq!(draft.payload.input_files, ["/books/next.m4b"]);
+    assert_eq!(draft.left_out, 1);
+}
+
+#[test]
+fn only_finished_titles_leave_nothing_to_submit() {
+    let part1 = removed("part1");
+    let finished = [part1.clone(), removed("part2")];
+
+    assert_eq!(
+        build_draft(&[title(&part1, &finished)], inputs(), no_edits, title_label).err(),
+        Some(SubmitRefusal::NoValidTitles)
+    );
+}
+
+#[test]
+fn a_group_with_a_failed_source_that_was_not_removed_still_refuses() {
+    let part1 = file("part1", true);
+    let failed = file("part2", false);
+    let broken = [part1.clone(), failed];
+    let next = file("next", true);
+
+    let refused = build_draft(
+        &[
+            title(&part1, &broken),
+            title(&next, std::slice::from_ref(&next)),
+        ],
+        inputs(),
+        no_edits,
+        title_label,
+    );
+
+    assert_eq!(refused.err(), Some(SubmitRefusal::InvalidSource));
+}

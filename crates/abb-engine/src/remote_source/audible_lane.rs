@@ -31,6 +31,7 @@ impl UiState {
     pub(super) fn auth_completed(
         &mut self,
         result: &Result<super::super::RemoteSourceAccountState>,
+        pending_sign_in_held: bool,
     ) -> Option<u64> {
         self.snapshot.auth = match result {
             Ok(account) => {
@@ -38,6 +39,12 @@ impl UiState {
                 self.snapshot.account = Some(account.clone());
                 self.snapshot.account_status = RemoteDraftStatus::Succeeded;
                 RemoteAuthStatus::Idle
+            }
+            Err(error) if pending_sign_in_held => {
+                self.snapshot.account_status = RemoteDraftStatus::Failed {
+                    error: error.into(),
+                };
+                RemoteAuthStatus::AwaitingHandoff
             }
             Err(error) => RemoteAuthStatus::Failed {
                 error: error.into(),
@@ -369,7 +376,12 @@ impl RemoteSourceRuntime {
                 response_url_handoff_path: path.map(std::path::PathBuf::from),
             })
             .await;
-        let refresh = self.ui().auth_completed(&result);
+        let pending_held = self
+            .inner
+            .pending_audible_auth
+            .lock()
+            .is_ok_and(|pending| pending.is_some());
+        let refresh = self.ui().auth_completed(&result, pending_held);
         self.publish_ui();
         result?;
         if let Some(request) = refresh {

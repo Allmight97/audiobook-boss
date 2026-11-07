@@ -218,7 +218,9 @@ impl SessionState {
         match result {
             Ok(bytes) => {
                 let applied = self.apply_cover(bytes);
-                if from_url {
+                if !applied {
+                    self.set_cover_notice(CoverNotice::NoTitleForCover);
+                } else if from_url {
                     self.set_cover_notice(CoverNotice::LoadedFromUrl);
                 }
                 applied

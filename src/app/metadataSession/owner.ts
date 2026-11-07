@@ -103,8 +103,6 @@ function statusText(status: MetadataStatus | null): string {
 				) +
 				outputText(status.outputs)
 			);
-		case 'saveCancelled':
-			return 'Metadata save cancelled.';
 		case 'tagReadFailed':
 			return status.more === 0
 				? `Could not read the tags of ${status.label}. The fields shown are not its tags.`

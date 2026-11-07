@@ -56,7 +56,6 @@ pub enum MetadataStatus {
         held: usize,
         outputs: OutputEdits,
     },
-    SaveCancelled,
     /// The shown form is not the tags of `label` or of `more` other selected
     /// titles, whose tags could not be read.
     TagReadFailed {
@@ -80,6 +79,7 @@ pub enum CoverNotice {
     UrlRequired,
     NotAnImageUrl,
     LoadedFromUrl,
+    NoTitleForCover,
     LoadFailed { error: AppErrorEnvelope },
 }
 

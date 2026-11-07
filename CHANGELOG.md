@@ -4,6 +4,21 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Start and Preview work again after a grouped download title has exported. The finished title
+  no longer blocks the next book.
+- A cover no title can take no longer says it loaded. ABB now says to select one usable title.
+- A wrong Audible handoff path or URL can be corrected and tried again, without starting the
+  browser sign-in over. ABB shows the reason and keeps waiting.
+- Saving tags no longer waits for a running export to free a slot. A Save used to lock title
+  selection and Start until an export finished. A Save can now run as one job above the limit.
+
+### Removed
+
+- Work Center no longer shows a queue position (`#2`, `#3`) beside an export. An export starts
+  at once, so the position almost never appeared.
+
 ## [1.18.0] - 2026-11-06
 
 ### Added

@@ -202,3 +202,36 @@ fn a_cover_load_failure_is_reported_and_changes_nothing() {
     assert!(matches!(cover.notice, Some(CoverNotice::LoadFailed { .. })));
     assert!(desk.pending("alpha").is_none());
 }
+
+#[test]
+fn a_cover_that_applied_to_no_title_reports_no_title_instead_of_success() {
+    for from_url in [true, false] {
+        let mut desk = Desk::open(
+            &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
+            &[0, 1],
+        );
+        desk.state.begin_cover_request(from_url);
+
+        let applied = desk.state.cover_load_finished(from_url, Ok(vec![1]));
+        desk.state.settle();
+
+        assert!(!applied, "from_url={from_url}");
+        let cover = desk.metadata().cover;
+        assert_eq!(cover.notice, Some(CoverNotice::NoTitleForCover));
+        assert!(!cover.custom && !cover.loading);
+        assert!(desk.pending("alpha").is_none());
+    }
+}
+
+#[test]
+fn a_cover_from_a_url_that_applied_says_so() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state.begin_cover_request(true);
+
+    assert!(desk.state.cover_load_finished(true, Ok(vec![1])));
+
+    assert_eq!(
+        desk.metadata().cover.notice,
+        Some(CoverNotice::LoadedFromUrl)
+    );
+}

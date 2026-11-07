@@ -170,22 +170,17 @@ pub struct WorkOperationsSnapshot {
     /// Advances with every change to any operation or to the order.
     pub revision: u64,
     pub order: Vec<OperationId>,
-    /// The accepted operations in the order they will start; a host shows an
-    /// operation's place in the queue as its place here.
-    pub queue: Vec<OperationId>,
     pub operations: Vec<OperationSnapshot>,
 }
 
 /// One change. A host keeps the newest `changed` per operation (by its own
-/// `revision`) and the `order` and `queue` with the highest `revision`, so
-/// updates may arrive in any order; an operation missing from that order is
-/// not shown.
+/// `revision`) and the `order` with the highest `revision`, so updates may
+/// arrive in any order; an operation missing from that order is not shown.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkOperationsUpdate {
     pub revision: u64,
     pub order: Vec<OperationId>,
-    pub queue: Vec<OperationId>,
     pub changed: OperationSnapshot,
 }
 

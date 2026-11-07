@@ -9,8 +9,22 @@ pub(super) const PERMIT_CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(5
 
 impl JobRegistry {
     #[cfg(test)]
+    pub(crate) fn active_jobs(&self) -> usize {
+        self.admission().jobs.len()
+    }
+
+    #[cfg(test)]
     pub async fn register_job(&self) -> Result<(JobId, OwnedSemaphorePermit)> {
         self.register_job_with_external_cancel(None).await
+    }
+
+    /// Tracks a job that is not an encode: it counts as active work but takes
+    /// no concurrency permit, so it never waits behind one.
+    pub fn register_job_without_permit(&self) -> JobId {
+        let job_id = JobId::new();
+        self.admission().jobs.insert(job_id.0);
+        log::info!("Job {} registered without a permit", job_id);
+        job_id
     }
 
     pub async fn register_job_with_external_cancel(

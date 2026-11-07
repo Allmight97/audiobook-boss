@@ -306,7 +306,7 @@ export type ConcurrencySnapshot = {
 	capabilities: MaxConcurrentJobsCapabilities,
 };
 
-export type CoverNotice = { kind: "urlRequired" } | { kind: "notAnImageUrl" } | { kind: "loadedFromUrl" } | { kind: "loadFailed"; error: AppErrorEnvelope };
+export type CoverNotice = { kind: "urlRequired" } | { kind: "notAnImageUrl" } | { kind: "loadedFromUrl" } | { kind: "noTitleForCover" } | { kind: "loadFailed"; error: AppErrorEnvelope };
 
 export type CoverSnapshot = {
 	/**  The address of the displayed image; absent when there is none. */
@@ -562,7 +562,7 @@ export type MetadataStatus =
 /**  Local sources an export is still reading; written when it finishes. */
 waiting: number;
 /**  Temporary downloads; never written, their edits go with exports. */
-held: number; outputs: OutputEdits } | { kind: "saveCancelled" } |
+held: number; outputs: OutputEdits } |
 /**
  *  The shown form is not the tags of `label` or of `more` other selected
  *  titles, whose tags could not be read.
@@ -1318,28 +1318,21 @@ export type WorkOperationsSnapshot = {
 	/**  Advances with every change to any operation or to the order. */
 	revision: number,
 	order: OperationId[],
-	/**
-	 *  The accepted operations in the order they will start; a host shows an
-	 *  operation's place in the queue as its place here.
-	 */
-	queue: OperationId[],
 	operations: OperationSnapshot[],
 };
 
 /**
  *  One change. A host keeps the newest `changed` per operation (by its own
- *  `revision`) and the `order` and `queue` with the highest `revision`, so
- *  updates may arrive in any order; an operation missing from that order is
- *  not shown.
+ *  `revision`) and the `order` with the highest `revision`, so updates may
+ *  arrive in any order; an operation missing from that order is not shown.
  */
 export type WorkOperationsUpdate = {
 	revision: number,
 	order: OperationId[],
-	queue: OperationId[],
 	changed: OperationSnapshot,
 };
 
-/**  An accepted operation changed, with the display order and queue as of then. */
+/**  An accepted operation changed, with the display order as of then. */
 export type WorkOperationsUpdateEvent = WorkOperationsUpdate;
 
 export type WorkProgressStage = "pending" | "analyzing" | "converting" | "writing" | "cleaning" | "complete" | "failed" | "cancelled";

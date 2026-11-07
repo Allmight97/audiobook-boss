@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use super::{blocking, Rest, Session};
-use crate::errors::{AppError, AppErrorEnvelope, Result};
+use crate::errors::{AppErrorEnvelope, Result};
 use crate::metadata_save::{save_metadata_batch, MetadataSaveRequest, MetadataSaveResultStatus};
 use crate::processing::title_output::UpdateReply;
 use crate::processing::{OutputUpdate, OutputUpdateStatus};
@@ -183,7 +183,6 @@ impl Session {
                         .filter_map(|(item, written)| written.then_some(item))
                         .collect();
                 }
-                Err(AppError::Cancellation(_)) => status = MetadataStatus::SaveCancelled,
                 Err(error) => {
                     log::error!("Failed to save metadata: {error}");
                     status = MetadataStatus::SaveFailed {

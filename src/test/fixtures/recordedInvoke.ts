@@ -48,7 +48,7 @@ export function replayInvoke(
 				client: 1,
 				session: sessionFresh,
 				settings: scenario.start ?? settingsFresh,
-				workOperations: { revision: 0, order: [], queue: [], operations: [] },
+				workOperations: { revision: 0, order: [], operations: [] },
 			};
 		}
 		if (command !== wanted) return fallback?.(command, args);
