@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-11-06
+
 ### Added
 
 - Cmd+Q now needs a second press within 3 seconds, so a stray press does not close ABB. The
