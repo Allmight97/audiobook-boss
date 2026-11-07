@@ -196,22 +196,11 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
 }
 
 fn describe_requested_fields(patch: Option<&crate::metadata::MetadataIntentPatch>) -> String {
-    // Drop cover bytes first: only the op name is logged, and serializing a
-    // cover would build one JSON value per byte.
-    let fields = patch
-        .map(|patch| {
-            let mut ops = patch.clone();
-            if let Some(crate::metadata::PatchOp::Set(bytes)) = ops.cover_art.as_mut() {
-                bytes.clear();
-            }
-            ops
-        })
-        .and_then(|patch| serde_json::to_value(patch).ok())
-        .and_then(|value| value.as_object().cloned())
-        .unwrap_or_default();
-    let described = fields
+    let described = patch
+        .map(crate::metadata::MetadataIntentPatch::requested_ops)
+        .unwrap_or_default()
         .iter()
-        .map(|(field, op)| format!("{field}={}", op["op"].as_str().unwrap_or("?")))
+        .map(|(field, op)| format!("{field}={op}"))
         .collect::<Vec<_>>();
     if described.is_empty() {
         "none".to_string()

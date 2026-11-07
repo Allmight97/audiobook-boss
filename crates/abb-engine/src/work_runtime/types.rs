@@ -211,8 +211,7 @@ pub struct WorkSubmissionAccepted {
     pub(crate) titles: Vec<std::sync::Arc<crate::processing::TitleOutput>>,
 }
 
-#[derive(Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone)]
 pub struct SubmitProcessingOperationRequest {
     /// Chosen when the submission was accepted, so it names the same work
     /// before and after the export registers.

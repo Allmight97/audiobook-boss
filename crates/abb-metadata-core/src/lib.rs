@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 const PUBLICATION_DATE_INVALID_MESSAGE: &str =
@@ -20,7 +19,7 @@ pub enum MetadataCoreError {
 
 pub type Result<T> = std::result::Result<T, MetadataCoreError>;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AudiobookMetadata {
     pub title: Option<String>,
     pub artist: Option<String>,
@@ -88,46 +87,40 @@ impl AudiobookMetadata {
 
 /// One requested field change. A field the user left alone is absent from
 /// [`MetadataIntentPatch`]; there is no in-band "no change" operation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(tag = "op", rename_all = "snake_case", content = "value")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PatchOp<T> {
     Set(T),
     Clear,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(tag = "op", rename_all = "snake_case", content = "value")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AlbumSortPatchOp {
     Set(String),
     Clear,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MetadataIntentValidationField {
     Date,
     SeriesPart,
     SubseriesPart,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MetadataIntentValidationCode {
     PublicationDateSyntax,
     SeriesPartContainsSlash,
     SubseriesPartContainsSlash,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetadataIntentFieldError {
     pub field: MetadataIntentValidationField,
     pub code: MetadataIntentValidationCode,
     pub message: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetadataIntentValidationResult {
     pub is_valid: bool,
     pub metadata_patch: MetadataIntentPatch,
@@ -135,60 +128,25 @@ pub struct MetadataIntentValidationResult {
 }
 
 /// The fields a user asked to change; absent fields keep their source value.
-/// `skip_serializing_if` keeps absent fields off the wire (Specta therefore emits
-/// `_Serialize`/`_Deserialize` variants). Nullable fields would add a second
-/// "no change" marker the frontend could merge over a real edit.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MetadataIntentPatch {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub title: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub artist: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub album: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub composer: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub genre: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub date: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub description: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub series: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub series_part: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub subseries: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub subseries_part: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = AlbumSortPatchOp, optional)]
     pub album_sort: Option<AlbumSortPatchOp>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<Vec<u8>>, optional)]
     pub cover_art: Option<PatchOp<Vec<u8>>>,
     // Compatibility/provenance artifact fields (#281): preserved on normal
     // saves, editable/clearable only through explicit intent.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<String>, optional)]
     pub comment: Option<PatchOp<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<(u32, Option<u32>)>, optional)]
     pub track: Option<PatchOp<(u32, Option<u32>)>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[specta(type = PatchOp<(u32, Option<u32>)>, optional)]
     pub disk: Option<PatchOp<(u32, Option<u32>)>>,
 }
 
@@ -253,6 +211,42 @@ impl NamingMetadata {
 impl MetadataIntentPatch {
     pub fn is_actionable(&self) -> bool {
         self != &Self::default()
+    }
+
+    /// Each field this patch names with its operation (`set` or `clear`), in
+    /// field-name order. The processing log records it; values never appear.
+    pub fn requested_ops(&self) -> Vec<(&'static str, &'static str)> {
+        fn name<T>(op: Option<&PatchOp<T>>) -> Option<&'static str> {
+            op.map(|op| match op {
+                PatchOp::Set(_) => "set",
+                PatchOp::Clear => "clear",
+            })
+        }
+        let album_sort = self.album_sort.as_ref().map(|op| match op {
+            AlbumSortPatchOp::Set(_) => "set",
+            AlbumSortPatchOp::Clear => "clear",
+        });
+        [
+            ("album", name(self.album.as_ref())),
+            ("album_sort", album_sort),
+            ("artist", name(self.artist.as_ref())),
+            ("comment", name(self.comment.as_ref())),
+            ("composer", name(self.composer.as_ref())),
+            ("cover_art", name(self.cover_art.as_ref())),
+            ("date", name(self.date.as_ref())),
+            ("description", name(self.description.as_ref())),
+            ("disk", name(self.disk.as_ref())),
+            ("genre", name(self.genre.as_ref())),
+            ("series", name(self.series.as_ref())),
+            ("series_part", name(self.series_part.as_ref())),
+            ("subseries", name(self.subseries.as_ref())),
+            ("subseries_part", name(self.subseries_part.as_ref())),
+            ("title", name(self.title.as_ref())),
+            ("track", name(self.track.as_ref())),
+        ]
+        .into_iter()
+        .filter_map(|(field, op)| Some((field, op?)))
+        .collect()
     }
 
     /// Folds `next` over this patch: a later request for a field replaces the

@@ -85,3 +85,47 @@ fn failed_processing_job_record_includes_stable_typed_error_fields() {
     );
     assert!(!record.contains(&failure.message));
 }
+
+#[test]
+fn the_requested_fields_are_logged_alphabetically_with_their_operation() {
+    use crate::metadata::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
+
+    let set = |value: &str| Some(PatchOp::Set(value.to_string()));
+    let every_field = MetadataIntentPatch {
+        title: set("T"),
+        artist: Some(PatchOp::Clear),
+        album: set("A"),
+        composer: Some(PatchOp::Clear),
+        genre: set("G"),
+        date: set("2020"),
+        description: Some(PatchOp::Clear),
+        series: set("S"),
+        series_part: Some(PatchOp::Clear),
+        subseries: set("SS"),
+        subseries_part: Some(PatchOp::Clear),
+        album_sort: Some(AlbumSortPatchOp::Clear),
+        cover_art: Some(PatchOp::Set(vec![1, 2, 3])),
+        comment: set("C"),
+        track: Some(PatchOp::Set((1, None))),
+        disk: Some(PatchOp::Clear),
+    };
+
+    assert_eq!(
+        describe_requested_fields(Some(&every_field)),
+        "album=set,album_sort=clear,artist=clear,comment=set,composer=clear,cover_art=set,\
+         date=set,description=clear,disk=clear,genre=set,series=set,series_part=clear,\
+         subseries=set,subseries_part=clear,title=set,track=set"
+    );
+    assert_eq!(
+        describe_requested_fields(Some(&MetadataIntentPatch {
+            title: set("T"),
+            ..Default::default()
+        })),
+        "title=set"
+    );
+    assert_eq!(
+        describe_requested_fields(Some(&MetadataIntentPatch::default())),
+        "none"
+    );
+    assert_eq!(describe_requested_fields(None), "none");
+}

@@ -286,7 +286,7 @@ fn normalize_publication_date_accepts_year_month_and_full_date_prefix() {
 }
 
 #[test]
-fn validation_reply_carries_only_requested_fields() {
+fn validation_normalizes_requested_fields_and_adds_none() {
     let result = validate_metadata_intent_patch(&MetadataIntentPatch {
         title: Some(PatchOp::Set("NMR 64k".to_string())),
         date: Some(PatchOp::Set("2024-07-15".to_string())),
@@ -296,12 +296,36 @@ fn validation_reply_carries_only_requested_fields() {
     assert!(result.is_valid);
     assert!(result.field_errors.is_empty());
     assert_eq!(
-        serde_json::to_value(&result).expect("serializes")["metadataPatch"],
-        serde_json::json!({
-            "title": { "op": "set", "value": "NMR 64k" },
-            "date": { "op": "set", "value": "2024-07" },
-        })
+        result.metadata_patch,
+        MetadataIntentPatch {
+            title: Some(PatchOp::Set("NMR 64k".to_string())),
+            date: Some(PatchOp::Set("2024-07".to_string())),
+            ..Default::default()
+        }
     );
+}
+
+#[test]
+fn requested_ops_name_each_set_or_cleared_field_in_field_name_order() {
+    let patch = MetadataIntentPatch {
+        title: Some(PatchOp::Set("T".into())),
+        series_part: Some(PatchOp::Clear),
+        album_sort: Some(AlbumSortPatchOp::Set("S".into())),
+        cover_art: Some(PatchOp::Set(vec![1, 2, 3])),
+        track: Some(PatchOp::Clear),
+        ..Default::default()
+    };
+    assert_eq!(
+        patch.requested_ops(),
+        [
+            ("album_sort", "set"),
+            ("cover_art", "set"),
+            ("series_part", "clear"),
+            ("title", "set"),
+            ("track", "clear"),
+        ]
+    );
+    assert!(MetadataIntentPatch::default().requested_ops().is_empty());
 }
 
 #[test]
