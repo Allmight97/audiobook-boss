@@ -352,6 +352,13 @@ impl StubServer {
         })
     }
 
+    pub(crate) async fn start_routed(
+        handler: impl FnMut(usize, &CapturedRequest) -> Reply + Send + 'static,
+    ) -> Self {
+        let (listener, _) = bind_stub().await;
+        Self::serve(listener, None, 0, handler)
+    }
+
     pub(crate) async fn start_tls(
         handler: impl FnMut(usize, &CapturedRequest) -> Reply + Send + 'static,
     ) -> Self {

@@ -4,8 +4,7 @@ use serde::Deserialize;
 
 use super::super::mapping::map_audnexus_book;
 use super::super::types::OnlineMetadataResult;
-
-const AUDNEXUS_BASE_URL: &str = "https://api.audnex.us";
+use super::ProviderEndpoints;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,10 +36,11 @@ pub(in crate::metadata_lookup) struct AudnexusSeries {
 
 pub(in crate::metadata_lookup) async fn fetch_audnexus_book(
     client: &Client,
+    endpoints: &ProviderEndpoints,
     asin: &str,
     region: &str,
 ) -> Result<OnlineMetadataResult> {
-    let mut url = reqwest::Url::parse(&format!("{}/books/{}", AUDNEXUS_BASE_URL, asin))
+    let mut url = reqwest::Url::parse(&format!("{}/books/{}", endpoints.audnexus, asin))
         .map_err(|_| AppError::General("Failed to build Audnexus URL".to_string()))?;
     url.query_pairs_mut().append_pair("region", region);
 
