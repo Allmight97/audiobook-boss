@@ -22,6 +22,14 @@ pub(crate) enum CodecFamily {
 }
 
 impl CodecFamily {
+    pub(crate) const fn of_codec_id(id: ffmpeg_next::codec::Id) -> Option<Self> {
+        match id {
+            ffmpeg_next::codec::Id::AAC => Some(Self::Aac),
+            ffmpeg_next::codec::Id::OPUS => Some(Self::Opus),
+            _ => None,
+        }
+    }
+
     pub(crate) const fn codec_id(self) -> ffmpeg_next::codec::Id {
         match self {
             Self::Aac => ffmpeg_next::codec::Id::AAC,

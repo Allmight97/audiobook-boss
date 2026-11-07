@@ -59,10 +59,13 @@ pub struct AudioFile {
     pub cover: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
-#[serde(rename_all = "camelCase")]
+/// What inspection learned about copying a source: whether its container and
+/// codec can be copied unchanged, and the codec family a format must share to
+/// keep it. `None` is a codec no output format holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AudioPreservation {
     pub can_preserve: bool,
+    pub(crate) codec_family: Option<CodecFamily>,
 }
 
 pub type AudioChapter = crate::metadata::ChapterSpec;

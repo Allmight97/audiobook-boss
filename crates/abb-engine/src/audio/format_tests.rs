@@ -92,3 +92,14 @@ fn only_the_opus_formats_have_a_fixed_encoder() {
 fn extensions_read_as_a_list() {
     assert_eq!(supported_extensions_text(), ".m4b, .m4a or .mka");
 }
+
+#[test]
+fn only_aac_and_opus_streams_belong_to_a_codec_family() {
+    use ffmpeg_next::codec::Id;
+    for family in [CodecFamily::Aac, CodecFamily::Opus] {
+        assert_eq!(CodecFamily::of_codec_id(family.codec_id()), Some(family));
+    }
+    for other in [Id::MP3, Id::FLAC, Id::PCM_S16LE, Id::VORBIS] {
+        assert_eq!(CodecFamily::of_codec_id(other), None);
+    }
+}

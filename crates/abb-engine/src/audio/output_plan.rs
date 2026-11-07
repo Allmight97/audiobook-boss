@@ -1,4 +1,4 @@
-use super::{EncoderSettings, FileListInfo, SampleRateConfig};
+use super::{AudioFile, EncoderSettings, FileListInfo, SampleRateConfig};
 use crate::{
     errors::{AppError, Result},
     processing::AudioHandling,
@@ -221,7 +221,7 @@ pub fn resolve_title_audio(
 
 fn copy_rejection(request: &TitleAudioRequest, info: &FileListInfo) -> Result<Option<String>> {
     let format = request.format();
-    let keeping_formats = formats_that_keep(&source_codecs(info)?);
+    let keeping_formats = formats_that_keep(&info.files);
     if !keeping_formats.contains(&format) {
         let extension = format.extension().to_uppercase();
         return Ok(Some(if request.intent != AudioIntent::Preserve {
@@ -312,27 +312,14 @@ fn encoding_plan(
     })
 }
 
-fn source_codecs(info: &FileListInfo) -> Result<Vec<Option<ffmpeg_next::codec::Id>>> {
-    info.files
-        .iter()
-        .map(|file| {
-            let path = super::validate_input_audio_path(&file.path)?;
-            let input = ffmpeg_next::format::input(&path)?;
-            Ok(input
-                .streams()
-                .best(ffmpeg_next::media::Type::Audio)
-                .map(|stream| stream.parameters().id()))
-        })
-        .collect()
-}
-
-fn formats_that_keep(codecs: &[Option<ffmpeg_next::codec::Id>]) -> Vec<AudiobookFormat> {
+fn formats_that_keep(files: &[AudioFile]) -> Vec<AudiobookFormat> {
     super::FORMATS
         .into_iter()
         .filter(|spec| {
-            codecs
-                .iter()
-                .all(|codec| *codec == Some(spec.codec_family.codec_id()))
+            files.iter().all(|file| {
+                file.preservation
+                    .is_some_and(|source| source.codec_family == Some(spec.codec_family))
+            })
         })
         .map(|spec| spec.format)
         .collect()

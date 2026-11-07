@@ -159,6 +159,20 @@ async fn opus_in_an_m4b_is_kept_in_both_opus_formats_but_not_in_m4b() {
 
     let copy = dir.path().join("book.mka");
     let info = get_file_list_info(&[&source], AacDecoder::Auto).expect("inspect fixture");
+    let request = TitleAudioRequest {
+        output: OutputAudio::new(AudiobookFormat::MkaOpus, opus_settings()),
+        intent: AudioIntent::Preserve,
+        sample_rate: SampleRateConfig::Auto,
+    };
+    let moved = dir.path().join("moved.m4b");
+    crate::test_cases::move_test_file(&source, &moved);
+    assert_eq!(
+        resolve_title_audio(&request, &info, false)
+            .expect("a plan reads what inspection stored, not the file")
+            .handling,
+        AudioHandling::Preserve
+    );
+    crate::test_cases::move_test_file(&moved, &source);
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
         SampleRateConfig::Auto,

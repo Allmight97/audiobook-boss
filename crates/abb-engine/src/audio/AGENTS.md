@@ -8,8 +8,9 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
 
 - Callers import from `crate::audio`; child modules are private, so the
   compiler enforces it.
-- Inspection owns source preservation capability; the title planner owns the
-  recommendation.
+- Inspection owns source preservation capability and codec family
+  (`AudioPreservation`); the title planner owns the recommendation and reads
+  both without opening the file.
 - Per-encoder bitrate, mode, rate, and FAAC-profile facts live in
   `EncoderSettingsCapabilities.encoder_configurations`; FAAC quality presets
   and Native speed max are top-level capability fields. The FAAC encoder owns

@@ -655,6 +655,7 @@ pub(crate) fn assess_preservation(
             && codec_id == ff::codec::Id::OPUS);
     AudioPreservation {
         can_preserve: supported_container_codec,
+        codec_family: crate::audio::CodecFamily::of_codec_id(codec_id),
     }
 }
 
