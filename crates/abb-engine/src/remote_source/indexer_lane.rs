@@ -6,8 +6,9 @@ use super::{
     RemoteRelease, RemoteReleaseGrabRequest, RemoteReleaseSearchRequest,
     RemoteReleaseSearchResponse, RemoteSourceRuntime, UiAction, UiState,
 };
-use crate::app_settings::{normalize_base_url, validate_api_key};
+use crate::app_settings::normalize_base_url;
 use crate::errors::{AppError, Result};
+use crate::remote_source::providers::indexer::validate_api_key;
 
 #[derive(Default)]
 pub(super) struct IndexerLane {

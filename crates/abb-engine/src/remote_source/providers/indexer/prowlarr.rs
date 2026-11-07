@@ -5,7 +5,7 @@ use reqwest::{Client, Method, StatusCode, Url};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 
-use crate::app_settings::api_key_header_value;
+use super::api_key::api_key_header_value;
 use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
     release_key, ProviderId, RemoteAcquisitionFailureKind, RemoteRelease, RemoteReleaseCategory,

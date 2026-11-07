@@ -1,3 +1,4 @@
+mod api_key;
 mod connection;
 mod prowlarr;
 
@@ -15,6 +16,7 @@ use crate::remote_source::vault::{account_message, SecretVault};
 use connection::{api_key_configured, apply_key_change, configured_connection, draft_credentials};
 use prowlarr::{build_search_params, ProwlarrSearchOutcome};
 
+pub(in crate::remote_source) use api_key::validate_api_key;
 pub(in crate::remote_source) use connection::ConfiguredIndexerConnection;
 pub(in crate::remote_source) use prowlarr::ReqwestProwlarrAdapter;
 

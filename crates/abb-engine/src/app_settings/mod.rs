@@ -3,7 +3,7 @@ mod runtime;
 mod storage;
 mod types;
 
-pub(crate) use indexer_connection::{api_key_header_value, normalize_base_url, validate_api_key};
+pub(crate) use indexer_connection::normalize_base_url;
 pub use runtime::{
     ConcurrencySnapshot, SettingsIntent, SettingsOutcome, SettingsReply, SettingsSnapshot,
 };

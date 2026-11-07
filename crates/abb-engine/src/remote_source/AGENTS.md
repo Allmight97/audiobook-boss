@@ -55,7 +55,8 @@ session files, Supplemental Assets, and staging cleanup.
   `validate` rejects embedded credentials on save and draft testing.
   `remote_source` reads them with `SettingsRuntime::indexer_connection` and
   never stores them. API keys live only in the credential store, scoped to the
-  normalized server URL. Save reserves its settings turn when accepted and
+  normalized server URL, and the Indexer provider owns the check that a key
+  can be sent as a header (`validate_api_key`). Save reserves its settings turn when accepted and
   changes that URL's key after the change applies; a vault failure says the URL
   and categories changed but the key did not, and a failed save never pairs one
   server with another server's key.
