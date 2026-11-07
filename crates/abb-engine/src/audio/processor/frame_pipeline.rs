@@ -198,7 +198,6 @@ fn process_decoded_frames(
 
     loop {
         if ctx.context.is_cancelled() {
-            ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::cancelled());
         }
         let mut frame = ff::frame::Audio::empty();
@@ -290,7 +289,6 @@ pub(crate) fn process_input_packets(
             if log::log_enabled!(log::Level::Warn) {
                 log::warn!("Processing was cancelled during packet processing");
             }
-            ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::cancelled());
         }
         if stream_index != ctx.current_stream_index {

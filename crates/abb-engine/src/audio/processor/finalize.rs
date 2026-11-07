@@ -12,9 +12,6 @@ use super::ProcessingWorkflow;
 
 fn ensure_not_cancelled_before_commit(context: &ProcessingContext) -> Result<()> {
     if context.is_cancelled() {
-        context
-            .new_emitter()
-            .emit_cancelled("Processing was cancelled");
         return Err(AppError::cancelled());
     }
 

@@ -40,7 +40,6 @@ pub(crate) fn process_input_file(
             "Processing was cancelled before processing file: {}",
             input_label
         );
-        ctx.emitter.emit_cancelled("Processing was cancelled");
         return Err(AppError::cancelled());
     }
 

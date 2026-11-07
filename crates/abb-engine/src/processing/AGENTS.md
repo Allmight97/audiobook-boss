@@ -69,6 +69,10 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 - Processing emits internal `ProgressEvent` values to its supplied listener.
 - `EventStage` in `progress/mod.rs` maps internal `ProcessingStage` into
   reducer input.
+- A cancelled stage returns `AppError::cancelled()` and emits nothing. The
+  title runner (`run/run_dispatch.rs`) emits Cancelled once, after the title's
+  folders and `TitleOutput` end. Why: a Cancelled event that arrives earlier
+  shows the title finished while its staged files still exist.
 
 ## Job registry (`job_registry/`)
 

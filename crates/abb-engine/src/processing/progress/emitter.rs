@@ -140,10 +140,6 @@ impl ProgressEmitter {
         self.emit_terminal_event(EventStage::Skipped, message);
     }
 
-    pub fn emit_cancelled(&self, message: &str) {
-        self.emit_terminal_cancelled(message);
-    }
-
     fn emit_event(
         &self,
         stage: ProcessingStage,
