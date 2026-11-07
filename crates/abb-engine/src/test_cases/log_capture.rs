@@ -5,7 +5,7 @@
 use std::sync::{Mutex, Once};
 
 struct CapturingLogger {
-    records: Mutex<Vec<String>>,
+    records: Mutex<Vec<(log::Level, String)>>,
 }
 
 impl log::Log for CapturingLogger {
@@ -17,7 +17,7 @@ impl log::Log for CapturingLogger {
         self.records
             .lock()
             .expect("capturing logger lock")
-            .push(record.args().to_string());
+            .push((record.level(), record.args().to_string()));
     }
 
     fn flush(&self) {}
@@ -36,9 +36,20 @@ pub(crate) fn install() {
 }
 
 pub(crate) fn records() -> Vec<String> {
+    records_at_or_above(log::Level::Trace)
+}
+
+pub(crate) fn error_records() -> Vec<String> {
+    records_at_or_above(log::Level::Error)
+}
+
+fn records_at_or_above(level: log::Level) -> Vec<String> {
     CAPTURING_LOGGER
         .records
         .lock()
         .expect("capturing logger lock")
-        .clone()
+        .iter()
+        .filter(|(record_level, _)| *record_level <= level)
+        .map(|(_, message)| message.clone())
+        .collect()
 }

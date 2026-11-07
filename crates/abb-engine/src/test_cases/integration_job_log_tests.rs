@@ -134,6 +134,16 @@ async fn a_title_that_cannot_publish_writes_a_started_and_a_failed_record_with_i
         )
     });
     assert_no_workspace_or_temp_files(&desk, &folder);
+    let job = value_of(&job_records(&operation)[0], "job_id=").to_string();
+    let errors: Vec<String> = log_capture::error_records()
+        .into_iter()
+        .filter(|record| record.contains(&job))
+        .collect();
+    assert_eq!(
+        errors.len(),
+        1,
+        "one failed job, one ERROR line: {errors:?}"
+    );
 }
 
 fn assert_no_workspace_or_temp_files(desk: &Desk, folder: &Path) {

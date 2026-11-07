@@ -215,7 +215,7 @@ impl JobRegistry {
 
     pub fn fail_job(&self, job_id: JobId, error: String) {
         if self.remove_job(job_id) {
-            log::error!("Job {} failed: {}", job_id, error);
+            log::info!("Job {} failed: {}", job_id, error);
         }
     }
 
