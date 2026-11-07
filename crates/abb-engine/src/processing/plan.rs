@@ -1,6 +1,9 @@
+use super::plan_signature;
 use crate::audio::FileListInfo;
 use crate::errors::{AppError, Result};
-use crate::metadata::{plan_metadata_outcome, CoverArtPassthroughPolicy, MetadataOutcomePlan};
+use crate::metadata::{
+    plan_metadata_outcome, CoverArtPassthroughPolicy, MetadataOutcomePlan, NamingMetadata,
+};
 use crate::output_artifact::OutputNamingConfig;
 use crate::output_artifact::{
     build_output_path_preview, enforce_output_plan_review, ensure_output_parent_dirs,
@@ -10,6 +13,29 @@ use crate::output_artifact::{
 use crate::processing::{ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+
+/// What decides where a title's output lands besides its metadata.
+pub(crate) struct NamingInputs<'a> {
+    pub(crate) base_dir: &'a Path,
+    pub(crate) naming: &'a OutputNamingConfig,
+    pub(crate) anchor: &'a Path,
+}
+
+/// The requested output path of a title, before collision handling. The plan
+/// and the title's output record both name through this.
+pub(crate) fn output_path_for(
+    inputs: NamingInputs<'_>,
+    metadata: &NamingMetadata,
+    extension: &str,
+) -> Result<PathBuf> {
+    build_output_path_preview(
+        inputs.base_dir,
+        Some(metadata),
+        inputs.naming.clone(),
+        Some(inputs.anchor),
+        extension,
+    )
+}
 
 struct ProcessingInputs {
     output_naming: OutputNamingConfig,
@@ -67,68 +93,6 @@ fn resolve_output_kind(preview: bool) -> OutputKind {
     }
 }
 
-fn build_plan_signature(
-    output_kind: OutputKind,
-    collision_policy: CollisionPolicy,
-    aac_decoder: Option<crate::audio::AacDecoder>,
-    jobs: &[PlannedProcessingJob],
-) -> String {
-    let mut lines = vec![
-        format!("preview={}", output_kind == OutputKind::Preview),
-        format!("collision_policy={collision_policy:?}"),
-        format!("aac_decoder={aac_decoder:?}"),
-    ];
-
-    for job in jobs {
-        lines.push(format!(
-            "sources={:?};audio={:?}",
-            job.source_paths, job.audio_plan
-        ));
-        let output = &job.output;
-        let collision_kind = output
-            .collision
-            .as_ref()
-            .map(|value| format!("{:?}", value.kind))
-            .unwrap_or_else(|| "none".to_string());
-        let collision_path = output
-            .collision
-            .as_ref()
-            .and_then(|value| value.conflicting_path.as_ref())
-            .map(|value| value.display().to_string())
-            .unwrap_or_default();
-        let collision_detail = output
-            .collision
-            .as_ref()
-            .and_then(|value| value.detail.clone())
-            .unwrap_or_default();
-        let output_kind = format!("{:?}", output.kind);
-        let output_action = format!("{:?}", output.action);
-        let collision_summary = format!("{collision_path}::{collision_detail}");
-        lines.push(format!(
-            "{}|{}|{}|{}|{}|{}|{}|{}|{}",
-            job.input_index,
-            output.requested_path.display(),
-            output.resolved_path.display(),
-            output
-                .rename_candidate
-                .as_ref()
-                .map(|value| value.display().to_string())
-                .unwrap_or_default(),
-            output_kind,
-            output_action,
-            collision_kind,
-            collision_summary,
-            if job.audio_plan.handling.preserves() {
-                "Preserve"
-            } else {
-                "Encode"
-            },
-        ));
-    }
-
-    lines.join("\n")
-}
-
 fn build_processing_inputs(payload: &ProcessPayload, preview: bool) -> Result<ProcessingInputs> {
     Ok(ProcessingInputs {
         output_naming: payload.output_naming.clone().unwrap_or_default(),
@@ -157,7 +121,7 @@ fn build_processing_plan(
         file_info,
     )?;
 
-    let plan_signature = build_plan_signature(
+    let plan_signature = plan_signature::build(
         inputs.output_kind,
         collision_policy,
         payload.aac_decoder,
@@ -169,6 +133,23 @@ fn build_processing_plan(
         plan_signature,
         jobs,
     })
+}
+
+pub(super) fn collision_kind_label(output: &ResolvedOutputPlan) -> String {
+    output
+        .collision
+        .as_ref()
+        .map(|value| format!("{:?}", value.kind))
+        .unwrap_or_else(|| "none".to_string())
+}
+
+pub(super) fn collision_path_label(output: &ResolvedOutputPlan) -> String {
+    output
+        .collision
+        .as_ref()
+        .and_then(|value| value.conflicting_path.as_ref())
+        .map(|value| value.display().to_string())
+        .unwrap_or_default()
 }
 
 fn log_output_plan(phase: &str, payload: &ProcessPayload, plan: &ResolvedProcessingPlan) {
@@ -190,17 +171,8 @@ fn log_output_plan(phase: &str, payload: &ProcessPayload, plan: &ResolvedProcess
             job.output.action,
             job.output.requested_path.display(),
             job.output.resolved_path.display(),
-            job.output
-                .collision
-                .as_ref()
-                .map(|value| format!("{:?}", value.kind))
-                .unwrap_or_else(|| "none".to_string()),
-            job.output
-                .collision
-                .as_ref()
-                .and_then(|value| value.conflicting_path.as_ref())
-                .map(|value| value.display().to_string())
-                .unwrap_or_default(),
+            collision_kind_label(&job.output),
+            collision_path_label(&job.output),
         );
     }
 }
@@ -236,7 +208,7 @@ pub(crate) fn prepare_inspected_execution(
         job.output = ledger.refresh(&job.output, plan.collision_policy, &sources)?;
         check_companion_pdf_name(payload, job.input_index, &job.output)?;
     }
-    plan.plan_signature = build_plan_signature(
+    plan.plan_signature = plan_signature::build(
         plan.output_kind(),
         plan.collision_policy,
         payload.aac_decoder,
@@ -290,11 +262,13 @@ fn build_title_processing_jobs(
         let file_patch = metadata.and_then(|map| map.get(input)).cloned();
         let metadata_outcome = plan_metadata_outcome(&path, file_patch.as_ref())?;
         let metadata_outcome: MetadataOutcomePlan = metadata_outcome;
-        let requested_output = build_output_path_preview(
-            &inputs.base_output_dir,
-            Some(&metadata_outcome.naming_metadata),
-            inputs.output_naming.clone(),
-            Some(&path),
+        let requested_output = output_path_for(
+            NamingInputs {
+                base_dir: &inputs.base_output_dir,
+                naming: &inputs.output_naming,
+                anchor: &path,
+            },
+            &metadata_outcome.naming_metadata,
             payload.audio_requests[index].format().extension(),
         )?;
         let info = title_file_info(file_info, &source_paths)?;

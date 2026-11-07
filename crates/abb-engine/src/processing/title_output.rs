@@ -8,9 +8,8 @@ use crate::execution::{PublishGate, PublishedOutput};
 use crate::metadata::{
     plan_metadata_outcome_from, AudiobookMetadata, MetadataIntentPatch, PassthroughSource, PatchOp,
 };
-use crate::output_artifact::{
-    build_output_path_preview, lock_output_file, FileIdentity, OutputNamingConfig,
-};
+use crate::output_artifact::{lock_output_file, FileIdentity, OutputNamingConfig};
+use crate::processing::plan::{output_path_for, NamingInputs};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -398,11 +397,13 @@ impl TitleOutputPlan {
         let outcome = plan_metadata_outcome_from(self.base.clone(), intent)?;
         let mut text = outcome.effective_metadata;
         text.cover_art = None;
-        let location = build_output_path_preview(
-            &self.output_dir,
-            Some(&outcome.naming_metadata),
-            self.naming.clone(),
-            Some(&self.anchor),
+        let location = output_path_for(
+            NamingInputs {
+                base_dir: &self.output_dir,
+                naming: &self.naming,
+                anchor: &self.anchor,
+            },
+            &outcome.naming_metadata,
             &self.extension,
         )?;
         let tags = Tags {

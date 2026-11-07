@@ -28,7 +28,9 @@ accepted before publication is written to the staged file just before
 publication, under the title's lock and the output file lock. One accepted later
 is written to the published file once its size and modification time show ABB
 wrote it. Text tags are diffed from the planned metadata; the cover follows the
-edit's cover intent. A failed tag write never changes the title's export
+edit's cover intent. The plan and this record name the requested path through
+`plan::output_path_for`, so an edit's new name cannot differ from the planned
+one. A failed tag write never changes the title's export
 outcome. An unreadable identity after publication still settles the title as
 published and explicitly refuses unsafe tag updates. A title that ends
 unpublished has its empty folders removed (`output_artifact/AGENTS.md`) before
@@ -45,7 +47,9 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 - `audio_requests` holds one request per output title. Audio resolves each
   request before output collision review; `audio_plans` exposes that result.
   The resolved format sets the extension. Source order and resolved audio plan
-  participate in the review signature. Preview and CUE reconstruction require
+  participate in the review signature (`plan_signature.rs` hashes explicit
+  fields; a new audio-plan or encoder field fails to compile until added).
+  Preview and CUE reconstruction require
   encoding. Chapter plans apply once, in the validation preflight and
   execution share.
 - Settings and sample-rate checks apply only to encoding plans. A copy plan

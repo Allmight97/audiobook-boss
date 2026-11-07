@@ -1,6 +1,7 @@
 mod job_registry;
 mod output_parent_cleanup;
 pub(crate) mod plan;
+mod plan_signature;
 pub(crate) use crate::execution::preview_config;
 pub(crate) mod run;
 mod terminal_outcomes;
