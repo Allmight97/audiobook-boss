@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 use crate::audio::{
-    apply_chapter_plans, resolve_title_audio, AudioFile, AudioIntent, AudioPlanField, BitrateMode,
-    FileListInfo, TitleAudioPlan, TitleAudioRequest,
+    apply_chapter_plans, resolve_title_audio, AudioFile, AudioIntent, AudioPlanField, FileListInfo,
+    TitleAudioPlan, TitleAudioRequest,
 };
 use crate::metadata::{ChapterPlan, CueStatus};
 use crate::processing::AudioHandling;
@@ -240,10 +240,9 @@ pub(crate) fn estimate_size(
     }
     let duration = sum_known(sources.iter().map(|source| source.duration))?;
     let kbps = match resolved.map(|plan| &plan.handling) {
-        Some(AudioHandling::Encode { settings }) => match settings.bitrate_mode {
-            BitrateMode::Vbr(_) => None,
-            _ => Some(settings.bitrate_kbps),
-        },
+        Some(AudioHandling::Encode { settings }) => {
+            settings.bitrate_mode.fixed_kbps(settings.bitrate_kbps)
+        }
         _ => request_kbps,
     };
     let Some(kbps) = kbps else {

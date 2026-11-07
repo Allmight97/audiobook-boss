@@ -453,10 +453,7 @@ impl AudioChoice {
                 SampleRateConfig::Auto => true,
             },
             allowed_sample_rates,
-            estimate_kbps: match bitrate_mode {
-                BitrateMode::Vbr(_) => None,
-                _ => Some(self.settings(caps).bitrate_kbps),
-            },
+            estimate_kbps: bitrate_mode.fixed_kbps(self.settings(caps).bitrate_kbps),
         }
     }
 }

@@ -373,28 +373,20 @@ fn check_companion_pdf_name(
 }
 
 pub(super) fn title_file_info(all: &FileListInfo, paths: &[PathBuf]) -> Result<FileListInfo> {
-    let mut info = FileListInfo {
-        files: Vec::with_capacity(paths.len()),
-        total_duration: 0.0,
-        total_size: 0.0,
-        valid_count: 0,
-        invalid_count: 0,
-    };
-    for path in paths {
-        let index = all
-            .files
-            .iter()
-            .position(|file| &file.path == path)
-            .ok_or_else(|| AppError::InvalidInput("A title source was not inspected.".into()))?;
-        info.files.push(all.files[index].clone());
-    }
-    info.valid_count = info.files.iter().filter(|file| file.is_valid).count();
-    info.invalid_count = info.files.len() - info.valid_count;
+    let files = paths
+        .iter()
+        .map(|path| {
+            all.files
+                .iter()
+                .find(|file| &file.path == path)
+                .cloned()
+                .ok_or_else(|| AppError::InvalidInput("A title source was not inspected.".into()))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let info = FileListInfo::from_files(files);
     if info.invalid_count > 0 {
         return Err(AppError::InvalidInput("Every source in an output title must be valid. Remove or replace invalid files before processing.".into()));
     }
-    info.total_duration = info.files.iter().filter_map(|file| file.duration).sum();
-    info.total_size = info.files.iter().filter_map(|file| file.size).sum();
     Ok(info)
 }
 
