@@ -11,7 +11,7 @@ use tokio::time::timeout;
 const LOCAL_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Default, Clone)]
-struct CapturedRequest {
+pub(super) struct CapturedRequest {
     method: String,
     path_and_query: String,
     body: String,
@@ -28,7 +28,7 @@ fn local_client(host: &str, addr: SocketAddr) -> Client {
         .expect("client")
 }
 
-async fn serve_one(listener: &TcpListener, response: &[u8]) -> CapturedRequest {
+pub(super) async fn serve_one(listener: &TcpListener, response: &[u8]) -> CapturedRequest {
     let (mut stream, _) = timeout(LOCAL_TIMEOUT, listener.accept())
         .await
         .expect("request should arrive")
@@ -87,7 +87,7 @@ async fn serve_one(listener: &TcpListener, response: &[u8]) -> CapturedRequest {
     }
 }
 
-async fn start_listener() -> (TcpListener, SocketAddr) {
+pub(super) async fn start_listener() -> (TcpListener, SocketAddr) {
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -440,7 +440,7 @@ async fn no_further_request(listener: &TcpListener) -> bool {
         .is_err()
 }
 
-fn release(indexer: &str, protocol: RemoteReleaseProtocol) -> RemoteRelease {
+pub(super) fn release(indexer: &str, protocol: RemoteReleaseProtocol) -> RemoteRelease {
     RemoteRelease {
         provider_id: ProviderId::Indexer,
         key: release_key(42, "release-guid"),
@@ -512,6 +512,10 @@ fn the_downloader_line_names_the_side_that_is_down() {
             r#"{{"id":{id},"isValid":false,"validationFailures":[{{"errorMessage":"Unable to connect"}}]}}"#
         )
     };
+    let tied = r#"[
+        {"id":1,"name":"Second","enable":true,"protocol":"torrent","priority":1},
+        {"id":2,"name":"First","enable":true,"protocol":"torrent","priority":1}
+    ]"#;
     let usenet_only =
         r#"[{"id":2,"name":"SABnzbd","enable":true,"protocol":"usenet","priority":1}]"#;
     let torrent_off = r#"[{"id":3,"name":"Off","enable":false,"protocol":"torrent","priority":1}]"#;
@@ -545,13 +549,19 @@ fn the_downloader_line_names_the_side_that_is_down() {
             &torrent,
             two_torrent,
             format!("[{},{}]", fail(1), pass(2)),
-            "Second is not responding. Check that it is running, then Retry.",
+            "Prowlarr could not send this release, but First is responding now. Retry.",
         ),
         (
             &torrent,
             two_torrent,
             format!("[{},{}]", pass(1), pass(2)),
             "Prowlarr could not send this release, but First is responding now. Retry.",
+        ),
+        (
+            &torrent,
+            tied,
+            format!("[{},{}]", pass(2), fail(1)),
+            "Second is not responding. Check that it is running, then Retry.",
         ),
         (
             &torrent,

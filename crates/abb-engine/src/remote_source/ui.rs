@@ -732,6 +732,7 @@ impl RemoteSourceRuntime {
 impl RemoteSourceRuntime {
     async fn grab_ui_batch(&self, releases: Vec<RemoteRelease>) {
         let turn = self.indexer_turn();
+        let mut unconfirmed = 0;
         for release in &releases {
             self.ui().snapshot.indexer.release_grabs.insert(
                 release.key.clone(),
@@ -751,6 +752,9 @@ impl RemoteSourceRuntime {
                 }
                 Err(error) => Err(AppError::InvalidInput(error.to_string())),
             };
+            if result.as_ref().is_ok_and(|response| response.unconfirmed) {
+                unconfirmed += 1;
+            }
             let outcome = match result {
                 Ok(response) => ReleaseGrabSnapshot {
                     status: if response.accepted {
@@ -794,10 +798,7 @@ impl RemoteSourceRuntime {
         state.snapshot.indexer.message = if outcomes.len() == 1 {
             outcomes[0].message.clone()
         } else {
-            format!(
-                "{sent} releases sent. {} failed; retry their rows.",
-                outcomes.len() - sent
-            )
+            lane_status::grab_batch_line(sent, outcomes.len() - sent - unconfirmed, unconfirmed)
         };
         state.snapshot.indexer.grabbing = false;
         state.changed();

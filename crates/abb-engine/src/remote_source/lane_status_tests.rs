@@ -378,3 +378,20 @@ fn audible_failures_stay_out_of_the_indexer_line() {
     ui.snapshot.indexer.message = "Indexer ready".into();
     assert_eq!(ui.snapshot().indexer.message, "Indexer ready");
 }
+
+#[test]
+fn a_grab_batch_line_counts_failed_and_unconfirmed_rows_apart() {
+    assert_eq!(grab_batch_line(2, 0, 0), "2 releases sent.");
+    assert_eq!(
+        grab_batch_line(1, 1, 0),
+        "1 releases sent. 1 failed; retry their rows."
+    );
+    assert_eq!(
+        grab_batch_line(1, 1, 2),
+        "1 releases sent. 1 failed; retry their rows. 2 not confirmed; check your downloader before you retry."
+    );
+    assert_eq!(
+        grab_batch_line(0, 0, 2),
+        "0 releases sent. 2 not confirmed; check your downloader before you retry."
+    );
+}

@@ -167,9 +167,21 @@ impl ReqwestProwlarrAdapter {
             request_id,
             status.as_u16()
         );
-        let body = response.text().await.map_err(|error| {
-            AppError::General(format!("Indexer grab response unreadable: {error}"))
-        })?;
+        let body = match response.text().await {
+            Ok(body) => body,
+            Err(error) => {
+                log::warn!(
+                    "remote_source indexer_grab request_id={} stage=prowlarr_answer_unreadable http_status={} error={}",
+                    request_id,
+                    status.as_u16(),
+                    error.without_url()
+                );
+                return Ok(ProwlarrGrabOutcome {
+                    unconfirmed: status.is_success(),
+                    ..grab_failed(ANSWER_UNREADABLE)
+                });
+            }
+        };
 
         if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
             return Ok(ProwlarrGrabOutcome {
@@ -536,6 +548,8 @@ fn search_failed_diagnostic(status: StatusCode, body: &str) -> RemoteSourceDiagn
 
 const GRAB_UNCONFIRMED: &str = "Prowlarr did not answer in time, so this release may already be sent. Check your downloader before you Retry.";
 
+const ANSWER_UNREADABLE: &str = "Prowlarr's answer could not be read. Details are in the log.";
+
 const PROWLARR_NOT_RESPONDING: &str =
     "Prowlarr is not responding. Check that it is running, then Retry.";
 
@@ -608,12 +622,16 @@ fn downloader_failure_line(
         }
         .to_string();
     };
-    match clients.iter().find(|client| {
-        facts
-            .tests
-            .iter()
-            .any(|test| test.id == client.id && !test.is_valid)
-    }) {
+    let failing = clients
+        .iter()
+        .take_while(|client| client.priority == first.priority)
+        .find(|client| {
+            facts
+                .tests
+                .iter()
+                .any(|test| test.id == client.id && !test.is_valid)
+        });
+    match failing {
         Some(failing) => format!(
             "{} is not responding. Check that it is running, then Retry.",
             failing.name
@@ -714,3 +732,7 @@ enum ProwlarrCategoryEntry {
 #[cfg(test)]
 #[path = "prowlarr_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "prowlarr_answer_tests.rs"]
+mod answer_tests;

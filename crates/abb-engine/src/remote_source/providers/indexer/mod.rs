@@ -118,7 +118,7 @@ impl IndexerProvider {
             Ok(outcome) if outcome.accepted => "handoff_confirmed",
             Ok(outcome) if outcome.unconfirmed => "unconfirmed",
             Ok(_) => "rejected",
-            Err(_) => "unconfirmed",
+            Err(_) => "failed",
         };
         log::info!(
             "remote_source indexer_grab request_id={} stage=complete outcome={} elapsed_ms={}",
@@ -156,6 +156,7 @@ fn map_grab_outcome(outcome: prowlarr::ProwlarrGrabOutcome) -> RemoteReleaseGrab
     RemoteReleaseGrabResponse {
         provider_id: ProviderId::Indexer,
         accepted: outcome.accepted,
+        unconfirmed: outcome.unconfirmed,
         message: outcome.message,
         diagnostics: outcome.diagnostics,
     }

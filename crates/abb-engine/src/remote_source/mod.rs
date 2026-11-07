@@ -262,6 +262,7 @@ impl RemoteSourceRuntime {
             return Ok(types::RemoteReleaseGrabResponse {
                 provider_id: RemoteProviderId::Indexer,
                 accepted: true,
+                unconfirmed: false,
                 message: "Already sent to downloader.".to_string(),
                 diagnostics: Vec::new(),
             });

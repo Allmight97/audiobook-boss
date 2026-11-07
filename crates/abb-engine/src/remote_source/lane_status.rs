@@ -58,6 +58,19 @@ pub(super) fn indexer_message(remote: &RemoteUiSnapshot) -> String {
     with_connected_note(status, remote)
 }
 
+pub(super) fn grab_batch_line(sent: usize, failed: usize, unconfirmed: usize) -> String {
+    let mut line = format!("{sent} releases sent.");
+    if failed > 0 {
+        line.push_str(&format!(" {failed} failed; retry their rows."));
+    }
+    if unconfirmed > 0 {
+        line.push_str(&format!(
+            " {unconfirmed} not confirmed; check your downloader before you retry."
+        ));
+    }
+    line
+}
+
 pub(super) fn settled_job_line(job: &AcquisitionJob) -> String {
     let diagnostics = unique_diagnostic_message(&job.diagnostics);
     let outcome = match &job.handoff {

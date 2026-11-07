@@ -154,6 +154,7 @@ pub struct RemoteReleaseGrabRequest {
 pub struct RemoteReleaseGrabResponse {
     pub provider_id: ProviderId,
     pub accepted: bool,
+    pub unconfirmed: bool,
     pub message: String,
     pub diagnostics: Vec<RemoteSourceDiagnostic>,
 }
