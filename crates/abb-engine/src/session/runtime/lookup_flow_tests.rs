@@ -733,3 +733,28 @@ async fn lookup_cover_reply_cannot_pull_the_selection_back_to_an_earlier_title()
     assert_eq!(rig.title_shown(), "BETA");
     assert!(rig.pending("alpha").is_none());
 }
+
+#[tokio::test]
+async fn an_apply_that_names_a_stale_list_or_a_missing_result_is_superseded_and_changes_nothing() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.answer_next_search(Ok(found(&["Found"])));
+    rig.send(SessionIntent::LookupOpen).await;
+    let before = rig.lookup();
+
+    let stale = rig
+        .send(SessionIntent::LookupApply {
+            index: 0,
+            revision: before.revision + 1,
+        })
+        .await;
+    let missing = rig.send(rig.lookup_apply(before.results.len())).await;
+
+    assert_eq!(stale, SessionOutcome::Superseded);
+    assert_eq!(missing, SessionOutcome::Superseded);
+    let after = rig.lookup();
+    assert_eq!(after.results, before.results);
+    assert_eq!(after.status, before.status);
+    assert_eq!(rig.title_shown(), "ALPHA");
+}

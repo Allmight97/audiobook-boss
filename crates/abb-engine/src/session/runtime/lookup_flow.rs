@@ -160,28 +160,31 @@ impl Session {
     pub(super) fn begin_lookup_apply(&self, index: usize, revision: u64) -> Rest {
         let chosen = self.transition(|state| {
             if state.lookup_revision() != revision {
-                return None;
+                return Err(SessionOutcome::Superseded);
             }
-            let result = state.lookup.results.get(index)?.clone();
+            let Some(result) = state.lookup.results.get(index).cloned() else {
+                return Err(SessionOutcome::Superseded);
+            };
             let Some(title) = state.lookup.current().cloned() else {
                 state.lookup.status = Some(LookupStatus::NoTitleQueued);
-                return None;
+                return Ok(None);
             };
             state.lookup.status = Some(LookupStatus::Applying);
-            Some(ChosenResult {
+            Ok(Some(ChosenResult {
                 result,
                 title,
                 replace_cover: state.lookup.replace_cover,
                 mode: state.lookup.apply_mode,
                 binding: state.binding,
-            })
+            }))
         });
         match chosen {
-            Some(chosen) => Rest::LookupApply {
+            Ok(Some(chosen)) => Rest::LookupApply {
                 request: self.begin_lookup_action(),
                 chosen: Box::new(chosen),
             },
-            None => Rest::Done(SessionOutcome::Applied),
+            Ok(None) => Rest::Done(SessionOutcome::Applied),
+            Err(outcome) => Rest::Done(outcome),
         }
     }
 
