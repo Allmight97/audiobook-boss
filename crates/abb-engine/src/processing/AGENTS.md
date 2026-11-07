@@ -75,15 +75,17 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 - The registry owns concurrency permits, active-job state, and the
   max-concurrent capability facts settings expose
   (`MaxConcurrentJobsCapabilities`).
-- Register each job through `register_job_with_external_cancel` before work
-  starts. It records the job and acquires its
-  permit before execution. `BatchScheduler` keeps result order deterministic,
+- Register each encode through `register_job_with_external_cancel` before work
+  starts. It records the job and acquires its permit before execution. A
+  metadata Save is a tag write, not an encode: it registers through
+  `register_job_without_permit`, so it counts as active work and never waits
+  behind export slots. `BatchScheduler` keeps result order deterministic,
   keeps issuing queued work after per-task errors, and gives every scheduled
   index a terminal result. A queued title whose cancel flag is set starts out
   of turn, so it ends within the cancel poll and never behind the titles ahead.
 - Presence in the registry map is the job's only lifecycle state: tracked from
-  the moment it waits for a permit; `complete_job` and `fail_job` remove it on
-  every terminal path; a failed, cancelled, or dropped admission removes
+  the moment it registers (a permit job, while it waits for the permit);
+  `complete_job` and `fail_job` remove it on every terminal path; a failed, cancelled, or dropped admission removes
   itself.
 - `update_max_concurrent` works only while the registry is idle: no job
   registered and no `ActiveRun` held. WorkRuntime holds one `ActiveRun` from an

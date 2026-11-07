@@ -101,3 +101,22 @@ async fn dropped_admission_does_not_block_reconfiguration() {
         2
     );
 }
+
+#[tokio::test]
+async fn a_job_without_a_permit_is_tracked_but_never_waits_or_takes_a_slot() {
+    let registry = JobRegistry::new(1);
+    let (held_job, held_permit) = registry.register_job().await.expect("hold the only slot");
+
+    let tagging = registry.register_job_without_permit();
+
+    assert_eq!(registry.active_jobs(), 2);
+    assert!(registry.update_max_concurrent(2).await.is_err());
+    registry.complete_job(held_job).await;
+    assert!(
+        registry.update_max_concurrent(2).await.is_err(),
+        "the permit-free job still counts as active"
+    );
+    registry.fail_job(tagging, "tag write failed".into()).await;
+    drop(held_permit);
+    assert_eq!(registry.update_max_concurrent(2).await.expect("idle"), 2);
+}

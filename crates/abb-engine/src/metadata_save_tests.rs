@@ -89,69 +89,59 @@ async fn metadata_batch_cancels_remaining_items_between_writes() {
         .all(|event| event.stage == EventStage::Cancelled));
 }
 
+struct RegistryProbe {
+    registry: crate::ManagedJobRegistry,
+    active_jobs: std::sync::Mutex<Vec<usize>>,
+}
+
+impl crate::EventSink for RegistryProbe {
+    fn emit(&self, _event: crate::EngineEvent) {
+        self.active_jobs
+            .lock()
+            .expect("probe lock")
+            .push(self.registry.active_jobs());
+    }
+}
+
 #[tokio::test]
-async fn a_save_cancelled_while_waiting_for_a_job_slot_reports_each_file_cancelled() {
-    let host = Host::new(
-        std::sync::Arc::new(crate::DiscardEvents),
-        crate::power::PowerManager::default(),
-    );
-    let runtime = WorkRuntime::new(crate::engine::EngineTasks::default());
+async fn a_save_runs_while_every_export_slot_is_held_and_stays_a_tracked_job() {
     let registry: crate::ManagedJobRegistry =
         std::sync::Arc::new(crate::processing::JobRegistry::new(1));
-    let (_held_job, held_slot) = registry.register_job().await.expect("hold the only slot");
-    let items = vec![
-        MetadataSaveRequest {
-            file_path: "/books/a.m4b".to_string(),
-            metadata_patch: title_patch("A"),
-        },
-        MetadataSaveRequest {
-            file_path: "/books/b.m4b".to_string(),
-            metadata_patch: title_patch("B"),
-        },
-    ];
+    let probe = std::sync::Arc::new(RegistryProbe {
+        registry: registry.clone(),
+        active_jobs: Default::default(),
+    });
+    let host = Host::new(probe.clone(), crate::power::PowerManager::default());
+    let runtime = WorkRuntime::new(crate::engine::EngineTasks::default());
+    let (held_job, held_slot) = registry.register_job().await.expect("hold the only slot");
+    registry.complete_job(held_job).await;
+    let items = vec![MetadataSaveRequest {
+        file_path: "/definitely/missing.m4b".to_string(),
+        metadata_patch: title_patch("A"),
+    }];
 
-    let cancel_when_waiting = async {
-        let operation_id = tokio::time::timeout(std::time::Duration::from_secs(10), async {
-            loop {
-                let listed = runtime.list_operations().expect("list operations");
-                if let Some(operation) = listed.operations.first() {
-                    return operation.operation_id.clone();
-                }
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("the save registers its operation");
-        runtime
-            .cancel_operation(&host, operation_id, None)
-            .expect("cancel the waiting save");
-    };
-    let (saved, ()) = tokio::time::timeout(std::time::Duration::from_secs(10), async {
-        tokio::join!(
-            save_metadata_batch(&host, &runtime, &registry, items),
-            cancel_when_waiting
-        )
-    })
+    let saved = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        save_metadata_batch(&host, &runtime, &registry, items),
+    )
     .await
-    .expect("the cancelled save finishes");
-    drop(held_slot);
+    .expect("a save does not wait for an export slot")
+    .expect("the save reports its files");
 
-    let result = saved.expect("a cancelled save still reports its files");
-    assert_eq!(result.summary.total, 2);
-    assert_eq!(result.summary.succeeded, 0);
-    assert_eq!(result.summary.failed, 0);
-    assert_eq!(result.summary.cancelled, 2);
-    assert_eq!(result.results[0].input_index, 0);
-    assert_eq!(result.results[0].file_path, "/books/a.m4b");
-    assert_eq!(result.results[1].input_index, 1);
-    assert_eq!(result.results[1].file_path, "/books/b.m4b");
-    assert!(result
-        .results
-        .iter()
-        .all(|entry| entry.status == MetadataSaveResultStatus::Cancelled));
-    let listed = runtime.list_operations().expect("list operations");
+    assert_eq!(saved.summary.total, 1);
+    assert_eq!(saved.summary.failed, 1);
+    let seen = probe.active_jobs.lock().expect("probe lock").clone();
+    assert!(
+        seen.contains(&1),
+        "the running save is a tracked job: {seen:?}"
+    );
+    assert_eq!(registry.active_jobs(), 0);
+    drop(held_slot);
     assert_eq!(
-        listed.operations[0].status,
-        crate::work_runtime::WorkOperationStatus::Cancelled
+        registry
+            .update_max_concurrent(2)
+            .await
+            .expect("the finished save is no longer tracked"),
+        2
     );
 }

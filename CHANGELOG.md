@@ -12,6 +12,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   to select one title.
 - A wrong Audible handoff path can be corrected and tried again, without starting the browser
   sign-in over. ABB shows the reason and keeps waiting.
+- Saving tags no longer waits for a running export to free a slot. A Save used to lock title
+  selection and Start until an export finished.
 
 ## [1.18.0] - 2026-11-06
 

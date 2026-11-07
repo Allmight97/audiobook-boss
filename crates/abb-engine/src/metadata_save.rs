@@ -124,19 +124,7 @@ pub(crate) async fn save_metadata_batch(
     let file_paths: Vec<String> = items.iter().map(|item| item.file_path.clone()).collect();
     let (operation_id, cancel_flag) = runtime.begin_metadata_save_operation(host, &file_paths)?;
 
-    let (job_id, _permit) = match registry
-        .register_job_with_external_cancel(Some(cancel_flag.clone()))
-        .await
-    {
-        Ok(registration) => registration,
-        Err(error) => {
-            runtime.finish_metadata_save_operation(host, &operation_id, Err(&error))?;
-            if matches!(error, AppError::Cancellation(_)) {
-                return Ok(cancelled_metadata_save_batch(items));
-            }
-            return Err(error);
-        }
-    };
+    let job_id = registry.register_job_without_permit();
     let _active_work = host.begin_active_work();
     let cancellation = CancellationChecker::new(Some(cancel_flag));
 
@@ -168,21 +156,6 @@ pub(crate) async fn save_metadata_batch(
             Err(error)
         }
     }
-}
-
-fn cancelled_metadata_save_batch(items: Vec<MetadataSaveRequest>) -> MetadataSaveBatchResult {
-    MetadataSaveBatchResult::new(
-        items
-            .into_iter()
-            .enumerate()
-            .map(|(input_index, item)| MetadataSaveResultEntry {
-                input_index,
-                file_path: item.file_path,
-                status: MetadataSaveResultStatus::Cancelled,
-                rewrite: None,
-            })
-            .collect(),
-    )
 }
 
 async fn save_metadata_batch_impl<F>(
