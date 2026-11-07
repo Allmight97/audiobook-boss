@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use super::audio::{AudioDefaults, AudioRefusal, AudioSnapshot};
 use super::exports::{Exports, OutputEdits};
-use super::lookup::{LookupSnapshot, LookupState};
+use super::lookup::LookupSnapshot;
 use super::metadata_form::{MetadataForm, MetadataFormSnapshot};
 use super::output::{OutputPlan, OutputSnapshot};
 use super::plans::Plans;
@@ -17,6 +17,7 @@ use crate::metadata::{AudiobookMetadata, MetadataIntentPatch};
 
 mod bound_form;
 mod cover;
+mod lookup;
 mod save;
 mod snapshots;
 mod submitting;
@@ -25,6 +26,8 @@ mod write_queue;
 pub(crate) use bound_form::GateBlock;
 use bound_form::{BoundTitle, StageOutcome};
 use cover::{Cover, SourceCovers};
+use lookup::LookupState;
+pub(crate) use lookup::{ApplyStart, ChosenResult, NextTitle, QueuedTitle};
 pub(crate) use save::SavePlan;
 use snapshots::Parts;
 use submitting::Submitting;

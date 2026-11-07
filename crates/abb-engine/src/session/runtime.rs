@@ -6,13 +6,12 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use tokio_util::sync::CancellationToken;
 
 use cover_flow::CoverSource;
-use lookup_flow::ChosenResult;
 
 use super::exports::ExportLink;
 use super::intent::{SessionIntent, SessionOutcome, SessionReply};
 use super::lookup::{QueueStep, RESULT_LIMIT};
 use super::plans::PlanTicket;
-use super::state::{GateBlock, SavePlan, SessionState, SessionUpdate};
+use super::state::{ChosenResult, GateBlock, SavePlan, SessionState, SessionUpdate};
 use super::submission::{Draft, SubmitRefusal};
 use super::tag_cache::ReadTicket;
 use super::working_set::{SelectionModifiers, WorkingSet};
@@ -477,29 +476,14 @@ impl Session {
 
             I::LookupOpen => self.begin_lookup_open(),
             I::LookupClose => self.begin_lookup_close(),
-            I::LookupSearch => Rest::LookupSearch {
-                request: self.begin_lookup_action(),
-            },
+            I::LookupSearch => self.begin_lookup_search(),
             I::LookupApply { index, revision } => self.begin_lookup_apply(index, revision),
-            I::LookupSkip => Rest::LookupAdvance {
-                request: self.begin_lookup_action(),
-                step: QueueStep::Skipped,
-            },
-            I::LookupSetTitleQuery { value } => {
-                self.edit_lookup_search(|lookup| lookup.title_query = value)
-            }
-            I::LookupSetAuthorQuery { value } => {
-                self.edit_lookup_search(|lookup| lookup.author_query = value)
-            }
-            I::LookupSetSource { source } => {
-                self.edit_lookup_search(|lookup| lookup.source = source)
-            }
-            I::LookupSetApplyMode { mode } => {
-                self.edit_lookup_setting(|lookup| lookup.apply_mode = mode)
-            }
-            I::LookupSetReplaceCover { replace } => {
-                self.edit_lookup_setting(|lookup| lookup.replace_cover = replace)
-            }
+            I::LookupSkip => self.begin_lookup_skip(),
+            I::LookupSetTitleQuery { value } => self.edit_lookup_title_query(value),
+            I::LookupSetAuthorQuery { value } => self.edit_lookup_author_query(value),
+            I::LookupSetSource { source } => self.edit_lookup_source(source),
+            I::LookupSetApplyMode { mode } => self.edit_lookup_apply_mode(mode),
+            I::LookupSetReplaceCover { replace } => self.edit_lookup_replace_cover(replace),
         }
     }
 

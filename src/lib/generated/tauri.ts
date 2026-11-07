@@ -542,7 +542,7 @@ partial: boolean; after: QueueStep | null } | { kind: "searchFailed"; after: Que
 /**  The query or source changed, or the selection moved, while an apply ran, so it was dropped. */
 { kind: "applySuperseded" } |
 /**  The title's pending edits were not accepted, so the result was not applied. */
-{ kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } | { kind: "nextTitleRejected"; coverFailed: boolean } | { kind: "failed" };
+{ kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } | { kind: "nextTitleRejected"; coverFailed: boolean };
 
 export type MaxConcurrentJobsCapabilities = {
 	autoEffective: number,

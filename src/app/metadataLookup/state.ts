@@ -57,7 +57,6 @@ const FIXED_STATUS: Record<FixedKind, Status> = {
 	applyRejected: error(
 		'Could not apply metadata to the selected file. Review pending edits and try again.',
 	),
-	failed: error('Metadata lookup failed. Check console and try again.'),
 };
 
 function statusOf(status: LookupStatus | null): Status {

@@ -88,7 +88,6 @@ pub enum LookupStatus {
     NextTitleRejected {
         cover_failed: bool,
     },
-    Failed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -115,106 +114,6 @@ pub struct LookupSnapshot {
     pub results: Vec<OnlineMetadataResult>,
     pub is_queue_mode: bool,
     pub has_searched: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct QueuedTitle {
-    pub(crate) title_id: String,
-    pub(crate) path: PathBuf,
-    pub(crate) label: String,
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct LookupState {
-    pub(crate) open: bool,
-    pub(crate) title_query: String,
-    pub(crate) author_query: String,
-    pub(crate) source: LookupSource,
-    pub(crate) apply_mode: LookupApplyMode,
-    pub(crate) replace_cover: bool,
-    pub(crate) status: Option<LookupStatus>,
-    pub(crate) queue: Vec<QueuedTitle>,
-    pub(crate) index: usize,
-    pub(crate) results: Vec<OnlineMetadataResult>,
-    pub(crate) has_searched: bool,
-    /// Identifies the lookup action in flight; a newer action supersedes it.
-    pub(crate) request: u64,
-}
-
-impl LookupState {
-    pub(crate) fn snapshot(&self, revision: u64) -> LookupSnapshot {
-        LookupSnapshot {
-            revision,
-            open: self.open,
-            title_query: self.title_query.clone(),
-            author_query: self.author_query.clone(),
-            source: self.source,
-            apply_mode: self.apply_mode,
-            replace_cover: self.replace_cover,
-            status: self.status.clone(),
-            queue_position: self.current().map(|title| LookupQueuePosition {
-                index: self.index,
-                total: self.queue.len(),
-                path: title.path.clone(),
-                label: title.label.clone(),
-            }),
-            results: self
-                .results
-                .iter()
-                .map(|result| OnlineMetadataResult {
-                    cover: result
-                        .cover_url
-                        .as_deref()
-                        .map(super::cover_address::remote),
-                    ..result.clone()
-                })
-                .collect(),
-            is_queue_mode: self.queue.len() > 1,
-            has_searched: self.has_searched,
-        }
-    }
-
-    pub(crate) fn current(&self) -> Option<&QueuedTitle> {
-        self.queue.get(self.index)
-    }
-
-    pub(crate) fn open(&mut self, queue: Vec<QueuedTitle>, first: Option<&AudiobookMetadata>) {
-        self.open = true;
-        self.queue = queue;
-        self.index = 0;
-        self.apply_mode = if self.queue.len() > 1 {
-            LookupApplyMode::Queue
-        } else {
-            LookupApplyMode::Current
-        };
-        self.replace_cover = false;
-        self.reset_results();
-        match self.queue.first() {
-            Some(title) => {
-                self.title_query = title_query(first, &title.path);
-                self.author_query = author_query(first);
-                self.status = None;
-            }
-            None => {
-                self.title_query.clear();
-                self.author_query.clear();
-                self.status = Some(LookupStatus::NoValidTitle);
-            }
-        }
-    }
-
-    pub(crate) fn reset_results(&mut self) {
-        self.results.clear();
-        self.has_searched = false;
-    }
-
-    pub(crate) fn search_query(&self) -> String {
-        [self.title_query.trim(), self.author_query.trim()]
-            .into_iter()
-            .filter(|part| !part.is_empty())
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
 }
 
 fn is_track_like(title: &str) -> bool {

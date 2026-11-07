@@ -88,6 +88,7 @@ one host attachment.
     Its fields are private; `save.rs` and `submitting.rs` ask it.
   - `submitting.rs`: a submission in flight, collision review, restart answers.
   - `cover.rs`: the cover on screen and each source's cover address.
+  - `lookup.rs`: the lookup's status, queue, and supersession.
   - `title_audio.rs`: each title's audio choice and background plan.
   - `snapshots.rs`: the published parts and their revisions.
   Fields shared across children (`status`, `form`, `bound`, `submitting`,
@@ -259,8 +260,10 @@ one host attachment.
   cannot be read is not listed at all (`HandoffRefusal::ImportFailed`), so a
   title never lists without one of its parts.
 - **Lookup.** A new lookup action supersedes the one in flight; a late search,
-  cover, or selection result changes nothing. Editing the query, author, source,
-  apply mode, or cover-replace choice supersedes a search still running. Apply
+  cover, or selection result changes nothing. Open, close, search, skip, apply,
+  and editing the query, author, or source each supersede it; changing the apply
+  mode or the cover-replace choice does not. `state/lookup.rs` owns each of
+  these transitions. Apply
   names the lookup part's revision; a mismatch changes nothing. A result applies
   only to the queued title while it is the one title both selected and bound.
   Applied values are form edits and pass the draft gate like any other.

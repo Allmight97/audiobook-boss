@@ -137,10 +137,7 @@ impl SessionState {
     }
 
     pub(crate) fn lookup_offers_cover(&self, url: &str) -> bool {
-        self.lookup
-            .results
-            .iter()
-            .any(|result| result.cover_url.as_deref() == Some(url))
+        self.lookup.offers_cover(url)
     }
 
     pub(crate) fn lists_source(&self, path: &std::path::Path) -> bool {

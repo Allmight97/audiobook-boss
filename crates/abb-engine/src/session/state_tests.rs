@@ -7,7 +7,6 @@ use crate::audio::{AudioFile, AudioIntent, TitleAudioRequest};
 use crate::errors::AppError;
 use crate::metadata::PatchOp;
 use crate::session::cover_address::{tests::host_request, CoverRequest};
-use crate::session::lookup::QueuedTitle;
 use crate::session::metadata_form::{FieldAction, FieldSnapshot, MetadataField, SeriesPartWarning};
 use crate::session::staged::tests::exported;
 use crate::session::submission::{SubmissionStatus, SubmitRefusal};
@@ -341,6 +340,9 @@ mod bound_form;
 
 #[path = "state/save_tests.rs"]
 mod save;
+
+#[path = "state/lookup_tests.rs"]
+mod lookup;
 
 #[path = "state/sequence_tests.rs"]
 mod sequence;

@@ -2,10 +2,11 @@ use std::collections::HashSet;
 
 use super::super::audio::{AudioDefaults, AudioSnapshot};
 use super::super::exports::RestartOffer;
-use super::super::lookup::{LookupSnapshot, LookupState};
+use super::super::lookup::LookupSnapshot;
 use super::super::metadata_form::{MetadataField, MetadataForm};
 use super::super::output::{OutputPlan, OutputPreview, OutputSnapshot};
 use super::super::working_set::{SelectionSnapshot, TitlesSnapshot, WorkingSet};
+use super::lookup::LookupState;
 use super::{CoverSnapshot, MetadataSnapshot, SessionState, SessionUpdate, TagPreview};
 use crate::audio::{AudioFile, TitleAudioRequest};
 use crate::metadata::{processing_album_sort, AudiobookMetadata};
