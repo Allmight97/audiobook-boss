@@ -45,11 +45,12 @@ session files, Supplemental Assets, and staging cleanup.
   Grab logging correlates start, HTTP response, and outcome with a request ID
   and keeps credentials, release GUIDs/URLs, and raw response bodies out of the
   entries. Why: Prowlarr's error text can hold indexer download URLs that carry
-  a tracker passkey. A failed grab logs only its status and the body's JSON
-  `message`, cut to 200 characters with URLs replaced; its row shows one line
-  naming the side that is down. Release detail URLs are optional
-  source-provided HTTP(S) links without embedded credentials, never inferred
-  from a release GUID.
+  a tracker passkey. A failed Prowlarr reply (grab, search, connection test)
+  shows or logs only its status and the body's JSON `message`, cut to 200
+  characters with URLs replaced; a non-JSON body gives the status only. A
+  failed grab's row shows one line naming the side that is down. Release
+  detail URLs are optional source-provided HTTP(S) links without embedded
+  credentials, never inferred from a release GUID.
 - The Indexer URL and categories are App Settings' `IndexerConnection`, whose
   `validate` rejects embedded credentials on save and draft testing.
   `remote_source` reads them with `SettingsRuntime::indexer_connection` and

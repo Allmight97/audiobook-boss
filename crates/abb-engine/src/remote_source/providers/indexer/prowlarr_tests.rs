@@ -696,7 +696,7 @@ fn a_failed_grab_logs_only_a_capped_url_free_message() {
         ("", None),
     ];
     for (body, expected) in cases {
-        let logged = failure_message_for_log(body);
+        let logged = safe_failure_message(body);
         assert_eq!(logged, expected, "{body}");
         assert!(
             logged
