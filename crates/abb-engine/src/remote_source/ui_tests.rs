@@ -738,10 +738,82 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
     }
     assert_eq!(runtime.ui_snapshot().selected_title_ids, ["selected"]);
     assert!(completion.finish().await.is_err());
+    let snapshot = runtime.ui_snapshot();
+    assert_eq!(snapshot.auth, RemoteAuthStatus::AwaitingHandoff);
     assert!(matches!(
-        runtime.ui_snapshot().auth,
-        RemoteAuthStatus::Failed { .. }
+        snapshot.account_status,
+        RemoteDraftStatus::Failed { .. }
     ));
+
+    let retry = runtime.ui_begin(RemoteUiIntent::CompleteAuth {
+        response_url_handoff_path: Some(
+            root.path()
+                .join("other-missing-handoff")
+                .to_string_lossy()
+                .into_owned(),
+        ),
+    });
+    assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Completing);
+    assert_eq!(
+        runtime.ui_snapshot().account_status,
+        RemoteDraftStatus::Idle
+    );
+    assert!(retry.finish().await.is_err());
+    assert_eq!(
+        runtime.ui_snapshot().auth,
+        RemoteAuthStatus::AwaitingHandoff
+    );
+}
+
+#[test]
+fn a_failed_completion_that_kept_the_pending_sign_in_can_be_retried() {
+    let mut ui = UiState::default();
+    ui.snapshot.auth = RemoteAuthStatus::AwaitingHandoff;
+    ui.begin(RemoteUiIntent::CompleteAuth {
+        response_url_handoff_path: Some("/missing".into()),
+    })
+    .expect("handoff accepted");
+
+    let refresh = ui.auth_completed(
+        &Err(AppError::InvalidInput("Unreadable path.".into())),
+        true,
+    );
+
+    assert_eq!(refresh, None);
+    assert_eq!(ui.snapshot.auth, RemoteAuthStatus::AwaitingHandoff);
+    assert!(matches!(
+        ui.snapshot.account_status,
+        RemoteDraftStatus::Failed { .. }
+    ));
+    assert!(ui.snapshot().audible_message.contains("Unreadable path."));
+    ui.begin(RemoteUiIntent::CompleteAuth {
+        response_url_handoff_path: Some("/good".into()),
+    })
+    .expect("retry admitted");
+    assert_eq!(ui.snapshot.auth, RemoteAuthStatus::Completing);
+    assert_eq!(ui.snapshot.account_status, RemoteDraftStatus::Idle);
+}
+
+#[test]
+fn a_failed_registration_that_took_the_pending_sign_in_stays_failed() {
+    let mut ui = UiState::default();
+    ui.snapshot.auth = RemoteAuthStatus::AwaitingHandoff;
+    ui.begin(RemoteUiIntent::CompleteAuth {
+        response_url_handoff_path: None,
+    })
+    .expect("handoff accepted");
+
+    ui.auth_completed(
+        &Err(AppError::General("Registration refused.".into())),
+        false,
+    );
+
+    assert!(matches!(ui.snapshot.auth, RemoteAuthStatus::Failed { .. }));
+    assert!(ui
+        .begin(RemoteUiIntent::CompleteAuth {
+            response_url_handoff_path: None,
+        })
+        .is_err());
 }
 
 #[tokio::test]
@@ -886,7 +958,7 @@ fn a_refused_sign_in_needs_auth_keeps_the_library_and_survives_an_account_reread
 fn signing_in_again_or_disconnecting_clears_a_refused_sign_in() {
     let mut ui = UiState::default();
     refuse_library_sign_in(&mut ui);
-    ui.auth_completed(&Ok(connected_audible()));
+    ui.auth_completed(&Ok(connected_audible()), false);
     assert_eq!(
         reread_account(&mut ui).status,
         super::super::RemoteAccountStatus::Connected

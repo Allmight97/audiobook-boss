@@ -148,8 +148,9 @@ selection change. Snapshot `terminal` and `settled` facts belong here.
   Disconnect, acquisition, and lane replacement are refused during completion.
   `AUTH_REGISTRATION_TIMEOUT` bounds registration, so a stalled Amazon
   endpoint cannot hold the surface until quit. A handoff path that cannot be
-  read keeps the pending sign-in, so the user can fix the path without a new
-  browser round trip. Shutdown cancels registration before the credential
+  read keeps the pending sign-in: auth returns to AwaitingHandoff with the
+  reason in `account_status`, so the user can fix the path without a new
+  browser round trip. A completion that took the pending sign-in ends Failed. Shutdown cancels registration before the credential
   commit is admitted and awaits an admitted blocking commit. Keychain reads for Indexer search, grab,
   and Test, the Audible library, and acquisition run on a blocking thread the
   caller awaits (`vault_blocking`, rustdoc). None starts once closing. An Indexer key read for Load is dropped at

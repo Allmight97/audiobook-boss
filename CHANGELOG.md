@@ -10,6 +10,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   no longer blocks the next book.
 - A cover no title can take no longer says it loaded. With several titles selected, ABB now says
   to select one title.
+- A wrong Audible handoff path can be corrected and tried again, without starting the browser
+  sign-in over. ABB shows the reason and keeps waiting.
 
 ## [1.18.0] - 2026-11-06
 
