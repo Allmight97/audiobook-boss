@@ -3,6 +3,7 @@ import type { JSX } from '@solidjs/web';
 
 import { formatEtaRemaining } from '../../lib/format/eta';
 import { useAppRuntime } from '../../app/runtime';
+import { fileManagerLabel } from '../../lib/platform';
 import { Progress } from '../foundation';
 import type { ChildJobSnapshot, OperationSnapshot } from '../../lib/generated/tauri';
 import './workCenterView.css';
@@ -43,14 +44,6 @@ function childStatusLabel(child: ChildJobSnapshot): string {
 	if (status === 'skipped') return 'Skipped';
 	if (status === 'cancelled') return 'Cancelled';
 	return 'Failed';
-}
-
-/** Names the host file manager; WebView user agents identify the OS. */
-function revealLabel(): string {
-	const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent;
-	if (agent.includes('Macintosh')) return 'Show in Finder';
-	if (agent.includes('Windows')) return 'Show in File Explorer';
-	return 'Show in Folder';
 }
 
 function canCancelSeparateTitle(operation: OperationSnapshot, child: ChildJobSnapshot): boolean {
@@ -232,7 +225,7 @@ export function WorkCenterView(): JSX.Element {
 															title={child().outputPath ?? undefined}
 															onClick={() => void workOperations.revealOutput(child())}
 														>
-															{revealLabel()}
+															{fileManagerLabel()}
 														</button>
 													</Show>
 												</div>

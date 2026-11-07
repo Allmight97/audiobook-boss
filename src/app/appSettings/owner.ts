@@ -9,6 +9,7 @@ import type {
 	SettingsUnit,
 	StartupBehavior,
 } from '../../lib/generated/tauri';
+import { QUIT_SHORTCUT, runsOnMac } from '../../lib/platform';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { EngineLink } from '../engineLink';
 
@@ -96,17 +97,13 @@ function idleDialog(): DialogProgress {
 	};
 }
 
-function runsOnMac(): boolean {
-	return typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
-}
-
 function describe(error: unknown): string {
 	return toUserMessage(error, { fallback: 'Settings update failed.' });
 }
 
 const UNIT_LABELS: Record<SettingsUnit, string> = {
 	keepAwake: 'keep computer awake while working',
-	pressQuitTwice: 'press ⌘Q twice to quit',
+	pressQuitTwice: `press ${QUIT_SHORTCUT} twice to quit`,
 	jobLimit: 'number of jobs',
 	acquisitionLane: 'default import source',
 	aacDecoder: 'AAC decoder',

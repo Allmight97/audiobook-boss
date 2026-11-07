@@ -95,8 +95,8 @@ without a bullet has none. Engine paths name the owner of the truth.
   through `sendSettings` (their own numbered order); a dialog control's
   failure shows beside that control (`runDialogAction`). The session records
   audio and output defaults and announces them with `settings-update`; views
-  send Settings intents only. `quittingAvailable` is display-only, read from
-  the user agent (macOS only): the Quit shortcut is macOS-only, and bindings
+  send Settings intents only. `quittingAvailable` is display-only, read through
+  `src/lib/platform` (macOS only): the Quit shortcut is macOS-only, and bindings
   and fixtures must be the same on every OS.
 - `encoding` (session AGENTS): `project.ts` disables an option because the
   engine's facts say so. `editFor` turns a control value into an `AudioEdit`;

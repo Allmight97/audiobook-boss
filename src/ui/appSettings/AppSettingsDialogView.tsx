@@ -3,6 +3,7 @@ import type { JSX } from '@solidjs/web';
 
 import type { AcquisitionLane, AppSettings } from '../../lib/generated/tauri';
 import { useAppRuntime } from '../../app/runtime';
+import { QUIT_SHORTCUT } from '../../lib/platform';
 import { Button, Dialog } from '../foundation';
 import { EncoderView } from '../encoderPanel';
 import { SettingsPersistenceNotice } from './SettingsPersistenceNotice';
@@ -313,11 +314,11 @@ export function AppSettingsDialogView(): JSX.Element {
 								disabled={state().quitSaveState === 'saving'}
 								onChange={(event) => void settings.setPressQuitTwice(event.currentTarget.checked)}
 							/>
-							<span class="option-label">Press ⌘Q twice to quit</span>
+							<span class="option-label">Press {QUIT_SHORTCUT} twice to quit</span>
 						</label>
 						<p class="muted-text">
-							The first press shows a reminder, so a stray ⌘Q does not close ABB. If work is
-							running, ABB asks before it quits.
+							The first press shows a reminder, so a stray {QUIT_SHORTCUT} does not close ABB. If
+							work is running, ABB asks before it quits.
 						</p>
 						<Show when={state().quitSaveState === 'error'}>
 							<p

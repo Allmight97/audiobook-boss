@@ -18,6 +18,10 @@ imports). Files in one folder import each other relatively.
   resets its `<select>` to the first option, and a button rebuilt by a progress
   tick between press and release loses the click. File list, lookup, and source
   rows pass none: `engineLink` keeps their object identity (`src/app/AGENTS.md`).
+- Host-OS wording (the Quit shortcut, the file manager name, the multi-select
+  modifier) comes from `src/lib/platform`, which reads the user agent when
+  asked. `check-known-mistakes.ts` rejects the user agent and `⌘Q` elsewhere.
+  ABB builds for macOS and Linux only.
 - A view opens an external link with `tauriClient.openUrl` only for a link the
   user clicked: a release's source page and the Opus help link.
 

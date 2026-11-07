@@ -102,6 +102,16 @@ const RULES: Rule[] = [
 			'renders a cover outside CoverImage, which owns lazy loading, the fade-in, and the broken-image state. Fix: render `<CoverImage>` from src/ui/foundation.',
 	},
 	{
+		appliesTo: (file) =>
+			/^src\/.*\.tsx?$/.test(file) &&
+			!/\.test\.tsx?$/.test(file) &&
+			!file.startsWith('src/lib/platform/'),
+		comment: /^\s*(\/\/|\*|\/\*)/,
+		findIn: (line) => line.match(/navigator\.userAgent|⌘Q/)?.[0] ?? null,
+		message:
+			'words the host OS outside src/lib/platform. Fix: import the helper or constant from src/lib/platform (src/ui/AGENTS.md).',
+	},
+	{
 		appliesTo: SCRIPT_SOURCE,
 		findIn: (line) =>
 			/\boxlint-disable/.test(line) && !line.includes(' -- ') ? 'oxlint-disable' : null,

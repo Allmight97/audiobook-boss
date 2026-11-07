@@ -1,6 +1,7 @@
 import { Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import { useAppRuntime } from '../app/runtime';
+import { QUIT_SHORTCUT } from '../lib/platform';
 import './quitReminder.css';
 
 export function QuitReminder(): JSX.Element {
@@ -8,7 +9,7 @@ export function QuitReminder(): JSX.Element {
 	return (
 		<Show when={engine.quitReminder()}>
 			<div class="quit-reminder" role="status" aria-live="polite">
-				Press ⌘Q again to quit
+				Press {QUIT_SHORTCUT} again to quit
 			</div>
 		</Show>
 	);

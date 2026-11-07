@@ -2,6 +2,7 @@ import { createSignal, For, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
+import { multiSelectClickLabel } from '../../lib/platform';
 import { coverSrc } from '../../lib/tauri/coverSrc';
 
 import type { AcquisitionLane, RemoteRelease, RemoteTitle } from '../../lib/generated/tauri';
@@ -280,10 +281,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							{' '}
 							({remoteSource.hiddenReleaseSelectionCount()} hidden by filter)
 						</Show>
-						<span>
-							{' '}
-							· ⌘-click on Mac or Ctrl-click on Windows/Linux to select multiple releases.
-						</span>
+						<span> · {multiSelectClickLabel()} to select multiple releases.</span>
 					</p>
 				</Show>
 
