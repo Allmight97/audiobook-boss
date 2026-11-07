@@ -46,6 +46,8 @@ mod integration_media_tag_save_tests;
 mod integration_media_tag_snapshot_tests;
 #[path = "integration_output_safety_tests.rs"]
 mod integration_output_safety_tests;
+#[path = "integration_preview_plan_tests.rs"]
+mod integration_preview_plan_tests;
 #[path = "integration_preview_tests.rs"]
 mod integration_preview_tests;
 #[path = "integration_session_desk.rs"]
