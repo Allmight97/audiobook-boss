@@ -232,8 +232,8 @@ impl WorkRuntime {
     }
 
     /// Registers a metadata-save operation, emits it, and marks it running.
-    /// Returns the operation id and the cancel flag the caller wires into the
-    /// job registry so `cancel_operation` reaches the save loop.
+    /// Returns the operation id and the cancel flag `cancel_operation` sets for
+    /// the save loop.
     pub(crate) fn begin_metadata_save_operation(
         &self,
         host: &Host,

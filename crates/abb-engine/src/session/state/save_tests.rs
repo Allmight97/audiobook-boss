@@ -522,7 +522,11 @@ fn a_save_with_nothing_to_write_never_ends_the_save_running_after_it() {
         epoch,
         &paths_of(&running.immediate),
         &running.immediate,
-        MetadataStatus::SaveCancelled,
+        MetadataStatus::SaveFailed {
+            error: crate::errors::AppErrorEnvelope::from(&crate::errors::AppError::General(
+                "write failed".into(),
+            )),
+        },
     );
     assert!(!desk.metadata().save_in_progress);
 }

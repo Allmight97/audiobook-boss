@@ -562,7 +562,7 @@ export type MetadataStatus =
 /**  Local sources an export is still reading; written when it finishes. */
 waiting: number;
 /**  Temporary downloads; never written, their edits go with exports. */
-held: number; outputs: OutputEdits } | { kind: "saveCancelled" } |
+held: number; outputs: OutputEdits } |
 /**
  *  The shown form is not the tags of `label` or of `more` other selected
  *  titles, whose tags could not be read.

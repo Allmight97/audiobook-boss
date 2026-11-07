@@ -249,7 +249,7 @@ describe('metadata owner', () => {
 		await vi.waitFor(() =>
 			expect(app.metadata.view().cover.message).toEqual({
 				kind: 'error',
-				text: 'Select one title to set its cover.',
+				text: 'Select one usable title to set its cover.',
 			}),
 		);
 	});

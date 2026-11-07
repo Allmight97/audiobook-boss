@@ -30,7 +30,7 @@ export function coverNoticeMessage(notice: CoverNotice | null): CoverArtMessage 
 		case 'loadedFromUrl':
 			return { kind: 'success', text: 'Cover art loaded from URL.' };
 		case 'noTitleForCover':
-			return { kind: 'error', text: 'Select one title to set its cover.' };
+			return { kind: 'error', text: 'Select one usable title to set its cover.' };
 		case 'loadFailed':
 			return {
 				kind: 'error',
