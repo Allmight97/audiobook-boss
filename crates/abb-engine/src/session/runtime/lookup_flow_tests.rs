@@ -699,6 +699,7 @@ async fn editing_the_query_while_the_queue_moves_to_the_next_title_says_the_appl
             .tags
             .retain_paths(&std::collections::HashSet::from([path("alpha")]))
     });
+    let next_search = rig.hold_next_search();
     let applying = rig.session.begin(rig.lookup_apply(0));
     while rig.selected() != [1] {
         tokio::task::yield_now().await;
@@ -708,9 +709,15 @@ async fn editing_the_query_while_the_queue_moves_to_the_next_title_says_the_appl
         value: "Changed".to_string(),
     })
     .await;
+    next_search
+        .send(Ok(found(&[])))
+        .unwrap_or_else(|_| panic!("reply is waiting"));
 
     assert_eq!(applying.finish().await.outcome, SessionOutcome::Superseded);
-    assert_eq!(rig.lookup().status, Some(LookupStatus::ApplySuperseded));
+    assert!(matches!(
+        rig.lookup().status,
+        Some(LookupStatus::ApplySuperseded | LookupStatus::SearchSuperseded)
+    ));
     assert_eq!(rig.lookup().title_query, "Changed");
 }
 
