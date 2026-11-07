@@ -1,3 +1,4 @@
+use super::cover_choice::CoverChoice;
 use super::embedded_cover::{cover_error, read_exact_at, MAX_CONTAINER_RECORDS};
 use super::thumbnail::THUMBNAIL_MAX_ENCODED_BYTES;
 use crate::errors::Result;
@@ -20,9 +21,13 @@ struct Element {
     end: u64,
 }
 
+/// Where an attachment's bytes sit in the file.
+type Payload = (u64, u64);
+
 struct Scan<'a> {
     file: &'a mut File,
     records: usize,
+    choice: CoverChoice<Payload>,
 }
 
 impl Scan<'_> {
@@ -93,7 +98,9 @@ impl Scan<'_> {
             .to_owned())
     }
 
-    fn attached_file(&mut self, parent: Element) -> Result<Option<Vec<u8>>> {
+    /// An image attachment: whether its name marks it as the cover, and where
+    /// its bytes are.
+    fn attached_file(&mut self, parent: Element) -> Result<Option<(bool, Payload)>> {
         let mut offset = parent.start;
         let mut name = String::new();
         let mut mime = String::new();
@@ -106,39 +113,42 @@ impl Scan<'_> {
                 _ => {}
             }
         }
-        if !is_cover(&name, &mime) {
+        if !mime.starts_with("image/") {
             return Ok(None);
         }
-        let Some(data) = data else { return Ok(None) };
-        let size = data.end - data.start;
-        if size > THUMBNAIL_MAX_ENCODED_BYTES as u64 {
-            return Err(cover_error(
-                "Matroska cover exceeds the thumbnail input limit",
-            ));
-        }
-        let mut bytes = vec![0; size as usize];
-        read_exact_at(self.file, data.start, &mut bytes, data.end)?;
-        Ok(Some(bytes))
+        Ok(data.map(|data| (is_cover(&name, &mime), (data.start, data.end))))
     }
 
-    fn attachments(&mut self, parent: Element) -> Result<Option<Vec<u8>>> {
+    fn attachments(&mut self, parent: Element) -> Result<Option<Payload>> {
         let mut offset = parent.start;
         while let Some(element) = self.next(&mut offset, parent.end)? {
-            if element.id == 0x61a7 {
-                if let Some(bytes) = self.attached_file(element)? {
-                    return Ok(Some(bytes));
+            if element.id != 0x61a7 {
+                continue;
+            }
+            let Some((is_front, payload)) = self.attached_file(element)? else {
+                continue;
+            };
+            if payload.1 - payload.0 > THUMBNAIL_MAX_ENCODED_BYTES as u64 {
+                if is_front {
+                    return Err(cover_error(
+                        "Matroska cover exceeds the thumbnail input limit",
+                    ));
                 }
+                continue;
+            }
+            if let Some(front) = self.choice.offer(is_front, payload) {
+                return Ok(Some(front));
             }
         }
         Ok(None)
     }
 
-    fn segment(&mut self, parent: Element) -> Result<Option<Vec<u8>>> {
+    fn segment(&mut self, parent: Element) -> Result<Option<Payload>> {
         let mut offset = parent.start;
         while let Some(element) = self.next(&mut offset, parent.end)? {
             if element.id == 0x1941a469 {
-                if let Some(bytes) = self.attachments(element)? {
-                    return Ok(Some(bytes));
+                if let Some(payload) = self.attachments(element)? {
+                    return Ok(Some(payload));
                 }
             }
         }
@@ -146,12 +156,27 @@ impl Scan<'_> {
     }
 }
 
+/// The cover attachment, else the first image attachment.
 pub(super) fn read(file: &mut File, length: u64) -> Result<Option<Vec<u8>>> {
-    let mut scan = Scan { file, records: 0 };
+    let mut scan = Scan {
+        file,
+        records: 0,
+        choice: CoverChoice::default(),
+    };
     let mut offset = 0;
     while let Some(element) = scan.next(&mut offset, length)? {
         if element.id == 0x18538067 {
-            return scan.segment(element);
+            let chosen = match scan.segment(element)? {
+                Some(front) => Some(front),
+                None => std::mem::take(&mut scan.choice).fallback(),
+            };
+            return chosen
+                .map(|(start, end)| {
+                    let mut bytes = vec![0; (end - start) as usize];
+                    read_exact_at(scan.file, start, &mut bytes, end)?;
+                    Ok(bytes)
+                })
+                .transpose();
         }
     }
     Ok(None)

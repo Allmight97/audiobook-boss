@@ -1,4 +1,5 @@
 use super::container::Container;
+use super::cover_choice::CoverChoice;
 use super::field_schema::{comment_key_rank, position_keys, text_keys, KeySet, ALBUM_SORT_KEYS};
 use super::{mp4ameta_bridge, normalize_publication_date, split_series_list, AudiobookMetadata};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
@@ -130,9 +131,29 @@ fn parse_total_value(value: &str) -> Option<u32> {
     value.trim().parse::<u32>().ok()
 }
 
+/// The file's cover by the shared choice (`cover_choice`): FFmpeg names an
+/// ID3 or FLAC front cover in the picture's `comment` tag, and a Matroska
+/// attachment's name and MIME type say whether it is a cover.
 pub(super) fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
-    ictx.streams()
-        .find_map(|stream| attached_pic_bytes(&stream))
+    let mut choice = CoverChoice::default();
+    for stream in ictx.streams() {
+        let Some(bytes) = attached_pic_bytes(&stream) else {
+            continue;
+        };
+        if let Some(front) = choice.offer(is_front_cover(&stream), bytes) {
+            return Some(front);
+        }
+    }
+    choice.fallback()
+}
+
+fn is_front_cover(stream: &ff::format::stream::Stream) -> bool {
+    let tags = stream.metadata();
+    tags.get("comment") == Some("Cover (front)")
+        || super::matroska_cover::is_cover(
+            tags.get("filename").unwrap_or(""),
+            tags.get("mimetype").unwrap_or(""),
+        )
 }
 
 pub(super) fn attached_pic_bytes(stream: &ff::format::stream::Stream) -> Option<Vec<u8>> {

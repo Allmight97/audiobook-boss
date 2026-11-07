@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- An export keeps the cover the app shows. A file with several pictures, such as an MP3, FLAC
+  or MKA with the front cover after another picture, exported the first picture instead of the
+  front cover.
 - A preview of an Opus title now matches the final file's name and container. An M4A Opus
   preview was named `.m4b`, and an MKA Opus preview was written as an MP4 file named `.m4b`.
 

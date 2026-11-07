@@ -51,7 +51,7 @@ as ABB reads it:
   album_sort="Seed Sort A"
   track="(0, None)"
   disk="(1, Some(3))"
-  cover_art="73 bytes sha256 c175e8295a7be547"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
 ID3 frames, in file order:
   TIT2
   TPE1
@@ -137,7 +137,7 @@ as ABB reads it:
   album_sort="Seed Sort A"
   track="(0, None)"
   disk="(1, Some(3))"
-  cover_art="73 bytes sha256 c175e8295a7be547"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
 ID3 frames, in file order:
   TIT2
   TPE1

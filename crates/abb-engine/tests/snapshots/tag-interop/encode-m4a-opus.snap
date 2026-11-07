@@ -172,7 +172,7 @@ streams:
     language="und"
     handler_name="SoundHandler"
   1 video MJPEG Disposition(ATTACHED_PIC)
-    picture 630 bytes sha256 7cdbae51ccf7b3a8
+    picture 1303 bytes sha256 f20e86d37462cf39
 as ABB reads it:
   title="Seed Title"
   artist="Seed Author"
@@ -186,7 +186,7 @@ as ABB reads it:
   series_part="1"
   album_sort="Lower Series 01 - Seed Title"
   disk="(1, Some(3))"
-  cover_art="630 bytes sha256 7cdbae51ccf7b3a8"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
 MP4 atoms, in file order:
   ©nam "Seed Title"
   ©ART "Seed Author"
@@ -199,7 +199,7 @@ MP4 atoms, in file order:
   ©gen "Seed Genre"
   desc "Seed Description"
   stik [2]
-  covr jpeg 630 bytes sha256 7cdbae51ccf7b3a8
+  covr jpeg 1303 bytes sha256 f20e86d37462cf39
   disk [0, 0, 0, 1, 0, 3, 0, 0]
   ----:com.apple.iTunes:series "Lower Series"
   ----:com.apple.iTunes:SERIES "Lower Series"
@@ -318,7 +318,7 @@ streams:
     language="und"
     handler_name="SoundHandler"
   1 video MJPEG Disposition(ATTACHED_PIC)
-    picture 630 bytes sha256 7cdbae51ccf7b3a8
+    picture 1303 bytes sha256 f20e86d37462cf39
 as ABB reads it:
   title="Seed Title"
   artist="Seed Author"
@@ -331,7 +331,7 @@ as ABB reads it:
   series_part="1"
   album_sort="Lower Series 01 - Seed Title"
   disk="(1, Some(3))"
-  cover_art="630 bytes sha256 7cdbae51ccf7b3a8"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
 MP4 atoms, in file order:
   ©nam "Seed Title"
   ©ART "Seed Author"
@@ -343,7 +343,7 @@ MP4 atoms, in file order:
   ©cmt "Seed Comment;Seed Description"
   ©gen "Seed Genre"
   stik [2]
-  covr jpeg 630 bytes sha256 7cdbae51ccf7b3a8
+  covr jpeg 1303 bytes sha256 f20e86d37462cf39
   disk [0, 0, 0, 1, 0, 3, 0, 0]
   ----:com.apple.iTunes:series "Lower Series"
   ----:com.apple.iTunes:SERIES "Lower Series"
@@ -463,7 +463,7 @@ streams:
     language="und"
     handler_name="SoundHandler"
   1 video MJPEG Disposition(ATTACHED_PIC)
-    picture 630 bytes sha256 7cdbae51ccf7b3a8
+    picture 1303 bytes sha256 f20e86d37462cf39
 as ABB reads it:
   title="Seed Title"
   artist="Seed Author"
@@ -477,7 +477,7 @@ as ABB reads it:
   series_part="1"
   album_sort="Lower Series 01 - Seed Title"
   disk="(1, Some(3))"
-  cover_art="630 bytes sha256 7cdbae51ccf7b3a8"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
 MP4 atoms, in file order:
   ©nam "Seed Title"
   ©ART "Seed Author"
@@ -490,7 +490,7 @@ MP4 atoms, in file order:
   ©gen "Seed Genre"
   desc "Seed Description"
   stik [2]
-  covr jpeg 630 bytes sha256 7cdbae51ccf7b3a8
+  covr jpeg 1303 bytes sha256 f20e86d37462cf39
   disk [0, 0, 0, 1, 0, 3, 0, 0]
   ----:com.apple.iTunes:series "Lower Series"
   ----:com.apple.iTunes:SERIES "Lower Series"

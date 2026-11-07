@@ -56,7 +56,7 @@ as ABB reads it:
   album_sort="Lower Series 01 - Seed Title"
   track="(0, None)"
   disk="(1, Some(3))"
-  cover_art="73 bytes sha256 c175e8295a7be547"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
 
 # mka mka-set-all
 handling: preserve

@@ -132,6 +132,13 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Track/disk are read-compatible passthrough fields: the form never edits them,
   `MetadataIntentPatch` carries them only as explicit artifact set/clear intent,
   and full `AudiobookMetadata` writes them when present.
+- One cover choice (`cover_choice`): the front cover (ID3 APIC or FLAC picture
+  type 3; a Matroska attachment whose name `matroska_cover::is_cover` accepts),
+  else the first picture (Matroska: the first image attachment; MP4: the first
+  `covr`). The bounded thumbnail readers and the FFmpeg path (`read_metadata`,
+  passthrough extraction) both use it. Why: an export keeps the cover the app
+  shows. A new reader or container offers its pictures in file order to
+  `CoverChoice`; it adds no rule of its own.
 - Thumbnail ingestion stays allocation-bounded before decode or demux:
   `mp4_covr` bounds MP4 payload, nesting, and atom traversal; `embedded_cover`
   reads bounded ID3/FLAC/WAVE picture records without opening FFmpeg.
@@ -215,7 +222,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   does not model, so an MP4 is remuxed only for a real chapter change. A
   same-container remux carries no cover, so every picture the file holds is
   copied (the first is not a chosen cover); a container change carries the
-  first picture over as the cover.
+  file's cover (the choice above) over.
 
 ## Opus Container Timing
 

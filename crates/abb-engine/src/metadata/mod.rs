@@ -15,6 +15,7 @@ pub(crate) use cue::{
 pub use cue::{ChapterPlan, CueChoice, CueSource, CueStatus};
 mod chapter_count;
 mod cover_art;
+mod cover_choice;
 mod embedded_cover;
 mod ffi;
 mod ffmpeg_dict;

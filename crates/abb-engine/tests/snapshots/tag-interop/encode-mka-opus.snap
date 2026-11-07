@@ -123,7 +123,7 @@ streams:
   1 video MJPEG Disposition(ATTACHED_PIC)
     filename="cover.jpg"
     mimetype="image/jpeg"
-    picture 630 bytes sha256 7cdbae51ccf7b3a8
+    picture 1303 bytes sha256 f20e86d37462cf39
 as ABB reads it:
   title="Seed Title"
   artist="Seed Author"
@@ -137,7 +137,7 @@ as ABB reads it:
   series_part="1"
   album_sort="Lower Series 01 - Seed Title"
   disk="(1, Some(3))"
-  cover_art="630 bytes sha256 7cdbae51ccf7b3a8"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
 
 # mp3 mka-set-all
 handling: encode
@@ -221,7 +221,7 @@ streams:
   1 video MJPEG Disposition(ATTACHED_PIC)
     filename="cover.jpg"
     mimetype="image/jpeg"
-    picture 630 bytes sha256 7cdbae51ccf7b3a8
+    picture 1303 bytes sha256 f20e86d37462cf39
 as ABB reads it:
   title="Seed Title"
   artist="Seed Author"
@@ -234,7 +234,7 @@ as ABB reads it:
   series_part="1"
   album_sort="Lower Series 01 - Seed Title"
   disk="(1, Some(3))"
-  cover_art="630 bytes sha256 7cdbae51ccf7b3a8"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
 
 # flac mka-set-all
 handling: encode
@@ -319,7 +319,7 @@ streams:
   1 video MJPEG Disposition(ATTACHED_PIC)
     filename="cover.jpg"
     mimetype="image/jpeg"
-    picture 630 bytes sha256 7cdbae51ccf7b3a8
+    picture 1303 bytes sha256 f20e86d37462cf39
 as ABB reads it:
   title="Seed Title"
   artist="Seed Author"
@@ -333,7 +333,7 @@ as ABB reads it:
   series_part="1"
   album_sort="Lower Series 01 - Seed Title"
   disk="(1, Some(3))"
-  cover_art="630 bytes sha256 7cdbae51ccf7b3a8"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
 
 # mka mka-set-all
 handling: encode
