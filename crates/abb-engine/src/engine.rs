@@ -269,17 +269,12 @@ impl Engine {
             None
         };
         let accepted = self.inner.tasks.admit(|| {
-            let checkpoint = self.inner.session.defaults_checkpoint();
             let run = self.inner.settings.begin(intent, &self.inner.tasks);
             let engine = self.clone();
             self.inner.tasks.spawn(async move {
                 let reply = run.finish().await;
                 if reset && reply.outcome == SettingsOutcome::Applied {
-                    engine.inner.session.replace_defaults(
-                        &reply.snapshot.startup_defaults,
-                        checkpoint,
-                        reply.snapshot.revision,
-                    );
+                    engine.inner.session.adopt_reset(&reply.snapshot);
                     engine.inner.remote_source.saved_connection_replaced().await;
                 }
                 drop(reset_lease);

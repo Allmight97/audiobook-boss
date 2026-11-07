@@ -1,8 +1,5 @@
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-
 use super::{Rest, Session};
-use crate::app_settings::{PinnedDefaults, SettingsIntent, SettingsOutcome, SettingsRun};
+use crate::app_settings::{PinnedDefaults, SettingsOutcome, SettingsRun, SettingsSnapshot};
 use crate::audio::EncoderSettingsCapabilities;
 use crate::host::EngineEvent;
 use crate::session::audio::AudioDefaults;
@@ -25,59 +22,48 @@ impl Session {
         });
     }
 
-    /// The edit counts a settings Reset compares against, so a default the
-    /// user changed while the Reset ran is kept.
-    pub(crate) fn defaults_checkpoint(&self) -> (u64, u64) {
-        let _state = self.lock();
-        (
-            self.inner.audio_edits.load(Ordering::SeqCst),
-            self.inner.output_edits.load(Ordering::SeqCst),
-        )
-    }
-
-    /// Replaces the defaults and output choices after a settings Reset.
-    /// Loaded titles keep their own audio choices.
-    pub(crate) fn replace_defaults(
-        &self,
-        defaults: &PinnedDefaults,
-        checkpoint: (u64, u64),
-        revision: u64,
-    ) {
+    pub(crate) fn adopt_reset(&self, reset: &SettingsSnapshot) {
         self.transition(|state| {
-            if revision <= self.inner.settings_applied.load(Ordering::SeqCst) {
+            if !state.edits.take_reset(reset.revision) {
                 return;
             }
-            self.inner
-                .settings_applied
-                .store(revision, Ordering::SeqCst);
-            if self.inner.audio_edits.load(Ordering::SeqCst) == checkpoint.0 {
-                state.audio.replace(&defaults.encoder_defaults);
+            let on_screen = state.edits.stamp();
+            if on_screen.audio == reset.applied_edits.audio {
+                state
+                    .audio
+                    .replace(&reset.startup_defaults.encoder_defaults);
             }
-            if self.inner.output_edits.load(Ordering::SeqCst) == checkpoint.1 {
-                state.output = OutputPlan::from_defaults(&defaults.output_defaults);
+            if on_screen.output == reset.applied_edits.output {
+                state.output = OutputPlan::from_defaults(&reset.startup_defaults.output_defaults);
             }
         });
         self.publish();
     }
 
     pub(super) fn edit_output(&self, change: impl FnOnce(&mut OutputPlan)) -> Rest {
-        let defaults = self.transition(|state| {
+        let (defaults, stamp) = self.transition(|state| {
             change(&mut state.output);
-            self.inner.output_edits.fetch_add(1, Ordering::SeqCst);
-            state.output.defaults()
+            let (stamp, _) = state.edits.note_output_edit();
+            (state.output.defaults(), stamp)
         });
-        self.remember_later(remember_output(defaults))
+        Rest::Remember(self.inner.deps.settings.remember_defaults(
+            None,
+            Some(defaults),
+            stamp,
+            &self.inner.deps.tasks,
+        ))
     }
 
     pub(super) fn set_naming_template(&self, template: String) -> Rest {
-        let defaults = self.transition(|state| {
+        let (defaults, stamp, latest) = self.transition(|state| {
             state.output.set_template(template);
-            self.inner.output_edits.fetch_add(1, Ordering::SeqCst);
-            state.output.defaults()
+            let (stamp, latest) = state.edits.note_output_edit();
+            (state.output.defaults(), stamp, latest)
         });
         let run = self.inner.deps.settings.remember_output_after_pause(
             defaults,
-            Arc::clone(&self.inner.output_edits),
+            stamp,
+            latest,
             &self.inner.deps.tasks,
         );
         let host = self.inner.deps.host.clone();
@@ -89,18 +75,17 @@ impl Session {
     }
 
     pub(super) fn set_default_audio(&self, edit: AudioEdit) -> Rest {
-        match self.transition(|state| {
-            let defaults = state.audio.edit(edit);
-            if defaults.is_some() {
-                self.inner.audio_edits.fetch_add(1, Ordering::SeqCst);
-            }
-            defaults
-        }) {
-            Some(defaults) => self.remember_later(SettingsIntent::Remember {
-                encoder_defaults: Some(defaults),
-                output_defaults: None,
-                default_acquisition_lane: None,
-            }),
+        let edited = self.transition(|state| {
+            let defaults = state.audio.edit(edit)?;
+            Some((defaults, state.edits.note_audio_edit()))
+        });
+        match edited {
+            Some((defaults, stamp)) => Rest::Remember(self.inner.deps.settings.remember_defaults(
+                Some(defaults),
+                None,
+                stamp,
+                &self.inner.deps.tasks,
+            )),
             None => Rest::Done(SessionOutcome::Applied),
         }
     }
@@ -115,22 +100,5 @@ impl Session {
             SettingsOutcome::Rejected { error } => SessionOutcome::Rejected { error },
             _ => SessionOutcome::Applied,
         }
-    }
-
-    pub(super) fn remember_later(&self, intent: SettingsIntent) -> Rest {
-        Rest::Remember(
-            self.inner
-                .deps
-                .settings
-                .begin(intent, &self.inner.deps.tasks),
-        )
-    }
-}
-
-fn remember_output(defaults: crate::app_settings::OutputDefaults) -> SettingsIntent {
-    SettingsIntent::Remember {
-        encoder_defaults: None,
-        output_defaults: Some(defaults),
-        default_acquisition_lane: None,
     }
 }

@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use tokio_util::sync::CancellationToken;
 
@@ -80,15 +80,9 @@ struct SessionInner {
     imports: super::import_order::ImportOrder,
     /// The revision the last event carried.
     published: AtomicU64,
-    deferred_writer_running: AtomicBool,
     sources_freed: tokio::sync::Notify,
     list_unlocked: tokio::sync::Notify,
-    sweeping: AtomicBool,
     preview_cancels: Mutex<Vec<CancellationToken>>,
-    /// Advances with every output change; a delayed record checks it.
-    output_edits: Arc<AtomicU64>,
-    audio_edits: AtomicU64,
-    settings_applied: AtomicU64,
 }
 
 struct Bound {
@@ -240,14 +234,9 @@ impl Session {
                 network,
                 imports: super::import_order::ImportOrder::default(),
                 published: AtomicU64::new(0),
-                deferred_writer_running: AtomicBool::new(false),
                 sources_freed: tokio::sync::Notify::new(),
                 list_unlocked: tokio::sync::Notify::new(),
-                sweeping: AtomicBool::new(false),
                 preview_cancels: Mutex::default(),
-                output_edits: Arc::new(AtomicU64::new(0)),
-                audio_edits: AtomicU64::new(0),
-                settings_applied: AtomicU64::new(0),
             }),
         }
     }
@@ -265,7 +254,7 @@ impl Session {
             let value = change(&mut state);
             let tickets = state.take_plan_tickets();
             state.settle();
-            (value, tickets, self.sweep_due(&state))
+            (value, tickets, self.claim_sweep(&mut state))
         };
         if !tickets.is_empty() {
             self.resolve_plans(tickets);

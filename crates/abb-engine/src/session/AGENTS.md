@@ -68,7 +68,8 @@ one host attachment.
   lock, which keeps that order deadlock-free.
 - Reads that gate a removal or a save plan (the staged-download sweep,
   `sources_in_use`) run under the state lock, so no submission reserves a file
-  between the read and the removal or plan. The sweep flag clears under the
+  between the read and the removal or plan. The sweep and the deferred-writer
+  flags live in `SessionState` (`Claim`) and are taken and cleared under the
   same lock; a transition that frees a download afterwards starts the next
   sweep. Waiting writes clear under the state lock, where Save adds them, so a
   new write always finds a writer or starts one.
@@ -195,7 +196,9 @@ one host attachment.
   title that refuses it, or a locked list, changes nothing and sets
   `audio.refusal` until the selection or the lock changes. A defaults edit is
   recorded in the settings; a title edit is not. A settings reset returns the
-  defaults and output choices to the reset settings; loaded titles keep their
+  defaults and output choices to the reset settings, except a part the user
+  changed after the last change settings handled (`DefaultEdits` against the
+  reset snapshot's stamp, `app_settings/AGENTS.md`); loaded titles keep their
   choices. `audio.selection` combines the selected titles: the first one's
   choice, only the options every one accepts, the fields that differ, and what Auto
   resolves to for sample rate and channels: one value, `differs`, or

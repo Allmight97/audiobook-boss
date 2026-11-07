@@ -3,10 +3,11 @@ use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use serde::{Deserialize, Serialize};
 
+use super::edit_stamp::TEMPLATE_PAUSE;
 use super::{
-    storage, AcquisitionLane, AppSettings, AppSettingsPatch, ConcurrencyPreference,
-    EncoderDefaults, IndexerConnection, OutputDefaults, PinnedDefaults, SettingsRecovery,
-    StartupBehavior,
+    storage, AcquisitionLane, AppSettings, AppSettingsPatch, ConcurrencyPreference, EditStamp,
+    EncoderDefaults, IndexerConnection, LatestEdit, OutputDefaults, PinnedDefaults,
+    SettingsRecovery, StartupBehavior,
 };
 use crate::audio::AacDecoder;
 use crate::errors::{AppError, AppErrorEnvelope};
@@ -82,6 +83,8 @@ pub struct SettingsSnapshot {
     /// chose that and has pinned some, otherwise the last used.
     #[serde(skip)]
     pub startup_defaults: PinnedDefaults,
+    #[serde(skip)]
+    pub(crate) applied_edits: EditStamp,
     /// What this launch could not keep from the saved settings. Absent after
     /// the next accepted change.
     pub recovery: Option<SettingsRecovery>,
@@ -120,7 +123,6 @@ struct Inner {
     config_dir: PathBuf,
     jobs: ManagedJobRegistry,
     power: PowerManager,
-    /// What synchronous readers see; replaced only by `apply_to_runtime`.
     current: RwLock<Arc<AppSettings>>,
     state: tokio::sync::Mutex<State>,
     /// Completion of the last accepted intent, independent of host waits.
@@ -130,6 +132,11 @@ struct Inner {
 enum Change {
     Intent(SettingsIntent),
     IndexerConnection(IndexerConnection),
+    Defaults {
+        encoder_defaults: Option<EncoderDefaults>,
+        output_defaults: Option<OutputDefaults>,
+        stamp: EditStamp,
+    },
 }
 
 #[derive(Default)]
@@ -142,6 +149,7 @@ struct State {
     /// The settings file could be neither read nor kept aside; nothing is
     /// saved over it until it is kept or gone.
     unpreserved: bool,
+    applied: EditStamp,
 }
 
 fn startup_defaults(settings: &AppSettings) -> PinnedDefaults {
@@ -255,6 +263,7 @@ impl SettingsRuntime {
                 capabilities: JobRegistry::max_concurrent_jobs_capabilities(),
             },
             startup_defaults: startup_defaults(&state.accepted),
+            applied_edits: state.applied,
             recovery: state.recovery.clone(),
         }
     }
@@ -278,24 +287,38 @@ impl SettingsRuntime {
         self.enqueue(Change::IndexerConnection(connection), None, tasks)
     }
 
+    pub(crate) fn remember_defaults(
+        &self,
+        encoder_defaults: Option<EncoderDefaults>,
+        output_defaults: Option<OutputDefaults>,
+        stamp: EditStamp,
+        tasks: &crate::engine_tasks::EngineTasks,
+    ) -> SettingsRun {
+        self.enqueue(
+            Change::Defaults {
+                encoder_defaults,
+                output_defaults,
+                stamp,
+            },
+            None,
+            tasks,
+        )
+    }
+
     pub(crate) fn remember_output_after_pause(
         &self,
         output: OutputDefaults,
-        latest: Arc<std::sync::atomic::AtomicU64>,
+        stamp: EditStamp,
+        latest: LatestEdit,
         tasks: &crate::engine_tasks::EngineTasks,
     ) -> SettingsRun {
-        let revision = latest.load(std::sync::atomic::Ordering::SeqCst);
         self.enqueue(
-            Change::Intent(SettingsIntent::Remember {
+            Change::Defaults {
                 encoder_defaults: None,
                 output_defaults: Some(output),
-                default_acquisition_lane: None,
-            }),
-            Some((
-                latest,
-                revision,
-                tokio::time::Instant::now() + std::time::Duration::from_millis(400),
-            )),
+                stamp,
+            },
+            Some((latest, tokio::time::Instant::now() + TEMPLATE_PAUSE)),
             tasks,
         )
     }
@@ -303,7 +326,7 @@ impl SettingsRuntime {
     fn enqueue(
         &self,
         change: Change,
-        pause: Option<(Arc<std::sync::atomic::AtomicU64>, u64, tokio::time::Instant)>,
+        pause: Option<(LatestEdit, tokio::time::Instant)>,
         tasks: &crate::engine_tasks::EngineTasks,
     ) -> SettingsRun {
         let (done, next) = tokio::sync::oneshot::channel();
@@ -315,7 +338,7 @@ impl SettingsRuntime {
             .replace(next);
         let settings = self.clone();
         let reply = tasks.spawn(async move {
-            if let Some((_, _, deadline)) = &pause {
+            if let Some((_, deadline)) = &pause {
                 tokio::time::sleep_until(*deadline).await;
             }
             if let Some(previous) = previous {
@@ -325,9 +348,7 @@ impl SettingsRuntime {
                 )]
                 let _ = previous.await;
             }
-            let superseded = pause.is_some_and(|(latest, revision, _)| {
-                latest.load(std::sync::atomic::Ordering::SeqCst) != revision
-            });
+            let superseded = pause.is_some_and(|(latest, _)| !latest.is_current());
             let reply = if superseded {
                 SettingsReply {
                     outcome: SettingsOutcome::Applied,
@@ -353,6 +374,27 @@ impl SettingsRuntime {
         let mut state = self.inner.state.lock().await;
         let outcome = match change {
             Change::Intent(intent) => self.apply(&mut state, intent).await,
+            Change::Defaults {
+                encoder_defaults,
+                output_defaults,
+                stamp,
+            } => {
+                if encoder_defaults.is_some() {
+                    state.applied.audio = state.applied.audio.max(stamp.audio);
+                }
+                if output_defaults.is_some() {
+                    state.applied.output = state.applied.output.max(stamp.output);
+                }
+                self.accept(
+                    &mut state,
+                    AppSettingsPatch {
+                        encoder_defaults,
+                        output_defaults,
+                        ..Default::default()
+                    },
+                )
+                .await
+            }
             Change::IndexerConnection(connection) => {
                 self.accept(
                     &mut state,
@@ -558,6 +600,7 @@ impl SettingsRuntime {
             save_error: None,
             recovery: None,
             unpreserved: state.unpreserved,
+            applied: state.applied,
         };
         self.apply_to_runtime(state);
         self.write(state).await;

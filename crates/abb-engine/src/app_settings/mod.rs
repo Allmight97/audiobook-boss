@@ -1,8 +1,10 @@
+mod edit_stamp;
 mod indexer_connection;
 mod runtime;
 mod storage;
 mod types;
 
+pub(crate) use edit_stamp::{EditStamp, LatestEdit};
 pub(crate) use indexer_connection::normalize_base_url;
 pub use runtime::{
     ConcurrencySnapshot, SettingsIntent, SettingsOutcome, SettingsReply, SettingsSnapshot,

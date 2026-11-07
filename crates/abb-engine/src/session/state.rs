@@ -17,6 +17,7 @@ use crate::metadata::{AudiobookMetadata, MetadataIntentPatch};
 
 mod bound_form;
 mod cover;
+mod default_edits;
 mod lookup;
 mod save;
 mod snapshots;
@@ -26,6 +27,7 @@ mod write_queue;
 pub(crate) use bound_form::GateBlock;
 use bound_form::{BoundTitle, StageOutcome};
 use cover::{Cover, SourceCovers};
+pub(crate) use default_edits::{Claim, DefaultEdits};
 use lookup::LookupState;
 pub(crate) use lookup::{ApplyStart, ChosenResult, NextTitle, QueuedTitle};
 pub(crate) use save::SavePlan;
@@ -162,6 +164,9 @@ pub(crate) struct SessionState {
     pub(crate) lookup: LookupState,
     pub(crate) audio: AudioDefaults,
     pub(crate) output: OutputPlan,
+    pub(crate) edits: DefaultEdits,
+    pub(crate) sweeping: Claim,
+    pub(crate) deferred_writer: Claim,
     pub(crate) preview: super::preview::Preview,
     plans: Plans,
     /// The title and audio-request changes plans were last refreshed for.
@@ -199,6 +204,9 @@ impl Default for SessionState {
             lookup,
             audio: AudioDefaults::default(),
             output: OutputPlan::default(),
+            edits: DefaultEdits::default(),
+            sweeping: Claim::default(),
+            deferred_writer: Claim::default(),
             preview: super::preview::Preview::default(),
             plans: Plans::default(),
             plans_seen: (u64::MAX, u64::MAX),

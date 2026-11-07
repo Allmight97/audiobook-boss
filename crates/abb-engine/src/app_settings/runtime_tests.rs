@@ -591,10 +591,12 @@ async fn a_reset_that_cannot_be_saved_still_applies_and_saves_on_retry() {
 async fn reset_follows_earlier_template_typing_and_preserves_a_later_choice() {
     let rig = start();
     let tasks = crate::engine_tasks::EngineTasks::default();
-    let revision = Arc::new(std::sync::atomic::AtomicU64::new(1));
-    let before =
-        rig.settings
-            .remember_output_after_pause(output_in("/before-reset"), revision, &tasks);
+    let before = rig.settings.remember_output_after_pause(
+        output_in("/before-reset"),
+        EditStamp::default(),
+        LatestEdit(Arc::new(std::sync::atomic::AtomicU64::new(1)), 1),
+        &tasks,
+    );
     let reset = rig.settings.begin(SettingsIntent::Reset, &tasks);
     let after = rig.settings.begin(remember_output("/after-reset"), &tasks);
     after.finish().await;

@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use super::{blocking, Bound, Session};
@@ -83,18 +82,16 @@ impl Session {
         }
     }
 
-    pub(super) fn sweep_due(&self, state: &SessionState) -> bool {
+    pub(super) fn claim_sweep(&self, state: &mut SessionState) -> bool {
         !state.staged.is_empty()
-            && !self.inner.sweeping.load(Ordering::SeqCst)
+            && !state.sweeping.held()
             && !state
                 .removable_staged(&self.inner.deps.work.sources_held(), now())
                 .is_empty()
+            && state.sweeping.take()
     }
 
     pub(super) fn sweep_staged(&self) {
-        if self.inner.sweeping.swap(true, Ordering::SeqCst) {
-            return;
-        }
         let session = self.clone();
         self.inner.deps.tasks.spawn(async move {
             loop {
@@ -102,7 +99,7 @@ impl Session {
                     let held = session.inner.deps.work.sources_held();
                     let jobs = state.begin_staged_removal(&held, now());
                     if jobs.is_empty() {
-                        session.inner.sweeping.store(false, Ordering::SeqCst);
+                        state.sweeping.release();
                     }
                     jobs
                 });

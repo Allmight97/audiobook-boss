@@ -5,7 +5,7 @@ impl Rig {
         tokio::time::timeout(std::time::Duration::from_secs(30), async {
             loop {
                 let removed = self.removed.lock().expect("removed").clone();
-                if !removed.is_empty() && !self.session.inner.sweeping.load(Ordering::SeqCst) {
+                if !removed.is_empty() && !self.session.lock().sweeping.held() {
                     return removed;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;

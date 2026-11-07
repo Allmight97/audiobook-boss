@@ -27,6 +27,15 @@ session records reaches hosts as `EngineEvent::Settings`.
   intents. Template typing reserves its turn immediately and writes after a
   pause only if still latest. Reset follows earlier edits; choices accepted
   afterward remain on screen and on disk even if reset finishes later.
+- The session counts each change to its default audio and output choices
+  (`EditStamp`) under its state lock and sends each save with the stamp it
+  left. Settings keeps the last stamp it handled per part and puts it in the
+  snapshot a Reset returns, hidden from hosts. The session replaces a part
+  with the reset defaults only when its own count equals that stamp, so
+  screen and file agree however the edit's turn and the Reset's turn were
+  ordered. A naming-template save waits `TEMPLATE_PAUSE` inside its reserved
+  turn, so Reset still follows earlier typing, and writes only while its
+  `LatestEdit` is current.
 - The settings in memory are the truth; a write saves them whole and never
   reads the file first. Every change takes effect at once. A failed write
   keeps it in effect, logs it, reports `save_error`, and is written again by

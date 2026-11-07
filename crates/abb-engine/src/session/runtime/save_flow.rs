@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use super::{blocking, Rest, Session};
@@ -62,11 +61,7 @@ impl Session {
     }
 
     fn ensure_deferred_writer(&self) {
-        if self
-            .inner
-            .deferred_writer_running
-            .swap(true, Ordering::SeqCst)
-        {
+        if !self.lock().deferred_writer.take() {
             return;
         }
         let session = self.clone();
@@ -84,9 +79,7 @@ impl Session {
                 let mut state = self.lock();
                 let in_use = self.inner.deps.work.sources_in_use();
                 if !state.has_waiting_writes() {
-                    self.inner
-                        .deferred_writer_running
-                        .store(false, Ordering::SeqCst);
+                    state.deferred_writer.release();
                     return;
                 }
                 state.take_ready_deferred(&in_use)
