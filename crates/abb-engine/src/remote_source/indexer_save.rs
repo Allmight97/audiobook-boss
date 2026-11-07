@@ -1,4 +1,6 @@
-use super::{IndexerWorkSnapshot, RemoteDraftStatus, RemoteUiResult, UiAction, UiState};
+use super::{
+    indexer_lane, IndexerWorkSnapshot, RemoteDraftStatus, RemoteUiResult, UiAction, UiState,
+};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::app_settings::{IndexerConnection, SettingsOutcome, SettingsRun};
@@ -34,7 +36,8 @@ impl Drop for ResetReservation {
         self.ui
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .connection_resetting = false;
+            .indexer
+            .resetting = false;
     }
 }
 
@@ -47,44 +50,38 @@ impl UiState {
 
     pub(super) fn save_connection(&mut self) -> Result<AcceptedSave> {
         self.ensure_draft_usable()?;
-        if self.connection_saving
-            || self.snapshot.indexer.searching
-            || self.snapshot.indexer.grabbing
-        {
-            return Err(AppError::InvalidInput(
-                "Wait for the current Indexer save, search, or grab to finish.".into(),
-            ));
-        }
+        self.indexer
+            .refuse_while_busy(&self.snapshot.indexer, None)?;
         let mut connection = IndexerConnection {
             base_url: Some(self.snapshot.connection.base_url.clone()),
             category_ids: self.snapshot.connection.category_ids.clone(),
         };
         connection.validate()?;
-        if self.api_key.is_some() && connection.base_url.is_none() {
+        if self.indexer.api_key.is_some() && connection.base_url.is_none() {
             return Err(AppError::InvalidInput(
                 "Configure Indexer URL before saving an API key.".into(),
             ));
         }
-        self.connection_saving = true;
-        self.save_request += 1;
-        self.edit_revision += 1;
+        self.indexer.saving = true;
+        self.indexer.save_request += 1;
+        self.indexer.edit_revision += 1;
         self.snapshot.indexer = IndexerWorkSnapshot::default();
-        self.test_request += 1;
+        self.indexer.test_request += 1;
         self.snapshot.connection.test = RemoteDraftStatus::Idle;
         self.snapshot.connection.test_result = None;
         self.snapshot.connection.save = RemoteDraftStatus::Running;
         Ok(AcceptedSave {
-            revision: self.edit_revision,
+            revision: self.indexer.edit_revision,
             connection,
-            api_key: self.api_key.clone(),
+            api_key: self.indexer.api_key.clone(),
         })
     }
 
     fn shows_saved(&mut self, saved: &IndexerConnection, api_key_configured: bool) {
         self.apply_connection(saved);
         self.snapshot.connection.api_key_configured = api_key_configured;
-        self.save_request += 1;
-        self.test_request += 1;
+        self.indexer.save_request += 1;
+        self.indexer.test_request += 1;
     }
 }
 
@@ -113,11 +110,7 @@ impl RemoteSourceRuntime {
             .indexer_turn
             .clone()
             .try_write_owned()
-            .map_err(|_| {
-                AppError::InvalidInput(format!(
-                    "Wait for the current Indexer search, grab, or save to finish before {action}."
-                ))
-            })
+            .map_err(|_| indexer_lane::busy_refusal(Some(action)))
     }
 
     /// Reset replaces the saved connection, so it is refused while the Indexer
@@ -128,16 +121,10 @@ impl RemoteSourceRuntime {
     pub(crate) fn reset_lease(&self) -> Result<ResetReservation> {
         let lease = self.indexer_write_lease("resetting settings")?;
         let mut state = self.ui();
-        if state.connection_saving
-            || state.snapshot.indexer.searching
-            || state.snapshot.indexer.grabbing
-        {
-            return Err(AppError::InvalidInput(
-                "Wait for the current Indexer search, grab, or save to finish before resetting settings."
-                    .into(),
-            ));
-        }
-        state.connection_resetting = true;
+        state
+            .indexer
+            .refuse_while_busy(&state.snapshot.indexer, Some("resetting settings"))?;
+        state.indexer.resetting = true;
         drop(state);
         Ok(ResetReservation {
             ui: Arc::clone(&self.inner.ui),
@@ -182,9 +169,7 @@ impl RemoteSourceRuntime {
                 state.snapshot.connection.api_key_configured = fact;
             }
             if state.snapshot.lane == ProviderId::Indexer {
-                state.account_request += 1;
-                state.snapshot.account_status = RemoteDraftStatus::Running;
-                Some(state.account_request)
+                Some(state.begin_account_read())
             } else {
                 None
             }
@@ -240,11 +225,7 @@ impl RemoteSourceRuntime {
             connection.test_result = None;
             state.snapshot.indexer = IndexerWorkSnapshot::default();
             state.changed();
-            (state.snapshot.lane == ProviderId::Indexer).then(|| {
-                state.account_request += 1;
-                state.snapshot.account_status = RemoteDraftStatus::Running;
-                state.account_request
-            })
+            (state.snapshot.lane == ProviderId::Indexer).then(|| state.begin_account_read())
         };
         self.publish_ui();
         if let Some(request) = refresh {

@@ -248,7 +248,7 @@ async fn an_applied_reset_replaces_the_draft_and_clears_the_key_fact() {
         .expect("edit");
     let requests = {
         let state = runtime.ui();
-        (state.save_request, state.test_request)
+        (state.indexer.save_request, state.indexer.test_request)
     };
     let reply = runtime
         .inner
@@ -270,10 +270,10 @@ async fn an_applied_reset_replaces_the_draft_and_clears_the_key_fact() {
     assert!(!connection.api_key_entered);
     let state = runtime.ui();
     assert_eq!(
-        (state.save_request, state.test_request),
+        (state.indexer.save_request, state.indexer.test_request),
         (requests.0 + 1, requests.1 + 1)
     );
-    assert_eq!(state.api_key, None);
+    assert_eq!(state.indexer.api_key, None);
 }
 
 async fn reset_settings(runtime: &RemoteSourceRuntime) {
@@ -446,7 +446,7 @@ async fn select_both_found_releases(runtime: &RemoteSourceRuntime, url: &str) {
     .expect("lane");
     {
         let mut state = runtime.ui();
-        let request = state.search_request;
+        let request = state.indexer.search_request;
         state.searched(
             request,
             &Ok(RemoteReleaseSearchResponse {
@@ -569,7 +569,7 @@ async fn connection_save_persists_the_accepted_draft_and_invalidates_old_release
         .expect("indexer lane");
     {
         let mut ui = runtime.ui();
-        let request = ui.search_request;
+        let request = ui.indexer.search_request;
         ui.searched(
             request,
             &Ok(RemoteReleaseSearchResponse {
@@ -632,7 +632,7 @@ async fn a_key_read_that_finishes_after_a_save_cannot_overwrite_the_saved_key_fa
         let root = TempDir::new().expect("temp root");
         let runtime = test_runtime(&root);
         let loading = runtime.ui_begin(RemoteUiIntent::LoadConnection);
-        let load_request = runtime.ui().save_request;
+        let load_request = runtime.ui().indexer.save_request;
         save(&runtime, "https://indexer.test", Some("typed-key"))
             .await
             .expect("saved while the key read waits");
@@ -702,7 +702,7 @@ async fn an_admitted_reset_refuses_a_new_search_or_grab_until_it_ends() {
     .expect("lane");
     {
         let mut state = runtime.ui();
-        let request = state.search_request;
+        let request = state.indexer.search_request;
         state.searched(
             request,
             &Ok(RemoteReleaseSearchResponse {

@@ -125,11 +125,16 @@ selection change.
 
 ## Working Remote State
 
-- `ui.rs` owns accepted title/PDF/release choices, normalized connection drafts,
-  request generations, and batch outcomes. Its intent match is routing; effect
-  execution stays in `RemoteUiRun`; `audible_lane.rs` owns sign-in, library, and
-  title and PDF choices; `indexer_save.rs` owns the Indexer Save and Reset
-  effects on the draft. Accepted runs execute on `EngineTasks`
+- `ui.rs` holds the intents, the wire snapshots, and `UiState`. Its intent match
+  is routing; effect execution stays in `RemoteUiRun`. Each lane's private
+  facts, predicates (`is_changing`, `is_busy`, `can_disconnect`), and refusal
+  wording live in one struct: `AudibleLane` (`audible_lane.rs`: sign-in,
+  library, title and PDF choices) and `IndexerLane` (`indexer_lane.rs`:
+  normalized connection drafts, search and grab, batch outcomes);
+  `indexer_save.rs` owns the Indexer Save and Reset effects on the draft. The
+  account read generation is shared: `begin_account_read` and `change_lane`
+  are the only places that start a read or switch lanes, so they bump every
+  generation they must expire. Accepted runs execute on `EngineTasks`
   through the session, whether or not a host awaits the reply.
 - `lane_status.rs` words each lane's status line, called in `UiState::snapshot`
   as `busy` is. `audibleMessage` is a pure ladder over auth, account, library,

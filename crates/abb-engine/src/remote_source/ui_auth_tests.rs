@@ -13,7 +13,7 @@ async fn a_readable_but_wrong_handoff_url_keeps_the_pending_sign_in() {
     assert!(completion.finish().await.is_err());
 
     let snapshot = runtime.ui_snapshot();
-    assert_eq!(snapshot.auth, RemoteAuthStatus::AwaitingHandoff);
+    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::AwaitingHandoff);
     assert!(matches!(
         snapshot.account_status,
         RemoteDraftStatus::Failed { .. }
@@ -23,7 +23,7 @@ async fn a_readable_but_wrong_handoff_url_keeps_the_pending_sign_in() {
 #[test]
 fn a_failed_completion_that_kept_the_pending_sign_in_can_be_retried() {
     let mut ui = UiState::default();
-    ui.snapshot.auth = RemoteAuthStatus::AwaitingHandoff;
+    ui.audible.auth = RemoteAuthStatus::AwaitingHandoff;
     ui.begin(RemoteUiIntent::CompleteAuth {
         response_url_handoff_path: Some("/missing".into()),
     })
@@ -35,7 +35,7 @@ fn a_failed_completion_that_kept_the_pending_sign_in_can_be_retried() {
     );
 
     assert_eq!(refresh, None);
-    assert_eq!(ui.snapshot.auth, RemoteAuthStatus::AwaitingHandoff);
+    assert_eq!(ui.audible.auth, RemoteAuthStatus::AwaitingHandoff);
     assert!(matches!(
         ui.snapshot.account_status,
         RemoteDraftStatus::Failed { .. }
@@ -45,14 +45,14 @@ fn a_failed_completion_that_kept_the_pending_sign_in_can_be_retried() {
         response_url_handoff_path: Some("/good".into()),
     })
     .expect("retry admitted");
-    assert_eq!(ui.snapshot.auth, RemoteAuthStatus::Completing);
+    assert_eq!(ui.audible.auth, RemoteAuthStatus::Completing);
     assert_eq!(ui.snapshot.account_status, RemoteDraftStatus::Idle);
 }
 
 #[test]
 fn a_failed_registration_that_took_the_pending_sign_in_stays_failed() {
     let mut ui = UiState::default();
-    ui.snapshot.auth = RemoteAuthStatus::AwaitingHandoff;
+    ui.audible.auth = RemoteAuthStatus::AwaitingHandoff;
     ui.begin(RemoteUiIntent::CompleteAuth {
         response_url_handoff_path: None,
     })
@@ -63,7 +63,7 @@ fn a_failed_registration_that_took_the_pending_sign_in_stays_failed() {
         false,
     );
 
-    assert!(matches!(ui.snapshot.auth, RemoteAuthStatus::Failed { .. }));
+    assert!(matches!(ui.audible.auth, RemoteAuthStatus::Failed { .. }));
     assert!(ui
         .begin(RemoteUiIntent::CompleteAuth {
             response_url_handoff_path: None,

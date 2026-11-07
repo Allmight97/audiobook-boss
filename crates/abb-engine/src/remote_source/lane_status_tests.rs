@@ -131,14 +131,14 @@ fn a_new_sign_in_replaces_a_settled_job_line() {
     let mut ui = settled_ui();
     ui.begin(RemoteUiIntent::StartAuth).expect("sign-in starts");
     assert_eq!(message(&ui), "Starting Audible authorization.");
-    ui.snapshot.auth = RemoteAuthStatus::AwaitingHandoff;
+    ui.audible.auth = RemoteAuthStatus::AwaitingHandoff;
     assert!(message(&ui).starts_with("Complete Audible authorization in your browser"));
 }
 
 #[test]
 fn completing_a_sign_in_replaces_a_job_that_settled_while_it_waited() {
     let mut ui = UiState::default();
-    ui.snapshot.auth = RemoteAuthStatus::AwaitingHandoff;
+    ui.audible.auth = RemoteAuthStatus::AwaitingHandoff;
     ui.acquisition_changed(imported(1));
     ui.begin(RemoteUiIntent::CompleteAuth {
         response_url_handoff_path: None,
@@ -173,7 +173,7 @@ fn a_sign_in_or_account_failure_outranks_a_settled_job() {
         error: envelope("Account read failed."),
     };
     assert_eq!(message(&ui), "Account read failed.");
-    ui.snapshot.auth = RemoteAuthStatus::Failed {
+    ui.audible.auth = RemoteAuthStatus::Failed {
         error: envelope("Sign-in failed."),
     };
     assert_eq!(message(&ui), "Sign-in failed.");
@@ -192,7 +192,7 @@ fn ui_after_failed_sign_in_and_account_read() -> UiState {
     ui.snapshot.account_status = RemoteDraftStatus::Failed {
         error: envelope("Account read failed."),
     };
-    ui.snapshot.auth = RemoteAuthStatus::Failed {
+    ui.audible.auth = RemoteAuthStatus::Failed {
         error: envelope("Sign-in failed."),
     };
     ui
@@ -204,7 +204,7 @@ fn a_good_library_load_replaces_an_earlier_sign_in_or_account_failure() {
     let request = refresh(&mut ui);
     assert!(ui.library_result(request, &empty_library()));
     assert_eq!(message(&ui), "0 Audible titles loaded.");
-    assert_eq!(ui.snapshot.auth, RemoteAuthStatus::Idle);
+    assert_eq!(ui.audible.auth, RemoteAuthStatus::Idle);
     assert_eq!(ui.snapshot.account_status, RemoteDraftStatus::Idle);
 }
 
@@ -291,21 +291,21 @@ fn audible_idle_rungs_keep_their_order_and_the_connected_note() {
     let mut ui = UiState::default();
     ui.snapshot.account = connected(ProviderId::Audible, WARNING);
     assert_eq!(message(&ui), WARNING);
-    ui.snapshot.library_status = RemoteDraftStatus::Succeeded;
+    ui.audible.library_status = RemoteDraftStatus::Succeeded;
     assert_eq!(message(&ui), format!("0 Audible titles loaded. {WARNING}"));
     ui.library.diagnostics = vec![diagnostic("Some titles are hidden.")];
     assert_eq!(message(&ui), format!("Some titles are hidden. {WARNING}"));
     ui.snapshot.account_status = RemoteDraftStatus::Running;
     assert_eq!(message(&ui), "Updating connection.");
-    ui.snapshot.auth = RemoteAuthStatus::Completing;
+    ui.audible.auth = RemoteAuthStatus::Completing;
     assert_eq!(message(&ui), "Completing Audible connection.");
 }
 
 #[test]
 fn a_running_connection_update_outranks_a_running_library_load_and_the_handoff_prompt() {
     let mut ui = UiState::default();
-    ui.snapshot.auth = RemoteAuthStatus::AwaitingHandoff;
-    ui.snapshot.library_status = RemoteDraftStatus::Running;
+    ui.audible.auth = RemoteAuthStatus::AwaitingHandoff;
+    ui.audible.library_status = RemoteDraftStatus::Running;
     assert_eq!(message(&ui), "Loading Audible library.");
     ui.snapshot.account_status = RemoteDraftStatus::Running;
     assert_eq!(message(&ui), "Updating connection.");
@@ -330,7 +330,7 @@ fn an_account_that_is_not_connected_still_shows_its_message() {
         message: Some("Connect Audible.".into()),
     });
     assert_eq!(message(&ui), "Connect Audible.");
-    ui.snapshot.library_status = RemoteDraftStatus::Succeeded;
+    ui.audible.library_status = RemoteDraftStatus::Succeeded;
     assert_eq!(message(&ui), "0 Audible titles loaded.");
 }
 
@@ -358,10 +358,10 @@ fn the_indexer_line_carries_its_account_failure_and_connected_note() {
 fn audible_failures_stay_out_of_the_indexer_line() {
     let mut ui = UiState::default();
     ui.snapshot.lane = ProviderId::Indexer;
-    ui.snapshot.auth = RemoteAuthStatus::Failed {
+    ui.audible.auth = RemoteAuthStatus::Failed {
         error: envelope("Audible auth failed"),
     };
-    ui.snapshot.library_status = RemoteDraftStatus::Failed {
+    ui.audible.library_status = RemoteDraftStatus::Failed {
         error: envelope("Audible library failed"),
     };
     ui.snapshot.indexer.message = "Indexer ready".into();

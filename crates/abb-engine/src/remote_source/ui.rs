@@ -4,7 +4,7 @@ use super::{
     RemoteIndexerConnectionUpdate, RemoteRelease, RemoteReleaseGrabRequest,
     RemoteReleaseSearchRequest, RemoteReleaseSearchResponse, RemoteSourceRuntime, RemoteTitle,
 };
-use crate::app_settings::{normalize_base_url, validate_api_key, IndexerConnection};
+use crate::app_settings::IndexerConnection;
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -70,13 +70,16 @@ impl std::fmt::Debug for RemoteUiIntent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum RemoteDraftStatus {
+    #[default]
     Idle,
     Running,
     Succeeded,
-    Failed { error: AppErrorEnvelope },
+    Failed {
+        error: AppErrorEnvelope,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -125,13 +128,16 @@ pub struct IndexerWorkSnapshot {
     pub message: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum RemoteAuthStatus {
+    #[default]
     Idle,
     Starting,
     AwaitingHandoff,
     Completing,
-    Failed { error: AppErrorEnvelope },
+    Failed {
+        error: AppErrorEnvelope,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
@@ -153,10 +159,6 @@ pub struct RemoteUiSnapshot {
     pub account: Option<super::RemoteSourceAccountState>,
     #[serde(skip)]
     pub account_status: RemoteDraftStatus,
-    #[serde(skip)]
-    pub auth: RemoteAuthStatus,
-    #[serde(skip)]
-    pub library_status: RemoteDraftStatus,
     pub selected_title_ids: Vec<String>,
     pub include_pdf_by_title_id: BTreeMap<String, bool>,
     pub indexer: IndexerWorkSnapshot,
@@ -172,23 +174,8 @@ pub(super) struct UiState {
     library: parts::Part<RemoteLibrarySnapshot>,
     acquisition: parts::Part<RemoteAcquisitionSnapshot>,
     account_request: u64,
-    disconnecting: bool,
-    /// Audible refused the saved sign-in; the account shows NeedsAuth until
-    /// a sign-in or disconnect, whatever a later keychain read says.
-    sign_in_rejected: bool,
-    settled_job_line: Option<String>,
-    api_key: Option<String>,
-    url_refusal: Option<AppErrorEnvelope>,
-    key_refusal: Option<AppErrorEnvelope>,
-    edit_revision: u64,
-    connection_loading: bool,
-    connection_loaded: bool,
-    connection_saving: bool,
-    connection_resetting: bool,
-    test_request: u64,
-    search_request: u64,
-    save_request: u64,
-    library_request: u64,
+    audible: AudibleLane,
+    indexer: IndexerLane,
 }
 
 impl Default for UiState {
@@ -203,8 +190,6 @@ impl Default for UiState {
                 ],
                 account: None,
                 account_status: RemoteDraftStatus::Idle,
-                auth: RemoteAuthStatus::Idle,
-                library_status: RemoteDraftStatus::Idle,
                 selected_title_ids: Vec::new(),
                 include_pdf_by_title_id: BTreeMap::new(),
                 indexer: IndexerWorkSnapshot::default(),
@@ -225,21 +210,8 @@ impl Default for UiState {
             library: parts::Part::default(),
             acquisition: parts::Part::default(),
             account_request: 0,
-            disconnecting: false,
-            sign_in_rejected: false,
-            settled_job_line: None,
-            api_key: None,
-            url_refusal: None,
-            key_refusal: None,
-            edit_revision: 0,
-            connection_loading: false,
-            connection_loaded: false,
-            connection_saving: false,
-            connection_resetting: false,
-            test_request: 0,
-            search_request: 0,
-            save_request: 0,
-            library_request: 0,
+            audible: AudibleLane::default(),
+            indexer: IndexerLane::default(),
         }
     }
 }
@@ -251,7 +223,10 @@ impl UiState {
         request: u64,
         result: &Result<super::RemoteSourceAccountState>,
     ) -> bool {
-        if lane != self.snapshot.lane || request != self.account_request || self.disconnecting {
+        if lane != self.snapshot.lane
+            || request != self.account_request
+            || self.audible.disconnecting
+        {
             return false;
         }
         match result {
@@ -270,11 +245,7 @@ impl UiState {
     }
 
     fn accept(&mut self) -> Result<()> {
-        if self.disconnecting {
-            return Err(AppError::InvalidInput(
-                "Wait for disconnect to finish.".into(),
-            ));
-        }
+        self.audible.refuse_while_disconnecting()?;
         self.changed();
         Ok(())
     }
@@ -307,12 +278,12 @@ impl UiState {
             }
             RemoteUiIntent::AcquireSelected => return self.acquire_selected(),
             RemoteUiIntent::LoadConnection => {
-                if self.connection_loaded || self.connection_loading {
+                if self.indexer.loaded || self.indexer.loading {
                     return Ok(UiAction::Done);
                 }
-                self.connection_loading = true;
+                self.indexer.loading = true;
                 return Ok(UiAction::Load {
-                    request: self.save_request,
+                    request: self.indexer.save_request,
                 });
             }
             RemoteUiIntent::EditConnection {
@@ -327,12 +298,12 @@ impl UiState {
             }
             RemoteUiIntent::TestConnection => {
                 self.ensure_draft_usable()?;
-                self.test_request += 1;
+                self.indexer.test_request += 1;
                 self.snapshot.connection.test = RemoteDraftStatus::Running;
                 self.snapshot.connection.test_result = None;
                 return Ok(UiAction::Test {
-                    request: self.test_request,
-                    revision: self.edit_revision,
+                    request: self.indexer.test_request,
+                    revision: self.indexer.edit_revision,
                     update: self.connection_update(),
                 });
             }
@@ -341,320 +312,33 @@ impl UiState {
     }
 
     fn select_lane(&mut self, lane: ProviderId) -> Result<UiAction> {
-        if matches!(
-            self.snapshot.auth,
-            RemoteAuthStatus::Starting | RemoteAuthStatus::Completing
-        ) {
-            return Err(AppError::InvalidInput(
-                "Wait for Audible sign-in to finish.".into(),
-            ));
-        }
+        self.audible.refuse_while_changing()?;
         if self.snapshot.indexer.grabbing {
-            return Err(AppError::InvalidInput(
-                "Wait for the current Indexer grab to finish.".into(),
-            ));
+            return Err(indexer_lane::busy_refusal(None));
         }
         if self.snapshot.lane == lane
             && (self.snapshot.account_status == RemoteDraftStatus::Running
-                || self.snapshot.library_status == RemoteDraftStatus::Running)
+                || self.audible.library_status == RemoteDraftStatus::Running)
         {
             return Ok(UiAction::Done);
         }
+        let request = self.change_lane(lane);
+        Ok(UiAction::Account { lane, request })
+    }
+
+    fn change_lane(&mut self, lane: ProviderId) -> u64 {
         if self.snapshot.lane != lane {
             self.snapshot.account = None;
             self.snapshot.selected_title_ids.clear();
-            self.search_request += 1;
+            self.indexer.search_request += 1;
             self.snapshot.indexer = IndexerWorkSnapshot {
                 searching: self.snapshot.indexer.searching,
                 ..IndexerWorkSnapshot::default()
             };
         }
-        self.library_request += 1;
-        self.snapshot.library_status = RemoteDraftStatus::Idle;
+        self.audible.supersede_library_read();
         self.snapshot.lane = lane;
-        self.snapshot.account_status = RemoteDraftStatus::Running;
-        self.account_request += 1;
-        Ok(UiAction::Account {
-            lane,
-            request: self.account_request,
-        })
-    }
-
-    fn ensure_draft_usable(&self) -> Result<()> {
-        if self.snapshot.connection.draft_error.is_some() {
-            return Err(AppError::InvalidInput(
-                "Correct the Indexer connection details before saving or testing.".into(),
-            ));
-        }
-        Ok(())
-    }
-
-    pub(super) fn clear_draft_refusals(&mut self) {
-        self.url_refusal = None;
-        self.key_refusal = None;
-        self.snapshot.connection.draft_error = None;
-    }
-
-    fn edit_connection(
-        &mut self,
-        base_url: Option<String>,
-        category_ids: Option<Vec<u32>>,
-        api_key: Option<String>,
-    ) -> Result<()> {
-        let mut refusal = None;
-        if let Some(url) = base_url {
-            match normalize_base_url(url) {
-                Ok(url) => {
-                    self.url_refusal = None;
-                    self.snapshot.connection.base_url = url.unwrap_or_default();
-                }
-                Err(error) => {
-                    self.url_refusal = Some(AppErrorEnvelope::from(&error));
-                    refusal = Some(error);
-                }
-            }
-        }
-        if let Some(key) = api_key {
-            match validate_api_key(key.trim()) {
-                Ok(()) => {
-                    self.key_refusal = None;
-                    self.api_key = (!key.trim().is_empty()).then(|| key.trim().to_string());
-                }
-                Err(error) => {
-                    self.key_refusal = Some(AppErrorEnvelope::from(&error));
-                    refusal = Some(error);
-                }
-            }
-        }
-        self.snapshot.connection.draft_error = self
-            .key_refusal
-            .clone()
-            .or_else(|| self.url_refusal.clone());
-        let refused = category_ids
-            .as_ref()
-            .is_some_and(|ids| ids.iter().all(|id| *id == 0));
-        self.snapshot.connection.empty_categories_refused = refused;
-        let category_ids = category_ids.filter(|_| !refused);
-        self.edit_revision += 1;
-        if let Some(ids) = category_ids {
-            self.snapshot.connection.category_ids = ids;
-        }
-        self.snapshot.connection.api_key_entered = self.api_key.is_some();
-        if !self.connection_saving {
-            self.snapshot.connection.save = RemoteDraftStatus::Idle;
-        }
-        self.snapshot.connection.test = RemoteDraftStatus::Idle;
-        self.snapshot.connection.test_result = None;
-        match refusal {
-            Some(error) => {
-                self.changed();
-                Err(error)
-            }
-            None => Ok(()),
-        }
-    }
-
-    fn connection_update(&self) -> RemoteIndexerConnectionUpdate {
-        RemoteIndexerConnectionUpdate {
-            base_url: Some(self.snapshot.connection.base_url.trim().to_string()),
-            api_key: self.api_key.clone(),
-        }
-    }
-
-    fn apply_connection(&mut self, connection: &IndexerConnection) {
-        self.snapshot.connection.base_url = connection.base_url.clone().unwrap_or_default();
-        self.snapshot.connection.category_ids = connection.category_ids.clone();
-        self.api_key = None;
-        self.snapshot.connection.api_key_entered = false;
-    }
-
-    fn loaded(&mut self, request: u64, result: &Result<bool>) {
-        self.connection_loading = false;
-        if request != self.save_request {
-            return;
-        }
-        match result {
-            Ok(configured) => {
-                self.connection_loaded = true;
-                self.snapshot.connection.api_key_configured = *configured;
-            }
-            Err(error) => {
-                self.snapshot.connection.save = RemoteDraftStatus::Failed {
-                    error: error.into(),
-                }
-            }
-        }
-        self.changed();
-    }
-
-    fn saved(&mut self, revision: u64, connection: &IndexerConnection, result: &Result<bool>) {
-        self.connection_saving = false;
-        match result {
-            Ok(configured) => {
-                self.connection_loaded = true;
-                self.snapshot.connection.api_key_configured = *configured;
-                if self.edit_revision == revision {
-                    self.apply_connection(connection);
-                }
-                self.snapshot.connection.save = if self.edit_revision == revision {
-                    RemoteDraftStatus::Succeeded
-                } else {
-                    RemoteDraftStatus::Idle
-                };
-            }
-            Err(error) => {
-                self.snapshot.connection.save = RemoteDraftStatus::Failed {
-                    error: error.into(),
-                }
-            }
-        }
-        self.changed();
-    }
-
-    fn tested(
-        &mut self,
-        request: u64,
-        revision: u64,
-        result: &Result<RemoteIndexerConnectionTestResult>,
-    ) {
-        if revision != self.edit_revision || request != self.test_request {
-            return;
-        }
-        match result {
-            Ok(result) => {
-                self.snapshot.connection.test = RemoteDraftStatus::Succeeded;
-                self.snapshot.connection.test_result = Some(result.clone());
-            }
-            Err(error) => {
-                self.snapshot.connection.test = RemoteDraftStatus::Failed {
-                    error: error.into(),
-                }
-            }
-        }
-        self.changed();
-    }
-}
-
-impl UiState {
-    fn indexer_available(&self) -> Result<()> {
-        if self.snapshot.lane != ProviderId::Indexer
-            || self.connection_saving
-            || self.connection_resetting
-            || self.snapshot.indexer.searching
-            || self.snapshot.indexer.grabbing
-        {
-            return Err(AppError::InvalidInput(
-                "Wait for the current Indexer work to finish.".into(),
-            ));
-        }
-        Ok(())
-    }
-    fn search(&mut self, author: String, title: String) -> Result<UiAction> {
-        self.indexer_available()?;
-        let author = author.trim();
-        let title = title.trim();
-        if author.is_empty() && title.is_empty() {
-            return Err(AppError::InvalidInput(
-                "Enter an author and/or title to search.".into(),
-            ));
-        }
-        self.snapshot.indexer = IndexerWorkSnapshot {
-            searching: true,
-            message: "Searching Indexer releases.".into(),
-            ..IndexerWorkSnapshot::default()
-        };
-        self.search_request += 1;
-        Ok(UiAction::Search {
-            request: self.search_request,
-            query: RemoteReleaseSearchRequest {
-                author: (!author.is_empty()).then(|| author.to_string()),
-                title: (!title.is_empty()).then(|| title.to_string()),
-                query: None,
-            },
-        })
-    }
-    fn select_release(&mut self, key: String, multi: bool) -> Result<()> {
-        if !self
-            .snapshot
-            .indexer
-            .releases
-            .iter()
-            .any(|release| release.key == key)
-        {
-            return Err(AppError::InvalidInput(
-                "Search again before selecting this release.".into(),
-            ));
-        }
-        let keys = &mut self.snapshot.indexer.selected_release_keys;
-        if !multi {
-            keys.clear();
-        }
-        if multi && keys.contains(&key) {
-            keys.retain(|candidate| candidate != &key);
-        } else {
-            keys.push(key);
-        }
-        Ok(())
-    }
-    fn grab(&mut self, keys: Vec<String>) -> Result<UiAction> {
-        self.indexer_available()?;
-        let releases: Vec<_> = self
-            .snapshot
-            .indexer
-            .releases
-            .iter()
-            .filter(|release| {
-                keys.contains(&release.key)
-                    && !self
-                        .snapshot
-                        .indexer
-                        .release_grabs
-                        .get(&release.key)
-                        .is_some_and(|grab| grab.status == ReleaseGrabStatus::Sent)
-            })
-            .cloned()
-            .collect();
-        if releases.is_empty() {
-            return Err(AppError::InvalidInput(
-                "Select unsent releases from the current search.".into(),
-            ));
-        }
-        for release in &releases {
-            self.snapshot.indexer.release_grabs.insert(
-                release.key.clone(),
-                ReleaseGrabSnapshot {
-                    status: ReleaseGrabStatus::Queued,
-                    message: "Waiting to send.".into(),
-                },
-            );
-        }
-        self.snapshot.indexer.grabbing = true;
-        self.snapshot.indexer.message = "Sending to downloader via Indexer…".into();
-        Ok(UiAction::Grab(releases))
-    }
-    fn searched(&mut self, request: u64, result: &Result<RemoteReleaseSearchResponse>) {
-        self.snapshot.indexer.searching = false;
-        if request != self.search_request {
-            self.changed();
-            return;
-        }
-        match result {
-            Ok(response) => {
-                self.snapshot.indexer.releases = response.releases.clone();
-                self.snapshot.indexer.message = if response.diagnostics.is_empty() {
-                    format!("{} releases found.", response.releases.len())
-                } else {
-                    response
-                        .diagnostics
-                        .iter()
-                        .map(|diagnostic| diagnostic.message.as_str())
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                };
-            }
-            Err(error) => self.snapshot.indexer.message = error.to_string(),
-        }
-        self.changed();
+        self.begin_account_read()
     }
 }
 
@@ -719,82 +403,6 @@ impl RemoteSourceRuntime {
 }
 
 impl RemoteSourceRuntime {
-    async fn grab_ui_batch(&self, releases: Vec<RemoteRelease>) {
-        let turn = self.indexer_turn();
-        let mut unconfirmed = 0;
-        for release in &releases {
-            self.ui().snapshot.indexer.release_grabs.insert(
-                release.key.clone(),
-                ReleaseGrabSnapshot {
-                    status: ReleaseGrabStatus::Sending,
-                    message: "Sending to downloader via Indexer…".into(),
-                },
-            );
-            self.ui().changed();
-            self.publish_ui();
-            let result = match &turn {
-                Ok(_) => {
-                    self.grab_release(RemoteReleaseGrabRequest {
-                        release: release.clone(),
-                    })
-                    .await
-                }
-                Err(error) => Err(AppError::InvalidInput(error.to_string())),
-            };
-            if result.as_ref().is_ok_and(|response| response.unconfirmed) {
-                unconfirmed += 1;
-            }
-            let outcome = match result {
-                Ok(response) => ReleaseGrabSnapshot {
-                    status: if response.accepted {
-                        ReleaseGrabStatus::Sent
-                    } else {
-                        ReleaseGrabStatus::Error
-                    },
-                    message: if response.diagnostics.is_empty() {
-                        response.message
-                    } else {
-                        response
-                            .diagnostics
-                            .iter()
-                            .map(|diagnostic| diagnostic.message.as_str())
-                            .collect::<Vec<_>>()
-                            .join(" ")
-                    },
-                },
-                Err(error) => ReleaseGrabSnapshot {
-                    status: ReleaseGrabStatus::Error,
-                    message: error.to_string(),
-                },
-            };
-            self.ui()
-                .snapshot
-                .indexer
-                .release_grabs
-                .insert(release.key.clone(), outcome);
-            self.ui().changed();
-            self.publish_ui();
-        }
-        let mut state = self.ui();
-        let outcomes: Vec<_> = releases
-            .iter()
-            .filter_map(|release| state.snapshot.indexer.release_grabs.get(&release.key))
-            .collect();
-        let sent = outcomes
-            .iter()
-            .filter(|outcome| outcome.status == ReleaseGrabStatus::Sent)
-            .count();
-        state.snapshot.indexer.message = if outcomes.len() == 1 {
-            outcomes[0].message.clone()
-        } else {
-            lane_status::grab_batch_line(sent, outcomes.len() - sent - unconfirmed, unconfirmed)
-        };
-        state.snapshot.indexer.grabbing = false;
-        state.changed();
-    }
-}
-
-impl RemoteSourceRuntime {
     async fn refresh_ui_account(&self, lane: ProviderId, request: u64) -> Result<RemoteUiResult> {
         let runtime = self.clone();
         let result = self
@@ -843,7 +451,7 @@ impl RemoteUiRun {
             UiAction::StartAuth => {
                 let result = runtime.start_auth(ProviderId::Audible);
                 let mut state = runtime.ui();
-                state.snapshot.auth = match &result {
+                state.audible.auth = match &result {
                     Ok(_) => RemoteAuthStatus::AwaitingHandoff,
                     Err(error) => RemoteAuthStatus::Failed {
                         error: error.into(),
@@ -907,11 +515,20 @@ impl RemoteUiRun {
 #[path = "ui_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "lane_tests.rs"]
+mod lane_tests;
+
 #[path = "ui_parts.rs"]
 mod parts;
 
 #[path = "audible_lane.rs"]
 mod audible_lane;
+use audible_lane::AudibleLane;
+
+#[path = "indexer_lane.rs"]
+mod indexer_lane;
+use indexer_lane::IndexerLane;
 
 #[path = "lane_status.rs"]
 mod lane_status;

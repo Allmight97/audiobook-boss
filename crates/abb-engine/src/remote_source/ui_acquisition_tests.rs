@@ -50,7 +50,10 @@ async fn the_library_load_after_an_account_read_is_published_as_busy_while_it_ru
         .find_map(|update| update.remote.clone())
         .expect("a remote part");
     assert!(last.busy);
-    assert_eq!(last.library_status, RemoteDraftStatus::Running);
+    assert_eq!(
+        runtime.ui().audible.library_status,
+        RemoteDraftStatus::Running
+    );
 
     release.send(()).expect("release library read");
     assert!(load.await.expect("tracked load").is_err());

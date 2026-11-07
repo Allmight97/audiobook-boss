@@ -1,6 +1,6 @@
 use super::{
-    lane_status, ProviderId, ReleaseGrabStatus, RemoteAcquisitionSnapshot, RemoteAuthStatus,
-    RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiSnapshot,
+    lane_status, ProviderId, ReleaseGrabStatus, RemoteAcquisitionSnapshot, RemoteDraftStatus,
+    RemoteLibrarySnapshot, RemoteUiSnapshot,
 };
 use crate::host::EngineEvent;
 use crate::remote_source::{RemoteRevisions, RemoteSourceRuntime};
@@ -84,7 +84,7 @@ impl super::UiState {
         let mut snapshot = remote.clone();
         snapshot.busy = self.lane_busy();
         snapshot.audible_message =
-            lane_status::audible_message(remote, &self.library, self.settled_job_line.as_deref());
+            lane_status::audible_message(remote, &self.audible, &self.library);
         if remote.lane == ProviderId::Indexer {
             snapshot.indexer.message = lane_status::indexer_message(remote);
         }
@@ -105,19 +105,8 @@ impl super::UiState {
         let remote = &*self.snapshot;
         remote.account_status == RemoteDraftStatus::Running
             || match remote.lane {
-                ProviderId::Audible => {
-                    remote.library_status == RemoteDraftStatus::Running
-                        || matches!(
-                            remote.auth,
-                            RemoteAuthStatus::Starting | RemoteAuthStatus::Completing
-                        )
-                        || self.acquisition.busy()
-                }
-                ProviderId::Indexer => {
-                    remote.indexer.searching
-                        || remote.indexer.grabbing
-                        || remote.connection.save == RemoteDraftStatus::Running
-                }
+                ProviderId::Audible => self.audible.is_busy(self.acquisition.busy()),
+                ProviderId::Indexer => self.indexer.is_busy(&remote.indexer),
             }
     }
 
@@ -152,7 +141,7 @@ impl super::UiState {
             .as_ref()
             .is_some_and(|known| known.settled && known.job_id == job.job_id);
         if job.settled && !already_settled {
-            self.settled_job_line = Some(lane_status::settled_job_line(&job));
+            self.audible.settled_job_line = Some(lane_status::settled_job_line(&job));
         }
         self.set_acquisition(|acquisition| acquisition.job = Some(Box::new(job)));
         let remote_moved = self.snapshot.current() != remote_before;

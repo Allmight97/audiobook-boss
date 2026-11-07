@@ -101,7 +101,7 @@ fn old_tests_cannot_replace_newer_drafts_or_expose_the_key() {
     ui.begin(edit(Some("next-secret")))
         .expect("new edit while saving");
     ui.saved(save.revision, &configured(), &Ok(true));
-    assert_eq!(ui.api_key.as_deref(), Some("next-secret"));
+    assert_eq!(ui.indexer.api_key.as_deref(), Some("next-secret"));
     assert_eq!(ui.snapshot.connection.save, RemoteDraftStatus::Idle);
     let UiAction::Test {
         request, revision, ..
@@ -145,7 +145,7 @@ fn disconnect_and_new_library_requests_expire_older_choices() {
     .expect("fixture step succeeded");
     ui.begin(RemoteUiIntent::AcquireSelected)
         .expect("fixture step succeeded");
-    assert!(ui.disconnect_allowed().is_err());
+    assert!(ui.audible.can_disconnect(ui.acquisition.busy()).is_err());
 }
 
 #[test]
@@ -261,7 +261,7 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
         .expect("fixture step succeeded");
     {
         let mut ui = runtime.ui();
-        let request = ui.search_request;
+        let request = ui.indexer.search_request;
         ui.searched(
             request,
             &Ok(RemoteReleaseSearchResponse {
@@ -586,7 +586,7 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
     let root = tempfile::TempDir::new().expect("temp dir");
     let runtime = super::super::tests::test_runtime(&root);
     let start = runtime.ui_begin(RemoteUiIntent::StartAuth);
-    assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Starting);
+    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::Starting);
     assert!(runtime
         .ui_begin(RemoteUiIntent::StartAuth)
         .finish()
@@ -614,7 +614,7 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
                 .into_owned(),
         ),
     });
-    assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Completing);
+    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::Completing);
     for intent in [
         RemoteUiIntent::StartAuth,
         RemoteUiIntent::Disconnect,
@@ -628,7 +628,7 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
     assert_eq!(runtime.ui_snapshot().selected_title_ids, ["selected"]);
     assert!(completion.finish().await.is_err());
     let snapshot = runtime.ui_snapshot();
-    assert_eq!(snapshot.auth, RemoteAuthStatus::AwaitingHandoff);
+    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::AwaitingHandoff);
     assert!(matches!(
         snapshot.account_status,
         RemoteDraftStatus::Failed { .. }
@@ -642,16 +642,13 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
                 .into_owned(),
         ),
     });
-    assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Completing);
+    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::Completing);
     assert_eq!(
         runtime.ui_snapshot().account_status,
         RemoteDraftStatus::Idle
     );
     assert!(retry.finish().await.is_err());
-    assert_eq!(
-        runtime.ui_snapshot().auth,
-        RemoteAuthStatus::AwaitingHandoff
-    );
+    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::AwaitingHandoff);
 }
 
 #[tokio::test]
@@ -690,10 +687,7 @@ async fn a_library_failure_after_lane_replacement_or_disconnect_is_superseded() 
             .expect("disconnected failure discarded"),
         RemoteUiResult::Superseded
     ));
-    assert_eq!(
-        runtime.ui_snapshot().library_status,
-        RemoteDraftStatus::Idle
-    );
+    assert_eq!(runtime.ui().audible.library_status, RemoteDraftStatus::Idle);
 }
 
 #[tokio::test]
@@ -725,9 +719,9 @@ async fn starting_auth_clears_previous_read_failures_and_supersedes_pending_libr
         RemoteUiResult::Superseded
     ));
     let snapshot = runtime.ui_snapshot();
-    assert_eq!(snapshot.auth, RemoteAuthStatus::AwaitingHandoff);
+    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::AwaitingHandoff);
     assert_eq!(snapshot.account_status, RemoteDraftStatus::Idle);
-    assert_eq!(snapshot.library_status, RemoteDraftStatus::Idle);
+    assert_eq!(runtime.ui().audible.library_status, RemoteDraftStatus::Idle);
 }
 
 #[tokio::test]
@@ -745,7 +739,7 @@ async fn disconnect_is_refused_while_the_indexer_lane_is_shown() {
     let refused = runtime.ui_begin(RemoteUiIntent::Disconnect).finish().await;
 
     assert!(refused.is_err());
-    assert!(!runtime.ui().disconnecting);
+    assert!(!runtime.ui().audible.disconnecting);
 }
 
 fn connected_audible() -> super::super::RemoteSourceAccountState {
@@ -782,7 +776,7 @@ fn a_refused_sign_in_needs_auth_keeps_the_library_and_survives_an_account_reread
         Some("Audible did not accept the saved sign-in. Sign in to Audible again.")
     );
     assert!(matches!(
-        ui.snapshot().library_status,
+        ui.audible.library_status,
         RemoteDraftStatus::Failed { .. }
     ));
     assert_eq!(ui.library.titles, [title("kept", true, false)]);
