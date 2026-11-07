@@ -125,8 +125,7 @@ pub(crate) fn setup_encoder(
         .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
 
     if let Some(metadata) = metadata {
-        crate::metadata::set_container_metadata(&mut octx, metadata)
-            .map_err(|e| AppError::General(format!("Failed to set container metadata: {e}")))?;
+        crate::metadata::set_container_metadata(&mut octx, metadata);
         log::debug!("Container metadata set successfully");
     }
 

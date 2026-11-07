@@ -1,13 +1,11 @@
 use crate::errors::{AppError, Result};
 use crate::metadata::cover_art::detect_cover_art_format;
 use crate::metadata::field_schema::{text_keys, ITUNES_MEAN};
-use crate::metadata::metadata_ops::plan_metadata_field_ops;
-use crate::metadata::metadata_sinks::{apply_metadata_ops, Mp4ametaSink};
+use crate::metadata::metadata_sinks::{apply_field_ops, Mp4ametaSink};
 use crate::metadata::{
-    normalize_publication_date, split_series_list, AlbumSortWriteAction, AudiobookMetadata,
-    MetadataWritePlan,
+    normalize_publication_date, split_series_list, AudiobookMetadata, MetadataWritePlan,
 };
-use abb_metadata_core::TextField;
+use abb_metadata_core::{PatchOp, TextField};
 use mp4ameta::{FreeformIdent, Img, Tag, WriteConfig};
 use std::path::Path;
 
@@ -54,12 +52,12 @@ fn read_tuple_field((number, total): (Option<u16>, Option<u16>)) -> Option<(u32,
 }
 
 pub fn write_metadata(path: &Path, metadata: &AudiobookMetadata) -> Result<()> {
-    let plan = MetadataWritePlan::from_metadata(metadata.clone());
+    let plan = MetadataWritePlan::from_metadata(metadata);
     write_metadata_with_plan(path, &plan)
 }
 
 pub(crate) fn write_metadata_with_plan(path: &Path, plan: &MetadataWritePlan) -> Result<()> {
-    super::metadata_ops::log_write_plan(plan, "mp4ameta", &crate::diagnostics::artifact_id(path));
+    super::plan_log::log_write_plan(plan, "mp4ameta", &crate::diagnostics::artifact_id(path));
     crate::diagnostics::stage("metadata_mp4_tags", path, || {
         write_metadata_with_plan_inner(path, plan)
     })
@@ -83,60 +81,40 @@ fn write_metadata_with_plan_inner(path: &Path, plan: &MetadataWritePlan) -> Resu
 }
 
 fn apply_metadata(tag: &mut Tag, plan: &MetadataWritePlan) -> Result<()> {
-    let metadata = &plan.metadata;
-    let ops = plan_metadata_field_ops(metadata);
-    {
-        let mut sink = Mp4ametaSink::new(tag);
-        apply_metadata_ops(&mut sink, &ops);
-        sink.set_media_type_audiobook();
-    }
+    apply_field_ops(&mut Mp4ametaSink::new(tag), &plan.ops);
 
-    clear_series_movement_fields_if_needed(tag, metadata);
-
-    apply_album_sort(tag, &plan.album_sort);
-
-    apply_cover_art(tag, metadata)?;
-
-    Ok(())
-}
-
-fn clear_series_movement_fields_if_needed(tag: &mut Tag, metadata: &AudiobookMetadata) {
-    let should_clear_series = metadata.series.is_some()
-        || metadata.series_part.is_some()
-        || metadata.subseries.is_some()
-        || metadata.subseries_part.is_some();
-    if should_clear_series {
+    if plan.series_touched {
         tag.remove_movement();
         tag.remove_movement_index();
         tag.remove_show_movement();
     }
+
+    apply_album_sort(tag, plan.album_sort.as_ref());
+
+    apply_cover_art(tag, plan.cover.as_ref())?;
+
+    Ok(())
 }
 
-fn apply_cover_art(tag: &mut Tag, metadata: &AudiobookMetadata) -> Result<()> {
-    if let Some(ref cover_art) = metadata.cover_art {
-        if cover_art.is_empty() {
-            tag.remove_artworks();
-        } else if let Some(image) = cover_art_to_img(cover_art)? {
-            tag.set_artwork(image);
+fn apply_cover_art(tag: &mut Tag, cover: Option<&PatchOp<Vec<u8>>>) -> Result<()> {
+    match cover {
+        Some(PatchOp::Set(cover_art)) => {
+            if let Some(image) = cover_art_to_img(cover_art)? {
+                tag.set_artwork(image);
+            }
         }
+        Some(PatchOp::Clear) => tag.remove_artworks(),
+        None => {}
     }
 
     Ok(())
 }
 
-fn apply_album_sort(tag: &mut Tag, action: &AlbumSortWriteAction) {
-    match action {
-        AlbumSortWriteAction::Preserve => {}
-        AlbumSortWriteAction::Set(value) => {
-            if value.trim().is_empty() {
-                tag.remove_album_sort_order();
-            } else {
-                tag.set_album_sort_order(value);
-            }
-        }
-        AlbumSortWriteAction::Clear => {
-            tag.remove_album_sort_order();
-        }
+fn apply_album_sort(tag: &mut Tag, album_sort: Option<&PatchOp<String>>) {
+    match album_sort {
+        Some(PatchOp::Set(value)) => tag.set_album_sort_order(value),
+        Some(PatchOp::Clear) => tag.remove_album_sort_order(),
+        None => {}
     }
 }
 

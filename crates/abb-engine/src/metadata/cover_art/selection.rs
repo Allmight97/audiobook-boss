@@ -1,7 +1,7 @@
 use crate::errors::{AppError, Result};
 
 use super::super::passthrough::PassthroughMetadata;
-use super::super::AudiobookMetadata;
+use abb_metadata_core::PatchOp;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ResolvedCover<'a> {
@@ -11,18 +11,17 @@ pub(crate) enum ResolvedCover<'a> {
 
 impl<'a> ResolvedCover<'a> {
     pub(crate) fn select(
-        metadata: Option<&'a AudiobookMetadata>,
+        cover: Option<&'a PatchOp<Vec<u8>>>,
         passthrough: Option<&'a PassthroughMetadata>,
     ) -> Option<Self> {
-        metadata
-            .and_then(|value| value.cover_art.as_ref())
-            .map(ResolvedCover::Explicit)
-            .or_else(|| {
-                passthrough
-                    .and_then(|value| value.cover_art.as_ref())
-                    .map(ResolvedCover::Passthrough)
-            })
-            .filter(|selection| !selection.bytes().is_empty())
+        match cover {
+            Some(PatchOp::Set(bytes)) => Some(ResolvedCover::Explicit(bytes)),
+            Some(PatchOp::Clear) => None,
+            None => passthrough
+                .and_then(|value| value.cover_art.as_ref())
+                .filter(|bytes| !bytes.is_empty())
+                .map(ResolvedCover::Passthrough),
+        }
     }
 
     pub(crate) fn bytes(self) -> &'a Vec<u8> {

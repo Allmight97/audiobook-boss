@@ -1,10 +1,7 @@
 use super::*;
 
-fn metadata_with_cover(bytes: Vec<u8>) -> AudiobookMetadata {
-    AudiobookMetadata {
-        cover_art: Some(bytes),
-        ..Default::default()
-    }
+fn set_cover(bytes: Vec<u8>) -> PatchOp<Vec<u8>> {
+    PatchOp::Set(bytes)
 }
 
 fn passthrough_with_cover(bytes: Vec<u8>) -> PassthroughMetadata {
@@ -16,7 +13,7 @@ fn passthrough_with_cover(bytes: Vec<u8>) -> PassthroughMetadata {
 
 #[test]
 fn explicit_cover_wins_over_passthrough() {
-    let explicit = metadata_with_cover(vec![1, 2, 3]);
+    let explicit = set_cover(vec![1, 2, 3]);
     let passthrough = passthrough_with_cover(vec![9, 9, 9]);
     let selection =
         ResolvedCover::select(Some(&explicit), Some(&passthrough)).expect("a cover is selected");
@@ -34,12 +31,11 @@ fn passthrough_used_when_no_explicit_cover() {
 
 #[test]
 fn empty_cover_is_dropped() {
-    let empty_explicit = metadata_with_cover(Vec::new());
     let passthrough = passthrough_with_cover(vec![9, 9, 9]);
-    // An empty explicit cover drops rather than falling back to passthrough:
-    // an explicit empty cover is a clear, not a request for the source art.
-    assert!(ResolvedCover::select(Some(&empty_explicit), Some(&passthrough)).is_none());
+    assert!(ResolvedCover::select(Some(&PatchOp::Clear), Some(&passthrough)).is_none());
     assert!(ResolvedCover::select(None, None).is_none());
+    let empty_passthrough = passthrough_with_cover(Vec::new());
+    assert!(ResolvedCover::select(None, Some(&empty_passthrough)).is_none());
 }
 
 #[test]
@@ -52,7 +48,7 @@ fn passthrough_embed_failure_warns_and_continues() {
 
 #[test]
 fn explicit_embed_failure_propagates() {
-    let explicit = metadata_with_cover(vec![1, 2, 3]);
+    let explicit = set_cover(vec![1, 2, 3]);
     let selection = ResolvedCover::select(Some(&explicit), None).expect("selected");
     let result = selection.handle_embed_failure(AppError::General("boom".to_string()), "cover art");
     assert!(result.is_err());

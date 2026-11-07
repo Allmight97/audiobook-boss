@@ -88,7 +88,7 @@ pub(crate) fn plan_metadata_write_for_path(
     patch: &MetadataIntentPatch,
 ) -> Result<MetadataWritePlan> {
     let source_metadata = crate::metadata::read_metadata(input_path)?;
-    Ok(patch.to_write_plan_with_source(source_metadata)?)
+    Ok(MetadataWritePlan::from_patch(patch, source_metadata)?)
 }
 
 fn processing_write_intent(

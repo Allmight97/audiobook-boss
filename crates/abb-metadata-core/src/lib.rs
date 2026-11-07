@@ -20,8 +20,6 @@ pub enum MetadataCoreError {
 
 pub type Result<T> = std::result::Result<T, MetadataCoreError>;
 
-pub const POSITION_CLEAR_NUMBER: u32 = 0;
-
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct AudiobookMetadata {
     pub title: Option<String>,
@@ -102,19 +100,6 @@ pub enum PatchOp<T> {
 pub enum AlbumSortPatchOp {
     Set(String),
     Clear,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AlbumSortWriteAction {
-    Preserve,
-    Set(String),
-    Clear,
-}
-
-#[derive(Debug, Clone)]
-pub struct MetadataWritePlan {
-    pub metadata: AudiobookMetadata,
-    pub album_sort: AlbumSortWriteAction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -265,21 +250,6 @@ impl NamingMetadata {
     }
 }
 
-impl MetadataWritePlan {
-    pub fn from_metadata(metadata: AudiobookMetadata) -> Self {
-        let album_sort = match metadata.album_sort.as_deref() {
-            Some(value) if value.trim().is_empty() => AlbumSortWriteAction::Clear,
-            Some(value) => AlbumSortWriteAction::Set(value.to_string()),
-            None => AlbumSortWriteAction::Preserve,
-        };
-
-        Self {
-            metadata,
-            album_sort,
-        }
-    }
-}
-
 impl MetadataIntentPatch {
     pub fn is_actionable(&self) -> bool {
         self != &Self::default()
@@ -353,15 +323,7 @@ impl MetadataIntentPatch {
     /// to project pending edits over known tags.
     pub fn overlay(&self, base: &AudiobookMetadata) -> AudiobookMetadata {
         let mut metadata = base.clone();
-        #[expect(
-            clippy::let_underscore_must_use,
-            reason = "processing semantics never fail: set assigns and clear removes"
-        )]
-        let _ = apply_shared_metadata_patch_fields(
-            self,
-            &mut metadata,
-            PatchFieldSemantics::Processing,
-        );
+        apply_shared_metadata_patch_fields(self, &mut metadata);
         match &self.album_sort {
             Some(AlbumSortPatchOp::Set(value)) => metadata.album_sort = Some(value.clone()),
             Some(AlbumSortPatchOp::Clear) => metadata.album_sort = None,
@@ -387,7 +349,7 @@ impl MetadataIntentPatch {
 
     pub fn apply_to_metadata(&self, mut base: AudiobookMetadata) -> Result<AudiobookMetadata> {
         let patch = self.normalized_or_error()?;
-        apply_shared_metadata_patch_fields(&patch, &mut base, PatchFieldSemantics::Processing)?;
+        apply_shared_metadata_patch_fields(&patch, &mut base);
         validate_series_family_if_touched(&base, patch.touches_series_family())?;
         apply_album_sort_patch(&patch.album_sort, &mut base);
         Ok(base)
@@ -395,53 +357,6 @@ impl MetadataIntentPatch {
 
     pub fn to_processing_overlay(&self) -> Result<AudiobookMetadata> {
         self.apply_to_metadata(AudiobookMetadata::new())
-    }
-
-    pub fn to_write_plan_with_source(
-        &self,
-        source_metadata: AudiobookMetadata,
-    ) -> Result<MetadataWritePlan> {
-        self.to_write_plan_with_optional_source(Some(source_metadata))
-    }
-
-    fn to_write_plan_with_optional_source(
-        &self,
-        source_metadata: Option<AudiobookMetadata>,
-    ) -> Result<MetadataWritePlan> {
-        let patch = self.normalized_or_error()?;
-        let mut metadata = AudiobookMetadata::new();
-        apply_shared_metadata_patch_fields(&patch, &mut metadata, PatchFieldSemantics::WritePlan)?;
-
-        if patch.touches_series_family() {
-            let mut effective_metadata = source_metadata.unwrap_or_default();
-            apply_shared_metadata_patch_fields(
-                &patch,
-                &mut effective_metadata,
-                PatchFieldSemantics::Processing,
-            )?;
-            validate_series_family_if_touched(&effective_metadata, true)?;
-            apply_effective_series_family_to_write_plan(&patch, &effective_metadata, &mut metadata);
-        }
-
-        let album_sort = match &patch.album_sort {
-            Some(AlbumSortPatchOp::Set(value)) if value.trim().is_empty() => {
-                AlbumSortWriteAction::Clear
-            }
-            Some(AlbumSortPatchOp::Set(value)) => {
-                metadata.album_sort = Some(value.clone());
-                AlbumSortWriteAction::Set(value.clone())
-            }
-            Some(AlbumSortPatchOp::Clear) => {
-                metadata.album_sort = Some(String::new());
-                AlbumSortWriteAction::Clear
-            }
-            None => AlbumSortWriteAction::Preserve,
-        };
-
-        Ok(MetadataWritePlan {
-            metadata,
-            album_sort,
-        })
     }
 }
 
@@ -633,25 +548,6 @@ fn validate_series_family_if_touched(metadata: &AudiobookMetadata, touched: bool
     Ok(())
 }
 
-fn apply_effective_series_family_to_write_plan(
-    patch: &MetadataIntentPatch,
-    effective: &AudiobookMetadata,
-    metadata: &mut AudiobookMetadata,
-) {
-    let touches_names = patch.series.is_some() || patch.subseries.is_some();
-    let touches_parts = patch.series_part.is_some() || patch.subseries_part.is_some();
-
-    if touches_names {
-        metadata.series = Some(effective.series.clone().unwrap_or_default());
-        metadata.subseries = effective.subseries.clone();
-    }
-
-    if touches_parts {
-        metadata.series_part = Some(effective.series_part.clone().unwrap_or_default());
-        metadata.subseries_part = effective.subseries_part.clone();
-    }
-}
-
 /// `Series 03 - Title`; a fractional book number keeps its fraction
 /// (`Series 01.5 - Title`) so novellas sort between whole books.
 pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) -> Option<String> {
@@ -737,73 +633,33 @@ fn validate_sequence_patch(
     }
 }
 
-#[derive(Clone, Copy)]
-enum PatchFieldSemantics {
-    Processing,
-    WritePlan,
-}
-
 fn apply_shared_metadata_patch_fields(
     patch: &MetadataIntentPatch,
     metadata: &mut AudiobookMetadata,
-    semantics: PatchFieldSemantics,
-) -> Result<()> {
-    let apply_string: fn(Option<&PatchOp<String>>, &mut Option<String>) = match semantics {
-        PatchFieldSemantics::Processing => apply_processing_string_patch,
-        PatchFieldSemantics::WritePlan => apply_string_patch,
-    };
-
+) {
     for field in TextField::ALL {
-        if field == TextField::Date {
-            continue;
-        }
-        apply_string(patch.text(field), metadata.text_mut(field));
+        apply_text_patch(patch.text(field), metadata.text_mut(field));
     }
-    apply_string(patch.subseries.as_ref(), &mut metadata.subseries);
-    apply_string(patch.subseries_part.as_ref(), &mut metadata.subseries_part);
+    apply_text_patch(patch.subseries.as_ref(), &mut metadata.subseries);
+    apply_text_patch(patch.subseries_part.as_ref(), &mut metadata.subseries_part);
 
-    match (&patch.date, semantics) {
-        (Some(PatchOp::Set(date)), _) => metadata.date = Some(date.clone()),
-        (Some(PatchOp::Clear), PatchFieldSemantics::Processing) => metadata.date = None,
-        (Some(PatchOp::Clear), PatchFieldSemantics::WritePlan) => {
-            metadata.date = Some(String::new())
-        }
-        (None, _) => {}
-    }
-
-    match (&patch.cover_art, semantics) {
-        (Some(PatchOp::Set(bytes)), _) => metadata.cover_art = Some(bytes.clone()),
-        (Some(PatchOp::Clear), PatchFieldSemantics::Processing) => metadata.cover_art = None,
-        (Some(PatchOp::Clear), PatchFieldSemantics::WritePlan) => {
-            metadata.cover_art = Some(Vec::new())
-        }
-        (None, _) => {}
+    match &patch.cover_art {
+        Some(PatchOp::Set(bytes)) => metadata.cover_art = Some(bytes.clone()),
+        Some(PatchOp::Clear) => metadata.cover_art = None,
+        None => {}
     }
 
     for field in PositionField::ALL {
         let slot = metadata.position_mut(field);
-        match (patch.position(field), semantics) {
-            (Some(PatchOp::Set(position)), _) => *slot = Some(*position),
-            (Some(PatchOp::Clear), PatchFieldSemantics::Processing) => *slot = None,
-            (Some(PatchOp::Clear), PatchFieldSemantics::WritePlan) => {
-                *slot = Some((POSITION_CLEAR_NUMBER, None));
-            }
-            (None, _) => {}
+        match patch.position(field) {
+            Some(PatchOp::Set(position)) => *slot = Some(*position),
+            Some(PatchOp::Clear) => *slot = None,
+            None => {}
         }
     }
-
-    Ok(())
 }
 
-fn apply_string_patch(patch: Option<&PatchOp<String>>, output: &mut Option<String>) {
-    match patch {
-        Some(PatchOp::Set(value)) => *output = Some(value.clone()),
-        Some(PatchOp::Clear) => *output = Some(String::new()),
-        None => {}
-    }
-}
-
-fn apply_processing_string_patch(patch: Option<&PatchOp<String>>, output: &mut Option<String>) {
+fn apply_text_patch(patch: Option<&PatchOp<String>>, output: &mut Option<String>) {
     match patch {
         Some(PatchOp::Set(value)) => *output = Some(value.clone()),
         Some(PatchOp::Clear) => *output = None,
@@ -851,11 +707,13 @@ fn scrub_invalid_series_part_for_naming(value: &mut Option<String>) {
 
 mod chapters;
 mod fields;
+mod write_plan;
 pub use chapters::{
     normalize_embedded_chapters, parse_cue, validate_chapters, ChapterSpec, CueInterpretation,
     CueSheet,
 };
 pub use fields::{PositionField, TagField, TextField};
+pub use write_plan::{FieldOp, MetadataWritePlan};
 
 #[cfg(test)]
 #[path = "lib_tests.rs"]

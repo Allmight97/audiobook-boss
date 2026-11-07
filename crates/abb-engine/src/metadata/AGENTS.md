@@ -63,17 +63,21 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - `field_schema` holds one row per field (`TextField`, `PositionField` from
   `abb-metadata-core`) with each backend's keys: FFmpeg read aliases in
   precedence order, write keys, keys a Set drops, keys a Clear drops, and the
-  mp4ameta freeform names. `metadata_ops` plans field ops (fan-outs, track/disk
-  tuples). Container adapters (`ffmpeg_dict`, `mp4ameta_bridge`, `reader`) apply
-  ops and read through the rows; they hold no key lists of their own. Adding a
+  mp4ameta freeform names. `MetadataWritePlan` (in `abb-metadata-core`) holds
+  the typed field ops, already projected (series fields joined with their
+  sub-series) and in write order; `from_patch` builds it from a validated edit,
+  `from_metadata` from tags read off a real file or built by processing
+  (blank text, number 0 and an empty cover mean clear; only a date is trimmed).
+  Container adapters (`ffmpeg_dict`, `mp4ameta_bridge`, `reader`) apply ops
+  and read through the rows; they hold no key lists of their own. Adding a
   field or alias means one row, plus the MP4 atom effects in `metadata_sinks`.
 - FFmpeg dictionary write order is part of the file (replacing a key moves the
   last entry into its slot), so sinks write in op order: title, artist,
   album_artist, album, composer, genre, date, year, comment, description,
   series, series-part, track, disc, media_type, then the album sort.
-- `cover_art` and the audiobook media type (`MetadataOp::SetMediaTypeAudiobook`)
-  stay sink-owned outside the neutral field-op loop (encode-path embed vs mp4
-  artwork; unconditional audiobook media type).
+- `cover_art` and the audiobook media type stay sink-owned outside the field
+  ops (encode-path embed vs mp4 artwork; every write sets the audiobook media
+  type).
   `prepare_output_cover_art` prepares write-ready cover bytes once after merge:
   JPEG already at the write target (JPEG, 800px or smaller) stays as is; other
   covers go through `optimize_cover_art` before native mux, remux, or
@@ -109,9 +113,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Processing writes only a derived album sort: an underivable one already
   equals the source's own value, so writing it would rewrite tags for no
   change.
-- Keep `AlbumSortWriteAction` on `MetadataWritePlan` as its own action, apart
-  from generic field set/clear ops. Why: its key depends on the output
-  container, and a Save keeps it unless told otherwise.
+- Keep the album sort on `MetadataWritePlan` as its own `Option<PatchOp>`,
+  apart from the field ops. Why: its key depends on the output container, and
+  a Save keeps it unless told otherwise.
 - Track/disk are read-compatible passthrough fields: the form never edits them,
   `MetadataIntentPatch` carries them only as explicit artifact set/clear intent,
   and full `AudiobookMetadata` writes them when present.

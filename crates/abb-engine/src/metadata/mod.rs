@@ -20,21 +20,21 @@ mod ffmpeg_dict;
 mod field_schema;
 mod intent_plan;
 mod matroska_cover;
-mod metadata_ops;
 mod metadata_sinks;
 mod mp4_covr;
 mod mp4ameta_bridge;
 mod passthrough;
+mod plan_log;
 mod remux;
 mod thumbnail;
 
+pub(crate) use abb_metadata_core::MetadataWritePlan;
 pub use abb_metadata_core::{
-    build_series_list, compute_album_sort, normalize_publication_date, processing_album_sort,
+    compute_album_sort, normalize_publication_date, processing_album_sort,
     publication_year_from_date, split_series_list, validate_metadata_intent_patch,
     AlbumSortPatchOp, AudiobookMetadata, MetadataCoreError, MetadataIntentPatch,
     MetadataIntentValidationField, MetadataIntentValidationResult, NamingMetadata, PatchOp,
 };
-pub(crate) use abb_metadata_core::{AlbumSortWriteAction, MetadataWritePlan};
 pub(crate) use chapter_count::{output_chapter_count, synthesizes_chapter_per_source};
 pub use intent_plan::CoverArtPassthroughPolicy;
 pub(crate) use intent_plan::{
@@ -249,7 +249,7 @@ pub(crate) fn remux_preserved_audio_container(
         cover_art,
         ..Default::default()
     };
-    let plan = MetadataWritePlan::from_metadata(metadata.clone());
+    let plan = MetadataWritePlan::from_metadata(&metadata);
     remux::rewrite_metadata_with_ffmpeg_plan_as(
         path,
         Some(&plan),

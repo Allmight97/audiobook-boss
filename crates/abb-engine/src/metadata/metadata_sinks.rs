@@ -1,8 +1,7 @@
 use crate::metadata::field_schema::{position_keys, text_keys, KeySet, ITUNES_MEAN};
-use crate::metadata::metadata_ops::MetadataOp;
 use crate::metadata::publication_year_from_date;
-use crate::metadata::AudiobookMetadata;
-use abb_metadata_core::{PositionField, TagField, TextField};
+use crate::metadata::MetadataWritePlan;
+use abb_metadata_core::{FieldOp, PatchOp, PositionField, TextField};
 use ffmpeg_next as ff;
 use mp4ameta::{Data, FreeformIdent, MediaType, Tag};
 
@@ -95,38 +94,41 @@ impl Mp4ametaSink<'_> {
     }
 }
 
-pub fn apply_metadata_ops(sink: &mut Mp4ametaSink<'_>, ops: &[MetadataOp]) {
+pub fn apply_field_ops(sink: &mut Mp4ametaSink<'_>, ops: &[FieldOp]) {
     for op in ops {
         match op {
-            MetadataOp::SetText { field, value } => sink.set_text(*field, value),
-            MetadataOp::Clear(TagField::Text(field)) => sink.clear_text(*field),
-            MetadataOp::Clear(TagField::Position(field)) => sink.clear_position(*field),
-            MetadataOp::SetPosition {
+            FieldOp::Text {
                 field,
-                number,
-                total,
+                op: PatchOp::Set(value),
+            } => sink.set_text(*field, value),
+            FieldOp::Text {
+                field,
+                op: PatchOp::Clear,
+            } => sink.clear_text(*field),
+            FieldOp::Position {
+                field,
+                op: PatchOp::Set((number, total)),
             } => sink.set_position(*field, *number, *total),
-            MetadataOp::SetMediaTypeAudiobook => sink.set_media_type_audiobook(),
+            FieldOp::Position {
+                field,
+                op: PatchOp::Clear,
+            } => sink.clear_position(*field),
         }
     }
+    sink.set_media_type_audiobook();
 }
 
-pub fn apply_metadata_field_ops_to_ffmpeg_dict(
-    dict: &mut ff::Dictionary<'_>,
-    metadata: &AudiobookMetadata,
-) -> crate::errors::Result<()> {
-    let ops = crate::metadata::metadata_ops::plan_metadata_field_ops(metadata);
-    apply_ops_to_ffmpeg_dict(dict, &ops)?;
-    Ok(())
-}
-
-pub fn apply_ops_to_ffmpeg_dict(
-    dict: &mut ff::Dictionary<'_>,
-    ops: &[MetadataOp],
-) -> crate::errors::Result<()> {
+/// The dictionary entries a write sets: each Set op's keys in op order, then
+/// the audiobook media type. A Clear writes nothing; the merge drops the
+/// cleared keys from the existing tags.
+pub fn ffmpeg_dict_for_ops(ops: &[FieldOp]) -> ff::Dictionary<'static> {
+    let mut dict = ff::Dictionary::new();
     for op in ops {
         match op {
-            MetadataOp::SetText { field, value } => {
+            FieldOp::Text {
+                field,
+                op: PatchOp::Set(value),
+            } => {
                 for key in text_keys(*field).write {
                     dict.set(key, value);
                 }
@@ -136,43 +138,46 @@ pub fn apply_ops_to_ffmpeg_dict(
                     }
                 }
             }
-            MetadataOp::Clear(_) => {}
-            MetadataOp::SetPosition {
+            FieldOp::Position {
                 field,
-                number,
-                total,
-            } => {
-                dict.set(
-                    position_keys(*field).write,
-                    &format_position_field(*number, *total),
-                );
-            }
-            MetadataOp::SetMediaTypeAudiobook => {
-                dict.set("media_type", "2");
-            }
+                op: PatchOp::Set((number, total)),
+            } => dict.set(
+                position_keys(*field).write,
+                &format_position_field(*number, *total),
+            ),
+            FieldOp::Text { .. } | FieldOp::Position { .. } => {}
         }
     }
-    Ok(())
+    dict.set("media_type", "2");
+    dict
 }
 
-/// Existing-dictionary keys a merge drops before this metadata's values are
-/// written, from each planned op's row in the field table: a Set drops what
-/// its field's `drop_on_set` names, a Clear what `drop_on_clear` names.
+/// Existing-dictionary keys a merge drops before a plan's values are written,
+/// from each op's row in the field table: a Set drops what its field's
+/// `drop_on_set` names, a Clear what `drop_on_clear` names.
 pub(crate) struct ExistingKeyRemoval {
     dropped: Vec<KeySet>,
 }
 
 impl ExistingKeyRemoval {
-    pub(crate) fn for_metadata(metadata: &AudiobookMetadata) -> Self {
-        let dropped = crate::metadata::metadata_ops::plan_metadata_field_ops(metadata)
-            .into_iter()
+    pub(crate) fn for_plan(plan: &MetadataWritePlan) -> Self {
+        let dropped = plan
+            .ops
+            .iter()
             .filter_map(|op| match op {
-                MetadataOp::SetText { field, .. } => Some(text_keys(field).drop_on_set),
-                MetadataOp::Clear(TagField::Text(field)) => Some(text_keys(field).drop_on_clear),
-                MetadataOp::Clear(TagField::Position(field)) => {
-                    Some(position_keys(field).drop_on_clear)
-                }
-                MetadataOp::SetPosition { .. } | MetadataOp::SetMediaTypeAudiobook => None,
+                FieldOp::Text {
+                    field,
+                    op: PatchOp::Set(_),
+                } => Some(text_keys(*field).drop_on_set),
+                FieldOp::Text {
+                    field,
+                    op: PatchOp::Clear,
+                } => Some(text_keys(*field).drop_on_clear),
+                FieldOp::Position {
+                    field,
+                    op: PatchOp::Clear,
+                } => Some(position_keys(*field).drop_on_clear),
+                FieldOp::Position { .. } => None,
             })
             .collect();
         Self { dropped }

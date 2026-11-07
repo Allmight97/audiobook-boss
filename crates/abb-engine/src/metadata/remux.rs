@@ -1,6 +1,7 @@
 use super::passthrough::PassthroughMetadata;
 use super::{AudiobookMetadata, MetadataWritePlan};
 use crate::errors::{AppError, Result};
+use abb_metadata_core::PatchOp;
 use ffmpeg_next as ff;
 use std::time::Instant;
 
@@ -23,7 +24,7 @@ pub fn rewrite_metadata_with_ffmpeg(
     metadata: Option<&AudiobookMetadata>,
     passthrough: Option<&PassthroughMetadata>,
 ) -> Result<()> {
-    let metadata_plan = metadata.cloned().map(MetadataWritePlan::from_metadata);
+    let metadata_plan = metadata.map(MetadataWritePlan::from_metadata);
     rewrite_metadata_with_ffmpeg_plan_as(input_path, metadata_plan.as_ref(), passthrough, None)
 }
 
@@ -91,7 +92,7 @@ pub(super) fn remux_into(
         .map_err(AppError::Ffmpeg)
     })?;
     if let Some(plan) = metadata {
-        super::metadata_ops::log_write_plan(
+        super::plan_log::log_write_plan(
             plan,
             "ffmpeg_remux",
             &crate::diagnostics::artifact_id(input_path),
@@ -100,12 +101,9 @@ pub(super) fn remux_into(
     log::info!("metadata_route artifact={} input_format={} writer=ffmpeg_remux output_format={} chapters={}",
         crate::diagnostics::artifact_id(input_path), ictx.format().name(), octx.format().name(),
         passthrough.map_or(0, |value| value.chapters.len()));
-    let metadata_value = metadata.map(|plan| &plan.metadata);
-    let cover = ResolvedCover::select(metadata_value, passthrough);
-    let replace_cover = cover.is_some()
-        || metadata_value
-            .and_then(|value| value.cover_art.as_ref())
-            .is_some();
+    let cover_intent = metadata.and_then(|plan| plan.cover.as_ref());
+    let cover = ResolvedCover::select(cover_intent, passthrough);
+    let replace_cover = cover.is_some() || cover_intent.is_some();
     let stream_mapping = stage("metadata_copy_streams", temp_path, || {
         copy_streams(&ictx, &mut octx, replace_cover)
     })?;
@@ -116,7 +114,7 @@ pub(super) fn remux_into(
         copy_container_metadata(&ictx, &mut octx, metadata)
     })?;
 
-    log_cover_selection(input_path, cover, metadata_value);
+    log_cover_selection(input_path, cover, cover_intent);
     let cover_stream_info = if let Some(selection) = cover {
         match add_cover_art_stream_pre_header(&mut octx, selection.bytes()) {
             Ok(stream_info) => stream_info,
@@ -303,7 +301,7 @@ fn copy_container_metadata(
             ictx.metadata().to_owned(),
             plan,
             octx.format().name(),
-        )?,
+        ),
         None => ictx.metadata().to_owned(),
     };
     if octx.format().name() == "mp4" {
@@ -497,7 +495,7 @@ fn write_container_header(
 fn log_cover_selection(
     input_path: &std::path::Path,
     cover: Option<ResolvedCover<'_>>,
-    metadata_value: Option<&AudiobookMetadata>,
+    cover_intent: Option<&PatchOp<Vec<u8>>>,
 ) {
     log::info!(
         "metadata_cover artifact={} writer=ffmpeg_remux source={} bytes={} format={:?} decision={}",
@@ -511,7 +509,7 @@ fn log_cover_selection(
         cover.and_then(|s| super::cover_art::detect_cover_art_format(s.bytes())),
         if cover.is_some() {
             "embed"
-        } else if metadata_value.and_then(|m| m.cover_art.as_ref()).is_some() {
+        } else if cover_intent.is_some() {
             "explicit_clear"
         } else {
             "no_cover_data"
