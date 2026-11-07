@@ -98,14 +98,16 @@ without a bullet has none. Engine paths name the owner of the truth.
   send Settings intents only. `quittingAvailable` is display-only, read through
   `src/lib/platform` (macOS only): the Quit shortcut is macOS-only, and bindings
   and fixtures must be the same on every OS.
-- `encoding` (session AGENTS): `project.ts` disables an option because the
-  engine's facts say so. `editFor` turns a control value into an `AudioEdit`;
-  a value no control offers sends nothing. What Auto resolves to comes from the
-  engine's `autoSampleRate` and `autoChannels` readings on the title or the
-  selection, never from source facts or a plan; a selection's are plain Auto
-  while the field is mixed. Defaults describe future
-  imports and name no source; existing titles change only through Apply App
-  Settings. `selectionView` and `refusal` render engine facts and combine no
+- `encoding` (session AGENTS): option lists, the codec family, and the bitrate
+  shown come from the engine's `facts`, and `labels.ts` is the one table of
+  format, intent, encoder, and bitrate-mode wording. `project.ts` disables an
+  option because the facts say so. `editFor` turns a control value into an
+  `AudioEdit`; a value outside the engine's lists sends nothing. Sample-rate
+  and FAAC quality lists still come from the capabilities. What Auto resolves
+  to comes from the engine's `autoSampleRate` and `autoChannels` readings on
+  the title or the selection, never from source facts or a plan; a selection's
+  are plain Auto while the field is mixed. Defaults describe future imports
+  and name no source; existing titles change only through Apply App Settings. `selectionView` and `refusal` render engine facts and combine no
   titles.
 - `inputSession` (session AGENTS): a title's chapters, duration, and size
   come from the engine's `titleTotals`; the combined size and Group as one

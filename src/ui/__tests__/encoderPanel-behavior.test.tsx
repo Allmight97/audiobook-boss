@@ -59,7 +59,7 @@ describe('encoder panel behavior controls', () => {
 
 	it('sends native speed and bitrate edits and shows the engine value after a refused one', async () => {
 		await renderEncoder((defaults) => {
-			defaults.choice.aacBitrateKbps = 193;
+			defaults.facts.bitrateKbps = 193;
 		});
 		await vi.waitFor(() => expect(document.getElementById('native-speed')).not.toBeNull());
 
@@ -102,10 +102,8 @@ describe('encoder panel behavior controls', () => {
 		await renderEncoder((defaults, audio) => {
 			defaults.facts.bitrateKbpsMin = 24;
 			defaults.facts.bitrateKbpsMax = 256;
-			if (audio.capabilities) {
-				audio.capabilities.explicitSampleRates = [44100];
-				audio.capabilities.channelOptions = ['auto', 'mono'];
-			}
+			defaults.facts.channelOptions = ['auto', 'mono'];
+			if (audio.capabilities) audio.capabilities.explicitSampleRates = [44100];
 		});
 
 		await vi.waitFor(() => {

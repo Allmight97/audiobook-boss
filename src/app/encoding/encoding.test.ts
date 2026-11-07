@@ -29,6 +29,9 @@ describe('encoding owner', () => {
 
 	it('sends each control as a typed edit and drops values no control offers', async () => {
 		const app = await open();
+		engine.change((state) => {
+			state.audio.defaults.facts.allowedModes = ['abr', 'vbr'];
+		});
 
 		app.encoding.select('bitrate', '96');
 		app.encoding.select('sampleRate', '48000');
@@ -54,6 +57,64 @@ describe('encoding owner', () => {
 				},
 			]),
 		);
+	});
+
+	it('checks each control value against the lists the engine offers', async () => {
+		const app = await open();
+		engine.change((state) => {
+			state.audio.defaults.facts.channelOptions = ['auto', 'mono'];
+			state.audio.defaults.facts.nativeSpeedOptions = [0, 1];
+			state.audio.defaults.facts.intentOptions = ['auto', 'encode'];
+		});
+
+		app.encoding.select('channels', 'stereo');
+		app.encoding.select('channels', 'mono');
+		app.encoding.select('nativeSpeed', '2');
+		app.encoding.select('nativeSpeed', '1');
+		app.encoding.select('intent', 'preserve');
+		app.encoding.select('intent', 'encode');
+		app.encoding.select('encoder', 'opus');
+		app.encoding.select('rateControl', 'cbr');
+
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents.filter((intent) => intent.kind === 'setDefaultAudio')).toEqual([
+				{ kind: 'setDefaultAudio', edit: { field: 'channels', value: 'mono' } },
+				{ kind: 'setDefaultAudio', edit: { field: 'nativeSpeed', value: 1 } },
+				{ kind: 'setDefaultAudio', edit: { field: 'intent', value: 'encode' } },
+			]),
+		);
+	});
+
+	it('shows the bitrate, speeds, channels and codec family the engine publishes', async () => {
+		const app = await open();
+		engine.change((state) => {
+			const facts = state.audio.defaults.facts;
+			facts.codecFamily = 'opus';
+			facts.bitrateKbps = 72;
+			facts.nativeSpeedOptions = [0, 1, 2];
+			facts.channelOptions = ['mono'];
+		});
+
+		const view = app.encoding.view();
+		expect(view.bitrate).toBe(72);
+		expect(view.codecFamily).toBe('opus');
+		expect(view.profileDisplay).toBe('Opus');
+		expect(view.nativeSpeedOptions.map((option) => option.label)).toEqual([
+			'0 · Full search (default)',
+			'1',
+			'2 · Fastest search',
+		]);
+		expect(view.channelOptions.map((option) => option.value)).toEqual(['mono']);
+		expect(view.formatOptions.map((option) => option.label)).toEqual([
+			'M4B · AAC',
+			'M4A · Opus',
+			'MKA · Opus',
+		]);
+		expect(view.intentOptions.map((option) => option.label)).toEqual([
+			'Default',
+			'Keep original audio',
+			'User Preference',
+		]);
 	});
 
 	it('edits titles by identity and copies the defaults onto them', async () => {

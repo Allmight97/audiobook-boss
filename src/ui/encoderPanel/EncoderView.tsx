@@ -89,9 +89,9 @@ function EncoderPanel(props: {
 								Mixed
 							</option>
 						</Show>
-						<option value="m4b">M4B · AAC</option>
-						<option value="m4aOpus">M4A · Opus</option>
-						<option value="mkaOpus">MKA · Opus</option>
+						<For each={view().formatOptions} keyed={(option) => option.value}>
+							{(option) => <option value={option().value}>{option().label}</option>}
+						</For>
 					</select>
 				</div>
 				<div class="encoder-field-row">
@@ -106,9 +106,9 @@ function EncoderPanel(props: {
 								Mixed
 							</option>
 						</Show>
-						<option value="auto">Default</option>
-						<option value="preserve">Keep original audio</option>
-						<option value="encode">User Preference</option>
+						<For each={view().intentOptions} keyed={(option) => option.value}>
+							{(option) => <option value={option().value}>{option().label}</option>}
+						</For>
 					</select>
 				</div>
 				<Show when={mixed('format')}>
@@ -122,7 +122,7 @@ function EncoderPanel(props: {
 								? 'Mixed encoders'
 								: mixed('quality') || mixed('bitrate')
 									? 'Mixed quality'
-									: displayedFlavor() === 'opus'
+									: view().codecFamily === 'opus'
 										? `Opus · ${view().bitrate} kbps VBR`
 										: `${view().flavorOptions.find((option) => option.value === displayedFlavor())?.label} · ${view().showQuality ? `VBR ${view().quality}` : `${view().bitrate} kbps`}`}
 						</summary>

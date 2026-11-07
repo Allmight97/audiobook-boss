@@ -1,5 +1,6 @@
 import type { Accessor } from 'solid-js';
 import type {
+	AudioChoiceFacts,
 	AudioChoiceView,
 	AudioFile,
 	AutoReading,
@@ -7,15 +8,11 @@ import type {
 	TitlePlan,
 } from '../../lib/generated/tauri';
 import type { EngineLink } from '../engineLink';
-import {
-	editFor,
-	projectView,
-	type EncodingAuto,
-	type EncodingField,
-	type EncodingView,
-} from './project';
+import { editFor, type EncodingField } from './edit';
+import { projectView, type EncodingAuto, type EncodingView } from './project';
 
-export type { EncodingField, EncodingView } from './project';
+export type { EncodingField } from './edit';
+export type { EncodingView } from './project';
 
 export type EncodingOwner = {
 	/** The request processing receives for `file`. */
@@ -77,8 +74,13 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		});
 	}
 
-	function selectTitles(files: readonly AudioFile[], field: EncodingField, value: string): void {
-		const edit = editFor(field, value);
+	function sendTitleEdit(
+		files: readonly AudioFile[],
+		field: EncodingField,
+		value: string,
+		facts: AudioChoiceFacts,
+	): void {
+		const edit = editFor(field, value, facts);
 		if (!edit || files.length === 0) return;
 		link.post({ kind: 'setTitleAudio', titleIds: files.map(titleId), edit });
 	}
@@ -90,9 +92,13 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		plan,
 		titleView,
 		selectTitle(file, field, value) {
-			selectTitles([file], field, value);
+			sendTitleEdit([file], field, value, titleChoice(file).facts);
 		},
-		selectTitles,
+		selectTitles(files, field, value) {
+			const [first] = files;
+			if (!first) return;
+			sendTitleEdit(files, field, value, link.audio().selection?.facts ?? titleChoice(first).facts);
+		},
 		selectionView() {
 			const selection = link.audio().selection;
 			if (!selection) return null;
@@ -121,7 +127,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		},
 		view: () => display(link.audio().defaults, null),
 		select(field, value) {
-			const edit = editFor(field, value);
+			const edit = editFor(field, value, link.audio().defaults.facts);
 			if (edit) link.post({ kind: 'setDefaultAudio', edit });
 		},
 	};
