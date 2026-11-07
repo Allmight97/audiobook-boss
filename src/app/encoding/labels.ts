@@ -32,8 +32,16 @@ const ENCODERS: Record<EncoderType, string> = {
 	opus: 'Opus (libopus)',
 };
 
+export function formatLabel(format: AudiobookFormat): string {
+	return FORMATS[format];
+}
+
+export function codecFamilyLabel(family: CodecFamily): string {
+	return CODEC_FAMILIES[family];
+}
+
 export function formatOptionLabel(option: FormatOption): string {
-	return `${FORMATS[option.format]} · ${CODEC_FAMILIES[option.codecFamily]}`;
+	return `${formatLabel(option.format)} · ${codecFamilyLabel(option.codecFamily)}`;
 }
 
 export function intentLabel(intent: AudioIntent): string {

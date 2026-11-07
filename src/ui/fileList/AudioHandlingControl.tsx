@@ -1,5 +1,6 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { Portal, type JSX } from '@solidjs/web';
+import { codecFamilyLabel, formatLabel, intentLabel } from '../../app/encoding';
 import { useAppRuntime } from '../../app/runtime';
 import { EncoderView } from '../encoderPanel';
 import { toUserMessage } from '../../lib/tauri/appError';
@@ -35,8 +36,10 @@ export function AudioHandlingControl(props: {
 	const needsChoice = () => resolved().kind === 'choiceRequired';
 	const kept = () => plan()?.handling === 'preserve';
 	const guidanceId = () => `audio-plan-${props.index}`;
-	const format = () => ({ m4b: 'M4B', m4aOpus: 'M4A', mkaOpus: 'MKA' })[request().format];
-	const opus = () => request().format === 'm4aOpus' || request().format === 'mkaOpus';
+	const format = () => formatLabel(request().format);
+	const family = () => runtime.encoding.titleView(props.file).codecFamily;
+	const opus = () => family() === 'opus';
+	const codec = () => codecFamilyLabel(family());
 	async function openCompatibilityPage(): Promise<void> {
 		setLinkError('');
 		try {
@@ -184,7 +187,7 @@ export function AudioHandlingControl(props: {
 					? 'Choose audio'
 					: kept()
 						? `Pass-through · ${format()}`
-						: `${request().intent === 'preserve' ? 'Keep original audio' : request().intent === 'auto' ? 'Default' : opus() ? 'Opus' : 'AAC'} · ${format()}`}
+						: `${request().intent === 'encode' ? codec() : intentLabel(request().intent)} · ${format()}`}
 			</span>
 			<Show
 				when={needsChoice() || error() ? null : runtime.output.estimateTitleSizeText(props.file)}
@@ -245,7 +248,7 @@ export function AudioHandlingControl(props: {
 										? 'Audio plan'
 										: kept()
 											? 'Keeping original audio'
-											: `Using ${opus() ? 'Opus' : 'AAC'} with ${format()}`}
+											: `Using ${codec()} with ${format()}`}
 						</strong>
 						<p>
 							{needsChoice()
@@ -255,7 +258,7 @@ export function AudioHandlingControl(props: {
 										? 'Checking source audio…'
 										: kept()
 											? 'Audio stays unchanged. Tags, artwork and chapters will be updated.'
-											: `Convert ${plan()?.sourceCodec} to ${opus() ? 'Opus' : 'AAC'} and save as ${format()}.`)}
+											: `Convert ${plan()?.sourceCodec} to ${codec()} and save as ${format()}.`)}
 						</p>
 						<p class="audio-plan-origin">
 							<button
@@ -272,12 +275,7 @@ export function AudioHandlingControl(props: {
 									<dt>Source audio</dt>
 									<dd>{planned().handling === 'preserve' ? 'Pass-through' : 'Re-encoded'}</dd>
 									<dt>{opus() && !kept() ? 'Opus input rate' : 'Sample rate'}</dt>
-									<dd>
-										{sources()[0]?.sampleRate !== planned().sampleRate
-											? `${(sources()[0]?.sampleRate ?? 0) / 1000} → `
-											: ''}
-										{planned().sampleRate / 1000} kHz
-									</dd>
+									<dd>{planned().sampleRate / 1000} kHz</dd>
 									<dt>Channels</dt>
 									<dd>
 										{planned().channels === 1

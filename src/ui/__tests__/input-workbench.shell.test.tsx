@@ -229,7 +229,7 @@ describe('Solid input workbench', () => {
 
 	it('shows the engine plan, its failure, and the estimate in the audio plan popover', async () => {
 		const user = userEvent.setup();
-		const file = analyzedFile('/books/estimate.m4b');
+		const file = analyzedFile('/books/estimate.m4b', { sampleRate: 22050 });
 		runtime = await runtimeFor({ files: [file] });
 		await renderApp(runtime);
 		await runtime.input.importIntent({
@@ -260,6 +260,8 @@ describe('Solid input workbench', () => {
 			estimate: { kind: 'bytes', bytes: 1000 },
 		});
 		await waitFor(() => expect(popup).toHaveTextContent('6 channels'));
+		expect(popup).toHaveTextContent('Sample rate44.1 kHz');
+		expect(popup).toHaveTextContent('Keeping original audio');
 		expect(screen.getByTitle('Estimated output size')).toHaveTextContent('1000.0 B');
 
 		engine.seedTitleAudio(file.path, titleAudioRequest(), {
@@ -464,6 +466,9 @@ describe('Solid input workbench', () => {
 		await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
 		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(1));
 		engine.seedTitleAudio(file.path, { ...titleAudioRequest(), format: 'm4aOpus' });
+		engine.change((state) => {
+			state.audio.titles[file.path].facts.codecFamily = 'opus';
+		});
 		const openUrl = vi.spyOn(tauriClient, 'openUrl').mockRejectedValueOnce({
 			code: 'opener_failed',
 			category: 'io',
