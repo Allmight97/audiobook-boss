@@ -26,6 +26,8 @@ mod integration_media_encoded_run_tests;
 mod integration_media_encoding_choice_tests;
 #[path = "integration_media_opus_tests.rs"]
 mod integration_media_opus_tests;
+#[path = "integration_media_preserve_decision_tests.rs"]
+mod integration_media_preserve_decision_tests;
 #[path = "integration_media_preserve_tests.rs"]
 mod integration_media_preserve_tests;
 #[path = "integration_media_route_parity_tests.rs"]

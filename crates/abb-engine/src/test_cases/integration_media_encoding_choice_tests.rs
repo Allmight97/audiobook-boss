@@ -163,9 +163,12 @@ struct Choice {
     declared_rate: &'static str,
     declared_channels: &'static str,
     extension: &'static str,
+    container: &'static str,
 }
 
 const OPUS_DECLARED_RATE: &str = "48000";
+const MP4_CONTAINER: &str = "mov,mp4,m4a,3gp,3g2,mj2";
+const MATROSKA_CONTAINER: &str = "matroska,webm";
 const NOISE_SECONDS: f64 = 2.0;
 const VARIABLE_BITRATE_TOLERANCE: f64 = 0.15;
 
@@ -181,6 +184,7 @@ async fn encoding_choices_reach_the_file() {
             declared_rate: "22050",
             declared_channels: "1",
             extension: "m4b",
+            container: MP4_CONTAINER,
         },
         Choice {
             format: AudiobookFormat::M4b,
@@ -191,6 +195,7 @@ async fn encoding_choices_reach_the_file() {
             declared_rate: "32000",
             declared_channels: "2",
             extension: "m4b",
+            container: MP4_CONTAINER,
         },
         Choice {
             format: AudiobookFormat::M4aOpus,
@@ -201,6 +206,7 @@ async fn encoding_choices_reach_the_file() {
             declared_rate: OPUS_DECLARED_RATE,
             declared_channels: "1",
             extension: "m4a",
+            container: MP4_CONTAINER,
         },
         Choice {
             format: AudiobookFormat::MkaOpus,
@@ -211,6 +217,7 @@ async fn encoding_choices_reach_the_file() {
             declared_rate: OPUS_DECLARED_RATE,
             declared_channels: "1",
             extension: "mka",
+            container: MATROSKA_CONTAINER,
         },
         Choice {
             format: AudiobookFormat::MkaOpus,
@@ -221,6 +228,7 @@ async fn encoding_choices_reach_the_file() {
             declared_rate: OPUS_DECLARED_RATE,
             declared_channels: "2",
             extension: "mka",
+            container: MATROSKA_CONTAINER,
         },
     ];
     for choice in choices {
@@ -241,6 +249,7 @@ async fn encoding_choices_reach_the_file() {
             output.extension().and_then(|e| e.to_str()),
             Some(choice.extension)
         );
+        assert_eq!(stream_fact(&output, "format=format_name"), choice.container);
         assert_eq!(stream_fact(&output, "stream=codec_name"), choice.codec);
         assert_eq!(
             stream_fact(&output, "stream=sample_rate"),
