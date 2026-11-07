@@ -59,13 +59,13 @@ pub(crate) async fn run_processing_job(
     } = register_job_and_validate_output(
         &request.registry,
         &request.output_plan.resolved_path,
+        request.audio_request.format(),
         request.title_cancel.clone(),
         ProcessingJobLogContext {
             operation_id: operation_id.clone(),
             input_index: request.input_index,
             operation_kind: request.operation_kind,
         },
-        request.audio_handling.preserves(),
     )
     .await?;
     log_audio_decision(&request, job_id);
@@ -300,9 +300,9 @@ pub(crate) struct RegisteredProcessingJob {
 pub(crate) async fn register_job_and_validate_output(
     registry: &crate::ManagedJobRegistry,
     output_path: &Path,
+    format: audio::AudiobookFormat,
     title_cancel: Option<CancellationToken>,
     log_context: ProcessingJobLogContext,
-    preserves_audio: bool,
 ) -> Result<RegisteredProcessingJob> {
     let (job_id, permit) = registry
         .register_job_with_external_cancel(title_cancel.clone())
@@ -317,11 +317,7 @@ pub(crate) async fn register_job_and_validate_output(
 
     let checked_path = output_path.to_path_buf();
     let validation = tokio::task::spawn_blocking(move || {
-        if preserves_audio {
-            crate::audio::validate_preserved_output_path(&checked_path)
-        } else {
-            crate::audio::validate_output_path(&checked_path)
-        }
+        crate::audio::validate_output_target(&checked_path, format)
     })
     .await
     .map_err(|error| AppError::General(format!("Output check stopped: {error}")))

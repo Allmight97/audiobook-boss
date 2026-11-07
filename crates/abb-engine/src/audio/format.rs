@@ -109,19 +109,6 @@ pub(crate) fn codec_family_of(encoder: EncoderType) -> CodecFamily {
         .expect("every encoder type belongs to an output format")
 }
 
-/// The extensions in table order as ".m4b, .m4a or .mka".
-pub(crate) fn supported_extensions_text() -> String {
-    let dotted: Vec<String> = FORMATS
-        .into_iter()
-        .map(|spec| format!(".{}", spec.extension))
-        .collect();
-    match dotted.split_last() {
-        Some((last, rest)) if !rest.is_empty() => format!("{} or {last}", rest.join(", ")),
-        Some((only, _)) => only.clone(),
-        None => String::new(),
-    }
-}
-
 #[cfg(test)]
 #[path = "format_tests.rs"]
 mod tests;

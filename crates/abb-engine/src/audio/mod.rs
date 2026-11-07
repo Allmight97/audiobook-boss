@@ -160,9 +160,7 @@ pub enum SampleRateConfig {
 }
 
 pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
-pub(crate) use format::{
-    codec_family_of, format_for_extension, supported_extensions_text, CodecFamily, Muxer, FORMATS,
-};
+pub(crate) use format::{codec_family_of, format_for_extension, CodecFamily, Muxer, FORMATS};
 pub(crate) use imports::discover_audio_import_paths;
 pub use imports::{
     supported_audio_import_extensions, supported_audio_import_formats_text,
@@ -174,9 +172,8 @@ pub(crate) use processor::{
     AudioExecutionRequest, AudioRunOutcome,
 };
 pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
-pub(crate) use settings::{
-    validate_output_path, validate_preserved_output_path, validate_sample_rate_config,
-};
+pub(crate) use settings::validate_sample_rate_config;
+pub(crate) use settings::{check_output_directory, validate_output_target};
 
 pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
     if !file.is_valid || !file.preservation.is_some_and(|value| value.can_preserve) {

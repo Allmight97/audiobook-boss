@@ -1,4 +1,4 @@
-use super::{EncoderType, FaacProfile, SampleRateConfig};
+use super::{AudiobookFormat, EncoderType, FaacProfile, SampleRateConfig};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::path::Path;
 
@@ -52,23 +52,26 @@ pub(crate) fn validate_encoder_sample_rate(
     Ok(())
 }
 
-fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()> {
-    let dir = dir_path.as_ref();
-
+pub(crate) fn check_output_directory(dir: &Path, allow_missing: bool) -> Result<()> {
     if !dir.exists() {
+        if allow_missing {
+            return Ok(());
+        }
         return Err(AppError::FileValidation(format!(
             "Output directory does not exist: {}",
             sanitize_path_for_display(dir)
         )));
     }
-
     if !dir.is_dir() {
         return Err(AppError::FileValidation(format!(
             "Output path is not a directory: {}",
             sanitize_path_for_display(dir)
         )));
     }
+    Ok(())
+}
 
+fn probe_output_directory_writable(dir: &Path) -> Result<()> {
     let temp_file = dir.join(format!(
         ".audiobook_boss_write_test_{}",
         uuid::Uuid::new_v4()
@@ -91,44 +94,20 @@ fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()>
     }
 }
 
-pub fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
-    let path = path.as_ref();
-
+pub(crate) fn validate_output_target(path: &Path, format: AudiobookFormat) -> Result<()> {
     if let Some(parent) = path.parent() {
-        validate_output_directory_writable(parent)?;
+        check_output_directory(parent, false)?;
+        probe_output_directory_writable(parent)?;
     }
-
-    let supported = super::supported_extensions_text();
-    match path.extension().and_then(|s| s.to_str()) {
-        Some(ext) if super::format_for_extension(ext).is_some() => Ok(()),
-        Some(ext) => Err(AppError::InvalidInput(format!(
-            "Encoded output must be {supported}, got: .{ext}"
+    let wanted = format.extension();
+    match path.extension().and_then(|value| value.to_str()) {
+        Some(extension) if extension.eq_ignore_ascii_case(wanted) => Ok(()),
+        Some(extension) => Err(AppError::InvalidInput(format!(
+            "Output must be .{wanted}, got: .{extension}"
         ))),
         None => Err(AppError::InvalidInput(format!(
-            "Encoded output requires an {supported} extension"
+            "Output must have the .{wanted} extension"
         ))),
-    }
-}
-
-pub fn validate_preserved_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
-    let path = path.as_ref();
-    if let Some(parent) = path.parent() {
-        validate_output_directory_writable(parent)?;
-    }
-    match path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-    {
-        Some(extension) if super::format_for_extension(extension).is_some() => Ok(()),
-        Some(extension) => Err(AppError::InvalidInput(format!(
-            "Preserved output must be {}, got: .{extension}",
-            super::supported_extensions_text()
-        ))),
-        None => Err(AppError::InvalidInput(
-            "Preserved output must have a supported audio extension".to_string(),
-        )),
     }
 }
 

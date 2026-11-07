@@ -1,5 +1,5 @@
 use crate::audio::FileListInfo;
-use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::errors::{AppError, Result};
 use crate::metadata::{
     plan_metadata_outcome, CoverArtPassthroughPolicy, MetadataOutcomePlan, MetadataOutcomeRequest,
 };
@@ -54,21 +54,7 @@ pub(crate) struct InspectedProcessingPlan {
 
 fn resolve_output_dir(output_dir: &str, allow_missing: bool) -> Result<PathBuf> {
     let base_output_dir = PathBuf::from(output_dir);
-    if !base_output_dir.exists() {
-        if allow_missing {
-            return Ok(base_output_dir);
-        }
-        return Err(AppError::FileValidation(format!(
-            "Output directory does not exist: {}",
-            sanitize_path_for_display(&base_output_dir)
-        )));
-    }
-    if !base_output_dir.is_dir() {
-        return Err(AppError::FileValidation(format!(
-            "Output path is not a directory: {}",
-            sanitize_path_for_display(&base_output_dir)
-        )));
-    }
+    crate::audio::check_output_directory(&base_output_dir, allow_missing)?;
     Ok(base_output_dir)
 }
 

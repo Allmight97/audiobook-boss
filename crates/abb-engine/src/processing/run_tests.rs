@@ -576,12 +576,12 @@ async fn failed_output_validation_emits_started_and_failed_terminal_records() {
     if register_job_and_validate_output(
         &registry,
         &invalid_output,
+        crate::audio::AudiobookFormat::M4b,
         None,
         ProcessingJobLogContext {
             operation_id: Some("log-proof".into()),
             ..batch_log_context()
         },
-        false,
     )
     .await
     .is_ok()
@@ -638,9 +638,9 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
     let error = match register_job_and_validate_output(
         &registry,
         &invalid_output,
+        crate::audio::AudiobookFormat::M4b,
         None,
         batch_log_context(),
-        false,
     )
     .await
     {
@@ -649,9 +649,7 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
     };
 
     assert!(
-        error
-            .to_string()
-            .contains("Encoded output must be .m4b, .m4a or .mka, got: .mp3"),
+        error.to_string().contains("Output must be .m4b, got: .mp3"),
         "unexpected error: {error}"
     );
 
