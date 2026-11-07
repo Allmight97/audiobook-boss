@@ -1,18 +1,14 @@
 import { formatEtaRemaining } from '../../lib/format/eta';
-import type { StatusViewStore } from './view';
+import { coverSrc } from '../../lib/tauri/coverSrc';
 import type { OutputSnapshot, WorkProgressStage } from '../../lib/generated/tauri';
+import type { JobListItem, StatusView } from './view';
 
 export type ConcurrencyRead = {
 	readonly selection: string;
 	readonly effective: number;
 };
 
-export type StatusLine = {
-	readonly stage: WorkProgressStage;
-	readonly percentage: number;
-	readonly message: string;
-	readonly etaSeconds?: number | null;
-};
+type PreviewRun = NonNullable<OutputSnapshot['previewRun']>;
 
 function stageText(stage: WorkProgressStage): string {
 	switch (stage) {
@@ -33,46 +29,46 @@ function stageText(stage: WorkProgressStage): string {
 	}
 }
 
-export function renderStatus(view: StatusViewStore, status: StatusLine): void {
-	view.setProgressPercentage(status.percentage);
-	const text = stageText(status.stage);
-	view.setStatusText(
-		status.stage === 'converting' && status.etaSeconds != null
-			? `${text} · ${formatEtaRemaining(status.etaSeconds)}`
-			: text,
-	);
-	view.setStepText(`Current Step: ${status.message}`);
-	view.setStepColor('var(--text-primary)');
-	view.setProgressActive(false);
-}
-
-export function renderConcurrencyStatus(view: StatusViewStore, concurrency: ConcurrencyRead): void {
+export function concurrencyText(concurrency: ConcurrencyRead): string {
 	const suffix = concurrency.selection === 'auto' ? ' (Auto)' : '';
-	view.setConcurrencyText(`Max jobs: ${concurrency.effective}${suffix}`);
+	return `Max jobs: ${concurrency.effective}${suffix}`;
 }
 
-export function renderPreview(view: StatusViewStore, preview: OutputSnapshot['previewRun']): void {
-	if (!preview) return;
+function previewStatusText({ status, progress }: PreviewRun['operation']): string {
+	if (status === 'mixed') return 'Mixed result';
+	if (status === 'cancelling') return 'Cancelling';
+	const text = stageText(progress.stage);
+	return progress.stage === 'converting' && progress.etaSeconds != null
+		? `${text} · ${formatEtaRemaining(progress.etaSeconds)}`
+		: text;
+}
+
+function previewJobItems({ children, phase }: PreviewRun['operation']): JobListItem[] {
+	return children.map((child, index) => ({
+		childJobId: child.childJobId,
+		label: child.label,
+		status: child.status,
+		statusText:
+			child.cancelRequested && phase !== 'finished'
+				? 'Cancelling'
+				: child.status === 'queued'
+					? `Queued • #${index + 1} of ${children.length}`
+					: (child.message ?? child.progress.message),
+		stage: child.progress.stage,
+		percentage: child.progress.percentage,
+		canCancel: child.cancellable,
+	}));
+}
+
+export function previewView(preview: PreviewRun): Omit<StatusView, 'concurrencyText'> {
 	const { operation } = preview;
-	const active = operation.phase !== 'finished';
-	renderStatus(view, operation.progress);
-	view.setProgressActive(operation.phase === 'active');
-	if (operation.status === 'mixed') view.setStatusText('Mixed result');
-	if (operation.status === 'cancelling') view.setStatusText('Cancelling');
-	view.setJobItems(
-		operation.children.map((child, index) => ({
-			childJobId: child.childJobId,
-			label: child.label,
-			status: child.status,
-			statusText:
-				child.cancelRequested && active
-					? 'Cancelling'
-					: child.status === 'queued'
-						? `Queued • #${index + 1} of ${operation.children.length}`
-						: (child.message ?? child.progress.message),
-			stage: child.progress.stage,
-			percentage: child.progress.percentage,
-			canCancel: child.cancellable,
-		})),
-	);
+	return {
+		coverArtSrc: preview.cover ? coverSrc(preview.cover) : null,
+		jobItems: previewJobItems(operation),
+		progressPercentage: operation.progress.percentage,
+		statusText: previewStatusText(operation),
+		stepText: `Current Step: ${operation.progress.message}`,
+		stepTone: 'normal',
+		progressActive: operation.phase === 'active',
+	};
 }

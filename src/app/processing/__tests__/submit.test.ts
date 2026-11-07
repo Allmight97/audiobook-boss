@@ -100,4 +100,25 @@ describe('submission snapshot adapter', () => {
 			{ kind: 'restartTitle', titleId: 'alpha', revision: 3 },
 		]);
 	});
+
+	it('drops a failed send from the status line once the engine reports a new submission', async () => {
+		const engine = createFakeEngine();
+		engine.respond = (intent) =>
+			intent.kind === 'submit'
+				? {
+						kind: 'rejected',
+						error: { code: 'io_error', category: 'io', message: 'Disk full', detail: null },
+					}
+				: undefined;
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		await app.processing.start();
+		expect(app.processing.status().stepText).toBe('Error: Processing failed: Disk full');
+		expect(app.processing.status().stepTone).toBe('error');
+		engine.change((state) => {
+			state.output.submission = { kind: 'preparing', preview: false };
+		});
+		await vi.waitFor(() => expect(app.processing.status().stepText).toBe('Current Step: Ready'));
+		expect(app.processing.status().stepTone).toBe('normal');
+	});
 });

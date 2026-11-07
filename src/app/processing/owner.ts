@@ -1,12 +1,24 @@
-import { createEffect, createSignal, onCleanup, untrack, type Accessor } from 'solid-js';
+import {
+	createEffect,
+	createMemo,
+	createSignal,
+	onCleanup,
+	untrack,
+	type Accessor,
+} from 'solid-js';
 import type { SettingsOwner } from '../appSettings';
 import type { EngineLink } from '../engineLink';
 import { toUserMessage } from '../../lib/tauri/appError';
-import type { RestartOffer, SessionIntent } from '../../lib/generated/tauri';
-import { renderSubmission } from './submit';
-import { renderConcurrencyStatus, renderPreview, renderStatus } from './render';
-import { coverSrc } from '../../lib/tauri/coverSrc';
-import { createStatusViewStore, DEFAULT_STATUS_VIEW, type StatusView } from './view';
+import type { OutputSnapshot, RestartOffer, SessionIntent } from '../../lib/generated/tauri';
+import { processingFailure } from './submit';
+import { statusOf } from './status';
+import type { StatusView } from './view';
+
+type LocalError = {
+	readonly message: string;
+	readonly previewRun: OutputSnapshot['previewRun'];
+	readonly submission: OutputSnapshot['submission'];
+};
 
 export type ProcessingOwner = {
 	readonly status: Accessor<StatusView>;
@@ -32,31 +44,28 @@ export type ProcessingOwnerDeps = {
 };
 
 export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwner {
-	let status = DEFAULT_STATUS_VIEW;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	function publish(next: StatusView): void {
-		status = next;
-		bump((n) => n + 1);
-	}
-	const statusView = createStatusViewStore();
-	statusView.bindPublisher(publish);
+	const [localError, setLocalError] = createSignal<LocalError | null>(null, { ownedWrite: true });
 	let disposed = false;
 	onCleanup(() => {
 		disposed = true;
-		statusView.bindPublisher(null);
 	});
-	const context = {
-		showError: (message: string) => statusView.showError(message),
-		showStep: (message: string) => {
-			statusView.setStepText(`Current Step: ${message}`);
-			statusView.setStepColor('var(--text-primary)');
-		},
-		showCompleted: (message: string) =>
-			renderStatus(statusView, { stage: 'complete', percentage: 100, message }),
-		resetToIdle: () => {
-			if (!deps.link.output().previewRun) statusView.reset();
-		},
-	};
+	function showError(message: string): void {
+		if (disposed) return;
+		const { previewRun, submission } = untrack(() => deps.link.output());
+		setLocalError({ message, previewRun, submission });
+	}
+	const status = createMemo(() => {
+		const { previewRun, submission } = deps.link.output();
+		const error = localError();
+		return statusOf({
+			previewRun,
+			submission,
+			localError:
+				error?.previewRun === previewRun && error.submission === submission ? error.message : null,
+			concurrency: deps.settings.concurrency(),
+		});
+	});
 	function cancelPreview(childJobId?: string): void {
 		const preview = deps.link.output().previewRun;
 		if (preview)
@@ -66,25 +75,17 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 				childJobId: childJobId ?? null,
 			});
 	}
-	let artworkKey: string | null = null;
 	let claiming: string | null = null;
 	createEffect(
 		() => deps.link.output().previewRun,
 		(preview) => {
-			renderPreview(statusView, preview);
-			if (!preview) return;
+			if (!preview?.openReady) return;
 			const id = preview.operation.operationId;
-			if (artworkKey !== preview.cover) {
-				artworkKey = preview.cover;
-				statusView.setCoverArtSrc(preview.cover ? coverSrc(preview.cover) : null);
-			}
-			if (preview.openReady && claiming !== id) {
-				claiming = id;
-				deps.link.openPreview(id).catch((error: unknown) => {
-					if (!disposed)
-						statusView.showError(`Preview could not be opened: ${toUserMessage(error)}`);
-				});
-			}
+			if (claiming === id) return;
+			claiming = id;
+			deps.link.openPreview(id).catch((error: unknown) => {
+				showError(`Preview could not be opened: ${toUserMessage(error)}`);
+			});
 		},
 	);
 	async function send(intent: SessionIntent): Promise<void> {
@@ -92,24 +93,12 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 		try {
 			await deps.link.send(intent);
 		} catch (error) {
-			if (!disposed) statusView.showError(`Processing failed: ${toUserMessage(error)}`);
+			showError(processingFailure(error));
 		}
 	}
 	createEffect(
-		() => deps.link.output().submission,
-		(submission) => renderSubmission(context, submission),
-	);
-	createEffect(
 		() => deps.link.output().submissionInProgress,
 		(active) => deps.settings.setControlsEnabled(!active),
-	);
-	createEffect(
-		() => deps.settings.concurrency(),
-		(concurrency) => {
-			untrack(() => {
-				renderConcurrencyStatus(statusView, concurrency);
-			});
-		},
 	);
 
 	return {
@@ -122,10 +111,7 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			send({ kind: 'restartTitle', titleId: offer.titleId, revision: offer.revision }),
 		keepLocation: (offer) =>
 			send({ kind: 'keepTitleLocation', titleId: offer.titleId, revision: offer.revision }),
-		status: () => {
-			rev();
-			return status;
-		},
+		status,
 		start() {
 			return send({ kind: 'submit' });
 		},
@@ -150,7 +136,7 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 		},
 		reset() {
 			disposed = true;
-			statusView.reset();
+			bump((n) => n + 1);
 		},
 	};
 }

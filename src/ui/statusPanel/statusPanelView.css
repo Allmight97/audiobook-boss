@@ -60,6 +60,14 @@
 	margin-top: 0.125rem;
 }
 
+.muted-text.status-step {
+	color: var(--text-primary);
+}
+
+.muted-text.status-step.is-error {
+	color: var(--text-error);
+}
+
 .status-concurrency {
 	margin-top: var(--space-1);
 }

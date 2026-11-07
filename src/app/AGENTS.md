@@ -138,7 +138,11 @@ without a bullet has none. Engine paths name the owner of the truth.
   run's `cancellable`, and a title's from its child `cancellable`.
   `preview()` sends no length: the engine owns the preview length and content,
   and `previewTooltip()` words `titles.previewLength`.
-  Each owner instance owns its status store and publisher.
+  The status line is one pure `statusOf(previewRun, submission, localError,
+  concurrency)` in a memo; a failed send or preview open is the only local
+  state and shows until the engine reports a new preview run or submission.
+  A submission's error line shows over a preview's step line, because a failed
+  preview also leaves a blocked submission.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and
   `selectLane` send only the lane intent. Connection editing sends write-only
   key, URL, and category intents; keys never come back from the engine, and

@@ -87,7 +87,7 @@ export function StatusPanelView(): JSX.Element {
 						label="Progress"
 						active={view().progressActive}
 					/>
-					<div class="muted-text status-step" style={{ color: view().stepColor }}>
+					<div class={['muted-text', 'status-step', { 'is-error': view().stepTone === 'error' }]}>
 						{view().stepText}
 					</div>
 					<div class="muted-text status-concurrency">{view().concurrencyText}</div>
