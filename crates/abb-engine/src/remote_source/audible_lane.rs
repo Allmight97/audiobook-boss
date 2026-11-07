@@ -89,6 +89,15 @@ impl UiState {
                     library.diagnostics.clone(),
                 );
                 self.snapshot.library_status = RemoteDraftStatus::Succeeded;
+                if matches!(self.snapshot.auth, RemoteAuthStatus::Failed { .. }) {
+                    self.snapshot.auth = RemoteAuthStatus::Idle;
+                }
+                if matches!(
+                    self.snapshot.account_status,
+                    RemoteDraftStatus::Failed { .. }
+                ) {
+                    self.snapshot.account_status = RemoteDraftStatus::Idle;
+                }
             }
             Err(AudibleRequestError::AuthRejected) => {
                 self.reject_sign_in();

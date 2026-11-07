@@ -194,6 +194,47 @@ fn a_sign_in_or_account_failure_outranks_a_settled_job() {
     assert_eq!(message(&ui), "Sign-in failed.");
 }
 
+fn empty_library() -> Result<RemoteLibraryResponse, AudibleRequestError> {
+    Ok(RemoteLibraryResponse {
+        provider_id: ProviderId::Audible,
+        titles: Vec::new(),
+        diagnostics: Vec::new(),
+    })
+}
+
+fn ui_after_failed_sign_in_and_account_read() -> UiState {
+    let mut ui = UiState::default();
+    ui.snapshot.account_status = RemoteDraftStatus::Failed {
+        error: envelope("Account read failed."),
+    };
+    ui.snapshot.auth = RemoteAuthStatus::Failed {
+        error: envelope("Sign-in failed."),
+    };
+    ui
+}
+
+#[test]
+fn a_good_library_load_replaces_an_earlier_sign_in_or_account_failure() {
+    let mut ui = ui_after_failed_sign_in_and_account_read();
+    let request = refresh(&mut ui);
+    assert!(ui.library_result(request, &empty_library()));
+    assert_eq!(message(&ui), "0 Audible titles loaded.");
+    assert_eq!(ui.snapshot.auth, RemoteAuthStatus::Idle);
+    assert_eq!(ui.snapshot.account_status, RemoteDraftStatus::Idle);
+}
+
+#[test]
+fn a_failed_library_load_leaves_an_earlier_sign_in_or_account_failure() {
+    let mut ui = ui_after_failed_sign_in_and_account_read();
+    let request = refresh(&mut ui);
+    fail_library(&mut ui, request);
+    assert_eq!(message(&ui), "Sign-in failed.");
+    assert!(matches!(
+        ui.snapshot.account_status,
+        RemoteDraftStatus::Failed { .. }
+    ));
+}
+
 #[test]
 fn settled_jobs_keep_their_outcome_wording() {
     assert_eq!(settled_job_line(&imported(1)), "1 acquired title imported.");
