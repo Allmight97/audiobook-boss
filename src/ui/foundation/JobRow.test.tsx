@@ -7,7 +7,7 @@ afterEach(() => cleanup());
 
 it('marks the row with its status and runs the injected action', () => {
 	const onAction = vi.fn();
-	const { container } = render(() => (
+	render(() => (
 		<JobRow
 			status="running"
 			label="Book.m4b"
@@ -15,7 +15,10 @@ it('marks the row with its status and runs the injected action', () => {
 			actions={[{ id: 'cancel', label: 'Cancel', title: 'Cancel Book.m4b only', onAction }]}
 		/>
 	));
-	expect(container.querySelector('.abb-job-row')).toHaveClass('is-running');
+	expect(screen.getByText('Book.m4b').closest('[data-status]')).toHaveAttribute(
+		'data-status',
+		'running',
+	);
 	screen.getByRole('button', { name: 'Cancel' }).click();
 	expect(onAction).toHaveBeenCalledTimes(1);
 });

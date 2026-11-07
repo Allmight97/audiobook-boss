@@ -27,7 +27,7 @@ describe('Solid import tracer shell', () => {
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
 		const row = await screen.findByRole('option', { name: 'Chapter One' });
 		expect(within(row).getByText('Chapter One')).toBeInTheDocument();
-		expect(document.querySelector('.file-details')?.textContent).toMatch(/Narrator/);
+		expect(within(row).getByText(/Narrator/)).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Input and File Order' })).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Selected File Properties' })).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Metadata Manager' })).toBeInTheDocument();
@@ -59,11 +59,9 @@ describe('Solid import tracer shell', () => {
 		});
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await screen.findByRole('option', { name: 'chapter.mp3' });
-		expect(document.querySelector('.file-details')?.textContent).toMatch(/• 2 chapters$/);
-		expect(document.querySelector('.file-cue-details span')?.textContent).toBe(
-			'2 chapters from chapter.cue',
-		);
+		const row = await screen.findByRole('option', { name: 'chapter.mp3' });
+		expect(within(row).getByText(/• 2 chapters$/)).toBeInTheDocument();
+		expect(within(row).getByText('2 chapters from chapter.cue')).toBeInTheDocument();
 	});
 
 	it.each(['ignored', 'invalid'] as const)(
@@ -85,9 +83,9 @@ describe('Solid import tracer shell', () => {
 			});
 
 			await user.click(screen.getByRole('button', { name: 'Add audio files' }));
-			await screen.findByRole('option', { name: 'chapter.mp3' });
-			expect(screen.getByText('About the CUE.')).toBeInTheDocument();
-			expect(document.querySelector('.file-cue-details')?.textContent).not.toMatch(/from/);
+			const row = await screen.findByRole('option', { name: 'chapter.mp3' });
+			expect(within(row).getByText('About the CUE.')).toBeInTheDocument();
+			expect(within(row).queryByText(/chapters? from/)).toBeNull();
 		},
 	);
 

@@ -1,6 +1,7 @@
+import { flush } from 'solid-js';
 import { coverSrc } from '../../../lib/tauri/coverSrc';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@solidjs/testing-library';
+import { fireEvent, render, screen, within } from '@solidjs/testing-library';
 import { AppRuntimeProvider } from '../../runtime';
 import { StatusPanelView } from '../../../ui/statusPanel';
 import { PreviewAudioControls } from '../../../ui/previewAudio';
@@ -305,14 +306,15 @@ describe('engine preview adapter', () => {
 		});
 		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		const { container } = render(() => (
+		render(() => (
 			<AppRuntimeProvider runtime={app}>
 				<StatusPanelView />
 			</AppRuntimeProvider>
 		));
-		const row = container.querySelector('.queue-job-row');
-		const cancel = row?.querySelector('button');
-		expect(cancel).toBeInstanceOf(HTMLButtonElement);
+		fireEvent.click(screen.getByRole('button', { name: 'View queue' }));
+		flush();
+		const row = screen.getByText('Book.m4b').closest<HTMLElement>('[data-status]') as HTMLElement;
+		const cancel = within(row).getByRole('button', { name: 'Cancel' });
 
 		const ticked = preview();
 		ticked.operation.children[0].progress = {
@@ -323,11 +325,9 @@ describe('engine preview adapter', () => {
 			state.output.previewRun = ticked;
 		});
 
-		await vi.waitFor(() =>
-			expect(container.querySelector('.abb-job-row-status')).toHaveTextContent('55.0%'),
-		);
+		await screen.findByText('Rendering excerpt. (55.0%)');
 		expect(cancel).toBeInTheDocument();
-		cancel?.click();
+		cancel.click();
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents).toContainEqual({
 				kind: 'cancelPreview',

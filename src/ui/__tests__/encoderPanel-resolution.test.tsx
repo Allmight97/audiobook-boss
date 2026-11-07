@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@solidjs/testing-library';
 import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
+import { recordedFresh } from '../../lib/tauri/recordedFresh';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { EncoderView } from '../encoderPanel';
 
@@ -8,6 +9,10 @@ const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.value = value;
 	select.dispatchEvent(new Event('change', { bubbles: true }));
 };
+
+const recordedAudio = recordedFresh.session.audio;
+if (!recordedAudio) throw new Error('the recorded fresh session has no audio');
+const { facts } = recordedAudio.defaults;
 
 describe('encoder panel encoder resolution', () => {
 	let runtime: AppRuntime | undefined;
@@ -36,12 +41,10 @@ describe('encoder panel encoder resolution', () => {
 
 		await vi.waitFor(() => {
 			const select = screen.getByTestId<HTMLSelectElement>('encoder-select');
-			expect(select.value).toBe('native_aac');
-			expect(Array.from(select.options).map((option) => option.value)).toEqual([
-				'aac_at',
-				'native_aac',
-				'faac',
-			]);
+			expect(select.value).toBe(facts.effectiveEncoder);
+			expect(Array.from(select.options).map((option) => option.value)).toEqual(
+				facts.encoderOptions.map((option) => option.encoder),
+			);
 			expect(screen.queryByTestId('native-speed-select')).not.toBeNull();
 		});
 	});

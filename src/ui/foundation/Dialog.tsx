@@ -110,6 +110,7 @@ function DialogRoot(props: DialogProps): JSX.Element {
 		>
 			<div
 				class="abb-dialog"
+				data-state={props.open ? 'open' : 'closed'}
 				role="dialog"
 				aria-modal="true"
 				aria-labelledby={props.labelledBy}

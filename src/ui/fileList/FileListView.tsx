@@ -202,6 +202,7 @@ export function FileListView(props: {
 										drag().hoveredIndex === index() ? (drag().hoveredEdge ?? undefined) : undefined
 									}
 									role="option"
+									data-state={file.status}
 									aria-selected={selected() ? 'true' : 'false'}
 									aria-label={file.label}
 									tabindex={-1}

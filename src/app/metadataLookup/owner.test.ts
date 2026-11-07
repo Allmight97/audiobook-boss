@@ -72,14 +72,12 @@ it('shows a refused query and drops its typed text', async () => {
 	expect(runtime.lookup.view().titleQuery).toBe('Alpha');
 });
 
-it('moves focus to the form only after the engine closes the lookup for manual entry', async () => {
+it('runs the manual-entry callback only after the engine closes the lookup', async () => {
 	const engine = createFakeEngine();
 	engine.change((state) => {
 		state.lookup.open = true;
 	});
-	const input = document.createElement('input');
-	input.id = 'meta-title';
-	document.body.append(input);
+	const afterClose = vi.fn();
 	let release: () => void = () => {};
 	engine.respond = (intent) =>
 		intent.kind === 'lookupClose'
@@ -89,34 +87,30 @@ it('moves focus to the form only after the engine closes the lookup for manual e
 			: undefined;
 	runtime = await createAppRuntime({ engine });
 
-	const ran = runtime.lookup.run({ type: 'manualEntry' });
+	const ran = runtime.lookup.run({ type: 'manualEntry', afterClose });
 	await vi.waitFor(() =>
 		expect(engine.sessionIntents.map((intent) => intent.kind)).toContain('lookupClose'),
 	);
 	await Promise.resolve();
-	expect(document.activeElement).not.toBe(input);
+	expect(afterClose).not.toHaveBeenCalled();
 
 	release();
 	await ran;
-	await vi.waitFor(() => expect(document.activeElement).toBe(input));
-	input.remove();
+	await vi.waitFor(() => expect(afterClose).toHaveBeenCalledTimes(1));
 });
 
-it('shows a refused manual entry and leaves focus where it was', async () => {
+it('shows a refused manual entry and never runs the callback', async () => {
 	const engine = createFakeEngine();
 	engine.change((state) => {
 		state.lookup.open = true;
 	});
-	const input = document.createElement('input');
-	input.id = 'meta-title';
-	document.body.append(input);
+	const afterClose = vi.fn();
 	engine.respond = refusing('lookupClose');
 	runtime = await createAppRuntime({ engine });
 
-	await runtime.lookup.run({ type: 'manualEntry' });
+	await runtime.lookup.run({ type: 'manualEntry', afterClose });
 	await Promise.resolve();
 
 	expect(runtime.engine.refusal()).toBe('Lookup moved on.');
-	expect(document.activeElement).not.toBe(input);
-	input.remove();
+	expect(afterClose).not.toHaveBeenCalled();
 });

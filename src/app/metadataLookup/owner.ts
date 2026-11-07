@@ -6,7 +6,7 @@ import { toLookupState, type MetadataLookupSource, type MetadataLookupState } fr
 type MetadataLookupAction =
 	| { type: 'applyResult'; index: number }
 	| { type: 'close' }
-	| { type: 'manualEntry' }
+	| { type: 'manualEntry'; afterClose: () => void }
 	| { type: 'open' }
 	| { type: 'search' }
 	| { type: 'skipQueueItem' };
@@ -21,8 +21,6 @@ export type MetadataLookupOwner = {
 	setReplaceCover: (value: boolean) => void;
 	reset: () => void;
 };
-
-const METADATA_TITLE_INPUT_ID = 'meta-title';
 
 function intentFor(action: MetadataLookupAction, lookupRevision: number): SessionIntent {
 	switch (action.type) {
@@ -80,7 +78,7 @@ export function createMetadataLookupOwner(deps: {
 				return;
 			}
 			if (action.type === 'manualEntry') {
-				queueMicrotask(() => document.getElementById(METADATA_TITLE_INPUT_ID)?.focus());
+				queueMicrotask(action.afterClose);
 			}
 		},
 		setTitleQuery(value) {

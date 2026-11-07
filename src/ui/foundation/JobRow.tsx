@@ -22,7 +22,7 @@ export type JobRowProps = {
 
 export function JobRow(props: JobRowProps): JSX.Element {
 	return (
-		<div class={['abb-job-row', props.class, `is-${props.status}`]}>
+		<div class={['abb-job-row', props.class, `is-${props.status}`]} data-status={props.status}>
 			<span class="abb-job-row-label" title={props.labelTitle ?? props.label}>
 				{props.label}
 			</span>

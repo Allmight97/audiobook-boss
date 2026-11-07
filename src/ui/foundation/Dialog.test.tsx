@@ -6,7 +6,7 @@ import { Dialog } from './Dialog';
 describe('Dialog', () => {
 	afterEach(() => cleanup());
 
-	it('toggles open class and calls onClose from the backdrop', () => {
+	it('marks itself open and calls onClose from the backdrop', () => {
 		const onClose = vi.fn();
 		const [open] = createSignal(true);
 		render(() => (
@@ -17,9 +17,8 @@ describe('Dialog', () => {
 				<Dialog.Body>Body</Dialog.Body>
 			</Dialog>
 		));
-		const backdrop = screen.getByTestId('sample-dialog');
-		expect(backdrop.classList.contains('open')).toBe(true);
-		backdrop.click();
+		expect(screen.getByRole('dialog', { name: 'Title' })).toHaveAttribute('data-state', 'open');
+		screen.getByTestId('sample-dialog').click();
 		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 

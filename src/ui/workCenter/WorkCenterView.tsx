@@ -148,7 +148,10 @@ export function WorkCenterView(): JSX.Element {
 										</span>
 									</div>
 									<div class="work-operation-actions">
-										<span class={`work-status is-${operation().status}`}>
+										<span
+											class={`work-status is-${operation().status}`}
+											data-status={operation().status}
+										>
 											{operationStatusText(operation())}
 										</span>
 										<button

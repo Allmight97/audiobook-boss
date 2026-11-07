@@ -24,6 +24,10 @@ imports). Files in one folder import each other relatively.
   ABB builds for macOS and Linux only.
 - A view opens an external link with `tauriClient.openUrl` only for a link the
   user clicked: a release's source page and the Opus help link.
+- State a test reads is an attribute: `data-state` on a file row (the engine's
+  title status) and on a dialog (`open` or `closed`), `data-status` on a job
+  row and a Work Center status. Tests find elements by role and accessible
+  name and read those attributes, never CSS classes.
 
 ## Styles
 

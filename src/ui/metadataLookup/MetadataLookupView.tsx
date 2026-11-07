@@ -225,7 +225,10 @@ export function MetadataLookupView(): JSX.Element {
 								data-testid="metadata-lookup-manual-entry-btn"
 								onClick={() => {
 									setRestoreFocus(false);
-									void runLookup({ type: 'manualEntry' });
+									void runLookup({
+										type: 'manualEntry',
+										afterClose: () => document.getElementById('meta-title')?.focus(),
+									});
 								}}
 							>
 								Use Manual Entry

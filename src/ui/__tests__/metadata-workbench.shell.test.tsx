@@ -42,24 +42,16 @@ describe('metadata workbench shell', () => {
 		const engine = engineWithTaggedBooks({ cover });
 		await renderApp({ engine, input: pickAlpha });
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await waitFor(() => {
-			expect((document.getElementById('meta-title') as HTMLInputElement | null)?.value).toBe(
-				'Alpha',
-			);
-		});
-		expect((document.getElementById('cover-art-clear-btn') as HTMLButtonElement).tabIndex).toBe(
-			tabIndex,
-		);
+		await waitFor(() => expect(screen.getByLabelText('Book Title')).toHaveValue('Alpha'));
+		expect(screen.getByLabelText('Clear cover art')).toHaveAttribute('tabindex', String(tabIndex));
 	});
 
 	it('sends a typed title and the save to the engine in that order', async () => {
 		const engine = engineWithTaggedBooks();
 		await renderApp({ engine, input: pickAlpha });
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await waitFor(() => {
-			expect((document.getElementById('meta-title') as HTMLInputElement).value).toBe('Alpha');
-		});
-		const title = document.getElementById('meta-title') as HTMLInputElement;
+		await waitFor(() => expect(screen.getByLabelText('Book Title')).toHaveValue('Alpha'));
+		const title = screen.getByLabelText<HTMLInputElement>('Book Title');
 		title.focus();
 		await userEvent.clear(title);
 		await userEvent.type(title, 'Edited');
@@ -94,16 +86,14 @@ describe('metadata workbench shell', () => {
 		const engine = engineWithTaggedBooks();
 		await renderApp({ engine, input: pickAlpha });
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await waitFor(() => {
-			expect((document.getElementById('meta-title') as HTMLInputElement).value).toBe('Alpha');
-		});
+		await waitFor(() => expect(screen.getByLabelText('Book Title')).toHaveValue('Alpha'));
 		engine.respond = () => undefined;
 		engine.change((state) => {
 			state.metadata.form = { ...state.metadata.form, mode: 'multi' };
 		});
 
-		await userEvent.type(document.getElementById('meta-year') as HTMLInputElement, '2');
-		await userEvent.type(document.getElementById('meta-description') as HTMLTextAreaElement, 'D');
+		await userEvent.type(screen.getByLabelText('Publication Date'), '2');
+		await userEvent.type(screen.getByLabelText('Description'), 'D');
 		await userEvent.selectOptions(await screen.findByTestId('meta-series-part-action'), 'blank');
 
 		await waitFor(() =>
@@ -119,10 +109,8 @@ describe('metadata workbench shell', () => {
 		const engine = engineWithTaggedBooks();
 		await renderApp({ engine, input: pickAlpha });
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await waitFor(() => {
-			expect((document.getElementById('meta-title') as HTMLInputElement).value).toBe('Alpha');
-		});
-		const title = document.getElementById('meta-title') as HTMLInputElement;
+		await waitFor(() => expect(screen.getByLabelText('Book Title')).toHaveValue('Alpha'));
+		const title = screen.getByLabelText<HTMLInputElement>('Book Title');
 		await userEvent.type(title, ' Two');
 		window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }));
 		await waitFor(() =>

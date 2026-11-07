@@ -13,8 +13,7 @@ import { renderApp } from '../../test/fixtures/renderApp';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import { tauriClient } from '../../lib/tauri/client';
 
-const REMOVED_NOTICE =
-	'Exported. Its download was removed to save space; acquire it again to export it again.';
+const REMOVAL_NOTE = 'Download removed after export.';
 
 let engine: FakeEngine;
 
@@ -243,7 +242,7 @@ describe('Solid input workbench', () => {
 		});
 		await waitFor(() => {
 			const row = screen.getByRole('option', { name: 'valid.m4b' });
-			expect(row).toHaveClass('invalid');
+			expect(row).toHaveAttribute('data-state', 'failed');
 			expect(row).toHaveTextContent('Error: Broken audio source');
 		});
 	});
@@ -253,7 +252,7 @@ describe('Solid input workbench', () => {
 			status: 'removedFinished',
 			isValid: false,
 			sourceRemoved: true,
-			error: REMOVED_NOTICE,
+			error: REMOVAL_NOTE,
 		});
 		const { runtime } = await start({ files: [removed] });
 		await runtime.input.importIntent({
@@ -265,10 +264,8 @@ describe('Solid input workbench', () => {
 			plan: { kind: 'failed', message: 'Source is not valid', field: null },
 			estimate: null,
 		});
-		await waitFor(() => expect(row).toHaveTextContent(REMOVED_NOTICE));
-		expect(row.querySelector('.file-status')).toHaveClass('file-status-valid');
-		expect(row.querySelector('.file-status')).toHaveTextContent('✓');
-		expect(row).not.toHaveClass('invalid');
+		await waitFor(() => expect(row).toHaveTextContent(REMOVAL_NOTE));
+		expect(row).toHaveAttribute('data-state', 'removedFinished');
 		expect(row).not.toHaveTextContent('Error:');
 		expect(row).not.toHaveTextContent('Choose audio');
 		expect(screen.queryByRole('button', { name: 'Audio plan for done.m4b' })).toBeNull();
@@ -456,7 +453,7 @@ describe('Solid input workbench', () => {
 			expect(input.dropListening()).toBe(true);
 		});
 
-		const container = document.querySelector('.file-management-container') as HTMLElement;
+		const container = screen.getByLabelText('File list');
 		container.getBoundingClientRect = () => ({
 			left: 150,
 			right: 400,

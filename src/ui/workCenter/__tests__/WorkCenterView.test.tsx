@@ -93,7 +93,7 @@ async function showOperation(operation: OperationSnapshot, offers: RestartOffer[
 
 it('renders operation wall time and each file duration independently in the existing status labels', async () => {
 	await showOperation(completedOperation());
-	expect(screen.getByText('Completed in 00:19')).toHaveClass('work-status', 'is-completed');
+	expect(screen.getByText('Completed in 00:19')).toHaveAttribute('data-status', 'completed');
 	expect(screen.getByText('Done in 00:18')).toBeVisible();
 	expect(screen.getByText('Done in 00:13')).toBeVisible();
 	expect(screen.getByText('100%')).toBeVisible();
