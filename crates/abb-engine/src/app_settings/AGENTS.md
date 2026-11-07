@@ -37,6 +37,12 @@ session records reaches hosts as `EngineEvent::Settings`.
   the scheduler takes the startup defaults' concurrency (pinned, if the user
   chose to start from pinned defaults). A launch from pinned defaults puts
   them in effect, so a later pin or save starts from what is on screen.
+- The launch defaults (job limit, encoder defaults, output defaults) are one
+  `PinnedDefaults` value: `AppSettings::launch` reads it and `set_launch`
+  writes it for startup, pinning, and the startup defaults, and
+  `AppSettings::validate` checks the launch group through
+  `PinnedDefaults::validate`. The saved layout keeps the last-used job limit
+  in `general` and the pinned one in `startup.pinned`.
 - Reset is refused while exports run, and while
   `RemoteSourceRuntime::reset_lease` refuses it (`Engine::settings_dispatch`
   takes the lease; rule in `remote_source/AGENTS.md`). Otherwise it puts the

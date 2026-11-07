@@ -147,11 +147,7 @@ struct State {
 fn startup_defaults(settings: &AppSettings) -> PinnedDefaults {
     match (&settings.startup_behavior, &settings.pinned_defaults) {
         (StartupBehavior::PinnedDefaults, Some(pinned)) => pinned.clone(),
-        _ => PinnedDefaults {
-            max_concurrent_jobs: settings.max_concurrent_jobs,
-            encoder_defaults: settings.encoder_defaults.clone(),
-            output_defaults: settings.output_defaults.clone(),
-        },
+        _ => settings.launch(),
     }
 }
 
@@ -175,9 +171,7 @@ impl SettingsRuntime {
         let loaded = storage::load(&config_dir);
         let mut accepted = loaded.settings;
         let startup = startup_defaults(&accepted);
-        accepted.max_concurrent_jobs = startup.max_concurrent_jobs;
-        accepted.encoder_defaults = startup.encoder_defaults.clone();
-        accepted.output_defaults = startup.output_defaults.clone();
+        accepted.set_launch(startup.clone());
         let jobs: ManagedJobRegistry = Arc::new(match startup.max_concurrent_jobs {
             ConcurrencyPreference::Fixed(value) => JobRegistry::new(value),
             ConcurrencyPreference::Auto => JobRegistry::auto(),
@@ -538,12 +532,7 @@ impl SettingsRuntime {
     }
 
     async fn pin_current_defaults(&self, state: &mut State) -> SettingsOutcome {
-        let current = &state.accepted;
-        let pinned = PinnedDefaults {
-            max_concurrent_jobs: current.max_concurrent_jobs,
-            encoder_defaults: current.encoder_defaults.clone(),
-            output_defaults: current.output_defaults.clone(),
-        };
+        let pinned = state.accepted.launch();
         self.accept(
             state,
             AppSettingsPatch {

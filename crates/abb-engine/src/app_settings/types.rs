@@ -247,10 +247,31 @@ impl AppSettings {
         Ok(self)
     }
 
+    /// The job limit and the encoder and output defaults a launch starts
+    /// from: the last used ones, or the pinned ones.
+    pub(super) fn launch(&self) -> PinnedDefaults {
+        PinnedDefaults {
+            max_concurrent_jobs: self.max_concurrent_jobs,
+            encoder_defaults: self.encoder_defaults.clone(),
+            output_defaults: self.output_defaults.clone(),
+        }
+    }
+
+    pub(super) fn set_launch(&mut self, launch: PinnedDefaults) {
+        let PinnedDefaults {
+            max_concurrent_jobs,
+            encoder_defaults,
+            output_defaults,
+        } = launch;
+        self.max_concurrent_jobs = max_concurrent_jobs;
+        self.encoder_defaults = encoder_defaults;
+        self.output_defaults = output_defaults;
+    }
+
     fn validate(&mut self) -> Result<()> {
-        self.max_concurrent_jobs.validate()?;
-        self.encoder_defaults.validate()?;
-        self.output_defaults.normalize();
+        let mut launch = self.launch();
+        launch.validate()?;
+        self.set_launch(launch);
         self.indexer_connection.validate()?;
         if let Some(pinned) = self.pinned_defaults.as_mut() {
             pinned.validate()?;
