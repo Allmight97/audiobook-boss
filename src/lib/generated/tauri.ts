@@ -306,7 +306,7 @@ export type ConcurrencySnapshot = {
 	capabilities: MaxConcurrentJobsCapabilities,
 };
 
-export type CoverNotice = { kind: "urlRequired" } | { kind: "loadedFromUrl" } | { kind: "loadFailed"; error: AppErrorEnvelope };
+export type CoverNotice = { kind: "urlRequired" } | { kind: "notAnImageUrl" } | { kind: "loadedFromUrl" } | { kind: "loadFailed"; error: AppErrorEnvelope };
 
 export type CoverSnapshot = {
 	/**  The address of the displayed image; absent when there is none. */

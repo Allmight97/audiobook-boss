@@ -20,8 +20,13 @@ impl Session {
     pub(super) fn begin_cover_load(&self, source: CoverSource) -> Rest {
         let from_url = matches!(source, CoverSource::Url(_));
         if let CoverSource::Url(url) = &source {
-            if url.trim().is_empty() {
+            let url = url.trim();
+            if url.is_empty() {
                 self.transition(SessionState::cover_url_required);
+                return Rest::Done(SessionOutcome::CoverLoadFailed);
+            }
+            if !is_web_address(url) {
+                self.transition(SessionState::cover_url_not_web_address);
                 return Rest::Done(SessionOutcome::CoverLoadFailed);
             }
         }
@@ -129,6 +134,10 @@ impl Session {
             }
         }
     }
+}
+
+fn is_web_address(text: &str) -> bool {
+    reqwest::Url::parse(text).is_ok_and(|url| matches!(url.scheme(), "http" | "https"))
 }
 
 pub(super) enum CoverSource {

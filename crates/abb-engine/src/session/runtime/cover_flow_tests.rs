@@ -120,3 +120,31 @@ async fn an_unsupported_cover_drop_publishes_the_ingestion_diagnostic() {
         Some(crate::session::CoverNotice::LoadFailed { .. })
     ));
 }
+
+#[tokio::test]
+async fn text_that_is_not_a_web_address_is_refused_without_a_fetch() {
+    for text in [
+        "example.com/cover.jpg",
+        "note: see cover",
+        "ftp://example.com/a.jpg",
+    ] {
+        let rig = rig();
+        rig.load(&["alpha"]);
+        rig.select(&[0]).await;
+
+        let outcome = rig
+            .send(SessionIntent::LoadCoverFromUrl {
+                url: text.to_string(),
+            })
+            .await;
+
+        assert_eq!(outcome, SessionOutcome::CoverLoadFailed, "{text}");
+        let cover = rig.metadata().cover;
+        assert_eq!(
+            cover.notice,
+            Some(crate::session::state::CoverNotice::NotAnImageUrl),
+            "{text}"
+        );
+        assert!(!cover.loading && cover.image.is_none(), "{text}");
+    }
+}

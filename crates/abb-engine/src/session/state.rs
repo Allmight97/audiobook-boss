@@ -78,6 +78,7 @@ pub enum MetadataStatus {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum CoverNotice {
     UrlRequired,
+    NotAnImageUrl,
     LoadedFromUrl,
     LoadFailed { error: AppErrorEnvelope },
 }

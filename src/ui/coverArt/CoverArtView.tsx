@@ -16,6 +16,14 @@ function isTextInput(target: EventTarget | null): boolean {
 	return tagName === 'input' || tagName === 'textarea';
 }
 
+function parsedUrl(text: string): string | null {
+	try {
+		return new URL(text).toString();
+	} catch {
+		return null;
+	}
+}
+
 export function CoverArtView(): JSX.Element {
 	const metadata = useAppRuntime().metadata;
 	const view = metadata.view;
@@ -25,7 +33,6 @@ export function CoverArtView(): JSX.Element {
 	const loadFromPicker = metadata.loadCoverArtFromPicker;
 	const loadFromUrl = metadata.loadCoverArtFromUrl;
 	const clearCover = metadata.clearCoverArt;
-	const rejectPastedText = metadata.rejectPastedCoverText;
 
 	function handleAreaKeyDown(event: KeyboardEvent): void {
 		if (event.key === 'Enter' || event.key === ' ') {
@@ -46,14 +53,16 @@ export function CoverArtView(): JSX.Element {
 		if (!view().cover.isHovered) return;
 		const raw = event.clipboardData?.getData('text')?.trim();
 		if (!raw) return;
-		try {
-			const pastedUrl = new URL(raw).toString();
+		if (!isTextInput(target)) {
 			event.preventDefault();
-			setUrlInput(pastedUrl);
-			loadFromUrl(pastedUrl);
-		} catch {
-			if (!isTextInput(target)) rejectPastedText();
+			loadFromUrl(raw);
+			return;
 		}
+		const pastedUrl = parsedUrl(raw);
+		if (!pastedUrl) return;
+		event.preventDefault();
+		setUrlInput(pastedUrl);
+		loadFromUrl(pastedUrl);
 	}
 
 	onSettled(() => {

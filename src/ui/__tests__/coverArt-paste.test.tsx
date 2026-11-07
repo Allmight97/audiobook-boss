@@ -43,16 +43,15 @@ describe('cover art paste', () => {
 		);
 	});
 
-	it('says pasted text that is not a URL cannot be a cover', async () => {
+	it('sends pasted text over the cover to the engine whatever it looks like', async () => {
 		await renderCover();
-		paste('just some words');
+		paste('  just some words ');
 		await vi.waitFor(() =>
-			expect(runtime?.metadata.view().cover.message).toEqual({
-				kind: 'error',
-				text: 'The pasted text is not an image URL.',
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'loadCoverFromUrl',
+				url: 'just some words',
 			}),
 		);
-		expect(engine.sessionIntents.some((intent) => intent.kind === 'loadCoverFromUrl')).toBe(false);
 	});
 
 	it('leaves pasted text to the URL field and says nothing when it is not a URL', async () => {

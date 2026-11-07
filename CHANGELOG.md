@@ -31,8 +31,6 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Choosing another cover, or clearing it, while a cover loads no longer says "Your edit was
   not applied because the selection changed."; that notice stays for a cover load lost because
   the selection changed.
-- Pasting text that is not a URL while the URL field has focus now pastes it with no "The
-  pasted text is not an image URL." message.
 - A title whose tags were read once, when a second read of it fails, no longer says its tags
   cannot be read.
 - A queue Apply whose chosen cover failed to load still says so when the next title has no
@@ -59,8 +57,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   enter it, instead of being sent as no key and read as a generic rejection.
 - Submitting with an invalid file in the list now says "Submitted to Work Center. 1 invalid
   file was left out." instead of only "Submitted to Work Center."
-- Pasting text that is not a URL while the pointer is over the cover now says "The pasted
-  text is not an image URL." instead of doing nothing.
+- Pasting text that is not a web address while the pointer is over the cover now says "This
+  is not an image URL." instead of doing nothing.
 - Choosing "Keep location" on an out-of-date restart offer now says the offer no longer
   matches, as Restart does, instead of doing nothing.
 - A rejected naming template and a Browse button that cannot open the folder dialog now

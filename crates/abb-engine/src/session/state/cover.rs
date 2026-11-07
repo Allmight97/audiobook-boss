@@ -184,6 +184,10 @@ impl SessionState {
         self.set_cover_notice(CoverNotice::UrlRequired);
     }
 
+    pub(crate) fn cover_url_not_web_address(&mut self) {
+        self.set_cover_notice(CoverNotice::NotAnImageUrl);
+    }
+
     pub(crate) fn apply_cover(&mut self, bytes: Vec<u8>) -> bool {
         let Some(owner) = self.cover_owner() else {
             return false;
