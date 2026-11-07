@@ -217,11 +217,17 @@ A change to CI or validation speed quotes before and after numbers from
   trees unused for 14 days are pruned, and the offline source setup fetches. Clippy
   still typechecks the bindings crate: Cargo treats check and build as
   different units.
+- The ABB tools folder (`tools_bin` in `setup.sh`) holds every tool setup
+  pins: node, ffmpeg, ffprobe, actionlint, uv, cargo-audit, cargo-deny. It
+  defaults to `~/.local/share/audiobook-boss/bin`, `ABB_TOOLS_BIN` overrides
+  it, and `--print-env` puts it first on PATH. Why: setup replaces a tool of
+  another version there, so it must not be the owner's `~/.local/bin`
+  (`scripts/setup-pins.test.ts` checks).
 - Linux builds link with mold through clang (`.cargo/config.toml`); `setup.sh
   rust` installs both. A `RUSTFLAGS` variable replaces that config's flags.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
   (`ABB_FFMPEG` and `ABB_FFPROBE` override). `setup.sh rust` installs FFmpeg 9
-  into `~/.local/bin` on Linux and uses Homebrew `ffmpeg` on macOS. Those
+  into the ABB tools folder on Linux and uses Homebrew `ffmpeg` on macOS. Those
   lookups live in `--print-env`; do not copy them into callers. Distro FFmpeg 6.x decodes edit
   lists and Opus pre-skip differently, so media tests fail on it as a readback
   artifact, not a regression.

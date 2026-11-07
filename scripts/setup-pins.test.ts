@@ -61,6 +61,41 @@ describe('uv pin', () => {
 	});
 });
 
+function toolsBinWith(override: string | null) {
+	const home = mkdtempSync(path.join(os.tmpdir(), 'abb-setup-bin-'));
+	scratch.push(home);
+	const script = [
+		`source <(sed '/^require_prerequisites$/,$d' scripts/setup.sh)`,
+		'printf "%s\\n" "${tools_bin}"',
+	].join('\n');
+	const result = spawnSync('bash', ['-c', script], {
+		cwd: repoRoot,
+		encoding: 'utf8',
+		env: {
+			PATH: `${bashDir}:/usr/bin:/bin`,
+			HOME: home,
+			...(override ? { ABB_TOOLS_BIN: override } : {}),
+		},
+	});
+	return { home, result, lines: result.stdout.split('\n') };
+}
+
+describe('tools folder', () => {
+	it('defaults to an ABB-owned folder, never the shared ~/.local/bin', () => {
+		const { home, result, lines } = toolsBinWith(null);
+		expect(result.status, result.stderr).toBe(0);
+		expect(lines[0]).toBe(path.join(home, '.local', 'share', 'audiobook-boss', 'bin'));
+		expect(lines[0]).not.toBe(path.join(home, '.local', 'bin'));
+	});
+
+	it('is overridden by ABB_TOOLS_BIN (the folder setup installs into)', () => {
+		const override = path.join(os.tmpdir(), 'abb-tools-override');
+		const { result, lines } = toolsBinWith(override);
+		expect(result.status, result.stderr).toBe(0);
+		expect(lines[0]).toBe(override);
+	});
+});
+
 describe('tool pins live in setup.sh', () => {
 	const workflow = readFileSync(path.join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
 

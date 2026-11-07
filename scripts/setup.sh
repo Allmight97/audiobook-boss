@@ -16,7 +16,7 @@ set -euo pipefail
 # helper for this host, and an FFmpeg 9 command-line build for media-lane fixture readback.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-tools_bin="${ABB_TOOLS_BIN:-$HOME/.local/bin}"
+tools_bin="${ABB_TOOLS_BIN:-$HOME/.local/share/audiobook-boss/bin}"
 export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
 export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
