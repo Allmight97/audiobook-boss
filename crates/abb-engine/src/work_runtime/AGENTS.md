@@ -83,7 +83,7 @@
   its own prune). Running and accepted operations are never pruned.
 - Reach processing through `processing::run`.
 - `WorkProgressStage` is a work_runtime-owned display vocabulary;
-  `src/app/processing/render.ts` words each stage directly.
+  `src/app/workOperations/labels.ts` words each stage.
 - A progress event never changes an operation's status; only the run's result
   or abort does, through `terminalize` (`state.rs`). Why: the UI,
   `unfinished_exports`, and `abb-dev` read a terminal status as finished, and a
