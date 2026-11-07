@@ -17,7 +17,9 @@ engine does not offer, add it to the engine's host interface.
   frontend is refused. An intent that arrives after a later one has run is
   refused, never applied out of order. The check and the claim happen in one
   step, so a reload between them cannot hand an old frontend's intent a turn.
-- **Log file.** `log_file.rs` sends the log to stderr and to `abb.log`. Why: a
+- **Log file.** `log_file.rs` sends the log to stderr and to `abb.log` in a
+  folder named for the Tauri identifier, so a dev build (its own identifier,
+  `scripts/tauri.ts`) never appends to the installed app's log. Why: a
   Finder-launched app has no readable stderr. A launch appends, so a second copy
   keeps a running copy's log. A panic reaches the file through the hook in
   `init_logger`.

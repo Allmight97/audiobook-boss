@@ -6,6 +6,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Dev builds write their own log file. A dev launch used to append to the installed app's log.
 - An Audible title whose license Audible refuses is no longer downloaded. A refused license
   that still carried a download link used to start the download. ABB now stops and shows
   Audible's reason.

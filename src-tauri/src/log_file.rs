@@ -2,23 +2,27 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-const APP_ID: &str = "com.audiobook-boss";
 pub const CURRENT_LOG: &str = "abb.log";
 pub const PREVIOUS_LOG: &str = "abb.previous.log";
 pub const MAX_LOG_BYTES: u64 = 5 * 1024 * 1024;
 
-pub fn log_dir(home: Option<PathBuf>, xdg_data_home: Option<PathBuf>) -> Option<PathBuf> {
+pub fn log_dir(
+    identifier: &str,
+    home: Option<PathBuf>,
+    xdg_data_home: Option<PathBuf>,
+) -> Option<PathBuf> {
     if cfg!(target_os = "macos") {
-        return home.map(|home| home.join("Library").join("Logs").join(APP_ID));
+        return home.map(|home| home.join("Library").join("Logs").join(identifier));
     }
     let data_home = xdg_data_home
         .filter(|path| path.is_absolute())
         .or_else(|| home.map(|home| home.join(".local").join("share")))?;
-    Some(data_home.join(APP_ID).join("logs"))
+    Some(data_home.join(identifier).join("logs"))
 }
 
-pub fn default_log_dir() -> Option<PathBuf> {
+pub fn default_log_dir(identifier: &str) -> Option<PathBuf> {
     log_dir(
+        identifier,
         std::env::var_os("HOME").map(PathBuf::from),
         std::env::var_os("XDG_DATA_HOME").map(PathBuf::from),
     )
@@ -77,10 +81,10 @@ impl Write for StderrAndFile {
     }
 }
 
-pub fn init_logger() {
+pub fn init_logger(identifier: &str) {
     let mut builder =
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
-    let open_error = match default_log_dir()
+    let open_error = match default_log_dir(identifier)
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no home folder"))
         .and_then(|dir| open_log(&dir))
     {
