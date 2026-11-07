@@ -17,6 +17,7 @@ pub fn builder<R: tauri::Runtime>() -> Builder<R> {
             crate::events::WorkOperationsUpdateEvent,
             crate::events::SessionUpdateEvent,
             crate::events::SettingsUpdateEvent,
+            crate::events::QuitPressAgainEvent,
         ])
         .constant(
             "SUPPORTED_AUDIO_IMPORT_EXTENSIONS",

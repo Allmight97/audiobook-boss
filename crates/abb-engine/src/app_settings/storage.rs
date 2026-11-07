@@ -54,6 +54,12 @@ fn recover(table: &toml::Table) -> Loaded {
             read(table, &["general", "keep_awake_while_working"], Ok),
         )
         .unwrap_or(defaults.keep_awake_while_working),
+        press_quit_twice: pick(
+            &mut reset,
+            SettingsUnit::PressQuitTwice,
+            read(table, &["general", "press_quit_twice"], Ok),
+        )
+        .unwrap_or(defaults.press_quit_twice),
         max_concurrent_jobs: pick(
             &mut reset,
             SettingsUnit::JobLimit,
@@ -198,6 +204,7 @@ struct Indexer {
 #[derive(Serialize)]
 struct General {
     keep_awake_while_working: bool,
+    press_quit_twice: bool,
     max_concurrent_jobs: AutoOr<usize>,
     default_acquisition_lane: AcquisitionLane,
     /// Absent from files saved by earlier releases; loads as Auto.
@@ -335,6 +342,7 @@ impl From<&AppSettings> for SavedSettings {
         Self {
             general: General {
                 keep_awake_while_working: settings.keep_awake_while_working,
+                press_quit_twice: settings.press_quit_twice,
                 max_concurrent_jobs: settings.max_concurrent_jobs.into(),
                 default_acquisition_lane: settings.default_acquisition_lane,
                 aac_decoder: settings.aac_decoder,

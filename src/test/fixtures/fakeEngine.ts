@@ -113,6 +113,8 @@ export type FakeEngine = EngineCapability & {
 	readonly cancelledWork: { operationId: OperationId; childJobId?: string }[];
 	/** Answers a cancel; a rejection fails it. */
 	respondCancel?: () => Promise<void>;
+	/** Tells every listener the Quit shortcut was pressed once. */
+	pressQuitOnce(windowMs: number): void;
 	/** Adds or replaces an operation and tells every listener. */
 	publishOperation(operation: OperationSnapshot): void;
 	analyze: (paths: readonly string[]) => AudioFile[];
@@ -159,6 +161,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	let revision = 0;
 	const listeners = new Set<(update: SessionUpdate) => void>();
 	const settingsListeners = new Set<(snapshot: SettingsSnapshot) => void>();
+	const quitPressListeners = new Set<(windowMs: number) => void>();
 	const workListeners = new Set<(update: WorkOperationsUpdate) => void>();
 	const operations = new Map<OperationId, OperationSnapshot>();
 	let workRevision = 0;
@@ -292,6 +295,10 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			settingsListeners.add(handler);
 			return () => settingsListeners.delete(handler);
 		},
+		async listenQuitPressAgain(handler) {
+			quitPressListeners.add(handler);
+			return () => quitPressListeners.delete(handler);
+		},
 		async listenWorkOperations(handler) {
 			workListeners.add(handler);
 			return () => workListeners.delete(handler);
@@ -309,6 +316,9 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				changed: operation,
 			};
 			for (const listener of workListeners) listener(structuredClone(update));
+		},
+		pressQuitOnce(windowMs) {
+			for (const listener of quitPressListeners) listener(windowMs);
 		},
 		seedSettings(patch) {
 			settingsSnapshot = {

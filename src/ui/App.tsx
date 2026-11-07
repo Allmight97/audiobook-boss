@@ -15,6 +15,7 @@ import { PreviewAudioControls } from './previewAudio';
 import { StatusPanelView } from './statusPanel';
 import { TagPreviewView } from './tagPreview';
 import { WorkCenterView } from './workCenter';
+import { QuitReminder } from './QuitReminder';
 import { RefusedChangeNotice } from './RefusedChangeNotice';
 import './outputAndTags.css';
 
@@ -64,6 +65,7 @@ export function App(): JSX.Element {
 					<SettingsPersistenceNotice />
 				</Show>
 				<RefusedChangeNotice />
+				<QuitReminder />
 				<div class="panel right-column-panel metadata-manager-panel">
 					<MetadataManagerView />
 				</div>

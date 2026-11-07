@@ -238,6 +238,26 @@ fn shut_down_then_exit(app: &tauri::AppHandle) {
     });
 }
 
+fn settle_unheld_exit<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    let held = app
+        .try_state::<Quit>()
+        .is_some_and(|quit| quit.done.load(Ordering::SeqCst));
+    let Some(engine) = app.try_state::<abb_engine::Engine>().filter(|_| !held) else {
+        return;
+    };
+    log::warn!("Quit arrived past the hold, so ABB asked nothing and settles what it can");
+    let settled = tauri::async_runtime::block_on(async {
+        tokio::time::timeout(SHUTDOWN_WAIT, engine.shutdown()).await
+    });
+    match settled {
+        Ok(abb_engine::ShutdownOutcome::Settled) => {}
+        Ok(abb_engine::ShutdownOutcome::SettingsUnsaved { error }) => {
+            log::error!("Quit with unsaved settings: {}", error.message);
+        }
+        Err(_) => log::error!("Quit before the engine settled"),
+    }
+}
+
 fn plural(count: usize, one: &str, many: &str) -> String {
     format!("{count} {}", if count == 1 { one } else { many })
 }
@@ -329,6 +349,47 @@ fn hold_quit(app: &tauri::AppHandle) -> bool {
     true
 }
 
+const QUIT_ITEM: &str = "abb-quit";
+
+fn quit_item_pressed(app: &tauri::AppHandle) {
+    let press = app
+        .try_state::<abb_engine::Engine>()
+        .map_or(abb_engine::QuitPress::Proceed, |engine| {
+            engine.quit_pressed()
+        });
+    if press == abb_engine::QuitPress::Proceed {
+        hold_quit(app);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn take_over_quit_item(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let app_menu = app
+        .menu()
+        .and_then(|menu| menu.items().ok())
+        .and_then(|items| items.first().and_then(|item| item.as_submenu().cloned()));
+    let Some(app_menu) = app_menu else {
+        log::error!("ABB found no app menu, so the Quit shortcut skips the quit hold");
+        return Ok(());
+    };
+    let is_quit = |item: &tauri::menu::MenuItemKind<tauri::Wry>| {
+        item.as_predefined_menuitem()
+            .is_some_and(|item| item.text().is_ok_and(|text| text.starts_with("Quit")))
+    };
+    let Some(quit) = app_menu.items()?.into_iter().find(is_quit) else {
+        log::error!("ABB found no Quit item, so the Quit shortcut skips the quit hold");
+        return Ok(());
+    };
+    app_menu.remove(&quit)?;
+    app_menu.append(&tauri::menu::MenuItem::with_id(
+        app,
+        QUIT_ITEM,
+        format!("Quit {}", app.package_info().name),
+        true,
+        Some("CmdOrCtrl+Q"),
+    )?)
+}
+
 /// Quits when the engine closes for the work `consent` covers; otherwise
 /// asks about the work quitting would stop now, and asks again if that
 /// changes before the user answers.
@@ -376,6 +437,11 @@ pub fn run() {
         .manage(opened_files::HeldFiles::default())
         .invoke_handler(specta_builder.invoke_handler())
         .register_asynchronous_uri_scheme_protocol(cover_protocol::SCHEME, cover_protocol::handle)
+        .on_menu_event(|app, event| {
+            if event.id() == QUIT_ITEM {
+                quit_item_pressed(app);
+            }
+        })
         .setup(move |app| {
             specta_builder.mount_events(app);
             log::info!(
@@ -387,6 +453,8 @@ pub fn run() {
                 abb_engine::media_build_identity()
             );
             app.manage(Quit::default());
+            #[cfg(target_os = "macos")]
+            take_over_quit_item(app.handle())?;
             app.manage(commands::FrontendLink::default());
             match start_engine(app) {
                 Ok(engine) => {
@@ -423,6 +491,7 @@ pub fn run() {
             } if hold_quit(app) => {
                 api.prevent_close();
             }
+            tauri::RunEvent::Exit => settle_unheld_exit(app),
             #[cfg(target_os = "macos")]
             tauri::RunEvent::Opened { urls } => opened_files::open(app, urls),
             _ => {}

@@ -36,6 +36,8 @@ type AppSettingsDialogState = {
 	saveError: string;
 	powerSaveState: SettingsSaveState;
 	powerSaveError: string;
+	quitSaveState: SettingsSaveState;
+	quitSaveError: string;
 	decoderSaveState: SettingsSaveState;
 	decoderSaveError: string;
 	startupSaveState: SettingsSaveState;
@@ -58,6 +60,7 @@ export type SettingsOwner = {
 	openDialog: () => void;
 	closeDialog: () => void;
 	setKeepAwakeWhileWorking: (enabled: boolean) => Promise<void>;
+	setPressQuitTwice: (enabled: boolean) => Promise<void>;
 	setAacDecoder: (decoder: AacDecoder) => Promise<void>;
 	saveCurrentSettingsAsPinnedDefaults: () => Promise<void>;
 	setStartupBehavior: (behavior: StartupBehavior) => Promise<void>;
@@ -71,7 +74,7 @@ export type SettingsOwnerDeps = {
 };
 
 type DialogProgress = Omit<AppSettingsDialogState, 'settings'>;
-type ProgressKey = 'save' | 'powerSave' | 'decoderSave' | 'startupSave' | 'laneSave';
+type ProgressKey = 'save' | 'powerSave' | 'quitSave' | 'decoderSave' | 'startupSave' | 'laneSave';
 
 function idleDialog(): DialogProgress {
 	return {
@@ -80,6 +83,8 @@ function idleDialog(): DialogProgress {
 		saveError: '',
 		powerSaveState: 'idle',
 		powerSaveError: '',
+		quitSaveState: 'idle',
+		quitSaveError: '',
 		decoderSaveState: 'idle',
 		decoderSaveError: '',
 		startupSaveState: 'idle',
@@ -95,6 +100,7 @@ function describe(error: unknown): string {
 
 const UNIT_LABELS: Record<SettingsUnit, string> = {
 	keepAwake: 'keep computer awake while working',
+	pressQuitTwice: 'press ⌘Q twice to quit',
 	jobLimit: 'number of jobs',
 	acquisitionLane: 'default import source',
 	aacDecoder: 'AAC decoder',
@@ -233,6 +239,9 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		},
 		async setKeepAwakeWhileWorking(enabled) {
 			await runDialogAction('powerSave', { kind: 'setKeepAwake', enabled });
+		},
+		async setPressQuitTwice(enabled) {
+			await runDialogAction('quitSave', { kind: 'setPressQuitTwice', enabled });
 		},
 		async setAacDecoder(decoder) {
 			await runDialogAction('decoderSave', { kind: 'setAacDecoder', decoder });

@@ -35,6 +35,12 @@ engine does not offer, add it to the engine's host interface.
   and with unsaved settings only when the user chooses Quit Anyway. Saves
   waiting only behind a review or preview are written during shutdown, and the
   quit prompt says so first.
+- **Quit item.** Tauri's default Quit item calls AppKit `terminate:`, which
+  raises no event ABB can hold: it ends in `RunEvent::Exit`. So on macOS
+  `take_over_quit_item` swaps in ABB's own item, which asks
+  `Engine::quit_pressed` and then `hold_quit`. Dock Quit and logout still take
+  the `terminate:` path, because tao has no `applicationShouldTerminate:`.
+  `settle_unheld_exit` runs `Engine::shutdown` there, with no question.
 
 ## Commands
 

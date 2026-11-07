@@ -43,6 +43,11 @@ session records reaches hosts as `EngineEvent::Settings`.
   defaults in effect and writes them like any change.
 - `keep_awake_while_working` defaults on. Applying it updates
   `PowerManager`; opting out releases an active hold.
+- `press_quit_twice` defaults on and is not part of pinned defaults.
+  `Engine::quit_pressed` reads it: with no running work, the first press of
+  the Quit shortcut only emits `EngineEvent::QuitPressAgain`, and a second
+  press inside `QUIT_PRESS_WINDOW` quits. Running work skips the second press,
+  because the quit question already guards it.
 - `aac_decoder` takes effect for imports and submissions accepted after it;
   the session reads it at those points (`SettingsRuntime::aac_decoder`). It is
   not part of pinned defaults.

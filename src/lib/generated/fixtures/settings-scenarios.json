@@ -62,6 +62,7 @@
           }
         },
         "pinnedDefaults": null,
+        "pressQuitTwice": true,
         "startupBehavior": "rememberLastState"
       }
     },
@@ -135,6 +136,7 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "pinnedDefaults"
           }
         }
@@ -234,6 +236,7 @@
                 }
               }
             },
+            "pressQuitTwice": true,
             "startupBehavior": "pinnedDefaults"
           }
         }
@@ -336,6 +339,7 @@
                 }
               }
             },
+            "pressQuitTwice": true,
             "startupBehavior": "pinnedDefaults"
           }
         }
@@ -408,6 +412,7 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
           }
         }
@@ -477,6 +482,7 @@
           }
         },
         "pinnedDefaults": null,
+        "pressQuitTwice": true,
         "startupBehavior": "rememberLastState"
       }
     },
@@ -555,6 +561,7 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
           }
         }
@@ -632,6 +639,7 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
           }
         }
@@ -704,6 +712,7 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
           }
         }
@@ -778,6 +787,7 @@
           }
         },
         "pinnedDefaults": null,
+        "pressQuitTwice": true,
         "startupBehavior": "rememberLastState"
       }
     },
@@ -855,6 +865,7 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
           }
         }
@@ -928,6 +939,7 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
           }
         }
@@ -997,6 +1009,7 @@
           }
         },
         "pinnedDefaults": null,
+        "pressQuitTwice": true,
         "startupBehavior": "rememberLastState"
       }
     },
@@ -1075,6 +1088,7 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
           }
         }
@@ -1159,6 +1173,7 @@
               }
             },
             "pinnedDefaults": null,
+            "pressQuitTwice": true,
             "startupBehavior": "rememberLastState"
           }
         }

@@ -6,11 +6,13 @@ export const EVENTS = {
 	WORK_OPERATIONS_UPDATE: 'work-operations-update',
 	SESSION_UPDATE: 'session-update',
 	SETTINGS_UPDATE: 'settings-update',
+	QUIT_PRESS_AGAIN: 'quit-press-again',
 } as const;
 
 export type WorkOperationsUpdateEvent = WorkOperationsUpdate;
 export type SessionUpdateEvent = SessionUpdate;
 export type SettingsUpdateEvent = SettingsSnapshot;
+export type QuitPressAgainEvent = { windowMs: number };
 
 interface TauriFileDropEvents {
 	'tauri://drag-drop': { paths: string[]; position: { x: number; y: number } };
@@ -23,6 +25,7 @@ export interface ApplicationEvents extends TauriFileDropEvents {
 	[EVENTS.WORK_OPERATIONS_UPDATE]: WorkOperationsUpdateEvent;
 	[EVENTS.SESSION_UPDATE]: SessionUpdateEvent;
 	[EVENTS.SETTINGS_UPDATE]: SettingsUpdateEvent;
+	[EVENTS.QUIT_PRESS_AGAIN]: QuitPressAgainEvent;
 }
 
 export type EventName = keyof ApplicationEvents;

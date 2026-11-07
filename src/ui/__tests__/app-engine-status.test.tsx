@@ -57,4 +57,15 @@ describe('app around the engine', () => {
 		await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
 		expect(screen.queryByText('The list is locked.')).toBeNull();
 	});
+
+	it('reminds the user to press Quit again, then clears when the window ends', async () => {
+		const engine = createFakeEngine();
+		await renderWith(engine);
+		await screen.findByTestId('left-column');
+
+		engine.pressQuitOnce(20);
+
+		expect(await screen.findByText('Press ⌘Q again to quit')).toBeInTheDocument();
+		await vi.waitFor(() => expect(screen.queryByText('Press ⌘Q again to quit')).toBeNull());
+	});
 });

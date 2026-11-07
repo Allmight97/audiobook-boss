@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use serde::{Deserialize, Serialize};
@@ -30,6 +31,10 @@ pub enum SettingsIntent {
         preference: ConcurrencyPreference,
     },
     SetKeepAwake {
+        enabled: bool,
+    },
+    /// Chooses whether the Quit shortcut needs a second press.
+    SetPressQuitTwice {
         enabled: bool,
     },
     /// Chooses the decoder for AAC sources in imports, previews, and exports
@@ -117,6 +122,7 @@ struct Inner {
     jobs: ManagedJobRegistry,
     power: PowerManager,
     aac_decoder: Mutex<AacDecoder>,
+    press_quit_twice: AtomicBool,
     indexer_connection: Mutex<IndexerConnection>,
     state: tokio::sync::Mutex<State>,
     /// Completion of the last accepted intent, independent of host waits.
@@ -213,6 +219,7 @@ impl SettingsRuntime {
         state.recovery =
             (!recovery.reset.is_empty() || recovery.set_aside_as.is_some()).then_some(recovery);
         let aac_decoder = Mutex::new(accepted.aac_decoder);
+        let press_quit_twice = AtomicBool::new(accepted.press_quit_twice);
         let indexer_connection = Mutex::new(accepted.indexer_connection.clone());
         state.accepted = accepted;
         let runtime = Self {
@@ -221,6 +228,7 @@ impl SettingsRuntime {
                 jobs: Arc::clone(&jobs),
                 power,
                 aac_decoder,
+                press_quit_twice,
                 indexer_connection,
                 state: tokio::sync::Mutex::new(state),
                 turn: Mutex::default(),
@@ -235,6 +243,10 @@ impl SettingsRuntime {
             .aac_decoder
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(crate) fn press_quit_twice(&self) -> bool {
+        self.inner.press_quit_twice.load(Ordering::SeqCst)
     }
 
     pub(crate) fn indexer_connection(&self) -> IndexerConnection {
@@ -407,6 +419,16 @@ impl SettingsRuntime {
                 )
                 .await
             }
+            SettingsIntent::SetPressQuitTwice { enabled } => {
+                self.accept(
+                    state,
+                    AppSettingsPatch {
+                        press_quit_twice: Some(enabled),
+                        ..Default::default()
+                    },
+                )
+                .await
+            }
             SettingsIntent::SetAacDecoder { decoder } => {
                 self.accept(
                     state,
@@ -498,6 +520,9 @@ impl SettingsRuntime {
             .aac_decoder
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = state.accepted.aac_decoder;
+        self.inner
+            .press_quit_twice
+            .store(state.accepted.press_quit_twice, Ordering::SeqCst);
         *self
             .inner
             .indexer_connection

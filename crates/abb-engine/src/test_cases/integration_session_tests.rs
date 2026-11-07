@@ -474,6 +474,7 @@ async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_w
     desk.edit_genre_and_save().await;
     let running = desk.engine.running_work();
     assert_eq!((running.exports, running.waiting_writes), (1, 1));
+    assert_eq!(desk.engine.quit_pressed(), abb_engine::QuitPress::Proceed);
 
     let outcome = tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
         .await

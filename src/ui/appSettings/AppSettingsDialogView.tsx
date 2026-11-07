@@ -303,6 +303,32 @@ export function AppSettingsDialogView(): JSX.Element {
 					</Show>
 				</section>
 				<section class="app-settings-section">
+					<h4 class="app-settings-section-title">Quitting</h4>
+					<label class="checkbox-label" data-testid="app-settings-press-quit-twice-toggle">
+						<input
+							type="checkbox"
+							data-testid="app-settings-press-quit-twice-checkbox"
+							checked={state().settings.pressQuitTwice}
+							disabled={state().quitSaveState === 'saving'}
+							onChange={(event) => void settings.setPressQuitTwice(event.currentTarget.checked)}
+						/>
+						<span class="option-label">Press ⌘Q twice to quit</span>
+					</label>
+					<p class="muted-text">
+						The first press shows a reminder, so a stray ⌘Q does not close ABB. If work is running,
+						ABB asks before it quits.
+					</p>
+					<Show when={state().quitSaveState === 'error'}>
+						<p
+							class="app-settings-status app-settings-status-error"
+							data-testid="app-settings-quit-error"
+							role="alert"
+						>
+							{state().quitSaveError}
+						</p>
+					</Show>
+				</section>
+				<section class="app-settings-section">
 					<h4 class="app-settings-section-title">Decoding</h4>
 					<p class="muted-text">
 						Which decoder reads AAC audio (M4B, M4A, AAC) when titles are imported, previewed, and

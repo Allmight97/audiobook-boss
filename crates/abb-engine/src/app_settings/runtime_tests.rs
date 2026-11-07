@@ -236,6 +236,20 @@ async fn a_value_this_release_refuses_resets_only_its_setting_until_the_next_cha
     assert!(!rig.on_disk().keep_awake_while_working);
 }
 
+#[tokio::test]
+async fn choosing_one_press_to_quit_reaches_the_file_and_the_running_value() {
+    let rig = start();
+    assert!(rig.settings.press_quit_twice());
+
+    let reply = rig
+        .send(SettingsIntent::SetPressQuitTwice { enabled: false })
+        .await;
+
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert!(!rig.settings.press_quit_twice());
+    assert!(!rig.on_disk().press_quit_twice);
+}
+
 fn retired_encoder_in_last_state() -> String {
     include_str!("samples/remember-last-state.toml")
         .replace("type = \"faac\"", "type = \"retired\"")

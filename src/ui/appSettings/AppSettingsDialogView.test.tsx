@@ -202,6 +202,19 @@ describe('AppSettingsDialogView', () => {
 		expect(engine.settingsIntents).toContainEqual({ kind: 'setKeepAwake', enabled: false });
 	});
 
+	it('offers the second Quit press on by default and sends the choice to turn it off', async () => {
+		await renderOpenDialog();
+		const twice = screen.getByTestId('app-settings-press-quit-twice-checkbox');
+		expect(twice).toBeChecked();
+
+		fireEvent.click(twice);
+		flush();
+
+		await vi.waitFor(() =>
+			expect(engine.settingsIntents).toContainEqual({ kind: 'setPressQuitTwice', enabled: false }),
+		);
+	});
+
 	it('sends the category choice unchanged and shows what the engine kept', async () => {
 		await renderOpenDialog((seeded) =>
 			seeded.change((state) => {

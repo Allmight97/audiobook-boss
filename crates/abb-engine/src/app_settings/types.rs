@@ -19,6 +19,7 @@ pub enum AcquisitionLane {
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub keep_awake_while_working: bool,
+    pub press_quit_twice: bool,
     pub max_concurrent_jobs: ConcurrencyPreference,
     pub encoder_defaults: EncoderDefaults,
     pub output_defaults: OutputDefaults,
@@ -33,6 +34,7 @@ pub struct AppSettings {
 #[serde(rename_all = "camelCase")]
 pub struct AppSettingsPatch {
     pub keep_awake_while_working: Option<bool>,
+    pub press_quit_twice: Option<bool>,
     pub max_concurrent_jobs: Option<ConcurrencyPreference>,
     pub encoder_defaults: Option<EncoderDefaults>,
     pub output_defaults: Option<OutputDefaults>,
@@ -60,6 +62,7 @@ pub struct IndexerConnection {
 #[serde(rename_all = "camelCase")]
 pub enum SettingsUnit {
     KeepAwake,
+    PressQuitTwice,
     JobLimit,
     AcquisitionLane,
     AacDecoder,
@@ -135,6 +138,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             keep_awake_while_working: true,
+            press_quit_twice: true,
             max_concurrent_jobs: ConcurrencyPreference::Auto,
             encoder_defaults: EncoderDefaults::default(),
             output_defaults: OutputDefaults::default(),
@@ -189,6 +193,9 @@ impl AppSettings {
         }
         if let Some(enabled) = patch.keep_awake_while_working {
             self.keep_awake_while_working = enabled;
+        }
+        if let Some(enabled) = patch.press_quit_twice {
+            self.press_quit_twice = enabled;
         }
         if let Some(aac_decoder) = patch.aac_decoder {
             self.aac_decoder = aac_decoder;

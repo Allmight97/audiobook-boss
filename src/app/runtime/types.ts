@@ -19,7 +19,7 @@ export type RuntimeCapabilities = {
 	readonly remoteSource?: Omit<RemoteSourceOwnerDeps, 'link'>;
 };
 
-type EngineStatus = Pick<EngineLink, 'refusal' | 'dismissRefusal'>;
+type EngineStatus = Pick<EngineLink, 'refusal' | 'dismissRefusal' | 'quitReminder'>;
 
 export type AppRuntime = {
 	readonly engine: EngineStatus;

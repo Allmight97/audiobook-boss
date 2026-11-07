@@ -3,6 +3,7 @@ use std::fs::{File, OpenOptions, TryLockError};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::Instant;
 
 use crate::app_settings::{
     SettingsIntent, SettingsOutcome, SettingsReply, SettingsRuntime, SettingsSnapshot,
@@ -12,6 +13,7 @@ use crate::errors::{AppError, Result};
 use crate::host::{EventSink, Host};
 use crate::metadata::AudiobookMetadata;
 use crate::power::PowerManager;
+use crate::quit_press::{QuitPress, QuitPresses, QUIT_PRESS_WINDOW};
 use crate::remote_source::{RemoteSourceConfig, RemoteSourceRuntime};
 use crate::session::{
     Session, SessionDeps, SessionIntent, SessionReply, SessionRun, SessionUpdate,
@@ -147,6 +149,7 @@ struct EngineInner {
     remote_source: RemoteSourceRuntime,
     session: Session,
     tasks: EngineTasks,
+    quit_presses: QuitPresses,
     _cache_dir_lock: Option<File>,
 }
 
@@ -235,6 +238,7 @@ impl Engine {
                 remote_source,
                 session,
                 tasks,
+                quit_presses: QuitPresses::default(),
                 _cache_dir_lock: cache_dir_lock,
             }),
         })
@@ -269,6 +273,23 @@ impl Engine {
                     .collect(),
             ),
         }
+    }
+
+    /// Decides what a press of the Quit shortcut does. Running work skips the
+    /// second press, because quitting asks about that work anyway.
+    pub fn quit_pressed(&self) -> QuitPress {
+        let second_press_required =
+            self.inner.settings.press_quit_twice() && self.running_work().consent.0.is_empty();
+        let press = self
+            .inner
+            .quit_presses
+            .press(Instant::now(), second_press_required);
+        if press == QuitPress::PressAgain {
+            self.inner.host.emit(crate::EngineEvent::QuitPressAgain {
+                window_ms: QUIT_PRESS_WINDOW.as_millis() as u32,
+            });
+        }
+        press
     }
 
     /// Refuses new work when quitting would stop only what `consent` names;

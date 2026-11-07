@@ -50,6 +50,8 @@ export type EngineLink = {
 	/** Why the latest posted intent was refused, worded for the user. */
 	readonly refusal: Accessor<string | null>;
 	dismissRefusal: () => void;
+	/** True while a second press of the Quit shortcut would quit. */
+	readonly quitReminder: Accessor<boolean>;
 	sendSettings: (intent: SettingsIntent) => Promise<SettingsOutcome>;
 	dispose: () => void;
 };
@@ -169,6 +171,7 @@ type Inbound = {
 	session: (update: SessionUpdate) => void;
 	settings: (snapshot: SettingsSnapshot) => void;
 	work: (update: WorkOperationsUpdate) => void;
+	quitPressAgain: (windowMs: number) => void;
 };
 
 type Part<T> = {
@@ -222,9 +225,18 @@ function createLink(
 	const [workRev, bumpWork] = part();
 	const [refusalRev, bumpRefusal] = part();
 	let refusal: string | null = null;
+	const [quitReminder, setQuitReminder] = createSignal(false, { ownedWrite: true });
+	let quitReminderEnd: ReturnType<typeof setTimeout> | undefined;
 	let disposed = false;
 	let sessionSequence = 0;
 	let settingsSequence = 0;
+
+	function remindOfSecondQuitPress(windowMs: number): void {
+		if (disposed) return;
+		clearTimeout(quitReminderEnd);
+		setQuitReminder(true);
+		quitReminderEnd = setTimeout(() => setQuitReminder(false), windowMs);
+	}
 
 	function applySession(update: SessionUpdate): void {
 		if (disposed) return;
@@ -316,6 +328,7 @@ function createLink(
 			refusal = null;
 			bumpRefusal((n) => n + 1);
 		},
+		quitReminder,
 		sendSettings(intent) {
 			return capability.settingsDispatch(client, settingsSequence++, intent).then((reply) => {
 				applySettings(reply.snapshot);
@@ -324,6 +337,7 @@ function createLink(
 		},
 		dispose() {
 			disposed = true;
+			clearTimeout(quitReminderEnd);
 			stopListening();
 		},
 	};
@@ -333,6 +347,7 @@ function createLink(
 			session: applySession,
 			settings: applySettings,
 			work: applyWork,
+			quitPressAgain: remindOfSecondQuitPress,
 		},
 	};
 }
@@ -355,6 +370,7 @@ export async function attachEngineLink(
 		capability.listenSessionUpdates((update) => deliver((to) => to.session(update))),
 		capability.listenSettingsUpdates((snapshot) => deliver((to) => to.settings(snapshot))),
 		capability.listenWorkOperations((update) => deliver((to) => to.work(update))),
+		capability.listenQuitPressAgain((windowMs) => deliver((to) => to.quitPressAgain(windowMs))),
 	]);
 	const stopListening = () => {
 		for (const listener of listeners) {

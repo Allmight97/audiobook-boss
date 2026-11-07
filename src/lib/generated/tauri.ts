@@ -28,6 +28,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	quitPressAgain: makeEvent<QuitPressAgainEvent>("quit-press-again"),
 	sessionUpdate: makeEvent<SessionUpdateEvent>("session-update"),
 	settingsUpdate: makeEvent<SettingsUpdateEvent>("settings-update"),
 	workOperationsUpdate: makeEvent<WorkOperationsUpdateEvent>("work-operations-update"),
@@ -100,6 +101,7 @@ export type AppErrorEnvelope = {
 
 export type AppSettings = {
 	keepAwakeWhileWorking: boolean,
+	pressQuitTwice: boolean,
 	maxConcurrentJobs: ConcurrencyPreference,
 	encoderDefaults: EncoderDefaults,
 	outputDefaults: OutputDefaults,
@@ -797,6 +799,14 @@ export type ProviderId = "audible" | "indexer";
 /**  What happened to the previous queued title before this search ran. */
 export type QueueStep = "applied" | "appliedWithoutCover" | "skipped";
 
+/**
+ *  The Quit shortcut was pressed once; a second press inside `window_ms`
+ *  quits.
+ */
+export type QuitPressAgainEvent = {
+	windowMs: number,
+};
+
 export type ReleaseGrabSnapshot = {
 	status: ReleaseGrabStatus,
 	message: string,
@@ -1092,6 +1102,8 @@ export type SettingsIntent =
 { kind: "remember"; encoderDefaults: EncoderDefaults | null; outputDefaults: OutputDefaults | null; defaultAcquisitionLane: AcquisitionLane | null } |
 /**  Changes how many titles export at once. Refused while jobs run. */
 { kind: "setConcurrency"; preference: ConcurrencyPreference } | { kind: "setKeepAwake"; enabled: boolean } |
+/**  Chooses whether the Quit shortcut needs a second press. */
+{ kind: "setPressQuitTwice"; enabled: boolean } |
 /**
  *  Chooses the decoder for AAC sources in imports, previews, and exports
  *  accepted from now on.
@@ -1138,7 +1150,7 @@ export type SettingsSnapshot = {
  *  A setting that loading recovers on its own: a saved value this release
  *  refuses resets only that setting.
  */
-export type SettingsUnit = "keepAwake" | "jobLimit" | "acquisitionLane" | "aacDecoder" | "indexerConnection" | "encoderDefaults" | "outputDefaults" | "startupBehavior" | "pinnedDefaults";
+export type SettingsUnit = "keepAwake" | "pressQuitTwice" | "jobLimit" | "acquisitionLane" | "aacDecoder" | "indexerConnection" | "encoderDefaults" | "outputDefaults" | "startupBehavior" | "pinnedDefaults";
 
 /**  The settings after a change made outside a settings intent. */
 export type SettingsUpdateEvent = SettingsSnapshot;

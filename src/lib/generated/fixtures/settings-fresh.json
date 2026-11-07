@@ -59,6 +59,7 @@
       }
     },
     "pinnedDefaults": null,
+    "pressQuitTwice": true,
     "startupBehavior": "rememberLastState"
   }
 }

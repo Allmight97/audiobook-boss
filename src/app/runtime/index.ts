@@ -33,7 +33,11 @@ export async function createAppRuntime(
 		const workOperations = createWorkOperationsOwner({ link });
 		let disposed = false;
 		return {
-			engine: { refusal: link.refusal, dismissRefusal: link.dismissRefusal },
+			engine: {
+				refusal: link.refusal,
+				dismissRefusal: link.dismissRefusal,
+				quitReminder: link.quitReminder,
+			},
 			input,
 			metadata,
 			lookup,

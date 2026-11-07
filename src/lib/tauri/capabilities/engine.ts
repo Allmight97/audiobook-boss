@@ -32,6 +32,8 @@ export interface EngineCapability {
 	/** Settings changed by something other than a settings intent. */
 	listenSettingsUpdates: (handler: (snapshot: SettingsSnapshot) => void) => Promise<UnlistenFn>;
 	listenWorkOperations: (handler: (update: WorkOperationsUpdate) => void) => Promise<UnlistenFn>;
+	/** The Quit shortcut was pressed once; a second press inside `windowMs` quits. */
+	listenQuitPressAgain: (handler: (windowMs: number) => void) => Promise<UnlistenFn>;
 	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancelWorkOperation: (operationId: OperationId, childJobId?: string) => Promise<void>;
 }
@@ -55,6 +57,10 @@ export const liveEngineCapability: EngineCapability = {
 	listenWorkOperations: (handler) =>
 		tauriClient.listen(EVENTS.WORK_OPERATIONS_UPDATE, (event) => {
 			handler(event.payload);
+		}),
+	listenQuitPressAgain: (handler) =>
+		tauriClient.listen(EVENTS.QUIT_PRESS_AGAIN, (event) => {
+			handler(event.payload.windowMs);
 		}),
 	cancelWorkOperation: (operationId, childJobId) =>
 		tauriClient.cancelWorkOperation(operationId, childJobId),

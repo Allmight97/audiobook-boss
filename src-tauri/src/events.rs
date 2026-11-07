@@ -36,6 +36,18 @@ impl tauri_specta::Event for SettingsUpdateEvent {
     const NAME: &'static str = "settings-update";
 }
 
+/// The Quit shortcut was pressed once; a second press inside `window_ms`
+/// quits.
+#[derive(Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct QuitPressAgainEvent {
+    pub window_ms: u32,
+}
+
+impl tauri_specta::Event for QuitPressAgainEvent {
+    const NAME: &'static str = "quit-press-again";
+}
+
 pub struct TauriEvents(pub tauri::AppHandle);
 
 impl TauriEvents {
@@ -52,6 +64,9 @@ impl EventSink for TauriEvents {
             EngineEvent::WorkOperations(update) => self.send(WorkOperationsUpdateEvent(update)),
             EngineEvent::Session(update) => self.send(SessionUpdateEvent(update)),
             EngineEvent::Settings(snapshot) => self.send(SettingsUpdateEvent(*snapshot)),
+            EngineEvent::QuitPressAgain { window_ms } => {
+                self.send(QuitPressAgainEvent { window_ms });
+            }
         }
     }
 }

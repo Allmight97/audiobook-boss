@@ -12,6 +12,7 @@ use tempfile::TempDir;
 fn chosen_settings() -> AppSettings {
     AppSettings {
         keep_awake_while_working: false,
+        press_quit_twice: true,
         max_concurrent_jobs: ConcurrencyPreference::Fixed(2),
         default_acquisition_lane: AcquisitionLane::Indexer,
         aac_decoder: AacDecoder::Faad,
@@ -88,6 +89,7 @@ fn naming(include_year: bool) -> OutputNamingConfig {
 fn remember_last_state_settings() -> AppSettings {
     AppSettings {
         keep_awake_while_working: true,
+        press_quit_twice: true,
         max_concurrent_jobs: ConcurrencyPreference::Auto,
         default_acquisition_lane: AcquisitionLane::Audible,
         aac_decoder: AacDecoder::Auto,
@@ -117,6 +119,7 @@ fn remember_last_state_settings() -> AppSettings {
 fn apple_aac_and_opus_settings() -> AppSettings {
     AppSettings {
         keep_awake_while_working: true,
+        press_quit_twice: true,
         max_concurrent_jobs: ConcurrencyPreference::Fixed(4),
         default_acquisition_lane: AcquisitionLane::Audible,
         aac_decoder: AacDecoder::Auto,
@@ -162,6 +165,7 @@ fn apple_aac_and_opus_settings() -> AppSettings {
 fn native_aac_settings() -> AppSettings {
     AppSettings {
         keep_awake_while_working: false,
+        press_quit_twice: true,
         max_concurrent_jobs: ConcurrencyPreference::Fixed(1),
         default_acquisition_lane: AcquisitionLane::Indexer,
         aac_decoder: AacDecoder::Auto,
@@ -208,6 +212,15 @@ fn native_aac_settings() -> AppSettings {
 fn every_sample_settings_file_loads_every_choice_this_release_still_offers() {
     let mp3_output_reset = vec![SettingsUnit::EncoderDefaults];
     let samples = [
+        (
+            "press-quit-twice.toml",
+            include_str!("samples/press-quit-twice.toml"),
+            AppSettings {
+                press_quit_twice: false,
+                ..chosen_settings()
+            },
+            Vec::new(),
+        ),
         (
             "indexer-connection.toml (saved with MP3 output)",
             include_str!("samples/indexer-connection.toml"),

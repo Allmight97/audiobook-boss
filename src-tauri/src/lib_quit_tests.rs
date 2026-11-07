@@ -1,8 +1,11 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime};
+use tauri::{App, Manager};
+
 use super::{
-    next_quit_step, quit_prompt, quit_when_saved, settle_or_ask, QuitStep, ShutdownWait,
-    SHUTDOWN_WAIT,
+    next_quit_step, quit_prompt, quit_when_saved, settle_or_ask, settle_unheld_exit, Quit,
+    QuitStep, ShutdownWait, SHUTDOWN_WAIT,
 };
 
 #[test]
@@ -153,4 +156,55 @@ async fn quitting_anyway_with_unsaved_settings_shuts_down_once() {
     )
     .await;
     assert_eq!(shutdowns.load(Ordering::SeqCst), 1);
+}
+
+fn app_with_engine(name: &str) -> (App<MockRuntime>, abb_engine::Engine, std::path::PathBuf) {
+    let root = std::env::temp_dir().join(format!("abb-quit-{name}-{}", std::process::id()));
+    let engine = abb_engine::Engine::start(abb_engine::EngineConfig {
+        cache_dir: root.join("cache"),
+        config_dir: root.join("config"),
+        app_identifier: "com.audiobook-boss.quit-test".into(),
+        events: std::sync::Arc::new(abb_engine::DiscardEvents),
+    })
+    .expect("the engine starts");
+    let app = mock_builder()
+        .manage(Quit::default())
+        .manage(engine.clone())
+        .build(mock_context(noop_assets()))
+        .expect("the app builds");
+    (app, engine, root)
+}
+
+fn engine_is_open(engine: &abb_engine::Engine) -> bool {
+    tauri::async_runtime::block_on(engine.open_audio_files(Vec::new())).is_ok()
+}
+
+fn remove(root: &std::path::Path) {
+    #[expect(
+        clippy::let_underscore_must_use,
+        reason = "a leftover temp folder fails no behavior"
+    )]
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn an_exit_no_hold_saw_settles_the_engine_first() {
+    let (app, engine, root) = app_with_engine("unheld");
+    assert!(engine_is_open(&engine));
+
+    settle_unheld_exit(app.handle());
+
+    assert!(!engine_is_open(&engine));
+    remove(&root);
+}
+
+#[test]
+fn an_exit_after_the_held_quit_settles_nothing_again() {
+    let (app, engine, root) = app_with_engine("held");
+    app.state::<Quit>().done.store(true, Ordering::SeqCst);
+
+    settle_unheld_exit(app.handle());
+
+    assert!(engine_is_open(&engine));
+    remove(&root);
 }
