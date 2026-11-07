@@ -58,7 +58,9 @@ recorded tool versions still invalidate it.
   selects it for those paths. Accepted advisories live in `.cargo/audit.toml`,
   each naming its crate (`scripts/audit-ignores.test.ts` fails when
   `Cargo.lock` no longer resolves it); license, source, and single-version
-  rules in `deny.toml`.
+  rules in `deny.toml`. `bash scripts/setup.sh supply-chain` installs the
+  pinned `cargo-audit` and `cargo-deny`; CI calls it too, so each tool is
+  pinned once, in `setup.sh`, and a receipt records the versions that ran.
 - `scripts/tauri-contract.test.ts` (`tooling`) also fails on a wire intent in
   `SessionIntent`, `SettingsIntent`, or `RemoteUiIntent` that no non-test source
   sends; the Rust variant and its sender go together. It also fails when the
@@ -188,6 +190,8 @@ A change to CI or validation speed quotes before and after numbers from
 | `package.json` | `undici (override)` | pin: security floor for jsdom's transitive dependency; unpin when jsdom requires this version or newer |
 | `.node-version` | `node` | pin: CI and a fresh setup install this exact build; setup keeps any Node of this major or newer; unpin when the owner moves to a newer Node |
 | `scripts/setup.sh` | Linux FFmpeg CLI (`ffmpeg_cli_release`) | pin: BtbN keeps month-end builds, so a fresh Linux box gets the same readback binary; unpin when the owner moves the media lane to a newer FFmpeg build |
+| `scripts/setup.sh` | `uv` (`uv_version`) | pin: Python tools (zizmor, lizard) resolve the same way on every machine, and setup replaces any other uv; unpin when the owner moves the Python tools to a newer uv |
+| `scripts/setup.sh` | `cargo-audit` and `cargo-deny` (`cargo_audit_version`, `cargo_deny_version`) | pin: advisory and license verdicts stay the same between runs, and each download is checked against a pinned checksum; unpin when the owner bumps either tool |
 | `scripts/check-workflows.sh` | `zizmor` | pin: workflow findings stay the same between runs; unpin when the owner bumps zizmor |
 
 ## Environment

@@ -3,9 +3,10 @@ set -euo pipefail
 
 # Agent and CI setup for ABB. Idempotent. Never edits shell profiles; sets
 # this repo's core.hooksPath so commits run .githooks/pre-commit.
-#   bash scripts/setup.sh                 # frontend and rust
+#   bash scripts/setup.sh                 # frontend, rust, and supply-chain
 #   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck, uv, zizmor
 #   bash scripts/setup.sh rust            # bundled FFmpeg build deps and source, FFmpeg 9 CLI, .NET SDK, helper, uv, cargo fetch
+#   bash scripts/setup.sh supply-chain    # pinned cargo-audit and cargo-deny
 #   bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
 #   bash scripts/setup.sh --print-env     # eval-able PATH and toolchain exports
 #
@@ -35,9 +36,9 @@ while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--check) check_only=1 ;;
 		--print-env) print_env_only=1 ;;
-		frontend | rust)
+		frontend | rust | supply-chain)
 			if [[ "${mode}" != all ]]; then
-				printf 'error: pass one mode (frontend or rust), or none for both\n' >&2
+				printf 'error: pass one mode (frontend, rust, or supply-chain), or none for all\n' >&2
 				exit 1
 			fi
 			mode="$1"
@@ -47,7 +48,7 @@ while [[ $# -gt 0 ]]; do
 			exit 0
 			;;
 		*)
-			printf 'error: unknown argument %s (expected frontend, rust, --check, or --print-env)\n' "$1" >&2
+			printf 'error: unknown argument %s (expected frontend, rust, supply-chain, --check, or --print-env)\n' "$1" >&2
 			exit 1
 			;;
 	esac
@@ -267,6 +268,29 @@ want_rust() {
 	[[ "${mode}" == all || "${mode}" == rust ]]
 }
 
+want_supply_chain() {
+	[[ "${mode}" == all || "${mode}" == supply-chain ]]
+}
+
+cargo_audit_version=0.22.1
+cargo_deny_version=0.20.2
+
+installed_cargo_tool_version() {
+	cargo "$1" --version 2>/dev/null | awk 'NR == 1 {print $NF; exit}'
+}
+
+check_supply_chain() {
+	local subcommand version
+	for subcommand in audit deny; do
+		version="cargo_${subcommand}_version"
+		if [[ "$(installed_cargo_tool_version "${subcommand}")" == "${!version}" ]]; then
+			ok "cargo-${subcommand} ${!version}"
+		else
+			need "cargo-${subcommand} ${!version} (run: bash scripts/setup.sh supply-chain)"
+		fi
+	done
+}
+
 check_frontend() {
 	local required_bun required_node bun_ver
 	required_bun="$(bash "${repo_root}/scripts/locked-bun-version.sh")"
@@ -443,14 +467,15 @@ if [[ "${check_only}" -eq 1 ]]; then
 	if want_rust; then
 		check_rust
 	fi
+	if want_supply_chain; then
+		check_supply_chain
+	fi
 	print_path_line
 	if [[ "${missing}" -ne 0 ]]; then
-		if want_frontend && want_rust; then
+		if [[ "${mode}" == all ]]; then
 			printf '\nInstall with: bash scripts/setup.sh\n' >&2
-		elif want_frontend; then
-			printf '\nInstall with: bash scripts/setup.sh frontend\n' >&2
 		else
-			printf '\nInstall with: bash scripts/setup.sh rust\n' >&2
+			printf '\nInstall with: bash scripts/setup.sh %s\n' "${mode}" >&2
 		fi
 		exit 1
 	fi
@@ -692,8 +717,8 @@ ensure_shellcheck() {
 uv_version=0.12.10
 
 ensure_uv() {
-	if have uvx; then
-		log "Using $(uvx --version)"
+	if have uvx && [[ "$(uvx --version | awk 'NR == 1 {print $2; exit}')" == "${uv_version}" ]]; then
+		log "Using uv ${uv_version}"
 		return
 	fi
 	local triple asset tmp
@@ -719,6 +744,87 @@ ensure_uv() {
 		install -m 755 "${tmp}/uv" "${tmp}/uvx" "${tools_bin}/"
 	fi
 	rm -rf "${tmp}"
+}
+
+install_cargo_tool() {
+	local tool="$1" version="$2" url="$3" sha256="$4" tmp
+	tmp="$(mktemp -d)"
+	log "Installing ${tool} ${version} into ${tools_bin}"
+	curl -fsSL --connect-timeout 20 --max-time 600 --retry 3 --retry-all-errors -o "${tmp}/archive.tgz" "${url}"
+	if [[ "$(sha256_of "${tmp}/archive.tgz")" != "${sha256}" ]]; then
+		printf 'error: checksum mismatch for %s\n' "${url}" >&2
+		exit 1
+	fi
+	tar -xzf "${tmp}/archive.tgz" -C "${tmp}"
+	mkdir -p "${tools_bin}"
+	install -m 755 "$(find "${tmp}" -type f -name "${tool}" | head -n 1)" "${tools_bin}/"
+	rm -rf "${tmp}"
+}
+
+ensure_cargo_audit() {
+	local triple sha256 base
+	if [[ "$(installed_cargo_tool_version audit)" == "${cargo_audit_version}" ]]; then
+		log "Using cargo-audit ${cargo_audit_version}"
+		return
+	fi
+	case "$(uname -s)-$(uname -m)" in
+		Linux-x86_64)
+			triple=x86_64-unknown-linux-musl
+			sha256=c32506f338bdcdaef5a17fb9f33abb6ecf9561324cfd34237fd335f9283a1eab
+			;;
+		Linux-aarch64 | Linux-arm64)
+			triple=aarch64-unknown-linux-gnu
+			sha256=4c8df835ee484441bd2c8c6bcac28c4ce4b4058ba9e7477cb9e0012fe7769f66
+			;;
+		Darwin-arm64)
+			triple=aarch64-apple-darwin
+			sha256=04e76e1da25f597bea4814c44faf8aac215838b9f3646e3b6a873d87acd31b73
+			;;
+		Darwin-x86_64)
+			triple=x86_64-apple-darwin
+			sha256=582d104a2a4bdb127c6bf6d056d89eede40686d11f52e4bc1765132ec99d2fca
+			;;
+		*)
+			printf 'error: no cargo-audit release for %s %s\n' "$(uname -s)" "$(uname -m)" >&2
+			exit 1
+			;;
+	esac
+	base="https://github.com/rustsec/rustsec/releases/download/cargo-audit%2Fv${cargo_audit_version}"
+	install_cargo_tool cargo-audit "${cargo_audit_version}" \
+		"${base}/cargo-audit-${triple}-v${cargo_audit_version}.tgz" "${sha256}"
+}
+
+ensure_cargo_deny() {
+	local triple sha256
+	if [[ "$(installed_cargo_tool_version deny)" == "${cargo_deny_version}" ]]; then
+		log "Using cargo-deny ${cargo_deny_version}"
+		return
+	fi
+	case "$(uname -s)-$(uname -m)" in
+		Linux-x86_64)
+			triple=x86_64-unknown-linux-musl
+			sha256=9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
+			;;
+		Linux-aarch64 | Linux-arm64)
+			triple=aarch64-unknown-linux-musl
+			sha256=995c82be0defc7a025cae49a2aa2644ce8245c9a3318fc4103907c6a285e8c7d
+			;;
+		Darwin-arm64)
+			triple=aarch64-apple-darwin
+			sha256=fe67d82a10d8597a3549364cb733a3f9cc1bfff9031b7ae46384a9f2a72090c3
+			;;
+		Darwin-x86_64)
+			triple=x86_64-apple-darwin
+			sha256=248da7f581724e470071990c088ffc55c811981715f4cbdb258621fb79f8b7a6
+			;;
+		*)
+			printf 'error: no cargo-deny release for %s %s\n' "$(uname -s)" "$(uname -m)" >&2
+			exit 1
+			;;
+	esac
+	install_cargo_tool cargo-deny "${cargo_deny_version}" \
+		"https://github.com/EmbarkStudios/cargo-deny/releases/download/${cargo_deny_version}/cargo-deny-${cargo_deny_version}-${triple}.tar.gz" \
+		"${sha256}"
 }
 
 ensure_dotnet() {
@@ -821,6 +927,11 @@ if want_rust; then
 	log "Fetching Cargo crates"
 	(cd "${repo_root}" && cargo fetch --locked)
 	ensure_ffmpeg_source
+fi
+
+if want_supply_chain; then
+	ensure_cargo_audit
+	ensure_cargo_deny
 fi
 
 print_path_line

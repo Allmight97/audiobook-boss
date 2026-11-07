@@ -308,6 +308,8 @@ export const TOOL_PROBES: Record<string, ToolProbe> = {
 				: 'unavailable';
 		},
 	},
+	'cargo-audit': commandProbe('cargo', ['audit', '--version']),
+	'cargo-deny': commandProbe('cargo', ['deny', '--version']),
 	lizard: commandProbe('bash', ['scripts/check-rust-complexity.sh', '--version']),
 	zizmor: commandProbe('bash', ['scripts/check-workflows.sh', '--version']),
 	actionlint: commandProbe('actionlint', ['-version']),
