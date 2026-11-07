@@ -1,5 +1,6 @@
-use super::tests::{release, serve_one, start_listener};
+use super::tests::release;
 use super::*;
+use crate::remote_source::test_support::{Reply, StubServer};
 use std::time::Duration;
 
 #[tokio::test]
@@ -16,27 +17,20 @@ async fn an_answer_that_cannot_be_read_shows_a_fixed_line_without_the_address() 
             "Prowlarr's answer could not be read. Details are in the log.",
         ),
     ] {
-        let (listener, addr) = start_listener().await;
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "joined by an_answer_that_cannot_be_read_shows_a_fixed_line_without_the_address"
-        )]
-        let server = tokio::spawn(async move {
-            let response = format!(
-                "HTTP/1.1 {status}\r\nConnection: close\r\nContent-Length: 100\r\n\r\npartial"
-            );
-            serve_one(&listener, response.as_bytes()).await;
-        });
+        let stub = StubServer::start(vec![Reply::bytes(format!(
+            "HTTP/1.1 {status}\r\nConnection: close\r\nContent-Length: 100\r\n\r\npartial"
+        ))])
+        .await;
         let client = Client::builder()
             .no_proxy()
             .timeout(Duration::from_secs(2))
-            .resolve("prowlarr.test", addr)
+            .resolve("prowlarr.test", stub.address())
             .build()
             .expect("client");
 
         let outcome = ReqwestProwlarrAdapter::with_client(client)
             .grab(
-                &format!("http://prowlarr.test:{}", addr.port()),
+                &format!("http://prowlarr.test:{}", stub.address().port()),
                 &SecretString::from("secret-key".to_string()),
                 &release("Example", RemoteReleaseProtocol::Torrent),
                 "test-grab",
@@ -44,7 +38,7 @@ async fn an_answer_that_cannot_be_read_shows_a_fixed_line_without_the_address() 
             .await
             .expect("an unreadable answer is an outcome");
 
-        server.await.expect("server");
+        stub.finished().await;
         assert!(!outcome.accepted, "{status}");
         assert_eq!(outcome.unconfirmed, unconfirmed, "{status}");
         assert_eq!(outcome.message, line, "{status}");

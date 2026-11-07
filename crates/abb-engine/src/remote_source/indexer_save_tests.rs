@@ -1,7 +1,7 @@
 use super::super::{ReleaseGrabSnapshot, ReleaseGrabStatus, RemoteUiIntent};
 use super::*;
 use crate::app_settings::SettingsIntent;
-use crate::remote_source::test_support::{vault_unavailable, MemoryVault};
+use crate::remote_source::test_support::{vault_unavailable, MemoryVault, Reply, StubServer};
 use crate::remote_source::tests::{test_runtime, test_runtime_with};
 use crate::remote_source::types::release_key;
 use crate::remote_source::types::RemoteReleaseSearchResponse;
@@ -432,85 +432,12 @@ fn release(indexer_id: i64) -> crate::remote_source::types::RemoteRelease {
     }
 }
 
-/// Answers three grab requests in order. The second waits for `gate` after
-/// reporting that it arrived, so a test can act while a batch is mid-flight.
-#[expect(
-    clippy::disallowed_methods,
-    reason = "joined by a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryable"
-)]
-fn serve_grabs_pausing_on_the_second(
-    listener: tokio::net::TcpListener,
-    arrived: tokio::sync::oneshot::Sender<()>,
-    gate: tokio::sync::oneshot::Receiver<()>,
-) -> tokio::task::JoinHandle<Vec<i64>> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    tokio::spawn(async move {
-        let (mut arrived, mut gate) = (Some(arrived), Some(gate));
-        let mut ids = Vec::new();
-        for (index, status) in ["200 OK", "409 Conflict", "200 OK"].into_iter().enumerate() {
-            let (mut stream, _) = listener.accept().await.expect("accept a grab");
-            let mut request = Vec::new();
-            let body = loop {
-                let mut bytes = [0; 1024];
-                let count = stream.read(&mut bytes).await.expect("read a grab");
-                assert_ne!(count, 0);
-                request.extend_from_slice(&bytes[..count]);
-                let text = String::from_utf8_lossy(&request).into_owned();
-                if let Some((headers, body)) = text.split_once("\r\n\r\n") {
-                    let length = headers
-                        .lines()
-                        .find_map(|line| {
-                            line.split_once(':')
-                                .filter(|(key, _)| key.eq_ignore_ascii_case("content-length"))
-                                .and_then(|(_, value)| value.trim().parse::<usize>().ok())
-                        })
-                        .unwrap_or(0);
-                    if body.len() >= length {
-                        break body.to_string();
-                    }
-                }
-            };
-            let json: serde_json::Value = serde_json::from_str(&body).expect("grab body");
-            ids.push(json["indexerId"].as_i64().expect("indexer id"));
-            if index == 1 {
-                #[expect(
-                    clippy::unused_result_ok,
-                    reason = "the receiver is gone if the test stops waiting"
-                )]
-                arrived.take().expect("one pause").send(()).ok();
-                #[expect(
-                    clippy::unused_result_ok,
-                    reason = "the sender is dropped when the test ends"
-                )]
-                gate.take().expect("one pause").await.ok();
-            }
-            stream
-                .write_all(
-                    format!(
-                        "HTTP/1.1 {status}\r\nConnection: close\r\nContent-Length: 2\r\n\r\n{{}}"
-                    )
-                    .as_bytes(),
-                )
-                .await
-                .expect("answer a grab");
-        }
-        ids
-    })
-}
-
-#[tokio::test]
-async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryable() {
-    let root = TempDir::new().expect("temp root");
-    let runtime = test_runtime(&root);
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("listener");
-    let url = format!("http://{}", listener.local_addr().expect("address"));
-    save(&runtime, &url, Some("grab-key"))
+async fn select_both_found_releases(runtime: &RemoteSourceRuntime, url: &str) {
+    save(runtime, url, Some("grab-key"))
         .await
         .expect("connection saved");
     run(
-        &runtime,
+        runtime,
         RemoteUiIntent::SelectLane {
             lane: ProviderId::Indexer,
         },
@@ -531,7 +458,7 @@ async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryab
     }
     for indexer_id in [1, 2] {
         run(
-            &runtime,
+            runtime,
             RemoteUiIntent::SelectRelease {
                 key: release_key(indexer_id, "shared-guid"),
                 multi: true,
@@ -540,9 +467,22 @@ async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryab
         .await
         .expect("select");
     }
-    let (arrived, second_is_sending) = tokio::sync::oneshot::channel();
-    let (release_second, gate) = tokio::sync::oneshot::channel();
-    let serving = serve_grabs_pausing_on_the_second(listener, arrived, gate);
+}
+
+#[tokio::test]
+async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryable() {
+    let root = TempDir::new().expect("temp root");
+    let runtime = test_runtime(&root);
+    let (second_reply, second_is_sending, release_second) =
+        Reply::json("409 Conflict", "{}").paused();
+    let stub = StubServer::start(vec![
+        Reply::json("200 OK", "{}"),
+        second_reply,
+        Reply::json("200 OK", "{}"),
+    ])
+    .await;
+    let url = stub.url();
+    select_both_found_releases(&runtime, &url).await;
     let revision = runtime.inner.settings.snapshot().await.revision;
 
     {
@@ -596,7 +536,17 @@ async fn a_reset_during_a_paused_grab_is_refused_and_every_outcome_stays_retryab
         .await
         .expect("the failed row is retried");
     assert_eq!(status_of(2), ReleaseGrabStatus::Sent);
-    assert_eq!(serving.await.expect("server"), [1, 2, 2]);
+    let sent_ids: Vec<i64> = stub
+        .finished()
+        .await
+        .iter()
+        .map(|request| {
+            request.json_body()["indexerId"]
+                .as_i64()
+                .expect("indexer id")
+        })
+        .collect();
+    assert_eq!(sent_ids, [1, 2, 2]);
     assert!(
         runtime.reset_lease().is_ok(),
         "a Reset is accepted once the Indexer is idle"

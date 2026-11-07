@@ -1,5 +1,5 @@
 use super::*;
-use crate::remote_source::test_support::{vault_gate, MemoryVault};
+use crate::remote_source::test_support::{vault_gate, MemoryVault, Reply, StubServer};
 use crate::remote_source::types::{
     release_key, RemoteTitleAvailability, RemoteTitleAvailabilityStatus,
 };
@@ -232,15 +232,15 @@ fn old_test_replies_cannot_replace_a_new_test() {
 async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_failed_rows() {
     let root = tempfile::TempDir::new().expect("fixture step succeeded");
     let runtime = super::super::tests::test_runtime(&root);
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("fixture step succeeded");
+    let stub = StubServer::start(vec![
+        Reply::json("200 OK", "{}"),
+        Reply::json("409 Conflict", "{}"),
+        Reply::json("200 OK", "{}"),
+    ])
+    .await;
     runtime
         .ui_begin(RemoteUiIntent::EditConnection {
-            base_url: Some(format!(
-                "http://{}",
-                listener.local_addr().expect("fixture step succeeded")
-            )),
+            base_url: Some(stub.url()),
             category_ids: None,
             api_key: Some("local-proof-key".into()),
         })
@@ -282,7 +282,6 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
             .expect("fixture step succeeded");
     }
     let batch = runtime.ui_begin(RemoteUiIntent::GrabSelected);
-    let serving = serve_grab_batch(listener);
     assert!(runtime
         .ui_begin(RemoteUiIntent::SaveConnection)
         .finish()
@@ -315,81 +314,31 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
     .await
     .expect("fixture step succeeded")
     .expect("fixture step succeeded");
-    assert_eq!(serving.await.expect("fixture step succeeded"), [1, 2, 2]);
+    let sent_ids: Vec<i64> = stub
+        .finished()
+        .await
+        .iter()
+        .map(|request| {
+            request.json_body()["indexerId"]
+                .as_i64()
+                .expect("indexer id")
+        })
+        .collect();
+    assert_eq!(sent_ids, [1, 2, 2]);
     assert_eq!(
         runtime.ui_snapshot().indexer.release_grabs[&release_key(2, "shared-guid")].status,
         ReleaseGrabStatus::Sent
     );
 }
 
-#[expect(clippy::disallowed_methods, reason = "joined by serve_grab_batch")]
-fn serve_grab_batch(listener: tokio::net::TcpListener) -> tokio::task::JoinHandle<Vec<i64>> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    tokio::spawn(async move {
-        let mut ids = Vec::new();
-        for response_status in ["200 OK", "409 Conflict", "200 OK"] {
-            let (mut stream, _) = listener.accept().await.expect("fixture step succeeded");
-            let mut request = Vec::new();
-            loop {
-                let mut bytes = [0; 1024];
-                let count = stream
-                    .read(&mut bytes)
-                    .await
-                    .expect("fixture step succeeded");
-                assert_ne!(count, 0);
-                request.extend_from_slice(&bytes[..count]);
-                let text = String::from_utf8_lossy(&request);
-                if let Some((headers, body)) = text.split_once("\r\n\r\n") {
-                    let length = headers
-                        .lines()
-                        .find_map(|line| {
-                            line.split_once(':')
-                                .filter(|(key, _)| key.eq_ignore_ascii_case("content-length"))
-                                .map(|(_, value)| {
-                                    value
-                                        .trim()
-                                        .parse::<usize>()
-                                        .expect("fixture step succeeded")
-                                })
-                        })
-                        .unwrap_or(0);
-                    if body.len() >= length {
-                        let json: serde_json::Value =
-                            serde_json::from_str(body).expect("fixture step succeeded");
-                        ids.push(json["indexerId"].as_i64().expect("fixture step succeeded"));
-                        break;
-                    }
-                }
-            }
-            let body = "{}";
-            stream.write_all(format!("HTTP/1.1 {response_status}\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).await.expect("fixture step succeeded");
-        }
-        ids
-    })
-}
-
 #[tokio::test]
 async fn shutdown_drops_an_indexer_search_waiting_on_a_silent_server() {
     let root = tempfile::TempDir::new().expect("temp dir");
     let runtime = super::super::tests::test_runtime(&root);
-    // Accepts connections and never answers.
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("listener");
-    let address = listener.local_addr().expect("address");
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by shutdown_drops_an_indexer_search_waiting_on_a_silent_server"
-    )]
-    let _silent = tokio::spawn(async move {
-        let mut held = Vec::new();
-        while let Ok((stream, _)) = listener.accept().await {
-            held.push(stream);
-        }
-    });
+    let stub = StubServer::start(vec![Reply::hold()]).await;
     for intent in [
         RemoteUiIntent::EditConnection {
-            base_url: Some(format!("http://{address}")),
+            base_url: Some(stub.url()),
             category_ids: None,
             api_key: Some("local-proof-key".into()),
         },

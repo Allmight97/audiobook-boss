@@ -1,11 +1,10 @@
 use super::*;
+use crate::remote_source::test_support::{Reply, StubServer};
 use audible_api::auth::{localization, Auth};
 use serde_json::json;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
-use tokio::time::{timeout, Duration};
+use tokio::time::Duration;
 
 const LOCAL_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -55,24 +54,6 @@ fn local_client(addr: SocketAddr, extra_host: Option<&str>) -> reqwest::Client {
     builder.build().expect("client")
 }
 
-async fn serve_one(listener: &TcpListener, response: &[u8]) -> String {
-    let (mut stream, _) = timeout(LOCAL_REQUEST_TIMEOUT, listener.accept())
-        .await
-        .expect("request should arrive")
-        .expect("accept request");
-    let mut buffer = vec![0_u8; 4096];
-    let bytes = timeout(LOCAL_REQUEST_TIMEOUT, stream.read(&mut buffer))
-        .await
-        .expect("request bytes should arrive")
-        .expect("read request");
-    let request = String::from_utf8_lossy(&buffer[..bytes]).to_string();
-    timeout(LOCAL_REQUEST_TIMEOUT, stream.write_all(response))
-        .await
-        .expect("response should write")
-        .expect("write response");
-    request
-}
-
 #[test]
 fn supplemental_pdf_downloader_requires_cookie_auth() {
     let auth = fixture_auth_with_cookies(&[], "");
@@ -100,22 +81,15 @@ fn supplemental_pdf_downloader_rejects_cleartext_redirects() {
 
 #[tokio::test]
 async fn supplemental_pdf_get_download_succeeds_when_head_would_fail() {
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind listener");
-    let addr = listener.local_addr().expect("listener addr");
-    let client = local_client(addr, None);
     let pdf_bytes = b"%PDF-1.7\nbody";
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Length: {}\r\n\r\n",
         pdf_bytes.len()
     );
     let response = [response.as_bytes(), pdf_bytes].concat();
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by supplemental_pdf_get_download_succeeds_when_head_would_fail"
-    )]
-    let server = tokio::spawn(async move { serve_one(&listener, &response).await });
+    let stub = StubServer::start(vec![Reply::bytes(response)]).await;
+    let addr = stub.address();
+    let client = local_client(addr, None);
     let auth =
         fixture_auth_with_cookies(&[("at-main", "cookie-a"), ("sess-at-main", "cookie-b")], "");
     let root = tempfile::TempDir::new().expect("temp root");
@@ -143,7 +117,7 @@ async fn supplemental_pdf_get_download_succeeds_when_head_would_fail() {
     .await
     .expect("download pdf");
     committed.permanent();
-    let request = server.await.expect("server task");
+    let request = stub.only_request().await.raw;
 
     assert!(
         request.starts_with("GET /companion-file/B000000001 "),
@@ -173,69 +147,23 @@ async fn supplemental_pdf_get_download_succeeds_when_head_would_fail() {
 
 #[tokio::test]
 async fn supplemental_pdf_redirect_does_not_send_cookies_to_non_audible_hosts() {
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind listener");
-    let addr = listener.local_addr().expect("listener addr");
-    let client = local_client(addr, Some("cdn.example.test"));
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by supplemental_pdf_redirect_does_not_send_cookies_to_non_audible_hosts"
-    )]
-    let server = tokio::spawn(async move {
-        let (mut first_stream, _) = timeout(LOCAL_REQUEST_TIMEOUT, listener.accept())
-            .await
-            .expect("first request should arrive")
-            .expect("accept first");
-        let mut first_buffer = vec![0_u8; 4096];
-        let first_bytes = timeout(LOCAL_REQUEST_TIMEOUT, first_stream.read(&mut first_buffer))
-            .await
-            .expect("first request bytes should arrive")
-            .expect("read first request");
-        let first = String::from_utf8_lossy(&first_buffer[..first_bytes]).to_string();
-        let redirect = format!(
-            "HTTP/1.1 302 Found\r\nLocation: http://cdn.example.test:{}/book.pdf\r\nContent-Length: 0\r\n\r\n",
-            addr.port()
-        );
-        timeout(
-            LOCAL_REQUEST_TIMEOUT,
-            first_stream.write_all(redirect.as_bytes()),
-        )
-        .await
-        .expect("redirect should write")
-        .expect("write redirect");
-
-        let pdf_bytes = b"%PDF-1.7\nbody";
-        let (mut second_stream, _) = timeout(LOCAL_REQUEST_TIMEOUT, listener.accept())
-            .await
-            .expect("second request should arrive")
-            .expect("accept second");
-        let mut second_buffer = vec![0_u8; 4096];
-        let second_bytes = timeout(
-            LOCAL_REQUEST_TIMEOUT,
-            second_stream.read(&mut second_buffer),
-        )
-        .await
-        .expect("second request bytes should arrive")
-        .expect("read second request");
-        let second = String::from_utf8_lossy(&second_buffer[..second_bytes]).to_string();
-        let response = format!(
+    let pdf_bytes = b"%PDF-1.7\nbody";
+    let stub = StubServer::start_addressed(|address| {
+        let pdf_head = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Length: {}\r\n\r\n",
             pdf_bytes.len()
         );
-        timeout(
-            LOCAL_REQUEST_TIMEOUT,
-            second_stream.write_all(response.as_bytes()),
-        )
-        .await
-        .expect("headers should write")
-        .expect("write headers");
-        timeout(LOCAL_REQUEST_TIMEOUT, second_stream.write_all(pdf_bytes))
-            .await
-            .expect("body should write")
-            .expect("write body");
-        (first, second)
-    });
+        vec![
+            Reply::bytes(format!(
+                "HTTP/1.1 302 Found\r\nLocation: http://cdn.example.test:{}/book.pdf\r\nContent-Length: 0\r\n\r\n",
+                address.port()
+            )),
+            Reply::bytes([pdf_head.as_bytes(), pdf_bytes].concat()),
+        ]
+    })
+    .await;
+    let addr = stub.address();
+    let client = local_client(addr, Some("cdn.example.test"));
     let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
     let root = tempfile::TempDir::new().expect("temp root");
     let start_url = reqwest::Url::parse(&format!(
@@ -260,7 +188,8 @@ async fn supplemental_pdf_redirect_does_not_send_cookies_to_non_audible_hosts() 
         &|| false,
     )
     .await;
-    let (first, second) = server.await.expect("server task");
+    let requests = stub.finished().await;
+    let (first, second) = (&requests[0].raw, &requests[1].raw);
 
     assert!(asset.is_ok(), "redirected PDF should download: {asset:?}");
     if let Ok((_, committed)) = asset {
@@ -277,17 +206,10 @@ async fn supplemental_pdf_redirect_does_not_send_cookies_to_non_audible_hosts() 
 
 #[tokio::test]
 async fn supplemental_pdf_download_rejects_non_pdf_without_provider_details() {
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind listener");
-    let addr = listener.local_addr().expect("listener addr");
-    let client = local_client(addr, None);
     let response = b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\n\r\nnot-pdf";
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by supplemental_pdf_download_rejects_non_pdf_without_provider_details"
-    )]
-    let server = tokio::spawn(async move { serve_one(&listener, response).await });
+    let stub = StubServer::start(vec![Reply::bytes(response)]).await;
+    let addr = stub.address();
+    let client = local_client(addr, None);
     let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
     let root = tempfile::TempDir::new().expect("temp root");
     let start_url = reqwest::Url::parse(&format!(
@@ -313,7 +235,7 @@ async fn supplemental_pdf_download_rejects_non_pdf_without_provider_details() {
     )
     .await
     .expect_err("non-pdf should fail");
-    let _ = server.await.expect("server task");
+    stub.finished().await;
     let message = supplemental_pdf_failure_message(failure);
 
     assert_eq!(failure.category, "pdf_magic");
@@ -332,16 +254,15 @@ async fn supplemental_pdf_download_rejects_non_pdf_without_provider_details() {
 }
 
 async fn fetch_with_one_reply(reply: Vec<u8>, extra_host: Option<&str>) -> SupplementalPdfFailure {
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind listener");
-    let addr = listener.local_addr().expect("listener addr");
+    let stub = StubServer::start_addressed(|address| {
+        let reply = String::from_utf8(reply)
+            .expect("utf8 reply")
+            .replace("{port}", &address.port().to_string());
+        vec![Reply::bytes(reply)]
+    })
+    .await;
+    let addr = stub.address();
     let client = local_client(addr, extra_host);
-    let reply = String::from_utf8(reply)
-        .expect("utf8 reply")
-        .replace("{port}", &addr.port().to_string());
-    #[expect(clippy::disallowed_methods, reason = "joined by fetch_with_one_reply")]
-    let server = tokio::spawn(async move { serve_one(&listener, reply.as_bytes()).await });
     let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
     let root = tempfile::TempDir::new().expect("temp root");
     let start_url = reqwest::Url::parse(&format!(
@@ -367,7 +288,7 @@ async fn fetch_with_one_reply(reply: Vec<u8>, extra_host: Option<&str>) -> Suppl
     )
     .await
     .expect_err("no PDF arrives");
-    let _ = server.await.expect("server task");
+    stub.finished().await;
     failure
 }
 
@@ -426,20 +347,13 @@ async fn other_html_keeps_the_not_a_pdf_failure() {
 
 #[tokio::test]
 async fn supplemental_pdf_download_rejects_oversized_content_length() {
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind listener");
-    let addr = listener.local_addr().expect("listener addr");
-    let client = local_client(addr, None);
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
         MAX_SUPPLEMENTAL_PDF_BYTES + 1
     );
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by supplemental_pdf_download_rejects_oversized_content_length"
-    )]
-    let server = tokio::spawn(async move { serve_one(&listener, response.as_bytes()).await });
+    let stub = StubServer::start(vec![Reply::bytes(response)]).await;
+    let addr = stub.address();
+    let client = local_client(addr, None);
     let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
     let root = tempfile::TempDir::new().expect("temp root");
     let start_url = reqwest::Url::parse(&format!(
@@ -465,7 +379,7 @@ async fn supplemental_pdf_download_rejects_oversized_content_length() {
     )
     .await
     .expect_err("oversized content should fail");
-    let _ = server.await.expect("server task");
+    stub.finished().await;
 
     assert_eq!(failure.category, "size_limit");
     assert!(
@@ -482,22 +396,15 @@ async fn supplemental_pdf_download_rejects_oversized_content_length() {
 
 #[tokio::test]
 async fn supplemental_pdf_download_cleans_partial_on_cancelled_stream() {
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind listener");
-    let addr = listener.local_addr().expect("listener addr");
-    let client = local_client(addr, None);
     let pdf_bytes = b"%PDF-1.7\nbody";
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Length: {}\r\n\r\n",
         pdf_bytes.len()
     );
     let response = [response.as_bytes(), pdf_bytes].concat();
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by supplemental_pdf_download_cleans_partial_on_cancelled_stream"
-    )]
-    let server = tokio::spawn(async move { serve_one(&listener, &response).await });
+    let stub = StubServer::start(vec![Reply::bytes(response)]).await;
+    let addr = stub.address();
+    let client = local_client(addr, None);
     let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
     let root = tempfile::TempDir::new().expect("temp root");
     let start_url = reqwest::Url::parse(&format!(
@@ -524,7 +431,7 @@ async fn supplemental_pdf_download_cleans_partial_on_cancelled_stream() {
     )
     .await
     .expect_err("stream cancellation should fail");
-    let _ = server.await.expect("server task");
+    stub.finished().await;
 
     assert_eq!(failure.category, "cancelled");
     assert!(
@@ -541,17 +448,10 @@ async fn supplemental_pdf_download_cleans_partial_on_cancelled_stream() {
 
 #[tokio::test]
 async fn supplemental_pdf_download_maps_http_failure_without_provider_details() {
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind listener");
-    let addr = listener.local_addr().expect("listener addr");
-    let client = local_client(addr, None);
     let response = b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by supplemental_pdf_download_maps_http_failure_without_provider_details"
-    )]
-    let server = tokio::spawn(async move { serve_one(&listener, response).await });
+    let stub = StubServer::start(vec![Reply::bytes(response)]).await;
+    let addr = stub.address();
+    let client = local_client(addr, None);
     let auth = fixture_auth_with_cookies(&[("at-main", "cookie-a")], "");
     let root = tempfile::TempDir::new().expect("temp root");
     let start_url = reqwest::Url::parse(&format!(
@@ -577,7 +477,7 @@ async fn supplemental_pdf_download_maps_http_failure_without_provider_details() 
     )
     .await
     .expect_err("forbidden should fail");
-    let _ = server.await.expect("server task");
+    stub.finished().await;
     let message = supplemental_pdf_failure_message(failure);
 
     assert_eq!(failure.category, "status");

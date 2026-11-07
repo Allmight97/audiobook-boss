@@ -1,8 +1,7 @@
 use super::*;
 use crate::remote_source::scoped_output::partial_sibling;
+use crate::remote_source::test_support::{CapturedRequest, Reply, StubServer};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const BODY_LEN: usize = 1000;
 
@@ -21,131 +20,30 @@ enum Serve {
 struct Stub {
     url: String,
     client: reqwest::Client,
-    range_starts: Arc<Mutex<Vec<u64>>>,
-    user_agents: Arc<Mutex<Vec<String>>>,
+    server: StubServer,
+}
+
+impl Stub {
+    fn range_starts(&self) -> Vec<u64> {
+        self.server.requests().iter().map(range_start).collect()
+    }
+
+    fn user_agents(&self) -> Vec<String> {
+        self.server
+            .requests()
+            .iter()
+            .map(|request| request.header("user-agent").unwrap_or_default())
+            .collect()
+    }
 }
 
 fn body() -> Vec<u8> {
     (0..BODY_LEN).map(|index| (index % 251) as u8).collect()
 }
 
-#[expect(clippy::disallowed_methods, reason = "joined by start_stub")]
-async fn start_stub(script: Vec<Serve>) -> Stub {
-    let ca_key = rcgen::KeyPair::generate().expect("ca key");
-    let mut ca_params = rcgen::CertificateParams::new(Vec::<String>::new()).expect("ca params");
-    ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
-    let ca_cert = ca_params.self_signed(&ca_key).expect("ca cert");
-    let issuer = rcgen::Issuer::new(ca_params, ca_key);
-    let leaf_key = rcgen::KeyPair::generate().expect("leaf key");
-    let leaf_cert = rcgen::CertificateParams::new(vec!["127.0.0.1".to_string()])
-        .expect("leaf params")
-        .signed_by(&leaf_key, &issuer)
-        .expect("leaf cert");
-
-    let server_config = tokio_rustls::rustls::ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(
-            vec![leaf_cert.der().clone()],
-            tokio_rustls::rustls::pki_types::PrivateKeyDer::Pkcs8(leaf_key.serialize_der().into()),
-        )
-        .expect("server config");
-    let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server_config));
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind stub");
-    let address = listener.local_addr().expect("stub address");
-    let range_starts = Arc::new(Mutex::new(Vec::new()));
-    let recorded = Arc::clone(&range_starts);
-    let user_agents = Arc::new(Mutex::new(Vec::new()));
-    let recorded_agents = Arc::clone(&user_agents);
-
-    #[expect(
-        clippy::let_underscore_must_use,
-        reason = "the client may hang up mid-reply on purpose"
-    )]
-    tokio::spawn(async move {
-        let body = body();
-        for serve in script {
-            let Ok((tcp, _)) = listener.accept().await else {
-                return;
-            };
-            let Ok(mut tls) = acceptor.accept(tcp).await else {
-                return;
-            };
-            let (start, user_agent) = read_range_start(&mut tls).await;
-            recorded.lock().expect("ranges").push(start);
-            recorded_agents.lock().expect("agents").push(user_agent);
-            if matches!(serve, Serve::Close) {
-                let _ = tls.shutdown().await;
-                continue;
-            }
-            let remaining = &body[start as usize..];
-            let total = if matches!(serve, Serve::Resized) {
-                BODY_LEN + 1
-            } else {
-                BODY_LEN
-            };
-            let head = format!(
-                "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {}-{}/{}\r\nConnection: close\r\n\r\n",
-                remaining.len(),
-                start,
-                BODY_LEN - 1,
-                total
-            );
-            let _ = tls.write_all(head.as_bytes()).await;
-            match serve {
-                Serve::Close => {}
-                Serve::Full | Serve::Resized => {
-                    let _ = tls.write_all(remaining).await;
-                }
-                Serve::Truncate(sent) => {
-                    let _ = tls.write_all(&remaining[..sent.min(remaining.len())]).await;
-                }
-                Serve::Pause(sent) => {
-                    let _ = tls.write_all(&remaining[..sent]).await;
-                    let _ = tls.flush().await;
-                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                    let _ = tls.write_all(&remaining[sent..]).await;
-                }
-            }
-            let _ = tls.flush().await;
-            let _ = tls.shutdown().await;
-        }
-    });
-
-    let client = reqwest::Client::builder()
-        .tls_certs_only([reqwest::Certificate::from_der(ca_cert.der()).expect("ca")])
-        .build()
-        .expect("client");
-    Stub {
-        url: format!("https://{address}/book.aaxc"),
-        client,
-        range_starts,
-        user_agents,
-    }
-}
-
-async fn read_range_start(
-    tls: &mut tokio_rustls::server::TlsStream<tokio::net::TcpStream>,
-) -> (u64, String) {
-    let mut request = Vec::new();
-    let mut buffer = [0u8; 1024];
-    while !request.windows(4).any(|window| window == b"\r\n\r\n") {
-        let read = tls.read(&mut buffer).await.expect("read request");
-        if read == 0 {
-            break;
-        }
-        request.extend_from_slice(&buffer[..read]);
-    }
-    let head = String::from_utf8_lossy(&request);
-    let header = |name: &str| {
-        head.lines().find_map(|line| {
-            let (key, value) = line.split_once(':')?;
-            key.eq_ignore_ascii_case(name)
-                .then(|| value.trim().to_string())
-        })
-    };
-    let start = header("range")
+fn range_start(request: &CapturedRequest) -> u64 {
+    request
+        .header("range")
         .and_then(|range| {
             range
                 .strip_prefix("bytes=")?
@@ -153,8 +51,50 @@ async fn read_range_start(
                 .parse()
                 .ok()
         })
-        .expect("ranged request");
-    (start, header("user-agent").unwrap_or_default())
+        .expect("ranged request")
+}
+
+fn ranged_reply(serve: Serve, start: u64) -> Reply {
+    if matches!(serve, Serve::Close) {
+        return Reply::close_silently();
+    }
+    let body = body();
+    let remaining = &body[start as usize..];
+    let total = if matches!(serve, Serve::Resized) {
+        BODY_LEN + 1
+    } else {
+        BODY_LEN
+    };
+    let head = format!(
+        "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {}-{}/{}\r\nConnection: close\r\n\r\n",
+        remaining.len(),
+        start,
+        BODY_LEN - 1,
+        total
+    );
+    let with_head = |bytes: &[u8]| [head.as_bytes(), bytes].concat();
+    match serve {
+        Serve::Close => Reply::close_silently(),
+        Serve::Full | Serve::Resized => Reply::bytes(with_head(remaining)),
+        Serve::Truncate(sent) => Reply::bytes(with_head(&remaining[..sent.min(remaining.len())])),
+        Serve::Pause(sent) => Reply::chunks(
+            vec![with_head(&remaining[..sent]), remaining[sent..].to_vec()],
+            std::time::Duration::from_millis(100),
+        ),
+    }
+}
+
+async fn start_stub(script: Vec<Serve>) -> Stub {
+    let server = StubServer::start_tls(move |index, request| match script.get(index) {
+        Some(serve) => ranged_reply(*serve, range_start(request)),
+        None => Reply::hold(),
+    })
+    .await;
+    Stub {
+        url: format!("{}/book.aaxc", server.url()),
+        client: server.tls_client(),
+        server,
+    }
 }
 
 const LOG: DownloadLogContext<'static> = DownloadLogContext {
@@ -183,11 +123,8 @@ async fn a_truncated_download_resumes_to_the_exact_bytes() {
 
     assert_eq!(bytes, BODY_LEN as u64);
     assert_eq!(std::fs::read(&target).expect("downloaded bytes"), body());
-    assert_eq!(*stub.range_starts.lock().expect("ranges"), [0, 400]);
-    assert_eq!(
-        *stub.user_agents.lock().expect("agents"),
-        [AUDIBLE_DOWNLOAD_USER_AGENT; 2]
-    );
+    assert_eq!(stub.range_starts(), [0, 400]);
+    assert_eq!(stub.user_agents(), [AUDIBLE_DOWNLOAD_USER_AGENT; 2]);
     assert!(!partial_sibling(&target).exists());
 }
 
@@ -211,7 +148,7 @@ async fn a_refused_reconnect_is_retried_and_keeps_the_bytes() {
 
     assert_eq!(bytes, BODY_LEN as u64);
     assert_eq!(std::fs::read(&target).expect("downloaded bytes"), body());
-    assert_eq!(*stub.range_starts.lock().expect("ranges"), [0, 400, 400]);
+    assert_eq!(stub.range_starts(), [0, 400, 400]);
 }
 
 #[tokio::test]
@@ -288,10 +225,7 @@ async fn retry_exhaustion_fails_without_leaving_files() {
         error.to_string().contains("request"),
         "unexpected error: {error}"
     );
-    assert_eq!(
-        *stub.range_starts.lock().expect("ranges"),
-        [0, 100, 100, 100, 100]
-    );
+    assert_eq!(stub.range_starts(), [0, 100, 100, 100, 100]);
     assert!(!target.exists());
     assert!(!partial_sibling(&target).exists());
 }

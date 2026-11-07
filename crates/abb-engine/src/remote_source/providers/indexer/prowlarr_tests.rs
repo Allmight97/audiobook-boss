@@ -2,21 +2,12 @@ use super::*;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use crate::remote_source::test_support::{unused_address, Reply, StubServer};
 use tokio::time::timeout;
 
 // Bounds a hang only: building the production client loads the system
 // root certificates, which can take seconds while the whole suite runs.
 const LOCAL_TIMEOUT: Duration = Duration::from_secs(15);
-
-#[derive(Default, Clone)]
-pub(super) struct CapturedRequest {
-    method: String,
-    path_and_query: String,
-    body: String,
-    api_key: Option<String>,
-}
 
 fn local_client(host: &str, addr: SocketAddr) -> Client {
     Client::builder()
@@ -28,116 +19,35 @@ fn local_client(host: &str, addr: SocketAddr) -> Client {
         .expect("client")
 }
 
-pub(super) async fn serve_one(listener: &TcpListener, response: &[u8]) -> CapturedRequest {
-    let (mut stream, _) = timeout(LOCAL_TIMEOUT, listener.accept())
-        .await
-        .expect("request should arrive")
-        .expect("accept request");
-    let request = timeout(LOCAL_TIMEOUT, async {
-        let mut buffer = Vec::new();
-        loop {
-            let mut chunk = [0_u8; 2048];
-            let count = stream.read(&mut chunk).await.expect("read request");
-            assert!(count > 0, "request ended early");
-            buffer.extend_from_slice(&chunk[..count]);
-            let text = String::from_utf8_lossy(&buffer);
-            if let Some((headers, body)) = text.split_once("\r\n\r\n") {
-                let length = headers
-                    .lines()
-                    .find_map(|line| {
-                        let (name, value) = line.split_once(':')?;
-                        name.eq_ignore_ascii_case("content-length")
-                            .then(|| value.trim().parse::<usize>().expect("content length"))
-                    })
-                    .unwrap_or(0);
-                if body.len() >= length {
-                    break text.into_owned();
-                }
-            }
-            assert!(buffer.len() < 16384, "unexpectedly large test request");
-        }
-    })
-    .await
-    .expect("request bytes should arrive");
-    timeout(LOCAL_TIMEOUT, stream.write_all(response))
-        .await
-        .expect("response should write")
-        .expect("write response");
-
-    let mut lines = request.lines();
-    let request_line = lines.next().unwrap_or_default();
-    let mut parts = request_line.split_whitespace();
-    let method = parts.next().unwrap_or_default().to_string();
-    let path_and_query = parts.next().unwrap_or_default().to_string();
-    let body = request
-        .split("\r\n\r\n")
-        .nth(1)
-        .unwrap_or_default()
-        .to_string();
-    let api_key = request.lines().find_map(|line| {
-        let (name, value) = line.split_once(':')?;
-        name.eq_ignore_ascii_case("x-api-key")
-            .then(|| value.trim().to_string())
-    });
-    CapturedRequest {
-        api_key,
-        method,
-        path_and_query,
-        body,
-    }
-}
-
-pub(super) async fn start_listener() -> (TcpListener, SocketAddr) {
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind listener");
-    let addr = listener.local_addr().expect("local addr");
-    (listener, addr)
-}
-
 #[tokio::test]
 async fn production_client_does_not_forward_api_keys_on_redirect() {
-    let (origin, origin_addr) = start_listener().await;
-    let (destination, destination_addr) = start_listener().await;
-    let response = format!(
-        "HTTP/1.1 302 Found\r\nLocation: http://{destination_addr}/redirected\r\nContent-Length: 0\r\n\r\n"
-    );
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by production_client_does_not_forward_api_keys_on_redirect"
-    )]
-    let origin_server = tokio::spawn(async move { serve_one(&origin, response.as_bytes()).await });
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by production_client_does_not_forward_api_keys_on_redirect"
-    )]
-    let mut destination_server = tokio::spawn(async move {
-        let body = r#"{"version":"1.2.3"}"#;
-        let response = format!(
-            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{body}",
-            body.len()
-        );
-        serve_one(&destination, response.as_bytes()).await
-    });
+    let destination =
+        StubServer::start(vec![Reply::json("200 OK", r#"{"version":"1.2.3"}"#)]).await;
+    let origin = StubServer::start(vec![Reply::bytes(format!(
+        "HTTP/1.1 302 Found\r\nLocation: http://{}/redirected\r\nContent-Length: 0\r\n\r\n",
+        destination.address()
+    ))])
+    .await;
     let adapter = ReqwestProwlarrAdapter::new();
     let result = timeout(
         LOCAL_TIMEOUT,
         adapter.system_status(
-            &format!("http://{origin_addr}"),
+            &origin.url(),
             &SecretString::from("origin-only-key".to_string()),
         ),
     )
     .await
     .expect("connection test should finish")
     .expect("connection test response");
-    let request = origin_server.await.expect("origin server");
-    assert_eq!(request.api_key.as_deref(), Some("origin-only-key"));
-    let followed = timeout(Duration::from_millis(30), &mut destination_server)
-        .await
-        .is_ok();
-    destination_server.abort();
-    assert!(
-        !followed,
+    let request = origin.only_request().await;
+    assert_eq!(
+        request.header("x-api-key").as_deref(),
+        Some("origin-only-key")
+    );
+    tokio::time::sleep(Duration::from_millis(30)).await;
+    assert_eq!(
+        destination.connections(),
+        0,
         "redirect destination must never receive the origin API key"
     );
     assert!(!result.ok, "redirect must not count as a valid connection");
@@ -153,17 +63,13 @@ async fn system_status_requires_valid_service_response() {
         ("401 Unauthorized", "{}", false),
         ("500 Internal Server Error", "error", false),
     ] {
-        let (listener, addr) = start_listener().await;
-        let response = format!(
+        let stub = StubServer::start(vec![Reply::bytes(format!(
             "HTTP/1.1 {status}\r\nContent-Length: {}\r\n\r\n{body}",
             body.len()
-        );
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "joined by system_status_requires_valid_service_response"
-        )]
-        let server = tokio::spawn(async move { serve_one(&listener, response.as_bytes()).await });
-        let adapter = ReqwestProwlarrAdapter::with_client(local_client("indexer.test", addr));
+        ))])
+        .await;
+        let adapter =
+            ReqwestProwlarrAdapter::with_client(local_client("indexer.test", stub.address()));
         let result = adapter
             .system_status(
                 "http://indexer.test/proxy",
@@ -171,8 +77,8 @@ async fn system_status_requires_valid_service_response() {
             )
             .await
             .expect("status");
-        let request = server.await.expect("server");
-        assert_eq!(request.api_key.as_deref(), Some("key"));
+        let request = stub.only_request().await;
+        assert_eq!(request.header("x-api-key").as_deref(), Some("key"));
         assert_eq!(request.method, "GET");
         assert_eq!(request.path_and_query, "/proxy/api/v1/system/status");
         assert_eq!(result.ok, expected, "status={status}, body={body}");
@@ -291,22 +197,11 @@ fn release_categories_decode_bare_ids_and_named_objects() {
 
 #[tokio::test]
 async fn search_maps_query_and_category_without_indexer_ids() {
-    let (listener, addr) = start_listener().await;
     let host = "prowlarr.test";
-    let body = br#"[{"guid":"abc","indexerId":7,"title":"Book Title","indexer":"Example","size":1234,"protocol":"torrent","seeders":12,"infoUrl":"https://source.test/book/abc","commentUrl":"https://source.test/comments/abc","categories":[{"id":3030,"name":"Audio/Audiobook"}]}]"#;
-    let response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
-        body.len()
-    );
-    let mut response_bytes = response.into_bytes();
-    response_bytes.extend_from_slice(body);
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by search_maps_query_and_category_without_indexer_ids"
-    )]
-    let server = tokio::spawn(async move { serve_one(&listener, &response_bytes).await });
+    let body = r#"[{"guid":"abc","indexerId":7,"title":"Book Title","indexer":"Example","size":1234,"protocol":"torrent","seeders":12,"infoUrl":"https://source.test/book/abc","commentUrl":"https://source.test/comments/abc","categories":[{"id":3030,"name":"Audio/Audiobook"}]}]"#;
+    let stub = StubServer::start(vec![Reply::json("200 OK", body)]).await;
 
-    let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, addr));
+    let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, stub.address()));
     let outcome = adapter
         .search(
             &format!("http://{host}/prowlarr"),
@@ -319,8 +214,8 @@ async fn search_maps_query_and_category_without_indexer_ids() {
         .await
         .expect("search");
 
-    let request = server.await.expect("server");
-    assert_eq!(request.api_key.as_deref(), Some("secret-key"));
+    let request = stub.only_request().await;
+    assert_eq!(request.header("x-api-key").as_deref(), Some("secret-key"));
     assert_eq!(request.method, "GET");
     assert!(request
         .path_and_query
@@ -352,18 +247,10 @@ async fn search_maps_query_and_category_without_indexer_ids() {
 
 #[tokio::test]
 async fn search_returns_auth_diagnostic_for_rejected_api_key() {
-    let (listener, addr) = start_listener().await;
     let host = "prowlarr.test";
-    let response = b"HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}";
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by search_returns_auth_diagnostic_for_rejected_api_key"
-    )]
-    let _server = tokio::spawn(async move {
-        serve_one(&listener, response).await;
-    });
+    let stub = StubServer::start(vec![Reply::json("401 Unauthorized", "{}")]).await;
 
-    let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, addr));
+    let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, stub.address()));
     let outcome = adapter
         .search(
             &format!("http://{host}"),
@@ -386,17 +273,10 @@ async fn search_returns_auth_diagnostic_for_rejected_api_key() {
 
 #[tokio::test]
 async fn grab_posts_guid_and_indexer_id() {
-    let (listener, addr) = start_listener().await;
     let host = "prowlarr.test";
-    let response =
-        b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}";
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by grab_posts_guid_and_indexer_id"
-    )]
-    let server = tokio::spawn(async move { serve_one(&listener, response).await });
+    let stub = StubServer::start(vec![Reply::json("200 OK", "{}")]).await;
 
-    let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, addr));
+    let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, stub.address()));
     let outcome = adapter
         .grab(
             &format!("http://{host}"),
@@ -407,37 +287,15 @@ async fn grab_posts_guid_and_indexer_id() {
         .await
         .expect("grab");
 
-    let request = server.await.expect("server");
-    assert_eq!(request.api_key.as_deref(), Some("secret-key"));
+    let request = stub.only_request().await;
+    assert_eq!(request.header("x-api-key").as_deref(), Some("secret-key"));
     assert_eq!(request.method, "POST");
     assert_eq!(request.path_and_query, "/api/v1/search");
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&request.body).expect("grab request JSON"),
+        request.json_body(),
         serde_json::json!({"guid":"release-guid", "indexerId":42})
     );
     assert!(outcome.accepted);
-}
-
-async fn serve_in_order(listener: &TcpListener, responses: &[Vec<u8>]) -> Vec<CapturedRequest> {
-    let mut requests = Vec::new();
-    for response in responses {
-        requests.push(serve_one(listener, response).await);
-    }
-    requests
-}
-
-fn http_response(status: &str, body: &str) -> Vec<u8> {
-    format!(
-        "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{body}",
-        body.len()
-    )
-    .into_bytes()
-}
-
-async fn no_further_request(listener: &TcpListener) -> bool {
-    timeout(Duration::from_millis(150), listener.accept())
-        .await
-        .is_err()
 }
 
 pub(super) fn release(indexer: &str, protocol: RemoteReleaseProtocol) -> RemoteRelease {
@@ -604,26 +462,21 @@ fn the_downloader_line_names_the_side_that_is_down() {
 
 #[tokio::test]
 async fn a_server_error_grab_asks_prowlarr_which_downloader_is_down() {
-    let (listener, addr) = start_listener().await;
     let host = "prowlarr.test";
-    let responses = vec![
-        http_response(
+    let stub = StubServer::start(vec![
+        Reply::json(
             "500 Internal Server Error",
             r#"{ "message": "Unable to connect to qBittorrent", "description": "System.Net.Http.HttpRequestException ..." }"#,
         ),
-        http_response("200 OK", TORRENT_CLIENT_LIST),
-        http_response(
+        Reply::json("200 OK", TORRENT_CLIENT_LIST),
+        Reply::json(
             "400 Bad Request",
             r#"[{"id":1,"isValid":false,"validationFailures":[{"errorMessage":"Unable to connect"}]}]"#,
         ),
-    ];
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by a_server_error_grab_asks_prowlarr_which_downloader_is_down"
-    )]
-    let server = tokio::spawn(async move { serve_in_order(&listener, &responses).await });
+    ])
+    .await;
 
-    let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, addr));
+    let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, stub.address()));
     let outcome = adapter
         .grab(
             &format!("http://{host}"),
@@ -634,7 +487,7 @@ async fn a_server_error_grab_asks_prowlarr_which_downloader_is_down() {
         .await
         .expect("grab");
 
-    let requests = server.await.expect("server");
+    let requests = stub.finished().await;
     let seen: Vec<_> = requests
         .iter()
         .map(|request| (request.method.as_str(), request.path_and_query.as_str()))
@@ -649,7 +502,7 @@ async fn a_server_error_grab_asks_prowlarr_which_downloader_is_down() {
     );
     assert!(requests
         .iter()
-        .all(|request| request.api_key.as_deref() == Some("secret-key")));
+        .all(|request| request.header("x-api-key").as_deref() == Some("secret-key")));
     assert!(!outcome.accepted);
     let line = "qBittorrent is not responding. Check that it is running, then Retry.";
     assert_eq!(outcome.message, line);
@@ -663,19 +516,14 @@ async fn a_server_error_grab_asks_prowlarr_which_downloader_is_down() {
 
 #[tokio::test]
 async fn a_grab_that_cannot_ask_prowlarr_about_its_downloaders_points_to_the_log() {
-    let (listener, addr) = start_listener().await;
     let host = "prowlarr.test";
-    let responses = vec![
-        http_response("500 Internal Server Error", "{}"),
-        http_response("503 Service Unavailable", "{}"),
-    ];
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by a_grab_that_cannot_ask_prowlarr_about_its_downloaders_points_to_the_log"
-    )]
-    let server = tokio::spawn(async move { serve_in_order(&listener, &responses).await });
+    let stub = StubServer::start(vec![
+        Reply::json("500 Internal Server Error", "{}"),
+        Reply::json("503 Service Unavailable", "{}"),
+    ])
+    .await;
 
-    let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, addr));
+    let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, stub.address()));
     let outcome = adapter
         .grab(
             &format!("http://{host}"),
@@ -686,7 +534,7 @@ async fn a_grab_that_cannot_ask_prowlarr_about_its_downloaders_points_to_the_log
         .await
         .expect("grab");
 
-    server.await.expect("server");
+    stub.finished().await;
     assert!(!outcome.accepted);
     assert_eq!(
         outcome.message,
@@ -708,18 +556,10 @@ async fn grab_failures_that_name_their_own_side_ask_nothing_more() {
         ("401 Unauthorized", "Indexer rejected the API key."),
         ("403 Forbidden", "Indexer rejected the API key."),
     ] {
-        let (listener, addr) = start_listener().await;
-        let response = http_response(status, r#"{"message":"raw"}"#);
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "joined by grab_failures_that_name_their_own_side_ask_nothing_more"
-        )]
-        let server = tokio::spawn(async move {
-            serve_one(&listener, &response).await;
-            no_further_request(&listener).await
-        });
+        let stub = StubServer::start(vec![Reply::json(status, r#"{"message":"raw"}"#)]).await;
 
-        let adapter = ReqwestProwlarrAdapter::with_client(local_client("prowlarr.test", addr));
+        let adapter =
+            ReqwestProwlarrAdapter::with_client(local_client("prowlarr.test", stub.address()));
         let outcome = adapter
             .grab(
                 "http://prowlarr.test",
@@ -730,8 +570,9 @@ async fn grab_failures_that_name_their_own_side_ask_nothing_more() {
             .await
             .expect("grab");
 
+        stub.finished().await;
         assert!(
-            server.await.expect("server"),
+            stub.nothing_more_arrives().await,
             "{status} must not trigger a downloader check"
         );
         assert!(!outcome.accepted);
@@ -741,18 +582,10 @@ async fn grab_failures_that_name_their_own_side_ask_nothing_more() {
 
 #[tokio::test]
 async fn an_accepted_grab_never_asks_about_downloaders() {
-    let (listener, addr) = start_listener().await;
-    let response = http_response("200 OK", "{}");
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by an_accepted_grab_never_asks_about_downloaders"
-    )]
-    let server = tokio::spawn(async move {
-        serve_one(&listener, &response).await;
-        no_further_request(&listener).await
-    });
+    let stub = StubServer::start(vec![Reply::json("200 OK", "{}")]).await;
 
-    let adapter = ReqwestProwlarrAdapter::with_client(local_client("prowlarr.test", addr));
+    let adapter =
+        ReqwestProwlarrAdapter::with_client(local_client("prowlarr.test", stub.address()));
     let outcome = adapter
         .grab(
             "http://prowlarr.test",
@@ -763,17 +596,16 @@ async fn an_accepted_grab_never_asks_about_downloaders() {
         .await
         .expect("grab");
 
-    assert!(server.await.expect("server"), "no second request");
+    stub.finished().await;
+    assert!(stub.nothing_more_arrives().await, "no second request");
     assert!(outcome.accepted);
     assert_eq!(outcome.message, "Release sent to downloader.");
 }
 
 #[tokio::test]
 async fn a_grab_that_cannot_connect_to_prowlarr_says_it_is_not_responding() {
-    let (listener, addr) = start_listener().await;
-    drop(listener);
-
-    let adapter = ReqwestProwlarrAdapter::with_client(local_client("prowlarr.test", addr));
+    let adapter =
+        ReqwestProwlarrAdapter::with_client(local_client("prowlarr.test", unused_address().await));
     let outcome = adapter
         .grab(
             "http://prowlarr.test",
@@ -877,20 +709,11 @@ fn a_failed_grab_logs_only_a_capped_url_free_message() {
 
 #[tokio::test]
 async fn a_grab_that_times_out_may_already_be_sent_so_it_is_unconfirmed() {
-    let (listener, addr) = start_listener().await;
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by a_grab_that_times_out_may_already_be_sent_so_it_is_unconfirmed"
-    )]
-    let server = tokio::spawn(async move {
-        let (stream, _) = listener.accept().await.expect("accept request");
-        tokio::time::sleep(Duration::from_millis(600)).await;
-        drop(stream);
-    });
+    let stub = StubServer::start(vec![Reply::hold()]).await;
     let client = Client::builder()
         .no_proxy()
         .timeout(Duration::from_millis(200))
-        .resolve("prowlarr.test", addr)
+        .resolve("prowlarr.test", stub.address())
         .build()
         .expect("client");
 
@@ -904,7 +727,6 @@ async fn a_grab_that_times_out_may_already_be_sent_so_it_is_unconfirmed() {
         .await
         .expect("a timeout is an outcome");
 
-    server.await.expect("server");
     assert!(!outcome.accepted);
     assert!(outcome.unconfirmed);
     assert_eq!(

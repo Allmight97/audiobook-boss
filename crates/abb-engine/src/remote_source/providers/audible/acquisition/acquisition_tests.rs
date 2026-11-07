@@ -53,9 +53,11 @@ async fn job_and_staging_after_license_body(
     )
     .await;
     record_title_outcome(&mut job, "B000000001", outcome).expect("not cancelled");
-    let requests = server.await.expect("stub");
+    let requests = server.finished().await;
     assert!(
-        requests[1].starts_with("POST /1.0/content/B000000001/licenserequest "),
+        requests[1]
+            .request_line()
+            .starts_with("POST /1.0/content/B000000001/licenserequest "),
         "{requests:?}"
     );
     assert_eq!(job.diagnostics.len(), 1);

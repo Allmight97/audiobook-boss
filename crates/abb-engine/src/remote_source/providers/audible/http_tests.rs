@@ -1,11 +1,9 @@
 use super::*;
+use crate::remote_source::test_support::{Reply, StubServer};
 use audible_api::auth::localization;
 use audible_api::auth::register::Registration;
 use serde_json::json;
 use std::collections::HashMap;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
-use tokio::task::JoinHandle;
 
 fn test_device_key() -> String {
     static KEY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
@@ -43,67 +41,20 @@ pub(in crate::remote_source::providers::audible) fn signing_auth(country_code: &
 
 pub(in crate::remote_source::providers::audible) async fn stub_api(
     replies: Vec<(u16, String)>,
-) -> (AudibleApi, JoinHandle<Vec<String>>) {
-    stub_http(replies.into_iter().map(|(status, body)| format!(
-        "HTTP/1.1 {status} Stub\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-        body.len()
-    )).collect()).await
-}
-
-async fn stub_http(replies: Vec<String>) -> (AudibleApi, JoinHandle<Vec<String>>) {
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind stub");
-    let address = listener.local_addr().expect("stub address");
-    #[expect(clippy::disallowed_methods, reason = "joined by each stub_http caller")]
-    let server = tokio::spawn(async move {
-        let mut request_lines = Vec::new();
-        for reply in replies {
-            let (mut stream, _) = listener.accept().await.expect("request arrives");
-            request_lines.push(read_request_line(&mut stream).await);
-            stream
-                .write_all(reply.as_bytes())
-                .await
-                .expect("write reply");
-            #[expect(
-                clippy::let_underscore_must_use,
-                reason = "the client may already have closed the stream"
-            )]
-            let _ = stream.shutdown().await;
-        }
-        request_lines
-    });
-    let client = AudibleClient::new(signing_auth("us")).expect("Audible client");
-    (
-        AudibleApi::with_client(client, format!("http://{address}")),
-        server,
+) -> (AudibleApi, StubServer) {
+    stub_http(
+        replies
+            .into_iter()
+            .map(|(status, body)| Reply::json(&format!("{status} Stub"), &body))
+            .collect(),
     )
+    .await
 }
 
-async fn read_request_line(stream: &mut tokio::net::TcpStream) -> String {
-    let mut request = Vec::new();
-    let mut buffer = [0_u8; 4096];
-    let head_end = loop {
-        if let Some(end) = request.windows(4).position(|window| window == b"\r\n\r\n") {
-            break end + 4;
-        }
-        let read = stream.read(&mut buffer).await.expect("read request");
-        assert!(read > 0, "request ended early");
-        request.extend_from_slice(&buffer[..read]);
-    };
-    let head = String::from_utf8_lossy(&request[..head_end]).to_string();
-    let body_length = head
-        .lines()
-        .find_map(|line| {
-            line.to_ascii_lowercase()
-                .strip_prefix("content-length:")
-                .and_then(|length| length.trim().parse::<usize>().ok())
-        })
-        .unwrap_or(0);
-    while request.len() < head_end + body_length {
-        let read = stream.read(&mut buffer).await.expect("read body");
-        assert!(read > 0, "request body ended early");
-        request.extend_from_slice(&buffer[..read]);
-    }
-    head.lines().next().unwrap_or_default().to_string()
+async fn stub_http(replies: Vec<Reply>) -> (AudibleApi, StubServer) {
+    let server = StubServer::start(replies).await;
+    let client = AudibleClient::new(signing_auth("us")).expect("Audible client");
+    (AudibleApi::with_client(client, server.url()), server)
 }
 
 fn library_page(first_id: usize, count: usize) -> String {
@@ -131,7 +82,7 @@ async fn a_refused_sign_in_with_a_json_body_is_not_an_empty_library() {
     .await;
 
     let result = super::super::load_all_library_titles(&api).await;
-    server.await.expect("stub");
+    server.finished().await;
 
     assert!(
         matches!(result, Err(AudibleRequestError::AuthRejected)),
@@ -143,13 +94,13 @@ async fn a_refused_sign_in_with_a_json_body_is_not_an_empty_library() {
 async fn a_truncated_auth_reply_rejects_sign_in_just_like_a_complete_reply() {
     for status in [401, 403] {
         for length in [2, 100] {
-            let (api, server) = stub_http(vec![format!(
+            let (api, server) = stub_http(vec![Reply::bytes(format!(
                 "HTTP/1.1 {status} Stub\r\nContent-Length: {length}\r\nConnection: close\r\n\r\n{{}}"
-            )])
+            ))])
             .await;
 
             let result = super::super::load_all_library_titles(&api).await;
-            server.await.expect("stub");
+            server.finished().await;
 
             assert!(
                 matches!(result, Err(AudibleRequestError::AuthRejected)),
@@ -171,7 +122,7 @@ async fn a_failed_second_page_loads_no_partial_library() {
     .await;
 
     let result = super::super::load_all_library_titles(&api).await;
-    let requests = server.await.expect("stub");
+    let requests = server.finished().await;
 
     let Err(AudibleRequestError::Failed(error)) = result else {
         panic!("a failed page must fail the scan: {result:?}");
@@ -180,8 +131,14 @@ async fn a_failed_second_page_loads_no_partial_library() {
         error.to_string().contains("No partial library was loaded"),
         "{error}"
     );
-    assert!(requests[0].starts_with("GET /1.0/library?"), "{requests:?}");
-    assert!(requests[1].contains("page=1"), "{requests:?}");
+    assert!(
+        requests[0].request_line().starts_with("GET /1.0/library?"),
+        "{requests:?}"
+    );
+    assert!(
+        requests[1].request_line().contains("page=1"),
+        "{requests:?}"
+    );
 }
 
 fn query_of(request_line: &str) -> HashMap<String, String> {
@@ -200,11 +157,11 @@ async fn a_library_request_asks_for_availability_and_pdf_fields() {
     let titles = super::super::load_all_library_titles(&api)
         .await
         .expect("library");
-    let requests = server.await.expect("stub");
+    let requests = server.finished().await;
 
     assert_eq!(titles.len(), 3);
     assert_eq!(requests.len(), 1, "a short first page ends the scan");
-    let query = query_of(&requests[0]);
+    let query = query_of(requests[0].request_line());
     assert_eq!(
         query["num_results"],
         super::super::AUDIBLE_LIBRARY_PAGE_SIZE.to_string()
@@ -258,7 +215,7 @@ async fn a_paged_library_loads_every_title_once_and_stops() {
         let titles = super::super::load_all_library_titles(&api)
             .await
             .expect("library");
-        let requests = server.await.expect("stub");
+        let requests = server.finished().await;
 
         let ids = titles
             .iter()
@@ -269,7 +226,7 @@ async fn a_paged_library_loads_every_title_once_and_stops() {
         assert_eq!(ids.len(), expected_titles, "{name}");
         let pages_asked = requests
             .iter()
-            .map(|line| query_of(line).get("page").cloned())
+            .map(|request| query_of(request.request_line()).get("page").cloned())
             .collect::<Vec<_>>();
         assert_eq!(
             pages_asked,
