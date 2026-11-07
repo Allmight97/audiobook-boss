@@ -27,6 +27,11 @@ pub fn builder<R: tauri::Runtime>() -> Builder<R> {
             "SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT",
             abb_engine::audio::supported_audio_import_support_text(),
         )
+        .constant(
+            "COVER_IMAGE_EXTENSIONS",
+            abb_engine::audio::ALLOWED_IMAGE_EXTENSIONS,
+        )
+        .constant("COVER_URL_SCHEME", crate::cover_protocol::SCHEME)
         .error_handling(ErrorHandlingMode::Result)
         // ABB's JSON IPC contract uses numbers for bounded byte sizes, timestamps,
         // counts, indices, and sequence values. They remain below JavaScript's exact

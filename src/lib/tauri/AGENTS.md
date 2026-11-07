@@ -51,6 +51,7 @@ Each has its own module test.
   teardown and the dispose and late-arrival race. Views collect unlisteners
   through a group.
 - `coverSrc.ts` turns a cover address the engine offers into the `abb-cover`
-  source an `<img>` loads; the scheme is the host's. The engine builds and
-  parses the address (`session/cover_address.rs`), the host serves the scheme
-  through `Engine::cover`, and covers never cross IPC as bytes.
+  source an `<img>` loads; the host owns the scheme and publishes its name
+  (`COVER_URL_SCHEME`). The engine builds and parses the address
+  (`session/cover_address.rs`), the host serves the scheme through
+  `Engine::cover`, and covers never cross IPC as bytes.

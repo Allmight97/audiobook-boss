@@ -35,6 +35,10 @@ export const events = {
 };
 
 /* Constants */
+export const COVER_IMAGE_EXTENSIONS = ["jpg","jpeg","png","webp"] as const;
+
+export const COVER_URL_SCHEME = "abb-cover" as const;
+
 export const SUPPORTED_AUDIO_IMPORT_EXTENSIONS = ["mka","mp3","m4a","m4b","aac","wav","flac"] as const;
 
 export const SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT = "Supports MKA, MP3, M4A/M4B, AAC, WAV, and FLAC audio files" as const;

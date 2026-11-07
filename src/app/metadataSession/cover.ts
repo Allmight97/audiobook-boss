@@ -38,5 +38,3 @@ export function coverNoticeMessage(notice: CoverNotice | null): CoverArtMessage 
 			};
 	}
 }
-
-export const COVER_ART_IMAGE_EXTENSION_HINTS = ['jpg', 'jpeg', 'png', 'webp'] as const;

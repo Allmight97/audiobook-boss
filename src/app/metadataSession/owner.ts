@@ -10,13 +10,13 @@ import type {
 import { coverSrc } from '../../lib/tauri/coverSrc';
 import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { toUserMessage } from '../../lib/tauri/appError';
+import { COVER_IMAGE_EXTENSIONS } from '../../types/metadata';
 import {
 	liveMetadataCapability,
 	type MetadataCapability,
 } from '../../lib/tauri/capabilities/metadata';
 import { createTypingEcho, type EngineLink } from '../engineLink';
 import {
-	COVER_ART_IMAGE_EXTENSION_HINTS,
 	COVER_MESSAGE_MS,
 	coverNoticeMessage,
 	HIDDEN_COVER_MESSAGE,
@@ -249,7 +249,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			try {
 				selected = await capabilityValue.openFile({
 					title: 'Select Cover Art Image',
-					filters: [{ name: 'Image Files', extensions: [...COVER_ART_IMAGE_EXTENSION_HINTS] }],
+					filters: [{ name: 'Image Files', extensions: [...COVER_IMAGE_EXTENSIONS] }],
 				});
 			} catch (error) {
 				logFrontendFailure('metadataSession.openImagePicker', error);
