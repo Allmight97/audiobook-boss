@@ -1,3 +1,4 @@
+// oxlint-disable-next-line eslint/no-restricted-imports -- the recorded workflows replay the raw IPC wire.
 import { invoke } from '@tauri-apps/api/core';
 import { expect, vi } from 'vitest';
 import type { TauriCommandName } from '../tauriCommandNames';

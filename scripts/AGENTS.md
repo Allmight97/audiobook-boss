@@ -116,7 +116,10 @@ A change to CI or validation speed quotes before and after numbers from
 
 - A new script enforces a live repo invariant or simplifies a build or release
   workflow, and has a package script or a usage header.
-- The runtime-boundary scanner stays a text scan until TypeScript has a stable
+- The runtime-boundary scanner (`check-tauri-runtime-boundary.ts`) stays a text
+  scan, only for what Oxlint's `no-restricted-imports` cannot name: namespace
+  imports, star re-exports, and `__TAURI_INVOKE`. A value-import restriction
+  goes in `.oxlintrc.json`. A TypeScript-API scanner waits for a stable
   programmatic API; 7.0 offers only `typescript/unstable/*` (Oxlint bans
   importing `typescript`).
 - Oxfmt formats JS, TS, JSON, and CSS. Markdown, YAML, and TOML stay

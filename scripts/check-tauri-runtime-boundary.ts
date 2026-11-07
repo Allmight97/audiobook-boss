@@ -3,8 +3,6 @@ import path from 'node:path';
 
 const repoRoot = process.cwd();
 const generatedModulePath = path.join(repoRoot, 'src/lib/generated/tauri');
-const allowedCommandImporter = path.join(repoRoot, 'src/lib/tauri/commands.ts');
-const allowedEventImporter = path.join(repoRoot, 'src/lib/tauri/client.ts');
 const tauriBoundaryDir = withTrailingSeparator(path.join(repoRoot, 'src/lib/tauri'));
 const testSupportDir = withTrailingSeparator(path.join(repoRoot, 'src/test'));
 
@@ -14,18 +12,12 @@ type Violation = {
 	message: string;
 };
 
-type NamedBinding = {
-	name: string;
-	typeOnly: boolean;
-};
-
 type ModuleStatement = {
 	kind: 'import' | 'export';
 	index: number;
 	typeOnly: boolean;
-	hasDefault: boolean;
 	hasNamespace: boolean;
-	names: NamedBinding[];
+	namedBindingCount: number;
 	source: string;
 };
 
@@ -73,23 +65,28 @@ function checkFile(file: string): void {
 }
 
 function checkModuleStatement(file: string, code: string, statement: ModuleStatement): void {
+	if (statement.typeOnly) {
+		return;
+	}
 	const line = lineNumberAt(code, statement.index);
-	if (statement.source === '@tauri-apps/api/core' && !allowsRawTauriCore(file)) {
-		pushRawTauriCoreImportViolations(file, line, statement);
+	if (statement.source === '@tauri-apps/api/core') {
+		if (statement.hasNamespace && !allowsRawTauriCore(file)) {
+			violations.push({
+				file: displayPath(file),
+				line,
+				message:
+					'raw Tauri core namespace imports must stay out of runtime app code; use tauriClient',
+			});
+		}
 		return;
 	}
-
-	if (statement.typeOnly || !isGeneratedTauriImport(file, statement.source)) {
+	if (!isGeneratedTauriImport(file, statement.source)) {
 		return;
 	}
-
-	pushNamedValueViolations(
-		file,
-		line,
-		new Set(statement.names.filter((binding) => !binding.typeOnly).map((binding) => binding.name)),
-	);
-
-	if (statement.kind === 'export' && (statement.hasNamespace || statement.names.length === 0)) {
+	if (
+		statement.kind === 'export' &&
+		(statement.hasNamespace || statement.namedBindingCount === 0)
+	) {
 		violations.push({
 			file: displayPath(file),
 			line,
@@ -98,7 +95,6 @@ function checkModuleStatement(file: string, code: string, statement: ModuleState
 		});
 		return;
 	}
-
 	if (statement.hasNamespace) {
 		violations.push({
 			file: displayPath(file),
@@ -116,39 +112,6 @@ function checkRawTauriInvokeUsage(file: string, code: string): void {
 			file: displayPath(file),
 			line: lineNumberAt(code, match.index ?? 0),
 			message: 'raw __TAURI_INVOKE usage must stay out of runtime app code; use tauriClient',
-		});
-	}
-}
-
-function pushRawTauriCoreImportViolations(
-	file: string,
-	line: number,
-	statement: ModuleStatement,
-): void {
-	if (statement.typeOnly) {
-		return;
-	}
-	if (statement.hasDefault) {
-		violations.push({
-			file: displayPath(file),
-			line,
-			message: 'raw Tauri core default imports must stay out of runtime app code; use tauriClient',
-		});
-	}
-	if (statement.hasNamespace) {
-		violations.push({
-			file: displayPath(file),
-			line,
-			message:
-				'raw Tauri core namespace imports must stay out of runtime app code; use tauriClient',
-		});
-		return;
-	}
-	if (statement.names.some((binding) => !binding.typeOnly && binding.name === 'invoke')) {
-		violations.push({
-			file: displayPath(file),
-			line,
-			message: "raw Tauri 'invoke' imports must stay out of runtime app code; use tauriClient",
 		});
 	}
 }
@@ -225,9 +188,8 @@ function parseModuleStatement(
 	if (kind === 'import' && sideEffect) {
 		return {
 			typeOnly,
-			hasDefault: false,
 			hasNamespace: false,
-			names: [],
+			namedBindingCount: 0,
 			source: sideEffect[2] ?? '',
 			consumed: cursor + sideEffect[0].length,
 		};
@@ -244,9 +206,8 @@ function parseModuleStatement(
 	if (bindings === '*') {
 		return {
 			typeOnly,
-			hasDefault: false,
 			hasNamespace: true,
-			names: [],
+			namedBindingCount: 0,
 			source,
 			consumed,
 		};
@@ -310,28 +271,13 @@ function findFromClause(
 
 function parseBindings(
 	bindings: string,
-): Pick<ModuleStatement, 'hasDefault' | 'hasNamespace' | 'names'> {
+): Pick<ModuleStatement, 'hasNamespace' | 'namedBindingCount'> {
 	const hasNamespace = /(?:^|,)\s*\*(?:\s+as\s+[A-Za-z_$][\w$]*)?/.test(bindings);
-	const hasDefault = /^[A-Za-z_$][\w$]*\s*(,|$)/.test(bindings);
 	const named = bindings.match(/\{([\s\S]*)\}/);
-	if (!named) {
-		return { hasDefault, hasNamespace, names: [] };
-	}
-
-	const names: NamedBinding[] = [];
-	for (const raw of splitBindingList(named[1] ?? '')) {
-		const specifier = raw.trim();
-		if (!specifier) {
-			continue;
-		}
-		const typeOnly = /^type\s+/.test(specifier);
-		const rest = typeOnly ? specifier.slice(5).trim() : specifier;
-		const name = rest.split(/\s+as\s+/)[0]?.trim();
-		if (name) {
-			names.push({ name, typeOnly });
-		}
-	}
-	return { hasDefault, hasNamespace, names };
+	const namedBindingCount = splitBindingList(named?.[1] ?? '').filter(
+		(specifier) => specifier.trim() !== '',
+	).length;
+	return { hasNamespace, namedBindingCount };
 }
 
 function splitBindingList(list: string): string[] {
@@ -470,27 +416,6 @@ function blankQuoted(source: string): string {
 		index += 1;
 	}
 	return output;
-}
-
-function pushNamedValueViolations(file: string, line: number, names: Set<string>): void {
-	if (
-		names.has('commands') &&
-		normalizeFilePath(file) !== normalizeFilePath(allowedCommandImporter)
-	) {
-		violations.push({
-			file: displayPath(file),
-			line,
-			message: "generated 'commands' value imports must stay inside src/lib/tauri/commands.ts",
-		});
-	}
-
-	if (names.has('events') && normalizeFilePath(file) !== normalizeFilePath(allowedEventImporter)) {
-		violations.push({
-			file: displayPath(file),
-			line,
-			message: "generated 'events' value imports must stay inside src/lib/tauri/client.ts",
-		});
-	}
 }
 
 function isGeneratedTauriImport(file: string, source: string): boolean {
