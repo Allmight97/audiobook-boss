@@ -35,8 +35,6 @@ export type EngineLink = {
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** WorkRuntime's operations in the engine's display order. */
 	readonly workOperations: Accessor<ReadonlyArray<OperationSnapshot>>;
-	/** The accepted operations in the order the engine will start them. */
-	readonly workQueue: Accessor<ReadonlyArray<OperationId>>;
 	/** Cancels an operation, or only the title named by `childJobId`; the
 	 * change arrives in `workOperations`. */
 	cancelWork: (operationId: OperationId, childJobId?: string) => Promise<void>;
@@ -295,10 +293,6 @@ function createLink(
 		workOperations: () => {
 			workRev();
 			return operations;
-		},
-		workQueue: () => {
-			workRev();
-			return work.queue;
 		},
 		cancelWork: capability.cancelWorkOperation,
 		send,

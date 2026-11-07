@@ -116,146 +116,140 @@ export function WorkCenterView(): JSX.Element {
 			>
 				<div class="work-operation-list">
 					<For each={view().operations} keyed={(operation) => operation.operationId}>
-						{(operation) => {
-							const queuePosition = () => view().queuePosition(operation().operationId);
-							return (
-								<section class={`work-operation is-${operation().status}`}>
-									<div class="work-operation-topline">
-										<div class="work-operation-title-group">
-											<span class="work-kind">{operationKindLabel(operation().kind)}</span>
-											<span class="work-title" title={operation().title}>
-												{operation().title}
-											</span>
-										</div>
-										<div class="work-operation-actions">
-											<span class={`work-status is-${operation().status}`}>
-												{operationStatusLabel(operation())}
-												<Show when={queuePosition()}>{(position) => <> #{position()}</>}</Show>
-											</span>
-											<button
-												class="work-action-button"
-												type="button"
-												disabled={
-													!operation().cancellable ||
-													view().cancelPendingByOperationId[operation().operationId] === true
-												}
-												onClick={() => void workOperations.cancel(operation().operationId)}
-											>
-												Cancel
-											</button>
-										</div>
-									</div>
-									<div class="work-progress-row">
-										<Progress
-											value={operation().progress.percentage}
-											label={`${operation().title} progress`}
-											active={isWorkRunning(operation().status)}
-											class="work-progress-track"
-										/>
-										<span class="work-progress-value">
-											{operation().progress.percentage.toFixed(0)}%
-											<Show
-												when={
-													operation().status === 'running' &&
-													operation().progress.etaSeconds != null
-												}
-											>
-												· {formatEtaRemaining(operation().progress.etaSeconds ?? 0)}
-											</Show>
+						{(operation) => (
+							<section class={`work-operation is-${operation().status}`}>
+								<div class="work-operation-topline">
+									<div class="work-operation-title-group">
+										<span class="work-kind">{operationKindLabel(operation().kind)}</span>
+										<span class="work-title" title={operation().title}>
+											{operation().title}
 										</span>
 									</div>
-									<div class="work-summary" title={operation().progress.message}>
-										{operation().progress.message}
+									<div class="work-operation-actions">
+										<span class={`work-status is-${operation().status}`}>
+											{operationStatusLabel(operation())}
+										</span>
+										<button
+											class="work-action-button"
+											type="button"
+											disabled={
+												!operation().cancellable ||
+												view().cancelPendingByOperationId[operation().operationId] === true
+											}
+											onClick={() => void workOperations.cancel(operation().operationId)}
+										>
+											Cancel
+										</button>
 									</div>
-									<Show when={operation().logTail.length > 0}>
-										<div class="work-log-tail" role="log" aria-label="Recent operation activity">
-											<For each={operation().logTail}>{(entry) => <div>{entry.message}</div>}</For>
-										</div>
-									</Show>
-									<div class="work-child-list">
-										<For each={operation().children} keyed={(child) => child.childJobId}>
-											{(child) => (
-												<>
-													<div class={`work-child-row is-${child().status}`}>
-														<span
-															class="work-child-label"
-															title={child().sourcePath ?? child().label}
+								</div>
+								<div class="work-progress-row">
+									<Progress
+										value={operation().progress.percentage}
+										label={`${operation().title} progress`}
+										active={isWorkRunning(operation().status)}
+										class="work-progress-track"
+									/>
+									<span class="work-progress-value">
+										{operation().progress.percentage.toFixed(0)}%
+										<Show
+											when={
+												operation().status === 'running' && operation().progress.etaSeconds != null
+											}
+										>
+											· {formatEtaRemaining(operation().progress.etaSeconds ?? 0)}
+										</Show>
+									</span>
+								</div>
+								<div class="work-summary" title={operation().progress.message}>
+									{operation().progress.message}
+								</div>
+								<Show when={operation().logTail.length > 0}>
+									<div class="work-log-tail" role="log" aria-label="Recent operation activity">
+										<For each={operation().logTail}>{(entry) => <div>{entry.message}</div>}</For>
+									</div>
+								</Show>
+								<div class="work-child-list">
+									<For each={operation().children} keyed={(child) => child.childJobId}>
+										{(child) => (
+											<>
+												<div class={`work-child-row is-${child().status}`}>
+													<span
+														class="work-child-label"
+														title={child().sourcePath ?? child().label}
+													>
+														{child().label}
+													</span>
+													<span class="work-child-status">
+														{childStatusLabel(child())}
+														<Show
+															when={
+																child().status === 'running' && child().progress.etaSeconds != null
+															}
 														>
-															{child().label}
-														</span>
-														<span class="work-child-status">
-															{childStatusLabel(child())}
-															<Show
-																when={
-																	child().status === 'running' &&
-																	child().progress.etaSeconds != null
-																}
-															>
-																· {formatEtaRemaining(child().progress.etaSeconds ?? 0)}
-															</Show>
-														</span>
-														<Show when={canCancelSeparateTitle(operation(), child())}>
-															<button
-																class="work-child-action"
-																type="button"
-																title={`Cancel ${child().label} only`}
-																onClick={() =>
-																	void workOperations.cancel(
-																		operation().operationId,
-																		child().childJobId,
-																	)
-																}
-															>
-																Cancel
-															</button>
+															· {formatEtaRemaining(child().progress.etaSeconds ?? 0)}
 														</Show>
-														<Show when={offerFor(operation(), child())}>
-															{(offer) => (
-																<>
-																	<button
-																		class="work-child-action"
-																		type="button"
-																		title={`Restart at ${offer().to}`}
-																		onClick={() => void runtime.processing.restart(offer())}
-																	>
-																		Restart
-																	</button>
-																	<button
-																		class="work-child-action"
-																		type="button"
-																		title={`Keep ${offer().from} and apply the latest tags`}
-																		onClick={() => void runtime.processing.keepLocation(offer())}
-																	>
-																		Keep Location
-																	</button>
-																</>
-															)}
-														</Show>
-														<Show when={child().outputPath}>
-															<button
-																class="work-child-action"
-																type="button"
-																title={child().outputPath ?? undefined}
-																onClick={() => void workOperations.revealOutput(child())}
-															>
-																{revealLabel()}
-															</button>
-														</Show>
-													</div>
-													<Show when={childReason(child())}>
-														{(reason) => (
-															<div class="work-child-reason" title={reason()}>
-																{reason()}
-															</div>
+													</span>
+													<Show when={canCancelSeparateTitle(operation(), child())}>
+														<button
+															class="work-child-action"
+															type="button"
+															title={`Cancel ${child().label} only`}
+															onClick={() =>
+																void workOperations.cancel(
+																	operation().operationId,
+																	child().childJobId,
+																)
+															}
+														>
+															Cancel
+														</button>
+													</Show>
+													<Show when={offerFor(operation(), child())}>
+														{(offer) => (
+															<>
+																<button
+																	class="work-child-action"
+																	type="button"
+																	title={`Restart at ${offer().to}`}
+																	onClick={() => void runtime.processing.restart(offer())}
+																>
+																	Restart
+																</button>
+																<button
+																	class="work-child-action"
+																	type="button"
+																	title={`Keep ${offer().from} and apply the latest tags`}
+																	onClick={() => void runtime.processing.keepLocation(offer())}
+																>
+																	Keep Location
+																</button>
+															</>
 														)}
 													</Show>
-												</>
-											)}
-										</For>
-									</div>
-								</section>
-							);
-						}}
+													<Show when={child().outputPath}>
+														<button
+															class="work-child-action"
+															type="button"
+															title={child().outputPath ?? undefined}
+															onClick={() => void workOperations.revealOutput(child())}
+														>
+															{revealLabel()}
+														</button>
+													</Show>
+												</div>
+												<Show when={childReason(child())}>
+													{(reason) => (
+														<div class="work-child-reason" title={reason()}>
+															{reason()}
+														</div>
+													)}
+												</Show>
+											</>
+										)}
+									</For>
+								</div>
+							</section>
+						)}
 					</For>
 				</div>
 			</Show>

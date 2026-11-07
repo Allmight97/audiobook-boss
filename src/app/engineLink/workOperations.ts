@@ -8,12 +8,11 @@ import type {
 export interface WorkCenterModel {
 	revision: number;
 	order: OperationId[];
-	queue: OperationId[];
 	byId: ReadonlyMap<OperationId, OperationSnapshot>;
 }
 
 export function emptyWorkCenterModel(): WorkCenterModel {
-	return { revision: 0, order: [], queue: [], byId: new Map() };
+	return { revision: 0, order: [], byId: new Map() };
 }
 
 export function applyWorkOperations(
@@ -23,7 +22,6 @@ export function applyWorkOperations(
 	const snapshots = 'changed' in incoming ? [incoming.changed] : incoming.operations;
 	const newer = incoming.revision > model.revision;
 	const order = newer ? incoming.order : model.order;
-	const queue = newer ? incoming.queue : model.queue;
 	const listed = new Set(order);
 	const byId = new Map<OperationId, OperationSnapshot>();
 	for (const id of listed) {
@@ -39,7 +37,7 @@ export function applyWorkOperations(
 		changed = true;
 	}
 	if (!changed) return model;
-	return { revision: newer ? incoming.revision : model.revision, order, queue, byId };
+	return { revision: newer ? incoming.revision : model.revision, order, byId };
 }
 
 export function visibleOperations(model: WorkCenterModel): OperationSnapshot[] {
