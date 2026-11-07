@@ -357,6 +357,7 @@ fn quit_item_pressed(app: &tauri::AppHandle) {
         .map_or(abb_engine::QuitPress::Proceed, |engine| {
             engine.quit_pressed()
         });
+    log::info!("Quit pressed: {press:?}");
     if press == abb_engine::QuitPress::Proceed {
         hold_quit(app);
     }
@@ -454,7 +455,11 @@ pub fn run() {
             );
             app.manage(Quit::default());
             #[cfg(target_os = "macos")]
-            take_over_quit_item(app.handle())?;
+            {
+                if let Err(error) = take_over_quit_item(app.handle()) {
+                    log::error!("ABB could not take over the Quit menu item: {error}");
+                }
+            }
             app.manage(commands::FrontendLink::default());
             match start_engine(app) {
                 Ok(engine) => {

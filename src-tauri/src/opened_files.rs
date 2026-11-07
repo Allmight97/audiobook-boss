@@ -19,6 +19,9 @@ pub(crate) fn open<R: Runtime>(app: &AppHandle<R>, urls: Vec<tauri::Url>) {
         .into_iter()
         .filter_map(|url| url.to_file_path().ok())
         .collect();
+    if paths.is_empty() {
+        return;
+    }
     match app.try_state::<Engine>() {
         Some(engine) => import(&engine, paths),
         None => {

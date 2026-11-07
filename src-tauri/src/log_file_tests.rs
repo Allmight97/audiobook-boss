@@ -82,6 +82,23 @@ fn a_log_over_the_limit_moves_aside_at_launch() {
     fs::remove_dir_all(&dir).expect("test io");
 }
 
+#[cfg(unix)]
+#[test]
+fn a_log_that_cannot_move_aside_keeps_taking_lines() {
+    let dir = scratch_dir("rotate-blocked");
+    fs::create_dir_all(dir.join(PREVIOUS_LOG)).expect("test io");
+    fs::write(dir.join(PREVIOUS_LOG).join("keep"), "x").expect("test io");
+    let big = fs::File::create(dir.join(CURRENT_LOG)).expect("test io");
+    big.set_len(MAX_LOG_BYTES + 1).expect("test io");
+    drop(big);
+    let mut file = open_log(&dir).expect("open log");
+    file.write_all(b"new launch\n").expect("write log");
+    let current = fs::read(dir.join(CURRENT_LOG)).expect("test io");
+    assert_eq!(current.len() as u64, MAX_LOG_BYTES + 1 + 11);
+    assert!(current.ends_with(b"new launch\n"));
+    fs::remove_dir_all(&dir).expect("test io");
+}
+
 #[test]
 fn a_log_folder_that_cannot_be_made_is_an_error() {
     let dir = scratch_dir("blocked");

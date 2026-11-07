@@ -32,7 +32,16 @@ pub fn open_log(dir: &Path) -> io::Result<File> {
     fs::create_dir_all(dir)?;
     let current = dir.join(CURRENT_LOG);
     if fs::metadata(&current).is_ok_and(|log| log.len() > MAX_LOG_BYTES) {
-        fs::rename(&current, dir.join(PREVIOUS_LOG))?;
+        if let Err(error) = fs::rename(&current, dir.join(PREVIOUS_LOG)) {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the logger does not exist yet and stderr is the only place to say so"
+            )]
+            let _ = writeln!(
+                io::stderr(),
+                "Log rotation failed, so ABB keeps adding to the current log: {error}"
+            );
+        }
     }
     OpenOptions::new().create(true).append(true).open(current)
 }
