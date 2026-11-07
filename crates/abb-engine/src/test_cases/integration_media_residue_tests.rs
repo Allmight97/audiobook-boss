@@ -3,8 +3,9 @@
 //! file already at the destination keeps its bytes.
 
 use super::media_fixtures::MediaLane;
+use super::media_fixtures::SAMPLE_RATE;
 use abb_engine::audio::{
-    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, SampleRateConfig,
+    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest,
 };
 use abb_engine::processing::{
     AudioHandling, EventStage, OutputConfig, ProcessingContext, ProcessingSession,
@@ -155,7 +156,7 @@ async fn a_preserve_that_fails_after_its_workspace_exists_leaves_the_source_and_
     let destination = lane.tmp.path().join("preserved.m4b");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&destination),
         lane.workspace_root(),
     );

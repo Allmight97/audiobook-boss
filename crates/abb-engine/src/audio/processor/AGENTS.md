@@ -23,6 +23,8 @@ execution pipeline. Final artifact commit policy lives in `output_artifact/`.
   without falling back to an encoder. Preflight scans timing; execution repeats
   the check against fingerprint-validated private source copies. Metadata and
   chapter finalization and output publication use their existing owners.
+- Execution takes the sample rate the plan resolved (Hz). Auto is resolved
+  when the title is planned (`audio/output_plan.rs`), never at execution.
 - Resolve the encoder once at dispatch (`resolution.rs`) and carry that choice
   into encoder setup. Explicit Native, Apple, and Opus selections validate their
   linked encoder; bundled FAAC is always available.

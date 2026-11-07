@@ -1,6 +1,7 @@
 use super::*;
 use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
 use crate::processing::{OutputConfig, ProcessingSession};
+use crate::test_cases::media_fixtures::SAMPLE_RATE;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -15,15 +16,14 @@ fn in_process_run_record_sanitizes_paths_and_names_the_encoder() {
     let plan = MediaProcessingPlan::new(
         PathBuf::from("/private/tmp/worker-output.m4b"),
         settings.clone(),
-        SampleRateConfig::Explicit(44_100),
+        44_100,
         vec![PathBuf::from("/private/input/Book One.m4b")],
         12.5,
-        crate::audio::AacDecoder::Auto,
     );
     let workspace = tempfile::tempdir().expect("workspace root");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        SampleRateConfig::Explicit(44_100),
+        SAMPLE_RATE,
         OutputConfig::new(Path::new("/tmp/final/Book.m4b")),
         workspace.path().to_path_buf(),
     );

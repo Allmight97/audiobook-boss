@@ -1,26 +1,23 @@
 use std::path::PathBuf;
 
 use crate::audio::settings_encoder::EncoderSettings;
-use crate::audio::{AacDecoder, SampleRateConfig};
 
 #[derive(Debug, Clone)]
 pub struct MediaProcessingPlan {
     pub output_path: PathBuf,
     pub encoder_settings: EncoderSettings,
-    pub sample_rate: SampleRateConfig,
+    pub sample_rate: u32,
     pub input_file_paths: Vec<PathBuf>,
     pub total_duration: f64,
-    pub aac_decoder: AacDecoder,
 }
 
 impl MediaProcessingPlan {
     pub fn new(
         output_path: PathBuf,
         encoder_settings: EncoderSettings,
-        sample_rate: SampleRateConfig,
+        sample_rate: u32,
         input_file_paths: Vec<PathBuf>,
         total_duration: f64,
-        aac_decoder: AacDecoder,
     ) -> Self {
         Self {
             output_path,
@@ -28,7 +25,6 @@ impl MediaProcessingPlan {
             sample_rate,
             input_file_paths,
             total_duration,
-            aac_decoder,
         }
     }
 }

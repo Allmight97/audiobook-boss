@@ -203,7 +203,7 @@ pub(crate) async fn run_planned_title(
     fs::create_dir_all(destination.parent().expect("output folder")).expect("output folder");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        SampleRateConfig::Explicit(job.audio_plan.sample_rate),
+        job.audio_plan.sample_rate,
         OutputConfig::from_plan(job.output),
         workspace.to_path_buf(),
     );
@@ -611,6 +611,24 @@ impl MediaLane {
         self
     }
 
+    fn resolved_sample_rate(&self) -> u32 {
+        match self.sample_rate {
+            SampleRateConfig::Explicit(rate) => rate,
+            SampleRateConfig::Auto => {
+                let source = get_file_list_info(&self.inputs[..1], self.aac_decoder)
+                    .expect("probe the first source")
+                    .files[0]
+                    .sample_rate
+                    .expect("the first source has a sample rate");
+                crate::audio::automatic_sample_rate(
+                    self.encoder_settings.encoder_type,
+                    self.encoder_settings.faac_profile,
+                    source,
+                )
+            }
+        }
+    }
+
     pub(crate) fn output_path(&self) -> PathBuf {
         self.tmp.path().join("out").join("lane-output.m4b")
     }
@@ -630,7 +648,7 @@ impl MediaLane {
         fs::create_dir_all(output_dir.parent().expect("output parent")).expect("create output dir");
         let mut context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(session),
-            self.sample_rate,
+            self.resolved_sample_rate(),
             OutputConfig::new(self.output_path()),
             self.workspace_root(),
         );

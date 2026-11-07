@@ -360,7 +360,7 @@ describe('analyzeDevLog', () => {
 				'status=success',
 				'elapsed_monotonic_ms=1200',
 				'elapsed_wallclock_ms=1250',
-				'requested_settings encoder=NativeAac bitrate_mode=Cbr bitrate_kbps=64 rate=Explicit(44100) channels=Stereo native_aac_speed=2',
+				'requested_settings encoder=NativeAac bitrate_mode=Cbr bitrate_kbps=64 rate=44100 channels=Stereo native_aac_speed=2',
 				'opened_settings encoder=aac rate=44100 channels=2',
 				'--- end in-process-encoder run ---',
 			].join('\n'),

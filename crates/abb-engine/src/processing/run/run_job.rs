@@ -31,7 +31,7 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) audio_request: audio::TitleAudioRequest,
     pub(crate) audio_reason: Option<String>,
     pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
-    pub(crate) sample_rate: audio::SampleRateConfig,
+    pub(crate) sample_rate: u32,
     pub(crate) aac_decoder: audio::AacDecoder,
     pub(crate) input_index: usize,
     pub(crate) operation_kind: OperationKind,
@@ -329,7 +329,7 @@ pub(crate) async fn register_job_and_validate_output(
 struct ProcessingContextRequest {
     cancellation_checker: crate::processing::job_registry::CancellationChecker,
     job_id: crate::processing::job_registry::JobId,
-    sample_rate: audio::SampleRateConfig,
+    sample_rate: u32,
     aac_decoder: audio::AacDecoder,
     input_index: Option<usize>,
     operation_kind: OperationKind,

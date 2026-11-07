@@ -94,13 +94,13 @@ pub(in crate::audio) fn validate_resolved_audio_inputs(
     encoder_type: crate::audio::EncoderType,
     encoder_settings: &EncoderSettings,
     titles: &[FileListInfo],
-    sample_rate: &crate::audio::SampleRateConfig,
+    sample_rate: u32,
 ) -> Result<()> {
     crate::audio::settings_encoder::validate_encoder_settings(encoder_settings)?;
     crate::audio::settings::validate_encoder_sample_rate(
         encoder_type,
         encoder_settings.faac_profile,
-        sample_rate,
+        &crate::audio::SampleRateConfig::Explicit(sample_rate),
     )?;
     for title in titles {
         resolution::resolve_output_channels(encoder_settings.channels, &title.files)?;
@@ -117,37 +117,12 @@ pub(in crate::audio) fn validate_resolved_audio_inputs(
 fn validate_output_target(
     settings: &EncoderSettings,
     encoder: crate::audio::EncoderType,
-    sample_rate: &crate::audio::SampleRateConfig,
+    rate: u32,
     files: &[AudioFile],
 ) -> Result<()> {
     let channels = resolution::resolve_output_channels(settings.channels, files)?
         .forced_channels()
         .expect("output channels are resolved");
-    let rate = sample_rate
-        .explicit_rate()
-        .or_else(|| {
-            files
-                .iter()
-                .find(|file| file.is_valid)
-                .and_then(|file| file.sample_rate)
-                .map(|rate| {
-                    crate::audio::settings::automatic_sample_rate(
-                        encoder,
-                        settings.faac_profile,
-                        rate,
-                    )
-                })
-        })
-        .ok_or_else(|| {
-            crate::errors::AppError::InvalidInput(format!(
-                "Could not determine {encoder} sample rate; choose it explicitly."
-            ))
-        })?;
-    crate::audio::settings::validate_encoder_sample_rate(
-        encoder,
-        settings.faac_profile,
-        &crate::audio::SampleRateConfig::Explicit(rate),
-    )?;
     match encoder {
         crate::audio::EncoderType::Faac => {
             encoder::validate_faac_configuration(settings, rate, u32::from(channels))

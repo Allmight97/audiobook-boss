@@ -1,5 +1,6 @@
 use super::*;
 use crate::processing::{JobRegistry, OutputConfig, ProcessingSession};
+use crate::test_cases::media_fixtures::SAMPLE_RATE;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
@@ -20,7 +21,7 @@ fn copying_title_sources_advances_one_shared_progress_interval() {
     let events = observed.clone();
     let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        crate::audio::SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("out.m4b")),
         tmp.path().join("workspace"),
     );
@@ -74,7 +75,7 @@ fn preserve_copy_rejects_a_source_replaced_with_a_symlink_after_inspection() {
     std::os::unix::fs::symlink(&replacement, &source).expect("replace source with symlink");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        crate::audio::SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("final.m4a")),
         tmp.path().join("workspace"),
     );
@@ -109,7 +110,7 @@ fn preserve_copy_rejects_a_regular_source_replaced_after_inspection() {
     crate::test_cases::move_test_file(&replacement, &source);
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        crate::audio::SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("final.m4a")),
         tmp.path().join("workspace"),
     );
@@ -144,7 +145,7 @@ async fn preserve_copy_stops_after_cancellation_during_progress() {
     let checker = crate::processing::CancellationChecker::new(Some(cancelled.clone()));
     let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        crate::audio::SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("final.m4a")),
         tmp.path().join("workspace"),
     );
@@ -172,7 +173,7 @@ fn preserve_copy_rejects_source_truncated_during_copy() {
     let source_for_listener = source.clone();
     let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        crate::audio::SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("final.m4a")),
         tmp.path().join("workspace"),
     );
@@ -200,7 +201,7 @@ fn preserve_copy_rejects_same_size_source_overwrite_during_copy() {
     let source_for_listener = source.clone();
     let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        crate::audio::SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("final.m4a")),
         tmp.path().join("workspace"),
     );

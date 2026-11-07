@@ -111,18 +111,9 @@ pub(crate) fn validate_output_target(path: &Path, format: AudiobookFormat) -> Re
     }
 }
 
-impl SampleRateConfig {
-    pub fn explicit_rate(&self) -> Option<u32> {
-        match self {
-            SampleRateConfig::Explicit(rate) => Some(*rate),
-            SampleRateConfig::Auto => None,
-        }
-    }
-}
-
 /// Auto retains supported source rates, otherwise uses the next supported rate,
 /// capped at the encoder/profile maximum. Explicit requests are validated unchanged.
-pub(in crate::audio) fn automatic_sample_rate(
+pub(crate) fn automatic_sample_rate(
     encoder: EncoderType,
     profile: FaacProfile,
     source_rate: u32,

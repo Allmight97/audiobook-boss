@@ -5,6 +5,7 @@
 //! cannot, and encoder constraints apply only to titles that encode.
 
 use super::integration_faac_execution_tests::faac_encoder_settings;
+use super::media_fixtures::SAMPLE_RATE;
 use super::media_fixtures::{
     audio_packet_bytes, chapters_of, decode_pcm_f32, ffmpeg, minimal_jpg_bytes,
     native_encoder_settings, oversized_jpeg, preflight_payload, run_planned_title,
@@ -39,7 +40,7 @@ async fn preserve_copies_a_supported_m4b_without_mutating_source_bytes() {
     );
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&destination),
         lane.workspace_root(),
     );
@@ -92,7 +93,7 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
     assert_eq!(plan.handling, AudioHandling::Preserve);
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&destination),
         lane.workspace_root(),
     );
@@ -303,7 +304,7 @@ async fn preserved_title_rejects_interior_priming_without_publishing() {
     let info = get_file_list_info(&[source, copy], AacDecoder::Auto).expect("fixture value");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&destination),
         workspace.clone(),
     );

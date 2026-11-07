@@ -331,7 +331,7 @@ async fn execute_reviewed_metadata_batch(
     metadata: &HashMap<String, crate::metadata::MetadataIntentPatch>,
     workspace: &std::path::Path,
 ) -> Vec<std::path::PathBuf> {
-    use crate::audio::{execute_audio_engine, AudioExecutionRequest, SampleRateConfig};
+    use crate::audio::{execute_audio_engine, AudioExecutionRequest};
     use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
     let inspected = super::inspect_processing_plan(&payload, Some(metadata), false)
         .expect("review metadata batch");
@@ -346,7 +346,7 @@ async fn execute_reviewed_metadata_batch(
         outputs.push(job.output.resolved_path.clone());
         let context = ProcessingContext::new_headless_with_workspace_root(
             std::sync::Arc::new(ProcessingSession::new()),
-            SampleRateConfig::Explicit(job.audio_plan.sample_rate),
+            job.audio_plan.sample_rate,
             OutputConfig::from_plan(job.output),
             workspace.to_path_buf(),
         );

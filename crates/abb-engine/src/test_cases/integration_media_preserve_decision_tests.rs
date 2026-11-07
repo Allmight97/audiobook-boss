@@ -2,6 +2,7 @@
 //! can keep unchanged, the reason shown when it cannot, and a source that was
 //! replaced after import.
 
+use super::media_fixtures::SAMPLE_RATE;
 use std::fs;
 use std::path::Path;
 
@@ -175,7 +176,7 @@ async fn opus_in_an_m4b_is_kept_in_both_opus_formats_but_not_in_m4b() {
     crate::test_cases::move_test_file(&moved, &source);
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&copy),
         dir.path().join("work"),
     );

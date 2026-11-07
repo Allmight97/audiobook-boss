@@ -4,12 +4,13 @@
 //! container's reader reports for its key (Matroska and ID3 user text frames
 //! use upper case).
 
+use super::media_fixtures::SAMPLE_RATE;
 use super::media_fixtures::{
     assert_ffprobe_tag, ffmpeg, ffprobe_format_tags, minimal_jpg_bytes, picture_codecs,
     write_sine_mp3, write_sine_mp3_with, write_sine_wav, write_two_picture_fixture, MediaLane,
 };
 use abb_engine::audio::{
-    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, SampleRateConfig,
+    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest,
 };
 use abb_engine::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
 use abb_engine::{
@@ -126,7 +127,7 @@ async fn preserving_an_mka_with_cleared_fields_leaves_none_of_them_in_the_copy()
         get_file_list_info(std::slice::from_ref(&source), AacDecoder::Auto).expect("probe source");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&destination),
         dir.path().join("workspace"),
     );

@@ -1,4 +1,3 @@
-use crate::audio::SampleRateConfig;
 use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::processing::preview_config::PreviewConfig;
 use crate::processing::session::ProcessingSession;
@@ -48,7 +47,7 @@ impl OutputConfig {
 #[derive(Clone)]
 pub struct ProcessingContext {
     pub session: Arc<ProcessingSession>,
-    pub sample_rate: SampleRateConfig,
+    pub sample_rate: u32,
     pub aac_decoder: crate::audio::AacDecoder,
     pub output: OutputConfig,
     workspace_root: PathBuf,
@@ -84,7 +83,7 @@ impl std::fmt::Debug for ProcessingContext {
 impl ProcessingContext {
     pub(crate) fn new_with_workspace_root(
         session: Arc<ProcessingSession>,
-        sample_rate: SampleRateConfig,
+        sample_rate: u32,
         aac_decoder: crate::audio::AacDecoder,
         output: OutputConfig,
         workspace_root: PathBuf,
@@ -108,7 +107,7 @@ impl ProcessingContext {
     #[cfg(test)]
     pub fn new_headless_with_workspace_root(
         session: Arc<ProcessingSession>,
-        sample_rate: SampleRateConfig,
+        sample_rate: u32,
         output: OutputConfig,
         workspace_root: PathBuf,
     ) -> Self {

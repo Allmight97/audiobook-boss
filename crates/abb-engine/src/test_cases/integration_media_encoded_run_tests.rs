@@ -201,7 +201,8 @@ async fn truncated_audio_fails_without_publishing_a_shortened_book() {
         .expect("fixture value")
         .set_len(end)
         .expect("fixture value");
-    let broken_lane = MediaLane::for_inputs(vec![broken]);
+    let broken_lane = MediaLane::for_inputs(vec![broken])
+        .with_sample_rate(SampleRateConfig::Explicit(SAMPLE_RATE));
     let info = get_file_list_info(&broken_lane.inputs, AacDecoder::Auto).expect("fixture value");
     assert_eq!(
         info.invalid_count, 1,
@@ -367,7 +368,7 @@ async fn a_pre_cancelled_run_publishes_nothing_and_leaves_the_source_alone() {
         let checker = CancellationChecker::new(Some(crate::processing::cancelled_token()));
         let context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-            SampleRateConfig::Auto,
+            SAMPLE_RATE,
             OutputConfig::new(&destination),
             workspace.clone(),
         );

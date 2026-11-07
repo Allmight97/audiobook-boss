@@ -186,6 +186,8 @@ pub(crate) use processor::{
     AudioExecutionRequest, AudioRunOutcome,
 };
 pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
+#[cfg(test)]
+pub(crate) use settings::automatic_sample_rate;
 pub(crate) use settings::validate_sample_rate_config;
 pub(crate) use settings::{check_output_directory, validate_output_target};
 

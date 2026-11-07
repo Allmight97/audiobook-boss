@@ -1,5 +1,4 @@
 use crate::audio::settings_encoder::EncoderSettings;
-use crate::audio::SampleRateConfig;
 use std::fmt::Write as _;
 use std::fs::OpenOptions;
 use std::io::Write as _;
@@ -81,7 +80,7 @@ pub(crate) fn write_common_run_fields(
     output: &mut String,
     (monotonic_elapsed, wallclock_elapsed): (Duration, Option<Duration>),
     settings: &EncoderSettings,
-    sample_rate: &SampleRateConfig,
+    sample_rate: u32,
     opened_encoder: Option<&str>,
     opened_rate: Option<u32>,
     opened_channels: Option<u32>,
@@ -101,7 +100,7 @@ pub(crate) fn write_common_run_fields(
     );
     let _ = writeln!(
         output,
-        "requested_settings encoder={:?} bitrate_mode={:?} bitrate_kbps={} rate={:?} channels={:?} native_aac_speed={}",
+        "requested_settings encoder={:?} bitrate_mode={:?} bitrate_kbps={} rate={} channels={:?} native_aac_speed={}",
         settings.encoder_type,
         settings.bitrate_mode,
         settings.bitrate_kbps,

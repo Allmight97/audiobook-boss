@@ -1,10 +1,11 @@
-use crate::audio::{AacDecoder, AudioExecutionRequest, SampleRateConfig};
+use crate::audio::{AacDecoder, AudioExecutionRequest};
 use crate::errors::AppError;
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::processing::{
     AudioHandling, CancellationChecker, JobRegistry, OutputConfig, ProcessingContext,
     ProcessingSession,
 };
+use crate::test_cases::media_fixtures::SAMPLE_RATE;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -29,7 +30,7 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
     let checker = CancellationChecker::new(Some(cancelled.clone()));
     let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&destination),
         workspace.clone(),
     );

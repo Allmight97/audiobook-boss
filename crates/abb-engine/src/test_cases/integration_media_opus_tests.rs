@@ -167,7 +167,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
             .with_extension(other_format.extension());
         let context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(ProcessingSession::new()),
-            SampleRateConfig::Auto,
+            SAMPLE_RATE,
             OutputConfig::new(&copied),
             lane.tmp.path().join("work-copy"),
         );
@@ -293,7 +293,7 @@ async fn opus_remux_keeps_variable_frame_timing_and_trim() {
             .expect("fixture value");
         let context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(ProcessingSession::new()),
-            SampleRateConfig::Auto,
+            SAMPLE_RATE,
             OutputConfig::new(&destination),
             tmp.path().join("work"),
         );

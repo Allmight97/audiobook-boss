@@ -1,6 +1,7 @@
 use super::complete_staged_output;
-use crate::audio::{CleanupGuard, SampleRateConfig};
+use crate::audio::CleanupGuard;
 use crate::processing::{JobRegistry, OutputConfig, ProcessingContext, ProcessingSession};
+use crate::test_cases::media_fixtures::SAMPLE_RATE;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -36,7 +37,7 @@ async fn complete_staged_output_commits_from_local_workspace_without_destination
 
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&final_output),
         workspace_root,
     );
@@ -73,7 +74,7 @@ async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
 
     let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&final_output),
         workspace_root,
     );
@@ -132,7 +133,7 @@ async fn complete_staged_output_cleans_without_committing_when_cancelled_before_
 
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&final_output),
         workspace_root,
     );
@@ -181,7 +182,7 @@ async fn a_cleanup_failure_after_publication_is_a_success_with_a_warning_and_a_r
 
     let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&final_output),
         workspace_root,
     );

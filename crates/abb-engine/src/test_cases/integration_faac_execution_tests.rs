@@ -427,7 +427,7 @@ async fn faac_he_preserve_with_repaired_chapters_keeps_reimport_timing() {
     execute_audio_engine(AudioExecutionRequest::new(
         ProcessingContext::new_headless_with_workspace_root(
             Arc::new(ProcessingSession::new()),
-            SampleRateConfig::Auto,
+            SAMPLE_RATE,
             OutputConfig::new(&preserved),
             lane.workspace_root(),
         ),

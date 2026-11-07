@@ -4,10 +4,7 @@ use crate::processing::{PreviewConfig, ProcessingContext};
 
 use super::ProcessingWorkflow;
 
-pub(crate) fn validate_processing_inputs(
-    context: &ProcessingContext,
-    files: &[AudioFile],
-) -> Result<()> {
+pub(crate) fn validate_processing_inputs(files: &[AudioFile]) -> Result<()> {
     if files.is_empty() {
         return Err(AppError::InvalidInput("No files to process".to_string()));
     }
@@ -32,7 +29,6 @@ pub(crate) fn validate_processing_inputs(
         )?;
     }
 
-    crate::audio::settings::validate_sample_rate_config(&context.sample_rate)?;
     Ok(())
 }
 
@@ -72,7 +68,7 @@ pub(crate) fn validate_and_prepare(
     files: &[AudioFile],
     cleanup: &mut crate::audio::CleanupGuard,
 ) -> Result<ProcessingWorkflow> {
-    validate_processing_inputs(context, files)?;
+    validate_processing_inputs(files)?;
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }

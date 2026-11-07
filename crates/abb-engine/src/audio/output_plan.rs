@@ -298,7 +298,7 @@ fn encoding_plan(
         encoder_type,
         &settings,
         std::slice::from_ref(info),
-        &SampleRateConfig::Explicit(sample_rate),
+        sample_rate,
     )?;
     Ok(TitleAudioPlan {
         format,

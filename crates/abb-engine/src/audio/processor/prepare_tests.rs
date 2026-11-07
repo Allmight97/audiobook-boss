@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_cases::media_fixtures::SAMPLE_RATE;
 use std::path::PathBuf;
 
 fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
@@ -30,7 +31,7 @@ fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
 
 #[tokio::test]
 async fn cancellation_after_workspace_creation_keeps_cleanup_ownership() {
-    use crate::audio::{CleanupGuard, SampleRateConfig};
+    use crate::audio::CleanupGuard;
     use crate::processing::{JobRegistry, OutputConfig, ProcessingSession};
     let registry = JobRegistry::new(1);
     let (job, _permit) = registry.register_job().await.expect("register test job");
@@ -40,7 +41,7 @@ async fn cancellation_after_workspace_creation_keeps_cleanup_ownership() {
     let workspace = root.path().join("sessions");
     let context = ProcessingContext::new_headless_with_workspace_root(
         std::sync::Arc::new(ProcessingSession::with_cancellation(job.0, checker)),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(root.path().join("output.m4b")),
         workspace.clone(),
     );
