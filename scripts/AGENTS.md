@@ -58,7 +58,9 @@ recorded tool versions still invalidate it.
   rules in `deny.toml`.
 - `scripts/tauri-contract.test.ts` (`tooling`) also fails on a wire intent in
   `SessionIntent`, `SettingsIntent`, or `RemoteUiIntent` that no non-test source
-  sends; the Rust variant and its sender go together.
+  sends; the Rust variant and its sender go together. It also fails when the
+  `fileAssociations` extensions in `src-tauri/tauri.conf.json` differ from the
+  generated `SUPPORTED_AUDIO_IMPORT_EXTENSIONS`; edit the config to match.
 
 For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.

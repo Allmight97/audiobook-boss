@@ -62,6 +62,17 @@ function minor(version: string): string {
 		.join('.');
 }
 
+type TauriConfig = { bundle: { fileAssociations: { ext: string[] }[] } };
+
+function fileAssociationExtensions(config: TauriConfig): string[] {
+	return config.bundle.fileAssociations.flatMap((association) => association.ext).toSorted();
+}
+
+function supportedImportExtensions(generated: string): string[] {
+	const list = /export const SUPPORTED_AUDIO_IMPORT_EXTENSIONS = (\[[^\]]*\])/.exec(generated)?.[1];
+	return (JSON.parse(list ?? '[]') as string[]).toSorted();
+}
+
 describe('Tauri contract between the frontend and src-tauri', () => {
 	it('derives one permission per imported plugin or event function', () => {
 		expect(
@@ -138,5 +149,18 @@ describe('Tauri contract between the frontend and src-tauri', () => {
 		const lock =
 			/\[\[package\]\]\nname = "tauri"\nversion = "([^"]+)"/.exec(read('Cargo.lock'))?.[1] ?? '';
 		expect(minor(pkg.overrides['@tauri-apps/api'] ?? '')).toBe(minor(lock));
+	});
+
+	it('offers Open with ABB for exactly the audio extensions the engine imports', () => {
+		const config = JSON.parse(read('src-tauri/tauri.conf.json')) as TauriConfig;
+		const supported = supportedImportExtensions(read('src/lib/generated/tauri.ts'));
+		expect(
+			supported.length,
+			'SUPPORTED_AUDIO_IMPORT_EXTENSIONS was renamed or emptied',
+		).toBeGreaterThan(0);
+		expect(
+			fileAssociationExtensions(config),
+			'Make bundle.fileAssociations in src-tauri/tauri.conf.json list the same extensions as SUPPORTED_AUDIO_IMPORT_EXTENSIONS',
+		).toEqual(supported);
 	});
 });
