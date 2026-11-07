@@ -143,6 +143,16 @@ pub(crate) struct SubmittedTitle<'a> {
     pub(crate) has_title: bool,
 }
 
+impl SubmittedTitle<'_> {
+    fn is_finished(&self) -> bool {
+        self.sources.iter().any(|source| source.source_removed)
+    }
+
+    pub(crate) fn is_submittable(&self) -> bool {
+        !self.is_finished() && self.anchor.is_valid
+    }
+}
+
 pub(crate) struct DraftInputs {
     pub(crate) output_directory: Option<String>,
     pub(crate) naming: OutputNamingConfig,
@@ -150,9 +160,10 @@ pub(crate) struct DraftInputs {
     pub(crate) preview: bool,
 }
 
-/// Builds the payload for the valid titles. Invalid standalone titles are
-/// left out; a grouped title with an invalid source, or one whose sources
-/// disagree about their audio, refuses the submission.
+/// Builds the payload for the valid titles. Invalid standalone titles and
+/// titles with an exported, removed source are left out; a grouped title with
+/// any other invalid source, or one whose sources disagree about their audio,
+/// refuses the submission.
 pub(crate) fn build_draft(
     titles: &[SubmittedTitle<'_>],
     inputs: DraftInputs,
@@ -162,15 +173,16 @@ pub(crate) fn build_draft(
     if titles.is_empty() {
         return Err(SubmitRefusal::NoTitles);
     }
-    if titles
-        .iter()
-        .any(|title| title.sources.len() > 1 && title.sources.iter().any(|source| !source.is_valid))
-    {
+    if titles.iter().any(|title| {
+        !title.is_finished()
+            && title.sources.len() > 1
+            && title.sources.iter().any(|source| !source.is_valid)
+    }) {
         return Err(SubmitRefusal::InvalidSource);
     }
     let valid: Vec<&SubmittedTitle<'_>> = titles
         .iter()
-        .filter(|title| title.anchor.is_valid)
+        .filter(|title| title.is_submittable())
         .collect();
     if valid.is_empty() {
         return Err(SubmitRefusal::NoValidTitles);

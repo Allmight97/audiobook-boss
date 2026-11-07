@@ -298,3 +298,32 @@ fn a_running_preview_survives_a_busy_refusal() {
     let preview = output.preview_run.expect("the preview still runs");
     assert_eq!(preview.operation.operation_id, id);
 }
+
+#[test]
+fn a_swept_grouped_title_does_not_block_the_next_start_or_preview() {
+    let mut desk = Desk::open(
+        &[
+            ("alpha", Some(alpha_tags())),
+            ("beta", Some(beta_tags())),
+            ("gamma", Some(alpha_tags())),
+        ],
+        &[0, 1],
+    );
+    desk.state.output.set_directory("/library".to_string());
+    assert!(desk.state.working_set.group_selected());
+    desk.state
+        .working_set
+        .sources_removed(&[path("alpha"), path("beta")]);
+    desk.select(&[1]).expect("select gamma");
+
+    for preview in [true, false] {
+        let draft = desk
+            .state
+            .begin_submission(preview)
+            .expect("the finished title is history");
+        assert_eq!(draft.payload.input_files, ["/books/gamma.m4b"]);
+        assert_eq!(draft.left_out, 1);
+        desk.state
+            .finish_submission(&draft, SubmissionStatus::Cancelled);
+    }
+}

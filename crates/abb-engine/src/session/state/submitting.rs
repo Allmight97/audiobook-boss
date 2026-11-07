@@ -87,7 +87,7 @@ impl SessionState {
         let supplemental_assets = self.staged.assets_for(
             titles
                 .iter()
-                .filter(|title| title.anchor.is_valid)
+                .filter(|title| title.is_submittable())
                 .flat_map(|title| title.sources)
                 .map(|source| source.input_id.as_str()),
         );

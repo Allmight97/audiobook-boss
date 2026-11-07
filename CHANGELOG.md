@@ -4,6 +4,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Start and Preview work again after a grouped download title has exported. The finished title
+  no longer blocks the next book.
+
 ## [1.18.0] - 2026-11-06
 
 ### Added
