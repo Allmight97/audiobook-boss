@@ -448,6 +448,32 @@ fn a_newer_write_that_lands_ends_the_older_failed_write_of_the_same_field() {
 }
 
 #[test]
+fn a_newer_write_that_also_fails_leaves_the_newest_value_pending_after_a_reimport() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.type_into(MetadataField::Genre, "Mystery");
+    desk.save_during(&HashSet::from([path("alpha")]), &[], &[]);
+    let running = desk.begin_deferred(&HashSet::new());
+    desk.type_into(MetadataField::Genre, "Horror");
+    desk.save_during(&HashSet::new(), &[], &[]).expect("save");
+
+    desk.end_deferred(running, &["alpha"]);
+    desk.change(|set| {
+        set.remove_file(0);
+    })
+    .expect("remove");
+    let next = desk.begin_deferred(&HashSet::new());
+    desk.end_deferred(next, &["alpha"]);
+    desk.import(&[("alpha", None)]);
+    desk.select(&[0]).expect("select returning title");
+
+    assert_eq!(desk.field(MetadataField::Genre).value, "Horror");
+    assert_eq!(
+        desk.pending("alpha").and_then(|patch| patch.genre),
+        Some(PatchOp::Set("Horror".to_string()))
+    );
+}
+
+#[test]
 fn a_save_with_nothing_to_write_never_ends_the_save_running_after_it() {
     let mut desk = Desk::open(
         &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],

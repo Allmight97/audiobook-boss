@@ -154,7 +154,12 @@ impl WriteQueue {
                 write.item.patch = patch;
             }
         }
-        if written {
+        let absorbed = !written
+            && self
+                .deferred
+                .iter()
+                .any(|write| write.item.path == item.path && write.phase == DeferredPhase::Waiting);
+        if written || absorbed {
             self.deferred.retain(|write| {
                 write.item.path != item.path
                     || (write.item.revision != item.revision
