@@ -12,7 +12,8 @@ use abb_engine::{read_metadata, Engine, RunningWork, ShutdownOutcome};
 use tempfile::TempDir;
 
 use super::integration_session_desk::{
-    collision_review, engine_config, genre_on_disk, start_once_the_lock_frees, submission, Desk,
+    collision_review, engine_config, genre_on_disk, processing_sessions_dir,
+    remote_staging_sessions_dir, start_once_the_lock_frees, submission, Desk,
 };
 use super::media_fixtures::oversized_jpeg;
 
@@ -76,7 +77,7 @@ async fn leftover_downloads_that_cannot_be_removed_do_not_stop_abb_from_starting
     let root = TempDir::new().expect("engine root");
     let outside = root.path().join("outside");
     fs::create_dir_all(outside.join("kept")).expect("outside folder");
-    let sessions = root.path().join("cache/remote-source/sessions");
+    let sessions = remote_staging_sessions_dir(root.path());
     fs::create_dir_all(sessions.parent().expect("staging root")).expect("staging root");
     std::os::unix::fs::symlink(&outside, &sessions).expect("unremovable sessions root");
 
@@ -96,10 +97,8 @@ async fn a_second_abb_on_the_same_folders_refuses_to_start_and_leaves_live_work_
     let root = TempDir::new().expect("engine root");
     let config = || engine_config(root.path());
     let first = Engine::start(config()).expect("first ABB starts");
-    let workspace = root.path().join("cache/processing/sessions/live-export");
-    let download = root
-        .path()
-        .join("cache/remote-source/sessions/live-download");
+    let workspace = processing_sessions_dir(root.path()).join("live-export");
+    let download = remote_staging_sessions_dir(root.path()).join("live-download");
     for live in [&workspace, &download] {
         fs::create_dir_all(live).expect("live work folder");
         fs::write(live.join("part.m4b"), b"audio").expect("live work file");
@@ -279,10 +278,7 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
 #[tokio::test]
 async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
     let desk = Desk::new();
-    let staged = desk
-        .root
-        .path()
-        .join("cache/remote-source/sessions/job-1/alpha.m4b");
+    let staged = remote_staging_sessions_dir(desk.root.path()).join("job-1/alpha.m4b");
     let book = desk.audiobook(&staged, 12.0).await;
     desk.import(&book).await;
     let before = fs::read(&book).expect("read download");

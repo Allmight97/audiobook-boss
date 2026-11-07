@@ -10,7 +10,10 @@ use abb_engine::work_runtime::{
 };
 use abb_engine::ShutdownOutcome;
 
-use super::integration_session_desk::{collision_review, genre_on_disk, submission, Desk};
+use super::integration_session_desk::{
+    collision_review, genre_on_disk, processing_sessions_dir, remote_staging_sessions_dir,
+    submission, Desk,
+};
 use crate::output_artifact::lock_output_file;
 
 fn names_in(folder: &Path) -> Vec<String> {
@@ -236,11 +239,8 @@ async fn quitting_during_an_export_leaves_no_output_folder_or_workspace() {
 #[tokio::test]
 async fn a_relaunch_sweeps_what_a_crash_left_in_the_cache() {
     let desk = Desk::new();
-    let session = desk.root.path().join("cache/processing/sessions/crashed");
-    let download = desk
-        .root
-        .path()
-        .join("cache/remote-source/sessions/crashed");
+    let session = processing_sessions_dir(desk.root.path()).join("crashed");
+    let download = remote_staging_sessions_dir(desk.root.path()).join("crashed");
     for folder in [&session, &download] {
         fs::create_dir_all(folder).expect("folder");
         fs::write(folder.join("part.m4b"), b"audio").expect("file");

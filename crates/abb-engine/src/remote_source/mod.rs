@@ -30,6 +30,11 @@ use providers::indexer::{IndexerProvider, ReqwestProwlarrAdapter};
 pub(crate) use session_lifecycle::AcquireTitles;
 use session_lifecycle::RemoteAcquisitionLifecycle;
 use staging::RemoteSourceStaging;
+
+#[cfg(test)]
+pub(crate) fn staging_session_root(cache_dir: &std::path::Path) -> PathBuf {
+    RemoteSourceStaging::new(cache_dir.to_path_buf()).session_root()
+}
 use types::{
     AcquisitionJob as RemoteAcquisitionJob, AcquisitionPlan as RemoteAcquisitionPlan,
     ProviderId as RemoteProviderId, RemoteAuthCompletionRequest as RemoteAuthCompletion,

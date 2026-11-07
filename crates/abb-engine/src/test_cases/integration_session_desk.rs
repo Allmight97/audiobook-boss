@@ -28,6 +28,14 @@ pub(super) fn engine_config(root: &Path) -> EngineConfig {
     }
 }
 
+pub(super) fn processing_sessions_dir(root: &Path) -> PathBuf {
+    crate::audio::processing_workspace_root(&engine_config(root).cache_dir)
+}
+
+pub(super) fn remote_staging_sessions_dir(root: &Path) -> PathBuf {
+    crate::remote_source::staging_session_root(&engine_config(root).cache_dir)
+}
+
 impl Desk {
     pub(super) fn new() -> Self {
         let root = TempDir::new().expect("engine root");
@@ -57,7 +65,7 @@ impl Desk {
     }
 
     pub(super) fn residual_workspace_dirs(&self) -> Vec<PathBuf> {
-        let workspace = crate::audio::processing_workspace_root(&self.root.path().join("cache"));
+        let workspace = processing_sessions_dir(self.root.path());
         if !workspace.exists() {
             return Vec::new();
         }
