@@ -1,4 +1,4 @@
-use abb_engine::audio::{
+use crate::audio::{
     encoder_settings_capabilities, validate_encoder_settings, validate_sample_rate_config,
     BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
 };
@@ -18,7 +18,7 @@ fn exposed_encoder_capabilities_match_validators() {
                 bitrate_mode: configuration.default_mode,
                 channels: ChannelConfig::Auto,
                 native_aac_speed: capabilities.native_speed_max,
-                faac_profile: abb_engine::audio::FaacProfile::Auto,
+                faac_profile: crate::audio::FaacProfile::Auto,
             };
             validate_encoder_settings(&settings)
                 .expect("exposed target and speed bounds should pass request validation");
@@ -54,11 +54,11 @@ fn exposed_mode_defaults_validate_for_each_encoder() {
     let he = faac
         .faac_profiles
         .iter()
-        .find(|entry| entry.profile == abb_engine::audio::FaacProfile::HeAacV1)
+        .find(|entry| entry.profile == crate::audio::FaacProfile::HeAacV1)
         .expect("fixture value");
     assert_eq!(he.explicit_sample_rates, [32000, 44100, 48000]);
     for quality in &capabilities.faac_quality_presets {
-        let mut settings = abb_engine::app_settings::EncoderDefaults::default().settings;
+        let mut settings = crate::app_settings::EncoderDefaults::default().settings;
         settings.encoder_type = EncoderType::Faac;
         settings.bitrate_mode = BitrateMode::Vbr(*quality);
         validate_encoder_settings(&settings).expect("exposed FAAC quality must be accepted");
@@ -71,7 +71,7 @@ fn exposed_mode_defaults_validate_for_each_encoder() {
             bitrate_mode: entry.default_mode,
             channels: ChannelConfig::Auto,
             native_aac_speed: 0,
-            faac_profile: abb_engine::audio::FaacProfile::Auto,
+            faac_profile: crate::audio::FaacProfile::Auto,
         };
 
         validate_encoder_settings(&settings)

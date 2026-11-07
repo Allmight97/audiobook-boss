@@ -10,11 +10,11 @@ use super::media_fixtures::{
     preflight_payload, run_planned_title, single_title_payload, write_complete_frame_aac,
     write_two_picture_fixture, MINIMAL_JPG,
 };
-use abb_engine::audio::{
+use crate::audio::{
     get_file_list_info, AacDecoder, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig,
     EncoderSettings, EncoderType, OutputAudio, SampleRateConfig, TitleAudioRequest,
 };
-use abb_engine::{
+use crate::metadata::{
     read_metadata, save_metadata_intent, AlbumSortPatchOp, MetadataIntentPatch, PatchOp,
 };
 use ffmpeg_next::codec::Id;
@@ -239,7 +239,7 @@ fn expected_album_sort(name: &str) -> String {
     format!("{SEEDED_SERIES} 02.5 - Route {name}")
 }
 
-fn route_payload(route: &Route, output_dir: &Path) -> abb_engine::processing::ProcessPayload {
+fn route_payload(route: &Route, output_dir: &Path) -> crate::processing::ProcessPayload {
     let request = TitleAudioRequest {
         output: route.output.clone(),
         intent: route.intent,
@@ -540,7 +540,7 @@ async fn a_preserved_merge_follows_the_users_order_and_takes_the_chosen_cover() 
         let intent = AudioIntent::Preserve;
         let extension = "m4b";
         let anchor = sources[0].clone();
-        let title_sources = |order: &[&PathBuf]| -> abb_engine::processing::ProcessPayload {
+        let title_sources = |order: &[&PathBuf]| -> crate::processing::ProcessPayload {
             let output_dir = tmp.path().join(format!("out-{name}"));
             fs::create_dir_all(&output_dir).expect("output folder");
             serde_json::from_value(serde_json::json!({

@@ -1,6 +1,6 @@
 use std::fs;
 
-use abb_engine::session::{MetadataField, SessionIntent};
+use crate::session::{MetadataField, SessionIntent};
 
 use super::integration_import_variants_tests::files_under;
 use super::integration_session_desk::Desk;

@@ -4,13 +4,12 @@
 
 use super::media_fixtures::MediaLane;
 use super::media_fixtures::SAMPLE_RATE;
-use abb_engine::audio::{
-    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest,
-};
-use abb_engine::processing::{
+use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest};
+use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
+use crate::processing::{
     AudioHandling, EventStage, OutputConfig, ProcessingContext, ProcessingSession,
 };
-use abb_engine::{AppError, AudiobookMetadata, CoverArtPassthroughPolicy};
+use crate::AppError;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};

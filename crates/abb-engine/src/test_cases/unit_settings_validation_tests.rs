@@ -1,4 +1,4 @@
-use abb_engine::audio::{validate_output_target, AudiobookFormat};
+use crate::audio::{validate_output_target, AudiobookFormat};
 use std::path::PathBuf;
 use tempfile::TempDir;
 

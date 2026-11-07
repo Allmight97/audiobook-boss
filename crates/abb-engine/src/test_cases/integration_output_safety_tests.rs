@@ -2,19 +2,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use abb_engine::app_settings::{ConcurrencyPreference, SettingsIntent};
-use abb_engine::output_artifact::CollisionPolicy;
-use abb_engine::session::{MetadataField, SelectionModifiers, SessionIntent, SubmissionStatus};
-use abb_engine::work_runtime::{
-    ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus,
-};
-use abb_engine::ShutdownOutcome;
+use crate::app_settings::{ConcurrencyPreference, SettingsIntent};
+use crate::output_artifact::{lock_output_file, CollisionPolicy};
+use crate::session::{MetadataField, SelectionModifiers, SessionIntent, SubmissionStatus};
+use crate::work_runtime::{ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus};
+use crate::ShutdownOutcome;
 
 use super::integration_session_desk::{
     collision_review, genre_on_disk, processing_sessions_dir, remote_staging_sessions_dir,
     submission, Desk,
 };
-use crate::output_artifact::lock_output_file;
 
 fn names_in(folder: &Path) -> Vec<String> {
     let mut names: Vec<_> = fs::read_dir(folder)

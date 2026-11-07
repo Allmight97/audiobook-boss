@@ -9,17 +9,18 @@ use super::media_fixtures::{
     ffmpeg, ffprobe, find_atom, minimal_jpg_bytes, native_encoder_settings, next_atom, parse_mdhd,
     timed_text_chapter_track, write_sine_wav, write_stereo_sine_wav, MediaLane, SAMPLE_RATE,
 };
-use abb_engine::audio::{
+use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, ChannelConfig,
     EncoderSettings, SampleRateConfig,
 };
 #[cfg(target_os = "macos")]
-use abb_engine::audio::{BitrateMode, EncoderType};
-use abb_engine::processing::{
+use crate::audio::{BitrateMode, EncoderType};
+use crate::metadata::{read_metadata, AudiobookMetadata, CoverArtPassthroughPolicy};
+use crate::processing::{
     AudioHandling, CancellationChecker, JobRegistry, OutputConfig, ProcessingContext,
     ProcessingSession,
 };
-use abb_engine::{read_metadata, AppError, AudiobookMetadata, CoverArtPassthroughPolicy};
+use crate::AppError;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -31,7 +32,7 @@ async fn native_aac_reprocessing_keeps_the_original_playable_sample_count() {
         native_encoder_settings(),
         EncoderSettings {
             native_aac_speed: 4,
-            faac_profile: abb_engine::audio::FaacProfile::Auto,
+            faac_profile: crate::audio::FaacProfile::Auto,
             ..native_encoder_settings()
         },
     ] {
@@ -417,7 +418,7 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
         bitrate_mode: BitrateMode::Cvbr,
         channels: ChannelConfig::Mono,
         native_aac_speed: 0,
-        faac_profile: abb_engine::audio::FaacProfile::Auto,
+        faac_profile: crate::audio::FaacProfile::Auto,
     });
     let mut metadata = AudiobookMetadata::new();
     metadata.title = Some("Apple AAC Route".to_string());

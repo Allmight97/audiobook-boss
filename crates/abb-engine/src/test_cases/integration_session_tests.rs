@@ -2,13 +2,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use abb_engine::audio::AudiobookFormat;
-use abb_engine::session::{
+use crate::audio::AudiobookFormat;
+use crate::metadata::read_metadata;
+use crate::session::{
     AudioEdit, MetadataField, MetadataStatus, OutputEdits, SessionIntent, SessionOutcome,
     SubmissionStatus, SubmitRefusal, TitlePlan,
 };
-use abb_engine::work_runtime::WorkOperationStatus;
-use abb_engine::{read_metadata, Engine, RunningWork, ShutdownOutcome};
+use crate::work_runtime::WorkOperationStatus;
+use crate::{Engine, RunningWork, ShutdownOutcome};
 use tempfile::TempDir;
 
 use super::integration_session_desk::{
@@ -160,10 +161,10 @@ async fn a_source_cover_too_large_to_prepare_is_dropped_with_a_warning() {
     let book = desk
         .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
         .await;
-    abb_engine::save_metadata_intent(
+    crate::metadata::save_metadata_intent(
         &book,
-        &abb_engine::MetadataIntentPatch {
-            cover_art: Some(abb_engine::PatchOp::Set(oversized_jpeg())),
+        &crate::metadata::MetadataIntentPatch {
+            cover_art: Some(crate::metadata::PatchOp::Set(oversized_jpeg())),
             ..Default::default()
         },
     )
@@ -441,7 +442,7 @@ async fn audio_and_output_defaults_are_saved_and_return_after_a_settings_reset()
     );
 
     desk.engine
-        .settings_dispatch(abb_engine::app_settings::SettingsIntent::Reset)
+        .settings_dispatch(crate::app_settings::SettingsIntent::Reset)
         .await;
 
     let snapshot = desk.engine.session_snapshot();
@@ -461,7 +462,7 @@ async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_w
     desk.edit_genre_and_save().await;
     let running = desk.engine.running_work();
     assert_eq!((running.exports, running.waiting_writes), (1, 1));
-    assert_eq!(desk.engine.quit_pressed(), abb_engine::QuitPress::Proceed);
+    assert_eq!(desk.engine.quit_pressed(), crate::QuitPress::Proceed);
 
     let outcome = tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
         .await
@@ -510,7 +511,7 @@ async fn quit_consent_survives_finished_work_and_closes_admission() {
 
 #[tokio::test]
 async fn quit_consent_names_work_not_counts_and_follows_an_export_from_review_to_running() {
-    use abb_engine::output_artifact::CollisionPolicy;
+    use crate::output_artifact::CollisionPolicy;
 
     let desk = Desk::new();
     let book = desk
@@ -520,7 +521,7 @@ async fn quit_consent_names_work_not_counts_and_follows_an_export_from_review_to
     let first = desk.export().await;
     let asked_for_first = desk
         .engine
-        .close_for_quit(&abb_engine::QuitConsent::default())
+        .close_for_quit(&crate::QuitConsent::default())
         .expect_err("work that started after the question needs consent");
     assert_eq!(asked_for_first.exports, 1);
     desk.wait_until("the first export finishes", |desk| {
@@ -567,7 +568,7 @@ async fn a_choice_made_while_reset_is_waiting_stays_on_screen_and_on_disk() {
     typing.finish().await;
     let mut reset = Box::pin(
         desk.engine
-            .settings_dispatch(abb_engine::app_settings::SettingsIntent::Reset),
+            .settings_dispatch(crate::app_settings::SettingsIntent::Reset),
     );
     std::future::poll_fn(|cx| {
         assert!(
@@ -805,8 +806,8 @@ async fn keep_location_writes_the_latest_offered_tags_to_the_original_export_pat
 
 #[tokio::test]
 async fn the_aac_decoder_setting_chooses_faad3_for_import() {
-    use abb_engine::app_settings::{SettingsIntent, SettingsOutcome};
-    use abb_engine::audio::AacDecoder;
+    use crate::app_settings::{SettingsIntent, SettingsOutcome};
+    use crate::audio::AacDecoder;
 
     let desk = Desk::new();
     let book = desk

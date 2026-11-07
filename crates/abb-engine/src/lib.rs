@@ -78,11 +78,4 @@ pub use quit_press::QuitPress;
 pub(crate) type ManagedJobRegistry = std::sync::Arc<processing::JobRegistry>;
 
 #[cfg(test)]
-extern crate self as abb_engine;
-#[cfg(test)]
 mod test_cases;
-#[cfg(test)]
-pub(crate) use metadata::{
-    extract_passthrough_metadata, finalize_artifact_metadata, read_audio_cover_thumbnail,
-    read_metadata, save_metadata_intent,
-};

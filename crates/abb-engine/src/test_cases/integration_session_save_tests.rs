@@ -1,12 +1,13 @@
 use std::fs;
 use std::path::Path;
 
-use abb_engine::session::{
+use crate::metadata::{read_metadata, AudiobookMetadata};
+use crate::session::{
     FieldAction, MetadataField, MetadataStatus, OutputEdits, SelectionModifiers, SessionIntent,
     SessionOutcome, TitlePlan,
 };
-use abb_engine::work_runtime::WorkOperationStatus;
-use abb_engine::{read_metadata, AudiobookMetadata, ShutdownOutcome};
+use crate::work_runtime::WorkOperationStatus;
+use crate::ShutdownOutcome;
 
 use super::integration_session_desk::Desk;
 

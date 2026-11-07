@@ -3,13 +3,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use abb_engine::audio::{AudioIntent, EncoderType};
-use abb_engine::session::{
+use crate::audio::{AudioIntent, EncoderType};
+use crate::metadata::{read_metadata, AudiobookMetadata};
+use crate::session::{
     AudioEdit, MetadataField, MetadataSnapshot, SessionIntent, SessionOutcome, SubmissionStatus,
     TitlePlan,
 };
-use abb_engine::work_runtime::WorkOperationStatus;
-use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig};
+use crate::work_runtime::WorkOperationStatus;
+use crate::{Engine, EngineConfig};
 use tempfile::TempDir;
 
 use super::media_fixtures::MediaLane;
@@ -24,7 +25,7 @@ pub(super) fn engine_config(root: &Path) -> EngineConfig {
         cache_dir: root.join("cache"),
         config_dir: root.join("config"),
         app_identifier: "com.audiobook-boss.test".to_string(),
-        events: Arc::new(abb_engine::DiscardEvents),
+        events: Arc::new(crate::DiscardEvents),
     }
 }
 
@@ -163,7 +164,7 @@ impl Desk {
         }
     }
 
-    pub(super) async fn export(&self) -> abb_engine::work_runtime::OperationId {
+    pub(super) async fn export(&self) -> crate::work_runtime::OperationId {
         self.prepare_export().await;
         self.send(SessionIntent::Submit).await;
         match submission(self) {
@@ -174,7 +175,7 @@ impl Desk {
 
     pub(super) fn export_status(
         &self,
-        operation: &abb_engine::work_runtime::OperationId,
+        operation: &crate::work_runtime::OperationId,
     ) -> WorkOperationStatus {
         self.engine
             .list_work_operations()
@@ -186,10 +187,7 @@ impl Desk {
             .status
     }
 
-    pub(super) fn export_finished(
-        &self,
-        operation: &abb_engine::work_runtime::OperationId,
-    ) -> bool {
+    pub(super) fn export_finished(&self, operation: &crate::work_runtime::OperationId) -> bool {
         self.engine
             .list_work_operations()
             .expect("operations")
@@ -198,10 +196,10 @@ impl Desk {
             .find(|snapshot| &snapshot.operation_id == operation)
             .expect("export is listed")
             .phase
-            == abb_engine::work_runtime::OperationPhase::Finished
+            == crate::work_runtime::OperationPhase::Finished
     }
 
-    pub(super) fn output_of(&self, operation: &abb_engine::work_runtime::OperationId) -> PathBuf {
+    pub(super) fn output_of(&self, operation: &crate::work_runtime::OperationId) -> PathBuf {
         let operations = self.engine.list_work_operations().expect("operations");
         let export = operations
             .operations
@@ -240,9 +238,7 @@ pub(super) fn start_once_the_lock_frees(config: impl Fn() -> EngineConfig) -> En
     loop {
         match Engine::start(config()) {
             Ok(engine) => return engine,
-            Err(abb_engine::AppError::AlreadyRunning(_))
-                if std::time::Instant::now() < deadline =>
-            {
+            Err(crate::AppError::AlreadyRunning(_)) if std::time::Instant::now() < deadline => {
                 std::thread::sleep(Duration::from_millis(1));
             }
             Err(error) => panic!("ABB starts after the first one quit: {error}"),
@@ -256,7 +252,7 @@ pub(super) fn genre_on_disk(path: &Path) -> Option<String> {
         .genre
 }
 
-pub(super) fn submission(desk: &Desk) -> Option<abb_engine::session::SubmissionStatus> {
+pub(super) fn submission(desk: &Desk) -> Option<crate::session::SubmissionStatus> {
     desk.engine
         .session_snapshot()
         .output
@@ -264,7 +260,7 @@ pub(super) fn submission(desk: &Desk) -> Option<abb_engine::session::SubmissionS
         .submission
 }
 
-pub(super) fn collision_review(desk: &Desk) -> abb_engine::session::CollisionReview {
+pub(super) fn collision_review(desk: &Desk) -> crate::session::CollisionReview {
     desk.engine
         .session_snapshot()
         .output

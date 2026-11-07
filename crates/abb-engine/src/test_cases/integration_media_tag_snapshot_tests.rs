@@ -11,11 +11,11 @@ use super::tag_interop_dump::{assert_snapshot, dump_tags, sha256_hex};
 use super::tag_interop_seed::{
     seed_flac, seed_m4b, seed_mergeable_m4a, seed_mka, seed_mp3, Edit, Pictures,
 };
-use abb_engine::audio::{
+use crate::audio::{
     AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
     OutputAudio, SampleRateConfig, TitleAudioRequest,
 };
-use abb_engine::save_metadata_intent;
+use crate::metadata::save_metadata_intent;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::fs;

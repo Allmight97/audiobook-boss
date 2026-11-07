@@ -1,7 +1,7 @@
 //! A deterministic text view of the tags a file carries, for the snapshots
 //! that pin tag output. Holds no tests.
 
-use abb_engine::read_metadata;
+use crate::metadata::read_metadata;
 use ffmpeg_next::format::stream::Disposition;
 use ffmpeg_next::media::Type;
 use mp4ameta::{Data, DataIdent, Tag};

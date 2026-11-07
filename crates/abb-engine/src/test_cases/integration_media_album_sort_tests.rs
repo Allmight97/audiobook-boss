@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use abb_engine::{read_metadata, save_metadata_intent, AlbumSortPatchOp, MetadataIntentPatch};
+use crate::metadata::{read_metadata, save_metadata_intent, AlbumSortPatchOp, MetadataIntentPatch};
 use tempfile::TempDir;
 
 use super::id3_frames::{id3v2_text, id3v2_txxx_descriptions};

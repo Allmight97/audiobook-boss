@@ -6,14 +6,14 @@ use super::media_fixtures::SAMPLE_RATE;
 use std::fs;
 use std::path::Path;
 
-use abb_engine::audio::{
+use crate::audio::{
     execute_audio_engine, get_file_list_info, resolve_title_audio, AacDecoder,
     AudioExecutionRequest, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig,
     EncoderSettings, EncoderType, OutputAudio, SampleRateConfig, TitleAudioPlan, TitleAudioRequest,
 };
-use abb_engine::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
-use abb_engine::session::{AudioEdit, SessionIntent, TitlePlan};
-use abb_engine::CoverArtPassthroughPolicy;
+use crate::metadata::CoverArtPassthroughPolicy;
+use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
+use crate::session::{AudioEdit, SessionIntent, TitlePlan};
 use std::sync::Arc;
 use tempfile::TempDir;
 

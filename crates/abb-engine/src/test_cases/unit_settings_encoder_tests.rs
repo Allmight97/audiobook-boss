@@ -1,4 +1,4 @@
-use abb_engine::audio::{
+use crate::audio::{
     validate_encoder_settings, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
 };
 
@@ -9,7 +9,7 @@ fn base_settings() -> EncoderSettings {
         bitrate_mode: BitrateMode::Cbr,
         channels: ChannelConfig::Auto,
         native_aac_speed: 0,
-        faac_profile: abb_engine::audio::FaacProfile::Auto,
+        faac_profile: crate::audio::FaacProfile::Auto,
     }
 }
 

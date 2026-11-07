@@ -11,7 +11,7 @@ use super::media_fixtures::{
 };
 use super::tag_interop_dump::{assert_snapshot, dump_tags, sha256_hex};
 use super::tag_interop_seed::{seed_m4b, Edit};
-use abb_engine::audio::{
+use crate::audio::{
     get_file_list_info, AacDecoder, AudioIntent, OutputAudio, SampleRateConfig, TitleAudioRequest,
 };
 use mp4ameta::{Chapter, Tag, WriteConfig};

@@ -1,14 +1,15 @@
 //! Shared synthesized-media helpers for the real-media proofs. Holds no tests.
 
-use abb_engine::audio::{
+use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
     ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
 };
-use abb_engine::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
-use abb_engine::{
-    extract_passthrough_metadata, AppError, AudiobookMetadata, CoverArtPassthroughPolicy,
+use crate::metadata::{
+    extract_passthrough_metadata, AudiobookMetadata, CoverArtPassthroughPolicy,
     MetadataIntentPatch, PassthroughSource,
 };
+use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
+use crate::AppError;
 use image::ImageFormat;
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
@@ -172,10 +173,10 @@ pub(crate) fn duration_ms(path: &Path) -> i64 {
 }
 
 pub(crate) async fn run_planned_title(
-    payload: abb_engine::processing::ProcessPayload,
+    payload: crate::processing::ProcessPayload,
     metadata: Option<std::collections::HashMap<String, MetadataIntentPatch>>,
     workspace: &Path,
-) -> Result<(PathBuf, abb_engine::audio::AudioRunOutcome), AppError> {
+) -> Result<(PathBuf, crate::audio::AudioRunOutcome), AppError> {
     let inspected =
         crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), false)?;
     let job = inspected.plan.jobs.into_iter().next().expect("one title");
@@ -192,7 +193,7 @@ pub(crate) async fn run_planned_title(
                 .expect("inspected source")
         })
         .collect();
-    let info = abb_engine::audio::FileListInfo {
+    let info = crate::audio::FileListInfo {
         total_duration: files.iter().filter_map(|file| file.duration).sum(),
         total_size: 0.0,
         valid_count: files.len(),
@@ -224,8 +225,8 @@ pub(crate) async fn run_planned_title(
 pub(crate) fn single_title_payload(
     source: &Path,
     output_dir: &Path,
-    request: abb_engine::audio::TitleAudioRequest,
-) -> abb_engine::processing::ProcessPayload {
+    request: crate::audio::TitleAudioRequest,
+) -> crate::processing::ProcessPayload {
     fs::create_dir_all(output_dir).expect("output folder");
     serde_json::from_value(serde_json::json!({
         "inputFiles": [source], "audioRequests": [request], "outputDir": output_dir, "aacDecoder": "auto"
@@ -278,10 +279,10 @@ pub(crate) fn audio_packet_bytes(path: &Path) -> Vec<Vec<u8>> {
 }
 
 pub(crate) fn preflight_payload(
-    payload: abb_engine::processing::ProcessPayload,
+    payload: crate::processing::ProcessPayload,
     metadata: Option<HashMap<String, MetadataIntentPatch>>,
     preview: bool,
-) -> crate::Result<abb_engine::processing::ProcessingPreflightPlan> {
+) -> crate::Result<crate::processing::ProcessingPreflightPlan> {
     crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), preview)
         .map(|inspected| inspected.plan.to_public())
 }
@@ -552,7 +553,7 @@ pub(crate) fn native_encoder_settings() -> EncoderSettings {
         bitrate_mode: BitrateMode::Cbr,
         channels: ChannelConfig::Mono,
         native_aac_speed: 0,
-        faac_profile: abb_engine::audio::FaacProfile::Auto,
+        faac_profile: crate::audio::FaacProfile::Auto,
     }
 }
 
@@ -856,11 +857,11 @@ pub(crate) fn accepted_chapters(path: &Path) -> Vec<(Option<String>, i64, i64)> 
 }
 
 pub(crate) fn title_audio_request(
-    intent: abb_engine::audio::AudioIntent,
+    intent: crate::audio::AudioIntent,
     settings: EncoderSettings,
-) -> abb_engine::audio::TitleAudioRequest {
-    abb_engine::audio::TitleAudioRequest {
-        output: abb_engine::audio::OutputAudio::M4b { settings },
+) -> crate::audio::TitleAudioRequest {
+    crate::audio::TitleAudioRequest {
+        output: crate::audio::OutputAudio::M4b { settings },
         intent,
         sample_rate: SampleRateConfig::Auto,
     }

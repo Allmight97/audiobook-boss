@@ -196,7 +196,7 @@ async fn an_edit_left_unsaved_during_an_export_outlives_the_download_and_reaches
 
     let output = exports.join("Unknown Author/Book/Book.m4b");
     let tags = until("the Save to reach the finished output", || {
-        let tags = crate::read_metadata(&output).ok()?;
+        let tags = crate::metadata::read_metadata(&output).ok()?;
         tags.composer.is_some().then_some(tags)
     })
     .await;

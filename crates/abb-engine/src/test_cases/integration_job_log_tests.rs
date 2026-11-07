@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use abb_engine::work_runtime::{ChildJobStatus, OperationId, WorkOperationStatus};
+use crate::work_runtime::{ChildJobStatus, OperationId, WorkOperationStatus};
 
 use super::integration_session_desk::Desk;
 use super::log_capture;

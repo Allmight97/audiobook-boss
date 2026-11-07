@@ -1,9 +1,9 @@
 use std::fs;
 
-use abb_engine::app_settings::{IndexerConnection, SettingsIntent, SettingsOutcome, SettingsUnit};
-use abb_engine::remote_source::RemoteUiIntent;
-use abb_engine::session::{SessionIntent, SessionOutcome};
-use abb_engine::{Engine, ShutdownOutcome};
+use crate::app_settings::{IndexerConnection, SettingsIntent, SettingsOutcome, SettingsUnit};
+use crate::remote_source::RemoteUiIntent;
+use crate::session::{SessionIntent, SessionOutcome};
+use crate::{Engine, ShutdownOutcome};
 use tempfile::TempDir;
 
 use super::integration_session_desk::{engine_config, Desk};
@@ -25,7 +25,7 @@ async fn save_categories(desk: &Desk, category_ids: Vec<u32>) {
     assert_eq!(outcome, SessionOutcome::RemoteSaved);
 }
 
-fn drafted(desk: &Desk) -> abb_engine::remote_source::IndexerDraftSnapshot {
+fn drafted(desk: &Desk) -> crate::remote_source::IndexerDraftSnapshot {
     desk.engine
         .session_snapshot()
         .remote

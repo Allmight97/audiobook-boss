@@ -2,17 +2,17 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use abb_engine::session::{
+use crate::session::{
     AudioEdit, CollisionReview, MetadataField, SessionIntent, SessionOutcome, SubmissionStatus,
 };
-use abb_engine::work_runtime::WorkOperationStatus;
-use abb_engine::ShutdownOutcome;
+use crate::work_runtime::WorkOperationStatus;
+use crate::ShutdownOutcome;
 
 use super::integration_session_desk::{collision_review, genre_on_disk, submission, Desk};
 
 #[tokio::test]
 async fn submit_exports_the_session_reviews_a_collision_and_previews() {
-    use abb_engine::output_artifact::CollisionPolicy;
+    use crate::output_artifact::CollisionPolicy;
 
     let desk = Desk::new();
     let book = desk
@@ -133,7 +133,7 @@ async fn shutdown_answers_a_pending_collision_review_so_a_waiting_save_lands() {
 
 #[tokio::test]
 async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_applies() {
-    use abb_engine::output_artifact::CollisionPolicy;
+    use crate::output_artifact::CollisionPolicy;
 
     let desk = Desk::new();
     let library = desk.root.path().join("library");
@@ -151,7 +151,7 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
         .clone();
     desk.send(SessionIntent::SelectFile {
         title_id: beta_id,
-        modifiers: abb_engine::session::SelectionModifiers::default(),
+        modifiers: crate::session::SelectionModifiers::default(),
     })
     .await;
     desk.send(SessionIntent::SetField {
@@ -255,9 +255,9 @@ async fn finish_export(desk: &Desk) {
 #[tokio::test]
 async fn a_decoder_change_during_collision_review_does_not_change_the_accepted_export() {
     use super::media_fixtures::decode_pcm_f32;
-    use abb_engine::app_settings::SettingsIntent;
-    use abb_engine::audio::AacDecoder;
-    use abb_engine::output_artifact::CollisionPolicy;
+    use crate::app_settings::SettingsIntent;
+    use crate::audio::AacDecoder;
+    use crate::output_artifact::CollisionPolicy;
 
     let desk = Desk::new();
     let book = desk
@@ -275,7 +275,7 @@ async fn a_decoder_change_during_collision_review_does_not_change_the_accepted_e
         .collect();
     desk.send(SessionIntent::SetTitleAudio {
         title_ids,
-        edit: AudioEdit::Intent(abb_engine::audio::AudioIntent::Encode),
+        edit: AudioEdit::Intent(crate::audio::AudioIntent::Encode),
     })
     .await;
     let set_decoder = |decoder| {
@@ -332,8 +332,8 @@ fn walk(dir: &Path) -> Vec<PathBuf> {
 #[tokio::test]
 async fn a_decoder_change_after_submit_is_accepted_does_not_change_that_export() {
     use super::media_fixtures::decode_pcm_f32;
-    use abb_engine::app_settings::SettingsIntent;
-    use abb_engine::audio::AacDecoder;
+    use crate::app_settings::SettingsIntent;
+    use crate::audio::AacDecoder;
 
     let desk = Desk::new();
     let book = desk
@@ -351,7 +351,7 @@ async fn a_decoder_change_after_submit_is_accepted_does_not_change_that_export()
         .collect();
     desk.send(SessionIntent::SetTitleAudio {
         title_ids,
-        edit: AudioEdit::Intent(abb_engine::audio::AudioIntent::Encode),
+        edit: AudioEdit::Intent(crate::audio::AudioIntent::Encode),
     })
     .await;
     let set_decoder = |decoder| {

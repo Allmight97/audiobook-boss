@@ -6,22 +6,22 @@ use super::media_fixtures::{
     assert_auto_merge_stereo, assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32,
     ffprobe_format_tags, native_encoder_settings, title_audio_request, MediaLane, SAMPLE_RATE,
 };
-use abb_engine::audio::{
+use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
     ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
 };
-use abb_engine::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
-use abb_engine::{
+use crate::metadata::{
     read_metadata, save_metadata_intent, AudiobookMetadata, CoverArtPassthroughPolicy,
     MetadataIntentPatch, PatchOp,
 };
+use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
 use std::fs;
 use std::sync::Arc;
 
 pub(crate) fn faac_encoder_settings() -> EncoderSettings {
     EncoderSettings {
         encoder_type: EncoderType::Faac,
-        faac_profile: abb_engine::audio::FaacProfile::HeAacV1,
+        faac_profile: crate::audio::FaacProfile::HeAacV1,
         bitrate_mode: BitrateMode::Abr,
         ..native_encoder_settings()
     }
@@ -45,11 +45,8 @@ async fn faac_he_merge_preserves_metadata_chapters_and_resampled_channels() {
                 bytes[28..32].copy_from_slice(&(source_rate * 2).to_le_bytes());
                 fs::write(path, bytes).expect("fixture value");
             }
-            let plan = abb_engine::audio::resolve_title_audio(
-                &title_audio_request(
-                    abb_engine::audio::AudioIntent::Encode,
-                    faac_encoder_settings(),
-                ),
+            let plan = crate::audio::resolve_title_audio(
+                &title_audio_request(crate::audio::AudioIntent::Encode, faac_encoder_settings()),
                 &get_file_list_info(&lane.inputs, AacDecoder::Auto).expect("fixture value"),
                 false,
             )
@@ -143,8 +140,8 @@ async fn faac_he_refuses_an_explicit_22050_hz_rate_before_output_and_leaves_no_r
 #[tokio::test]
 async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
     for profile in [
-        abb_engine::audio::FaacProfile::HeAacV1,
-        abb_engine::audio::FaacProfile::AacLc,
+        crate::audio::FaacProfile::HeAacV1,
+        crate::audio::FaacProfile::AacLc,
     ] {
         for samples in [257, 4096, 12117] {
             let lane = MediaLane::with_fixtures(&[f64::from(samples) / f64::from(SAMPLE_RATE)])
@@ -170,7 +167,7 @@ async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
             // HE's half-rate timeline cannot express an odd full-rate duration.
             // Even HE durations and LC must retain an exact sample count.
             let tolerance =
-                usize::from(profile == abb_engine::audio::FaacProfile::HeAacV1 && samples % 2 != 0);
+                usize::from(profile == crate::audio::FaacProfile::HeAacV1 && samples % 2 != 0);
             assert!(
                 decoded.len().abs_diff(source.len()) <= tolerance,
                 "Apple playable sample count: source={} decoded={}",
@@ -207,7 +204,7 @@ async fn faac_reimport_preserves_audio_alignment_and_tail() {
 
 #[tokio::test]
 async fn faac_lc_and_auto_vbr_reimport_preserve_audio_interval() {
-    use abb_engine::audio::FaacProfile;
+    use crate::audio::FaacProfile;
     for (profile, mode, tool) in [
         (
             FaacProfile::AacLc,

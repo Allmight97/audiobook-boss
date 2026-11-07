@@ -4,7 +4,7 @@
 
 use super::media_fixtures::{native_encoder_settings, run_planned_title};
 use super::tag_interop_seed::seed_mergeable_m4a;
-use abb_engine::audio::{AudioIntent, OutputAudio, SampleRateConfig, TitleAudioRequest};
+use crate::audio::{AudioIntent, OutputAudio, SampleRateConfig, TitleAudioRequest};
 use std::fs;
 use tempfile::TempDir;
 

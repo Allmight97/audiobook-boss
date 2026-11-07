@@ -4,9 +4,9 @@ use super::media_fixtures::{
     audio_duration_ts, chapters_of, decode_pcm_f32, mux_chapters, write_sine_mp3_with,
     write_sine_wav, MediaLane, SAMPLE_RATE,
 };
-use abb_engine::audio::{execute_audio_engine, get_file_list_info, AacDecoder};
-use abb_engine::processing::ProcessingSession;
-use abb_engine::{read_metadata, save_metadata_intent, MetadataIntentPatch, PatchOp};
+use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder};
+use crate::metadata::{read_metadata, save_metadata_intent, MetadataIntentPatch, PatchOp};
+use crate::processing::ProcessingSession;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;

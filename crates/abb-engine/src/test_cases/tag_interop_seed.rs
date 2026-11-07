@@ -3,7 +3,7 @@
 //! snapshots apply to them. Holds no tests.
 
 use super::media_fixtures::{ffmpeg, minimal_jpg_bytes, write_complete_frame_aac};
-use abb_engine::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
+use crate::metadata::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
 use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, Tag, WriteConfig};
 use std::fs;
 use std::path::{Path, PathBuf};

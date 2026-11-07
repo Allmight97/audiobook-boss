@@ -5,13 +5,13 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use abb_engine::audio::{
+use crate::audio::{
     AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
     OutputAudio, SampleRateConfig, TitleAudioRequest,
 };
-use abb_engine::output_artifact::{CollisionPolicy, OutputKind, PlannedOutputAction};
-use abb_engine::session::{MetadataField, SessionIntent, SessionOutcome};
-use abb_engine::work_runtime::WorkOperationStatus;
+use crate::output_artifact::{CollisionPolicy, OutputKind, PlannedOutputAction};
+use crate::session::{MetadataField, SessionIntent, SessionOutcome};
+use crate::work_runtime::WorkOperationStatus;
 
 use super::integration_session_desk::Desk;
 use super::media_fixtures::{
@@ -42,7 +42,7 @@ fn payload(
     out_dir: &Path,
     format: AudiobookFormat,
     policy: CollisionPolicy,
-) -> abb_engine::processing::ProcessPayload {
+) -> crate::processing::ProcessPayload {
     let mut payload = single_title_payload(
         source,
         out_dir,
@@ -62,7 +62,7 @@ fn planned_output(
     format: AudiobookFormat,
     policy: CollisionPolicy,
     preview: bool,
-) -> abb_engine::output_artifact::PlannedOutput {
+) -> crate::output_artifact::PlannedOutput {
     preflight_payload(payload(source, out_dir, format, policy), None, preview)
         .expect("plan the title")
         .outputs

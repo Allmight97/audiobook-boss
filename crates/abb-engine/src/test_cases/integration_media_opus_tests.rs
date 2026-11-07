@@ -7,15 +7,15 @@ use super::media_fixtures::{
     native_encoder_settings, preflight_payload, run_planned_title, write_stereo_sine_wav,
     MediaLane, SAMPLE_RATE,
 };
-use abb_engine::audio::{
+use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
     ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
 };
-use abb_engine::processing::{OutputConfig, ProcessingContext, ProcessingSession};
-use abb_engine::{
+use crate::metadata::{
     read_audio_cover_thumbnail, read_metadata, save_metadata_intent, CoverArtPassthroughPolicy,
     MetadataIntentPatch, PatchOp,
 };
+use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,8 +27,8 @@ use tempfile::TempDir;
     reason = "Sequential packet, chapter, cover and duration readbacks prove both Opus containers"
 )]
 async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_containers() {
-    use abb_engine::audio::{AudioIntent, AudiobookFormat, TitleAudioRequest};
-    use abb_engine::processing::ProcessPayload;
+    use crate::audio::{AudioIntent, AudiobookFormat, TitleAudioRequest};
+    use crate::processing::ProcessPayload;
     for (format, source_rate, input_rate) in [
         (AudiobookFormat::M4aOpus, 22_050, 24_000),
         (AudiobookFormat::MkaOpus, 44_100, 48_000),
@@ -54,7 +54,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         let out = lane.tmp.path().join("out");
         fs::create_dir_all(&out).expect("fixture value");
         let request = TitleAudioRequest {
-            output: abb_engine::audio::OutputAudio::new(
+            output: crate::audio::OutputAudio::new(
                 format,
                 EncoderSettings {
                     encoder_type: EncoderType::Opus,
@@ -143,11 +143,11 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         };
         let info = get_file_list_info(std::slice::from_ref(&destination), AacDecoder::Auto)
             .expect("fixture value");
-        let copy_plan = abb_engine::audio::resolve_title_audio(
+        let copy_plan = crate::audio::resolve_title_audio(
             &TitleAudioRequest {
-                output: abb_engine::audio::OutputAudio::new(
+                output: crate::audio::OutputAudio::new(
                     other_format,
-                    abb_engine::audio::EncoderSettings::default(),
+                    crate::audio::EncoderSettings::default(),
                 ),
                 intent: AudioIntent::Preserve,
                 sample_rate: SampleRateConfig::Auto,
@@ -158,7 +158,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         .expect("fixture value");
         assert_eq!(
             copy_plan.handling,
-            abb_engine::processing::AudioHandling::Preserve
+            crate::processing::AudioHandling::Preserve
         );
         let copied = lane
             .tmp
@@ -267,7 +267,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
 
 #[tokio::test]
 async fn opus_remux_keeps_variable_frame_timing_and_trim() {
-    use abb_engine::processing::AudioHandling;
+    use crate::processing::AudioHandling;
     let tmp = TempDir::new().expect("fixture value");
     for (frame_ms, bitrate) in [("2.5", "64k"), ("60", "12k"), ("120", "64k")] {
         let source = tmp.path().join(format!("source-{frame_ms}.mka"));

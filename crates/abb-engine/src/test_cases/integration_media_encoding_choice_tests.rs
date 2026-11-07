@@ -1,11 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use abb_engine::audio::{
-    AudioIntent, AudiobookFormat, ChannelConfig, EncoderType, SampleRateConfig,
-};
-use abb_engine::session::{AudioEdit, MetadataField, SessionIntent, SubmissionStatus, TitlePlan};
-use abb_engine::work_runtime::WorkOperationStatus;
+use crate::audio::{AudioIntent, AudiobookFormat, ChannelConfig, EncoderType, SampleRateConfig};
+use crate::session::{AudioEdit, MetadataField, SessionIntent, SubmissionStatus, TitlePlan};
+use crate::work_runtime::WorkOperationStatus;
 
 use super::integration_session_desk::{submission, Desk};
 use super::media_fixtures::{audio_duration_ts, decode_pcm_f32, MediaLane};
