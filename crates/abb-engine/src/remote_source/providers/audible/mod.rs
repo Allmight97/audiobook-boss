@@ -82,6 +82,10 @@ impl AudibleProvider {
         ))
     }
 
+    pub(in crate::remote_source) fn check_response_url(response_url: &str) -> Result<()> {
+        extract_audible_auth_code(response_url).map(|_| ())
+    }
+
     pub(in crate::remote_source) async fn register_auth(
         pending: PendingAudibleAuth,
         response_url: &str,

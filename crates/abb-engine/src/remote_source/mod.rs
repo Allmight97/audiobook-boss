@@ -172,6 +172,7 @@ impl RemoteSourceRuntime {
         match request.provider_id {
             RemoteProviderId::Audible => {
                 let response_url = read_handoff_url(request.response_url_handoff_path)?;
+                AudibleProvider::check_response_url(&response_url)?;
                 let pending = self
                     .inner
                     .pending_audible_auth
