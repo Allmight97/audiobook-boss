@@ -22,7 +22,9 @@ engine does not offer, add it to the engine's host interface.
   keeps a running copy's log. A panic reaches the file through the hook in
   `init_logger`.
 - **Opened files.** `RunEvent::Opened` runs on the main thread with no Tokio
-  runtime, so `Engine::open_audio_files` is async and `open_urls` blocks on it.
+  runtime, so `Engine::open_audio_files` is async and `opened_files` blocks on
+  it. On a cold launch it arrives before `setup`, so `opened_files` holds the
+  paths until the engine starts.
 - **Second copy.** When `Engine::start` fails with `AlreadyRunning`, setup
   hides the window, shows the message in a native dialog, and exits on OK
   without an engine. `Quit` and `FrontendLink` are managed before the engine

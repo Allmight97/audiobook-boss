@@ -4,6 +4,7 @@ mod events;
 mod intent_order;
 pub mod ipc_contract;
 mod log_file;
+mod opened_files;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -362,21 +363,6 @@ fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) 
         });
 }
 
-#[cfg(target_os = "macos")]
-fn open_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
-    let paths = urls
-        .into_iter()
-        .filter_map(|url| url.to_file_path().ok())
-        .collect();
-    let Some(engine) = app.try_state::<abb_engine::Engine>() else {
-        log::warn!("Engine is unavailable; ignoring opened audio files");
-        return;
-    };
-    if let Err(error) = tauri::async_runtime::block_on(engine.open_audio_files(paths)) {
-        log::warn!("Opened audio files were not imported: {error}");
-    }
-}
-
 pub fn run() {
     log_file::init_logger();
 
@@ -387,6 +373,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(opened_files::HeldFiles::default())
         .invoke_handler(specta_builder.invoke_handler())
         .register_asynchronous_uri_scheme_protocol(cover_protocol::SCHEME, cover_protocol::handle)
         .setup(move |app| {
@@ -402,7 +389,10 @@ pub fn run() {
             app.manage(Quit::default());
             app.manage(commands::FrontendLink::default());
             match start_engine(app) {
-                Ok(engine) => app.manage(engine),
+                Ok(engine) => {
+                    opened_files::import_held(app.handle(), &engine);
+                    app.manage(engine)
+                }
                 Err(error @ abb_engine::AppError::AlreadyRunning(_)) => {
                     quit_as_second_copy(app, error.to_string());
                     return Ok(());
@@ -434,7 +424,7 @@ pub fn run() {
                 api.prevent_close();
             }
             #[cfg(target_os = "macos")]
-            tauri::RunEvent::Opened { urls } => open_urls(app, urls),
+            tauri::RunEvent::Opened { urls } => opened_files::open(app, urls),
             _ => {}
         });
 }

@@ -277,9 +277,6 @@ impl Session {
     }
 
     fn resolve_plans(&self, tickets: Vec<PlanTicket>) {
-        if tokio::runtime::Handle::try_current().is_err() {
-            return;
-        }
         let session = self.clone();
         self.inner.deps.tasks.spawn(async move {
             for ticket in tickets {

@@ -92,9 +92,7 @@ impl Session {
     }
 
     pub(super) fn sweep_staged(&self) {
-        if tokio::runtime::Handle::try_current().is_err()
-            || self.inner.sweeping.swap(true, Ordering::SeqCst)
-        {
+        if self.inner.sweeping.swap(true, Ordering::SeqCst) {
             return;
         }
         let session = self.clone();
