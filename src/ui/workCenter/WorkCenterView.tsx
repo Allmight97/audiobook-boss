@@ -98,8 +98,8 @@ export function WorkCenterView(): JSX.Element {
 				</div>
 			</div>
 
-			<Show when={view().errorMessage}>
-				{(message) => <div class="work-center-error">{message()}</div>}
+			<Show when={view().error}>
+				{(error) => <div class="work-center-error">{error().message}</div>}
 			</Show>
 
 			<Show
