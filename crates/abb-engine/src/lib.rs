@@ -50,6 +50,7 @@ mod host;
 mod metadata;
 pub mod metadata_lookup;
 mod metadata_save;
+mod natural_order;
 pub mod output_artifact;
 mod owned_dir;
 mod power;

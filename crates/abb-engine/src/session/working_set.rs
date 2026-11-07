@@ -5,7 +5,6 @@
 //! ordered sources in `title_sources`. Identity is the file's `input_id`, so
 //! reorder and sort never change which title a choice belongs to.
 
-use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -15,6 +14,7 @@ use crate::audio::{AudioFile, TitleAudioRequest};
 use crate::errors::AppErrorEnvelope;
 use crate::metadata::{CueStatus, MetadataIntentPatch, PatchOp};
 use crate::metadata_save::Rewrite;
+use crate::natural_order::natural_cmp;
 
 use super::title_totals::{title_totals, PreviewLength, TitleTotals};
 
@@ -785,45 +785,6 @@ fn basename(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.to_string_lossy().into_owned())
-}
-
-/// Case-insensitive comparison that orders digit runs by numeric value, so
-/// "Part 2" sorts before "Part 10".
-fn natural_cmp(left: &str, right: &str) -> Ordering {
-    let left: Vec<char> = left.to_lowercase().chars().collect();
-    let right: Vec<char> = right.to_lowercase().chars().collect();
-    let (mut i, mut j) = (0, 0);
-    while i < left.len() && j < right.len() {
-        if left[i].is_ascii_digit() && right[j].is_ascii_digit() {
-            let digits = |chars: &[char], start: usize| {
-                let end = chars[start..]
-                    .iter()
-                    .position(|c| !c.is_ascii_digit())
-                    .map_or(chars.len(), |offset| start + offset);
-                let run: String = chars[start..end].iter().collect();
-                (run.trim_start_matches('0').to_string(), end)
-            };
-            let (left_run, left_end) = digits(&left, i);
-            let (right_run, right_end) = digits(&right, j);
-            let ordering = left_run
-                .len()
-                .cmp(&right_run.len())
-                .then_with(|| left_run.cmp(&right_run));
-            if ordering != Ordering::Equal {
-                return ordering;
-            }
-            i = left_end;
-            j = right_end;
-        } else {
-            let ordering = left[i].cmp(&right[j]);
-            if ordering != Ordering::Equal {
-                return ordering;
-            }
-            i += 1;
-            j += 1;
-        }
-    }
-    (left.len() - i).cmp(&(right.len() - j))
 }
 
 #[cfg(test)]

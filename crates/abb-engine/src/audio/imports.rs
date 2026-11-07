@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::extensions::{audio_format_for_path, SUPPORTED_AUDIO_FORMATS};
 use super::path_validation::{validate_input_audio_path, validate_input_directory_path};
 use crate::errors::{sanitize_path_for_display, AppError};
+use crate::natural_order::natural_cmp;
 
 pub fn supported_audio_import_extensions() -> Vec<&'static str> {
     SUPPORTED_AUDIO_FORMATS
@@ -72,7 +72,7 @@ pub(crate) fn discover_audio_import_paths(input_paths: &[PathBuf]) -> ImportDisc
 
     discovery
         .paths
-        .sort_by(|left, right| compare_natural_paths(left, right));
+        .sort_by(|left, right| natural_cmp(&left.to_string_lossy(), &right.to_string_lossy()));
     discovery
 }
 
@@ -206,102 +206,6 @@ fn collect_supported_file(
             }
         }
         Err(error) => discovery.skip(path, error),
-    }
-}
-
-fn compare_natural_paths(left: &Path, right: &Path) -> Ordering {
-    let left = left.to_string_lossy();
-    let right = right.to_string_lossy();
-    compare_natural_strings(&left, &right)
-}
-
-fn compare_natural_strings(left: &str, right: &str) -> Ordering {
-    let left_segments = natural_segments(left);
-    let right_segments = natural_segments(right);
-
-    for (left_segment, right_segment) in left_segments.iter().zip(right_segments.iter()) {
-        let ordering = left_segment.cmp(right_segment);
-        if ordering != Ordering::Equal {
-            return ordering;
-        }
-    }
-
-    left_segments.len().cmp(&right_segments.len())
-}
-
-fn natural_segments(input: &str) -> Vec<NaturalSegment> {
-    let mut segments = Vec::new();
-    let mut current = String::new();
-    let mut current_is_digit = None;
-
-    for character in input.chars() {
-        let is_digit = character.is_ascii_digit();
-        match current_is_digit {
-            Some(expected_digit) if expected_digit == is_digit => {
-                current.push(character);
-            }
-            Some(expected_digit) => {
-                segments.push(segment_from_buffer(&current, expected_digit));
-                current.clear();
-                current.push(character);
-                current_is_digit = Some(is_digit);
-            }
-            None => {
-                current.push(character);
-                current_is_digit = Some(is_digit);
-            }
-        }
-    }
-
-    if let Some(is_digit) = current_is_digit {
-        segments.push(segment_from_buffer(&current, is_digit));
-    }
-
-    segments
-}
-
-fn segment_from_buffer(buffer: &str, is_digit: bool) -> NaturalSegment {
-    if is_digit {
-        NaturalSegment::Number {
-            value: buffer.parse::<u64>().unwrap_or(u64::MAX),
-            raw_len: buffer.len(),
-        }
-    } else {
-        NaturalSegment::Text(buffer.to_ascii_lowercase())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum NaturalSegment {
-    Text(String),
-    Number { value: u64, raw_len: usize },
-}
-
-impl Ord for NaturalSegment {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (Self::Text(left), Self::Text(right)) => left.cmp(right),
-            (
-                Self::Number {
-                    value: left_value,
-                    raw_len: left_len,
-                },
-                Self::Number {
-                    value: right_value,
-                    raw_len: right_len,
-                },
-            ) => left_value
-                .cmp(right_value)
-                .then_with(|| left_len.cmp(right_len)),
-            (Self::Text(_), Self::Number { .. }) => Ordering::Less,
-            (Self::Number { .. }, Self::Text(_)) => Ordering::Greater,
-        }
-    }
-}
-
-impl PartialOrd for NaturalSegment {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 

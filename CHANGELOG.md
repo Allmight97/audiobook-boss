@@ -4,6 +4,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Imported files now sort the way the Sort button does. `Chapter 01 - Part 1` comes before
+  `Chapter 1 - Part 2`, `Book` comes before `Book1`, and `über 2` comes before `Über 10`.
+
 ## [1.18.1] - 2026-11-07
 
 ### Fixed
