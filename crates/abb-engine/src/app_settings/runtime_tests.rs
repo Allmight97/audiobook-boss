@@ -1,6 +1,7 @@
 use tempfile::TempDir;
 
 use super::*;
+use crate::app_settings::SettingsUnit;
 use crate::audio::{AudioIntent, AudiobookFormat};
 
 struct Rig {
@@ -223,7 +224,7 @@ async fn a_value_this_release_refuses_resets_only_its_setting_until_the_next_cha
     assert_eq!(
         snapshot.recovery,
         Some(SettingsRecovery {
-            reset: vec![crate::app_settings::SettingsUnit::EncoderDefaults],
+            reset: vec![SettingsUnit::EncoderDefaults],
             set_aside_as: None,
         })
     );
@@ -284,7 +285,7 @@ async fn a_pinned_launch_does_not_report_last_used_values_it_did_not_start_from(
 
     assert_eq!(
         storage::load(&config_dir(&rig.root)).reset,
-        vec![crate::app_settings::SettingsUnit::EncoderDefaults],
+        vec![SettingsUnit::EncoderDefaults],
         "fixture premise: the last-used encoder is refused"
     );
     let snapshot = rig.settings.snapshot().await;

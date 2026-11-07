@@ -69,7 +69,9 @@ session records reaches hosts as `EngineEvent::Settings`.
   per area, in a saved shape kept apart from the IPC types so a change to
   what hosts send cannot change what a saved file means.
 - Loading never fails. No file means the defaults. Each
-  recovery unit (`SettingsUnit`) loads on its own: a value that fails
+  recovery unit (`SettingsUnit`) loads on its own, from the `path()` it names
+  (`launch_default()` marks the units a pinned launch replaces; a test holds
+  the paths to the saved keys, both ways): a value that fails
   validation (damaged outside ABB, or a bug; a release that narrows a value
   follows the rule below) resets only that unit, and an absent one takes its
   default silently. Pinned defaults are all or nothing. Unknown fields are

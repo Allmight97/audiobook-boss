@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     storage, AcquisitionLane, AppSettings, AppSettingsPatch, ConcurrencyPreference,
     EncoderDefaults, IndexerConnection, OutputDefaults, PinnedDefaults, SettingsRecovery,
-    SettingsUnit, StartupBehavior,
+    StartupBehavior,
 };
 use crate::audio::AacDecoder;
 use crate::errors::{AppError, AppErrorEnvelope};
@@ -192,14 +192,7 @@ impl SettingsRuntime {
         if matches!(accepted.startup_behavior, StartupBehavior::PinnedDefaults)
             && accepted.pinned_defaults.is_some()
         {
-            reset.retain(|unit| {
-                !matches!(
-                    unit,
-                    SettingsUnit::JobLimit
-                        | SettingsUnit::EncoderDefaults
-                        | SettingsUnit::OutputDefaults
-                )
-            });
+            reset.retain(|unit| !unit.launch_default());
         }
         let mut recovery = SettingsRecovery {
             reset,

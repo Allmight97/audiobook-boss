@@ -73,6 +73,40 @@ pub enum SettingsUnit {
     PinnedDefaults,
 }
 
+impl SettingsUnit {
+    /// Where the unit sits in `settings.toml`: loading reads it from here and
+    /// names a reset by it.
+    pub(super) fn path(self) -> &'static [&'static str] {
+        match self {
+            Self::KeepAwake => &["general", "keep_awake_while_working"],
+            Self::PressQuitTwice => &["general", "press_quit_twice"],
+            Self::JobLimit => &["general", "max_concurrent_jobs"],
+            Self::AcquisitionLane => &["general", "default_acquisition_lane"],
+            Self::AacDecoder => &["general", "aac_decoder"],
+            Self::IndexerConnection => &["indexer"],
+            Self::EncoderDefaults => &["audio"],
+            Self::OutputDefaults => &["output"],
+            Self::StartupBehavior => &["startup", "behavior"],
+            Self::PinnedDefaults => &["startup", "pinned"],
+        }
+    }
+
+    /// Part of the launch defaults, which a pinned launch replaces with the
+    /// pinned ones.
+    pub(super) fn launch_default(self) -> bool {
+        match self {
+            Self::JobLimit | Self::EncoderDefaults | Self::OutputDefaults => true,
+            Self::KeepAwake
+            | Self::PressQuitTwice
+            | Self::AcquisitionLane
+            | Self::AacDecoder
+            | Self::IndexerConnection
+            | Self::StartupBehavior
+            | Self::PinnedDefaults => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, serde::Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsRecovery {

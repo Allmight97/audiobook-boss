@@ -279,3 +279,82 @@ fn a_startup_that_is_not_a_section_resets_the_startup_choice_and_the_pinned_defa
     };
     assert_eq!(loaded.settings, expected);
 }
+
+const EVERY_UNIT: [SettingsUnit; 10] = [
+    SettingsUnit::KeepAwake,
+    SettingsUnit::PressQuitTwice,
+    SettingsUnit::JobLimit,
+    SettingsUnit::AcquisitionLane,
+    SettingsUnit::AacDecoder,
+    SettingsUnit::IndexerConnection,
+    SettingsUnit::EncoderDefaults,
+    SettingsUnit::OutputDefaults,
+    SettingsUnit::StartupBehavior,
+    SettingsUnit::PinnedDefaults,
+];
+
+fn saved_keys(table: &toml::Table, prefix: &[String], into: &mut Vec<Vec<String>>) {
+    for (key, value) in table {
+        let mut path = prefix.to_vec();
+        path.push(key.clone());
+        match value {
+            toml::Value::Table(inner) => saved_keys(inner, &path, into),
+            _ => into.push(path),
+        }
+    }
+}
+
+fn holds(table: &toml::Table, path: &[&str]) -> bool {
+    let Some((key, sections)) = path.split_last() else {
+        return false;
+    };
+    let mut current = table;
+    for section in sections {
+        match current.get(*section) {
+            Some(toml::Value::Table(inner)) => current = inner,
+            _ => return false,
+        }
+    }
+    current.contains_key(*key)
+}
+
+#[test]
+fn every_unit_path_is_in_a_saved_file_and_every_saved_key_belongs_to_a_unit() {
+    let saved: toml::Table =
+        toml::from_str(&saved_text(&load_text(NEWEST_SAMPLE).settings)).expect("saved is toml");
+
+    for unit in EVERY_UNIT {
+        assert!(holds(&saved, unit.path()), "{unit:?} at {:?}", unit.path());
+    }
+    let mut keys = Vec::new();
+    saved_keys(&saved, &[], &mut keys);
+    for key in keys {
+        assert!(
+            EVERY_UNIT.iter().any(|unit| key.starts_with(
+                &unit
+                    .path()
+                    .iter()
+                    .map(|part| (*part).to_string())
+                    .collect::<Vec<_>>()
+            )),
+            "{key:?} belongs to no unit"
+        );
+    }
+}
+
+#[test]
+fn the_launch_defaults_are_the_job_limit_and_the_encoder_and_output_defaults() {
+    let launch: Vec<SettingsUnit> = EVERY_UNIT
+        .into_iter()
+        .filter(|unit| unit.launch_default())
+        .collect();
+
+    assert_eq!(
+        launch,
+        vec![
+            SettingsUnit::JobLimit,
+            SettingsUnit::EncoderDefaults,
+            SettingsUnit::OutputDefaults
+        ]
+    );
+}
