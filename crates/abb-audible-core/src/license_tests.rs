@@ -58,6 +58,8 @@ fn aax_license_response_decrypts_adrm_voucher_activation_bytes() {
         Some(&context),
     )
     .expect("aax material");
+    assert_eq!(material.source, MaterialSource::LicenseResponse);
+    let material = material.material;
 
     assert_eq!(material.kind(), DecryptKind::Aax);
     match material {
@@ -97,7 +99,8 @@ fn aaxc_license_response_decrypts_adrm_voucher_key_iv() {
         asin,
         Some(&context),
     )
-    .expect("aaxc material");
+    .expect("aaxc material")
+    .material;
 
     assert_eq!(material.kind(), DecryptKind::Aaxc);
     match material {
@@ -127,7 +130,8 @@ fn aax_license_material_extracts_activation_bytes_without_public_surface() {
         "B000000001",
         None,
     )
-    .expect("aax material");
+    .expect("aax material")
+    .material;
 
     match material {
         AudibleDecryptionMaterial::Aax {
@@ -155,7 +159,8 @@ fn aax_license_material_extracts_url_safe_unpadded_voucher_key() {
         "B000000001",
         None,
     )
-    .expect("aax material");
+    .expect("aax material")
+    .material;
 
     match material {
         AudibleDecryptionMaterial::Aax {
@@ -187,7 +192,8 @@ fn aaxc_license_material_extracts_key_and_iv_from_hex_or_base64() {
         "B000000001",
         None,
     )
-    .expect("aaxc material");
+    .expect("aaxc material")
+    .material;
 
     match material {
         AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => {
@@ -196,4 +202,35 @@ fn aaxc_license_material_extracts_key_and_iv_from_hex_or_base64() {
         }
         AudibleDecryptionMaterial::Aax { .. } => panic!("unexpected aax material"),
     }
+}
+
+#[test]
+fn the_material_source_names_the_reader_that_found_the_key() {
+    let located = |response: Value, strategy| {
+        audible_decryption_material_from_license(&response, strategy, "B000000001", None)
+            .expect("material")
+            .source
+    };
+    let voucher = located(
+        json!({"content_license": {"voucher": {"key": [10, 27, 44, 61]}}}),
+        AcquisitionStrategy::DownloadThenDecryptAax,
+    );
+    assert_eq!(voucher, MaterialSource::Voucher);
+    let activation = located(
+        json!({"outer": {"activation": [10, 27, 44, 61]}}),
+        AcquisitionStrategy::DownloadThenDecryptAax,
+    );
+    assert_eq!(activation, MaterialSource::ActivationBytesScan);
+    let key_iv = located(
+        json!({
+            "first": {"key": "0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d"},
+            "second": {
+                "key": "0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d",
+                "iv": "2e2f3a3b3c3d3e3f4a4b4c4d4e4f5a5b"
+            }
+        }),
+        AcquisitionStrategy::DownloadThenDecryptAaxc,
+    );
+    assert_eq!(key_iv, MaterialSource::KeyIvPairScan);
+    assert_eq!(MaterialSource::KeyIvPairScan.label(), "key_iv_pair_scan");
 }

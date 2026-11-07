@@ -289,7 +289,8 @@ fn helper_lane_follows_voucher_key_shape_not_content_url_extension() {
         "B000000001",
         None,
     )
-    .expect("aaxc-shaped material");
+    .expect("aaxc-shaped material")
+    .material;
 
     let (helper_lane, secret) = helper_material_from_audible_material(&material);
 

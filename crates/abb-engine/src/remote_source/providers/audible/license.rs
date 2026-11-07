@@ -1,4 +1,7 @@
-use abb_audible_core::{find_first_string_for_key, title_ref, AudibleLicenseDecryptContext};
+use abb_audible_core::{
+    find_first_string_for_key, license_facts_from_value, title_metadata_from_value, title_ref,
+    AudibleLicenseDecryptContext,
+};
 use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
 use audible_api::auth::Auth;
 use serde_json::{json, Value};
@@ -57,17 +60,10 @@ pub(super) async fn lookup_title_details(
         )
         .await?;
     ensure_not_cancelled(is_cancelled)?;
-    let title =
-        find_first_string_for_key(&metadata, "title").filter(|value| !value.trim().is_empty());
-    let supplemental_pdf_url = include_pdf
-        .then(|| {
-            find_first_string_for_key(&metadata, "pdf_url")
-                .or_else(|| find_first_string_for_key(&metadata, "pdfUrl"))
-        })
-        .flatten();
+    let metadata = title_metadata_from_value(&metadata);
     Ok(AudibleTitleDetails {
-        title,
-        supplemental_pdf_url,
+        title: metadata.title,
+        supplemental_pdf_url: metadata.supplemental_pdf_url.filter(|_| include_pdf),
     })
 }
 
@@ -114,16 +110,18 @@ pub(super) async fn request_license(
         )
         .await?;
     ensure_not_cancelled(is_cancelled)?;
+    let facts = license_facts_from_value(&license);
     log::info!(
         "remote_source audible stage=license_reply job_id={} title_ref={} {}",
         job_id,
         title_ref(title_id),
-        license_reply_log_fields(&license)
+        license_reply_log_fields(&license, &facts)
     );
     Ok(classify_license(
         job_id,
         title_id,
         &license,
+        facts,
         license_decrypt_context,
     ))
 }

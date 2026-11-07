@@ -1,8 +1,7 @@
 use abb_audible_core::{
-    audible_decryption_material_from_license, choose_acquisition_strategy,
-    find_first_string_for_keys, license_facts_from_value, title_ref, AcquisitionStrategy,
-    AudibleDecryptionMaterial, AudibleLicenseDecryptContext, DecryptKind, LicenseDenial,
-    LicenseFacts,
+    audible_decryption_material_from_license, choose_acquisition_strategy, title_ref,
+    AcquisitionStrategy, AudibleDecryptionMaterial, AudibleLicenseDecryptContext, DecryptKind,
+    LicenseDenial, LicenseFacts, MaterialSource,
 };
 use serde_json::Value;
 
@@ -22,6 +21,7 @@ pub(super) enum LicensePlan {
         url: String,
         kind: DecryptKind,
         material: AudibleDecryptionMaterial,
+        source: MaterialSource,
     },
     Refused {
         kind: RemoteAcquisitionFailureKind,
@@ -47,12 +47,12 @@ pub(super) fn classify_license(
     job_id: &str,
     title_id: &str,
     license: &Value,
+    facts: LicenseFacts,
     decrypt_context: Option<&AudibleLicenseDecryptContext>,
 ) -> LicenseReply {
-    let facts = license_facts_from_value(license);
     let strategy = choose_acquisition_strategy(&facts);
-    log_license_facts(job_id, title_id, &facts, strategy);
     let plan = plan_for(job_id, title_id, license, &facts, strategy, decrypt_context);
+    log_license_facts(job_id, title_id, &facts, strategy, &plan);
     LicenseReply {
         plan,
         supplemental_pdf_url: facts.supplemental_pdf_url,
@@ -99,16 +99,17 @@ fn plan_for(
                 title_id,
                 decrypt_context,
             ) {
-                Some(material) => LicensePlan::Decrypt {
+                Some(located) => LicensePlan::Decrypt {
                     url,
-                    kind: material.kind(),
-                    material,
+                    kind: located.material.kind(),
+                    material: located.material,
+                    source: located.source,
                 },
                 None => {
                     log_missing_license_material(
                         job_id,
                         title_id,
-                        license,
+                        facts,
                         decrypt_context.is_some(),
                     );
                     LicensePlan::refused(
@@ -174,9 +175,14 @@ fn log_license_facts(
     title_id: &str,
     facts: &LicenseFacts,
     strategy: AcquisitionStrategy,
+    plan: &LicensePlan,
 ) {
+    let material_source = match plan {
+        LicensePlan::Decrypt { source, .. } => source.label(),
+        _ => "none",
+    };
     log::info!(
-        "remote_source audible stage=license_classification job_id={} title_ref={} content_url_present={} container={:?} protection={:?} drm={} supplemental_pdf_present={} strategy={:?}",
+        "remote_source audible stage=license_classification job_id={} title_ref={} content_url_present={} container={:?} protection={:?} drm={} supplemental_pdf_present={} strategy={:?} material_source={}",
         job_id,
         title_ref(title_id),
         facts.content_url.is_some(),
@@ -184,7 +190,8 @@ fn log_license_facts(
         facts.media_protection,
         drm_log_label(facts.drm_kind.as_deref()),
         facts.supplemental_pdf_url.is_some(),
-        strategy
+        strategy,
+        material_source
     );
 }
 
@@ -199,15 +206,15 @@ fn drm_log_label(drm_kind: Option<&str>) -> &'static str {
 fn log_missing_license_material(
     job_id: &str,
     title_id: &str,
-    license: &Value,
+    facts: &LicenseFacts,
     decrypt_context_present: bool,
 ) {
     log::warn!(
         "remote_source audible stage=license_material_extraction job_id={} title_ref={} license_response_present={} content_license_asin_present={} decrypt_context_present={} material_extracted=false",
         job_id,
         title_ref(title_id),
-        find_first_string_for_keys(license, &["license_response", "licenseResponse"]).is_some(),
-        find_first_string_for_keys(license, &["asin", "Asin"]).is_some(),
+        facts.license_response_present,
+        facts.asin_present,
         decrypt_context_present
     );
 }

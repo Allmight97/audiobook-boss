@@ -1,9 +1,14 @@
 use super::*;
+use abb_audible_core::license_facts_from_value;
 use serde_json::json;
+
+fn log_fields(reply: &Value) -> String {
+    license_reply_log_fields(reply, &license_facts_from_value(reply))
+}
 
 #[test]
 fn denied_reply_logs_status_and_reason_codes_without_messages() {
-    let fields = license_reply_log_fields(&json!({
+    let fields = log_fields(&json!({
         "content_license": {
             "status_code": "Denied",
             "drm_type": "Adrm",
@@ -28,7 +33,7 @@ fn denied_reply_logs_status_and_reason_codes_without_messages() {
 
 #[test]
 fn granted_reply_logs_url_path_but_never_the_url() {
-    let fields = license_reply_log_fields(&json!({
+    let fields = log_fields(&json!({
         "content_license": {
             "status_code": "Granted",
             "license_response": "fake-license-material",

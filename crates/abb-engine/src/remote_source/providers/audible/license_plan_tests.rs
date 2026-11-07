@@ -1,9 +1,16 @@
 use super::*;
+use abb_audible_core::license_facts_from_value;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use serde_json::json;
 
 fn classify(license: &Value) -> LicenseReply {
-    classify_license("job-1", "B000000001", license, None)
+    classify_license(
+        "job-1",
+        "B000000001",
+        license,
+        license_facts_from_value(license),
+        None,
+    )
 }
 
 fn refusal(reply: &LicenseReply) -> (RemoteAcquisitionFailureKind, &str) {
@@ -154,4 +161,39 @@ fn a_denied_reply_is_refused_whether_or_not_it_carries_a_url() {
             "{message}"
         );
     }
+}
+
+#[test]
+fn the_classification_log_names_the_reader_that_found_the_key() {
+    crate::test_cases::log_capture::install();
+    let classify_for = |job_id: &str, license: Value| {
+        classify_license(
+            job_id,
+            "B000000001",
+            &license,
+            license_facts_from_value(&license),
+            None,
+        )
+    };
+    classify_for(
+        "material-source-voucher",
+        json!({"content_license": {
+            "content_url": "https://cdn.example.test/book.aax",
+            "drm_type": "Mpeg",
+            "voucher": aaxc_shaped_voucher()
+        }}),
+    );
+    classify_for(
+        "material-source-none",
+        json!({"content_license": {"content_url": "https://cdn.example.test/book.m4b"}}),
+    );
+
+    let line_for = |job_id: &str| {
+        crate::test_cases::log_capture::records()
+            .into_iter()
+            .find(|line| line.contains("stage=license_classification") && line.contains(job_id))
+            .expect("classification log line")
+    };
+    assert!(line_for("material-source-voucher").ends_with("material_source=voucher"));
+    assert!(line_for("material-source-none").ends_with("material_source=none"));
 }

@@ -207,6 +207,7 @@ async fn acquire_one(
             url,
             kind,
             material,
+            ..
         } => (
             url,
             staged_protected_source_path(&item_dir, *kind),
