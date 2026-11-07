@@ -32,7 +32,6 @@ export interface EngineCapability {
 	listenWorkOperations: (handler: (update: WorkOperationsUpdate) => void) => Promise<UnlistenFn>;
 	/** The Quit shortcut was pressed once; a second press inside `windowMs` quits. */
 	listenQuitPressAgain: (handler: (windowMs: number) => void) => Promise<UnlistenFn>;
-	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancelWorkOperation: (operationId: OperationId, childJobId?: string) => Promise<void>;
 }
 

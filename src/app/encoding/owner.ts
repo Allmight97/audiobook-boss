@@ -33,7 +33,6 @@ export type EncodingForm = {
 };
 
 export type EncodingOwner = {
-	/** The request processing receives for `file`. */
 	audioRequest: (file: AudioFile) => TitleAudioRequest;
 	plan: (file: AudioFile) => TitlePlan;
 	titleView: (file: AudioFile) => EncodingView;

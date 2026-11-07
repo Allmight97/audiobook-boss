@@ -17,7 +17,6 @@ export type WorkOperationsView = {
 
 export type WorkOperationsOwner = {
 	readonly view: Accessor<WorkOperationsView>;
-	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancel: (operationId: OperationId, childJobId?: string) => Promise<void>;
 	revealOutput: (child: { outputPath?: string | null }) => Promise<void>;
 	reset: () => void;
