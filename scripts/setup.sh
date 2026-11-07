@@ -717,8 +717,8 @@ ensure_shellcheck() {
 uv_version=0.12.10
 
 ensure_uv() {
-	if have uvx && [[ "$(uvx --version | awk 'NR == 1 {print $2; exit}')" == "${uv_version}" ]]; then
-		log "Using uv ${uv_version}"
+	if have uvx; then
+		log "Using uv $(uvx --version | awk 'NR == 1 {print $2; exit}')"
 		return
 	fi
 	local triple asset tmp

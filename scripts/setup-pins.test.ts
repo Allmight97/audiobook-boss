@@ -41,23 +41,22 @@ function ensureUvWith(installedVersion: string | null) {
 	});
 }
 
-describe('uv pin', () => {
-	it('keeps a uvx that reports the pinned version', () => {
-		const result = ensureUvWith(pinnedUv ?? '');
-		expect(result.status, result.stderr).toBe(0);
-		expect(result.stdout).not.toContain('DOWNLOAD');
+describe('uv install', () => {
+	it('keeps any uvx already on PATH, whatever its version', () => {
+		for (const version of [pinnedUv ?? '', '0.0.1']) {
+			const result = ensureUvWith(version);
+			expect(result.status, result.stderr).toBe(0);
+			expect(result.stdout).not.toContain('DOWNLOAD');
+			expect(result.stdout).toContain(`Using uv ${version}`);
+		}
 	});
 
-	it('installs the pinned uv over a uvx of another version', () => {
-		const result = ensureUvWith('0.0.1');
+	it('installs the pinned uv when none is on PATH', () => {
+		const result = ensureUvWith(null);
 		expect(result.status, result.stderr).toBe(42);
 		expect(result.stdout).toContain(
 			`DOWNLOAD https://github.com/astral-sh/uv/releases/download/${pinnedUv}`,
 		);
-	});
-
-	it('installs the pinned uv when none is on PATH', () => {
-		expect(ensureUvWith(null).status).toBe(42);
 	});
 });
 

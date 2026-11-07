@@ -190,7 +190,7 @@ A change to CI or validation speed quotes before and after numbers from
 | `package.json` | `undici (override)` | pin: security floor for jsdom's transitive dependency; unpin when jsdom requires this version or newer |
 | `.node-version` | `node` | pin: CI and a fresh setup install this exact build; setup keeps any Node of this major or newer; unpin when the owner moves to a newer Node |
 | `scripts/setup.sh` | Linux FFmpeg CLI (`ffmpeg_cli_release`) | pin: BtbN keeps month-end builds, so a fresh Linux box gets the same readback binary; unpin when the owner moves the media lane to a newer FFmpeg build |
-| `scripts/setup.sh` | `uv` (`uv_version`) | pin: Python tools (zizmor, lizard) resolve the same way on every machine, and setup replaces any other uv; unpin when the owner moves the Python tools to a newer uv |
+| `scripts/setup.sh` | `uv` (`uv_version`) | pin: setup downloads this release, checked against its published checksum, only when no `uvx` is on PATH and keeps any `uvx` it finds (`uvx` only runs the workflow and complexity linters); unpin when the owner moves the Python tools to a newer uv |
 | `scripts/setup.sh` | `cargo-audit` and `cargo-deny` (`cargo_audit_version`, `cargo_deny_version`) | pin: advisory and license verdicts stay the same between runs, and each download is checked against a pinned checksum; unpin when the owner bumps either tool |
 | `scripts/check-workflows.sh` | `zizmor` | pin: workflow findings stay the same between runs; unpin when the owner bumps zizmor |
 
@@ -218,11 +218,11 @@ A change to CI or validation speed quotes before and after numbers from
   still typechecks the bindings crate: Cargo treats check and build as
   different units.
 - The ABB tools folder (`tools_bin` in `setup.sh`) holds every tool setup
-  pins: node, ffmpeg, ffprobe, actionlint, uv, cargo-audit, cargo-deny. It
-  defaults to `~/.local/share/audiobook-boss/bin`, `ABB_TOOLS_BIN` overrides
-  it, and `--print-env` puts it first on PATH. Why: setup replaces a tool of
-  another version there, so it must not be the owner's `~/.local/bin`
-  (`scripts/setup-pins.test.ts` checks).
+  pins: node, ffmpeg, ffprobe, actionlint, uv (only when no `uvx` exists),
+  cargo-audit, cargo-deny. It defaults to `~/.local/share/audiobook-boss/bin`,
+  `ABB_TOOLS_BIN` overrides it, and `--print-env` puts it first on PATH. Why:
+  setup replaces a tool of another version there, so it must not be the
+  owner's `~/.local/bin` (`scripts/setup-pins.test.ts` checks).
 - Linux builds link with mold through clang (`.cargo/config.toml`); `setup.sh
   rust` installs both. A `RUSTFLAGS` variable replaces that config's flags.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
