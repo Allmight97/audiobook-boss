@@ -2,7 +2,7 @@ mod context;
 mod job_registry;
 mod output_parent_cleanup;
 pub(crate) mod plan;
-mod preview_config;
+pub(crate) mod preview_config;
 mod progress;
 pub(crate) mod run;
 mod session;
@@ -15,7 +15,6 @@ pub use abb_processing_core::{
 };
 pub(crate) use context::{OutputConfig, ProcessingContext};
 pub use job_registry::MaxConcurrentJobsCapabilities;
-pub(crate) use preview_config::PreviewConfig;
 pub(crate) use preview_config::PREVIEW_SECONDS;
 pub use progress::{EventStage, ProgressEvent};
 pub(crate) use session::ProcessingSession;

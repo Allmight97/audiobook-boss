@@ -6,7 +6,8 @@ use serde::Serialize;
 
 use crate::audio::AudioFile;
 use crate::metadata::{join_chapters, JoinedSource};
-use crate::processing::{PreviewConfig, PREVIEW_SECONDS};
+use crate::processing::preview_config::title_seconds;
+use crate::processing::PREVIEW_SECONDS;
 
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -75,7 +76,7 @@ pub(super) fn title_totals(
                 .iter()
                 .map(|source| source.duration.unwrap_or_default())
                 .collect();
-            preview_seconds.push(PreviewConfig.title_seconds(&durations).round() as u32);
+            preview_seconds.push(title_seconds(&durations).round() as u32);
         }
         by_title.insert(
             file.input_id.clone(),

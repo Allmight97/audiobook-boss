@@ -22,8 +22,9 @@ pub(crate) fn process_input_files(
     let mut last_emit = std::time::Instant::now();
     let mut eta_estimator = crate::processing::EtaEstimator::new();
     let file_count = plan.input_file_paths.len();
-    let mut preview_state_storage = context.preview.as_ref().map(|cfg| {
-        let per_file_samples = cfg.per_file_samples(file_count, io.enc_ctx.rate());
+    let mut preview_state_storage = context.is_preview().then(|| {
+        let per_file_samples =
+            crate::processing::preview_config::per_file_samples(file_count, io.enc_ctx.rate());
         log::info!(
             "preview: {file_count} file(s) × {per_file_samples} samples at {} Hz",
             io.enc_ctx.rate()

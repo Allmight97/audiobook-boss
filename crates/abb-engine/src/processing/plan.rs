@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 struct ProcessingInputs {
     output_naming: OutputNamingConfig,
     base_output_dir: PathBuf,
-    preview: bool,
+    output_kind: OutputKind,
 }
 
 #[derive(Debug, Clone)]
@@ -33,7 +33,6 @@ pub(crate) struct PlannedProcessingJob {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ResolvedProcessingPlan {
-    pub(crate) preview: bool,
     pub(crate) collision_policy: CollisionPolicy,
     pub(crate) plan_signature: String,
     pub(crate) jobs: Vec<PlannedProcessingJob>,
@@ -69,13 +68,13 @@ fn resolve_output_kind(preview: bool) -> OutputKind {
 }
 
 fn build_plan_signature(
-    preview: bool,
+    output_kind: OutputKind,
     collision_policy: CollisionPolicy,
     aac_decoder: Option<crate::audio::AacDecoder>,
     jobs: &[PlannedProcessingJob],
 ) -> String {
     let mut lines = vec![
-        format!("preview={preview}"),
+        format!("preview={}", output_kind == OutputKind::Preview),
         format!("collision_policy={collision_policy:?}"),
         format!("aac_decoder={aac_decoder:?}"),
     ];
@@ -130,15 +129,11 @@ fn build_plan_signature(
     lines.join("\n")
 }
 
-fn build_processing_inputs(
-    payload: &ProcessPayload,
-    allow_missing_output_dir: bool,
-    preview: bool,
-) -> Result<ProcessingInputs> {
+fn build_processing_inputs(payload: &ProcessPayload, preview: bool) -> Result<ProcessingInputs> {
     Ok(ProcessingInputs {
         output_naming: payload.output_naming.clone().unwrap_or_default(),
-        base_output_dir: resolve_output_dir(&payload.output_dir, allow_missing_output_dir)?,
-        preview,
+        base_output_dir: resolve_output_dir(&payload.output_dir, false)?,
+        output_kind: resolve_output_kind(preview),
     })
 }
 
@@ -162,11 +157,14 @@ fn build_processing_plan(
         file_info,
     )?;
 
-    let plan_signature =
-        build_plan_signature(inputs.preview, collision_policy, payload.aac_decoder, &jobs);
+    let plan_signature = build_plan_signature(
+        inputs.output_kind,
+        collision_policy,
+        payload.aac_decoder,
+        &jobs,
+    );
 
     Ok(ResolvedProcessingPlan {
-        preview: inputs.preview,
         collision_policy,
         plan_signature,
         jobs,
@@ -213,7 +211,7 @@ pub(crate) fn resolve_processing_plan(
     preview: bool,
     file_info: &FileListInfo,
 ) -> Result<ResolvedProcessingPlan> {
-    let inputs = build_processing_inputs(payload, false, preview)?;
+    let inputs = build_processing_inputs(payload, preview)?;
     let plan = build_processing_plan(payload, metadata, &inputs, file_info)?;
     log_output_plan("preflight", payload, &plan);
     Ok(plan)
@@ -227,7 +225,7 @@ pub(crate) fn prepare_inspected_execution(
         mut plan,
         file_info,
     } = inspected;
-    let inputs = build_processing_inputs(payload, true, plan.preview)?;
+    let base_output_dir = resolve_output_dir(&payload.output_dir, true)?;
     let sources = file_info
         .files
         .iter()
@@ -239,7 +237,7 @@ pub(crate) fn prepare_inspected_execution(
         check_companion_pdf_name(payload, job.input_index, &job.output)?;
     }
     plan.plan_signature = build_plan_signature(
-        plan.preview,
+        plan.output_kind(),
         plan.collision_policy,
         payload.aac_decoder,
         &plan.jobs,
@@ -253,10 +251,8 @@ pub(crate) fn prepare_inspected_execution(
         },
         plan.jobs.iter().map(|job| &job.output),
     )?;
-    let output_parent_cleanup = ensure_output_parent_dirs(
-        &inputs.base_output_dir,
-        plan.jobs.iter().map(|job| &job.output),
-    )?;
+    let output_parent_cleanup =
+        ensure_output_parent_dirs(&base_output_dir, plan.jobs.iter().map(|job| &job.output))?;
     Ok(ExecutionProcessingPlan {
         plan,
         file_info,
@@ -305,11 +301,11 @@ fn build_title_processing_jobs(
         let audio_plan = crate::audio::resolve_title_audio(
             &payload.audio_requests[index],
             &info,
-            inputs.preview,
+            inputs.output_kind == OutputKind::Preview,
         )?;
         let output = output_ledger.resolve(
             &requested_output,
-            resolve_output_kind(inputs.preview),
+            inputs.output_kind,
             collision_policy,
             &validated_input_paths,
         )?;
@@ -362,6 +358,12 @@ pub(super) fn title_file_info(all: &FileListInfo, paths: &[PathBuf]) -> Result<F
 }
 
 impl ResolvedProcessingPlan {
+    pub(crate) fn output_kind(&self) -> OutputKind {
+        self.jobs
+            .first()
+            .map_or(OutputKind::Final, |job| job.output.kind)
+    }
+
     pub(crate) fn to_public(&self) -> ProcessingPreflightPlan {
         let outputs = self
             .jobs
@@ -369,7 +371,7 @@ impl ResolvedProcessingPlan {
             .map(|job| job.output.to_public(job.input_index, &job.input_path))
             .collect();
         ProcessingPreflightPlan {
-            preview: self.preview,
+            preview: self.output_kind() == OutputKind::Preview,
             collision_policy: self.collision_policy,
             plan_signature: self.plan_signature.clone(),
             outputs,

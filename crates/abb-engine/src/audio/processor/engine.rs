@@ -212,7 +212,7 @@ fn format_in_process_run(
         diagnostics.opened_channels,
     );
     write_run_identity(&mut output, context, plan.total_duration);
-    let _ = writeln!(output, "preview={}", context.preview.is_some());
+    let _ = writeln!(output, "preview={}", context.is_preview());
     let _ = writeln!(
         output,
         "temp_output={}",

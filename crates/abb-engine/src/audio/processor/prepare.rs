@@ -1,6 +1,7 @@
 use crate::audio::AudioFile;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::processing::{PreviewConfig, ProcessingContext};
+use crate::processing::preview_config;
+use crate::processing::ProcessingContext;
 
 use super::ProcessingWorkflow;
 
@@ -43,7 +44,7 @@ pub(crate) fn prepare_workspace(
     )?;
 
     cleanup.add_path(&temp_dir);
-    let total_duration = progress_total_duration(files, context.preview.as_ref());
+    let total_duration = progress_total_duration(files, context.is_preview());
 
     if context.is_cancelled() {
         return Err(AppError::cancelled());
@@ -52,15 +53,16 @@ pub(crate) fn prepare_workspace(
     Ok(ProcessingWorkflow::new(temp_dir, total_duration))
 }
 
-pub(crate) fn progress_total_duration(files: &[AudioFile], preview: Option<&PreviewConfig>) -> f64 {
+pub(crate) fn progress_total_duration(files: &[AudioFile], preview: bool) -> f64 {
     let durations: Vec<f64> = files
         .iter()
         .map(|file| file.duration.unwrap_or_default())
         .collect();
-    preview.map_or_else(
-        || durations.iter().sum(),
-        |preview| preview.title_seconds(&durations),
-    )
+    if preview {
+        preview_config::title_seconds(&durations)
+    } else {
+        durations.iter().sum()
+    }
 }
 
 pub(crate) fn validate_and_prepare(

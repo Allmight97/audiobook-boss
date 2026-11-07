@@ -63,7 +63,7 @@ fn preview_progress_caps_each_file_at_its_excerpt() {
         audio_file("long.mp3", Some(240.0), true),
     ];
 
-    assert_eq!(progress_total_duration(&files, Some(&PreviewConfig)), 53.0);
+    assert_eq!(progress_total_duration(&files, true), 53.0);
 }
 
 #[test]
@@ -73,5 +73,5 @@ fn export_progress_sums_the_file_durations() {
         audio_file("second.mp3", Some(240.0), true),
     ];
 
-    assert_eq!(progress_total_duration(&files, None), 360.0);
+    assert_eq!(progress_total_duration(&files, false), 360.0);
 }

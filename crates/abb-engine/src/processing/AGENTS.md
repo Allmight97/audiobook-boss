@@ -106,6 +106,9 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 - A skipped title never publishes, so an edit for it is refused at once.
   Collision facts refresh after review without re-inspecting sources or
   resolving audio and metadata again.
+- A preview is `OutputKind::Preview`, set once when the plan resolves each
+  title's output. Execution asks `ProcessingContext::is_preview()`; no second
+  flag carries it.
 - Keep preflight side-effect-free. Why: a plan that review refuses leaves no
   folders or files behind.
 - `ProcessingRunOptions.title_cancels` carries one cancel token per output title

@@ -78,7 +78,6 @@ mod entry_tests {
 
     fn batch_plan(jobs: Vec<PlannedProcessingJob>) -> ResolvedProcessingPlan {
         ResolvedProcessingPlan {
-            preview: false,
             collision_policy: CollisionPolicy::SkipExisting,
             plan_signature: "test-plan".to_string(),
             jobs,

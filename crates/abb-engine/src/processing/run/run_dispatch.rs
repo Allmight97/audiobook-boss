@@ -68,7 +68,6 @@ async fn dispatch_batch_plan(
 
     let mut scheduled_jobs: Vec<Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>> =
         Vec::new();
-    let preview = plan.preview;
     let mut queue_cancels = Vec::new();
     for planned_job in plan.jobs {
         if let Some(skipped_entry) =
@@ -113,7 +112,6 @@ async fn dispatch_batch_plan(
             )?,
             metadata: planned_job.metadata.clone(),
             cover_art_passthrough: planned_job.cover_art_passthrough,
-            preview,
             supplemental_assets: supplemental_assets_for_input(payload, input_index),
             progress_listener: options.progress_listener.clone(),
             title_output: options.title_outputs.get(input_index).cloned(),

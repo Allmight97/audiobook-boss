@@ -139,7 +139,7 @@ one host attachment.
   as that source's. A CUE source lists the `actions` `choose_cue` accepts for
   its status; the engine refuses any other choice.
   `titles.previewLength` spans the valid titles' preview lengths
-  (`PreviewConfig::title_seconds`), so the Preview Audio tooltip names the
+  (`preview_config::title_seconds`), so the Preview Audio tooltip names the
   length processing renders.
 - **Cover.** A cover change applies only when exactly one valid title is
   selected. A later cover choice or Clear supersedes a load still running.

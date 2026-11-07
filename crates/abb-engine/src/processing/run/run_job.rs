@@ -10,7 +10,7 @@ use crate::output_artifact::{
 use crate::processing::job_registry::{CancellationChecker, JobId};
 use crate::processing::ProgressEventListener;
 use crate::processing::{
-    AudioHandling, OperationKind, OutputConfig, PreviewConfig, ProcessPayload, ProcessResultEntry,
+    AudioHandling, OperationKind, OutputConfig, ProcessPayload, ProcessResultEntry,
     ProcessResultStatus, ProcessingContext, ProcessingSession, SupplementalProcessingAsset,
 };
 use std::path::{Path, PathBuf};
@@ -41,7 +41,6 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) file_info: FileListInfo,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
-    pub(crate) preview: bool,
     pub(crate) supplemental_assets: Vec<SupplementalProcessingAsset>,
     pub(crate) progress_listener: Option<ProgressEventListener>,
     pub(crate) title_output: Option<Arc<crate::processing::TitleOutput>>,
@@ -83,7 +82,6 @@ pub(crate) async fn run_processing_job(
         title_output: request.title_output.clone(),
         output_plan: request.output_plan.clone(),
         workspace_root: request.workspace_root,
-        preview: request.preview,
     });
     context
         .new_emitter()
@@ -170,7 +168,9 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
         .as_deref()
         .unwrap_or(match request.audio_handling {
             AudioHandling::Preserve => "Source audio can be copied into the selected output.",
-            AudioHandling::Encode { .. } if request.preview => "Preview requires encoding.",
+            AudioHandling::Encode { .. } if request.output_plan.kind == OutputKind::Preview => {
+                "Preview requires encoding."
+            }
             AudioHandling::Encode { .. } => "Encoding settings were explicitly selected.",
         });
     log::info!(
@@ -338,7 +338,6 @@ struct ProcessingContextRequest {
     title_output: Option<Arc<crate::processing::TitleOutput>>,
     output_plan: ResolvedOutputPlan,
     workspace_root: PathBuf,
-    preview: bool,
 }
 
 fn build_processing_context(request: ProcessingContextRequest) -> ProcessingContext {
@@ -358,8 +357,7 @@ fn build_processing_context(request: ProcessingContextRequest) -> ProcessingCont
     context.progress_listener = request.progress_listener;
     context.title_output = request.title_output;
 
-    if request.preview {
-        context.preview = Some(PreviewConfig);
+    if context.is_preview() {
         log::info!(
             "Preview requested: total_seconds={:.3}",
             crate::processing::PREVIEW_SECONDS

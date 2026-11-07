@@ -1,5 +1,4 @@
 use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
-use crate::processing::preview_config::PreviewConfig;
 use crate::processing::session::ProcessingSession;
 use crate::processing::OperationKind;
 use crate::processing::ProgressEventListener;
@@ -20,6 +19,14 @@ impl OutputConfig {
             final_path: final_path.into(),
             kind: OutputKind::Final,
             action: PlannedOutputAction::Write,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn new_preview<P: Into<PathBuf>>(final_path: P) -> Self {
+        Self {
+            kind: OutputKind::Preview,
+            ..Self::new(final_path)
         }
     }
 
@@ -51,7 +58,6 @@ pub struct ProcessingContext {
     pub aac_decoder: crate::audio::AacDecoder,
     pub output: OutputConfig,
     workspace_root: PathBuf,
-    pub preview: Option<PreviewConfig>,
     pub job_id: Option<String>,
     /// WorkRuntime operation identity; absent for foreground processing.
     pub(crate) operation_id: Option<String>,
@@ -70,7 +76,6 @@ impl std::fmt::Debug for ProcessingContext {
             .field("aac_decoder", &self.aac_decoder)
             .field("output", &self.output)
             .field("workspace_root", &self.workspace_root)
-            .field("preview", &self.preview)
             .field("job_id", &self.job_id)
             .field("operation_id", &self.operation_id)
             .field("input_index", &self.input_index)
@@ -94,7 +99,6 @@ impl ProcessingContext {
             aac_decoder,
             output,
             workspace_root,
-            preview: None,
             job_id: None,
             operation_id: None,
             input_index: None,
@@ -118,6 +122,10 @@ impl ProcessingContext {
             output,
             workspace_root,
         )
+    }
+
+    pub fn is_preview(&self) -> bool {
+        self.output.output_kind() == OutputKind::Preview
     }
 
     pub fn is_cancelled(&self) -> bool {

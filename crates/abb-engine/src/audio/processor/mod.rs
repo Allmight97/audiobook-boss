@@ -261,7 +261,7 @@ fn process_audiobook_with_context(
         prepare_output_cover_art(metadata, passthrough_metadata, cover_art_passthrough)?;
     if let Some(passthrough) = passthrough_metadata
         .as_mut()
-        .filter(|_| context.preview.is_some())
+        .filter(|_| context.is_preview())
     {
         passthrough.chapters.clear();
     }

@@ -100,7 +100,7 @@ async fn faac_preview_cuts_each_excerpt_at_an_exact_sample_without_chapters() {
             }
         }
         let mut context = lane.context(ProcessingSession::new());
-        context.preview = Some(abb_engine::processing::PreviewConfig);
+        context.output = OutputConfig::new_preview(lane.output_path());
         let info = get_file_list_info(&lane.inputs, AacDecoder::Auto).expect("fixture value");
         execute_audio_engine(AudioExecutionRequest::new(
             context,
