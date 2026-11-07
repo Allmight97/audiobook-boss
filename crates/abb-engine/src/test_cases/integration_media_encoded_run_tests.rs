@@ -364,8 +364,7 @@ async fn a_pre_cancelled_run_publishes_nothing_and_leaves_the_source_alone() {
         let destination = tmp.path().join(name);
         let workspace = tmp.path().join(format!("workspace-{name}"));
         let (job_id, _permit) = registry.register_job().await.expect("register job");
-        let checker =
-            CancellationChecker::new(Some(Arc::new(std::sync::atomic::AtomicBool::new(true))));
+        let checker = CancellationChecker::new(Some(crate::processing::cancelled_token()));
         let context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
             SampleRateConfig::Auto,

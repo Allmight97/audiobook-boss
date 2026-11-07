@@ -66,9 +66,7 @@ async fn metadata_batch_cancels_remaining_items_between_writes() {
             metadata_patch: title_patch("B"),
         },
     ];
-    let cancellation = CancellationChecker::new(Some(std::sync::Arc::new(
-        std::sync::atomic::AtomicBool::new(true),
-    )));
+    let cancellation = CancellationChecker::new(Some(crate::processing::cancelled_token()));
     let mut progress = Vec::new();
 
     let result = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))

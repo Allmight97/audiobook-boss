@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use tokio_util::sync::CancellationToken;
 
 use cover_flow::CoverSource;
 use lookup_flow::ChosenResult;
@@ -84,7 +85,7 @@ struct SessionInner {
     sources_freed: tokio::sync::Notify,
     list_unlocked: tokio::sync::Notify,
     sweeping: AtomicBool,
-    preview_cancels: Mutex<Vec<Arc<AtomicBool>>>,
+    preview_cancels: Mutex<Vec<CancellationToken>>,
     /// Advances with every output change; a delayed record checks it.
     output_edits: Arc<AtomicU64>,
     audio_edits: AtomicU64,

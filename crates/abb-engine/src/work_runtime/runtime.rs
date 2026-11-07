@@ -1,4 +1,4 @@
-use super::operations::{CancelFlags, Live, Operations};
+use super::operations::{CancelTokens, Live, Operations};
 use super::snapshot::{new_metadata_save_snapshot, new_processing_snapshot};
 use super::state::WorkRuntimeState;
 use super::types::{
@@ -15,8 +15,9 @@ use crate::processing::TitleOutput;
 use crate::processing::{OperationResultSummary, ProcessResultStatus, ProgressEvent};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
+use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 pub struct WorkRuntime {
@@ -112,10 +113,10 @@ impl WorkRuntime {
                     .collect();
             }
         }
-        let cancel_flags = CancelFlags::per_title(request.payload.input_files.len());
-        let title_cancels = cancel_flags.titles();
+        let cancel_tokens = CancelTokens::per_title(request.payload.input_files.len());
+        let title_cancels = cancel_tokens.titles();
         let live = Live {
-            titles: cancel_flags,
+            titles: cancel_tokens,
             sources: title_source_paths(&request.payload),
         };
         let snapshot = self.lock_operations()?.accept(snapshot, live);
@@ -227,17 +228,17 @@ impl WorkRuntime {
         &self,
         host: &Host,
         input_files: &[String],
-    ) -> Result<(OperationId, Arc<AtomicBool>)> {
+    ) -> Result<(OperationId, CancellationToken)> {
         let operation_id = OperationId::new();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
         let count = input_files.len();
         let title = format!("Metadata save ({count} file{})", plural_suffix(count));
         let snapshot =
             new_metadata_save_snapshot(operation_id.clone(), sequence, title, input_files);
-        let cancel_flags = CancelFlags::per_title(1);
-        let cancel_flag = Arc::clone(&cancel_flags.titles()[0]);
+        let cancel_tokens = CancelTokens::per_title(1);
+        let cancel_token = cancel_tokens.titles().remove(0);
         let live = Live {
-            titles: cancel_flags,
+            titles: cancel_tokens,
             sources: Vec::new(),
         };
         let snapshot = self.lock_operations()?.accept(snapshot, live);
@@ -246,7 +247,7 @@ impl WorkRuntime {
         self.emit_snapshot(host, &snapshot);
         self.mark_running_and_emit(host, &operation_id);
 
-        Ok((operation_id, cancel_flag))
+        Ok((operation_id, cancel_token))
     }
 
     /// Applies a metadata-save progress event to its operation; events match

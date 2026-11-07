@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, PoisonError};
+use tokio_util::sync::CancellationToken;
 
 use super::submission_flow::{closing, failed};
 use super::Session;
@@ -16,16 +16,16 @@ impl Session {
     ) -> SessionOutcome {
         let deps = &self.inner.deps;
         let _active_run = deps.jobs.hold_run();
-        let cancels: Vec<Arc<AtomicBool>> = (0..draft.payload.input_files.len())
-            .map(|_| Arc::default())
+        let cancels: Vec<CancellationToken> = (0..draft.payload.input_files.len())
+            .map(|_| CancellationToken::new())
             .collect();
         let id = draft.operation_id.clone();
         *self.preview_cancels() = cancels.clone();
         if let Some(preview) = self.lock().preview.snapshot() {
             for child in &preview.operation.children {
                 if child.cancel_requested {
-                    if let Some(flag) = child.input_index.and_then(|index| cancels.get(index)) {
-                        flag.store(true, Ordering::SeqCst);
+                    if let Some(token) = child.input_index.and_then(|index| cancels.get(index)) {
+                        token.cancel();
                     }
                 }
             }
@@ -76,7 +76,7 @@ impl Session {
         self.end_submission(&draft, status)
     }
 
-    fn preview_cancels(&self) -> std::sync::MutexGuard<'_, Vec<Arc<AtomicBool>>> {
+    fn preview_cancels(&self) -> std::sync::MutexGuard<'_, Vec<CancellationToken>> {
         self.inner
             .preview_cancels
             .lock()
@@ -84,7 +84,7 @@ impl Session {
     }
 
     pub(super) fn cancel_preview_run(&self, run_id: &str, child: Option<&str>) -> SessionOutcome {
-        let flags = self.preview_cancels();
+        let tokens = self.preview_cancels();
         let indexes = self.transition(|state| {
             let indexes = state.preview.cancel(run_id, child)?;
             if child.is_none() && state.preview.matches(run_id) {
@@ -95,8 +95,8 @@ impl Session {
         match indexes {
             Ok(indexes) => {
                 for index in indexes {
-                    if let Some(flag) = flags.get(index) {
-                        flag.store(true, Ordering::SeqCst);
+                    if let Some(token) = tokens.get(index) {
+                        token.cancel();
                     }
                 }
                 self.sources_released();

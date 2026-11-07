@@ -1,11 +1,8 @@
 use super::{JobId, JobRegistry};
 use crate::errors::{AppError, Result};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
-
-pub(super) const PERMIT_CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(50);
+use tokio_util::sync::CancellationToken;
 
 impl JobRegistry {
     #[cfg(test)]
@@ -29,7 +26,7 @@ impl JobRegistry {
 
     pub async fn register_job_with_external_cancel(
         &self,
-        external_cancel: Option<Arc<AtomicBool>>,
+        external_cancel: Option<CancellationToken>,
     ) -> Result<(JobId, OwnedSemaphorePermit)> {
         if external_cancelled(&external_cancel) {
             return Err(AppError::cancelled());
@@ -46,11 +43,10 @@ impl JobRegistry {
             job_id,
         };
 
-        let cancelled = || external_cancelled(&external_cancel);
-        let acquired = acquire_permit(semaphore, &cancelled)
+        let acquired = acquire_permit(semaphore, external_cancel.as_ref())
             .await
             .and_then(|permit| {
-                if cancelled() {
+                if external_cancelled(&external_cancel) {
                     Err(AppError::cancelled())
                 } else {
                     Ok(permit)
@@ -76,28 +72,28 @@ impl Drop for PendingAdmission<'_> {
 
 async fn acquire_permit(
     semaphore: Arc<Semaphore>,
-    cancelled: &impl Fn() -> bool,
+    cancel: Option<&CancellationToken>,
 ) -> Result<OwnedSemaphorePermit> {
     let acquire = semaphore.acquire_owned();
     tokio::pin!(acquire);
-
-    loop {
-        if cancelled() {
-            return Err(AppError::cancelled());
+    let cancelled = async {
+        match cancel {
+            Some(token) => token.cancelled().await,
+            None => std::future::pending().await,
         }
+    };
+    tokio::pin!(cancelled);
 
-        tokio::select! {
-            permit = &mut acquire => {
-                return permit
-                    .map_err(|_| AppError::InvalidInput("Semaphore closed".to_string()));
-            }
-            _ = tokio::time::sleep(PERMIT_CANCEL_POLL_INTERVAL) => {}
-        }
+    tokio::select! {
+        biased;
+        () = &mut cancelled => Err(AppError::cancelled()),
+        permit = &mut acquire => permit
+            .map_err(|_| AppError::InvalidInput("Semaphore closed".to_string())),
     }
 }
 
-fn external_cancelled(external_cancel: &Option<Arc<AtomicBool>>) -> bool {
+fn external_cancelled(external_cancel: &Option<CancellationToken>) -> bool {
     external_cancel
         .as_ref()
-        .is_some_and(|flag| flag.load(Ordering::SeqCst))
+        .is_some_and(CancellationToken::is_cancelled)
 }

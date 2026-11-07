@@ -11,8 +11,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::sync::Semaphore;
 use tokio::task::{Id, JoinSet};
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+#[cfg(test)]
+pub(crate) use cancel::cancelled_token;
 pub use cancel::CancellationChecker;
 pub use types::{JobId, MaxConcurrentJobsCapabilities};
 
@@ -50,10 +53,13 @@ impl<'a> BatchScheduler<'a> {
         Self { registry }
     }
 
+    /// Runs the futures `max_concurrent` at a time, in order. A queued future
+    /// whose token (same position in `cancels`) is cancelled starts at once,
+    /// so it fails fast instead of waiting behind the futures ahead of it.
     pub async fn run_batch<R, Fut>(
         &self,
         futures: Vec<Fut>,
-        cancelled: impl Fn(usize) -> bool,
+        cancels: Vec<Option<CancellationToken>>,
     ) -> Vec<Result<R>>
     where
         R: Send + 'static,
@@ -79,16 +85,24 @@ impl<'a> BatchScheduler<'a> {
             }
         }
 
+        let mut cancelled_queue: JoinSet<usize> = JoinSet::new();
+        for &(index, _) in &pending {
+            if let Some(token) = cancels.get(index).cloned().flatten() {
+                cancelled_queue.spawn(async move {
+                    token.cancelled().await;
+                    index
+                });
+            }
+        }
+
         while !join_set.is_empty() {
             let joined = tokio::select! {
                 joined = join_set.join_next_with_id() => joined.expect("join set is not empty"),
-                () = tokio::time::sleep(permit::PERMIT_CANCEL_POLL_INTERVAL), if !pending.is_empty() => {
-                    let (now, later): (VecDeque<_>, VecDeque<_>) = pending
-                        .drain(..)
-                        .partition(|(index, _)| cancelled(*index));
-                    pending = later;
-                    for (index, future) in now {
-                        spawn_indexed_task(&mut join_set, &mut task_indices, index, future);
+                Some(Ok(index)) = cancelled_queue.join_next() => {
+                    if let Some(position) = pending.iter().position(|(queued, _)| *queued == index) {
+                        if let Some((index, future)) = pending.remove(position) {
+                            spawn_indexed_task(&mut join_set, &mut task_indices, index, future);
+                        }
                     }
                     continue;
                 }

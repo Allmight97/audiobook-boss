@@ -3,8 +3,7 @@ use super::types::{ChildJobStatus, OperationId, OperationSnapshot};
 use crate::errors::Result;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 pub(super) struct Operations {
     pub(super) state: WorkRuntimeState,
@@ -12,7 +11,7 @@ pub(super) struct Operations {
 }
 
 pub(super) struct Live {
-    pub(super) titles: CancelFlags,
+    pub(super) titles: CancelTokens,
     pub(super) sources: Vec<Vec<PathBuf>>,
 }
 
@@ -100,7 +99,7 @@ impl Operations {
     }
 
     #[cfg(test)]
-    pub(super) fn live_flags(&self, operation_id: &OperationId) -> Vec<Arc<AtomicBool>> {
+    pub(super) fn live_tokens(&self, operation_id: &OperationId) -> Vec<CancellationToken> {
         self.live
             .get(operation_id.as_str())
             .map(|live| live.titles.titles())
@@ -113,33 +112,33 @@ impl Operations {
     }
 }
 
-/// One operation's cancel flags: one independent flag per output title for
-/// processing; an inline metadata save uses a single flag for all its files.
-pub(super) struct CancelFlags(Vec<Arc<AtomicBool>>);
+/// One operation's cancel tokens: a child token per output title for
+/// processing, all children of one parent that whole-operation cancel
+/// cancels; an inline metadata save uses a single child for all its files.
+pub(super) struct CancelTokens {
+    parent: CancellationToken,
+    titles: Vec<CancellationToken>,
+}
 
-impl CancelFlags {
+impl CancelTokens {
     pub(super) fn per_title(count: usize) -> Self {
-        Self(
-            (0..count)
-                .map(|_| Arc::new(AtomicBool::new(false)))
-                .collect(),
-        )
+        let parent = CancellationToken::new();
+        let titles = (0..count).map(|_| parent.child_token()).collect();
+        Self { parent, titles }
     }
 
-    pub(super) fn titles(&self) -> Vec<Arc<AtomicBool>> {
-        self.0.clone()
+    pub(super) fn titles(&self) -> Vec<CancellationToken> {
+        self.titles.clone()
     }
 
     fn cancel_all(&self) {
-        self.0
-            .iter()
-            .for_each(|flag| flag.store(true, Ordering::Release));
+        self.parent.cancel();
     }
 
     fn cancel_title(&self, index: usize) -> bool {
-        self.0
+        self.titles
             .get(index)
-            .map(|flag| flag.store(true, Ordering::Release))
+            .map(CancellationToken::cancel)
             .is_some()
     }
 }

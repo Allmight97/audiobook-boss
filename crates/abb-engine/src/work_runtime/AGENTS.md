@@ -34,10 +34,11 @@
   tags change only through its `TitleOutput::update`, which the session
   calls), operation snapshots, operation and title cancellation, and Work
   Center event truth.
-- Cancellation: a processing operation holds one cancel flag per output title,
-  and whole-operation cancel sets them all. `cancel_operation` with a
+- Cancellation: a processing operation holds one cancel token per output title,
+  all children of one operation token, and whole-operation cancel cancels the
+  operation token. `cancel_operation` with a
   `child_job_id` cancels only that title. Only processing titles cancel one at
-  a time; a metadata save's files share one flag. Repeating a cancel, or
+  a time; a metadata save's files share one token. Repeating a cancel, or
   cancelling a finished title, returns the current snapshot. Child
   `cancellable` is the authority for offering title cancel; the Work Center
   adds only that the operation has more than one title.
@@ -52,13 +53,13 @@
   neither logs nor batch duration.
 - An export holds concurrency fixed from acceptance to its end, including
   between titles. One lock guards every operation's snapshot beside its live
-  record (title cancel flags and sources). Acceptance inserts both together,
+  record (title cancel tokens and sources). Acceptance inserts both together,
   so a file is never reported free between acceptance and the first read;
   only finishing removes the record, in the same critical section that writes
   the terminal snapshot. Sources are therefore free before `on_finished` runs.
   Terminalizing runs under the lock; `TitleOutput::end`, event emission and
   `on_finished` run outside it, because `TitleOutput::end` calls a listener
-  that takes the lock. A cancel sets its flags in the same critical section
+  that takes the lock. A cancel cancels its tokens in the same critical section
   that writes the Cancelling snapshot.
 - A metadata save's children match progress by `input_index` and carry no
   per-file `job_id`: a shared one would cross-match in `apply_progress_event`.

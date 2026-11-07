@@ -39,6 +39,8 @@ pub use types::{
 };
 
 pub(crate) use context::processing::ProgressEventListener;
+#[cfg(test)]
+pub(crate) use job_registry::cancelled_token;
 pub(crate) use job_registry::{CancellationChecker, JobRegistry};
 pub(crate) use progress::EtaEstimator;
 pub(crate) use progress::{

@@ -1,15 +1,15 @@
 use super::JobRegistry;
 use crate::errors::AppError;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::time::{sleep, timeout};
+use tokio::time::{sleep, Instant};
+use tokio_util::sync::CancellationToken;
 
-#[tokio::test]
-async fn external_cancel_interrupts_waiting_permit_acquire() {
+#[tokio::test(start_paused = true)]
+async fn external_cancel_interrupts_waiting_permit_acquire_without_waiting_for_a_timer() {
     let registry = JobRegistry::new(1);
     let (first_job, held_permit) = registry.register_job().await.expect("first job");
-    let operation_cancel = Arc::new(AtomicBool::new(false));
+    let operation_cancel = CancellationToken::new();
     let registration = registry.register_job_with_external_cancel(Some(operation_cancel.clone()));
     tokio::pin!(registration);
 
@@ -18,11 +18,15 @@ async fn external_cancel_interrupts_waiting_permit_acquire() {
         _ = sleep(Duration::from_millis(20)) => {}
     }
 
-    operation_cancel.store(true, Ordering::SeqCst);
-    let result = timeout(Duration::from_millis(250), &mut registration)
-        .await
-        .expect("registration should observe cancellation promptly");
+    let cancelled_at = Instant::now();
+    operation_cancel.cancel();
+    let result = registration.await;
 
+    assert_eq!(
+        cancelled_at.elapsed(),
+        Duration::ZERO,
+        "the wake-up is the token, not a timer"
+    );
     assert!(matches!(
         result.expect_err("registration should be cancelled"),
         AppError::Cancellation(_)
@@ -36,6 +40,21 @@ async fn external_cancel_interrupts_waiting_permit_acquire() {
             .expect("the cancelled admission is no longer tracked"),
         2
     );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_cancelled_token_refuses_registration_before_it_is_tracked() {
+    let registry = JobRegistry::new(1);
+
+    let result = registry
+        .register_job_with_external_cancel(Some(super::cancelled_token()))
+        .await;
+
+    assert!(matches!(
+        result.expect_err("cancelled before registering"),
+        AppError::Cancellation(_)
+    ));
+    assert_eq!(registry.active_jobs(), 0);
 }
 
 #[tokio::test]

@@ -9,10 +9,10 @@ use crate::processing::run::{
 use crate::processing::{EventStage, JobRegistry, ProcessPayload, ProgressEvent};
 use std::fs;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tempfile::TempDir;
+use tokio_util::sync::CancellationToken;
 
 fn holds_staged_bytes(folder: &Path) -> bool {
     fs::read_dir(folder).is_ok_and(|entries| {
@@ -56,7 +56,7 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
     };
     let inspected = inspect_processing_plan(&payload, None, false).expect("inspect");
 
-    let cancel = Arc::new(AtomicBool::new(false));
+    let cancel = CancellationToken::new();
     let cancelled_events: Arc<Mutex<Vec<bool>>> = Arc::default();
     let listener = {
         let cancelled_events = Arc::clone(&cancelled_events);
@@ -82,7 +82,7 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
         payload,
         inspected,
         ProcessingRunOptions {
-            title_cancels: vec![Arc::clone(&cancel)],
+            title_cancels: vec![cancel.clone()],
             progress_listener: Some(listener),
             ..ProcessingRunOptions::default()
         },
@@ -92,7 +92,7 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
         while !holds_staged_bytes(&workspace_root) {
             tokio::time::sleep(Duration::from_millis(1)).await;
         }
-        cancel.store(true, Ordering::SeqCst);
+        cancel.cancel();
     };
     let result = tokio::select! {
         result = &mut processing => result,

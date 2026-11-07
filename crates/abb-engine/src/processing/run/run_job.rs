@@ -14,10 +14,10 @@ use crate::processing::{
     ProcessResultStatus, ProcessingContext, ProcessingSession, SupplementalProcessingAsset,
 };
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::OwnedSemaphorePermit;
+use tokio_util::sync::CancellationToken;
 
 use crate::processing::terminal_outcomes::{
     classify_processing_error, terminal_failure_result, ProcessingJobTerminalOutcome,
@@ -36,7 +36,7 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) input_index: usize,
     pub(crate) operation_kind: OperationKind,
     pub(crate) operation_id: Option<String>,
-    pub(crate) title_cancel: Option<Arc<AtomicBool>>,
+    pub(crate) title_cancel: Option<CancellationToken>,
     pub(crate) output_plan: ResolvedOutputPlan,
     pub(crate) file_info: FileListInfo,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
@@ -300,7 +300,7 @@ pub(crate) struct RegisteredProcessingJob {
 pub(crate) async fn register_job_and_validate_output(
     registry: &crate::ManagedJobRegistry,
     output_path: &Path,
-    title_cancel: Option<Arc<AtomicBool>>,
+    title_cancel: Option<CancellationToken>,
     log_context: ProcessingJobLogContext,
     preserves_audio: bool,
 ) -> Result<RegisteredProcessingJob> {

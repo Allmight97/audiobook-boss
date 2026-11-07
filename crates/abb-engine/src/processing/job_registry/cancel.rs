@@ -1,23 +1,29 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 /// Synchronous cancellation checker for use in tight processing loops.
 ///
-/// Cancellation is title-scoped: a title carries its flag, which title cancel,
-/// preview cancel, or whole-operation cancel sets.
+/// Cancellation is title-scoped: a title carries its token, which title cancel,
+/// preview cancel, or whole-operation cancel cancels.
 #[derive(Debug)]
 pub struct CancellationChecker {
-    cancel_flag: Option<Arc<AtomicBool>>,
+    token: Option<CancellationToken>,
 }
 
 impl CancellationChecker {
-    pub fn new(cancel_flag: Option<Arc<AtomicBool>>) -> Self {
-        Self { cancel_flag }
+    pub fn new(token: Option<CancellationToken>) -> Self {
+        Self { token }
     }
 
     pub fn is_cancelled(&self) -> bool {
-        self.cancel_flag
+        self.token
             .as_ref()
-            .is_some_and(|flag| flag.load(Ordering::Acquire))
+            .is_some_and(CancellationToken::is_cancelled)
     }
+}
+
+#[cfg(test)]
+pub(crate) fn cancelled_token() -> CancellationToken {
+    let token = CancellationToken::new();
+    token.cancel();
+    token
 }

@@ -1,13 +1,13 @@
 use crate::processing::context::processing::ProgressEventListener;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Clone, Default)]
 pub(crate) struct ProcessingRunOptions {
     pub(crate) operation_id: Option<String>,
-    /// One cancel flag per output title, indexed by input index. Cancelling
-    /// the whole operation sets every flag.
-    pub(crate) title_cancels: Vec<Arc<AtomicBool>>,
+    /// One cancel token per output title, indexed by input index. Cancelling
+    /// the whole operation cancels every token.
+    pub(crate) title_cancels: Vec<CancellationToken>,
     pub(crate) progress_listener: Option<ProgressEventListener>,
     /// One output record per title, indexed like `title_cancels`. Previews
     /// pass none.

@@ -14,7 +14,7 @@ fn accepted_runtime(source: &Path) -> (WorkRuntime, OperationId) {
     runtime.lock_operations().expect("operations lock").accept(
         snapshot,
         Live {
-            titles: CancelFlags::per_title(1),
+            titles: CancelTokens::per_title(1),
             sources: vec![vec![source.to_path_buf()]],
         },
     );
@@ -64,6 +64,29 @@ fn sources_held_still_reports_every_source_after_the_lock_is_poisoned() {
     poison(&runtime);
 
     assert_eq!(runtime.sources_held(), HashSet::from([source]));
+}
+
+#[test]
+fn a_cancel_is_visible_as_snapshot_and_token_together() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, operation_id) = accepted_runtime(&source);
+    let tokens = runtime
+        .lock_operations()
+        .expect("operations lock")
+        .live_tokens(&operation_id);
+    assert!(tokens.iter().all(|token| !token.is_cancelled()));
+
+    runtime
+        .cancel_whole_operation(&operation_id)
+        .expect("cancel the operation");
+
+    let operations = runtime.lock_operations().expect("operations lock");
+    let status = operations
+        .state
+        .operation(operation_id.as_str())
+        .map(|operation| operation.status);
+    assert_eq!(status, Some(WorkOperationStatus::Cancelling));
+    assert!(tokens.iter().all(|token| token.is_cancelled()));
 }
 
 struct LockProbe {

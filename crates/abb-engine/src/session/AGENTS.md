@@ -72,7 +72,7 @@ one host attachment.
   same lock; a transition that frees a download afterwards starts the next
   sweep. Waiting writes clear under the state lock, where Save adds them, so a
   new write always finds a writer or starts one.
-- A preview holds concurrency fixed and is admitted after its cancel flags are
+- A preview holds concurrency fixed and is admitted after its cancel tokens are
   visible, so shutdown either sees it to cancel or the preview sees shutdown.
 - A download finishing while the list is locked waits for the unlock.
   Source paths are canonical, so match both spellings of the staged root.
@@ -207,7 +207,7 @@ one host attachment.
 - **Preview.** `output.preview_run` owns stable identity from acceptance through
   terminal state, and a finished run stays published until the next submission
   begins, accepted or refused; that ends its claim on the output and cover too.
-  `CancelPreview` sets actual per-title cancellation flags even
+  `CancelPreview` cancels the actual per-title tokens even
   during preparation/review/scheduler wait; cancellation survives a dropped host
   reply and never grants an output for opening. Accepted custom cover or
   preserved source artwork is read by run identity; bytes stay outside

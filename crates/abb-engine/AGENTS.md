@@ -81,7 +81,7 @@ app, a test, and the `abb-dev` tool drive the same code
 - Exports and previews start from the session (`Submit`, `Preview`). An
   export enters WorkRuntime through `submit_processing_operation`; a preview
   runs `process_inspected_with_options` with a stable identity, actual cancel
-  flags, and the shared private snapshot reducer.
+  tokens, and the shared private snapshot reducer.
 
 ## Diagnostics
 

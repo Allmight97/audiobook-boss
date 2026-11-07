@@ -85,8 +85,10 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   `register_job_without_permit`, so it counts as active work and never waits
   behind export slots. `BatchScheduler` keeps result order deterministic,
   keeps issuing queued work after per-task errors, and gives every scheduled
-  index a terminal result. A queued title whose cancel flag is set starts out
-  of turn, so it ends within the cancel poll and never behind the titles ahead.
+  index a terminal result. A queued title whose cancel token is cancelled starts out
+  of turn the moment it is cancelled, so it fails fast and never waits behind
+  the titles ahead. The permit wait and the scheduler await the token; a
+  wake-up never drops a running title.
 - Presence in the registry map is the job's only lifecycle state: tracked from
   the moment it registers (a permit job, while it waits for the permit);
   `complete_job` and `fail_job` remove it on every terminal path; a failed, cancelled, or dropped admission removes
@@ -107,8 +109,8 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   resolving audio and metadata again.
 - Keep preflight side-effect-free. Why: a plan that review refuses leaves no
   folders or files behind.
-- `ProcessingRunOptions.title_cancels` carries one cancel flag per output title
+- `ProcessingRunOptions.title_cancels` carries one cancel token per output title
   from WorkRuntime or the session preview. Each job's admission and
-  `CancellationChecker` (built from that title's flag) observe only that flag;
+  `CancellationChecker` (built from that title's token) observe only that token;
   the registry holds no other cancel state. Cancelled titles finish as
   Cancelled results while siblings continue.

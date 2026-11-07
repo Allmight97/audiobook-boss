@@ -16,8 +16,8 @@ use crate::processing::{OperationKind, ProcessCommandResult, ProcessPayload, Pro
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, PoisonError};
+use tokio_util::sync::CancellationToken;
 
 pub(crate) async fn dispatch_title_jobs(
     host: Host,
@@ -130,18 +130,14 @@ async fn dispatch_batch_plan(
 
     let outcomes = registry
         .scheduler()
-        .run_batch(scheduled_jobs, |position| {
-            queue_cancels[position].as_ref().is_some_and(
-                |flag: &Arc<std::sync::atomic::AtomicBool>| flag.load(Ordering::Acquire),
-            )
-        })
+        .run_batch(scheduled_jobs, queue_cancels)
         .await;
     let finalized_results = finalize_batch_results(outcomes, options.progress_listener.as_ref())?;
 
     Ok(ProcessCommandResult::new(finalized_results))
 }
 
-/// Runs one title unless its cancel flag is already set. A title cancelled
+/// Runs one title unless its cancel token is already cancelled. A title cancelled
 /// before its job started emits nothing else, so report it here instead of
 /// leaving its row cancelling until the batch ends. A title that ends without publishing
 /// removes the empty folders made only for it before it reports.
@@ -155,7 +151,7 @@ async fn run_title_job(
     let cancelled = request
         .title_cancel
         .as_ref()
-        .is_some_and(|flag| flag.load(Ordering::Acquire));
+        .is_some_and(CancellationToken::is_cancelled);
     let outcome = if cancelled {
         Err(AppError::cancelled())
     } else {

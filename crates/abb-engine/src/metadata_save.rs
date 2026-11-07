@@ -109,11 +109,11 @@ pub(crate) async fn save_metadata_batch(
     }
 
     let file_paths: Vec<String> = items.iter().map(|item| item.file_path.clone()).collect();
-    let (operation_id, cancel_flag) = runtime.begin_metadata_save_operation(host, &file_paths)?;
+    let (operation_id, cancel_token) = runtime.begin_metadata_save_operation(host, &file_paths)?;
 
     let job_id = registry.register_job_without_permit();
     let _active_work = host.begin_active_work();
-    let cancellation = CancellationChecker::new(Some(cancel_flag));
+    let cancellation = CancellationChecker::new(Some(cancel_token));
 
     let result = save_metadata_batch_impl(items, cancellation, |progress| {
         runtime.record_metadata_save_progress(

@@ -1,4 +1,4 @@
-use super::operations::{CancelFlags, Live, Operations};
+use super::operations::{CancelTokens, Live, Operations};
 use crate::errors::AppError;
 use crate::processing::{
     EventStage, OperationKind, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
@@ -8,7 +8,6 @@ use crate::work_runtime::snapshot::new_processing_snapshot;
 use crate::work_runtime::{OperationId, WorkOperationStatus};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 
 fn first() -> PathBuf {
     PathBuf::from("/library/first.m4b")
@@ -34,7 +33,7 @@ fn accepted() -> (Operations, OperationId) {
     operations.accept(
         snapshot,
         Live {
-            titles: CancelFlags::per_title(2),
+            titles: CancelTokens::per_title(2),
             sources: vec![vec![first()], vec![second()]],
         },
     );
@@ -130,14 +129,14 @@ fn finishing_drops_the_live_record_even_when_the_terminal_snapshot_fails() {
 }
 
 #[test]
-fn cancelling_one_title_sets_only_its_flag_and_whole_cancel_sets_all() {
+fn cancelling_one_title_cancels_only_its_token_and_whole_cancel_cancels_all() {
     let (mut operations, id) = accepted();
-    let flags = operations.live_flags(&id);
+    let tokens = operations.live_tokens(&id);
 
     let (snapshot, cancelled) = operations.cancel_title(&id, "input-1").expect("cancel");
     assert!(cancelled);
     assert!(snapshot.children[1].cancel_requested);
-    let state: Vec<_> = flags.iter().map(|f| f.load(Ordering::Acquire)).collect();
+    let state: Vec<_> = tokens.iter().map(|t| t.is_cancelled()).collect();
     assert_eq!(state, [false, true]);
 
     let (_, again) = operations.cancel_title(&id, "input-1").expect("repeat");
@@ -145,13 +144,13 @@ fn cancelling_one_title_sets_only_its_flag_and_whole_cancel_sets_all() {
 
     let snapshot = operations.cancel_all(&id, 5).expect("cancel all");
     assert_eq!(snapshot.status, WorkOperationStatus::Cancelling);
-    assert!(flags.iter().all(|f| f.load(Ordering::Acquire)));
+    assert!(tokens.iter().all(|t| t.is_cancelled()));
 }
 
 #[test]
-fn cancelling_a_finished_operation_sets_no_flag_and_returns_its_snapshot() {
+fn cancelling_a_finished_operation_cancels_no_token_and_returns_its_snapshot() {
     let (mut operations, id) = accepted();
-    let flags = operations.live_flags(&id);
+    let tokens = operations.live_tokens(&id);
     let result = result_of(&[ProcessResultStatus::Success, ProcessResultStatus::Success]);
     operations
         .finish(&id, |state| {
@@ -162,5 +161,5 @@ fn cancelling_a_finished_operation_sets_no_flag_and_returns_its_snapshot() {
     let snapshot = operations.cancel_all(&id, 30).expect("cancel finished");
 
     assert_eq!(snapshot.status, WorkOperationStatus::Completed);
-    assert!(flags.iter().all(|f| !f.load(Ordering::Acquire)));
+    assert!(tokens.iter().all(|t| !t.is_cancelled()));
 }

@@ -1,9 +1,7 @@
 use super::*;
 use crate::processing::{JobRegistry, OutputConfig, ProcessingSession};
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 fn inspect_source_fingerprint(path: &std::path::Path) -> String {
     crate::metadata::inspect_chapter_source(path, 1_000, false, &mut Vec::new())
@@ -142,7 +140,7 @@ async fn preserve_copy_stops_after_cancellation_during_progress() {
     let source_fingerprint = inspect_source_fingerprint(&source);
     let registry = JobRegistry::new(1);
     let (job_id, _permit) = registry.register_job().await.expect("register copy job");
-    let cancelled = Arc::new(AtomicBool::new(false));
+    let cancelled = CancellationToken::new();
     let checker = crate::processing::CancellationChecker::new(Some(cancelled.clone()));
     let mut context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
@@ -151,7 +149,7 @@ async fn preserve_copy_stops_after_cancellation_during_progress() {
         tmp.path().join("workspace"),
     );
     context.progress_listener = Some(Arc::new(move |_| {
-        cancelled.store(true, Ordering::Release);
+        cancelled.cancel();
     }));
     let error = copy_with_cancellation(&source, &source_fingerprint, &staged, &context, 0.0..1.0)
         .expect_err("copy must observe cancellation");

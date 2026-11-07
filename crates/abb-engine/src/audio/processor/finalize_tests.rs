@@ -118,9 +118,8 @@ async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
 async fn complete_staged_output_cleans_without_committing_when_cancelled_before_commit() {
     let registry = JobRegistry::new(1);
     let (job_id, _permit) = registry.register_job().await.expect("register job");
-    let checker = crate::processing::CancellationChecker::new(Some(std::sync::Arc::new(
-        std::sync::atomic::AtomicBool::new(true),
-    )));
+    let checker =
+        crate::processing::CancellationChecker::new(Some(crate::processing::cancelled_token()));
 
     let local = TempDir::new().expect("local workspace root");
     let destination = TempDir::new().expect("destination root");
