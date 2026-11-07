@@ -123,16 +123,6 @@ impl SessionState {
             .map(|file| file.path.clone())
     }
 
-    pub(super) fn cover_written(&mut self, path: &Path) {
-        let in_group = self.working_set.files().iter().any(|file| {
-            let sources = self.working_set.sources_for(file);
-            sources.len() > 1 && sources.iter().any(|source| source.path == path)
-        });
-        if !in_group {
-            self.source_covers.record_write(path);
-        }
-    }
-
     pub(super) fn displayed_cover_address(&self) -> Option<String> {
         self.cover
             .displayed

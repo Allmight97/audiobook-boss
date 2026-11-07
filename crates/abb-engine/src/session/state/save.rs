@@ -107,7 +107,7 @@ impl SessionState {
             self.exports.acknowledge(&item.path, &item.patch);
             let cover_was_submitted = item.patch.cover_art.is_some();
             if cover_was_submitted {
-                self.cover_written(&item.path);
+                self.source_covers.record_write(&item.path);
             }
             self.tags
                 .commit_saved(&item.path, &item.patch, item.revision);
@@ -146,7 +146,7 @@ impl SessionState {
             if *written {
                 self.exports.acknowledge(&item.path, &item.patch);
                 if item.patch.cover_art.is_some() {
-                    self.cover_written(&item.path);
+                    self.source_covers.record_write(&item.path);
                 }
                 if loaded.contains(&item.path) {
                     self.tags

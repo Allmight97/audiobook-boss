@@ -106,7 +106,7 @@ fn a_source_never_offers_an_address_it_offered_for_another_image() {
 }
 
 #[test]
-fn a_cover_written_after_its_title_was_grouped_leaves_the_anchor_address_alone() {
+fn a_cover_written_after_its_title_was_grouped_gives_the_anchor_a_new_address() {
     let mut desk = Desk::open(
         &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
         &[0],
@@ -124,7 +124,7 @@ fn a_cover_written_after_its_title_was_grouped_leaves_the_anchor_address_alone()
     desk.exports_now_reading(&HashSet::new());
 
     assert_eq!(desk.written.len(), 1, "the waiting write ran");
-    assert_eq!(desk.source_cover("alpha"), anchor);
+    assert_ne!(desk.source_cover("alpha"), anchor);
 }
 
 #[test]
