@@ -2,21 +2,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use super::{blocking, Rest, Session};
-use crate::errors::{AppErrorEnvelope, Result};
+use crate::errors::Result;
 use crate::metadata_save::{save_metadata_batch, MetadataSaveRequest, MetadataSaveResultStatus};
 use crate::processing::title_output::TitleOutput;
 use crate::processing::title_output::UpdateReply;
 use crate::processing::OutputUpdateStatus;
 use crate::session::exports::{OutputEdit, OutputEdits};
 use crate::session::intent::SessionOutcome;
-use crate::session::state::{MetadataStatus, SaveItem, SavePlan, WriteOutcome};
-
-struct Written {
-    outcomes: Vec<WriteOutcome>,
-    succeeded: usize,
-    failed: usize,
-    cancelled: usize,
-}
+use crate::session::state::{SaveItem, SavePlan, WriteBatch, WriteOutcome};
 
 pub(super) async fn apply_published(title: &Arc<TitleOutput>) -> Result<()> {
     let title = Arc::clone(title);
@@ -35,7 +28,7 @@ pub(super) fn output_update_failure(title: &TitleOutput) -> Option<String> {
 }
 
 impl Session {
-    async fn write(&self, items: &[SaveItem]) -> Result<Written> {
+    async fn write(&self, items: &[SaveItem]) -> Result<WriteBatch> {
         let deps = &self.inner.deps;
         let requests = items
             .iter()
@@ -45,7 +38,7 @@ impl Session {
             })
             .collect();
         let result = save_metadata_batch(&deps.host, &deps.work, &deps.jobs, requests).await?;
-        let mut written = Written {
+        let mut written = WriteBatch {
             outcomes: items.iter().cloned().map(WriteOutcome::failed).collect(),
             succeeded: result.summary.succeeded,
             failed: result.summary.failed,
@@ -130,60 +123,20 @@ impl Session {
         }
     }
 
-    pub(super) async fn save(&self, epoch: u64, plan: SavePlan) -> SessionOutcome {
+    pub(super) async fn save(&self, epoch: u64, mut plan: SavePlan) -> SessionOutcome {
         if plan.waiting > 0 {
             self.ensure_deferred_writer();
         }
-        let outputs = self.update_outputs(plan.outputs).await;
-
-        let mut outcomes = Vec::new();
-        let mut status = MetadataStatus::SaveComplete {
-            succeeded: 0,
-            failed: 0,
-            cancelled: 0,
-            waiting: plan.waiting,
-            held: plan.held,
-            outputs,
-        };
-        let nothing = plan.immediate.is_empty()
-            && plan.waiting == 0
-            && plan.held == 0
-            && outputs == OutputEdits::default();
-        if nothing {
-            status = if plan.grouped {
-                MetadataStatus::GroupedEditsKept
-            } else {
-                MetadataStatus::NoPendingChanges
-            };
-        }
-        let written_paths: Vec<PathBuf> = plan
-            .immediate
-            .iter()
-            .map(|item| item.path.clone())
-            .collect();
-        if !plan.immediate.is_empty() {
+        let outputs = self.update_outputs(std::mem::take(&mut plan.outputs)).await;
+        let written = if plan.immediate.is_empty() {
+            Ok(WriteBatch::default())
+        } else {
             self.publish();
-            match self.write(&plan.immediate).await {
-                Ok(written) => {
-                    status = MetadataStatus::SaveComplete {
-                        succeeded: written.succeeded,
-                        failed: written.failed,
-                        cancelled: written.cancelled,
-                        waiting: plan.waiting,
-                        held: plan.held,
-                        outputs,
-                    };
-                    outcomes = written.outcomes;
-                }
-                Err(error) => {
-                    log::error!("Failed to save metadata: {error}");
-                    status = MetadataStatus::SaveFailed {
-                        error: AppErrorEnvelope::from(&error),
-                    };
-                }
-            }
-        }
-        self.transition(|state| state.finish_save(epoch, &written_paths, &outcomes, status));
+            self.write(&plan.immediate).await.inspect_err(|error| {
+                log::error!("Failed to save metadata: {error}");
+            })
+        };
+        self.transition(|state| state.finish_save(epoch, &plan, outputs, written));
         self.sources_released();
         SessionOutcome::Applied
     }

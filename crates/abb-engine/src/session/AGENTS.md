@@ -84,7 +84,8 @@ one host attachment.
   goes in `runtime.rs` or `runtime/` only when it is about ordering between an
   intent and its I/O.
   - `bound_form.rs`: the form bound to the selection and the draft gate.
-  - `save.rs`: where each pending edit goes and what a finished write changes.
+  - `save.rs`: where each pending edit goes, what a finished write changes,
+    and the status a Save ends with (`finish_save`).
   - `write_queue.rs`: which files are being written or wait to be written.
     Its fields are private; `save.rs` and `submitting.rs` ask it.
   - `submitting.rs`: a submission in flight, collision review, restart answers.
@@ -276,8 +277,10 @@ one host attachment.
 ## Proof
 
 - Rules: `state/<concept>_tests.rs` through the `Desk` harness in
-  `state_tests.rs`. The property test is `state/sequence_tests.rs`; add a new
-  sequence law there as an assertion.
+  `state_tests.rs`. `Desk` calls the same `SessionState` steps as the runtime
+  and stands in only for the disk and the writer; a status or count it needs
+  comes from the step, never from a copy. The property test is
+  `state/sequence_tests.rs`; add a new sequence law there as an assertion.
 - Real files through `Engine`: `crates/abb-engine/src/test_cases/integration_session_tests.rs`
   and `integration_library_readback_tests.rs` (what a library reads from the export).
 - Saves through the session: `integration_session_save_tests.rs`.

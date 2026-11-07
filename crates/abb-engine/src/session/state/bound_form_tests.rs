@@ -408,16 +408,8 @@ fn selection_cannot_change_while_a_save_is_in_progress() {
     assert_eq!(desk.select(&[1]), Err(GateBlock::SaveInProgress));
 
     let epoch = desk.state.epoch;
-    desk.state.finish_save(
-        epoch,
-        &paths_of(&plan.immediate),
-        &written_outcomes(&plan.immediate),
-        MetadataStatus::SaveFailed {
-            error: crate::errors::AppErrorEnvelope::from(&crate::errors::AppError::General(
-                "write failed".into(),
-            )),
-        },
-    );
+    desk.state
+        .finish_save(epoch, &plan, OutputEdits::default(), Err(write_failed()));
     assert!(desk.select(&[1]).is_ok());
 }
 

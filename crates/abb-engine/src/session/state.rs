@@ -30,7 +30,7 @@ use cover::{Cover, SourceCovers};
 pub(crate) use default_edits::{Claim, DefaultEdits};
 use lookup::LookupState;
 pub(crate) use lookup::{ApplyStart, ChosenResult, NextTitle, QueuedTitle};
-pub(crate) use save::SavePlan;
+pub(crate) use save::{SavePlan, WriteBatch};
 use snapshots::Parts;
 use submitting::Submitting;
 use write_queue::WriteQueue;

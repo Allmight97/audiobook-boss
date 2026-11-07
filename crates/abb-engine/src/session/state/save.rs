@@ -2,8 +2,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use super::super::exports::OutputEdit;
+use super::super::exports::{OutputEdit, OutputEdits};
 use super::{MetadataStatus, SaveItem, SessionState, StageOutcome, WriteOutcome};
+use crate::errors::{AppErrorEnvelope, Result};
 
 #[derive(Debug)]
 pub(crate) struct SavePlan {
@@ -12,6 +13,15 @@ pub(crate) struct SavePlan {
     pub(crate) held: usize,
     pub(crate) outputs: Vec<OutputEdit>,
     pub(crate) grouped: bool,
+}
+
+/// What the writer reports for the files a Save wrote at once.
+#[derive(Debug, Default)]
+pub(crate) struct WriteBatch {
+    pub(crate) outcomes: Vec<WriteOutcome>,
+    pub(crate) succeeded: usize,
+    pub(crate) failed: usize,
+    pub(crate) cancelled: usize,
 }
 
 impl SessionState {
@@ -98,14 +108,53 @@ impl SessionState {
         edits
     }
 
+    /// Records how a Save ended. `written` is the writer's report for
+    /// `plan.immediate`; a plan with nothing to write passes an empty batch.
     pub(crate) fn finish_save(
         &mut self,
         epoch: u64,
-        written: &[PathBuf],
-        outcomes: &[WriteOutcome],
-        status: MetadataStatus,
+        plan: &SavePlan,
+        outputs: OutputEdits,
+        written: Result<WriteBatch>,
     ) {
-        self.writes.release(written);
+        let nothing = plan.immediate.is_empty()
+            && plan.waiting == 0
+            && plan.held == 0
+            && outputs == OutputEdits::default();
+        let (outcomes, status) = if nothing {
+            let status = if plan.grouped {
+                MetadataStatus::GroupedEditsKept
+            } else {
+                MetadataStatus::NoPendingChanges
+            };
+            (Vec::new(), status)
+        } else {
+            match written {
+                Ok(batch) => (
+                    batch.outcomes,
+                    MetadataStatus::SaveComplete {
+                        succeeded: batch.succeeded,
+                        failed: batch.failed,
+                        cancelled: batch.cancelled,
+                        waiting: plan.waiting,
+                        held: plan.held,
+                        outputs,
+                    },
+                ),
+                Err(error) => (
+                    Vec::new(),
+                    MetadataStatus::SaveFailed {
+                        error: AppErrorEnvelope::from(&error),
+                    },
+                ),
+            }
+        };
+        let paths: Vec<PathBuf> = plan
+            .immediate
+            .iter()
+            .map(|item| item.path.clone())
+            .collect();
+        self.writes.release(&paths);
         let current = epoch == self.epoch;
         if current {
             let loaded = self.working_set.source_paths();
@@ -124,7 +173,7 @@ impl SessionState {
                 }
             }
         }
-        if !written.is_empty() {
+        if !paths.is_empty() {
             self.writes.end_save();
         }
         if current {
