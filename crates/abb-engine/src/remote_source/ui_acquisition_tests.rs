@@ -1,4 +1,5 @@
 use super::*;
+use crate::remote_source::providers::audible::tests::signed_in_vault;
 use crate::remote_source::AcquisitionSelection;
 
 #[derive(Default)]
@@ -12,27 +13,8 @@ impl crate::EventSink for Updates {
     }
 }
 
-struct ConnectedVault {
-    auth: String,
-    reads: std::sync::atomic::AtomicUsize,
-    library_read: VaultGate,
-}
-
-impl crate::remote_source::vault::SecretVault for ConnectedVault {
-    fn get_secret(&self, _key: &str) -> Result<Option<secrecy::SecretString>> {
-        let reads = self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        if reads == 0 {
-            return Ok(Some(self.auth.clone().into()));
-        }
-        self.library_read.wait();
-        Err(AppError::ResourceCleanup("library read ended".into()))
-    }
-    fn set_secret(&self, _key: &str, _value: secrecy::SecretString) -> Result<()> {
-        Ok(())
-    }
-    fn delete_secret(&self, _key: &str) -> Result<()> {
-        Ok(())
-    }
+fn library_read_ended() -> AppError {
+    AppError::ResourceCleanup("library read ended".into())
 }
 
 #[tokio::test]
@@ -40,14 +22,13 @@ async fn the_library_load_after_an_account_read_is_published_as_busy_while_it_ru
     let root = tempfile::TempDir::new().expect("temp dir");
     let updates = std::sync::Arc::new(Updates::default());
     let (library_read, entered, release) = vault_gate();
-    let auth = crate::remote_source::providers::audible::tests::fixture_auth();
     let runtime = crate::remote_source::tests::test_runtime_with(
         &root,
-        Some(Box::new(ConnectedVault {
-            auth: serde_json::to_string(&auth).expect("auth json"),
-            reads: std::sync::atomic::AtomicUsize::new(0),
+        Some(Box::new(signed_in_vault().gating_reads(
+            1,
             library_read,
-        })),
+            library_read_ended,
+        ))),
         Some(updates.clone()),
     );
 

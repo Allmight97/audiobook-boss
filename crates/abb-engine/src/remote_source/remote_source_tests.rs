@@ -1,38 +1,7 @@
+use super::test_support::MemoryVault;
 use super::*;
 use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
-use secrecy::SecretString;
-use std::collections::HashMap;
 use tempfile::TempDir;
-
-#[derive(Default)]
-pub(crate) struct MemoryVault {
-    pub(crate) secrets: Mutex<HashMap<String, SecretString>>,
-    pub(crate) reads: Arc<std::sync::atomic::AtomicUsize>,
-    pub(crate) fail_writes: bool,
-}
-
-impl vault::SecretVault for MemoryVault {
-    fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
-        self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Ok(self.secrets.lock().expect("test vault").get(key).cloned())
-    }
-
-    fn set_secret(&self, key: &str, value: SecretString) -> Result<()> {
-        if self.fail_writes {
-            return Err(AppError::General("vault unavailable".to_string()));
-        }
-        self.secrets
-            .lock()
-            .expect("test vault")
-            .insert(key.into(), value);
-        Ok(())
-    }
-
-    fn delete_secret(&self, key: &str) -> Result<()> {
-        self.secrets.lock().expect("test vault").remove(key);
-        Ok(())
-    }
-}
 
 pub(crate) fn test_runtime(root: &TempDir) -> RemoteSourceRuntime {
     test_runtime_with(root, None, None)
@@ -437,15 +406,9 @@ async fn no_credential_read_starts_once_the_engine_is_closing() {
         "[indexer]\nurl = \"http://indexer.test\"\ncategories = [3000]\n",
     )
     .expect("write connection");
-    let reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let runtime = test_runtime_with(
-        &root,
-        Some(Box::new(MemoryVault {
-            reads: reads.clone(),
-            ..Default::default()
-        })),
-        None,
-    );
+    let vault = MemoryVault::default();
+    let reads = vault.read_counter();
+    let runtime = test_runtime_with(&root, Some(Box::new(vault)), None);
     runtime.inner.tasks.close();
 
     let result = runtime

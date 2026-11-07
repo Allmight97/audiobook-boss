@@ -1,7 +1,8 @@
 use super::super::{ReleaseGrabSnapshot, ReleaseGrabStatus, RemoteUiIntent};
 use super::*;
 use crate::app_settings::SettingsIntent;
-use crate::remote_source::tests::{test_runtime, test_runtime_with, MemoryVault};
+use crate::remote_source::test_support::{vault_unavailable, MemoryVault};
+use crate::remote_source::tests::{test_runtime, test_runtime_with};
 use crate::remote_source::types::release_key;
 use crate::remote_source::types::RemoteReleaseSearchResponse;
 use secrecy::ExposeSecret;
@@ -43,10 +44,7 @@ fn seeded_with_a_saved_old_url(root: &TempDir, vault: MemoryVault) -> RemoteSour
         "[indexer]\nurl = \"http://old.test\"\ncategories = [3000, 3030]\n",
     )
     .expect("seed settings");
-    vault.secrets.lock().expect("vault").insert(
-        "indexer.api_key:http://old.test".into(),
-        "old-key".to_string().into(),
-    );
+    vault.seed("indexer.api_key:http://old.test", "old-key");
     test_runtime_with(root, Some(Box::new(vault)), None)
 }
 
@@ -106,10 +104,7 @@ async fn search_and_grab_resolve_the_saved_url_categories_and_key() {
 #[tokio::test]
 async fn a_vault_failure_after_an_applied_change_says_so_and_keeps_the_old_key() {
     let root = TempDir::new().expect("temp root");
-    let vault = MemoryVault {
-        fail_writes: true,
-        ..Default::default()
-    };
+    let vault = MemoryVault::default().failing_writes(vault_unavailable);
     let runtime = seeded_with_a_saved_old_url(&root, vault);
 
     let error = save(&runtime, "http://new.test", Some("new-key"))
@@ -135,10 +130,7 @@ async fn a_vault_failure_after_an_applied_change_says_so_and_keeps_the_old_key()
 #[tokio::test]
 async fn a_vault_failure_with_nothing_changed_reports_the_plain_error() {
     let root = TempDir::new().expect("temp root");
-    let vault = MemoryVault {
-        fail_writes: true,
-        ..Default::default()
-    };
+    let vault = MemoryVault::default().failing_writes(vault_unavailable);
     let runtime = seeded_with_a_saved_old_url(&root, vault);
     run(
         &runtime,
@@ -353,10 +345,7 @@ async fn an_applied_reset_refreshes_the_indexer_account() {
 #[tokio::test]
 async fn a_vault_failure_on_a_changed_url_shows_the_key_fact_of_the_new_url() {
     let root = TempDir::new().expect("temp root");
-    let vault = MemoryVault {
-        fail_writes: true,
-        ..Default::default()
-    };
+    let vault = MemoryVault::default().failing_writes(vault_unavailable);
     let runtime = seeded_with_a_saved_old_url(&root, vault);
     run(&runtime, RemoteUiIntent::LoadConnection)
         .await
@@ -407,10 +396,7 @@ async fn a_reset_clears_a_refused_draft_old_failures_and_search_results() {
 #[tokio::test]
 async fn a_reset_clears_an_old_save_failure() {
     let root = TempDir::new().expect("temp root");
-    let vault = MemoryVault {
-        fail_writes: true,
-        ..Default::default()
-    };
+    let vault = MemoryVault::default().failing_writes(vault_unavailable);
     let runtime = seeded_with_a_saved_old_url(&root, vault);
     save(&runtime, "http://new.test", Some("new-key"))
         .await

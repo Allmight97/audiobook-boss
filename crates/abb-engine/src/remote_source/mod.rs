@@ -415,3 +415,7 @@ pub use types::*;
 #[cfg(test)]
 #[path = "remote_source_tests.rs"]
 pub(crate) mod tests;
+
+#[cfg(test)]
+#[path = "test_support_tests.rs"]
+pub(crate) mod test_support;

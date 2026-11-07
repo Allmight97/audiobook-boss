@@ -1,4 +1,5 @@
 use super::*;
+use crate::remote_source::test_support::{vault_gate, MemoryVault};
 use crate::remote_source::types::{
     release_key, RemoteTitleAvailability, RemoteTitleAvailabilityStatus,
 };
@@ -422,67 +423,12 @@ async fn shutdown_drops_an_indexer_search_waiting_on_a_silent_server() {
     assert!(ended.is_err());
 }
 
-struct VaultGate {
-    entered: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
-    release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+fn account_read_failure() -> AppError {
+    AppError::ResourceCleanup("scripted account read failure".into())
 }
-impl VaultGate {
-    fn wait(&self) {
-        if let Some(entered) = self.entered.lock().expect("gate sender").take() {
-            entered.send(()).expect("test awaits vault entry");
-            self.release
-                .lock()
-                .expect("gate receiver")
-                .recv_timeout(std::time::Duration::from_secs(5))
-                .expect("test releases vault");
-        }
-    }
-}
-struct ScriptedVault {
-    read: Option<VaultGate>,
-    delete: Option<VaultGate>,
-    fail_delete: bool,
-}
-impl super::super::vault::SecretVault for ScriptedVault {
-    fn get_secret(&self, _key: &str) -> Result<Option<secrecy::SecretString>> {
-        if let Some(gate) = &self.read {
-            gate.wait();
-            return Err(AppError::ResourceCleanup(
-                "scripted account read failure".into(),
-            ));
-        }
-        Ok(None)
-    }
-    fn set_secret(&self, _key: &str, _value: secrecy::SecretString) -> Result<()> {
-        Ok(())
-    }
-    fn delete_secret(&self, _key: &str) -> Result<()> {
-        if let Some(gate) = &self.delete {
-            gate.wait();
-        }
-        if self.fail_delete {
-            return Err(AppError::ResourceCleanup(
-                "scripted credential deletion failure".into(),
-            ));
-        }
-        Ok(())
-    }
-}
-fn vault_gate() -> (
-    VaultGate,
-    tokio::sync::oneshot::Receiver<()>,
-    std::sync::mpsc::Sender<()>,
-) {
-    let (entered, waiting) = tokio::sync::oneshot::channel();
-    let (release, released) = std::sync::mpsc::channel();
-    (
-        VaultGate {
-            entered: std::sync::Mutex::new(Some(entered)),
-            release: std::sync::Mutex::new(released),
-        },
-        waiting,
-        release,
-    )
+
+fn credential_deletion_failure() -> AppError {
+    AppError::ResourceCleanup("scripted credential deletion failure".into())
 }
 
 #[tokio::test]
@@ -491,11 +437,11 @@ async fn no_keychain_read_starts_once_abb_is_closing() {
     let (gate, mut entered, _release) = vault_gate();
     let runtime = super::super::tests::test_runtime_with(
         &root,
-        Some(Box::new(ScriptedVault {
-            read: Some(gate),
-            delete: None,
-            fail_delete: false,
-        })),
+        Some(Box::new(MemoryVault::default().gating_reads(
+            0,
+            gate,
+            account_read_failure,
+        ))),
         None,
     );
     runtime.inner.tasks.close();
@@ -517,11 +463,11 @@ async fn a_late_account_failure_is_superseded_after_a_lane_change() {
     let (gate, entered, release) = vault_gate();
     let runtime = super::super::tests::test_runtime_with(
         &root,
-        Some(Box::new(ScriptedVault {
-            read: Some(gate),
-            delete: None,
-            fail_delete: false,
-        })),
+        Some(Box::new(MemoryVault::default().gating_reads(
+            0,
+            gate,
+            account_read_failure,
+        ))),
         None,
     );
     let read = runtime.inner.tasks.spawn(
@@ -559,11 +505,11 @@ async fn shutdown_waits_for_a_started_keychain_read() {
     let (gate, entered, release) = vault_gate();
     let runtime = super::super::tests::test_runtime_with(
         &root,
-        Some(Box::new(ScriptedVault {
-            read: Some(gate),
-            delete: None,
-            fail_delete: false,
-        })),
+        Some(Box::new(MemoryVault::default().gating_reads(
+            0,
+            gate,
+            account_read_failure,
+        ))),
         None,
     );
     let read = runtime.inner.tasks.spawn(
@@ -592,11 +538,7 @@ async fn accepted_disconnect_blocks_acquisition_and_shutdown_waits_for_credentia
     let (gate, entered, release) = vault_gate();
     let runtime = super::super::tests::test_runtime_with(
         &root,
-        Some(Box::new(ScriptedVault {
-            read: None,
-            delete: Some(gate),
-            fail_delete: false,
-        })),
+        Some(Box::new(MemoryVault::default().gating_deletes(gate))),
         None,
     );
     runtime
@@ -656,11 +598,9 @@ async fn failed_credential_deletion_preserves_library_choices_and_reports_failur
     let root = tempfile::TempDir::new().expect("temp dir");
     let runtime = super::super::tests::test_runtime_with(
         &root,
-        Some(Box::new(ScriptedVault {
-            read: None,
-            delete: None,
-            fail_delete: true,
-        })),
+        Some(Box::new(
+            MemoryVault::default().failing_deletes(credential_deletion_failure),
+        )),
         None,
     );
     runtime
