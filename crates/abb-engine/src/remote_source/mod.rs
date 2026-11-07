@@ -5,6 +5,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock};
 
 mod cancellation;
+mod job_state;
 mod materializer;
 mod providers;
 mod scoped_output;
@@ -21,6 +22,7 @@ pub use ui::{
 pub(crate) use ui::{RemoteUiResult, RemoteUiRun};
 mod vault;
 
+pub(crate) use job_state::AcquisitionOutcome;
 use materializer::AaxcleanMaterializer;
 use providers::audible::{AudibleProvider, PendingAudibleAuth};
 use providers::indexer::{IndexerProvider, ReqwestProwlarrAdapter};
@@ -361,10 +363,7 @@ impl RemoteSourceRuntime {
             .await
     }
 
-    pub(crate) async fn start_acquisition(
-        &self,
-        plan: RemoteAcquisitionPlan,
-    ) -> Result<RemoteAcquisitionJob> {
+    pub(crate) async fn start_acquisition(&self, plan: RemoteAcquisitionPlan) -> Result<()> {
         self.inner
             .lifecycle
             .start_acquisition(self.clone(), plan)

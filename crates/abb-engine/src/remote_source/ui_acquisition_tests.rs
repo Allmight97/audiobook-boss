@@ -145,10 +145,17 @@ fn attaching_during_an_accepted_acquisition_retains_library_without_resending_it
     );
     updates.0.lock().expect("events").clear();
     let since = runtime.ui_revisions();
-    runtime
-        .inner
-        .lifecycle
-        .mark_job_failed("progress-job", "fixture failure".into());
+    (runtime.inner.lifecycle.jobs.lock().expect("jobs")).insert(
+        "progress-job".into(),
+        crate::remote_source::job_state::Registered::new("progress-job"),
+    );
+    runtime.inner.lifecycle.apply_outcome(
+        "progress-job",
+        crate::remote_source::AcquisitionOutcome::failed(
+            crate::remote_source::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+            "fixture failure".into(),
+        ),
+    );
     let mut changed = crate::session::SessionUpdate::default();
     runtime.add_ui_parts(&mut changed, Some(since));
     let (remote, library, acquisition) = (
@@ -168,26 +175,16 @@ fn attaching_during_an_accepted_acquisition_retains_library_without_resending_it
 
 fn acquisition_failed_with(
     kind: crate::remote_source::RemoteAcquisitionFailureKind,
-) -> crate::remote_source::AcquisitionJob {
-    crate::remote_source::AcquisitionJob {
-        job_id: "job-1".into(),
-        provider_id: ProviderId::Audible,
-        status: crate::remote_source::RemoteAcquisitionStatus::Failed,
-        progress: abb_remote_source_core::acquisition_progress(
-            abb_remote_source_core::AcquisitionStage::Failed,
-            Some(1.0),
-            None,
-            None,
-        ),
-        materialized_files: Vec::new(),
-        supplemental_assets: Vec::new(),
-        diagnostics: vec![crate::remote_source::RemoteSourceDiagnostic {
+) -> crate::remote_source::AcquisitionSnapshot {
+    crate::remote_source::job_state::tests::failed(
+        "job-1",
+        vec![crate::remote_source::RemoteSourceDiagnostic {
             kind,
             title_id: Some("B000000001".into()),
             message: "Audible license request failed.".into(),
         }],
-        handoff: None,
-    }
+    )
+    .snapshot()
 }
 
 #[test]
@@ -241,13 +238,11 @@ fn download_update_bytes(count: usize) -> Vec<(bool, bool, bool, usize)> {
             title_id: format!("B{index:09}"),
         });
     }
-    let mut job = acquisition_failed_with(
-        crate::remote_source::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+    let job_id = "job-1".to_string();
+    (runtime.inner.lifecycle.jobs.lock().expect("jobs")).insert(
+        job_id.clone(),
+        crate::remote_source::job_state::Registered::new(&job_id),
     );
-    job.status = crate::remote_source::RemoteAcquisitionStatus::Acquiring;
-    job.diagnostics.clear();
-    let job_id = job.job_id.clone();
-    (runtime.inner.lifecycle.jobs.lock().expect("jobs")).insert(job_id.clone(), job);
     runtime
         .ui()
         .set_acquisition(|acquisition| acquisition.acquiring = true);
@@ -298,17 +293,11 @@ fn a_settling_job_frees_the_audible_lane_in_the_same_update() {
     let mut ui = UiState::default();
     ui.set_acquisition(|acquisition| acquisition.acquiring = true);
     assert!(ui.snapshot().busy);
-    let mut running = acquisition_failed_with(
-        crate::remote_source::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
-    );
-    running.status = crate::remote_source::RemoteAcquisitionStatus::Acquiring;
-    running.progress = abb_remote_source_core::acquisition_progress(
+    let running = crate::remote_source::job_state::tests::running(
+        "job-1",
         abb_remote_source_core::AcquisitionStage::Download,
-        Some(0.5),
-        Some(500),
-        Some(1_000),
-    );
-    running.diagnostics.clear();
+    )
+    .snapshot();
     let tick = ui.acquisition_changed(running);
     ui.set_acquisition(|acquisition| acquisition.acquiring = false);
     assert!(tick.remote.is_none());

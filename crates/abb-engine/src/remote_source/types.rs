@@ -311,34 +311,6 @@ impl AcquisitionJob {
             handoff: None,
         }
     }
-
-    pub(crate) fn terminal(&self) -> bool {
-        self.progress.terminal
-            || matches!(
-                self.status,
-                RemoteAcquisitionStatus::Failed
-                    | RemoteAcquisitionStatus::Cancelled
-                    | RemoteAcquisitionStatus::Validated
-                    | RemoteAcquisitionStatus::ImportedToFileList
-            )
-    }
-    pub(crate) fn settled(&self) -> bool {
-        self.handoff.is_some()
-            || matches!(
-                self.status,
-                RemoteAcquisitionStatus::Failed | RemoteAcquisitionStatus::Cancelled
-            )
-            || (self.terminal() && self.materialized_files.is_empty())
-    }
-}
-impl From<AcquisitionJob> for AcquisitionSnapshot {
-    fn from(job: AcquisitionJob) -> Self {
-        Self {
-            terminal: job.terminal(),
-            settled: job.settled(),
-            job,
-        }
-    }
 }
 impl std::ops::Deref for AcquisitionSnapshot {
     type Target = AcquisitionJob;

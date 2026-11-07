@@ -2,18 +2,18 @@ use super::*;
 use secrecy::ExposeSecret;
 use serde_json::json;
 
-async fn job_after_license_reply(status: u16) -> AcquisitionJob {
+async fn job_after_license_reply(status: u16) -> AcquisitionOutcome {
     job_after_license_body(status, r#"{"message":"Refused"}"#).await
 }
 
-async fn job_after_license_body(status: u16, body: &str) -> AcquisitionJob {
+async fn job_after_license_body(status: u16, body: &str) -> AcquisitionOutcome {
     job_and_staging_after_license_body(status, body).await.0
 }
 
 async fn job_and_staging_after_license_body(
     status: u16,
     body: &str,
-) -> (AcquisitionJob, tempfile::TempDir) {
+) -> (AcquisitionOutcome, tempfile::TempDir) {
     use crate::remote_source::providers::audible::http::stub::{signing_auth, stub_api};
     let (api, server) = stub_api(vec![
         (200, r#"{"item":{"title":"Book"}}"#.to_string()),
@@ -21,7 +21,7 @@ async fn job_and_staging_after_license_body(
     ])
     .await;
     let root = tempfile::TempDir::new().expect("temp root");
-    let mut job = AcquisitionJob::new("job-1");
+    let mut job = AcquisitionOutcome::default();
 
     let outcome = acquire_one(
         &api,
@@ -43,7 +43,7 @@ async fn job_and_staging_after_license_body(
         &|| false,
     )
     .await;
-    record_title_outcome(&mut job, "B000000001", outcome).expect("not cancelled");
+    record_title_outcome(&mut job, "job-1", "B000000001", outcome).expect("not cancelled");
     let requests = server.finished().await;
     assert!(
         requests[1]
@@ -139,7 +139,7 @@ async fn an_aaxc_license_with_no_usable_material_fails_before_any_download() {
         "{:?}",
         job.diagnostics[0]
     );
-    assert!(job.materialized_files.is_empty());
+    assert!(job.files.is_empty());
     let staged_files: Vec<_> = files_under(staging.path());
     assert!(staged_files.is_empty(), "{staged_files:?}");
 }
@@ -162,7 +162,7 @@ fn files_under(root: &std::path::Path) -> Vec<std::path::PathBuf> {
 
 #[test]
 fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {
-    let mut job = AcquisitionJob::new("job-1");
+    let mut job = AcquisitionOutcome::default();
     let specific = RemoteSourceDiagnostic {
         kind: RemoteAcquisitionFailureKind::ProtectedUnsupported,
         title_id: Some("B000000001".into()),
@@ -171,6 +171,7 @@ fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {
 
     record_title_outcome(
         &mut job,
+        "job-1",
         "B000000001",
         Ok(AcquiredTitle {
             file: None,
@@ -181,7 +182,7 @@ fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {
     .expect("record outcome");
 
     assert_eq!(job.diagnostics, vec![specific]);
-    assert!(job.materialized_files.is_empty());
+    assert!(job.files.is_empty());
 }
 
 #[test]

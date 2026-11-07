@@ -135,7 +135,7 @@ impl super::UiState {
 
     pub(in crate::remote_source) fn acquisition_changed(
         &mut self,
-        job: crate::remote_source::AcquisitionJob,
+        job: crate::remote_source::AcquisitionSnapshot,
     ) -> crate::session::SessionUpdate {
         let remote_before = self.snapshot.current();
         if job.provider_id == ProviderId::Audible
@@ -151,10 +151,10 @@ impl super::UiState {
             .job
             .as_ref()
             .is_some_and(|known| known.settled && known.job_id == job.job_id);
-        if job.settled() && !already_settled {
+        if job.settled && !already_settled {
             self.settled_job_line = Some(lane_status::settled_job_line(&job));
         }
-        self.set_acquisition(|acquisition| acquisition.job = Some(Box::new(job.into())));
+        self.set_acquisition(|acquisition| acquisition.job = Some(Box::new(job)));
         let remote_moved = self.snapshot.current() != remote_before;
         crate::session::SessionUpdate {
             remote: remote_moved

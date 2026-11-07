@@ -623,20 +623,8 @@ fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::Acqu
     let pdf = audio.with_extension("pdf");
     let pdf_bytes = b"%PDF-1.4 companion";
     std::fs::write(&pdf, pdf_bytes).expect("write companion PDF");
-    use crate::remote_source::{
-        AcquisitionJob, MaterializedSourceFile, ProviderId, RemoteAcquisitionStatus,
-        SupplementalAsset,
-    };
+    use crate::remote_source::{AcquisitionJob, MaterializedSourceFile, SupplementalAsset};
     AcquisitionJob {
-        job_id: job_id.to_string(),
-        provider_id: ProviderId::Audible,
-        status: RemoteAcquisitionStatus::Validated,
-        progress: abb_remote_source_core::acquisition_progress(
-            abb_remote_source_core::AcquisitionStage::Validation,
-            Some(1.0),
-            None,
-            None,
-        ),
         materialized_files: vec![MaterializedSourceFile {
             input_id: "remote-1".to_string(),
             title_id: "B0".to_string(),
@@ -653,8 +641,7 @@ fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::Acqu
             size_bytes: pdf_bytes.len() as u64,
             sha256: abb_media_core::sha256_hex(pdf_bytes),
         }],
-        diagnostics: Vec::new(),
-        handoff: None,
+        ..AcquisitionJob::new(job_id)
     }
 }
 

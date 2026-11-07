@@ -15,7 +15,7 @@ fn acquire_unreadable_titles(count: u32, pause_after_first: Option<Pause>) -> Ac
         let pause = pause.clone();
         Box::pin(async move {
             let lifecycle = &request.runtime.inner.lifecycle;
-            let mut job = AcquisitionJob::new(&request.job_id);
+            let mut job = AcquisitionOutcome::default();
             for index in 0..count {
                 let title_id = format!("B0{index}");
                 let path = request.job_dir.join(format!("{title_id}.m4b"));
@@ -42,15 +42,13 @@ fn acquire_unreadable_titles(count: u32, pause_after_first: Option<Pause>) -> Ac
                         diagnostics: Vec::new(),
                     })
                     .map_err(AudibleAcquisitionError::validation);
-                record_title_outcome(&mut job, &title_id, outcome)?;
+                record_title_outcome(&mut job, &request.job_id, &title_id, outcome)?;
                 let pause = pause.lock().expect("pause").take();
                 if let (0, Some(Pause { arrived, release })) = (index, pause) {
                     arrived.send(()).expect("test waits for the pause");
                     release.await.expect("test releases the pause");
                 }
             }
-            job.status = RemoteAcquisitionStatus::Failed;
-            job.progress = acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None);
             Ok(job)
         })
     })

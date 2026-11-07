@@ -98,6 +98,14 @@ session files, Supplemental Assets, and staging cleanup.
 An acquisition's provider work runs behind one `AcquireTitles` function; see
 its rustdoc in `session_lifecycle.rs`.
 
+The lifecycle registry (`job_state.rs`) holds each job in one state that only
+moves forward: Running, then Validated (files wait for the session) or Settled
+(Imported, Removed, Failed, Cancelled). Progress is a display value and never
+changes the state; a title that fails is a diagnostic, not a terminal stage.
+Snapshot `terminal` is "not Running" and `settled` is "Settled". The provider
+returns an `AcquisitionOutcome` that the lifecycle applies to the job it
+registered.
+
 A finished job hands its files to the session through the engine-set `Handoff`
 and records the outcome on the job. From then on the session decides when the
 download goes (`crate::session`, `staged.rs`) and calls `purge_session`, which
@@ -112,7 +120,7 @@ a part with its own revision; download progress is published at most every
 100 ms, a stage change at once, and a progress tick carries no other part. The
 change that settles the job or rejects the sign-in also carries the remote part.
 Why: a tick stays one job's size at any library size and cannot drop a crossing
-selection change. Snapshot `terminal` and `settled` facts belong here.
+selection change.
 
 ## Working Remote State
 

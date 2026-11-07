@@ -19,13 +19,11 @@ use crate::remote_source::materializer::AaxcleanMaterializer;
 use crate::remote_source::scoped_output::ProvisionalCommittedFile;
 use crate::remote_source::staging;
 use crate::remote_source::{
-    AcquisitionJob, AcquisitionPlan, MaterializedSourceFile, RemoteAcquisitionFailureKind,
-    RemoteAcquisitionStatus, RemoteSourceDiagnostic, SupplementalAsset,
+    AcquisitionOutcome, AcquisitionPlan, MaterializedSourceFile, RemoteAcquisitionFailureKind,
+    RemoteSourceDiagnostic, SupplementalAsset,
 };
 use abb_audible_core::{title_ref, AudibleLicenseDecryptContext};
-use abb_remote_source_core::{
-    acquisition_progress, AcquisitionProgress, AcquisitionStage, AcquisitionStrategy,
-};
+use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage, AcquisitionStrategy};
 use audible_api::auth::Auth;
 
 pub(super) struct AcquiredTitle {
@@ -78,11 +76,11 @@ pub(super) async fn acquire(
     job_dir: &Path,
     mut progress: impl FnMut(AcquisitionProgress),
     is_cancelled: impl Fn() -> bool,
-) -> Result<AcquisitionJob> {
+) -> Result<AcquisitionOutcome> {
     ensure_not_cancelled(&is_cancelled)?;
     let license_decrypt_context = license_decrypt_context_from_auth(&auth);
     let api = AudibleApi::new(auth.clone())?;
-    let mut job = AcquisitionJob::new(job_id);
+    let mut outcome = AcquisitionOutcome::default();
 
     let total_items = u32::try_from(plan.selections.len()).unwrap_or(u32::MAX);
     for (selection_index, selection) in plan.selections.iter().enumerate() {
@@ -99,7 +97,7 @@ pub(super) async fn acquire(
                 total_items,
             },
         };
-        let outcome = acquire_one(
+        let title = acquire_one(
             &api,
             &auth,
             materializer,
@@ -108,36 +106,26 @@ pub(super) async fn acquire(
             &is_cancelled,
         )
         .await;
-        record_title_outcome(&mut job, &selection.title_id, outcome)?;
+        record_title_outcome(&mut outcome, job_id, &selection.title_id, title)?;
     }
-
-    job.status = if job.materialized_files.is_empty() {
-        RemoteAcquisitionStatus::Failed
-    } else {
-        RemoteAcquisitionStatus::Validated
-    };
-    job.progress = if job.status == RemoteAcquisitionStatus::Failed {
-        acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None)
-    } else {
-        acquisition_progress(AcquisitionStage::ImportHandoff, Some(1.0), None, None)
-    };
-    Ok(job)
+    Ok(outcome)
 }
 
 fn record_title_outcome(
-    job: &mut AcquisitionJob,
+    outcome: &mut AcquisitionOutcome,
+    job_id: &str,
     title_id: &str,
-    outcome: AudibleAcquisitionResult<AcquiredTitle>,
+    title: AudibleAcquisitionResult<AcquiredTitle>,
 ) -> Result<()> {
-    match outcome {
+    match title {
         Ok(AcquiredTitle {
             file,
             assets,
             diagnostics,
         }) => {
-            job.materialized_files.extend(file);
-            job.supplemental_assets.extend(assets);
-            job.diagnostics.extend(diagnostics);
+            outcome.files.extend(file);
+            outcome.assets.extend(assets);
+            outcome.diagnostics.extend(diagnostics);
         }
         Err(error) => {
             if error.is_cancellation() {
@@ -146,12 +134,12 @@ fn record_title_outcome(
             let diagnostic = error.into_diagnostic(Some(title_id.to_string()));
             log::warn!(
                 "remote_source audible stage=title_acquisition job_id={} title_ref={} kind={:?} action=failed message={}",
-                job.job_id,
+                job_id,
                 title_ref(title_id),
                 diagnostic.kind,
                 diagnostic.message
             );
-            job.diagnostics.push(diagnostic);
+            outcome.diagnostics.push(diagnostic);
         }
     }
     Ok(())

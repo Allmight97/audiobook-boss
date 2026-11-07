@@ -9,8 +9,8 @@ use crate::audio::{AudioIntent, EncoderType};
 use crate::power::PowerManager;
 use crate::remote_source::tests::{offer_library_title, recorded_job_ids, test_runtime_acquiring};
 use crate::remote_source::{
-    AcquireTitles, AcquisitionHandoff, AcquisitionJob, AcquisitionSnapshot, MaterializedSourceFile,
-    ProviderId, RemoteAcquisitionStatus, RemoteSourceRuntime, RemoteUiIntent,
+    AcquireTitles, AcquisitionHandoff, AcquisitionOutcome, AcquisitionSnapshot,
+    MaterializedSourceFile, RemoteAcquisitionStatus, RemoteSourceRuntime, RemoteUiIntent,
 };
 use crate::session::{AudioEdit, MetadataField, Session, SessionDeps, SessionIntent};
 use crate::work_runtime::WorkRuntime;
@@ -22,26 +22,15 @@ fn downloads_one_wav(seconds: u32, title: Option<&'static str>) -> AcquireTitles
         Box::pin(async move {
             let path = request.job_dir.join("book.wav");
             super::wav_fixture::write_wav(&path, seconds, title, None);
-            Ok(AcquisitionJob {
-                job_id: request.job_id,
-                provider_id: ProviderId::Audible,
-                status: RemoteAcquisitionStatus::Validated,
-                progress: abb_remote_source_core::acquisition_progress(
-                    abb_remote_source_core::AcquisitionStage::Validation,
-                    Some(1.0),
-                    None,
-                    None,
-                ),
-                materialized_files: vec![MaterializedSourceFile {
+            Ok(AcquisitionOutcome {
+                files: vec![MaterializedSourceFile {
                     input_id: "remote-1".into(),
                     title_id: TITLE_ID.into(),
                     path,
                     size_bytes: 0,
                     sha256: String::new(),
                 }],
-                supplemental_assets: Vec::new(),
-                diagnostics: Vec::new(),
-                handoff: None,
+                ..AcquisitionOutcome::default()
             })
         })
     })
