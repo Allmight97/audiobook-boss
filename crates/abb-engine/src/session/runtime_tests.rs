@@ -632,7 +632,7 @@ fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::Acqu
         provider_id: ProviderId::Audible,
         status: RemoteAcquisitionStatus::Validated,
         progress: abb_remote_source_core::acquisition_progress(
-            abb_remote_source_core::AcquisitionStage::Complete,
+            abb_remote_source_core::AcquisitionStage::Validation,
             Some(1.0),
             None,
             None,

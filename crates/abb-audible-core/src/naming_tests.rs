@@ -1,26 +1,6 @@
 use super::*;
 
 #[test]
-fn download_extension_matches_strategy() {
-    assert_eq!(
-        download_extension_for_strategy(AcquisitionStrategy::DownloadImportReady),
-        "m4b"
-    );
-    assert_eq!(
-        download_extension_for_strategy(AcquisitionStrategy::DownloadThenDecryptAax),
-        "aax"
-    );
-    assert_eq!(
-        download_extension_for_strategy(AcquisitionStrategy::DownloadThenDecryptAaxc),
-        "aaxc"
-    );
-    assert_eq!(
-        download_extension_for_strategy(AcquisitionStrategy::DownloadThenDecryptDash),
-        "mpd"
-    );
-}
-
-#[test]
 fn supplemental_pdf_display_file_name_uses_sanitized_remote_title() {
     let file_name = supplemental_pdf_display_file_name(
         Some("Being You: A New Science of Consciousness"),

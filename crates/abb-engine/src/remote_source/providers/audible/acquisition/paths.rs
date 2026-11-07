@@ -2,7 +2,7 @@ use std::fs;
 use std::io::Read;
 use std::path::Path;
 
-use abb_audible_core::{download_extension_for_strategy, remote_materialized_filename_stem};
+use abb_audible_core::remote_materialized_filename_stem;
 use abb_remote_source_core::AcquisitionStrategy;
 use sha2::{Digest, Sha256};
 
@@ -22,10 +22,12 @@ pub(in crate::remote_source::providers::audible) fn staged_protected_source_path
     job_dir: &Path,
     strategy: AcquisitionStrategy,
 ) -> std::path::PathBuf {
-    job_dir.join(format!(
-        "source.{}",
-        download_extension_for_strategy(strategy)
-    ))
+    let extension = if strategy == AcquisitionStrategy::DownloadThenDecryptAax {
+        "aax"
+    } else {
+        "aaxc"
+    };
+    job_dir.join(format!("source.{extension}"))
 }
 
 pub(in crate::remote_source::providers::audible) fn staged_materialized_path(

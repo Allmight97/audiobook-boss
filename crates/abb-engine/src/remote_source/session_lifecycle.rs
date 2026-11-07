@@ -428,14 +428,7 @@ impl RemoteAcquisitionLifecycle {
             |_| Vec::new(),
             |jobs| {
                 jobs.iter()
-                    .filter(|(_, job)| {
-                        matches!(
-                            job.status,
-                            types::RemoteAcquisitionStatus::Planned
-                                | types::RemoteAcquisitionStatus::Acquiring
-                                | types::RemoteAcquisitionStatus::Materialized
-                        )
-                    })
+                    .filter(|(_, job)| job.status == types::RemoteAcquisitionStatus::Acquiring)
                     .map(|(job_id, _)| job_id.clone())
                     .collect()
             },
@@ -473,10 +466,7 @@ impl RemoteAcquisitionLifecycle {
         let job = jobs.get_mut(job_id).ok_or_else(|| {
             AppError::InvalidInput("Remote acquisition job was not found.".to_string())
         })?;
-        if !matches!(
-            job.status,
-            types::RemoteAcquisitionStatus::Planned | types::RemoteAcquisitionStatus::Acquiring
-        ) {
+        if job.status != types::RemoteAcquisitionStatus::Acquiring {
             return Ok(job.clone());
         }
         mark_cancelled(job);

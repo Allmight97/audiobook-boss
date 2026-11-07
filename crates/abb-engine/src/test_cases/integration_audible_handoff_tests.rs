@@ -27,7 +27,7 @@ fn downloads_one_wav(seconds: u32, title: Option<&'static str>) -> AcquireTitles
                 provider_id: ProviderId::Audible,
                 status: RemoteAcquisitionStatus::Validated,
                 progress: abb_remote_source_core::acquisition_progress(
-                    abb_remote_source_core::AcquisitionStage::Complete,
+                    abb_remote_source_core::AcquisitionStage::Validation,
                     Some(1.0),
                     None,
                     None,

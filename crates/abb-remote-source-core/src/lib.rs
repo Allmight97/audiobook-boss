@@ -3,22 +3,14 @@ use std::path::Path;
 
 pub use abb_media_core::{MediaContainerKind, MediaProtectionKind};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(transparent)]
-pub struct ProviderId(pub String);
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AcquisitionStage {
-    Auth,
-    Library,
     License,
     Download,
     Decryption,
     Validation,
     ImportHandoff,
-    Cleanup,
-    Complete,
     Failed,
     Cancelled,
 }
@@ -78,15 +70,11 @@ pub fn acquisition_progress(
         .unwrap_or(0.0)
         .clamp(0.0, 1.0);
     let (start, end, message, terminal) = match stage {
-        AcquisitionStage::Auth => (0.0, 5.0, "Preparing account session.", false),
-        AcquisitionStage::Library => (0.0, 5.0, "Loading remote library.", false),
         AcquisitionStage::License => (0.0, 15.0, "Requesting download license.", false),
         AcquisitionStage::Download => (15.0, 65.0, "Downloading audiobook.", false),
         AcquisitionStage::Decryption => (65.0, 90.0, "Decrypting audiobook.", false),
         AcquisitionStage::Validation => (90.0, 97.0, "Validating acquired audiobook.", false),
         AcquisitionStage::ImportHandoff => (97.0, 100.0, "Importing acquired audiobook.", false),
-        AcquisitionStage::Cleanup => (100.0, 100.0, "Cleaning acquired session.", false),
-        AcquisitionStage::Complete => (100.0, 100.0, "Acquisition complete.", true),
         AcquisitionStage::Failed => (100.0, 100.0, "Acquisition failed.", true),
         AcquisitionStage::Cancelled => (100.0, 100.0, "Acquisition cancelled.", true),
     };

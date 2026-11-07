@@ -90,7 +90,7 @@ export type AcquisitionSnapshot = {
 	settled: boolean,
 } & AcquisitionJob;
 
-export type AcquisitionStage = "auth" | "library" | "license" | "download" | "decryption" | "validation" | "importHandoff" | "cleanup" | "complete" | "failed" | "cancelled";
+export type AcquisitionStage = "license" | "download" | "decryption" | "validation" | "importHandoff" | "failed" | "cancelled";
 
 export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal";
 
@@ -873,7 +873,7 @@ export type RemoteAcquisitionSnapshot = {
 	job: AcquisitionSnapshot | null,
 };
 
-export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
+export type RemoteAcquisitionStatus = "acquiring" | "validated" | "importedToFileList" | "failed" | "cancelled";
 
 export type RemoteAuthStartResponse = {
 	providerId: ProviderId,

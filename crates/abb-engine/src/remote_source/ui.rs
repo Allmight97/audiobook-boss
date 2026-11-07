@@ -341,11 +341,6 @@ impl UiState {
     }
 
     fn select_lane(&mut self, lane: ProviderId) -> Result<UiAction> {
-        if self.disconnecting {
-            return Err(AppError::InvalidInput(
-                "Wait for disconnect to finish.".into(),
-            ));
-        }
         if matches!(
             self.snapshot.auth,
             RemoteAuthStatus::Starting | RemoteAuthStatus::Completing

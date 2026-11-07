@@ -15,6 +15,5 @@ pub use license_facts::{
     LicenseFacts,
 };
 pub use naming::{
-    download_extension_for_strategy, remote_materialized_filename_stem,
-    supplemental_pdf_display_file_name, title_ref,
+    remote_materialized_filename_stem, supplemental_pdf_display_file_name, title_ref,
 };

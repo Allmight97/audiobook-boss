@@ -188,9 +188,7 @@ pub struct AcquisitionPlan {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum RemoteAcquisitionStatus {
-    Planned,
     Acquiring,
-    Materialized,
     Validated,
     ImportedToFileList,
     Failed,
