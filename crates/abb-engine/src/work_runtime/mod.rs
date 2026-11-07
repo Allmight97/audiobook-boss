@@ -1,3 +1,6 @@
+mod operations;
+#[cfg(test)]
+mod operations_tests;
 mod runtime;
 mod snapshot;
 mod stage_table;

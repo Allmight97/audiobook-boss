@@ -51,8 +51,15 @@
   the batch settles; missing timestamps mean unknown, so derive them from
   neither logs nor batch duration.
 - An export holds concurrency fixed from acceptance to its end, including
-  between titles. Title sources are recorded before the operation is visible,
-  so a file is never reported free between acceptance and the first read.
+  between titles. One lock guards every operation's snapshot beside its live
+  record (title cancel flags and sources). Acceptance inserts both together,
+  so a file is never reported free between acceptance and the first read;
+  only finishing removes the record, in the same critical section that writes
+  the terminal snapshot. Sources are therefore free before `on_finished` runs.
+  Terminalizing runs under the lock; `TitleOutput::end`, event emission and
+  `on_finished` run outside it, because `TitleOutput::end` calls a listener
+  that takes the lock. A cancel sets its flags in the same critical section
+  that writes the Cancelling snapshot.
 - A metadata save's children match progress by `input_index` and carry no
   per-file `job_id`: a shared one would cross-match in `apply_progress_event`.
   A cancel during the registry permit wait ends the operation as Cancelled and

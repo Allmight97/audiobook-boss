@@ -1,9 +1,8 @@
 use super::*;
+use std::path::Path;
 
-#[test]
-fn sources_in_use_still_reports_queued_sources_after_the_state_lock_is_poisoned() {
+fn accepted_runtime(source: &Path) -> (WorkRuntime, OperationId) {
     let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
-    let source = PathBuf::from("/library/book.m4b");
     let operation_id = OperationId("operation-1".to_string());
     let snapshot = new_processing_snapshot(
         operation_id.clone(),
@@ -12,42 +11,102 @@ fn sources_in_use_still_reports_queued_sources_after_the_state_lock_is_poisoned(
         &[source.display().to_string()],
         None,
     );
-    lock_state(&runtime.inner.state)
-        .expect("state lock")
-        .insert_operation(snapshot);
-    runtime
-        .title_sources()
-        .insert(operation_id.0.clone(), vec![vec![source.clone()]]);
+    runtime.lock_operations().expect("operations lock").accept(
+        snapshot,
+        Live {
+            titles: CancelFlags::per_title(1),
+            sources: vec![vec![source.to_path_buf()]],
+        },
+    );
+    (runtime, operation_id)
+}
 
+fn poison(runtime: &WorkRuntime) {
     let poisoned = std::thread::scope(|scope| {
         scope
             .spawn(|| {
-                let _guard = runtime.inner.state.lock().expect("state lock");
-                panic!("poison the state lock");
+                let _guard = runtime.inner.operations.lock().expect("operations lock");
+                panic!("poison the operations lock");
             })
             .join()
     });
     assert!(poisoned.is_err());
-    assert!(runtime.inner.state.is_poisoned());
+    assert!(runtime.inner.operations.is_poisoned());
+}
+
+#[test]
+fn a_source_is_in_use_from_registration_before_the_first_progress_event() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, operation_id) = accepted_runtime(&source);
+
+    let snapshot = runtime.list_operations().expect("operations").operations;
+    assert_eq!(snapshot[0].operation_id, operation_id);
+    assert_eq!(snapshot[0].status, WorkOperationStatus::Accepted);
+    assert_eq!(runtime.sources_in_use(), HashSet::from([source.clone()]));
+    assert_eq!(runtime.sources_held(), HashSet::from([source]));
+}
+
+#[test]
+fn sources_in_use_still_reports_queued_sources_after_the_lock_is_poisoned() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, _) = accepted_runtime(&source);
+
+    poison(&runtime);
 
     assert_eq!(runtime.sources_in_use(), HashSet::from([source]));
 }
 
 #[test]
-fn cancelling_one_title_sets_only_its_flag_and_whole_cancel_sets_all() {
-    let flags = CancelFlags::per_title(3);
-    let titles = flags.titles();
+fn sources_held_still_reports_every_source_after_the_lock_is_poisoned() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, _) = accepted_runtime(&source);
 
-    assert!(flags.cancel_title(1));
-    assert!(!flags.cancel_title(3), "unknown titles are not cancelled");
-    let cancelled: Vec<_> = titles
-        .iter()
-        .map(|flag| flag.load(Ordering::Acquire))
-        .collect();
-    assert_eq!(cancelled, [false, true, false]);
+    poison(&runtime);
 
-    flags.cancel_all();
-    assert!(titles.iter().all(|flag| flag.load(Ordering::Acquire)));
+    assert_eq!(runtime.sources_held(), HashSet::from([source]));
+}
+
+struct LockProbe {
+    runtime: std::sync::OnceLock<WorkRuntime>,
+    seen: Mutex<Vec<(bool, usize)>>,
+}
+
+impl crate::EventSink for LockProbe {
+    fn emit(&self, _event: crate::EngineEvent) {
+        let runtime = self.runtime.get().expect("probe is wired to the runtime");
+        let lock_is_free = runtime.inner.operations.try_lock().is_ok();
+        let held = runtime.sources_held().len();
+        self.seen
+            .lock()
+            .expect("probe lock")
+            .push((lock_is_free, held));
+    }
+}
+
+#[test]
+fn finishing_an_export_frees_its_sources_before_anyone_hears_of_it_and_emits_outside_the_lock() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, operation_id) = accepted_runtime(&source);
+    let probe = Arc::new(LockProbe {
+        runtime: std::sync::OnceLock::new(),
+        seen: Mutex::new(Vec::new()),
+    });
+    assert!(probe.runtime.set(runtime.clone()).is_ok());
+    let host = Host::new(probe.clone(), crate::power::PowerManager::default());
+    let result = crate::processing::ProcessCommandResult::new(Vec::new());
+
+    let finished = runtime
+        .finish_processing_and_emit(&host, &operation_id, Ok(result))
+        .expect("terminal snapshot");
+
+    assert!(finished.is_finished());
+    assert!(runtime.sources_held().is_empty());
+    assert!(runtime.sources_in_use().is_empty());
+    assert_eq!(
+        *probe.seen.lock().expect("probe lock"),
+        [(true, 0)],
+        "one event, sent with the lock free and the sources already released"
+    );
 }
 
 #[test]
