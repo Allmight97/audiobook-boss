@@ -11,7 +11,10 @@ validity; `scripts/lane-paths.yml` owns the patterns and explicit exemptions.
 It rejects unmapped tracked or changed paths before CI schedules any job.
 `bun scripts/verification.ts plan --explain <path>` prints the lane and pattern
 that select a path, or `unmapped`.
-`verify.sh` owns the lane list and commands.
+`verify.sh` owns the lane list and commands; `verify.sh --describe` prints each
+lane's CI job, platforms, and tools, and `verification.ts` plans jobs and
+records tool versions from it (`verification.test.ts` checks it against the
+`lane_*` functions and `ci.yml`).
 
 Each run keeps logs, input fingerprints, tool identities, and per-lane results
 under `.logs/verification/`. A passing receipt is reusable only for the same
