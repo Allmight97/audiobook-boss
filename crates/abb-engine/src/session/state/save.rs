@@ -63,13 +63,7 @@ impl SessionState {
                 })
             })
             .collect();
-        let tags = &self.tags;
-        let outputs = match self.exports.is_empty() {
-            true => Vec::new(),
-            false => self
-                .exports
-                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone())),
-        };
+        let outputs = self.output_edits(None);
         if items.is_empty() && outputs.is_empty() {
             self.status = Some(if grouped {
                 MetadataStatus::GroupedEditsKept
@@ -89,6 +83,19 @@ impl SessionState {
         };
         self.status = Some(MetadataStatus::PreparingSave);
         Some(plan)
+    }
+
+    /// The edit each linked output should carry: what was written to its
+    /// source plus the edit still pending. `only` names the titles asked for.
+    pub(crate) fn output_edits(&mut self, only: Option<&[String]>) -> Vec<OutputEdit> {
+        let tags = &self.tags;
+        let mut edits = self
+            .exports
+            .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()));
+        if let Some(only) = only {
+            edits.retain(|edit| only.contains(&edit.title_id));
+        }
+        edits
     }
 
     pub(crate) fn finish_save(

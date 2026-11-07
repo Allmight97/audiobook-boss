@@ -5,8 +5,9 @@ use std::sync::Arc;
 use super::{blocking, Rest, Session};
 use crate::errors::{AppErrorEnvelope, Result};
 use crate::metadata_save::{save_metadata_batch, MetadataSaveRequest, MetadataSaveResultStatus};
+use crate::processing::title_output::TitleOutput;
 use crate::processing::title_output::UpdateReply;
-use crate::processing::{OutputUpdate, OutputUpdateStatus};
+use crate::processing::OutputUpdateStatus;
 use crate::session::exports::{OutputEdit, OutputEdits};
 use crate::session::intent::SessionOutcome;
 use crate::session::state::{MetadataStatus, SaveItem, SavePlan};
@@ -16,6 +17,22 @@ struct Written {
     succeeded: usize,
     failed: usize,
     cancelled: usize,
+}
+
+pub(super) async fn apply_published(title: &Arc<TitleOutput>) -> Result<()> {
+    let title = Arc::clone(title);
+    blocking(move || {
+        title.apply_published();
+        Ok(())
+    })
+    .await
+}
+
+pub(super) fn output_update_failure(title: &TitleOutput) -> Option<String> {
+    match title.update_state()?.status {
+        OutputUpdateStatus::Failed { message } => Some(message),
+        _ => None,
+    }
 }
 
 impl Session {
@@ -213,23 +230,13 @@ impl Session {
                     ..
                 })
             ) {
-                let title = Arc::clone(&edit.title);
-                match blocking(move || {
-                    title.apply_published();
-                    Ok(())
-                })
-                .await
-                {
+                match apply_published(&edit.title).await {
                     Err(error) => {
                         log::warn!("Output update did not finish: {error}");
                         reply = Err(error.to_string());
                     }
                     Ok(()) => {
-                        if let Some(OutputUpdate {
-                            status: OutputUpdateStatus::Failed { message },
-                            ..
-                        }) = edit.title.update_state()
-                        {
+                        if let Some(message) = output_update_failure(&edit.title) {
                             reply = Err(message);
                         }
                     }
@@ -244,15 +251,7 @@ impl Session {
     /// edits: a Save made while the submission was being prepared did not
     /// reach the export.
     pub(super) async fn catch_up_outputs(&self, title_ids: &[String]) {
-        let edits = self.transition(|state| {
-            let tags = &state.tags;
-            state
-                .exports
-                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
-                .into_iter()
-                .filter(|edit| title_ids.contains(&edit.title_id))
-                .collect::<Vec<_>>()
-        });
+        let edits = self.transition(|state| state.output_edits(Some(title_ids)));
         self.update_outputs(edits).await;
     }
 

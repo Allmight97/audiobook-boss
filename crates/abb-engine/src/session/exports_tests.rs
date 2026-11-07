@@ -56,6 +56,20 @@ fn an_edit_already_written_to_the_source_stays_in_the_output_edit() {
 }
 
 #[test]
+fn asking_for_edits_with_no_linked_output_leaves_the_revision_alone() {
+    let mut exports = Exports::default();
+    assert!(exports.edits(|_| None).is_empty());
+
+    exports.link(
+        &OperationId("operation-1".to_string()),
+        [("alpha".to_string(), PathBuf::from("/books/alpha.m4b"))],
+        &[output()],
+    );
+
+    assert_eq!(exports.edits(|_| None)[0].revision, 1);
+}
+
+#[test]
 fn an_offer_is_taken_only_as_shown_and_a_kept_location_is_not_offered_again() {
     let mut exports = linked();
     let naming = OutputNamingConfig::default();

@@ -118,14 +118,13 @@ impl Exports {
             .retain(|title_id, _| listed.contains(title_id.as_str()));
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
-        self.links.is_empty()
-    }
-
     pub(crate) fn edits(
         &mut self,
         pending: impl Fn(&Path) -> Option<MetadataIntentPatch>,
     ) -> Vec<OutputEdit> {
+        if self.links.is_empty() {
+            return Vec::new();
+        }
         self.edits += 1;
         let revision = self.edits;
         self.links

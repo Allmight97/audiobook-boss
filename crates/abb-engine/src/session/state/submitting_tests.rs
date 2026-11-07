@@ -1,6 +1,9 @@
 use super::*;
+use crate::output_artifact::OutputNamingConfig;
 use crate::processing::title_output::UpdateReply;
+use crate::processing::title_output::{TitleOutput, TitleOutputPlan};
 use crate::work_runtime::OperationId;
+use std::sync::Arc;
 
 #[test]
 fn an_export_needs_a_title_from_its_tag_or_the_form() {
@@ -140,48 +143,7 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_cancel_and_c
     assert!(desk.state.reserved.is_empty());
 }
 
-fn prompted_title(desk: &Desk) -> Option<String> {
-    desk.state
-        .output_snapshot(0)
-        .restart_prompt
-        .map(|offer| offer.title_id)
-}
-
-fn save_moves(desk: &mut Desk, titles: &[&str]) -> u64 {
-    let edits: Vec<_> = desk
-        .state
-        .exports
-        .edits(|_| None)
-        .into_iter()
-        .filter(|edit| titles.contains(&edit.title_id.as_str()))
-        .collect();
-    let revision = edits[0].revision;
-    desk.state.record_output_edits(
-        edits
-            .into_iter()
-            .map(|edit| {
-                let reply = UpdateReply::MovesOutput {
-                    from: PathBuf::from("/library/old.m4b"),
-                    to: PathBuf::from(format!("/library/{}.m4b", edit.title_id)),
-                };
-                (edit, Ok(reply))
-            })
-            .collect(),
-    );
-    revision
-}
-
-#[test]
-fn restart_questions_wait_for_answer_work_and_answered_offers_stay_retryable() {
-    use crate::output_artifact::OutputNamingConfig;
-    use crate::processing::title_output::{TitleOutput, TitleOutputPlan};
-    use std::sync::Arc;
-
-    let mut desk = Desk::open(
-        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
-        &[0],
-    );
-    desk.state.output.set_directory("/library".into());
+fn link_both(desk: &mut Desk) -> Vec<Arc<TitleOutput>> {
     let outputs: Vec<_> = ["alpha", "beta"]
         .iter()
         .map(|name| {
@@ -209,6 +171,70 @@ fn restart_questions_wait_for_answer_work_and_answered_offers_stay_retryable() {
         ],
         &outputs,
     );
+    outputs
+}
+
+fn prompted_title(desk: &Desk) -> Option<String> {
+    desk.state
+        .output_snapshot(0)
+        .restart_prompt
+        .map(|offer| offer.title_id)
+}
+
+fn save_moves(desk: &mut Desk, titles: &[&str]) -> u64 {
+    let only: Vec<String> = titles.iter().map(|title| title.to_string()).collect();
+    let edits = desk.state.output_edits(Some(&only));
+    let revision = edits[0].revision;
+    desk.state.record_output_edits(
+        edits
+            .into_iter()
+            .map(|edit| {
+                let reply = UpdateReply::MovesOutput {
+                    from: PathBuf::from("/library/old.m4b"),
+                    to: PathBuf::from(format!("/library/{}.m4b", edit.title_id)),
+                };
+                (edit, Ok(reply))
+            })
+            .collect(),
+    );
+    revision
+}
+
+#[test]
+fn output_edits_join_the_written_and_pending_edits_of_the_asked_titles() {
+    let mut desk = Desk::open(
+        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
+        &[0],
+    );
+    assert!(desk.state.output_edits(None).is_empty());
+    link_both(&mut desk);
+    desk.state.tags.stage(&path("alpha"), &genre_patch());
+
+    let all = desk.state.output_edits(None);
+    let only_beta = desk.state.output_edits(Some(&["beta".to_string()]));
+
+    let genre_of = |edits: &[crate::session::exports::OutputEdit], title: &str| {
+        edits
+            .iter()
+            .find(|edit| edit.title_id == title)
+            .map(|edit| edit.intent.genre.clone())
+    };
+    assert_eq!(all.len(), 2);
+    assert_eq!(genre_of(&all, "alpha"), Some(set("Mystery")));
+    assert_eq!(genre_of(&all, "beta"), Some(None));
+    assert_eq!(only_beta.len(), 1);
+    assert_eq!(only_beta[0].title_id, "beta");
+    assert!(only_beta[0].revision > all[0].revision);
+}
+
+#[test]
+fn restart_questions_wait_for_answer_work_and_answered_offers_stay_retryable() {
+    let mut desk = Desk::open(
+        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
+        &[0],
+    );
+    desk.state.output.set_directory("/library".into());
+    let outputs = link_both(&mut desk);
     let revision = save_moves(&mut desk, &["alpha", "beta"]);
     assert_eq!(prompted_title(&desk).as_deref(), Some("alpha"));
 
