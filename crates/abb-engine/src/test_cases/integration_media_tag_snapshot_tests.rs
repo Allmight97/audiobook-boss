@@ -4,16 +4,14 @@
 //! file's SHA-256. A refactor of tag writing must leave every snapshot
 //! identical; `ABB_BLESS_TAG_SNAPSHOTS=1` rewrites them on purpose.
 
-use super::media_fixtures::{
-    native_encoder_settings, preflight_payload, run_planned_title, single_title_payload,
-};
+use super::media_fixtures::{preflight_payload, run_planned_title, single_title_payload};
+use super::support::encoders::{native_encoder_settings, opus_encoder_settings};
 use super::tag_interop_dump::{assert_snapshot, dump_tags, sha256_hex};
 use super::tag_interop_seed::{
     seed_flac, seed_m4b, seed_mergeable_m4a, seed_mka, seed_mp3, Edit, Pictures,
 };
 use crate::audio::{
-    AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
-    OutputAudio, SampleRateConfig, TitleAudioRequest,
+    AudioIntent, AudiobookFormat, OutputAudio, SampleRateConfig, TitleAudioRequest,
 };
 use crate::metadata::save_metadata_intent;
 use std::collections::HashMap;
@@ -22,21 +20,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
-fn opus_settings() -> EncoderSettings {
-    EncoderSettings {
-        encoder_type: EncoderType::Opus,
-        bitrate_mode: BitrateMode::VbrTarget,
-        channels: ChannelConfig::Auto,
-        ..native_encoder_settings()
-    }
-}
-
 fn output_audio(format: AudiobookFormat) -> OutputAudio {
     match format {
         AudiobookFormat::M4b => OutputAudio::M4b {
             settings: native_encoder_settings(),
         },
-        other => OutputAudio::new(other, opus_settings()),
+        other => OutputAudio::new(other, opus_encoder_settings()),
     }
 }
 

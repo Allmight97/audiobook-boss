@@ -62,6 +62,8 @@ mod integration_settings_relaunch_tests;
 pub(crate) mod log_capture;
 #[path = "media_fixtures.rs"]
 pub(crate) mod media_fixtures;
+#[path = "support/mod.rs"]
+pub(crate) mod support;
 #[path = "tag_interop_dump.rs"]
 pub(crate) mod tag_interop_dump;
 #[path = "tag_interop_seed.rs"]
@@ -74,8 +76,6 @@ mod unit_runtime_settings_capabilities_tests;
 mod unit_settings_encoder_tests;
 #[path = "unit_settings_validation_tests.rs"]
 mod unit_settings_validation_tests;
-#[path = "wav_fixture.rs"]
-pub(crate) mod wav_fixture;
 
 #[expect(
     clippy::disallowed_methods,

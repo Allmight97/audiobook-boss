@@ -4,22 +4,12 @@ async fn wait_preview(
     rig: &Rig,
     status: crate::work_runtime::WorkOperationStatus,
 ) -> crate::session::preview::PreviewSnapshot {
-    tokio::time::timeout(Duration::from_secs(5), async {
-        loop {
-            let preview = output(rig).preview_run.expect("retained preview");
-            if preview.operation.status == status {
-                return preview;
-            }
-            tokio::task::yield_now().await;
-        }
+    crate::test_cases::support::poll::until(&format!("the preview reaches {status:?}"), || {
+        output(rig)
+            .preview_run
+            .filter(|preview| preview.operation.status == status)
     })
     .await
-    .unwrap_or_else(|error| {
-        panic!(
-            "preview did not reach {status:?}: {error}; {:?}",
-            output(rig).preview_run
-        )
-    })
 }
 
 #[tokio::test]

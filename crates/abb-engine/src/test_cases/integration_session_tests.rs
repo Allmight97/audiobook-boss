@@ -171,9 +171,7 @@ async fn a_source_cover_too_large_to_prepare_is_dropped_with_a_warning() {
     .expect("embed the oversized cover in the source");
     desk.import(&book).await;
 
-    let export = desk.export().await;
-    desk.wait_until("the export ends", |desk| desk.export_finished(&export))
-        .await;
+    let export = desk.export_and_finish().await;
 
     let operations = desk.engine.list_work_operations().expect("operations");
     let title = &operations
@@ -323,9 +321,7 @@ async fn a_naming_edit_retags_a_finished_output_where_it_is() {
         .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
         .await;
     desk.import(&book).await;
-    let export = desk.export().await;
-    desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
-        .await;
+    let export = desk.export_and_finish().await;
     let output = desk.output_of(&export);
 
     desk.send(SessionIntent::SetField {
@@ -685,9 +681,7 @@ async fn save_updates_a_grouped_output_without_writing_its_individual_sources() 
     desk.import(&second).await;
     desk.send(SessionIntent::SelectAll).await;
     desk.send(SessionIntent::GroupSelected).await;
-    let operation = desk.export().await;
-    desk.wait_until("grouped export", |desk| desk.export_finished(&operation))
-        .await;
+    let operation = desk.export_and_finish().await;
     let metadata = desk.edit_genre_and_save().await;
     assert!(
         matches!(

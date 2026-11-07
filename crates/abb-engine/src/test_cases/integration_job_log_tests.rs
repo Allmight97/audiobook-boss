@@ -81,9 +81,7 @@ async fn a_published_title_writes_a_started_and_a_success_record() {
     log_capture::install();
     let desk = Desk::new();
     imported_book(&desk, 1.0).await;
-    let operation = desk.export().await;
-    desk.wait_until("the export finishes", |d| d.export_finished(&operation))
-        .await;
+    let operation = desk.export_and_finish().await;
     assert_eq!(
         desk.export_status(&operation),
         WorkOperationStatus::Completed

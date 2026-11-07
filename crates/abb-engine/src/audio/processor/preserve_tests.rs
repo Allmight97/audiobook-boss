@@ -1,6 +1,7 @@
 use super::*;
 use crate::execution::{OutputConfig, ProcessingSession};
-use crate::test_cases::media_fixtures::SAMPLE_RATE;
+use crate::test_cases::support::wav::SAMPLE_RATE;
+
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 

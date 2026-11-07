@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::app_settings::{ConcurrencyPreference, SettingsIntent};
@@ -12,21 +12,8 @@ use super::integration_session_desk::{
     collision_review, genre_on_disk, processing_sessions_dir, remote_staging_sessions_dir,
     submission, Desk,
 };
-
-fn names_in(folder: &Path) -> Vec<String> {
-    let mut names: Vec<_> = fs::read_dir(folder)
-        .expect("read folder")
-        .map(|entry| {
-            entry
-                .expect("entry")
-                .file_name()
-                .to_string_lossy()
-                .into_owned()
-        })
-        .collect();
-    names.sort();
-    names
-}
+use super::support::fs_listing::names_in;
+use super::support::poll::until_true;
 
 fn operation(desk: &Desk, id: &OperationId) -> OperationSnapshot {
     desk.engine
@@ -74,9 +61,7 @@ async fn an_accepted_replace_puts_the_new_tags_at_the_same_path_and_touches_noth
         .await;
     desk.import(&book).await;
     let source_bytes = fs::read(&book).expect("source");
-    let first = desk.export().await;
-    desk.wait_until("first", |d| d.export_finished(&first))
-        .await;
+    let first = desk.export_and_finish().await;
     let published = desk.output_of(&first);
     let folder = published.parent().expect("folder").to_path_buf();
     fs::write(folder.join("notes.txt"), b"mine").expect("notes");
@@ -195,12 +180,7 @@ async fn cancelling_one_title_keeps_its_sibling_and_leaves_no_residue() {
     two_titles(&desk, 30.0).await;
     let first = desk.export().await;
     let folder = desk.root.path().join("exports/Source Author/Beta");
-    for _ in 0..100_000 {
-        if folder.exists() {
-            break;
-        }
-        tokio::task::yield_now().await;
-    }
+    until_true("the second title's folder exists", || folder.exists()).await;
     let hold = lock_output_file(&folder.join("Beta.m4b"));
     let beta = operation(&desk, &first).children[1].child_job_id.clone();
     desk.engine

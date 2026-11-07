@@ -3,16 +3,17 @@
 
 use super::media_fixtures::{
     assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32, ffprobe_format_tags,
-    mux_chapters, native_encoder_settings,
+    mux_chapters,
 };
 use super::media_fixtures::{
     audio_packet_bytes, duration_ms, ffmpeg, minimal_jpg_bytes, picture_codecs, picture_payloads,
     preflight_payload, run_planned_title, single_title_payload, write_complete_frame_aac,
     write_two_picture_fixture, MINIMAL_JPG,
 };
+use super::support::encoders::{native_encoder_settings, opus_encoder_settings};
 use crate::audio::{
-    get_file_list_info, AacDecoder, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig,
-    EncoderSettings, EncoderType, OutputAudio, SampleRateConfig, TitleAudioRequest,
+    get_file_list_info, AacDecoder, AudioIntent, AudiobookFormat, OutputAudio, SampleRateConfig,
+    TitleAudioRequest,
 };
 use crate::metadata::{
     read_metadata, save_metadata_intent, AlbumSortPatchOp, MetadataIntentPatch, PatchOp,
@@ -49,15 +50,6 @@ struct Route {
     pictures: Vec<Id>,
     chapters: Chapters,
     audio: Audio,
-}
-
-fn opus_settings() -> EncoderSettings {
-    EncoderSettings {
-        encoder_type: EncoderType::Opus,
-        bitrate_mode: BitrateMode::VbrTarget,
-        channels: ChannelConfig::Auto,
-        ..native_encoder_settings()
-    }
 }
 
 fn seed(path: &Path) {
@@ -438,11 +430,11 @@ async fn every_encode_route_writes_the_planned_tags_cover_and_chapters() {
         ),
         route(
             "e-m4a-opus",
-            OutputAudio::new(AudiobookFormat::M4aOpus, opus_settings()),
+            OutputAudio::new(AudiobookFormat::M4aOpus, opus_encoder_settings()),
         ),
         route(
             "e-mka-opus",
-            OutputAudio::new(AudiobookFormat::MkaOpus, opus_settings()),
+            OutputAudio::new(AudiobookFormat::MkaOpus, opus_encoder_settings()),
         ),
     ] {
         check_route(&row, tmp.path()).await;

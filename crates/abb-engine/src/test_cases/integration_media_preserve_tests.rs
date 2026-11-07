@@ -4,13 +4,13 @@
 //! cover it cannot prepare with a warning and fails on a chosen cover it
 //! cannot, and encoder constraints apply only to titles that encode.
 
-use super::integration_faac_execution_tests::faac_encoder_settings;
-use super::media_fixtures::SAMPLE_RATE;
 use super::media_fixtures::{
-    audio_packet_bytes, chapters_of, decode_pcm_f32, ffmpeg, minimal_jpg_bytes,
-    native_encoder_settings, oversized_jpeg, preflight_payload, run_planned_title,
-    title_audio_request, write_complete_frame_aac, write_sine_mp3, MediaLane,
+    audio_packet_bytes, chapters_of, decode_pcm_f32, ffmpeg, minimal_jpg_bytes, oversized_jpeg,
+    preflight_payload, run_planned_title, title_audio_request, write_complete_frame_aac,
+    write_sine_mp3, MediaLane,
 };
+use super::support::encoders::{faac_encoder_settings, native_encoder_settings};
+use super::support::wav::SAMPLE_RATE;
 use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
     EncoderSettings, EncoderType, SampleRateConfig,

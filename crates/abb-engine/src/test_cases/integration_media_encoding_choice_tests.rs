@@ -95,15 +95,7 @@ fn stereo_pink_noise(path: &Path) {
 }
 
 async fn choose(desk: &Desk, choice: &Choice) {
-    let title_ids: Vec<_> = desk
-        .engine
-        .session_snapshot()
-        .titles
-        .expect("titles")
-        .files
-        .into_iter()
-        .map(|file| file.input_id)
-        .collect();
+    let title_ids = desk.title_ids();
     let mut edits = vec![
         AudioEdit::Format(choice.format),
         AudioEdit::Intent(AudioIntent::Encode),

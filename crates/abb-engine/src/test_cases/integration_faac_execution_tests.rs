@@ -4,11 +4,13 @@
 use super::media_fixtures::ffmpeg;
 use super::media_fixtures::{
     assert_auto_merge_stereo, assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32,
-    ffprobe_format_tags, native_encoder_settings, title_audio_request, MediaLane, SAMPLE_RATE,
+    ffprobe_format_tags, title_audio_request, MediaLane,
 };
+use super::support::encoders::{faac_encoder_settings, native_encoder_settings};
+use super::support::wav::SAMPLE_RATE;
 use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
-    ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
+    ChannelConfig, EncoderSettings, SampleRateConfig,
 };
 use crate::metadata::{
     read_metadata, save_metadata_intent, AudiobookMetadata, CoverArtPassthroughPolicy,
@@ -17,15 +19,6 @@ use crate::metadata::{
 use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
 use std::fs;
 use std::sync::Arc;
-
-pub(crate) fn faac_encoder_settings() -> EncoderSettings {
-    EncoderSettings {
-        encoder_type: EncoderType::Faac,
-        faac_profile: crate::audio::FaacProfile::HeAacV1,
-        bitrate_mode: BitrateMode::Abr,
-        ..native_encoder_settings()
-    }
-}
 
 #[tokio::test]
 async fn faac_he_merge_preserves_metadata_chapters_and_resampled_channels() {

@@ -4,9 +4,10 @@
 
 use super::media_fixtures::{
     accepted_chapters, audio_packet_bytes, chapters_of, decode_pcm_f32, ffmpeg, minimal_jpg_bytes,
-    native_encoder_settings, preflight_payload, run_planned_title, write_stereo_sine_wav,
-    MediaLane, SAMPLE_RATE,
+    preflight_payload, run_planned_title, MediaLane,
 };
+use super::support::encoders::native_encoder_settings;
+use super::support::wav::{write_stereo_sine_wav, SAMPLE_RATE};
 use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
     ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,

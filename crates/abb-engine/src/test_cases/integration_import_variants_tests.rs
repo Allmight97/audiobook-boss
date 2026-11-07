@@ -1,3 +1,4 @@
+use super::support::wav::write_wav;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -8,7 +9,7 @@ use crate::ShutdownOutcome;
 
 use super::integration_session_desk::{collision_review, submission, Desk};
 use super::media_fixtures::{chapters_of, duration_ms, mux_chapters, write_sine_mp3};
-use super::wav_fixture::write_wav;
+use super::support::fs_listing::files_under;
 
 fn imported(desk: &Desk) -> Vec<crate::audio::AudioFile> {
     desk.engine
@@ -18,39 +19,11 @@ fn imported(desk: &Desk) -> Vec<crate::audio::AudioFile> {
         .files
 }
 
-pub(super) fn files_under(root: &Path) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    let mut folders = vec![root.to_path_buf()];
-    while let Some(folder) = folders.pop() {
-        for entry in fs::read_dir(&folder).expect("read folder") {
-            let path = entry.expect("entry").path();
-            if path.is_dir() {
-                folders.push(path);
-            } else {
-                found.push(path);
-            }
-        }
-    }
-    found.sort();
-    found
-}
-
 fn name_of(path: &Path) -> String {
     path.file_name()
         .expect("a file name")
         .to_string_lossy()
         .into_owned()
-}
-
-async fn finish_submitted_export(desk: &Desk) -> OperationId {
-    let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(desk) else {
-        panic!("export not accepted: {:?}", submission(desk));
-    };
-    desk.wait_until("the export finishes", |desk| {
-        desk.export_finished(&operation_id)
-    })
-    .await;
-    operation_id
 }
 
 async fn export_renaming_any_collision(desk: &Desk) -> OperationId {
@@ -64,7 +37,7 @@ async fn export_renaming_any_collision(desk: &Desk) -> OperationId {
         })
         .await;
     }
-    finish_submitted_export(desk).await
+    desk.finish_submitted_export().await
 }
 
 fn output_seconds(outputs: &[PathBuf]) -> Vec<u32> {

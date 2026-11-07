@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_cases::support::fs_listing::files_under;
 use abb_audible_core::{AcquisitionStrategy, DecryptKind};
 use secrecy::ExposeSecret;
 use serde_json::json;
@@ -165,22 +166,6 @@ async fn an_aaxc_license_with_no_usable_material_fails_before_any_download() {
     assert!(job.files.is_empty());
     let staged_files: Vec<_> = files_under(staging.path());
     assert!(staged_files.is_empty(), "{staged_files:?}");
-}
-
-fn files_under(root: &std::path::Path) -> Vec<std::path::PathBuf> {
-    let mut files = Vec::new();
-    let mut folders = vec![root.to_path_buf()];
-    while let Some(folder) = folders.pop() {
-        for entry in std::fs::read_dir(folder).expect("read staging") {
-            let path = entry.expect("entry").path();
-            if path.is_dir() {
-                folders.push(path);
-            } else {
-                files.push(path);
-            }
-        }
-    }
-    files
 }
 
 #[test]

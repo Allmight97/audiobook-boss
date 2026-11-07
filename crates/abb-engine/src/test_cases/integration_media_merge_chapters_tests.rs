@@ -2,7 +2,8 @@
 //! source, titled by the source's own file name, each starting where the one
 //! before ends.
 
-use super::media_fixtures::{native_encoder_settings, run_planned_title};
+use super::media_fixtures::run_planned_title;
+use super::support::encoders::native_encoder_settings;
 use super::tag_interop_seed::seed_mergeable_m4a;
 use crate::audio::{AudioIntent, OutputAudio, SampleRateConfig, TitleAudioRequest};
 use std::fs;

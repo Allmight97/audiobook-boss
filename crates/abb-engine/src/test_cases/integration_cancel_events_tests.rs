@@ -1,4 +1,6 @@
-use super::media_fixtures::{native_encoder_settings, write_sine_wav};
+use super::support::encoders::native_encoder_settings;
+use super::support::poll::until_true;
+use super::support::wav::write_sine_wav;
 use crate::audio::{AacDecoder, AudioIntent, OutputAudio, SampleRateConfig, TitleAudioRequest};
 use crate::errors::AppError;
 use crate::host::Host;
@@ -10,7 +12,6 @@ use crate::processing::{EventStage, JobRegistry, ProcessPayload, ProgressEvent};
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
@@ -93,9 +94,10 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
     );
     tokio::pin!(processing);
     let encode_started = async {
-        while !holds_staged_bytes(&workspace_root) {
-            tokio::time::sleep(Duration::from_millis(1)).await;
-        }
+        until_true("an encode holds staged bytes", || {
+            holds_staged_bytes(&workspace_root)
+        })
+        .await;
         cancel.cancel();
     };
     let result = tokio::select! {

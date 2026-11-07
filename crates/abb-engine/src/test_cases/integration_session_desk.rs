@@ -14,6 +14,7 @@ use crate::{Engine, EngineConfig};
 use tempfile::TempDir;
 
 use super::media_fixtures::MediaLane;
+use super::support::poll::until_true;
 
 pub(super) struct Desk {
     pub(super) root: TempDir,
@@ -136,6 +137,17 @@ impl Desk {
             .value
     }
 
+    pub(super) fn title_ids(&self) -> Vec<String> {
+        self.engine
+            .session_snapshot()
+            .titles
+            .expect("titles")
+            .files
+            .into_iter()
+            .map(|file| file.input_id)
+            .collect()
+    }
+
     pub(super) async fn prepare_export(&self) {
         let output = self.root.path().join("exports");
         fs::create_dir_all(&output).expect("create export folder");
@@ -143,15 +155,7 @@ impl Desk {
             directory: output.to_string_lossy().into_owned(),
         })
         .await;
-        let title_ids = self
-            .engine
-            .session_snapshot()
-            .titles
-            .expect("titles")
-            .files
-            .into_iter()
-            .map(|file| file.input_id)
-            .collect::<Vec<_>>();
+        let title_ids = self.title_ids();
         for edit in [
             AudioEdit::Intent(AudioIntent::Encode),
             AudioEdit::Encoder(EncoderType::NativeAac),
@@ -167,10 +171,29 @@ impl Desk {
     pub(super) async fn export(&self) -> crate::work_runtime::OperationId {
         self.prepare_export().await;
         self.send(SessionIntent::Submit).await;
+        self.submitted_operation()
+    }
+
+    pub(super) async fn export_and_finish(&self) -> crate::work_runtime::OperationId {
+        self.prepare_export().await;
+        self.send(SessionIntent::Submit).await;
+        self.finish_submitted_export().await
+    }
+
+    pub(super) fn submitted_operation(&self) -> crate::work_runtime::OperationId {
         match submission(self) {
             Some(SubmissionStatus::Submitted { operation_id, .. }) => operation_id,
             other => panic!("export not accepted: {other:?}"),
         }
+    }
+
+    pub(super) async fn finish_submitted_export(&self) -> crate::work_runtime::OperationId {
+        let operation = self.submitted_operation();
+        self.wait_until("the export finishes", |desk| {
+            desk.export_finished(&operation)
+        })
+        .await;
+        operation
     }
 
     pub(super) fn export_status(
@@ -220,13 +243,7 @@ impl Desk {
     }
 
     pub(super) async fn wait_until(&self, what: &str, done: impl Fn(&Self) -> bool) {
-        for _ in 0..600 {
-            if done(self) {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(25)).await;
-        }
-        panic!("timed out waiting until {what}");
+        until_true(what, || done(self)).await;
     }
 }
 

@@ -8,19 +8,10 @@ use crate::processing::terminal_outcomes::ProcessingJobTerminalOutcome;
 use crate::processing::OperationKind;
 use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
 use crate::test_cases::media_fixtures::preflight_payload;
+use crate::test_cases::support::encoders::auto_encoder_settings;
+use crate::test_cases::support::wav::{write_silence_wav, write_sine_wav};
 use std::collections::HashMap;
 use tempfile::TempDir;
-
-fn encoder_settings() -> EncoderSettings {
-    EncoderSettings {
-        encoder_type: EncoderType::Auto,
-        bitrate_kbps: 64,
-        bitrate_mode: BitrateMode::Cbr,
-        channels: ChannelConfig::Auto,
-        native_aac_speed: 0,
-        faac_profile: crate::audio::FaacProfile::Auto,
-    }
-}
 
 fn request_settings(request: &mut crate::audio::TitleAudioRequest) -> &mut EncoderSettings {
     match &mut request.output {
@@ -39,7 +30,7 @@ fn process_payload(overrides: impl FnOnce(&mut ProcessPayload)) -> ProcessPayloa
         output_dir: "/tmp/out".to_string(),
         audio_requests: vec![crate::audio::TitleAudioRequest {
             output: crate::audio::OutputAudio::M4b {
-                settings: encoder_settings(),
+                settings: auto_encoder_settings(),
             },
             intent: crate::audio::AudioIntent::Encode,
             sample_rate: crate::audio::SampleRateConfig::Auto,
@@ -304,26 +295,6 @@ fn stacked_title_plan_keeps_source_order_metadata_and_separate_outputs() {
         assert!(job.output.resolved_path.to_string_lossy().contains(title));
         assert!(!job.output.resolved_path.exists());
     }
-}
-
-fn write_silence_wav(path: &std::path::Path, channels: u16) {
-    const SAMPLE_RATE: u32 = 44_100;
-    let data_len = SAMPLE_RATE * 2 * u32::from(channels);
-    let mut bytes = Vec::with_capacity(44 + data_len as usize);
-    bytes.extend_from_slice(b"RIFF");
-    bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
-    bytes.extend_from_slice(b"WAVEfmt ");
-    bytes.extend_from_slice(&16u32.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-    bytes.extend_from_slice(&channels.to_le_bytes());
-    bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
-    bytes.extend_from_slice(&data_len.to_le_bytes());
-    bytes.extend_from_slice(&(2 * channels).to_le_bytes());
-    bytes.extend_from_slice(&16u16.to_le_bytes());
-    bytes.extend_from_slice(b"data");
-    bytes.extend_from_slice(&data_len.to_le_bytes());
-    bytes.resize(44 + data_len as usize, 0);
-    std::fs::write(path, bytes).expect("write WAV fixture");
 }
 
 async fn execute_reviewed_metadata_batch(
@@ -632,7 +603,7 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
 fn preflight_refuses_a_too_long_companion_pdf_name_only_when_the_title_has_one() {
     let temp_dir = TempDir::new().expect("temp dir");
     let source = temp_dir.path().join("source.wav");
-    crate::test_cases::media_fixtures::write_sine_wav(&source, 0.2, 440.0);
+    write_sine_wav(&source, 0.2, 440.0);
     let source_key = source.to_string_lossy().to_string();
     std::fs::create_dir(temp_dir.path().join("out")).expect("create output folder");
     let metadata = HashMap::from([(

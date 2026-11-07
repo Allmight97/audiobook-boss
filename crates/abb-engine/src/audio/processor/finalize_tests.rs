@@ -5,7 +5,8 @@ use crate::output_artifact::{
     commit_output_artifact, finalized_output_success, OutputCommitRequest, OutputKind,
     PlannedOutputAction,
 };
-use crate::test_cases::media_fixtures::SAMPLE_RATE;
+use crate::test_cases::support::wav::SAMPLE_RATE;
+
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;

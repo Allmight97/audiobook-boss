@@ -2,14 +2,15 @@
 //! can keep unchanged, the reason shown when it cannot, and a source that was
 //! replaced after import.
 
-use super::media_fixtures::SAMPLE_RATE;
+use super::support::encoders::{native_encoder_settings, opus_encoder_settings};
+use super::support::wav::SAMPLE_RATE;
 use std::fs;
 use std::path::Path;
 
 use crate::audio::{
     execute_audio_engine, get_file_list_info, resolve_title_audio, AacDecoder,
-    AudioExecutionRequest, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig,
-    EncoderSettings, EncoderType, OutputAudio, SampleRateConfig, TitleAudioPlan, TitleAudioRequest,
+    AudioExecutionRequest, AudioIntent, AudiobookFormat, OutputAudio, SampleRateConfig,
+    TitleAudioPlan, TitleAudioRequest,
 };
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
@@ -18,7 +19,7 @@ use std::sync::Arc;
 use tempfile::TempDir;
 
 use super::integration_session_desk::Desk;
-use super::media_fixtures::{ffmpeg, ffprobe, native_encoder_settings};
+use super::media_fixtures::{ffmpeg, ffprobe};
 
 const NOT_PRESERVABLE: &str = "Source audio is not a supported AAC or Opus container for preservation. Choose encoding settings or keep the sources as separate titles.";
 const CHANGED_SINCE_INSPECTION: &str =
@@ -66,15 +67,6 @@ fn opus_source(path: &Path, muxer: &str) {
     ]);
 }
 
-fn opus_settings() -> EncoderSettings {
-    EncoderSettings {
-        encoder_type: EncoderType::Opus,
-        bitrate_mode: BitrateMode::VbrTarget,
-        channels: ChannelConfig::Auto,
-        ..native_encoder_settings()
-    }
-}
-
 fn plan_for(
     source: &Path,
     format: AudiobookFormat,
@@ -83,7 +75,7 @@ fn plan_for(
     let settings = if format == AudiobookFormat::M4b {
         native_encoder_settings()
     } else {
-        opus_settings()
+        opus_encoder_settings()
     };
     let request = TitleAudioRequest {
         output: OutputAudio::new(format, settings),
@@ -161,7 +153,7 @@ async fn opus_in_an_m4b_is_kept_in_both_opus_formats_but_not_in_m4b() {
     let copy = dir.path().join("book.mka");
     let info = get_file_list_info(&[&source], AacDecoder::Auto).expect("inspect fixture");
     let request = TitleAudioRequest {
-        output: OutputAudio::new(AudiobookFormat::MkaOpus, opus_settings()),
+        output: OutputAudio::new(AudiobookFormat::MkaOpus, opus_encoder_settings()),
         intent: AudioIntent::Preserve,
         sample_rate: SampleRateConfig::Auto,
     };
@@ -217,15 +209,7 @@ async fn a_source_replaced_after_import_fails_its_plan_before_any_codec_is_read(
 
     fs::remove_file(&book).expect("remove source");
     opus_source(&book, "mp4");
-    let title_ids: Vec<_> = desk
-        .engine
-        .session_snapshot()
-        .titles
-        .expect("titles")
-        .files
-        .into_iter()
-        .map(|file| file.input_id)
-        .collect();
+    let title_ids = desk.title_ids();
     desk.send(SessionIntent::SetTitleAudio {
         title_ids,
         edit: AudioEdit::Intent(AudioIntent::Preserve),

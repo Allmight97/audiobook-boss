@@ -1,9 +1,9 @@
-use super::integration_faac_execution_tests::faac_encoder_settings;
 use super::media_fixtures::ffmpeg;
 use super::media_fixtures::{
-    audio_duration_ts, chapters_of, decode_pcm_f32, mux_chapters, write_sine_mp3_with,
-    write_sine_wav, MediaLane, SAMPLE_RATE,
+    audio_duration_ts, chapters_of, decode_pcm_f32, mux_chapters, write_sine_mp3_with, MediaLane,
 };
+use super::support::encoders::faac_encoder_settings;
+use super::support::wav::{write_sine_wav, SAMPLE_RATE};
 use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder};
 use crate::metadata::{read_metadata, save_metadata_intent, MetadataIntentPatch, PatchOp};
 use crate::processing::ProcessingSession;

@@ -3,7 +3,9 @@
 //! file already at the destination keeps its bytes.
 
 use super::media_fixtures::MediaLane;
-use super::media_fixtures::SAMPLE_RATE;
+use super::support::fs_listing::names_in;
+use super::support::wav::SAMPLE_RATE;
+
 use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest};
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::{
@@ -14,21 +16,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-
-fn names_in(folder: &Path) -> Vec<String> {
-    let mut names: Vec<String> = fs::read_dir(folder)
-        .expect("read folder")
-        .map(|entry| {
-            entry
-                .expect("folder entry")
-                .file_name()
-                .to_string_lossy()
-                .into_owned()
-        })
-        .collect();
-    names.sort();
-    names
-}
 
 fn staged_files(workspace_root: &Path) -> Vec<PathBuf> {
     let Ok(sessions) = fs::read_dir(workspace_root) else {

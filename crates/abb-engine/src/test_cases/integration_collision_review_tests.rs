@@ -9,6 +9,7 @@ use crate::work_runtime::WorkOperationStatus;
 use crate::ShutdownOutcome;
 
 use super::integration_session_desk::{collision_review, genre_on_disk, submission, Desk};
+use super::support::fs_listing::files_under;
 
 #[tokio::test]
 async fn submit_exports_the_session_reviews_a_collision_and_previews() {
@@ -109,11 +110,7 @@ async fn shutdown_answers_a_pending_collision_review_so_a_waiting_save_lands() {
         .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
         .await;
     desk.import(&book).await;
-    let first = desk.export().await;
-    desk.wait_until("the first export finishes", |desk| {
-        desk.export_finished(&first)
-    })
-    .await;
+    desk.export_and_finish().await;
     desk.send(SessionIntent::Submit).await;
     assert!(
         matches!(submission(&desk), Some(SubmissionStatus::ReviewRequired)),
@@ -160,12 +157,8 @@ async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_ap
         value: "Beta".to_string(),
     })
     .await;
-    let first = desk.export().await;
-    desk.wait_until("the first export finishes", |desk| {
-        desk.export_finished(&first)
-    })
-    .await;
-    let outputs = |desk: &Desk| -> Vec<PathBuf> { walk(&desk.root.path().join("exports")) };
+    let _first = desk.export_and_finish().await;
+    let outputs = |desk: &Desk| -> Vec<PathBuf> { files_under(&desk.root.path().join("exports")) };
     let exported = outputs(&desk);
     assert_eq!(exported.len(), 2, "{exported:?}");
     let existing_bytes: Vec<_> = exported
@@ -234,22 +227,12 @@ async fn export_into(desk: &Desk, folder: &Path) -> Vec<PathBuf> {
     if matches!(submission(desk), Some(SubmissionStatus::ReviewRequired)) {
         return Vec::new();
     }
-    finish_export(desk).await;
-    walk(folder)
-}
-
-async fn finish_export(desk: &Desk) {
-    let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(desk) else {
-        panic!("submitted: {:?}", submission(desk));
-    };
-    desk.wait_until("the export finishes", |desk| {
-        desk.export_finished(&operation_id)
-    })
-    .await;
+    let operation = desk.finish_submitted_export().await;
     assert_eq!(
-        desk.export_status(&operation_id),
+        desk.export_status(&operation),
         WorkOperationStatus::Completed
     );
+    files_under(folder)
 }
 
 #[tokio::test]
@@ -264,15 +247,7 @@ async fn a_decoder_change_during_collision_review_does_not_change_the_accepted_e
         .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
         .await;
     desk.import(&book).await;
-    let title_ids = desk
-        .engine
-        .session_snapshot()
-        .titles
-        .expect("titles part")
-        .files
-        .into_iter()
-        .map(|file| file.input_id)
-        .collect();
+    let title_ids = desk.title_ids();
     desk.send(SessionIntent::SetTitleAudio {
         title_ids,
         edit: AudioEdit::Intent(crate::audio::AudioIntent::Encode),
@@ -303,9 +278,13 @@ async fn a_decoder_change_during_collision_review_does_not_change_the_accepted_e
         policy: CollisionPolicy::RenameNew,
     })
     .await;
-    finish_export(&desk).await;
+    let operation = desk.finish_submitted_export().await;
+    assert_eq!(
+        desk.export_status(&operation),
+        WorkOperationStatus::Completed
+    );
 
-    let reviewed = walk(&faad_dir)
+    let reviewed = files_under(&faad_dir)
         .into_iter()
         .find(|path| *path != faad[0])
         .expect("renamed export");
@@ -313,20 +292,6 @@ async fn a_decoder_change_during_collision_review_does_not_change_the_accepted_e
         decode_pcm_f32(&reviewed) == decode_pcm_f32(&faad[0]),
         "the reviewed export must decode with FAAD3, the setting it was accepted under"
     );
-}
-
-fn walk(dir: &Path) -> Vec<PathBuf> {
-    let mut files = Vec::new();
-    for entry in fs::read_dir(dir).expect("read folder").flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            files.extend(walk(&path));
-        } else {
-            files.push(path);
-        }
-    }
-    files.sort();
-    files
 }
 
 #[tokio::test]
@@ -340,15 +305,7 @@ async fn a_decoder_change_after_submit_is_accepted_does_not_change_that_export()
         .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
         .await;
     desk.import(&book).await;
-    let title_ids = desk
-        .engine
-        .session_snapshot()
-        .titles
-        .expect("titles part")
-        .files
-        .into_iter()
-        .map(|file| file.input_id)
-        .collect();
+    let title_ids = desk.title_ids();
     desk.send(SessionIntent::SetTitleAudio {
         title_ids,
         edit: AudioEdit::Intent(crate::audio::AudioIntent::Encode),
@@ -375,10 +332,14 @@ async fn a_decoder_change_after_submit_is_accepted_does_not_change_that_export()
     let accepted = desk.engine.session_begin(SessionIntent::Submit);
     set_decoder(AacDecoder::Auto).await;
     accepted.finish().await;
-    finish_export(&desk).await;
+    let operation = desk.finish_submitted_export().await;
+    assert_eq!(
+        desk.export_status(&operation),
+        WorkOperationStatus::Completed
+    );
 
     assert!(
-        decode_pcm_f32(&walk(&raced)[0]) == decode_pcm_f32(&faad[0]),
+        decode_pcm_f32(&files_under(&raced)[0]) == decode_pcm_f32(&faad[0]),
         "the export must decode with FAAD3, the setting it was accepted under"
     );
 }

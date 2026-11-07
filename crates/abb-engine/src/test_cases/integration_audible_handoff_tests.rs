@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 use tempfile::TempDir;
 
+use super::support::poll::until;
 use crate::app_settings::SettingsRuntime;
 use crate::audio::{AudioIntent, EncoderType};
 use crate::power::PowerManager;
@@ -21,7 +21,7 @@ fn downloads_one_wav(seconds: u32, title: Option<&'static str>) -> AcquireTitles
     Arc::new(move |request| {
         Box::pin(async move {
             let path = request.job_dir.join("book.wav");
-            super::wav_fixture::write_wav(&path, seconds, title, None);
+            super::support::wav::write_wav(&path, seconds, title, None);
             Ok(AcquisitionOutcome {
                 files: vec![MaterializedSourceFile {
                     input_id: "remote-1".into(),
@@ -34,19 +34,6 @@ fn downloads_one_wav(seconds: u32, title: Option<&'static str>) -> AcquireTitles
             })
         })
     })
-}
-
-async fn until<T>(what: &str, mut ready: impl FnMut() -> Option<T>) -> T {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            if let Some(found) = ready() {
-                return found;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("timed out waiting for {what}"))
 }
 
 fn session_acquiring(root: &TempDir, acquire: AcquireTitles) -> (Session, RemoteSourceRuntime) {

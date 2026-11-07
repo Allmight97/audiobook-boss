@@ -6,9 +6,11 @@
 
 use super::media_fixtures::{
     assert_auto_merge_stereo, audio_duration_ts, audio_stream_timing, chapters_of, decode_pcm_f32,
-    ffmpeg, ffprobe, find_atom, minimal_jpg_bytes, native_encoder_settings, next_atom, parse_mdhd,
-    timed_text_chapter_track, write_sine_wav, write_stereo_sine_wav, MediaLane, SAMPLE_RATE,
+    ffmpeg, ffprobe, find_atom, minimal_jpg_bytes, next_atom, parse_mdhd, timed_text_chapter_track,
+    MediaLane,
 };
+use super::support::encoders::{native_encoder_settings, stereo_native_encoder_settings};
+use super::support::wav::{write_sine_wav, write_stereo_sine_wav, SAMPLE_RATE};
 use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, ChannelConfig,
     EncoderSettings, SampleRateConfig,
@@ -91,14 +93,6 @@ async fn assert_reprocessing_sample_count(settings: EncoderSettings) {
 const MAX_ROUTE_DIFFERENCE: f32 = 1e-3;
 
 const AAC_FRAME_SAMPLES: u64 = 1_024;
-
-fn stereo_native_encoder_settings() -> EncoderSettings {
-    EncoderSettings {
-        channels: ChannelConfig::Stereo,
-        bitrate_kbps: 320,
-        ..native_encoder_settings()
-    }
-}
 
 fn decode_to_packed_float_wav(source: &Path, wav: &Path) {
     ffmpeg([

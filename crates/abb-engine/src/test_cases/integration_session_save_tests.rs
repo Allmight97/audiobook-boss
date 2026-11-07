@@ -198,9 +198,7 @@ async fn a_second_save_on_a_finished_output_keeps_the_first_saves_tag() {
         .audiobook(&desk.root.path().join("source.m4b"), 0.2)
         .await;
     desk.import(&source).await;
-    let export = desk.export().await;
-    desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
-        .await;
+    let export = desk.export_and_finish().await;
     assert_eq!(desk.export_status(&export), WorkOperationStatus::Completed);
     let output = desk.output_of(&export);
 

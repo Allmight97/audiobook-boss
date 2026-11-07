@@ -2,9 +2,9 @@ use std::fs;
 
 use crate::session::{MetadataField, SessionIntent};
 
-use super::integration_import_variants_tests::files_under;
 use super::integration_session_desk::Desk;
 use super::media_fixtures::{chapters_of, write_sine_mp3};
+use super::support::fs_listing::files_under;
 
 fn cue_sheet(tracks: u32, frames_per_track: u32) -> String {
     let mut sheet = String::from("FILE \"book.mp3\" MP3\n");

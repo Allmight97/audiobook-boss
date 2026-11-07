@@ -2,6 +2,7 @@
 //! is `<name>.preview.<ext>`, whatever the collision policy, and exporting it
 //! leaves the book that is already there alone.
 
+use super::support::encoders::native_encoder_settings;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -14,9 +15,7 @@ use crate::session::{MetadataField, SessionIntent, SessionOutcome};
 use crate::work_runtime::WorkOperationStatus;
 
 use super::integration_session_desk::Desk;
-use super::media_fixtures::{
-    native_encoder_settings, preflight_payload, single_title_payload, MediaLane,
-};
+use super::media_fixtures::{preflight_payload, single_title_payload, MediaLane};
 
 const FINISHED_BOOK: &[u8] = b"the finished book the user already has";
 

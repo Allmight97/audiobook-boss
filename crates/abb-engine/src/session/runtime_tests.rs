@@ -235,23 +235,17 @@ impl Rig {
     }
 
     async fn wait_for_titles(&self, count: usize) {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            while self.listed_paths().len() != count {
-                tokio::task::yield_now().await;
-            }
+        crate::test_cases::support::poll::until_true("titles listed", || {
+            self.listed_paths().len() == count
         })
-        .await
-        .expect("titles listed");
+        .await;
     }
 
     async fn wait_for_notice(&self, notice: InputNotice) {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            while self.session.snapshot().titles.expect("titles").notice != Some(notice.clone()) {
-                tokio::task::yield_now().await;
-            }
+        crate::test_cases::support::poll::until_true("notice shown", || {
+            self.session.snapshot().titles.expect("titles").notice == Some(notice.clone())
         })
-        .await
-        .expect("notice shown");
+        .await;
     }
 
     fn lock_order(&self, locked: bool) {
@@ -598,24 +592,8 @@ fn preview_path(rig: &Rig) -> String {
 }
 
 fn staged_wav(dir: &std::path::Path, name: &str) -> PathBuf {
-    const SAMPLE_RATE: u32 = 44_100;
-    let data_len = SAMPLE_RATE * 2;
-    let mut bytes = Vec::with_capacity(44 + data_len as usize);
-    bytes.extend_from_slice(b"RIFF");
-    bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
-    bytes.extend_from_slice(b"WAVEfmt ");
-    bytes.extend_from_slice(&16u32.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-    bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
-    bytes.extend_from_slice(&(SAMPLE_RATE * 2).to_le_bytes());
-    bytes.extend_from_slice(&2u16.to_le_bytes());
-    bytes.extend_from_slice(&16u16.to_le_bytes());
-    bytes.extend_from_slice(b"data");
-    bytes.extend_from_slice(&data_len.to_le_bytes());
-    bytes.resize(44 + data_len as usize, 0);
     let path = dir.join(format!("{name}.wav"));
-    std::fs::write(&path, bytes).expect("write staged WAV");
+    crate::test_cases::support::wav::write_silence_wav(&path, 1);
     path
 }
 

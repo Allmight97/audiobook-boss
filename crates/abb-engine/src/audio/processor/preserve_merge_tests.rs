@@ -3,7 +3,8 @@ use crate::audio::{AacDecoder, AudioExecutionRequest};
 use crate::errors::AppError;
 use crate::execution::{CancellationChecker, OutputConfig, ProcessingContext, ProcessingSession};
 use crate::metadata::CoverArtPassthroughPolicy;
-use crate::test_cases::media_fixtures::SAMPLE_RATE;
+use crate::test_cases::support::wav::SAMPLE_RATE;
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;

@@ -1,3 +1,4 @@
+use super::support::wav::SAMPLE_RATE;
 use std::fs;
 use std::path::PathBuf;
 
@@ -6,7 +7,7 @@ use crate::session::{AudioEdit, MetadataField, SessionIntent, SessionOutcome};
 use crate::work_runtime::WorkOperationStatus;
 
 use super::integration_session_desk::Desk;
-use super::media_fixtures::{audio_duration_ts, chapters_of, ffprobe, mux_chapters, SAMPLE_RATE};
+use super::media_fixtures::{audio_duration_ts, chapters_of, ffprobe, mux_chapters};
 
 #[tokio::test]
 async fn a_preview_plays_ninety_seconds_with_the_edited_metadata_and_no_chapters() {
@@ -93,15 +94,7 @@ async fn a_preview_is_named_and_wrapped_like_the_final_file_in_every_format() {
             value: "Vol. 2".to_string(),
         })
         .await;
-        let title_ids = desk
-            .engine
-            .session_snapshot()
-            .titles
-            .expect("titles")
-            .files
-            .into_iter()
-            .map(|file| file.input_id)
-            .collect();
+        let title_ids = desk.title_ids();
         desk.send(SessionIntent::SetTitleAudio {
             title_ids,
             edit: AudioEdit::Format(format),
