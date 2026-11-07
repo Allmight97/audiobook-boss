@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 pub use abb_remote_source_core::AcquisitionProgress;
+use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -298,6 +299,19 @@ impl RemoteAcquisitionSnapshot {
     }
 }
 impl AcquisitionJob {
+    pub(crate) fn new(job_id: &str) -> Self {
+        Self {
+            job_id: job_id.to_string(),
+            provider_id: ProviderId::Audible,
+            status: RemoteAcquisitionStatus::Acquiring,
+            progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
+            materialized_files: Vec::new(),
+            supplemental_assets: Vec::new(),
+            diagnostics: Vec::new(),
+            handoff: None,
+        }
+    }
+
     pub(crate) fn terminal(&self) -> bool {
         self.progress.terminal
             || matches!(

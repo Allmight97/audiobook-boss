@@ -19,9 +19,8 @@ use crate::remote_source::materializer::AaxcleanMaterializer;
 use crate::remote_source::scoped_output::ProvisionalCommittedFile;
 use crate::remote_source::staging;
 use crate::remote_source::{
-    AcquisitionJob, AcquisitionPlan, MaterializedSourceFile, ProviderId,
-    RemoteAcquisitionFailureKind, RemoteAcquisitionStatus, RemoteSourceDiagnostic,
-    SupplementalAsset,
+    AcquisitionJob, AcquisitionPlan, MaterializedSourceFile, RemoteAcquisitionFailureKind,
+    RemoteAcquisitionStatus, RemoteSourceDiagnostic, SupplementalAsset,
 };
 use abb_audible_core::{title_ref, AudibleLicenseDecryptContext};
 use abb_remote_source_core::{
@@ -83,16 +82,7 @@ pub(super) async fn acquire(
     ensure_not_cancelled(&is_cancelled)?;
     let license_decrypt_context = license_decrypt_context_from_auth(&auth);
     let api = AudibleApi::new(auth.clone())?;
-    let mut job = AcquisitionJob {
-        job_id: job_id.to_string(),
-        provider_id: ProviderId::Audible,
-        status: RemoteAcquisitionStatus::Acquiring,
-        progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
-        materialized_files: Vec::new(),
-        supplemental_assets: Vec::new(),
-        diagnostics: Vec::new(),
-        handoff: None,
-    };
+    let mut job = AcquisitionJob::new(job_id);
 
     let total_items = u32::try_from(plan.selections.len()).unwrap_or(u32::MAX);
     for (selection_index, selection) in plan.selections.iter().enumerate() {
@@ -443,3 +433,7 @@ mod tests;
 #[cfg(test)]
 #[path = "integration_decrypt_tests.rs"]
 mod integration_decrypt_tests;
+
+#[cfg(test)]
+#[path = "title_failure_tests.rs"]
+mod title_failure_tests;

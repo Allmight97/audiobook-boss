@@ -198,16 +198,7 @@ impl RemoteAcquisitionLifecycle {
             .map_err(|_| AppError::General("Remote acquisition task lock failed".into()))?;
         let job_id = uuid::Uuid::new_v4().to_string();
         let job_dir = self.staging.create_job_dir(&job_id)?;
-        let job = RemoteAcquisitionJob {
-            job_id: job_id.clone(),
-            provider_id: RemoteProviderId::Audible,
-            status: types::RemoteAcquisitionStatus::Acquiring,
-            progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
-            materialized_files: Vec::new(),
-            supplemental_assets: Vec::new(),
-            diagnostics: Vec::new(),
-            handoff: None,
-        };
+        let job = RemoteAcquisitionJob::new(&job_id);
         {
             let mut jobs = self
                 .jobs
@@ -509,16 +500,7 @@ impl RemoteSourceRuntime {
 /// A job record for an acquisition that terminalized before its record existed;
 /// callers overwrite status and progress immediately.
 fn placeholder_job(job_id: &str) -> RemoteAcquisitionJob {
-    RemoteAcquisitionJob {
-        job_id: job_id.to_string(),
-        provider_id: RemoteProviderId::Audible,
-        status: types::RemoteAcquisitionStatus::Acquiring,
-        progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
-        materialized_files: Vec::new(),
-        supplemental_assets: Vec::new(),
-        diagnostics: Vec::new(),
-        handoff: None,
-    }
+    RemoteAcquisitionJob::new(job_id)
 }
 
 fn mark_cancelled(job: &mut RemoteAcquisitionJob) {

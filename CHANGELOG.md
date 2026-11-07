@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- A failed Audible download now says why. When a title could not be read, the status line showed
+  only "Acquisition failed." and dropped the reason. It also showed a job as finished while
+  later titles still ran, which let Disconnect remove the sign-in during a download.
 - An export keeps the cover the app shows. A file with several pictures, such as an MP3, FLAC
   or MKA with the front cover after another picture, exported the first picture instead of the
   front cover.

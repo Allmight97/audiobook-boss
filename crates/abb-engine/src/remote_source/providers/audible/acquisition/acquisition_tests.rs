@@ -21,16 +21,7 @@ async fn job_and_staging_after_license_body(
     ])
     .await;
     let root = tempfile::TempDir::new().expect("temp root");
-    let mut job = AcquisitionJob {
-        job_id: "job-1".into(),
-        provider_id: ProviderId::Audible,
-        status: RemoteAcquisitionStatus::Acquiring,
-        progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
-        materialized_files: Vec::new(),
-        supplemental_assets: Vec::new(),
-        diagnostics: Vec::new(),
-        handoff: None,
-    };
+    let mut job = AcquisitionJob::new("job-1");
 
     let outcome = acquire_one(
         &api,
@@ -171,16 +162,7 @@ fn files_under(root: &std::path::Path) -> Vec<std::path::PathBuf> {
 
 #[test]
 fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {
-    let mut job = AcquisitionJob {
-        job_id: "job-1".into(),
-        provider_id: ProviderId::Audible,
-        status: RemoteAcquisitionStatus::Acquiring,
-        progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
-        materialized_files: Vec::new(),
-        supplemental_assets: Vec::new(),
-        diagnostics: Vec::new(),
-        handoff: None,
-    };
+    let mut job = AcquisitionJob::new("job-1");
     let specific = RemoteSourceDiagnostic {
         kind: RemoteAcquisitionFailureKind::ProtectedUnsupported,
         title_id: Some("B000000001".into()),

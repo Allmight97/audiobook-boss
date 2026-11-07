@@ -38,19 +38,7 @@ pub(super) async fn validate_materialized_audio(
         ))
     })?;
 
-    let file = match validation_result {
-        Ok(file) => file,
-        Err(error) => {
-            progress(title_progress(
-                progress_context,
-                AcquisitionStage::Failed,
-                Some(1.0),
-                None,
-                None,
-            ));
-            return Err(error);
-        }
-    };
+    let file = validation_result?;
     progress(title_progress(
         progress_context,
         AcquisitionStage::Validation,
