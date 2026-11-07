@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use super::metadata_form::FIELDS;
 use crate::metadata::AudiobookMetadata;
 use crate::metadata_lookup::{MetadataSource, OnlineMetadataResult};
 
@@ -173,21 +174,16 @@ pub(crate) fn author_query(stored: Option<&AudiobookMetadata>) -> String {
 }
 
 pub(crate) fn result_metadata(result: &OnlineMetadataResult) -> AudiobookMetadata {
-    let joined = |names: &[String]| (!names.is_empty()).then(|| names.join(", "));
-    let present = |value: &Option<String>| value.clone().filter(|value| !value.is_empty());
-    AudiobookMetadata {
-        title: Some(result.title.clone()),
+    let mut metadata = AudiobookMetadata {
         album: Some(result.title.clone()),
-        artist: joined(&result.authors),
-        composer: joined(&result.narrators),
-        series: present(&result.series),
-        series_part: present(&result.series_part),
-        subseries: present(&result.subseries),
-        subseries_part: present(&result.subseries_part),
-        description: present(&result.description),
-        date: present(&result.published_date),
         ..Default::default()
+    };
+    for spec in &FIELDS {
+        if let Some(value) = (spec.found)(result) {
+            *(spec.store)(&mut metadata) = Some(value);
+        }
     }
+    metadata
 }
 
 #[cfg(test)]

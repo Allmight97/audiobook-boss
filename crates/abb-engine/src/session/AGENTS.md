@@ -103,7 +103,10 @@ one host attachment.
 - **Edit intent.** Only fields the user changed, or blanked, become set or clear
   operations; an untouched field stays absent and is neither rewritten nor
   revalidated. Editing the title sets the album to the same value. Text typed
-  after Blank replaces the Blank.
+  after Blank replaces the Blank. One row of `FIELDS` in `metadata_form.rs`
+  maps a form field to its stored tag, its edit-patch slot, and its lookup
+  result; a new field is a new row, and a const check fails the build when the
+  table and `MetadataField::ALL` disagree.
 - **Known tags.** The form shows the file's known tags with pending intent
   applied (`tag_cache.rs`), so it never shows a value that Save or processing
   would not send, and never contradicts the file. A source read begun before a

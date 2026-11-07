@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use super::super::audio::{AudioDefaults, AudioSnapshot};
 use super::super::exports::RestartOffer;
 use super::super::lookup::LookupSnapshot;
-use super::super::metadata_form::{MetadataField, MetadataForm};
+use super::super::metadata_form::MetadataForm;
 use super::super::output::{OutputPlan, OutputPreview, OutputSnapshot};
 use super::super::working_set::{SelectionSnapshot, TitlesSnapshot, WorkingSet};
 use super::lookup::LookupState;
@@ -161,21 +161,7 @@ impl SessionState {
     }
 
     pub(super) fn output_snapshot(&self, revision: u64) -> OutputSnapshot {
-        let value = |field| {
-            let value = self.form.trimmed(field);
-            (!value.is_empty()).then(|| value.to_string())
-        };
-        let metadata = AudiobookMetadata {
-            title: value(MetadataField::Title),
-            artist: value(MetadataField::Author),
-            composer: value(MetadataField::Narrator),
-            date: value(MetadataField::Date),
-            series: value(MetadataField::Series),
-            series_part: value(MetadataField::SeriesPart),
-            subseries: value(MetadataField::Subseries),
-            subseries_part: value(MetadataField::SubseriesPart),
-            ..Default::default()
-        };
+        let metadata = self.form.metadata();
         let title = self.preview_title().map(|file| {
             let format = self
                 .working_set
@@ -243,38 +229,34 @@ impl SessionState {
     }
 
     fn tag_preview(&self) -> TagPreview {
-        let value = |field| self.form.trimmed(field).to_string();
+        let metadata = self.form.metadata();
+        let text = |value: &Option<String>| value.clone().unwrap_or_default();
         TagPreview {
-            title: value(MetadataField::Title),
-            album: value(MetadataField::Title),
-            artist: value(MetadataField::Author),
-            album_artist: value(MetadataField::Author),
-            composer: value(MetadataField::Narrator),
-            series: value(MetadataField::Series),
-            series_part: value(MetadataField::SeriesPart),
-            subseries: value(MetadataField::Subseries),
-            subseries_part: value(MetadataField::SubseriesPart),
-            album_sort: self.album_sort_preview().unwrap_or_default(),
-            year: value(MetadataField::Date),
-            genre: value(MetadataField::Genre),
+            title: text(&metadata.title),
+            album: text(&metadata.title),
+            artist: text(&metadata.artist),
+            album_artist: text(&metadata.artist),
+            composer: text(&metadata.composer),
+            series: text(&metadata.series),
+            series_part: text(&metadata.series_part),
+            subseries: text(&metadata.subseries),
+            subseries_part: text(&metadata.subseries_part),
+            album_sort: self
+                .album_sort_preview(metadata.clone())
+                .unwrap_or_default(),
+            year: text(&metadata.date),
+            genre: text(&metadata.genre),
         }
     }
 
-    fn album_sort_preview(&self) -> Option<String> {
-        let value = |field| {
-            let value = self.form.trimmed(field);
-            (!value.is_empty()).then(|| value.to_string())
-        };
+    fn album_sort_preview(&self, shown: AudiobookMetadata) -> Option<String> {
         let single = match self.bound.as_slice() {
             [title] => self.tags.effective(&title.path),
             _ => None,
         };
         processing_album_sort(&AudiobookMetadata {
-            title: value(MetadataField::Title),
-            series: value(MetadataField::Series),
-            series_part: value(MetadataField::SeriesPart),
             album_sort: single.and_then(|metadata| metadata.album_sort),
-            ..Default::default()
+            ..shown
         })
     }
 }
