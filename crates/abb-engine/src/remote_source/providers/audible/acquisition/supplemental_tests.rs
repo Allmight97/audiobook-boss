@@ -1,5 +1,6 @@
 use super::super::TitleProgressContext;
 use super::*;
+use crate::remote_source::providers::audible::license_plan::LicensePlan;
 use crate::remote_source::RemoteAcquisitionFailureKind;
 use audible_api::auth::localization;
 use serde_json::json;
@@ -172,19 +173,18 @@ fn supplemental_pdf_hint_needs_a_request_and_either_pdf_url() {
             supplemental_pdf_url: title_url
                 .map(|()| "https://metadata.example.test/book.pdf".to_string()),
         };
-        let lane = LicenseLane {
-            content_url: "https://cdn.example.test/book.aax".to_string(),
-            strategy: abb_remote_source_core::AcquisitionStrategy::DownloadThenDecryptAax,
-            decryption_material: None,
+        let license = LicenseReply {
+            plan: LicensePlan::ImportReady {
+                url: "https://cdn.example.test/book.m4b".to_string(),
+            },
             supplemental_pdf_url: license_url
                 .map(|()| "https://license.example.test/book.pdf".to_string()),
-            denial: None,
         };
 
         assert_eq!(
-            hint_present_for_acquisition(true, &details, &lane),
+            hint_present_for_acquisition(true, &details, &license),
             title_url.is_some() || license_url.is_some()
         );
-        assert!(!hint_present_for_acquisition(false, &details, &lane));
+        assert!(!hint_present_for_acquisition(false, &details, &license));
     }
 }

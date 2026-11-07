@@ -11,6 +11,7 @@ mod diagnostics;
 mod http;
 mod library;
 mod license;
+mod license_plan;
 mod license_reply_log;
 mod materialization;
 mod registration;

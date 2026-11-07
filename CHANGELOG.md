@@ -6,6 +6,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- An Audible title whose license Audible refuses is no longer downloaded. A refused license
+  that still carried a download link used to start the download. ABB now stops and shows
+  Audible's reason.
 - A failed Audible download now says why. When a title could not be read, the status line showed
   only "Acquisition failed." and dropped the reason. It also showed a job as finished while
   later titles still ran, which let Disconnect remove the sign-in during a download.

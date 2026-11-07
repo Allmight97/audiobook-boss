@@ -8,7 +8,7 @@ pub use download::{classify_download_response, DownloadResponseError, ParsedCont
 pub use json_probe::{find_first_string_for_key, find_first_string_for_keys};
 pub use license::{
     audible_decryption_material_from_license, AudibleDecryptionMaterial,
-    AudibleLicenseDecryptContext,
+    AudibleLicenseDecryptContext, DecryptKind,
 };
 pub use license_facts::{
     choose_acquisition_strategy, license_facts_from_value, LicenseDenial, LicenseDenialReason,

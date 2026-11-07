@@ -59,6 +59,7 @@ fn aax_license_response_decrypts_adrm_voucher_activation_bytes() {
     )
     .expect("aax material");
 
+    assert_eq!(material.kind(), DecryptKind::Aax);
     match material {
         AudibleDecryptionMaterial::Aax {
             activation_bytes_hex,
@@ -98,6 +99,7 @@ fn aaxc_license_response_decrypts_adrm_voucher_key_iv() {
     )
     .expect("aaxc material");
 
+    assert_eq!(material.kind(), DecryptKind::Aaxc);
     match material {
         AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => {
             assert_eq!(key_hex.expose_secret(), "0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d");

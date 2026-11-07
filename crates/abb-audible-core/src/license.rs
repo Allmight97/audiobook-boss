@@ -26,6 +26,21 @@ pub enum AudibleDecryptionMaterial {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecryptKind {
+    Aax,
+    Aaxc,
+}
+
+impl AudibleDecryptionMaterial {
+    pub fn kind(&self) -> DecryptKind {
+        match self {
+            Self::Aax { .. } => DecryptKind::Aax,
+            Self::Aaxc { .. } => DecryptKind::Aaxc,
+        }
+    }
+}
+
 pub struct AudibleLicenseDecryptContext {
     pub device_type: String,
     pub device_serial: String,

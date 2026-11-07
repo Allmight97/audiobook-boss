@@ -9,10 +9,9 @@ use super::audio_download::download_audio;
 use super::diagnostics::AudibleAcquisitionError;
 use super::http::AudibleApi;
 use super::license::{
-    license_decrypt_context_from_auth, license_denied_message, lookup_title_details,
-    provider_protocol_lane_message, request_license_lane, strategy_label, AudibleTitleDetails,
-    LicenseLane,
+    license_decrypt_context_from_auth, lookup_title_details, request_license, AudibleTitleDetails,
 };
+use super::license_plan::{LicensePlan, LicenseReply};
 use super::materialization::materialize_protected_download;
 use crate::errors::Result;
 use crate::remote_source::materializer::AaxcleanMaterializer;
@@ -22,8 +21,9 @@ use crate::remote_source::{
     AcquisitionOutcome, AcquisitionPlan, MaterializedSourceFile, RemoteAcquisitionFailureKind,
     RemoteSourceDiagnostic, SupplementalAsset,
 };
+use abb_audible_core::AudibleDecryptionMaterial;
 use abb_audible_core::{title_ref, AudibleLicenseDecryptContext};
-use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage, AcquisitionStrategy};
+use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
 use audible_api::auth::Auth;
 
 pub(super) struct AcquiredTitle {
@@ -55,7 +55,7 @@ struct FinalizeAcquisitionRequest<'a> {
     materialized_path: std::path::PathBuf,
     include_pdf: bool,
     title_details: &'a AudibleTitleDetails,
-    lane: &'a LicenseLane,
+    license: &'a LicenseReply,
     ctx: TitleAcquisitionCtx<'a>,
 }
 
@@ -191,28 +191,31 @@ async fn acquire_one(
         .await
         .map_err(AudibleAcquisitionError::request)?;
     let title_name = title_details.title.as_deref();
-    let lane = request_license_lane(api, ctx, license_decrypt_context, progress, is_cancelled)
+    let license = request_license(api, ctx, license_decrypt_context, progress, is_cancelled)
         .await
         .map_err(AudibleAcquisitionError::request)?;
-    if let Some(unsupported) = unsupported_result_for_unmaterializable_lane(title_id, job_id, &lane)
-    {
-        return Ok(unsupported);
-    }
-
-    let downloaded_path = if lane.strategy == AcquisitionStrategy::DownloadImportReady {
-        staged_materialized_path(&item_dir, title_name, title_id)
-    } else {
-        staged_protected_source_path(&item_dir, lane.strategy)
+    let (url, downloaded_path, material) = match &license.plan {
+        LicensePlan::Refused { kind, message } => {
+            return Ok(refused_title(title_id, kind.clone(), message.clone()));
+        }
+        LicensePlan::ImportReady { url } => (
+            url,
+            staged_materialized_path(&item_dir, title_name, title_id),
+            None,
+        ),
+        LicensePlan::Decrypt {
+            url,
+            kind,
+            material,
+        } => (
+            url,
+            staged_protected_source_path(&item_dir, *kind),
+            Some(material),
+        ),
     };
-    download_audio(
-        &lane.content_url,
-        &downloaded_path,
-        ctx,
-        progress,
-        is_cancelled,
-    )
-    .await
-    .map_err(AudibleAcquisitionError::download)?;
+    download_audio(url, &downloaded_path, ctx, progress, is_cancelled)
+        .await
+        .map_err(AudibleAcquisitionError::download)?;
     AudibleAcquisitionError::ensure_not_cancelled(is_cancelled)?;
     progress(title_progress(
         progress_context,
@@ -225,7 +228,7 @@ async fn acquire_one(
         materializer,
         downloaded_path,
         title_name,
-        &lane,
+        material,
         ctx,
         progress,
         is_cancelled,
@@ -237,7 +240,7 @@ async fn acquire_one(
             materialized_path,
             include_pdf,
             title_details: &title_details,
-            lane: &lane,
+            license: &license,
             ctx,
         },
         progress,
@@ -254,18 +257,14 @@ async fn importable_source(
     materializer: &AaxcleanMaterializer,
     downloaded_path: std::path::PathBuf,
     title_name: Option<&str>,
-    lane: &LicenseLane,
+    material: Option<&AudibleDecryptionMaterial>,
     ctx: TitleAcquisitionCtx<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> AudibleAcquisitionResult<(std::path::PathBuf, Option<RemoteSourceDiagnostic>)> {
-    if lane.strategy == AcquisitionStrategy::DownloadImportReady {
+    let Some(material) = material else {
         return Ok((downloaded_path, None));
-    }
-    let material = lane
-        .decryption_material
-        .as_ref()
-        .expect("a protected lane without decryption material ended before the download");
+    };
     let materialized = materialize_protected_download(
         materializer,
         &downloaded_path,
@@ -290,7 +289,7 @@ async fn finalize_acquired_title(
         materialized_path,
         include_pdf,
         title_details,
-        lane,
+        license,
         ctx,
     } = request;
     let title_name = title_details.title.as_deref();
@@ -299,7 +298,7 @@ async fn finalize_acquired_title(
         .await
         .map_err(AudibleAcquisitionError::validation)?;
     let supplemental_pdf_hint_present =
-        supplemental::hint_present_for_acquisition(include_pdf, title_details, lane);
+        supplemental::hint_present_for_acquisition(include_pdf, title_details, license);
     let (assets, diagnostics) = supplemental::download_if_requested(
         supplemental::SupplementalPdfAcquisitionRequest {
             auth,
@@ -320,97 +319,19 @@ async fn finalize_acquired_title(
     })
 }
 
-pub(super) fn unsupported_result_for_unmaterializable_lane(
+fn refused_title(
     title_id: &str,
-    job_id: &str,
-    lane: &LicenseLane,
-) -> Option<AcquiredTitle> {
-    if let Some(denial) = &lane.denial {
-        log::warn!(
-            "remote_source audible stage=license_classification job_id={} title_ref={} lane=license-denied throttled={} action=failed",
-            job_id,
-            title_ref(title_id),
-            denial.is_throttled()
-        );
-        return Some(AcquiredTitle {
-            file: None,
-            assets: Vec::new(),
-            diagnostics: vec![RemoteSourceDiagnostic {
-                kind: RemoteAcquisitionFailureKind::LicenseDenied,
-                title_id: Some(title_id.to_string()),
-                message: license_denied_message(denial),
-            }],
-        });
-    }
-    let strategy = lane.strategy;
-    match strategy {
-        AcquisitionStrategy::DownloadImportReady => None,
-        AcquisitionStrategy::DownloadThenDecryptAax
-        | AcquisitionStrategy::DownloadThenDecryptAaxc
-            if lane.decryption_material.is_some() =>
-        {
-            None
-        }
-        AcquisitionStrategy::DownloadThenDecryptAax
-        | AcquisitionStrategy::DownloadThenDecryptAaxc => {
-            log::warn!(
-                "remote_source audible stage=license_classification job_id={} title_ref={} lane={} action=failed reason=missing_decryption_material",
-                job_id,
-                title_ref(title_id),
-                strategy_label(strategy)
-            );
-            Some(AcquiredTitle {
-                file: None,
-                assets: Vec::new(),
-                diagnostics: vec![RemoteSourceDiagnostic {
-                    kind: RemoteAcquisitionFailureKind::ProtectedUnsupported,
-                    title_id: Some(title_id.to_string()),
-                    message: "Audible's license reply for this title did not include the key needed to decrypt it."
-                        .to_string(),
-                }],
-            })
-        }
-        AcquisitionStrategy::DownloadThenDecryptDash => {
-            let lane = strategy_label(strategy);
-            log::info!(
-                "remote_source audible stage=materializer_selection job_id={} title_ref={} lane={} action=unsupported",
-                job_id,
-                title_ref(title_id),
-                lane
-            );
-            Some(AcquiredTitle {
-                file: None,
-                assets: Vec::new(),
-                diagnostics: vec![RemoteSourceDiagnostic {
-                    kind: RemoteAcquisitionFailureKind::ProtectedUnsupported,
-                    title_id: Some(title_id.to_string()),
-                    message: format!(
-                        "Audible returned {lane}; Dash/Widevine materialization is not supported in this build."
-                    ),
-                }],
-            })
-        }
-        AcquisitionStrategy::ProviderProtocolFailed | AcquisitionStrategy::ProtectedUnsupported => {
-            log::warn!(
-                "remote_source audible stage=license_classification job_id={} title_ref={} lane={} action=failed",
-                job_id,
-                title_ref(title_id),
-                strategy_label(strategy)
-            );
-            Some(AcquiredTitle {
-                file: None,
-                assets: Vec::new(),
-                diagnostics: vec![RemoteSourceDiagnostic {
-                    kind: if strategy == AcquisitionStrategy::ProviderProtocolFailed {
-                        RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed
-                    } else {
-                        RemoteAcquisitionFailureKind::ProtectedUnsupported
-                    },
-                    title_id: Some(title_id.to_string()),
-                    message: provider_protocol_lane_message(strategy),
-                }],
-            })
-        }
+    kind: RemoteAcquisitionFailureKind,
+    message: String,
+) -> AcquiredTitle {
+    AcquiredTitle {
+        file: None,
+        assets: Vec::new(),
+        diagnostics: vec![RemoteSourceDiagnostic {
+            kind,
+            title_id: Some(title_id.to_string()),
+            message,
+        }],
     }
 }
 

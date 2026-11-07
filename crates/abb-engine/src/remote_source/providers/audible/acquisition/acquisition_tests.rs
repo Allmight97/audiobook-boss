@@ -1,4 +1,6 @@
 use super::*;
+use abb_audible_core::DecryptKind;
+use abb_remote_source_core::AcquisitionStrategy;
 use secrecy::ExposeSecret;
 use serde_json::json;
 
@@ -123,6 +125,28 @@ async fn a_denied_license_names_its_reasons() {
 }
 
 #[tokio::test]
+async fn a_denied_license_that_carries_a_download_url_is_refused_not_downloaded() {
+    let (job, staging) = job_and_staging_after_license_body(
+        200,
+        r#"{"content_license":{"status_code":"Denied","drm_type":"Adrm","content_metadata":{"content_url":{"offline_url":"http://cdn.invalid/book.m4b"}},"license_denial_reasons":[{"rejectionReason":"RequesterEligibility","validationType":"Membership"}]}}"#,
+    )
+    .await;
+
+    assert_eq!(
+        job.diagnostics[0].kind,
+        RemoteAcquisitionFailureKind::LicenseDenied
+    );
+    assert!(
+        job.diagnostics[0]
+            .message
+            .contains("RequesterEligibility (Membership)"),
+        "{:?}",
+        job.diagnostics[0]
+    );
+    assert!(files_under(staging.path()).is_empty());
+}
+
+#[tokio::test]
 async fn an_aaxc_license_with_no_usable_material_fails_before_any_download() {
     let (job, staging) = job_and_staging_after_license_body(
         200,
@@ -191,8 +215,7 @@ fn item_staged_paths_do_not_use_provider_title_id() {
     let item_dir = staging::create_item_dir(root.path(), "item-1").expect("item dir");
     let unsafe_title_id = "../../account-title";
 
-    let protected_path =
-        staged_protected_source_path(&item_dir, AcquisitionStrategy::DownloadThenDecryptAaxc);
+    let protected_path = staged_protected_source_path(&item_dir, DecryptKind::Aaxc);
     let materialized_path =
         staged_materialized_path(&item_dir, Some("../../account:title,?"), unsafe_title_id);
 
@@ -236,29 +259,6 @@ fn an_encrypted_download_is_refused_because_it_does_not_decode_as_audio() {
     let result = validation::materialized_file_from_path("B000000001", &encrypted);
 
     assert!(result.is_err(), "{result:?}");
-}
-
-#[test]
-fn dash_lane_is_reported_unsupported_not_deferred() {
-    let lane = LicenseLane {
-        content_url: "https://cdn.example.test/manifest.mpd".to_string(),
-        strategy: AcquisitionStrategy::DownloadThenDecryptDash,
-        decryption_material: None,
-        supplemental_pdf_url: None,
-        denial: None,
-    };
-
-    let acquired = unsupported_result_for_unmaterializable_lane("B000000001", "job-1", &lane)
-        .expect("dash unsupported");
-
-    assert!(acquired.file.is_none());
-    assert_eq!(
-        acquired.diagnostics[0].kind,
-        RemoteAcquisitionFailureKind::ProtectedUnsupported
-    );
-    assert!(acquired.diagnostics[0]
-        .message
-        .contains("Dash/Widevine materialization is not supported"));
 }
 
 #[test]
@@ -309,7 +309,7 @@ struct FinalizeFixture {
     audio: std::path::PathBuf,
     auth: Auth,
     title_details: AudibleTitleDetails,
-    lane: LicenseLane,
+    license: LicenseReply,
 }
 
 impl FinalizeFixture {
@@ -325,12 +325,11 @@ impl FinalizeFixture {
                 title: Some("Book".to_string()),
                 supplemental_pdf_url: Some("https://example.test/book.pdf".to_string()),
             },
-            lane: LicenseLane {
-                content_url: "https://cdn.example.test/book.aax".to_string(),
-                strategy: AcquisitionStrategy::DownloadThenDecryptAax,
-                decryption_material: None,
+            license: LicenseReply {
+                plan: LicensePlan::ImportReady {
+                    url: "https://cdn.example.test/book.m4b".to_string(),
+                },
                 supplemental_pdf_url: None,
-                denial: None,
             },
         }
     }
@@ -342,7 +341,7 @@ impl FinalizeFixture {
                 materialized_path: self.audio.clone(),
                 include_pdf,
                 title_details: &self.title_details,
-                lane: &self.lane,
+                license: &self.license,
                 ctx: TitleAcquisitionCtx {
                     job_id: "job-1",
                     title_id: "B000000001",
