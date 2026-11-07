@@ -48,7 +48,7 @@ function missingStripMessage(owner: string): string {
 
 const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 	['app/appSettings', appSettings, ['createSettingsOwner']],
-	['app/encoding', encoding, ['createEncodingOwner']],
+	['app/encoding', encoding, ['bitrateModeLabel', 'createEncodingOwner', 'encoderLabel']],
 	['app/engineLink', engineLink, ['attachEngineLink', 'createTypingEcho']],
 	[
 		'app/inputSession',

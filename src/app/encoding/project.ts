@@ -9,6 +9,7 @@ import type {
 	EncoderType,
 	FaacProfile,
 } from '../../lib/generated/tauri';
+import { encoderLabel } from './labels';
 
 export type EncodingField = AudioEdit['field'];
 
@@ -78,21 +79,6 @@ function rangeOptions(min: number, max: number): number[] {
 	const values: number[] = [];
 	for (let value = min; value <= max; value += 1) values.push(value);
 	return values;
-}
-
-function encoderLabel(value: EncoderType): string {
-	switch (value) {
-		case 'aac_at':
-			return 'Apple AAC';
-		case 'native_aac':
-			return 'Native AAC (NMR)';
-		case 'faac':
-			return 'FAAC';
-		case 'opus':
-			return 'Opus (libopus)';
-		default:
-			return 'App default';
-	}
 }
 
 function qualityLabel(capabilities: EncoderSettingsCapabilities, value: number): string {

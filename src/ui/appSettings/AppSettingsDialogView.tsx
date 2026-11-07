@@ -2,6 +2,7 @@ import { createEffect, createMemo, createSignal, onSettled, Show } from 'solid-j
 import type { JSX } from '@solidjs/web';
 
 import type { AcquisitionLane, AppSettings } from '../../lib/generated/tauri';
+import { bitrateModeLabel, encoderLabel } from '../../app/encoding';
 import { useAppRuntime } from '../../app/runtime';
 import { QUIT_SHORTCUT } from '../../lib/platform';
 import { Button, Dialog } from '../foundation';
@@ -94,26 +95,9 @@ function formatConcurrency(settings: Pick<AppSettings, 'maxConcurrentJobs'>): st
 	return preference.mode === 'fixed' ? `Fixed (${preference.value})` : 'Auto';
 }
 
-function formatEncoderType(encoderType: string): string {
-	switch (encoderType) {
-		case 'auto':
-			return 'Auto';
-		case 'aac_at':
-			return 'Apple AAC';
-		case 'native_aac':
-			return 'Native AAC';
-		default:
-			return encoderType;
-	}
-}
-
 function formatEncoderDefaults(settings: Pick<AppSettings, 'encoderDefaults'>): string {
 	const encoder = settings.encoderDefaults.settings;
-	const mode =
-		encoder.bitrateMode.mode === 'vbr'
-			? `VBR ${encoder.bitrateMode.value}`
-			: encoder.bitrateMode.mode.toUpperCase();
-	return `${formatEncoderType(encoder.encoderType)} • ${encoder.bitrateKbps} kbps • ${mode}`;
+	return `${encoderLabel(encoder.encoderType)} • ${encoder.bitrateKbps} kbps • ${bitrateModeLabel(encoder.bitrateMode)}`;
 }
 
 function formatOutputDefaults(settings: Pick<AppSettings, 'outputDefaults'>): string {

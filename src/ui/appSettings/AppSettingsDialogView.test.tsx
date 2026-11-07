@@ -384,4 +384,29 @@ describe('AppSettingsDialogView', () => {
 		});
 		expect(key).toHaveValue('draft-secret');
 	});
+	it.each([
+		['faac', { mode: 'abr' }, 'FAAC • 96 kbps • ABR'],
+		['opus', { mode: 'vbr_target' }, 'Opus (libopus) • 96 kbps • VBR'],
+		['native_aac', { mode: 'vbr', value: 100 }, 'Native AAC (NMR) • 96 kbps • VBR 100'],
+	] as const)('words the pinned %s defaults for people', async (encoderType, bitrateMode, text) => {
+		await renderOpenDialog((fake) =>
+			fake.seedAppSettings({
+				pinnedDefaults: {
+					maxConcurrentJobs: { mode: 'auto' },
+					encoderDefaults: {
+						format: 'm4b',
+						intent: 'encode',
+						sampleRate: 'auto',
+						settings: { encoderType, bitrateKbps: 96, bitrateMode, channels: 'auto' },
+					},
+					outputDefaults: {
+						outputDirectory: null,
+						outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: null },
+					},
+				},
+			}),
+		);
+		const summary = await screen.findByTestId('app-settings-summary');
+		expect(summary).toHaveTextContent(text);
+	});
 });
