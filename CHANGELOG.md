@@ -4,9 +4,19 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Cmd+Q now needs a second press within 3 seconds, so a stray press does not close ABB. The
+  first press shows a reminder. Turn this off in App Settings under Quitting. If work is
+  running, one press goes straight to the question before quitting.
+
 ### Fixed
 
+- Cmd+Q and the Quit menu item now ask before stopping running work and write waiting Saves
+  first. They skipped both before. Dock Quit and logout still ask nothing, but now save first.
 - Opening an audio file from Finder while ABB is running no longer crashes the app.
+- Opening an audio file while ABB is closed now imports it, instead of starting with an empty
+  list.
 - A failed Indexer grab now says in one line which side is down (Prowlarr, the downloader, or
   the indexer) and names it, instead of Prowlarr's raw JSON cut off mid-word.
 - A title joined from sources that already have chapters now warns in Work Center when a
