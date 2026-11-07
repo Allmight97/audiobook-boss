@@ -9,6 +9,7 @@ const REMOVED =
 describe('file details', () => {
 	it('shows a failed file as an error', () => {
 		const file = audioFile('/books/broken.m4b', {
+			status: 'failed',
 			isValid: false,
 			error: 'Broken audio source',
 		});
@@ -17,13 +18,14 @@ describe('file details', () => {
 	});
 
 	it('names a failed file with no engine text as an invalid file', () => {
-		expect(formatFileDetails(audioFile('/books/x.m4b', { isValid: false }))).toBe(
+		expect(formatFileDetails(audioFile('/books/x.m4b', { status: 'failed', isValid: false }))).toBe(
 			'Error: Invalid file',
 		);
 	});
 
 	it('shows an exported title whose download was removed without an error prefix', () => {
 		const file = audioFile('/books/done.m4b', {
+			status: 'removedFinished',
 			isValid: false,
 			sourceRemoved: true,
 			error: REMOVED,
@@ -34,6 +36,7 @@ describe('file details', () => {
 
 	it('shows a ready file by its facts, with --- for what the engine left out', () => {
 		const file = audioFile('/books/a.m4b', {
+			status: 'ready',
 			artist: 'Author',
 			duration: 3600,
 			size: 2048,
@@ -55,7 +58,7 @@ describe('title details', () => {
 	};
 
 	it('combines a ready group from the engine totals', () => {
-		const anchor = audioFile('/books/a.m4b', { artist: 'Author', format: 'M4B' });
+		const anchor = audioFile('/books/a.m4b', { status: 'ready', artist: 'Author', format: 'M4B' });
 
 		expect(titleDetails(anchor, true, totals)).toBe('Author • 2:00:00 • 4.0 KB • M4B • 3 chapters');
 		expect(titleDetails(anchor, true, undefined)).toBe('Author • --- • --- • M4B');
@@ -73,7 +76,12 @@ describe('title details', () => {
 	});
 
 	it('shows a single title by its own file', () => {
-		const file = audioFile('/books/a.m4b', { duration: 60, size: 1024, format: 'M4B' });
+		const file = audioFile('/books/a.m4b', {
+			status: 'ready',
+			duration: 60,
+			size: 1024,
+			format: 'M4B',
+		});
 
 		expect(titleDetails(file, false, totals)).toBe('1:00 • 1.0 KB • M4B');
 	});
@@ -85,6 +93,7 @@ describe('cue notice', () => {
 		actions: ('confirmHundredths' | 'ignore')[],
 	) =>
 		audioFile('/books/a.mp3', {
+			status: 'ready',
 			chapterPlan: {
 				chapters: [{ title: 'One', startMs: 0, endMs: 1000 }],
 				fromCue: true,
@@ -119,6 +128,6 @@ describe('cue notice', () => {
 	});
 
 	it('has no notice without a CUE', () => {
-		expect(cueNotice(audioFile('/books/a.m4b'))).toBeNull();
+		expect(cueNotice(audioFile('/books/a.m4b', { status: 'ready' }))).toBeNull();
 	});
 });

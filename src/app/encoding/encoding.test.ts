@@ -17,8 +17,8 @@ describe('encoding owner', () => {
 	async function open(): Promise<AppRuntime> {
 		engine = createFakeEngine();
 		engine.loadTitles([
-			audioFile('/books/alpha.m4b', { sampleRate: 44100, channels: 2 }),
-			audioFile('/books/beta.m4b', { sampleRate: 22050, channels: 1 }),
+			audioFile('/books/alpha.m4b', { status: 'ready', sampleRate: 44100, channels: 2 }),
+			audioFile('/books/beta.m4b', { status: 'ready', sampleRate: 22050, channels: 1 }),
 		]);
 		runtime = await createAppRuntime({ engine });
 		return runtime;

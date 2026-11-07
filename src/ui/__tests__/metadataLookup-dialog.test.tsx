@@ -1,44 +1,10 @@
-import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
+import { waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type {
-	LookupSnapshot,
-	OnlineMetadataResult,
-	SessionIntent,
-} from '../../lib/generated/tauri';
-import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
-
-import type { InputCapability } from '../../lib/tauri/capabilities/input';
+import { describe, expect, it, vi } from 'vitest';
+import type { LookupSnapshot, SessionIntent } from '../../lib/generated/tauri';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
-import { App } from '../App';
-
-function lookupResult(): OnlineMetadataResult {
-	return {
-		source: 'audnexus',
-		title: 'Lookup Title',
-		authors: ['Author One'],
-		narrators: ['Narrator One'],
-		description: 'Description',
-		publishedDate: '2020-07',
-		durationSeconds: 3600,
-		audibleOnly: false,
-		series: null,
-		seriesPart: null,
-		subseries: null,
-		subseriesPart: null,
-		cover: 'remote/0/https%3A%2F%2Fexample.com%2Fcover.jpg',
-	};
-}
-
-function fakeInput(): InputCapability {
-	return {
-		openFiles: vi.fn(async () => ['/books/alpha.m4b', '/books/beta.m4b']),
-		openDirectory: vi.fn(async () => null),
-		listenDragDrop: vi.fn(async () => () => undefined),
-		listenDragEnter: vi.fn(async () => () => undefined),
-		listenDragLeave: vi.fn(async () => () => undefined),
-	};
-}
+import { lookupResult } from '../../test/fixtures/lookup';
+import { renderApp } from '../../test/fixtures/renderApp';
 
 function getStatusText(): string {
 	return (document.getElementById('metadata-lookup-status') as HTMLElement).textContent ?? '';
@@ -75,21 +41,16 @@ function queued(index: number, patch: Partial<LookupSnapshot> = {}): Partial<Loo
 }
 
 describe('metadata lookup dialog', () => {
-	let runtime: AppRuntime | undefined;
 	let engine: FakeEngine;
-
-	afterEach(() => {
-		cleanup();
-		runtime?.dispose();
-		runtime = undefined;
-	});
 
 	async function openLookupOverTwoTitles(
 		answers: Partial<Record<SessionIntent['kind'], Partial<LookupSnapshot>>> = {},
 	) {
 		engine = createFakeEngine();
 		engine.analyze = (paths) =>
-			paths.map((path) => audioFile(path, { label: path.includes('beta') ? 'Beta' : 'Alpha' }));
+			paths.map((path) =>
+				audioFile(path, { status: 'ready', label: path.includes('beta') ? 'Beta' : 'Alpha' }),
+			);
 		const lookupAfter: Partial<Record<SessionIntent['kind'], Partial<LookupSnapshot>>> = {
 			lookupOpen: queued(0),
 			...answers,
@@ -102,14 +63,10 @@ describe('metadata lookup dialog', () => {
 			});
 			return { kind: 'applied' };
 		};
-		const app = await createAppRuntime({ input: fakeInput(), engine });
-		runtime = app;
-		render(() => (
-			<AppRuntimeProvider runtime={app}>
-				<App />
-			</AppRuntimeProvider>
-		));
-		await screen.findByTestId('left-column');
+		const { runtime: app } = await renderApp({
+			engine,
+			input: { openFiles: vi.fn(async () => ['/books/alpha.m4b', '/books/beta.m4b']) },
+		});
 		await userEvent.click(
 			document.querySelector<HTMLButtonElement>('[aria-label="Add audio files"]') as HTMLElement,
 		);

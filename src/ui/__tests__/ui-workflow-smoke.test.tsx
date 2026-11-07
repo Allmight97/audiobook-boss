@@ -3,8 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
 
-import type { AudioFile, OnlineMetadataResult } from '../../lib/generated/tauri';
-import { createFakeEngine, defaultAppSettings } from '../../test/fixtures/fakeEngine';
+import type { AudioFile } from '../../lib/generated/tauri';
+import { audioFile, createFakeEngine, defaultAppSettings } from '../../test/fixtures/fakeEngine';
+import { lookupResult } from '../../test/fixtures/lookup';
 import { App } from '../App';
 
 const native = vi.hoisted(() => ({
@@ -20,12 +21,11 @@ const INPUT_PATH = '/library/Dune.m4b';
 const OUTPUT_DIRECTORY = '/exports/audiobooks';
 
 function importedFile(): AudioFile {
-	return {
+	return audioFile(INPUT_PATH, {
+		status: 'ready',
 		inputId: 'input-dune',
-		chapters: [],
-		path: INPUT_PATH,
-		size: 1024,
 		duration: 3600,
+		size: 1024,
 		format: 'm4b',
 		bitrate: 64_000,
 		sampleRate: 44100,
@@ -34,33 +34,21 @@ function importedFile(): AudioFile {
 		selectedDecoder: 'FFmpeg',
 		label: 'Dune (old tags)',
 		artist: 'Old Author',
-		chapterPlan: null,
-		cueSource: null,
-		error: null,
-		cover: null,
-		isValid: true,
-		sourceRemoved: false,
-		status: 'ready',
-	};
+	});
 }
 
-function lookupResult(): OnlineMetadataResult {
-	return {
-		source: 'audnexus',
-		title: 'Dune',
-		authors: ['Frank Herbert'],
-		narrators: ['George Guidall'],
-		series: 'Dune',
-		seriesPart: '1',
-		subseries: 'Dune Saga',
-		subseriesPart: '1',
-		description: 'The desert planet Arrakis holds the spice.',
-		publishedDate: '1965-08',
-		durationSeconds: 3600,
-		cover: 'remote/0/https%3A%2F%2Fcovers.example.test%2Fdune.jpg',
-		audibleOnly: false,
-	};
-}
+const duneResult = lookupResult({
+	title: 'Dune',
+	authors: ['Frank Herbert'],
+	narrators: ['George Guidall'],
+	series: 'Dune',
+	seriesPart: '1',
+	subseries: 'Dune Saga',
+	subseriesPart: '1',
+	description: 'The desert planet Arrakis holds the spice.',
+	publishedDate: '1965-08',
+	cover: 'remote/0/https%3A%2F%2Fcovers.example.test%2Fdune.jpg',
+});
 
 describe('UI workflow intents', () => {
 	afterEach(() => cleanup());
@@ -108,7 +96,7 @@ describe('UI workflow intents', () => {
 						...state.lookup,
 						open: true,
 						hasSearched: true,
-						results: [lookupResult()],
+						results: [duneResult],
 						queuePosition: { index: 0, total: 1, path: INPUT_PATH, label: 'Dune (old tags)' },
 						status: { kind: 'found', count: 1, partial: false, after: null },
 					};

@@ -81,16 +81,17 @@ export function sessionUpdate(
 	};
 }
 
-export function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
-	const isValid = overrides.isValid ?? true;
-	const sourceRemoved = overrides.sourceRemoved ?? false;
+export function audioFile(
+	path: string,
+	overrides: Partial<AudioFile> & Pick<AudioFile, 'status'>,
+): AudioFile {
 	return {
 		inputId: path,
 		path,
 		label: path.split('/').findLast(Boolean) ?? path,
-		size: 1024,
-		duration: 60,
-		format: 'm4b',
+		size: 1000,
+		duration: 1,
+		format: 'mp3',
 		bitrate: null,
 		sampleRate: null,
 		channels: null,
@@ -100,11 +101,10 @@ export function audioFile(path: string, overrides: Partial<AudioFile> = {}): Aud
 		chapterPlan: null,
 		cueSource: null,
 		error: null,
-		isValid,
-		sourceRemoved,
-		status: sourceRemoved ? 'removedFinished' : isValid ? 'ready' : 'failed',
+		isValid: true,
+		sourceRemoved: false,
 		chapters: [],
-		cover: isValid ? `audio/0/${encodeURIComponent(path)}` : null,
+		cover: null,
 		...overrides,
 	};
 }
@@ -230,7 +230,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		claimedPreviews: [],
 		openedPreviews: [],
 		cancelledWork: [],
-		analyze: (paths) => paths.map((path) => audioFile(path)),
+		analyze: (paths) => paths.map((path) => audioFile(path, { status: 'ready' })),
 		async attach() {
 			nextSessionSequence = 0;
 			nextSettingsSequence = 0;

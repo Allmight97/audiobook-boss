@@ -100,7 +100,7 @@ describe('app runtime', () => {
 	it('a new runtime finds the session a disposed one left, without its view-local state', async () => {
 		const engine = createFakeEngine();
 		const first = await createAppRuntime({ engine });
-		engine.loadTitles([audioFile('/books/alpha.m4b')]);
+		engine.loadTitles([audioFile('/books/alpha.m4b', { status: 'ready' })]);
 		first.input.setDragOver(true);
 		expect(first.input.view().isDragOver).toBe(true);
 		expect(first.input.view().fileCount).toBe(1);

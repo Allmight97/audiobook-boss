@@ -122,6 +122,7 @@ describe('encoder panel behavior controls', () => {
 		engine.loadTitles(
 			[
 				audioFile('/books/source.m4b', {
+					status: 'ready',
 					label: 'source.m4b',
 					sampleRate: 44100,
 					channels: 2,

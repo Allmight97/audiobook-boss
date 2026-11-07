@@ -1,7 +1,7 @@
 import { titleAudioRequest } from '../../test/fixtures/titleAudio';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
+import { fireEvent, screen, waitFor, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import {
 	type AudioFile,
 	SUPPORTED_AUDIO_IMPORT_EXTENSIONS,
@@ -9,56 +9,24 @@ import {
 	type SessionOutcome,
 } from '../../lib/generated/tauri';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
-import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
-import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
+import { renderApp } from '../../test/fixtures/renderApp';
+import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import { tauriClient } from '../../lib/tauri/client';
-import { App } from '../App';
-
-const listeners: {
-	drop?: (payload: NativeDropPayload) => void;
-} = {};
-
-function analyzedFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
-	return audioFile(path, {
-		label: path.split('/').pop() ?? path,
-		cover: null,
-		duration: 1,
-		size: 1000,
-		format: 'mp3',
-		...overrides,
-	});
-}
-
-function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
-	return {
-		openFiles: vi.fn(async () => []),
-		openDirectory: vi.fn(async () => null),
-		listenDragDrop: vi.fn(async (handler) => {
-			listeners.drop = handler;
-			return () => {
-				listeners.drop = undefined;
-			};
-		}),
-		listenDragEnter: vi.fn(async () => () => undefined),
-		listenDragLeave: vi.fn(async () => () => undefined),
-		...overrides,
-	};
-}
 
 const REMOVED_NOTICE =
 	'Exported. Its download was removed to save space; acquire it again to export it again.';
 
 let engine: FakeEngine;
 
-async function runtimeFor(
-	options: { files?: AudioFile[]; input?: Partial<InputCapability> } = {},
-): Promise<AppRuntime> {
+async function start(options: { files?: AudioFile[]; input?: Partial<InputCapability> } = {}) {
 	engine = createFakeEngine();
-	const analyze = options.files
-		? () => options.files ?? []
-		: (paths: readonly string[]) => paths.map((path) => analyzedFile(path));
-	engine.analyze = vi.fn(analyze);
-	return await createAppRuntime({ input: fakeInput(options.input), engine });
+	const files = options.files;
+	engine.analyze = vi.fn(
+		files
+			? () => files
+			: (paths: readonly string[]) => paths.map((path) => audioFile(path, { status: 'ready' })),
+	);
+	return await renderApp({ engine, input: options.input });
 }
 
 function selects(selectedIndices: number[], selectedAnchor: number): SessionOutcome {
@@ -68,33 +36,14 @@ function selects(selectedIndices: number[], selectedAnchor: number): SessionOutc
 	return { kind: 'applied' };
 }
 
-async function renderApp(runtime: AppRuntime) {
-	const rendered = render(() => (
-		<AppRuntimeProvider runtime={runtime}>
-			<App />
-		</AppRuntimeProvider>
-	));
-	await screen.findByTestId('left-column');
-	return rendered;
-}
-
 describe('Solid input workbench', () => {
-	let runtime: AppRuntime | undefined;
-
-	afterEach(() => {
-		cleanup();
-		runtime?.dispose();
-		runtime = undefined;
-		listeners.drop = undefined;
-		document.getElementById('cover-art-area')?.remove();
-	});
-
 	it('imports audio and enables grouping only for multiple selected titles', async () => {
 		const user = userEvent.setup();
-		runtime = await runtimeFor({
+		const { runtime } = await start({
 			input: { openFiles: vi.fn(async () => ['/tmp/file1.mp3']) },
 			files: [
-				analyzedFile('/tmp/file1.mp3', {
+				audioFile('/tmp/file1.mp3', {
+					status: 'ready',
 					bitrate: 125_589,
 					sampleRate: 22_050,
 					channels: 2,
@@ -107,7 +56,6 @@ describe('Solid input workbench', () => {
 			engine.loadTitles(engine.analyze(intent.paths), [0]);
 			return { kind: 'applied' };
 		};
-		await renderApp(runtime);
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
 		const row = await screen.findByRole('option', { name: 'file1.mp3' });
@@ -120,8 +68,7 @@ describe('Solid input workbench', () => {
 	it('opens the picker with the engine import formats and shows the engine support text', async () => {
 		const user = userEvent.setup();
 		const openFiles = vi.fn(async () => []);
-		runtime = await runtimeFor({ input: { openFiles } });
-		await renderApp(runtime);
+		const { runtime } = await start({ input: { openFiles } });
 
 		expect(runtime.input.view().supportText).toBe(SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT);
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
@@ -134,15 +81,14 @@ describe('Solid input workbench', () => {
 	it('edits only selected titles through one mixed-value audio editor', async () => {
 		const user = userEvent.setup();
 		const files = ['first.m4b', 'second.m4b', 'other.m4b'].map((name) =>
-			analyzedFile(`/books/${name}`),
+			audioFile(`/books/${name}`, { status: 'ready' }),
 		);
-		runtime = await runtimeFor({ files });
-		await renderApp(runtime);
+		const { runtime } = await start({ files });
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
-		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
+		await waitFor(() => expect(runtime.input.view().files).toHaveLength(files.length));
 		engine.change((state) => {
 			const first = state.audio.titles[files[0].path];
 			const second = state.audio.titles[files[1].path];
@@ -229,9 +175,8 @@ describe('Solid input workbench', () => {
 
 	it('shows the engine plan, its failure, and the estimate in the audio plan popover', async () => {
 		const user = userEvent.setup();
-		const file = analyzedFile('/books/estimate.m4b', { sampleRate: 22050 });
-		runtime = await runtimeFor({ files: [file] });
-		await renderApp(runtime);
+		const file = audioFile('/books/estimate.m4b', { status: 'ready', sampleRate: 22050 });
+		const { runtime } = await start({ files: [file] });
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: [file.path],
@@ -278,19 +223,19 @@ describe('Solid input workbench', () => {
 
 	it('shows a grouped title the engine marks failed as failed, with its error', async () => {
 		const files = [
-			analyzedFile('/books/valid.m4b'),
-			analyzedFile('/books/broken.m4b', {
+			audioFile('/books/valid.m4b', { status: 'ready' }),
+			audioFile('/books/broken.m4b', {
+				status: 'failed',
 				isValid: false,
 				error: 'Broken audio source',
 			}),
 		];
-		runtime = await runtimeFor({ files });
-		await renderApp(runtime);
+		const { runtime } = await start({ files });
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
-		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
+		await waitFor(() => expect(runtime.input.view().files).toHaveLength(files.length));
 		engine.seedGroup(files);
 		engine.change((state) => {
 			const anchor = state.titles.files.find((file) => file.path === files[0].path);
@@ -304,13 +249,13 @@ describe('Solid input workbench', () => {
 	});
 
 	it('shows an exported title whose download was removed as finished, not as an error', async () => {
-		const removed = analyzedFile('/books/done.m4b', {
+		const removed = audioFile('/books/done.m4b', {
+			status: 'removedFinished',
 			isValid: false,
 			sourceRemoved: true,
 			error: REMOVED_NOTICE,
 		});
-		runtime = await runtimeFor({ files: [removed] });
-		await renderApp(runtime);
+		const { runtime } = await start({ files: [removed] });
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: [removed.path],
@@ -331,14 +276,16 @@ describe('Solid input workbench', () => {
 	});
 
 	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {
-		const files = [analyzedFile('/books/part1.m4b'), analyzedFile('/books/part2.m4b')];
-		runtime = await runtimeFor({ files });
-		await renderApp(runtime);
+		const files = [
+			audioFile('/books/part1.m4b', { status: 'ready' }),
+			audioFile('/books/part2.m4b', { status: 'ready' }),
+		];
+		const { runtime } = await start({ files });
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
-		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
+		await waitFor(() => expect(runtime.input.view().files).toHaveLength(files.length));
 		engine.seedGroup(files);
 		engine.change((state) => {
 			state.titles.companions = { [files[1].inputId]: ['Guide.pdf'] };
@@ -350,14 +297,15 @@ describe('Solid input workbench', () => {
 	});
 
 	it("shows a grouped title's chapter total from the engine", async () => {
-		const files = ['part1.mp3', 'part2.mp3'].map((name) => analyzedFile(`/books/${name}`));
-		runtime = await runtimeFor({ files });
-		await renderApp(runtime);
+		const files = ['part1.mp3', 'part2.mp3'].map((name) =>
+			audioFile(`/books/${name}`, { status: 'ready' }),
+		);
+		const { runtime } = await start({ files });
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
-		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
+		await waitFor(() => expect(runtime.input.view().files).toHaveLength(files.length));
 		engine.seedGroup(files);
 		engine.change((state) => {
 			state.titles.titleTotals = {
@@ -373,19 +321,19 @@ describe('Solid input workbench', () => {
 	it('edits one stack through its audio popover', async () => {
 		const user = userEvent.setup();
 		const files = ['part1.mp3', 'part2.mp3', 'other.m4b'].map((name) =>
-			analyzedFile(`/books/${name}`, {
+			audioFile(`/books/${name}`, {
+				status: 'ready',
 				sampleRate: 44100,
 				channels: 1,
 				codecLabel: 'MP3',
 			}),
 		);
-		runtime = await runtimeFor({ files });
-		await renderApp(runtime);
+		const { runtime } = await start({ files });
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
-		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(files.length));
+		await waitFor(() => expect(runtime.input.view().files).toHaveLength(files.length));
 		engine.seedTitleAudio(files[0].path, titleAudioRequest());
 		engine.seedGroup([files[0], files[1]], { choiceRequired: true });
 		engine.respond = (intent) => {
@@ -395,7 +343,7 @@ describe('Solid input workbench', () => {
 			});
 			return { kind: 'applied' };
 		};
-		await waitFor(() => expect(runtime!.encoding.plan(files[0]).kind).toBe('choiceRequired'));
+		await waitFor(() => expect(runtime.encoding.plan(files[0]).kind).toBe('choiceRequired'));
 		const indicator = screen.getByRole('button', {
 			name: 'Audio plan for part1.mp3',
 		});
@@ -405,7 +353,7 @@ describe('Solid input workbench', () => {
 		expect(popup.parentElement).toBe(document.body);
 		await user.click(indicator);
 		await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
-		await waitFor(() => expect(runtime!.encoding.plan(files[0]).kind).not.toBe('choiceRequired'));
+		await waitFor(() => expect(runtime.encoding.plan(files[0]).kind).not.toBe('choiceRequired'));
 		expect(engine.sessionIntents).toContainEqual({
 			kind: 'applyDefaultAudio',
 			titleIds: [files[0].path],
@@ -428,11 +376,10 @@ describe('Solid input workbench', () => {
 
 	it('says why the Opus compatibility page did not open', async () => {
 		const user = userEvent.setup();
-		const file = analyzedFile('/books/part1.mp3', { codecLabel: 'MP3' });
-		runtime = await runtimeFor({ files: [file] });
-		await renderApp(runtime);
+		const file = audioFile('/books/part1.mp3', { status: 'ready', codecLabel: 'MP3' });
+		const { runtime } = await start({ files: [file] });
 		await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
-		await waitFor(() => expect(runtime!.input.view().files).toHaveLength(1));
+		await waitFor(() => expect(runtime.input.view().files).toHaveLength(1));
 		engine.seedTitleAudio(file.path, { ...titleAudioRequest(), format: 'm4aOpus' });
 		engine.change((state) => {
 			state.audio.titles[file.path].facts.codecFamily = 'opus';
@@ -454,15 +401,17 @@ describe('Solid input workbench', () => {
 	});
 
 	it('handles keyboard actions only from the focused listbox', async () => {
-		runtime = await runtimeFor({
-			files: [analyzedFile('/books/alpha.m4b'), analyzedFile('/books/bravo.m4b')],
+		const { runtime } = await start({
+			files: [
+				audioFile('/books/alpha.m4b', { status: 'ready' }),
+				audioFile('/books/bravo.m4b', { status: 'ready' }),
+			],
 		});
 		engine.respond = (intent) => {
 			if (intent.kind === 'selectFile') return selects([0], 0);
 			if (intent.kind === 'selectAll') return selects([0, 1], 0);
 			return undefined;
 		};
-		await renderApp(runtime);
 		void runtime.input.importIntent({
 			type: 'importPaths',
 			paths: ['/books/alpha.m4b', '/books/bravo.m4b'],
@@ -473,7 +422,7 @@ describe('Solid input workbench', () => {
 		});
 		fireEvent.keyDown(listbox, { key: 'ArrowDown' });
 		await waitFor(() => {
-			expect(runtime?.input.view().selectedIndices).toEqual([0]);
+			expect(runtime.input.view().selectedIndices).toEqual([0]);
 		});
 
 		fireEvent.keyDown(document.body, { key: 'ArrowDown' });
@@ -481,15 +430,15 @@ describe('Solid input workbench', () => {
 
 		fireEvent.keyDown(listbox, { key: 'a', ctrlKey: true });
 		await waitFor(() => {
-			expect(runtime?.input.view().selectedIndices).toEqual([0, 1]);
+			expect(runtime.input.view().selectedIndices).toEqual([0, 1]);
 		});
 	});
 
 	it('routes cover-art drops away from import and imports file-area drops', async () => {
-		runtime = await runtimeFor();
 		const cover = document.createElement('div');
 		cover.id = 'cover-art-area';
 		document.body.appendChild(cover);
+		onTestFinished(() => cover.remove());
 		cover.getBoundingClientRect = () => ({
 			left: 0,
 			right: 100,
@@ -502,9 +451,9 @@ describe('Solid input workbench', () => {
 			toJSON: () => ({}),
 		});
 
-		await renderApp(runtime);
+		const { input } = await start();
 		await waitFor(() => {
-			expect(listeners.drop).toBeTypeOf('function');
+			expect(input.dropListening()).toBe(true);
 		});
 
 		const container = document.querySelector('.file-management-container') as HTMLElement;
@@ -520,7 +469,7 @@ describe('Solid input workbench', () => {
 			toJSON: () => ({}),
 		});
 
-		listeners.drop?.({ position: { x: 50, y: 50 }, paths: ['/tmp/image.png'] });
+		input.drop(['/tmp/image.png'], { x: 50, y: 50 });
 		await waitFor(() => {
 			expect(engine.sessionIntents).toContainEqual({
 				kind: 'loadCoverFromDrop',
@@ -529,18 +478,14 @@ describe('Solid input workbench', () => {
 		});
 		expect(engine.analyze).not.toHaveBeenCalled();
 
-		listeners.drop?.({
-			position: { x: 200, y: 200 },
-			paths: ['/tmp/file1.wav'],
-		});
+		input.drop(['/tmp/file1.wav'], { x: 200, y: 200 });
 		await waitFor(() => {
 			expect(engine.analyze).toHaveBeenCalledWith(['/tmp/file1.wav']);
 		});
 	});
 
 	it('shows the engine order lock and its refused-import notice', async () => {
-		runtime = await runtimeFor();
-		await renderApp(runtime);
+		await start();
 		engine.change((state) => {
 			state.titles.orderLocked = true;
 			state.titles.notice = { kind: 'orderLocked' };

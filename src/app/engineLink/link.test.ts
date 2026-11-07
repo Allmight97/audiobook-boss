@@ -147,7 +147,10 @@ describe('engine link', () => {
 
 	it('keeps the object of every file whose content did not change', async () => {
 		const engine = createFakeEngine();
-		engine.loadTitles([audioFile('/books/a.m4b'), audioFile('/books/b.m4b')]);
+		engine.loadTitles([
+			audioFile('/books/a.m4b', { status: 'ready' }),
+			audioFile('/books/b.m4b', { status: 'ready' }),
+		]);
 		const link = await linkTo(engine);
 		const [first, second] = link.titles().files;
 

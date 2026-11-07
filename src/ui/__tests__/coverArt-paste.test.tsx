@@ -15,7 +15,7 @@ describe('cover art paste', () => {
 
 	async function renderCover() {
 		engine = createFakeEngine();
-		engine.loadTitles([audioFile('/books/a.m4b')], [0]);
+		engine.loadTitles([audioFile('/books/a.m4b', { status: 'ready' })], [0]);
 		runtime = await createAppRuntime({ engine });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>

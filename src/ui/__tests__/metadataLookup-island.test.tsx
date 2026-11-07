@@ -1,29 +1,24 @@
 import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { OnlineMetadataResult } from '../../lib/generated/tauri';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import { coverSrc } from '../../lib/tauri/coverSrc';
 import { createFakeEngine } from '../../test/fixtures/fakeEngine';
+import { lookupResult } from '../../test/fixtures/lookup';
 import { MetadataLookupView } from '../metadataLookup';
 
-function coverResult(source: 'audnexus' | 'openlibrary', name: string): OnlineMetadataResult {
-	return {
-		source,
-		title: `${name} Cover`,
-		authors: ['Author'],
-		narrators: ['Narrator'],
-		description: 'Description',
-		publishedDate: '2020-07',
-		durationSeconds: 3600,
-		audibleOnly: false,
-		series: null,
-		seriesPart: null,
-		subseries: null,
-		subseriesPart: null,
-		cover: `remote/0/${encodeURIComponent(`https://covers.example.com/${name}-cover.jpg`)}`,
-	};
-}
+const results = [
+	lookupResult({
+		source: 'audnexus',
+		title: 'private Cover',
+		cover: `remote/0/${encodeURIComponent('https://covers.example.com/private-cover.jpg')}`,
+	}),
+	lookupResult({
+		source: 'openlibrary',
+		title: 'loopback Cover',
+		cover: `remote/0/${encodeURIComponent('https://covers.example.com/loopback-cover.jpg')}`,
+	}),
+];
 
 describe('MetadataLookup cover preview', () => {
 	let runtime: AppRuntime | undefined;
@@ -43,7 +38,7 @@ describe('MetadataLookup cover preview', () => {
 					...state.lookup,
 					open: true,
 					hasSearched: true,
-					results: [coverResult('audnexus', 'private'), coverResult('openlibrary', 'loopback')],
+					results,
 					status: { kind: 'found', count: 2, partial: false, after: null },
 				};
 			});
@@ -70,9 +65,7 @@ describe('MetadataLookup cover preview', () => {
 				'[data-testid="metadata-lookup-cover-image"]',
 			);
 			expect([...images].map((image) => image.getAttribute('src'))).toEqual(
-				[coverResult('audnexus', 'private'), coverResult('openlibrary', 'loopback')].map((result) =>
-					coverSrc(result.cover!),
-				),
+				results.map((result) => coverSrc(result.cover!)),
 			);
 		});
 		for (const source of document.querySelectorAll('[src]')) {
