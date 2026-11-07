@@ -46,24 +46,28 @@ impl Drop for ActiveRun {
 
 impl JobRegistry {
     /// Runs the futures `max_concurrent` at a time, in order. A queued future
-    /// whose token (same position in `cancels`) is cancelled starts at once,
-    /// so it fails fast instead of waiting behind the futures ahead of it.
+    /// whose token is cancelled starts at once, so it fails fast instead of
+    /// waiting behind the futures ahead of it.
     pub async fn run_batch<R, Fut>(
         &self,
-        futures: Vec<Fut>,
-        cancels: Vec<Option<CancellationToken>>,
+        tasks: Vec<(Fut, Option<CancellationToken>)>,
     ) -> Vec<Result<R>>
     where
         R: Send + 'static,
         Fut: Future<Output = Result<R>> + Send + 'static,
     {
-        if futures.is_empty() {
+        if tasks.is_empty() {
             return Vec::new();
         }
 
         let max_in_flight = self.max_concurrent().max(1);
-        let total_tasks = futures.len();
-        let mut pending: VecDeque<(usize, Fut)> = futures.into_iter().enumerate().collect();
+        let total_tasks = tasks.len();
+        let mut cancels: Vec<Option<CancellationToken>> = Vec::with_capacity(total_tasks);
+        let mut pending: VecDeque<(usize, Fut)> = VecDeque::with_capacity(total_tasks);
+        for (index, (future, cancel)) in tasks.into_iter().enumerate() {
+            cancels.push(cancel);
+            pending.push_back((index, future));
+        }
         let mut join_set: JoinSet<Result<R>> = JoinSet::new();
         let mut task_indices: HashMap<Id, usize> = HashMap::with_capacity(total_tasks);
         let mut ordered_results: Vec<Option<Result<R>>> = Vec::with_capacity(total_tasks);
@@ -79,7 +83,7 @@ impl JobRegistry {
 
         let mut cancelled_queue: JoinSet<usize> = JoinSet::new();
         for &(index, _) in &pending {
-            if let Some(token) = cancels.get(index).cloned().flatten() {
+            if let Some(token) = cancels[index].clone() {
                 cancelled_queue.spawn(async move {
                     token.cancelled().await;
                     index

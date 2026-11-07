@@ -2,6 +2,11 @@ use super::{JobRegistry, MAX_CONCURRENT_JOBS, MIN_CONCURRENT_JOBS};
 use crate::errors::AppError;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
+
+fn unscoped<Fut>(futures: Vec<Fut>) -> Vec<(Fut, Option<CancellationToken>)> {
+    futures.into_iter().map(|future| (future, None)).collect()
+}
 
 #[test]
 fn test_max_concurrent_capabilities_match_registry_bounds() {
@@ -126,9 +131,7 @@ async fn test_scheduler_respects_max_in_flight() {
         });
     }
 
-    let cancels = vec![None; futures.len()];
-
-    let results = registry.run_batch(futures, cancels).await;
+    let results = registry.run_batch(unscoped(futures)).await;
 
     assert_eq!(results.len(), 12);
     assert!(results.into_iter().all(|item| item.is_ok()));
@@ -152,9 +155,7 @@ async fn test_scheduler_preserves_input_order() {
         });
     }
 
-    let cancels = vec![None; futures.len()];
-
-    let results = registry.run_batch(futures, cancels).await;
+    let results = registry.run_batch(unscoped(futures)).await;
 
     let ordered: Vec<usize> = results
         .into_iter()
@@ -188,9 +189,7 @@ async fn test_scheduler_continues_scheduling_after_error_and_preserves_order() {
         });
     }
 
-    let cancels = vec![None; futures.len()];
-
-    let outcomes = registry.run_batch(futures, cancels).await;
+    let outcomes = registry.run_batch(unscoped(futures)).await;
     assert_eq!(outcomes.len(), 6);
     assert_eq!(
         started.load(Ordering::SeqCst),
@@ -234,9 +233,7 @@ async fn test_scheduler_preserves_index_for_panicking_tasks() {
         });
     }
 
-    let cancels = vec![None; futures.len()];
-
-    let outcomes = registry.run_batch(futures, cancels).await;
+    let outcomes = registry.run_batch(unscoped(futures)).await;
 
     assert_eq!(outcomes.len(), 4);
     assert_eq!(
@@ -295,7 +292,7 @@ async fn a_cancelled_queued_job_starts_without_waiting_for_the_job_ahead() {
         Ok(1)
     });
     let token = CancellationToken::new();
-    let batch = registry.run_batch(vec![ahead, queued], vec![None, Some(token.clone())]);
+    let batch = registry.run_batch(vec![(ahead, None), (queued, Some(token.clone()))]);
     let begun = Instant::now();
     let cancel_and_wait = async move {
         token.cancel();
@@ -351,10 +348,11 @@ async fn a_queued_job_whose_token_is_cancelled_later_starts_out_of_turn_and_sibl
         Ok(2)
     });
     let token = CancellationToken::new();
-    let batch = registry.run_batch(
-        vec![ahead, waiting, cancelled],
-        vec![None, Some(CancellationToken::new()), Some(token.clone())],
-    );
+    let batch = registry.run_batch(vec![
+        (ahead, None),
+        (waiting, Some(CancellationToken::new())),
+        (cancelled, Some(token.clone())),
+    ]);
     let cancel_and_wait = async move {
         tokio::task::yield_now().await;
         token.cancel();

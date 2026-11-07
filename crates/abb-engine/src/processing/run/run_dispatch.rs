@@ -43,6 +43,8 @@ pub(crate) async fn dispatch_title_jobs(
     crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(result, &mut folders)
 }
 
+type TitleFuture = Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>;
+
 struct Batch {
     plan: ResolvedProcessingPlan,
     file_info: audio::FileListInfo,
@@ -66,9 +68,7 @@ async fn dispatch_batch_plan(
         return Ok(result);
     }
 
-    let mut scheduled_jobs: Vec<Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>> =
-        Vec::new();
-    let mut queue_cancels = Vec::new();
+    let mut scheduled_jobs: Vec<(TitleFuture, Option<CancellationToken>)> = Vec::new();
     for planned_job in plan.jobs {
         if let Some(skipped_entry) =
             no_write_skipped_result(planned_job.input_index, None, &planned_job.output)
@@ -85,15 +85,18 @@ async fn dispatch_batch_plan(
                 },
                 &skipped_entry.message,
             );
-            if let Some(title) = options.title_outputs.get(planned_job.input_index) {
-                title.end();
+            if let Some(output) = options
+                .title(planned_job.input_index)
+                .and_then(|title| title.output.as_ref())
+            {
+                output.end();
             }
-            scheduled_jobs.push(Box::pin(async move { Ok(skipped_entry) }));
-            queue_cancels.push(None);
+            scheduled_jobs.push((Box::pin(async move { Ok(skipped_entry) }), None));
             continue;
         }
 
         let input_index = planned_job.input_index;
+        let title = options.title(input_index);
         let request = ProcessingJobRequest {
             host: host.clone(),
             registry: registry.clone(),
@@ -110,7 +113,7 @@ async fn dispatch_batch_plan(
                 input_index,
             },
             operation_kind: OperationKind::ProcessingBatch,
-            title_cancel: options.title_cancels.get(input_index).cloned(),
+            title_cancel: title.map(|title| title.cancel.clone()),
             output_plan: planned_job.output.clone(),
             file_info: crate::processing::plan::title_file_info(
                 &file_info,
@@ -120,13 +123,16 @@ async fn dispatch_batch_plan(
             cover_art_passthrough: planned_job.cover_art_passthrough,
             supplemental_assets: supplemental_assets_for_input(payload, input_index),
             progress_listener: options.progress_listener.clone(),
-            title_output: options.title_outputs.get(input_index).cloned(),
+            title_output: title.and_then(|title| title.output.clone()),
         };
-        queue_cancels.push(options.title_cancels.get(input_index).cloned());
-        scheduled_jobs.push(Box::pin(run_title_job(request, Arc::clone(&folders))));
+        let cancel = request.title_cancel.clone();
+        scheduled_jobs.push((
+            Box::pin(run_title_job(request, Arc::clone(&folders))),
+            cancel,
+        ));
     }
 
-    let outcomes = registry.run_batch(scheduled_jobs, queue_cancels).await;
+    let outcomes = registry.run_batch(scheduled_jobs).await;
     let finalized_results = finalize_batch_results(
         outcomes,
         &options.operation_id,

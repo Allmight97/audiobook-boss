@@ -8,7 +8,7 @@ use super::types::{
 use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
 use crate::processing::run::{
-    preflight_title_outputs, process_inspected_with_options, ProcessingRunOptions,
+    preflight_title_outputs, process_inspected_with_options, ProcessingRunOptions, TitleRun,
 };
 use crate::processing::ProgressEventListener;
 use crate::processing::TitleOutput;
@@ -114,7 +114,17 @@ impl WorkRuntime {
             }
         }
         let cancel_tokens = CancelTokens::per_title(request.payload.input_files.len());
-        let title_cancels = cancel_tokens.titles();
+        let title_runs: Vec<TitleRun> = cancel_tokens
+            .titles()
+            .into_iter()
+            .zip(&titles)
+            .enumerate()
+            .map(|(index, (cancel, output))| TitleRun {
+                index,
+                cancel,
+                output: Some(output.clone()),
+            })
+            .collect();
         let live = Live {
             titles: cancel_tokens,
             sources: title_source_paths(&request.payload),
@@ -151,9 +161,8 @@ impl WorkRuntime {
                 inspected,
                 ProcessingRunOptions {
                     operation_id: Some(operation_id_for_task.to_string()),
-                    title_cancels,
+                    titles: title_runs,
                     progress_listener,
-                    title_outputs: run_titles.clone(),
                 },
             )
             .await;

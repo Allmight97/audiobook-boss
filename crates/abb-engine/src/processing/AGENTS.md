@@ -115,8 +115,9 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   flag carries it.
 - Keep preflight side-effect-free. Why: a plan that review refuses leaves no
   folders or files behind.
-- `ProcessingRunOptions.title_cancels` carries one cancel token per output title
-  from WorkRuntime or the session preview. Each job's admission and
-  `CancellationChecker` (built from that title's token) observe only that token;
-  the registry holds no other cancel state. Cancelled titles finish as
-  Cancelled results while siblings continue.
+- `ProcessingRunOptions.titles` carries one `TitleRun` (index, cancel token,
+  and for an export the title's output record) per output title from
+  WorkRuntime or the session preview; a preview has no output records. Each
+  job's admission and `CancellationChecker` (built from that title's token)
+  observe only that token; the registry holds no other cancel state.
+  Cancelled titles finish as Cancelled results while siblings continue.

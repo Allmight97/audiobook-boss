@@ -4,7 +4,7 @@ use tokio_util::sync::CancellationToken;
 use super::submission_flow::{closing, failed};
 use super::Session;
 use crate::errors::AppError;
-use crate::processing::run::{process_inspected_with_options, ProcessingRunOptions};
+use crate::processing::run::{process_inspected_with_options, ProcessingRunOptions, TitleRun};
 use crate::session::intent::SessionOutcome;
 use crate::session::submission::{Draft, SubmissionStatus};
 
@@ -55,7 +55,15 @@ impl Session {
             inspected,
             ProcessingRunOptions {
                 operation_id: Some(id.to_string()),
-                title_cancels: cancels,
+                titles: cancels
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, cancel)| TitleRun {
+                        index,
+                        cancel,
+                        output: None,
+                    })
+                    .collect(),
                 progress_listener: Some(Arc::new({
                     let session = self.clone();
                     let id = id.clone();
@@ -64,7 +72,6 @@ impl Session {
                         session.publish();
                     }
                 })),
-                ..ProcessingRunOptions::default()
             },
         )
         .await;

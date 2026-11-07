@@ -4,7 +4,7 @@ use crate::errors::AppError;
 use crate::host::Host;
 use crate::power::PowerManager;
 use crate::processing::run::{
-    inspect_processing_plan, process_inspected_with_options, ProcessingRunOptions,
+    inspect_processing_plan, process_inspected_with_options, ProcessingRunOptions, TitleRun,
 };
 use crate::processing::{EventStage, JobRegistry, ProcessPayload, ProgressEvent};
 use std::fs;
@@ -82,7 +82,11 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
         payload,
         inspected,
         ProcessingRunOptions {
-            title_cancels: vec![cancel.clone()],
+            titles: vec![TitleRun {
+                index: 0,
+                cancel: cancel.clone(),
+                output: None,
+            }],
             progress_listener: Some(listener),
             ..ProcessingRunOptions::default()
         },
