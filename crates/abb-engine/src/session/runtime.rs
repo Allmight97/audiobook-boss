@@ -11,7 +11,7 @@ use super::exports::ExportLink;
 use super::intent::{SessionIntent, SessionOutcome, SessionReply};
 use super::lookup::{QueueStep, RESULT_LIMIT};
 use super::plans::PlanTicket;
-use super::state::{ChosenResult, GateBlock, SavePlan, SessionState, SessionUpdate};
+use super::state::{ChosenResult, GateBlock, LookupState, SavePlan, SessionState, SessionUpdate};
 use super::submission::{Draft, SubmitRefusal};
 use super::tag_cache::ReadTicket;
 use super::working_set::{SelectionModifiers, WorkingSet};
@@ -463,15 +463,23 @@ impl Session {
             }
 
             I::LookupOpen => self.begin_lookup_open(),
-            I::LookupClose => self.begin_lookup_close(),
+            I::LookupClose => self.edit_lookup(LookupState::close),
             I::LookupSearch => self.begin_lookup_search(),
             I::LookupApply { index, revision } => self.begin_lookup_apply(index, revision),
             I::LookupSkip => self.begin_lookup_skip(),
-            I::LookupSetTitleQuery { value } => self.edit_lookup_title_query(value),
-            I::LookupSetAuthorQuery { value } => self.edit_lookup_author_query(value),
-            I::LookupSetSource { source } => self.edit_lookup_source(source),
-            I::LookupSetApplyMode { mode } => self.edit_lookup_apply_mode(mode),
-            I::LookupSetReplaceCover { replace } => self.edit_lookup_replace_cover(replace),
+            I::LookupSetTitleQuery { value } => {
+                self.edit_lookup(|lookup| lookup.edit_title_query(value))
+            }
+            I::LookupSetAuthorQuery { value } => {
+                self.edit_lookup(|lookup| lookup.edit_author_query(value))
+            }
+            I::LookupSetSource { source } => self.edit_lookup(|lookup| lookup.edit_source(source)),
+            I::LookupSetApplyMode { mode } => {
+                self.edit_lookup(|lookup| lookup.set_apply_mode(mode))
+            }
+            I::LookupSetReplaceCover { replace } => {
+                self.edit_lookup(|lookup| lookup.set_replace_cover(replace))
+            }
         }
     }
 

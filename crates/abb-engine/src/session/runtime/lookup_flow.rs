@@ -1,31 +1,11 @@
 use super::{Bound, Rest, Session};
 use crate::session::intent::SessionOutcome;
-use crate::session::lookup::{LookupApplyMode, LookupSource, QueueStep};
-use crate::session::state::{ApplyStart, ChosenResult, NextTitle, QueuedTitle};
+use crate::session::lookup::{LookupApplyMode, QueueStep};
+use crate::session::state::{ApplyStart, ChosenResult, LookupState, NextTitle, QueuedTitle};
 
 impl Session {
-    pub(super) fn edit_lookup_title_query(&self, value: String) -> Rest {
-        self.transition(|state| state.lookup.edit_title_query(value));
-        Rest::Done(SessionOutcome::Applied)
-    }
-
-    pub(super) fn edit_lookup_author_query(&self, value: String) -> Rest {
-        self.transition(|state| state.lookup.edit_author_query(value));
-        Rest::Done(SessionOutcome::Applied)
-    }
-
-    pub(super) fn edit_lookup_source(&self, source: LookupSource) -> Rest {
-        self.transition(|state| state.lookup.edit_source(source));
-        Rest::Done(SessionOutcome::Applied)
-    }
-
-    pub(super) fn edit_lookup_apply_mode(&self, mode: LookupApplyMode) -> Rest {
-        self.transition(|state| state.lookup.set_apply_mode(mode));
-        Rest::Done(SessionOutcome::Applied)
-    }
-
-    pub(super) fn edit_lookup_replace_cover(&self, replace: bool) -> Rest {
-        self.transition(|state| state.lookup.set_replace_cover(replace));
+    pub(super) fn edit_lookup(&self, change: impl FnOnce(&mut LookupState)) -> Rest {
+        self.transition(|state| change(&mut state.lookup));
         Rest::Done(SessionOutcome::Applied)
     }
 
@@ -40,11 +20,6 @@ impl Session {
             request: self.lock().lookup.begin_skip(),
             step: QueueStep::Skipped,
         }
-    }
-
-    pub(super) fn begin_lookup_close(&self) -> Rest {
-        self.transition(|state| state.lookup.close());
-        Rest::Done(SessionOutcome::Applied)
     }
 
     pub(super) fn begin_lookup_open(&self) -> Rest {
