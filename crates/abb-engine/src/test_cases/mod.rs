@@ -20,6 +20,8 @@ mod integration_job_log_tests;
 mod integration_library_readback_tests;
 #[path = "integration_media_album_sort_tests.rs"]
 mod integration_media_album_sort_tests;
+#[path = "integration_media_cover_type_tests.rs"]
+mod integration_media_cover_type_tests;
 #[path = "integration_media_cue_scale_tests.rs"]
 mod integration_media_cue_scale_tests;
 #[path = "integration_media_encoded_run_tests.rs"]

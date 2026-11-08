@@ -131,7 +131,7 @@ format tags, in file order:
 streams:
   0 audio FLAC Disposition(0x0)
   1 video MJPEG Disposition(ATTACHED_PIC)
-    comment="Other"
+    comment="Cover (front)"
     picture 1303 bytes sha256 f20e86d37462cf39
 as ABB reads it:
   title="Set Title"

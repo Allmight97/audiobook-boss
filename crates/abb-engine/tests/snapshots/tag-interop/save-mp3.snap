@@ -198,7 +198,7 @@ format tags, in file order:
 streams:
   0 audio MP3 Disposition(0x0)
   1 video MJPEG Disposition(ATTACHED_PIC)
-    comment="Other"
+    comment="Cover (front)"
     picture 1303 bytes sha256 f20e86d37462cf39
 as ABB reads it:
   title="Set Title"
@@ -241,7 +241,7 @@ ID3 frames, in file order:
   TPOS
   TXXX "media_type"
   TSSE <varies>
-  APIC image/jpeg type 0
+  APIC image/jpeg type 3
 
 # save clear-all
 container: mp3

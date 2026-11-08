@@ -105,6 +105,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `cover_source.rs` when the user loads a file or URL cover. Covers embedded in
   source files stay unconverted until write-prep, so displays show the source's
   real bytes.
+- A cover the user picks is written as the front cover: MP3 (ID3 APIC) and
+  FLAC take the picture type from the stream's `comment` tag, so
+  `add_cover_art_stream_pre_header` sets `Cover (front)` there. Without it the
+  muxers write type 0 "Other".
 - Cover intent comes only from cover actions (load, drop, clear). A text edit
   or Lookup apply that keeps the cover leaves cover intent absent, so a save
   does not rewrite unchanged art.

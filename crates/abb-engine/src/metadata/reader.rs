@@ -152,7 +152,7 @@ pub(super) fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<
 
 fn is_front_cover(stream: &ff::format::stream::Stream) -> bool {
     let tags = stream.metadata();
-    tags.get("comment") == Some("Cover (front)")
+    tags.get("comment") == Some(super::cover_art::embedding::FRONT_COVER_COMMENT)
         || super::matroska_cover::is_cover(
             tags.get("filename").unwrap_or(""),
             tags.get("mimetype").unwrap_or(""),
