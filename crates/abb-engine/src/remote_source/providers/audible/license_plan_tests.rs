@@ -136,6 +136,26 @@ fn a_reply_with_no_download_url_is_a_protocol_failure() {
 }
 
 #[test]
+fn a_reply_whose_url_is_not_an_importable_audiobook_says_so_instead_of_missing_url() {
+    let reply = classify(&json!({
+        "content_license": {
+            "status_code": "Granted",
+            "content_url": "https://cdn.example.test/book.zip"
+        }
+    }));
+
+    let (kind, message) = refusal(&reply);
+    assert_eq!(
+        kind,
+        RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed
+    );
+    assert_eq!(
+        message,
+        "Audible's license reply points to a file that is not an M4B or M4A audiobook, so ABB cannot import it."
+    );
+}
+
+#[test]
 fn a_denied_reply_is_refused_whether_or_not_it_carries_a_url() {
     for content in [
         json!({"content_metadata": {"content_url": {"offline_url": "https://cdn.example.test/book.m4b"}}}),

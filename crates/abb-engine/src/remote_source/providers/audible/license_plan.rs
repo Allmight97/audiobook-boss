@@ -8,6 +8,7 @@ use serde_json::Value;
 use crate::remote_source::RemoteAcquisitionFailureKind;
 
 const NO_DOWNLOAD_URL: &str = "Audible license response did not include a downloadable audio URL.";
+const NOT_IMPORTABLE_AUDIO: &str = "Audible's license reply points to a file that is not an M4B or M4A audiobook, so ABB cannot import it.";
 const NO_DECRYPTION_KEY: &str =
     "Audible's license reply for this title did not include the key needed to decrypt it.";
 
@@ -137,7 +138,7 @@ fn plan_for(
             log_refusal(job_id, title_id, "provider-protocol-failed");
             LicensePlan::refused(
                 RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
-                NO_DOWNLOAD_URL,
+                NOT_IMPORTABLE_AUDIO,
             )
         }
     }
