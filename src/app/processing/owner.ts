@@ -16,9 +16,12 @@ import type { StatusView } from './view';
 
 type LocalError = {
 	readonly message: string;
-	readonly previewRun: OutputSnapshot['previewRun'];
-	readonly submission: OutputSnapshot['submission'];
+	readonly outcome: string;
 };
+
+function outcomeKey({ previewRun, submission }: OutputSnapshot): string {
+	return JSON.stringify([previewRun?.operation.operationId ?? null, submission]);
+}
 
 export type ProcessingOwner = {
 	readonly status: Accessor<StatusView>;
@@ -51,17 +54,15 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	});
 	function showError(message: string): void {
 		if (disposed) return;
-		const { previewRun, submission } = untrack(() => deps.link.output());
-		setLocalError({ message, previewRun, submission });
+		setLocalError({ message, outcome: outcomeKey(untrack(() => deps.link.output())) });
 	}
 	const status = createMemo(() => {
-		const { previewRun, submission } = deps.link.output();
+		const output = deps.link.output();
 		const error = localError();
 		return statusOf({
-			previewRun,
-			submission,
-			localError:
-				error?.previewRun === previewRun && error.submission === submission ? error.message : null,
+			previewRun: output.previewRun,
+			submission: output.submission,
+			localError: error?.outcome === outcomeKey(output) ? error.message : null,
 			concurrencyText: concurrencyLabel(deps.link.settings().concurrency),
 		});
 	});

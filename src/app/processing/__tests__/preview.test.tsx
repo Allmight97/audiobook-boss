@@ -337,6 +337,46 @@ describe('engine preview adapter', () => {
 		);
 	});
 
+	it('keeps a failed open on screen across a later output revision of the same run', async () => {
+		const engine = createFakeEngine();
+		engine.respondPreviewOutput = () => {
+			throw new Error('no default app');
+		};
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		const complete = preview();
+		complete.operation.status = 'completed';
+		complete.openReady = true;
+		complete.cover = null;
+		engine.change((state) => {
+			state.output.previewRun = complete;
+		});
+		await vi.waitFor(() =>
+			expect(app.processing.status().stepText).toContain('Preview could not be opened'),
+		);
+		const message = app.processing.status().stepText;
+
+		const revised = preview();
+		revised.operation.status = 'completed';
+		revised.operation.revision += 1;
+		revised.openReady = true;
+		revised.cover = null;
+		engine.change((state) => {
+			state.output.previewRun = revised;
+		});
+		await vi.waitFor(() => expect(engine.claimedPreviews).toEqual(['preview-1']));
+		expect(app.processing.status().stepText).toBe(message);
+
+		const next = preview();
+		next.operation.operationId = 'preview-2';
+		engine.change((state) => {
+			state.output.previewRun = next;
+		});
+		await vi.waitFor(() =>
+			expect(app.processing.status().stepText).not.toContain('Preview could not be opened'),
+		);
+	});
+
 	it('claims a finished preview once and never claims a cancelled run', async () => {
 		const engine = createFakeEngine();
 		engine.respondPreviewOutput = () => '/tmp/Book.preview.m4b';
