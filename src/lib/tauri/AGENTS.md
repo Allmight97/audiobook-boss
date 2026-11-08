@@ -12,12 +12,12 @@
   command names by hand; `client.test.ts` proves every command throws on a
   refusal.
 - Regenerate bindings with `bun run bindings:generate`.
-  Oxlint `no-restricted-imports` keeps the generated `commands` value in
+- Oxlint `no-restricted-imports` keeps the generated `commands` value in
   `commands.ts`, the generated `events` value in `client.ts`, raw `invoke` and
   the plugin and event APIs in `src/lib/tauri` (type imports may appear
   elsewhere; a recorded-contract test suppresses the `invoke` rule with its
-  reason). `check-tauri-runtime-boundary.ts` covers what an import list
-  cannot: namespace imports, star re-exports and `__TAURI_INVOKE`.
+  reason). `check-tauri-runtime-boundary.ts` covers what an import list cannot
+  name (`scripts/AGENTS.md`, Script rules).
 - Native-dialog methods select files and folders only. Session questions render
   identified snapshots; a native question cannot be dismissed on frontend
   replacement.
@@ -46,7 +46,7 @@
 
 `recordedFresh.ts` is test support and not private: the fake engine and
 contract tests outside this folder import it. It types the recorded fresh
-session and settings (`generated/fixtures/`) as a frontend attachment.
+session and settings (`src/lib/generated/fixtures/`) as a frontend attachment.
 
 ## Frontend Utilities
 

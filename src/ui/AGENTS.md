@@ -21,7 +21,6 @@ imports). Files in one folder import each other relatively.
 - Host-OS wording (the Quit shortcut, the file manager name, the multi-select
   modifier) comes from `src/lib/platform`, which reads the user agent when
   asked. `check-known-mistakes.ts` rejects the user agent and `⌘Q` elsewhere.
-  ABB builds for macOS and Linux only.
 - A view opens an external link with `tauriClient.openUrl` only for a link the
   user clicked: a release's source page and the Opus help link.
 - State a test reads is an attribute: `data-state` on a file row (the engine's

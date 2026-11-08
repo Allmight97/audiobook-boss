@@ -107,13 +107,13 @@ without a bullet has none. Engine paths name the owner of the truth.
   option because the facts say so. `editFor` turns a control value into an
   `AudioEdit`; a value outside the engine's lists sends nothing. `form(scope)`
   (defaults, one title, or a selection) gives a panel its view, refusal,
-  `choose`, and summary line. Sample-rate
-  and FAAC quality lists still come from the capabilities. What Auto resolves
-  to comes from the engine's `autoSampleRate` and `autoChannels` readings on
-  the title or the selection, never from source facts or a plan; a selection's
-  are plain Auto while the field is mixed. Defaults describe future imports
-  and name no source; existing titles change only through Apply App Settings. `selectionView` and `refusal` render engine facts and combine no
-  titles.
+  `choose`, and summary line. Sample-rate and FAAC quality lists come from
+  the capabilities. What Auto resolves to comes from the engine's
+  `autoSampleRate` and `autoChannels` readings on the title or the selection,
+  never from source facts or a plan; a selection's are plain Auto while the
+  field is mixed. Defaults describe future imports and name no source;
+  existing titles change only through Apply App Settings. `selectionView` and
+  `refusal` render engine facts and combine no titles.
 - `inputSession` (session AGENTS): a title's chapters, duration, and size
   come from the engine's `titleTotals`; the combined size and Group as one
   title availability come from `totalSizeBytes` and `canGroup`. A source row's
@@ -162,14 +162,12 @@ without a bullet has none. Engine paths name the owner of the truth.
   lane's id, label, connected flag, and the controls it shows; the import
   menu, the Settings radios, and the Acquire dialog read them and never test
   the account state themselves. `createAppRuntime` loads the Indexer
-  connection whenever the Settings dialog opens. Connection editing sends write-only
-  key, URL, and category intents; keys never come back from the engine, and
-  only the URL's typing echo and the key's visual echo stay local. The engine
-  draft holds the URL as typed and normalizes it only on Test and Save, so the
-  form shows the engine's draft, a refused URL included, once its reply
-  arrives. Close
-  leaves accepted work running. Disposal invalidates pending
-  authorization-browser replies. An authorization URL occurs only in the
+  connection whenever the Settings dialog opens. Connection editing sends
+  write-only key, URL, and category intents; keys never come back from the
+  engine, and only the URL's typing echo and the key's visual echo stay local.
+  Once its reply arrives, the form shows the engine's draft URL, a refused URL
+  included (the engine keeps it as typed). Close leaves accepted work running.
+  Disposal invalidates pending authorization-browser replies. An authorization URL occurs only in the
   initiating intent outcome; snapshots never reopen a browser. The
   status line is a local refusal, else a running job's progress message, else
   the lane's engine line (`remote.audibleMessage`, `remote.indexer.message`);
@@ -212,7 +210,7 @@ appends imported files. It holds no product rule;
 `change`). What the real engine answers to a
 sequence of intents (outcomes and the changed snapshot parts) is proved by
 `runtime/recordedWorkflows.contract.test.ts`. The recorder writes `audio` as
-null in every step, because no replay reads it and it was most of the file;
+null in every step, because no replay reads it and it would be most of the file;
 `recordedFixtures.contract.test.ts` keeps each step's keys equal to
 `session-fresh.json`'s;
 a new engine-owned behavior a view depends on becomes a scenario in
