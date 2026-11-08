@@ -430,7 +430,10 @@ async fn reconfiguration_rejects_a_job_waiting_for_admission() {
         reason = "joined by reconfiguration_rejects_a_job_waiting_for_admission"
     )]
     let waiting = tokio::spawn(async move { waiting_registry.register_job().await });
-    sleep(Duration::from_millis(20)).await;
+    crate::test_cases::support::poll::until_true("the job is queued", || {
+        registry.active_jobs() == 1
+    })
+    .await;
 
     let result = registry.update_max_concurrent(4);
 
@@ -459,7 +462,10 @@ async fn dropped_admission_does_not_block_reconfiguration() {
         reason = "joined by dropped_admission_does_not_block_reconfiguration"
     )]
     let waiting = tokio::spawn(async move { waiting_registry.register_job().await });
-    sleep(Duration::from_millis(20)).await;
+    crate::test_cases::support::poll::until_true("the job is queued", || {
+        registry.active_jobs() == 1
+    })
+    .await;
 
     waiting.abort();
     #[expect(
