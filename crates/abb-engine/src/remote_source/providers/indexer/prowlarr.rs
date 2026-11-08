@@ -423,7 +423,11 @@ async fn parse_search_response(response: reqwest::Response) -> Result<ProwlarrSe
     }
 
     let raw_releases: Vec<ProwlarrReleaseRaw> = serde_json::from_str(&body).map_err(|error| {
-        AppError::General(format!("Indexer search response was invalid JSON: {error}"))
+        AppError::General(format!(
+            "Indexer search response was not a release list (line {}, column {}).",
+            error.line(),
+            error.column()
+        ))
     })?;
 
     let mut diagnostics = Vec::new();

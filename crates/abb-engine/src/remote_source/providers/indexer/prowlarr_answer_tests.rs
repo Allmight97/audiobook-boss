@@ -44,3 +44,31 @@ async fn an_answer_that_cannot_be_read_shows_a_fixed_line_without_the_address() 
         assert_eq!(outcome.message, line, "{status}");
     }
 }
+
+#[tokio::test]
+async fn a_search_reply_of_the_wrong_shape_never_quotes_its_body_in_the_error() {
+    let body = r#"[{"guid":"abc","size":"https://tracker.test/dl?passkey=SECRET123"}]"#;
+    let stub = StubServer::start(vec![Reply::json("200 OK", body)]).await;
+    let client = Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(2))
+        .resolve("prowlarr.test", stub.address())
+        .build()
+        .expect("client");
+
+    let error = ReqwestProwlarrAdapter::with_client(client)
+        .search(
+            &format!("http://prowlarr.test:{}", stub.address().port()),
+            &SecretString::from("secret-key".to_string()),
+            &ProwlarrSearchParams {
+                query: "book".to_string(),
+                category_ids: vec![3030],
+            },
+        )
+        .await
+        .expect_err("a reply of the wrong shape is an error");
+
+    let shown = error.to_string();
+    assert!(!shown.contains("SECRET123"), "{shown}");
+    assert!(!shown.contains("tracker.test"), "{shown}");
+}
