@@ -137,15 +137,58 @@ enum Change {
 }
 
 #[derive(Default)]
+enum Persistence {
+    #[default]
+    Saved,
+    Pending {
+        error: Option<AppErrorEnvelope>,
+        /// The settings file could be neither read nor kept aside; nothing is
+        /// saved over it until it is kept or gone.
+        set_aside_first: bool,
+    },
+}
+
+impl Persistence {
+    fn unsaved(&self) -> Self {
+        match self {
+            Self::Saved => Self::Pending {
+                error: None,
+                set_aside_first: false,
+            },
+            Self::Pending {
+                error,
+                set_aside_first,
+            } => Self::Pending {
+                error: error.clone(),
+                set_aside_first: *set_aside_first,
+            },
+        }
+    }
+
+    fn error(&self) -> Option<&AppErrorEnvelope> {
+        match self {
+            Self::Saved => None,
+            Self::Pending { error, .. } => error.as_ref(),
+        }
+    }
+
+    fn set_aside_first(&self) -> bool {
+        matches!(
+            self,
+            Self::Pending {
+                set_aside_first: true,
+                ..
+            }
+        )
+    }
+}
+
+#[derive(Default)]
 struct State {
     revision: u64,
     accepted: AppSettings,
-    unsaved: bool,
-    save_error: Option<AppErrorEnvelope>,
+    persistence: Persistence,
     recovery: Option<SettingsRecovery>,
-    /// The settings file could be neither read nor kept aside; nothing is
-    /// saved over it until it is kept or gone.
-    unpreserved: bool,
     applied: EditStamp,
 }
 
@@ -200,9 +243,10 @@ impl SettingsRuntime {
         match loaded.set_aside {
             Some(Ok(kept)) => recovery.set_aside_as = kept,
             Some(Err(error)) => {
-                state.unpreserved = true;
-                state.unsaved = true;
-                state.save_error = Some(AppErrorEnvelope::from(&not_kept(&error)));
+                state.persistence = Persistence::Pending {
+                    error: Some(AppErrorEnvelope::from(&not_kept(&error))),
+                    set_aside_first: true,
+                };
             }
             None => {}
         }
@@ -253,7 +297,7 @@ impl SettingsRuntime {
         SettingsSnapshot {
             revision: state.revision,
             settings: state.accepted.clone(),
-            save_error: state.save_error.clone(),
+            save_error: state.persistence.error().cloned(),
             concurrency: ConcurrencySnapshot {
                 preference: state.accepted.max_concurrent_jobs,
                 effective: self.inner.jobs.max_concurrent(),
@@ -481,21 +525,21 @@ impl SettingsRuntime {
         }
         state.recovery = None;
         self.apply_to_runtime(state);
-        state.unsaved = true;
+        state.persistence = state.persistence.unsaved();
         self.write(state).await;
         SettingsOutcome::Applied
     }
 
     async fn write(&self, state: &mut State) {
-        if !state.unsaved {
+        if matches!(state.persistence, Persistence::Saved) {
             return;
         }
         let config_dir = self.inner.config_dir.clone();
         let settings = state.accepted.clone();
-        let unpreserved = state.unpreserved;
+        let set_aside_first = state.persistence.set_aside_first();
         #[expect(clippy::disallowed_methods, reason = "joined by write")]
         let written = tokio::task::spawn_blocking(move || {
-            let kept = if unpreserved {
+            let kept = if set_aside_first {
                 storage::set_aside(&config_dir).map_err(|error| not_kept(&error))?
             } else {
                 None
@@ -507,16 +551,17 @@ impl SettingsRuntime {
         .unwrap_or_else(|error| Err(AppError::General(format!("Settings write failed: {error}"))));
         match written {
             Ok(kept) => {
-                state.unsaved = false;
-                state.save_error = None;
-                state.unpreserved = false;
+                state.persistence = Persistence::Saved;
                 if let Some(name) = kept {
                     state.recovery.get_or_insert_default().set_aside_as = Some(name);
                 }
             }
             Err(error) => {
                 log::warn!("App settings were not saved: {error}");
-                state.save_error = Some(AppErrorEnvelope::from(&error));
+                state.persistence = Persistence::Pending {
+                    error: Some(AppErrorEnvelope::from(&error)),
+                    set_aside_first,
+                };
             }
         }
     }
@@ -524,7 +569,7 @@ impl SettingsRuntime {
     pub(crate) async fn flush(&self) -> Option<AppErrorEnvelope> {
         let mut state = self.inner.state.lock().await;
         self.write(&mut state).await;
-        state.save_error.clone()
+        state.persistence.error().cloned()
     }
 
     fn apply_to_runtime(&self, state: &State) {
@@ -587,10 +632,11 @@ impl SettingsRuntime {
         *state = State {
             revision: state.revision,
             accepted: settings,
-            unsaved: true,
-            save_error: None,
+            persistence: Persistence::Pending {
+                error: None,
+                set_aside_first: state.persistence.set_aside_first(),
+            },
             recovery: None,
-            unpreserved: state.unpreserved,
             applied: state.applied,
         };
         self.apply_to_runtime(state);

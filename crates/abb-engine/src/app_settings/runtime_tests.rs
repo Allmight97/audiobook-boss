@@ -347,6 +347,33 @@ async fn a_file_that_cannot_be_kept_aside_is_never_saved_over_and_the_block_is_r
 }
 
 #[tokio::test]
+async fn a_reset_while_the_file_cannot_be_kept_aside_waits_for_it_and_a_failed_retry_stays_pending()
+{
+    let root = TempDir::new().expect("temp dir");
+    let unreadable = config_dir(&root).join("settings.toml");
+    std::fs::create_dir_all(&unreadable).expect("a folder where the file belongs");
+    let rig = start_in(root);
+
+    let reply = rig.send(SettingsIntent::Reset).await;
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert!(reply.snapshot.save_error.is_some());
+    assert!(unreadable.is_dir());
+
+    let reply = rig.send(SettingsIntent::Retry).await;
+    assert!(reply.snapshot.save_error.is_some());
+    assert!(unreadable.is_dir());
+    assert_eq!(rig.settings.flush().await.map(|error| error.code), {
+        reply.snapshot.save_error.map(|error| error.code)
+    });
+
+    std::fs::remove_dir(&unreadable).expect("the user removes it");
+    let reply = rig.send(SettingsIntent::Retry).await;
+    assert!(reply.snapshot.save_error.is_none());
+    assert_eq!(rig.on_disk(), AppSettings::default());
+    assert_eq!(rig.settings.flush().await, None);
+}
+
+#[tokio::test]
 async fn a_change_the_scheduler_refuses_keeps_the_previous_concurrency() {
     let rig = start();
     let before = rig.settings.snapshot().await.concurrency;
