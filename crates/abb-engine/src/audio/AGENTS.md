@@ -135,8 +135,9 @@ the settings.
 
 `format.rs` is the one table of output formats: extension, muxer, codec
 family, and allowed encoders. Read a format fact there; never list it again. A
-format "keeps" a source only when the source can be copied
-(`assess_preservation`) and its codec family equals the format's.
+format "keeps" a source when the source's codec family equals the format's
+(`formats_that_keep`). Whether the source can be copied is a separate fact
+(`assess_preservation`, `can_preserve`) that `formats_that_keep` does not read.
 
 Session title plans (`session/plans.rs`) and processing preflight share this
 resolver. Only encoding plans resolve encoder availability, channels, and input

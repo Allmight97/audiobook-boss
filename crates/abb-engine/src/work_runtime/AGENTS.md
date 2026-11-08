@@ -69,8 +69,7 @@
   that writes the Cancelling snapshot.
 - A metadata save's children match progress by `input_index` and carry no
   per-file `job_id`: a shared one would cross-match in `apply_progress_event`.
-  A cancel during the registry permit wait ends the operation as Cancelled and
-  keeps the per-file results.
+  A cancel ends the operation as Cancelled and keeps the per-file results.
 - Stamp per-operation `revision` under the state lock before mutable access.
 - Every change reaches hosts as one `EngineEvent::WorkOperations`
   (`WorkOperationsUpdate`): the changed operation plus the display order,

@@ -49,7 +49,7 @@ fn the_log_folder_is_the_tauri_app_log_dir() {
 }
 
 #[test]
-fn a_dev_build_logs_beside_the_installed_app_not_into_its_log() {
+fn a_dev_build_gets_a_log_folder_apart_from_the_installed_apps() {
     let home = Some(PathBuf::from("/home/me"));
     let xdg = Some(PathBuf::from("/data"));
     let installed = log_dir(APP_ID, home.clone(), xdg.clone());

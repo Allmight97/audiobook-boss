@@ -12,7 +12,10 @@ session records reaches hosts as `EngineEvent::Settings`.
   the setting types. Crate-visible beyond it: `normalize_base_url`,
   `IndexerConnection::validate`, and `SettingsRuntime::indexer_connection`
   and `set_indexer_connection`, so `remote_source` applies the saved rules to
-  the typed Indexer draft and Saves through one settings turn.
+  the typed Indexer draft and Saves through one settings turn; and
+  `EditStamp`, `LatestEdit`, `SettingsRuntime::remember_defaults` and the
+  snapshot's `applied_edits`, so the session records its defaults through one
+  settings turn (Settings Runtime, below).
 - `SettingsRuntime` is engine-internal. Load and save are private to this
   module, so every write goes through the runtime.
 

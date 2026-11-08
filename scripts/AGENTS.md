@@ -217,12 +217,16 @@ A change to CI or validation speed quotes before and after numbers from
   trees unused for 14 days are pruned, and the offline source setup fetches. Clippy
   still typechecks the bindings crate: Cargo treats check and build as
   different units.
-- The ABB tools folder (`tools_bin` in `setup.sh`) holds every tool setup
-  pins: node, ffmpeg, ffprobe, actionlint, uv (only when no `uvx` exists),
-  cargo-audit, cargo-deny. It defaults to `~/.local/share/audiobook-boss/bin`,
-  `ABB_TOOLS_BIN` overrides it, and `--print-env` puts it first on PATH. Why:
-  setup replaces a tool of another version there, so it must not be the
-  owner's `~/.local/bin` (`scripts/setup-pins.test.ts` checks).
+- The ABB tools folder (`tools_bin` in `setup.sh`) holds the tools setup pins
+  and installs itself: cargo-audit, cargo-deny, uv (only when no `uvx`
+  exists), node (only when PATH has none of the pinned major), and on Linux
+  ffmpeg, ffprobe and actionlint. On macOS those three come from Homebrew. It
+  defaults to `~/.local/share/audiobook-boss/bin` and `ABB_TOOLS_BIN`
+  overrides it. `--print-env` puts `$BUN_INSTALL/bin` first, then the tools
+  folder, and puts the folder of an FFmpeg found elsewhere (Homebrew) in front
+  of both. Why a separate folder: setup replaces a tool of another version
+  there, so it must not be the owner's `~/.local/bin`
+  (`scripts/setup-pins.test.ts` checks).
 - Linux builds link with mold through clang (`.cargo/config.toml`); `setup.sh
   rust` installs both. A `RUSTFLAGS` variable replaces that config's flags.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH

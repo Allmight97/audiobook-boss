@@ -52,6 +52,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Changed
 
+- An Audible reply with an empty PDF address now means the title has no Supplemental PDF. The
+  library no longer offers one and the title imports without it. An empty address used to count
+  as a PDF the title then had to download.
 - Imported files now sort the way the Sort button does. `Chapter 01 - Part 1` comes before
   `Chapter 1 - Part 2`, `Book` comes before `Book1`, and `über 2` comes before `Über 10`.
 - Cancelling an export that waits for a free slot takes effect at once. It used to wait for the
