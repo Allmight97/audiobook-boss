@@ -72,7 +72,9 @@ fn resolve_output_plan_with_cache(
     abb_output_artifact_core::check_output_name_lengths(requested_final_path)?;
     let requested_path = requested_final_path.to_path_buf();
     let collision = detect_output_collision(&requested_path, claimed, source_paths, cache)?;
-    let hard_block = abb_output_artifact_core::collision_is_hard_block(collision.as_ref());
+    let hard_block = collision
+        .as_ref()
+        .is_some_and(|value| value.kind.is_hard_block());
     let claimed_conflict = collision.as_ref().is_some_and(|value| {
         value
             .conflicting_path

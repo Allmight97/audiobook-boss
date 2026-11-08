@@ -247,10 +247,6 @@ impl OutputCollisionKind {
     }
 }
 
-pub fn collision_is_hard_block(collision: Option<&OutputCollision>) -> bool {
-    collision.is_some_and(|value| value.kind.is_hard_block())
-}
-
 /// What the collision policy does with one output. `claimed_conflict` says the
 /// path the collision names is one an earlier output of this batch claimed.
 pub fn resolve_action(
