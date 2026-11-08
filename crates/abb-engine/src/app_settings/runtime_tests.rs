@@ -755,3 +755,35 @@ async fn choosing_a_default_source_changes_only_the_source_and_reaches_the_file(
     assert_eq!(saved.default_acquisition_lane, AcquisitionLane::Indexer);
     assert_eq!(saved.output_defaults, output_in("/kept"));
 }
+
+#[test]
+fn a_file_kept_aside_before_a_failed_save_is_still_named_when_the_retry_saves() {
+    let mut state = State {
+        persistence: Persistence::Pending {
+            error: None,
+            set_aside_first: true,
+            kept: None,
+        },
+        ..State::default()
+    };
+
+    state.settle_write(
+        true,
+        Some("settings.toml.unusable-1".to_string()),
+        Err(AppError::General("disk full".into())),
+    );
+    assert!(state.persistence.error().is_some());
+    assert!(
+        !state.persistence.set_aside_first(),
+        "the file is already kept; the retry must not set it aside again"
+    );
+
+    state.persistence = state.persistence.unsaved();
+    state.settle_write(false, None, Ok(()));
+
+    assert!(state.persistence.error().is_none());
+    assert_eq!(
+        state.recovery.expect("recovery").set_aside_as.as_deref(),
+        Some("settings.toml.unusable-1")
+    );
+}

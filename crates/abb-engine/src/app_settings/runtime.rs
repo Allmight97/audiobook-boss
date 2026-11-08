@@ -145,6 +145,9 @@ enum Persistence {
         /// The settings file could be neither read nor kept aside; nothing is
         /// saved over it until it is kept or gone.
         set_aside_first: bool,
+        /// The unusable file a failed save already kept aside; recovery names
+        /// it once a save lands.
+        kept: Option<String>,
     },
 }
 
@@ -154,13 +157,16 @@ impl Persistence {
             Self::Saved => Self::Pending {
                 error: None,
                 set_aside_first: false,
+                kept: None,
             },
             Self::Pending {
                 error,
                 set_aside_first,
+                kept,
             } => Self::Pending {
                 error: error.clone(),
                 set_aside_first: *set_aside_first,
+                kept: kept.clone(),
             },
         }
     }
@@ -169,6 +175,13 @@ impl Persistence {
         match self {
             Self::Saved => None,
             Self::Pending { error, .. } => error.as_ref(),
+        }
+    }
+
+    fn kept(&self) -> Option<String> {
+        match self {
+            Self::Saved => None,
+            Self::Pending { kept, .. } => kept.clone(),
         }
     }
 
@@ -190,6 +203,37 @@ struct State {
     persistence: Persistence,
     recovery: Option<SettingsRecovery>,
     applied: EditStamp,
+}
+
+impl State {
+    /// Records how a write ended. A file kept aside stays kept when the save
+    /// after it fails, so the retry does not set aside again and recovery
+    /// names the file once a save lands.
+    fn settle_write(
+        &mut self,
+        set_aside_first: bool,
+        kept: Option<String>,
+        saved: crate::errors::Result<()>,
+    ) {
+        let kept_aside = kept.is_some();
+        let kept = kept.or_else(|| self.persistence.kept());
+        match saved {
+            Ok(()) => {
+                self.persistence = Persistence::Saved;
+                if let Some(name) = kept {
+                    self.recovery.get_or_insert_default().set_aside_as = Some(name);
+                }
+            }
+            Err(error) => {
+                log::warn!("App settings were not saved: {error}");
+                self.persistence = Persistence::Pending {
+                    error: Some(AppErrorEnvelope::from(&error)),
+                    set_aside_first: set_aside_first && !kept_aside,
+                    kept,
+                };
+            }
+        }
+    }
 }
 
 fn startup_defaults(settings: &AppSettings) -> PinnedDefaults {
@@ -246,6 +290,7 @@ impl SettingsRuntime {
                 state.persistence = Persistence::Pending {
                     error: Some(AppErrorEnvelope::from(&not_kept(&error))),
                     set_aside_first: true,
+                    kept: None,
                 };
             }
             None => {}
@@ -538,32 +583,25 @@ impl SettingsRuntime {
         let settings = state.accepted.clone();
         let set_aside_first = state.persistence.set_aside_first();
         #[expect(clippy::disallowed_methods, reason = "joined by write")]
-        let written = tokio::task::spawn_blocking(move || {
+        let (kept, saved) = tokio::task::spawn_blocking(move || {
             let kept = if set_aside_first {
-                storage::set_aside(&config_dir).map_err(|error| not_kept(&error))?
+                match storage::set_aside(&config_dir) {
+                    Ok(kept) => kept,
+                    Err(error) => return (None, Err(not_kept(&error))),
+                }
             } else {
                 None
             };
-            storage::save(&config_dir, &settings)?;
-            Ok(kept)
+            (kept, storage::save(&config_dir, &settings))
         })
         .await
-        .unwrap_or_else(|error| Err(AppError::General(format!("Settings write failed: {error}"))));
-        match written {
-            Ok(kept) => {
-                state.persistence = Persistence::Saved;
-                if let Some(name) = kept {
-                    state.recovery.get_or_insert_default().set_aside_as = Some(name);
-                }
-            }
-            Err(error) => {
-                log::warn!("App settings were not saved: {error}");
-                state.persistence = Persistence::Pending {
-                    error: Some(AppErrorEnvelope::from(&error)),
-                    set_aside_first,
-                };
-            }
-        }
+        .unwrap_or_else(|error| {
+            (
+                None,
+                Err(AppError::General(format!("Settings write failed: {error}"))),
+            )
+        });
+        state.settle_write(set_aside_first, kept, saved);
     }
 
     pub(crate) async fn flush(&self) -> Option<AppErrorEnvelope> {
@@ -635,6 +673,7 @@ impl SettingsRuntime {
             persistence: Persistence::Pending {
                 error: None,
                 set_aside_first: state.persistence.set_aside_first(),
+                kept: state.persistence.kept(),
             },
             recovery: None,
             applied: state.applied,

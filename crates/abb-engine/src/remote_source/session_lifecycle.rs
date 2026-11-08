@@ -45,13 +45,22 @@ pub(super) fn audible_acquire() -> AcquireTitles {
                 job_dir,
             } = request;
             let lifecycle = &runtime.inner.lifecycle;
-            let auth = runtime
+            let auth = match runtime
                 .vault_blocking(|runtime| {
                     super::providers::audible::AudibleProvider::stored_auth(
                         runtime.inner.vault.as_ref(),
                     )
                 })
-                .await?;
+                .await
+            {
+                Ok(auth) => auth,
+                Err(error) => {
+                    return Ok(AcquisitionOutcome::failed(
+                        types::RemoteAcquisitionFailureKind::AuthRequired,
+                        error.to_string(),
+                    ));
+                }
+            };
             super::providers::audible::AudibleProvider::acquire(
                 auth,
                 &lifecycle.materializer,
@@ -453,3 +462,7 @@ impl RemoteSourceRuntime {
         self.inner.lifecycle.purge_session(job_id)
     }
 }
+
+#[cfg(test)]
+#[path = "session_lifecycle_tests.rs"]
+mod tests;
