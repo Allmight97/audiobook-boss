@@ -198,11 +198,12 @@ impl UiState {
                 self.indexer.load = ConnectionLoad::Loaded;
                 self.snapshot.connection.api_key_configured = *configured;
             }
-            Err(error) => {
+            Err(error) if !self.indexer_saving() => {
                 self.snapshot.connection.save = RemoteDraftStatus::Failed {
                     error: error.into(),
                 }
             }
+            Err(error) => log::warn!("Indexer connection load failed during a save: {error}"),
         }
         self.changed();
     }

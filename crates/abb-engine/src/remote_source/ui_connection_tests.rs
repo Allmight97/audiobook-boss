@@ -327,3 +327,25 @@ fn a_save_outdates_a_load_in_flight_and_refuses_indexer_work_until_it_ends() {
     assert!(ui.begin(search()).is_ok());
     assert!(matches!(load_intent(&mut ui), UiAction::Done));
 }
+
+#[test]
+fn a_failed_connection_load_leaves_a_running_save_and_the_lane_busy() {
+    let mut ui = UiState::default();
+    ui.snapshot.lane = ProviderId::Indexer;
+    ui.begin(RemoteUiIntent::EditConnection {
+        base_url: Some("https://indexer.test".into()),
+        category_ids: Some(vec![3030]),
+        api_key: Some("key".into()),
+    })
+    .expect("edit");
+    ui.save_connection().expect("save accepted");
+    let UiAction::Load { request } = load_intent(&mut ui) else {
+        panic!("a load can start while a save runs")
+    };
+    assert!(ui.indexer_busy());
+
+    ui.loaded(request, &Err(AppError::General("keychain locked".into())));
+
+    assert_eq!(ui.snapshot.connection.save, RemoteDraftStatus::Running);
+    assert!(ui.indexer_busy());
+}
