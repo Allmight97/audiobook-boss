@@ -555,7 +555,7 @@ impl WorkingSet {
         self.restore_selection(&ids, anchor);
     }
 
-    pub(crate) fn set_order_locked(&mut self, locked: bool) {
+    pub(super) fn set_order_locked(&mut self, locked: bool) {
         if self.order_locked != locked {
             self.order_locked = locked;
             self.touch();

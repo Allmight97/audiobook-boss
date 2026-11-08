@@ -327,7 +327,8 @@ async fn a_queued_job_whose_token_is_cancelled_later_starts_out_of_turn_and_sibl
 
     let registry = JobRegistry::new(1);
     let (release, blocked) = oneshot::channel::<()>();
-    let (started, ran) = oneshot::channel::<()>();
+    let (started, ran) = oneshot::channel::<bool>();
+    let sibling_started = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let ahead: Job = Box::pin(async move {
         #[expect(
             clippy::let_underscore_must_use,
@@ -336,14 +337,23 @@ async fn a_queued_job_whose_token_is_cancelled_later_starts_out_of_turn_and_sibl
         let _ = blocked.await;
         Ok(0)
     });
-    let waiting: Job = Box::pin(async move { Ok(1) });
-    let cancelled: Job = Box::pin(async move {
-        #[expect(
-            clippy::let_underscore_must_use,
-            reason = "the receiver is gone if the test stops waiting"
-        )]
-        let _ = started.send(());
-        Ok(2)
+    let waiting: Job = Box::pin({
+        let sibling_started = Arc::clone(&sibling_started);
+        async move {
+            sibling_started.store(true, Ordering::SeqCst);
+            Ok(1)
+        }
+    });
+    let cancelled: Job = Box::pin({
+        let sibling_started = Arc::clone(&sibling_started);
+        async move {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "the receiver is gone if the test stops waiting"
+            )]
+            let _ = started.send(sibling_started.load(Ordering::SeqCst));
+            Ok(2)
+        }
     });
     let token = CancellationToken::new();
     let batch = registry.run_batch(vec![
@@ -354,16 +364,21 @@ async fn a_queued_job_whose_token_is_cancelled_later_starts_out_of_turn_and_sibl
     let cancel_and_wait = async move {
         tokio::task::yield_now().await;
         token.cancel();
-        ran.await.expect("the cancelled job ran out of turn");
+        let sibling_had_started = ran.await.expect("the cancelled job ran out of turn");
         #[expect(
             clippy::let_underscore_must_use,
             reason = "the receiver is gone if the batch ended first"
         )]
         let _ = release.send(());
+        sibling_had_started
     };
 
-    let (results, ()) = tokio::join!(batch, cancel_and_wait);
+    let (results, sibling_had_started) = tokio::join!(batch, cancel_and_wait);
 
+    assert!(
+        !sibling_had_started,
+        "the cancelled job jumped the queue; the waiting sibling did not start"
+    );
     let results: Vec<u8> = results.into_iter().map(|r| r.expect("ok")).collect();
     assert_eq!(results, [0, 1, 2]);
 }

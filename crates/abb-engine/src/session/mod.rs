@@ -25,7 +25,9 @@ pub use crate::metadata::CueChoice;
 pub use audio::{
     AudioChoiceView, AudioField, AudioRefusal, AudioSnapshot, SelectionAudio, TitleAudio,
 };
-pub use audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, EncoderOption, FaacRateControl};
+pub use audio_choice::{
+    AudioChoice, AudioChoiceFacts, AudioEdit, EncoderOption, FaacRateControl, FormatOption,
+};
 pub use exports::{OutputEdits, RestartOffer};
 pub use intent::{SessionIntent, SessionOutcome, SessionReply};
 pub use lookup::{

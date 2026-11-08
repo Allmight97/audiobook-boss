@@ -175,8 +175,12 @@ fn scenarios(folder: &Path) -> Vec<Scenario> {
     all
 }
 
-fn same_name_ignoring_case(left: &Path, right: &Path) -> bool {
-    left.to_string_lossy().to_lowercase() == right.to_string_lossy().to_lowercase()
+fn same_file(left: &Path, right: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (fs::metadata(left), fs::metadata(right)) {
+        (Ok(left), Ok(right)) => left.dev() == right.dev() && left.ino() == right.ino(),
+        _ => false,
+    }
 }
 
 fn publish(scenario: &Scenario, plan: &super::ResolvedOutputPlan, label: &str, folder: &Path) {
@@ -214,7 +218,7 @@ fn publish(scenario: &Scenario, plan: &super::ResolvedOutputPlan, label: &str, f
     }
     for (path, bytes) in scenario.protected.iter().zip(before) {
         let replaced = plan.action == PlannedOutputAction::ReplaceExisting
-            && same_name_ignoring_case(path, &plan.resolved_path);
+            && same_file(path, &plan.resolved_path);
         if !replaced {
             assert_eq!(
                 fs::read(path).expect("protected book survives"),

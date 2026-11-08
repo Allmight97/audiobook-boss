@@ -1,6 +1,6 @@
 use crate::audio::{
     validate_encoder_settings, validate_sample_rate_config, AacDecoder, AudioIntent,
-    AudiobookFormat, EncoderSettings, EncoderType, SampleRateConfig,
+    AudiobookFormat, EncoderSettings, SampleRateConfig,
 };
 use crate::errors::{AppError, Result};
 use crate::output_artifact::OutputNamingConfig;
@@ -325,7 +325,12 @@ impl ConcurrencyPreference {
 
 impl EncoderDefaults {
     pub(super) fn validate(&mut self) -> Result<()> {
-        if self.format.is_opus() != (self.settings.encoder_type == EncoderType::Opus) {
+        if !self
+            .format
+            .spec()
+            .encoders
+            .contains(&self.settings.encoder_type)
+        {
             return Err(AppError::InvalidInput(
                 "The default encoder must match the selected output format.".into(),
             ));
