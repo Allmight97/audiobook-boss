@@ -57,7 +57,7 @@ fn the_indexer_refuses_work_in_one_wording_whatever_it_is_busy_with() {
     let wording = "Wait for the current Indexer search, grab, or save to finish.";
     let busy_states: [fn(&mut UiState); 4] = [
         |ui| ui.snapshot.indexer.searching = true,
-        |ui| ui.snapshot.indexer.grabbing = true,
+        |ui| ui.indexer.grabbing = true,
         |ui| ui.indexer.saving = true,
         |ui| ui.indexer.resetting = true,
     ];

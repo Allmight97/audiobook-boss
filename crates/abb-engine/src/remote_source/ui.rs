@@ -137,8 +137,6 @@ pub struct IndexerWorkSnapshot {
     pub can_grab_selection: bool,
     pub release_grabs: BTreeMap<String, ReleaseGrabSnapshot>,
     pub searching: bool,
-    #[serde(skip)]
-    pub grabbing: bool,
     pub message: String,
 }
 
@@ -329,7 +327,7 @@ impl UiState {
 
     fn select_lane(&mut self, lane: ProviderId) -> Result<UiAction> {
         self.audible.refuse_while_changing()?;
-        if self.snapshot.indexer.grabbing {
+        if self.indexer.grabbing {
             return Err(indexer_lane::busy_refusal(None));
         }
         if self.snapshot.lane == lane

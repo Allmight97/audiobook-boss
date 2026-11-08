@@ -19,6 +19,7 @@ pub(super) struct IndexerLane {
     pub(super) loading: bool,
     pub(super) loaded: bool,
     pub(super) saving: bool,
+    pub(super) grabbing: bool,
     pub(super) resetting: bool,
     pub(super) test_request: u64,
     pub(super) search_request: u64,
@@ -66,7 +67,7 @@ impl IndexerLane {
     }
 
     pub(super) fn is_busy(&self, work: &IndexerWorkSnapshot) -> bool {
-        work.searching || work.grabbing || self.is_changing()
+        work.searching || self.grabbing || self.is_changing()
     }
 
     pub(super) fn refuse_while_busy(
@@ -338,7 +339,7 @@ impl UiState {
                 },
             );
         }
-        self.snapshot.indexer.grabbing = true;
+        self.indexer.grabbing = true;
         self.snapshot.indexer.message = "Sending to downloader via Indexer…".into();
         Ok(UiAction::Grab(releases))
     }
@@ -439,7 +440,7 @@ impl RemoteSourceRuntime {
         } else {
             lane_status::grab_batch_line(sent, outcomes.len() - sent - unconfirmed, unconfirmed)
         };
-        state.snapshot.indexer.grabbing = false;
+        state.indexer.grabbing = false;
         state.changed();
     }
 }

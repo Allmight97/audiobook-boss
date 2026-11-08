@@ -731,7 +731,7 @@ async fn an_admitted_reset_refuses_a_new_search_or_grab_until_it_ends() {
         runtime.ui().begin(RemoteUiIntent::GrabSelected).is_ok(),
         "dropping the reservation admits a Grab"
     );
-    runtime.ui().snapshot.indexer.grabbing = false;
+    runtime.ui().indexer.grabbing = false;
     assert!(runtime.ui().begin(search()).is_ok());
 }
 
