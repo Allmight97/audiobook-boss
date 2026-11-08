@@ -18,11 +18,39 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   front cover.
 - A preview of an Opus title now matches the final file's name and container. An M4A Opus
   preview was named `.m4b`, and an MKA Opus preview was written as an MP4 file named `.m4b`.
+- A one-title export no longer shows as failed or cancelled while it still cleans up its files.
+  Work Center, quit handling and the dev tool treated it as finished too early.
+- A failed Prowlarr search or connection test shows only a short message. It used to print the
+  start of Prowlarr's reply, which can hold a tracker passkey. A reply of the wrong shape no
+  longer quotes its content in the error.
+- The Indexer URL field keeps exactly what you type. It used to rewrite `HTTPS://Host:443/` while
+  you typed. ABB cleans the address when you Test or Save, and a refused address stays visible
+  beside its reason.
+- Settings lists every Indexer category you saved and lets you uncheck it. Only the two known
+  categories (3030 and 3000) used to show.
+- A default you change while a settings Reset runs now stays on screen and in the settings file.
+  The screen used to reset while the file kept the change.
+- The Number of Jobs control locks whenever ABB would refuse a change, including during an export
+  and while tags save. It used to lock only while Start prepared an export.
+- Dragging a file reorders the title you grabbed, even when an import or a removal changes the
+  list during the drag.
+- ABB retries a failed removal of a finished download's files on its own, after 30 seconds. The
+  wait doubles after each failure, up to 10 minutes.
+- A failed processing run with no detail says "Processing failed." once. It used to repeat it.
 
 ### Changed
 
 - Imported files now sort the way the Sort button does. `Chapter 01 - Part 1` comes before
   `Chapter 1 - Part 2`, `Book` comes before `Book1`, and `über 2` comes before `Über 10`.
+- Cancelling an export that waits for a free slot takes effect at once. It used to wait for the
+  next periodic check.
+- A settings Retry that never reached ABB now says "Retry didn't reach ABB."
+- Settings shows pinned defaults in the encoder panel's words: "VBR", "FAAC" and "Opus (libopus)".
+  It used to show "VBR_TARGET", "faac" and "opus".
+- The audio plan popover shows the planned sample rate only. It used to show the source rate
+  first, as in "44.1 → 48 kHz".
+- The Indexer's busy message reads the same wherever it appears. It used to list search, grab and
+  save in two different orders.
 
 ## [1.18.1] - 2026-11-07
 

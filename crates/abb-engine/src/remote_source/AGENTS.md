@@ -131,7 +131,10 @@ selection change.
   facts, predicates (`is_changing`, `is_busy`, `can_disconnect`), and refusal
   wording live in one struct: `AudibleLane` (`audible_lane.rs`: the
   `AudibleSignIn` state, library, title and PDF choices) and `IndexerLane` (`indexer_lane.rs`:
-  normalized connection drafts, search and grab, batch outcomes);
+  normalized connection drafts, search and grab, batch outcomes). The
+  Indexer's busy predicates (`indexer_saving`, `indexer_busy`,
+  `refuse_while_indexer_busy`) sit on `UiState` in `indexer_lane.rs` because
+  they read the snapshot's save status.
   `indexer_save.rs` owns the Indexer Save and Reset effects on the draft. The
   account read generation is shared: `begin_account_read` and `change_lane`
   are the only places that start a read or switch lanes, so they bump every
@@ -143,8 +146,8 @@ selection change.
   library load, a sign-in, or a disconnect replaces it, and only the settle
   writes it. A running job's text stays on the acquisition part. On the Indexer
   lane the snapshot's `indexer.message` adds the account failure and connected
-  note to the stored last-event line. `signIn`, `accountStatus`, and
-  `libraryStatus` are engine inputs and never reach the wire.
+  note to the stored last-event line. `sign_in`, `account_status`, and
+  `library_status` are engine inputs and never reach the wire.
 - SelectLane reads the selected account and, for connected Audible outside an
   acquisition/handoff, its library; repeated entry coalesces pending reads.
   Account and library requests carry generations: replaced lanes and accepted

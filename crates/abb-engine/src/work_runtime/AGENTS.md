@@ -100,6 +100,8 @@
   value that shows an operation as cancelling (`CANCELLING_STAGE`).
 - `OperationSnapshot.phase` (`accepted`, `active`, `finished`) is the only
   answer to "has it started" and "is it over". `active` means running or
-  cancelling. `OperationSnapshot::set_status` is the one writer of `status`
-  and derives `phase` from the stage table. Hosts, `abb-dev`, session
-  previews and the UI read `phase` and keep no status list of their own.
+  cancelling, including cancelling an operation that never started; read
+  whether it started from `started_at_ms`. `OperationSnapshot::set_status` is
+  the one writer of `status` and derives `phase` from the stage table. Hosts,
+  `abb-dev`, session previews and the UI read `phase` and keep no status list
+  of their own.

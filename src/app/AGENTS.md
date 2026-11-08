@@ -138,9 +138,7 @@ without a bullet has none. Engine paths name the owner of the truth.
   Keep Location send the title and revision shown; teardown answers neither.
   Preview identity, progress, and terminal truth come from `output.previewRun`:
   render its snapshot; the status panel only counts titles by status for its
-  chips. `resetToIdle` does nothing while `previewRun` is set, which tells a
-  preview's own ending from a later submission's outcome (the engine drops a
-  finished run at the next Start or Preview). `cancelPreview` carries the run
+  chips. `cancelPreview` carries the run
   identity and an optional child identity; whole-preview cancel needs no native
   job id, and disposal does not cancel. The artwork shows from the run's
   `cover` address once the engine offers one. A finished preview opens through
@@ -156,6 +154,9 @@ without a bullet has none. Engine paths name the owner of the truth.
   state and shows until the engine reports a new preview run or submission.
   A submission's error line shows over a preview's step line, because a failed
   preview also leaves a blocked submission.
+  A submission with no line (preparing, cancelled) leaves the preview's view
+  as is, so a preview's own ending stays until the engine drops the finished
+  run at the next Start or Preview.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and
   `selectLane` send only the lane intent. `lanes()` and `lane()` give each
   lane's id, label, connected flag, and the controls it shows; the import
