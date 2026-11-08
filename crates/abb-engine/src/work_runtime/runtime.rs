@@ -259,8 +259,8 @@ impl WorkRuntime {
     }
 
     /// Registers a metadata-save operation, emits it, and marks it running.
-    /// Returns the operation id and the cancel flag `cancel_operation` sets for
-    /// the save loop.
+    /// Returns the operation id and the cancel token `cancel_operation` cancels
+    /// for the save loop.
     pub(crate) fn begin_metadata_save_operation(
         &self,
         host: &Host,
@@ -299,7 +299,7 @@ impl WorkRuntime {
     }
 
     /// Terminalize a metadata-save operation from its run outcome, then emit
-    /// and drop its cancel flag. A finished run maps its summary through the
+    /// and drop its cancel token. A finished run maps its summary through the
     /// canonical classifier and terminalizes children by `input_index`; an
     /// aborted run resolves to Cancelled for a cancellation and Failed
     /// otherwise, exactly as a processing run does.

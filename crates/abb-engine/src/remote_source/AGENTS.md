@@ -202,8 +202,8 @@ selection change.
   grab outcomes, and `sent_releases` all index by it. `indexer.canGrabSelection`
   (some selected release is not Sent) is computed in `UiState::snapshot`.
 - The draft holds the Indexer URL as typed. An edit normalizes it only to set
-  the URL's refusal (`draft_error`); Test and Save normalize as they always
-  did, and a finished Save shows the saved value. Why: rewriting the field
+  the URL's refusal (`draft_error`); Test and Save normalize it, and a
+  finished Save shows the saved value. Why: rewriting the field
   under the user's cursor loses keystrokes.
 - The draft snapshot supplies what the Settings form shows about it:
   `category_options` (the known categories with labels, then any saved or
