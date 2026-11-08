@@ -60,6 +60,12 @@ impl Container {
         *self == Container::Mp4
     }
 
+    /// FLAC, whose muxer writes the generic `comment` key as the Vorbis
+    /// `DESCRIPTION` field. Ogg files are not an ABB input format.
+    pub(crate) fn uses_vorbis_comments(&self) -> bool {
+        *self == Container::Other("flac".to_string())
+    }
+
     /// Whether the container keeps each chapter's end. MP4 players end a
     /// chapter where the next starts, so only its starts and titles are kept.
     pub(crate) fn stores_chapter_ends(&self) -> bool {

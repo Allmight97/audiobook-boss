@@ -1,6 +1,8 @@
 use super::container::Container;
 use super::cover_choice::CoverChoice;
-use super::field_schema::{comment_key_rank, position_keys, text_keys, KeySet, ALBUM_SORT_KEYS};
+use super::field_schema::{
+    comment_key_rank, position_keys, text_keys, text_keys_in, KeySet, TextKeys, ALBUM_SORT_KEYS,
+};
 use super::{mp4ameta_bridge, normalize_publication_date, split_series_list, AudiobookMetadata};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use abb_metadata_core::{PositionField, TextField};
@@ -32,11 +34,12 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
 
 fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<AudiobookMetadata> {
     let dict = ictx.metadata();
+    let container = Container::of_input(ictx);
 
     let mut metadata = AudiobookMetadata::new();
 
     for field in TextField::ALL {
-        let value = read_text(&dict, field);
+        let value = read_text(&dict, text_keys_in(field, &container));
         match field {
             TextField::Date => {
                 metadata.date = value.as_deref().and_then(normalize_publication_date);
@@ -65,8 +68,8 @@ fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<
     Ok(metadata)
 }
 
-fn read_text(dict: &ff::DictionaryRef<'_>, field: TextField) -> Option<String> {
-    match text_keys(field).read {
+fn read_text(dict: &ff::DictionaryRef<'_>, keys: &TextKeys) -> Option<String> {
+    match keys.read {
         KeySet::Keys(keys) => first_tag_keys(dict, keys),
         KeySet::UserComments => read_comment(dict),
     }
@@ -96,8 +99,8 @@ pub fn display_tags_from_ffmpeg_dict(
     dict: &ff::DictionaryRef<'_>,
 ) -> (Option<String>, Option<String>) {
     (
-        read_text(dict, TextField::Title),
-        read_text(dict, TextField::Artist),
+        read_text(dict, text_keys(TextField::Title)),
+        read_text(dict, text_keys(TextField::Artist)),
     )
 }
 

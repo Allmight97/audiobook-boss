@@ -11,7 +11,7 @@ pub(crate) fn merge_metadata_with_plan<'a>(
     plan: &MetadataWritePlan,
     container: &Container,
 ) -> ff::Dictionary<'a> {
-    let removal = ExistingKeyRemoval::for_plan(plan);
+    let removal = ExistingKeyRemoval::for_plan(plan, container);
     let new_album_sort = match &plan.album_sort {
         Some(PatchOp::Set(value)) => Some(value.as_str()),
         _ => None,
@@ -27,7 +27,7 @@ pub(crate) fn merge_metadata_with_plan<'a>(
         merged.set(key, value);
     }
 
-    for (key, value) in ffmpeg_dict_for_ops(&plan.ops).iter() {
+    for (key, value) in ffmpeg_dict_for_ops(&plan.ops, container).iter() {
         merged.set(key, value);
     }
     if let Some(value) = new_album_sort {
@@ -48,7 +48,7 @@ pub fn set_container_metadata(
         "preserve"
     };
     super::plan_log::log_field_decisions(&plan, album_sort, "ffmpeg_encode", "current_encoder");
-    let mut dict = ffmpeg_dict_for_ops(&plan.ops);
+    let mut dict = ffmpeg_dict_for_ops(&plan.ops, &Container::of_output(octx));
     if let Some(PatchOp::Set(value)) = &plan.album_sort {
         dict.set(MP4_ALBUM_SORT_KEY, value);
     }

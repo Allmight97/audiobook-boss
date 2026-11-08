@@ -44,6 +44,8 @@ mod integration_media_route_parity_tests;
 mod integration_media_tag_save_tests;
 #[path = "integration_media_tag_snapshot_tests.rs"]
 mod integration_media_tag_snapshot_tests;
+#[path = "integration_media_vorbis_fields_tests.rs"]
+mod integration_media_vorbis_fields_tests;
 #[path = "integration_output_safety_tests.rs"]
 mod integration_output_safety_tests;
 #[path = "integration_preview_plan_tests.rs"]
