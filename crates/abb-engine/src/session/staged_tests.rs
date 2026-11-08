@@ -122,7 +122,9 @@ fn a_failed_removal_is_tried_again_only_after_the_retry_delay() {
     let mut staged = staged();
     staged.finish(["alpha", "beta"]);
     let failed = Instant::now();
+    assert_eq!(staged.next_retry(), None);
     staged.removal_failed("job-1", failed);
+    assert_eq!(staged.next_retry(), Some(failed + RETRY_DELAY));
 
     let free = HashSet::new();
     assert!(staged.removable(&free, failed).is_empty());

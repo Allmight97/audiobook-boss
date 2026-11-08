@@ -16,10 +16,28 @@ pub(crate) struct StagedSources {
 pub(crate) const RETRY_DELAY: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Default)]
+enum Removal {
+    #[default]
+    Idle,
+    Removing,
+    RetryAt(Instant),
+}
+
+impl Removal {
+    fn due(&self, now: Instant) -> bool {
+        match self {
+            Self::Idle => true,
+            Self::Removing => false,
+            Self::RetryAt(at) => now >= *at,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
 struct StagedJob {
     /// By session input id.
     titles: BTreeMap<String, StagedTitle>,
-    retry_at: Option<Instant>,
+    removal: Removal,
 }
 
 #[derive(Debug)]
@@ -143,7 +161,7 @@ impl StagedSources {
         self.jobs
             .iter()
             .filter(|(_, job)| {
-                job.retry_at.is_none_or(|at| now >= at)
+                job.removal.due(now)
                     && job.titles.values().all(|title| {
                         title.finished
                             && !in_use.contains(&title.path)
@@ -169,14 +187,37 @@ impl StagedSources {
             .collect()
     }
 
+    pub(crate) fn removing(&mut self, job_id: &str) {
+        if let Some(job) = self.jobs.get_mut(job_id) {
+            job.removal = Removal::Removing;
+        }
+    }
+
+    pub(crate) fn removing_paths(&self) -> impl Iterator<Item = PathBuf> + '_ {
+        self.jobs
+            .iter()
+            .filter(|(_, job)| matches!(job.removal, Removal::Removing))
+            .flat_map(|(job_id, _)| self.paths(job_id))
+    }
+
     pub(crate) fn removed(&mut self, job_id: &str) {
         self.jobs.remove(job_id);
     }
 
     pub(crate) fn removal_failed(&mut self, job_id: &str, now: Instant) {
         if let Some(job) = self.jobs.get_mut(job_id) {
-            job.retry_at = Some(now + RETRY_DELAY);
+            job.removal = Removal::RetryAt(now + RETRY_DELAY);
         }
+    }
+
+    pub(crate) fn next_retry(&self) -> Option<Instant> {
+        self.jobs
+            .values()
+            .filter_map(|job| match job.removal {
+                Removal::RetryAt(at) => Some(at),
+                Removal::Idle | Removal::Removing => None,
+            })
+            .min()
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -192,7 +233,6 @@ impl SessionState {
         now: Instant,
     ) -> Vec<ReadTicket> {
         let paths = self.staged.paths(job_id);
-        self.removing.retain(|path| !paths.contains(path));
         if !removed {
             self.staged.removal_failed(job_id, now);
             return Vec::new();

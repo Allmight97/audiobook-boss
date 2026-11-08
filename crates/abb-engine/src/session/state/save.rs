@@ -29,8 +29,8 @@ impl SessionState {
         in_use
             .iter()
             .chain(&self.reserved)
-            .chain(&self.removing)
             .cloned()
+            .chain(self.staged.removing_paths())
             .collect()
     }
 
@@ -270,7 +270,7 @@ impl SessionState {
     ) -> Vec<String> {
         let jobs = self.removable_staged(in_use, now);
         for job_id in &jobs {
-            self.removing.extend(self.staged.paths(job_id));
+            self.staged.removing(job_id);
         }
         jobs
     }

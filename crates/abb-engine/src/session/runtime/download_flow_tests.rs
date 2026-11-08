@@ -95,6 +95,25 @@ async fn a_failed_removal_waits_out_the_retry_delay_before_the_next_change_retri
         .await;
 }
 
+#[tokio::test(start_paused = true)]
+async fn a_failed_removal_is_retried_after_the_delay_with_no_other_change() {
+    let rig = rig();
+    rig.failing_removals
+        .store(1, std::sync::atomic::Ordering::SeqCst);
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+    rig.session.import_acquired(acquired("job-1", &audio)).await;
+    let attempts = || rig.removed.lock().expect("removed").len();
+
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+    assert_eq!(attempts(), 1);
+
+    tokio::time::sleep(crate::session::staged::RETRY_DELAY * 2).await;
+    crate::test_cases::support::poll::until_true("the removal is retried", || attempts() == 2)
+        .await;
+}
+
 #[tokio::test]
 async fn a_download_goes_once_its_title_is_exported() {
     let rig = rig();

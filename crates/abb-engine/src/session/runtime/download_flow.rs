@@ -95,15 +95,18 @@ impl Session {
         let session = self.clone();
         self.inner.deps.tasks.spawn(async move {
             loop {
-                let jobs = session.transition(|state| {
+                let (jobs, retry_at) = session.transition(|state| {
                     let held = session.inner.deps.work.sources_held();
                     let jobs = state.begin_staged_removal(&held, now());
                     if jobs.is_empty() {
                         state.sweeping.release();
                     }
-                    jobs
+                    (jobs, state.staged.next_retry())
                 });
                 if jobs.is_empty() {
+                    if let Some(retry_at) = retry_at {
+                        session.retry_sweep_at(retry_at).await;
+                    }
                     return;
                 }
                 for job_id in jobs {
@@ -125,6 +128,16 @@ impl Session {
                 session.publish();
             }
         });
+    }
+
+    async fn retry_sweep_at(&self, retry_at: std::time::Instant) {
+        let wait = async {
+            tokio::time::sleep_until(tokio::time::Instant::from_std(retry_at)).await;
+            Ok(())
+        };
+        if self.inner.deps.tasks.until_closing(wait).await.is_ok() {
+            self.transition(|_| ());
+        }
     }
 
     pub(super) fn export_finished(&self, snapshot: &OperationSnapshot) {

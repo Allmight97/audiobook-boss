@@ -108,11 +108,8 @@ impl SessionState {
             },
             title_label,
         )?;
-        if draft
-            .sources
-            .iter()
-            .any(|source| self.removing.contains(source))
-        {
+        let removing: Vec<PathBuf> = self.staged.removing_paths().collect();
+        if draft.sources.iter().any(|source| removing.contains(source)) {
             return Err(SubmitRefusal::SourceRemoved);
         }
         Ok(draft)

@@ -260,8 +260,9 @@ one host attachment.
   downloads. Removing a download leaves the form alone: its title
   (`AudioFile::takes_edits`) keeps its tags and any typing, valid or not, and a
   later Save sends the edit to the title's output. A failed removal stays
-  recorded and is retried at the first change
-  after `staged::RETRY_DELAY`; startup clears the rest. A download nothing was
+  recorded; the sweep sleeps until `staged::RETRY_DELAY` has passed and
+  retries with no other change (shutdown ends the wait); startup clears the
+  rest. A download nothing was
   imported from is recorded the same way. A download with any file that
   cannot be read is not listed at all (`HandoffRefusal::ImportFailed`), so a
   title never lists without one of its parts.
