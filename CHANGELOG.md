@@ -6,6 +6,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- A title you switch from Opus back to M4B keeps its AAC bitrate. It used to take the Opus
+  bitrate instead.
 - A title that already finished no longer reads "Cancelling" in the status panel after you
   cancel a whole preview.
 - A bitrate the engine refuses for several selected titles leaves the field on "Mixed". It used
