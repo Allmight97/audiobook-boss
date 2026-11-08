@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 use super::super::exports::{ExportLink, OutputEdit, OutputEdits, RestartStale};
 use super::super::submission::{
@@ -293,9 +294,10 @@ impl SessionState {
         Some(draft)
     }
 
-    pub(crate) fn start_preview(&mut self, id: &OperationId) {
-        self.preview.start(id);
+    pub(crate) fn start_preview(&mut self, id: &OperationId) -> Vec<CancellationToken> {
+        let titles = self.preview.start(id);
         self.submission = Some(SubmissionStatus::Previewing);
+        titles
     }
 
     pub(crate) fn finish_submission(&mut self, draft: &Draft, status: SubmissionStatus) {

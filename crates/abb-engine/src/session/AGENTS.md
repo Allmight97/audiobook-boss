@@ -73,8 +73,11 @@ one host attachment.
   same lock; a transition that frees a download afterwards starts the next
   sweep. Waiting writes clear under the state lock, where Save adds them, so a
   new write always finds a writer or starts one.
-- A preview holds concurrency fixed and is admitted after its cancel tokens are
-  visible, so shutdown either sees it to cancel or the preview sees shutdown.
+- A preview holds concurrency fixed. `Preview` owns its run (accepted, running,
+  finished) and the cancel tokens: one parent, one child per title, created in
+  the same turn that admits the run, so shutdown either sees it to cancel or the
+  preview sees shutdown. A cancel asked for before the run starts is applied to
+  the tokens when it starts.
 - A download finishing while the list is locked waits for the unlock.
   Source paths are canonical, so match both spellings of the staged root.
   Tag-cache tokens and revisions keep counting across Clear All, so nothing

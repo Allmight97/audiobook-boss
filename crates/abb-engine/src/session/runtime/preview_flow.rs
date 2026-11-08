@@ -1,5 +1,4 @@
-use std::sync::{Arc, PoisonError};
-use tokio_util::sync::CancellationToken;
+use std::sync::Arc;
 
 use super::submission_flow::{closing, failed};
 use super::Session;
@@ -16,35 +15,16 @@ impl Session {
     ) -> SessionOutcome {
         let deps = &self.inner.deps;
         let _active_run = deps.jobs.hold_run();
-        let cancels: Vec<CancellationToken> = (0..draft.payload.input_files.len())
-            .map(|_| CancellationToken::new())
-            .collect();
         let id = draft.operation_id.clone();
-        *self.preview_cancels() = cancels.clone();
-        if let Some(preview) = self.lock().preview.snapshot() {
-            for child in &preview.operation.children {
-                if child.cancel_requested {
-                    if let Some(token) = child.input_index.and_then(|index| cancels.get(index)) {
-                        token.cancel();
-                    }
-                }
-            }
-        }
         let artwork = crate::session::preview::PreviewArtwork::from_plan(&inspected);
-        if self
-            .inner
-            .deps
-            .tasks
-            .admit(|| {
-                self.transition(|state| {
-                    state.preview.artwork = artwork;
-                    state.start_preview(&id);
-                });
+        let Ok(cancels) = self.inner.deps.tasks.admit(|| {
+            self.transition(|state| {
+                state.preview.artwork = artwork;
+                state.start_preview(&id)
             })
-            .is_err()
-        {
+        }) else {
             return self.end_submission(&draft, closing());
-        }
+        };
         self.publish();
         let result = process_inspected_with_options(
             &_active_run,
@@ -75,7 +55,6 @@ impl Session {
             },
         )
         .await;
-        self.preview_cancels().clear();
         let status = match result {
             Ok(result) => SubmissionStatus::PreviewFinished { result },
             Err(error) => failed(&error),
@@ -83,29 +62,16 @@ impl Session {
         self.end_submission(&draft, status)
     }
 
-    fn preview_cancels(&self) -> std::sync::MutexGuard<'_, Vec<CancellationToken>> {
-        self.inner
-            .preview_cancels
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-    }
-
     pub(super) fn cancel_preview_run(&self, run_id: &str, child: Option<&str>) -> SessionOutcome {
-        let tokens = self.preview_cancels();
-        let indexes = self.transition(|state| {
-            let indexes = state.preview.cancel(run_id, child)?;
+        let cancelled = self.transition(|state| {
+            state.preview.cancel(run_id, child)?;
             if child.is_none() && state.preview.matches(run_id) {
                 state.cancel_preview_review();
             }
-            Ok::<_, AppError>(indexes)
+            Ok::<_, AppError>(())
         });
-        match indexes {
-            Ok(indexes) => {
-                for index in indexes {
-                    if let Some(token) = tokens.get(index) {
-                        token.cancel();
-                    }
-                }
+        match cancelled {
+            Ok(()) => {
                 self.sources_released();
                 SessionOutcome::Applied
             }

@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
-use tokio_util::sync::CancellationToken;
 
 use cover_flow::CoverSource;
 
@@ -81,7 +80,6 @@ struct SessionInner {
     last_published_revision: AtomicU64,
     sources_freed: tokio::sync::Notify,
     list_unlocked: tokio::sync::Notify,
-    preview_cancels: Mutex<Vec<CancellationToken>>,
 }
 
 struct Bound {
@@ -235,7 +233,6 @@ impl Session {
                 last_published_revision: AtomicU64::new(0),
                 sources_freed: tokio::sync::Notify::new(),
                 list_unlocked: tokio::sync::Notify::new(),
-                preview_cancels: Mutex::default(),
             }),
         }
     }
