@@ -19,8 +19,6 @@ pub use types::{
 };
 
 pub use crate::audio::AudioHandling;
-#[cfg(test)]
-pub(crate) use crate::execution::cancelled_token;
 pub(crate) use crate::execution::{
     CancellationChecker, JobIdentity, OutputConfig, ProcessingContext, ProcessingSession,
     ProgressEmitter, ProgressEventListener, PREVIEW_SECONDS,
