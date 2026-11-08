@@ -74,7 +74,7 @@ impl SessionState {
 
     pub(crate) fn settle(&mut self) {
         self.refresh_displayed_cover();
-        let refusal_is_outdated = self.working_set.order_locked() != self.parts.titles.order_locked
+        let refusal_is_outdated = self.list_locked() != self.parts.titles.order_locked
             || self.working_set.selected_indices() != self.parts.selection.selected_indices;
         if refusal_is_outdated {
             self.audio_refusal = None;
@@ -171,11 +171,8 @@ impl SessionState {
         });
         let preview = self.output.preview(title);
         OutputSnapshot {
-            submission_in_progress: self.submitting.is_some(),
-            collision_review: self
-                .pending_review
-                .as_ref()
-                .map(|review| review.view.clone()),
+            submission_in_progress: self.submitting.in_progress(),
+            collision_review: self.submitting.review().map(|review| review.view.clone()),
             restart_offers: self.exports.offers(),
             restart_prompt: self.next_restart_prompt(),
             preview_run: self.preview.snapshot(),
@@ -186,7 +183,7 @@ impl SessionState {
     }
 
     fn next_restart_prompt(&self) -> Option<RestartOffer> {
-        if self.submitting.is_some() || self.keeping_location() || self.writes.save_running() {
+        if self.submitting.in_progress() || self.keeping_location() || self.writes.save_running() {
             return None;
         }
         self.exports.next_prompt(

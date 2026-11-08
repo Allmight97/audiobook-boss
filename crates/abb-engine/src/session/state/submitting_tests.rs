@@ -70,7 +70,7 @@ fn a_refused_second_submission_does_not_let_a_third_through() {
     assert_eq!(snapshot.collision_review, Some(review.clone()));
     assert!(snapshot.submission_in_progress);
     assert!(desk.state.cancel_review_named(review.review_id));
-    assert!(!desk.state.working_set.order_locked());
+    assert!(!desk.state.list_locked());
     assert!(desk.state.begin_submission(false).is_some());
 }
 
@@ -98,14 +98,14 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_cancel_and_c
     assert_ne!(old, next);
     assert!(desk.state.take_review(old).is_none());
     assert!(!desk.state.cancel_review_named(old));
-    assert!(desk.state.working_set.order_locked());
+    assert!(desk.state.list_locked());
 
     assert!(desk.state.cancel_review_named(next));
     desk.change(|set| {
         set.clear_all();
     })
     .expect("clear all");
-    assert!(desk.state.reserved.is_empty());
+    assert!(desk.state.submitting.sources().is_empty());
     assert!(!desk.state.output_snapshot(0).submission_in_progress);
     let request = desk.state.audio.request();
     desk.state.working_set.append_analyzed(
@@ -140,7 +140,7 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_cancel_and_c
     );
     assert!(desk.state.cancel_review_named(current));
     assert!(!desk.state.cancel_review_named(current));
-    assert!(desk.state.reserved.is_empty());
+    assert!(desk.state.submitting.sources().is_empty());
 }
 
 fn link_both(desk: &mut Desk) -> Vec<Arc<TitleOutput>> {
@@ -385,4 +385,82 @@ fn a_cancel_after_the_preview_returned_ends_it_cancelled_and_opens_nothing() {
     assert!(preview.operation.is_finished());
     assert!(!preview.open_ready);
     assert_eq!(desk.state.preview.take_output(id.as_str()), None);
+}
+
+struct Gate {
+    locked: bool,
+    in_progress: bool,
+    review_shown: bool,
+    import_waits: bool,
+}
+
+fn gate(desk: &Desk) -> Gate {
+    let output = desk.state.output_snapshot(0);
+    Gate {
+        locked: desk.state.working_set.titles(0).order_locked,
+        in_progress: output.submission_in_progress,
+        review_shown: output.collision_review.is_some(),
+        import_waits: desk.state.list_locked(),
+    }
+}
+
+fn assert_gate(desk: &Desk, locked: bool, review_shown: bool, step: &str) {
+    let gate = gate(desk);
+    assert_eq!(gate.locked, locked, "{step}: list lock");
+    assert_eq!(gate.in_progress, locked, "{step}: submission in progress");
+    assert_eq!(gate.review_shown, review_shown, "{step}: review shown");
+    assert_eq!(gate.import_waits, locked, "{step}: import waits");
+}
+
+#[test]
+fn the_list_lock_follows_every_submission_transition() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state.output.set_directory("/library".to_string());
+    assert_gate(&desk, false, false, "idle");
+
+    let export = desk.state.begin_submission(false).expect("export");
+    assert_gate(&desk, true, false, "export preparing");
+    assert!(desk.state.begin_submission(false).is_none());
+    assert_gate(&desk, true, false, "busy refusal");
+    desk.state.await_review(export.clone(), Vec::new());
+    assert_gate(&desk, true, true, "export awaiting review");
+    let review_id = desk
+        .state
+        .output_snapshot(0)
+        .collision_review
+        .expect("review")
+        .review_id;
+    assert!(desk.state.take_review(review_id).is_some());
+    assert_gate(&desk, true, false, "review answered");
+    desk.state
+        .finish_submission(&export, SubmissionStatus::Cancelled);
+    assert_gate(&desk, false, false, "export ended");
+
+    let preview = desk.state.begin_submission(true).expect("preview");
+    desk.state.await_review(preview.clone(), Vec::new());
+    assert_gate(&desk, true, true, "preview awaiting review");
+    let review_id = desk
+        .state
+        .output_snapshot(0)
+        .collision_review
+        .expect("review")
+        .review_id;
+    assert!(desk.state.cancel_review_named(review_id));
+    assert_gate(&desk, false, false, "preview review cancelled");
+    assert!(!desk.state.cancel_review_named(review_id));
+
+    let preview = desk.state.begin_submission(true).expect("preview");
+    desk.state.start_preview(&preview.operation_id);
+    assert_gate(&desk, true, false, "preview running");
+    desk.state.finish_submission(
+        &preview,
+        SubmissionStatus::Failed {
+            error: crate::errors::AppErrorEnvelope::from(&crate::errors::AppError::Closing),
+        },
+    );
+    assert_gate(&desk, false, false, "preview ended");
+
+    desk.act(MetadataField::Title, FieldAction::Blank);
+    assert!(desk.state.begin_submission(false).is_none());
+    assert_gate(&desk, false, false, "refusal while idle");
 }

@@ -15,9 +15,54 @@ use crate::processing::title_output::UpdateReply;
 use crate::processing::TitleOutput;
 use crate::work_runtime::OperationId;
 
-pub(super) struct Submitting {
-    operation_id: OperationId,
-    preview: bool,
+/// Where the one submission in flight stands. The list is locked and its
+/// sources are held in every state but `Idle`.
+pub(super) enum Submission {
+    Idle,
+    Preparing {
+        id: OperationId,
+        preview: bool,
+        sources: Vec<PathBuf>,
+    },
+    AwaitingReview {
+        review: Box<PendingReview>,
+    },
+    Previewing {
+        sources: Vec<PathBuf>,
+    },
+}
+
+impl Submission {
+    pub(super) fn in_progress(&self) -> bool {
+        !matches!(self, Self::Idle)
+    }
+
+    pub(super) fn sources(&self) -> &[PathBuf] {
+        match self {
+            Self::Idle => &[],
+            Self::Preparing { sources, .. } | Self::Previewing { sources, .. } => sources,
+            Self::AwaitingReview { review } => &review.draft.sources,
+        }
+    }
+
+    pub(super) fn review(&self) -> Option<&PendingReview> {
+        match self {
+            Self::AwaitingReview { review } => Some(review.as_ref()),
+            _ => None,
+        }
+    }
+
+    fn export_in_preparation(&self) -> Option<&OperationId> {
+        match self {
+            Self::Preparing {
+                id, preview: false, ..
+            } => Some(id),
+            Self::AwaitingReview { review } if !review.draft.preview => {
+                Some(&review.draft.operation_id)
+            }
+            _ => None,
+        }
+    }
 }
 
 impl SessionState {
@@ -30,12 +75,11 @@ impl SessionState {
         match self.prepare_submission(preview, only) {
             Ok(draft) => {
                 self.preview.begin(&draft);
-                self.submitting = Some(Submitting {
-                    operation_id: draft.operation_id.clone(),
+                self.enter(Submission::Preparing {
+                    id: draft.operation_id.clone(),
                     preview: draft.preview,
+                    sources: draft.sources.clone(),
                 });
-                self.reserved.extend(draft.sources.iter().cloned());
-                self.working_set.set_order_locked(true);
                 self.submission = Some(SubmissionStatus::Preparing {
                     preview: draft.preview,
                 });
@@ -53,7 +97,7 @@ impl SessionState {
         preview: bool,
         only: Option<&str>,
     ) -> Result<Draft, SubmitRefusal> {
-        if self.submitting.is_some() {
+        if self.submitting.in_progress() {
             return Err(SubmitRefusal::Busy);
         }
         if self.writes.is_writing() {
@@ -253,7 +297,37 @@ impl SessionState {
             outputs,
         };
         self.submission = Some(SubmissionStatus::ReviewRequired);
-        self.pending_review = Some(PendingReview { view, draft });
+        self.enter(Submission::AwaitingReview {
+            review: Box::new(PendingReview { view, draft }),
+        });
+    }
+
+    fn enter(&mut self, next: Submission) {
+        self.submitting = next;
+        self.working_set
+            .set_order_locked(self.submitting.in_progress());
+    }
+
+    fn leave_review(&mut self) -> Option<PendingReview> {
+        let Submission::AwaitingReview { review } = &self.submitting else {
+            return None;
+        };
+        let (id, preview, sources) = (
+            review.draft.operation_id.clone(),
+            review.draft.preview,
+            review.draft.sources.clone(),
+        );
+        let Submission::AwaitingReview { review } = std::mem::replace(
+            &mut self.submitting,
+            Submission::Preparing {
+                id,
+                preview,
+                sources,
+            },
+        ) else {
+            return None;
+        };
+        Some(*review)
     }
 
     pub(crate) fn refuse_submission(&mut self, reason: SubmitRefusal) {
@@ -262,7 +336,7 @@ impl SessionState {
     }
 
     pub(crate) fn cancel_review(&mut self) {
-        if let Some(review) = self.pending_review.take() {
+        if let Some(review) = self.leave_review() {
             self.finish_submission(&review.draft, SubmissionStatus::Cancelled);
         }
     }
@@ -276,15 +350,15 @@ impl SessionState {
     }
 
     fn review_matches(&self, review_id: u64) -> bool {
-        self.pending_review
-            .as_ref()
+        self.submitting
+            .review()
             .is_some_and(|review| review.view.review_id == review_id)
     }
 
     pub(crate) fn cancel_preview_review(&mut self) {
         if self
-            .pending_review
-            .as_ref()
+            .submitting
+            .review()
             .is_some_and(|review| review.draft.preview)
         {
             self.cancel_review();
@@ -295,7 +369,7 @@ impl SessionState {
         if !self.review_matches(review_id) {
             return None;
         }
-        let draft = self.pending_review.take()?.draft;
+        let draft = self.leave_review()?.draft;
         self.submission = Some(SubmissionStatus::Preparing {
             preview: draft.preview,
         });
@@ -304,28 +378,38 @@ impl SessionState {
 
     pub(crate) fn start_preview(&mut self, id: &OperationId) -> Vec<CancellationToken> {
         let titles = self.preview.start(id);
+        if let Submission::Preparing { sources, .. } = &mut self.submitting {
+            let sources = std::mem::take(sources);
+            self.submitting = Submission::Previewing { sources };
+        }
         self.submission = Some(SubmissionStatus::Previewing);
         titles
     }
 
+    #[cfg(test)]
+    pub(crate) fn hold_list_for_test(&mut self, locked: bool) {
+        self.enter(if locked {
+            Submission::Preparing {
+                id: OperationId::new(),
+                preview: false,
+                sources: Vec::new(),
+            }
+        } else {
+            Submission::Idle
+        });
+    }
+
+    pub(crate) fn list_locked(&self) -> bool {
+        self.submitting.in_progress()
+    }
+
     pub(crate) fn finish_submission(&mut self, draft: &Draft, status: SubmissionStatus) {
         self.preview.finish(draft, &status);
-        for source in &draft.sources {
-            if let Some(index) = self.reserved.iter().position(|reserved| reserved == source) {
-                self.reserved.swap_remove(index);
-            }
-        }
-        if self.reserved.is_empty() {
-            self.working_set.set_order_locked(false);
-        }
-        self.submitting = None;
+        self.enter(Submission::Idle);
         self.submission = Some(status);
     }
 
     pub(crate) fn export_in_preparation(&self) -> Option<&OperationId> {
-        self.submitting
-            .as_ref()
-            .filter(|submitting| !submitting.preview)
-            .map(|submitting| &submitting.operation_id)
+        self.submitting.export_in_preparation()
     }
 }

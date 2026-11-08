@@ -94,7 +94,11 @@ one host attachment.
     and the status a Save ends with (`finish_save`).
   - `write_queue.rs`: which files are being written or wait to be written.
     Its fields are private; `save.rs` and `submitting.rs` ask it.
-  - `submitting.rs`: a submission in flight, collision review, restart answers.
+  - `submitting.rs`: the one submission in flight (`Submission`: idle,
+    preparing, awaiting review, previewing). The list lock,
+    `submission_in_progress`, the shown review, and the held sources derive
+    from it; only `SessionState::enter` writes the `WorkingSet` lock. Also the
+    restart answers.
   - `cover.rs`: the cover on screen and each source's cover address.
   - `lookup.rs`: the lookup's status, queue, and supersession.
   - `title_audio.rs`: each title's audio choice and background plan.

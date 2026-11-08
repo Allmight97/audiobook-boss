@@ -245,7 +245,7 @@ fn a_save_while_a_submission_is_prepared_waits_for_its_sources() {
         .state
         .begin_submission(false)
         .expect("the submission starts");
-    assert!(desk.state.working_set.order_locked());
+    assert!(desk.state.list_locked());
 
     desk.type_into(MetadataField::Genre, "Mystery");
     let plan = desk.save_during(&HashSet::new(), &[], &[]).expect("save");
@@ -253,7 +253,7 @@ fn a_save_while_a_submission_is_prepared_waits_for_its_sources() {
 
     desk.state
         .finish_submission(&draft, SubmissionStatus::Cancelled);
-    assert!(!desk.state.working_set.order_locked());
+    assert!(!desk.state.list_locked());
     desk.exports_now_reading(&HashSet::new());
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Mystery"));
 }

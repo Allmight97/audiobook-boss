@@ -28,7 +28,7 @@ impl SessionState {
     fn busy(&self, in_use: &HashSet<PathBuf>) -> HashSet<PathBuf> {
         in_use
             .iter()
-            .chain(&self.reserved)
+            .chain(self.submitting.sources())
             .cloned()
             .chain(self.staged.removing_paths())
             .collect()

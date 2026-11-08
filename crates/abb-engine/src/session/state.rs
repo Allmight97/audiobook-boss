@@ -31,7 +31,7 @@ pub(crate) use default_edits::{Claim, DefaultEdits};
 pub(crate) use lookup::{ApplyStart, ChosenResult, LookupState, NextTitle, QueuedTitle};
 pub(crate) use save::{SavePlan, WriteBatch};
 use snapshots::Parts;
-use submitting::Submitting;
+use submitting::Submission;
 use write_queue::WriteQueue;
 pub(crate) use write_queue::{SaveItem, WriteOutcome};
 
@@ -171,13 +171,11 @@ pub(crate) struct SessionState {
     /// The title and audio-request changes plans were last refreshed for.
     plans_seen: (u64, u64),
     submission: Option<SubmissionStatus>,
-    pending_review: Option<super::submission::PendingReview>,
     review_serial: u64,
-    submitting: Option<Submitting>,
+    submitting: Submission,
     audio_refusal: Option<AudioRefusal>,
     source_covers: SourceCovers,
     keeping_locations: usize,
-    reserved: Vec<PathBuf>,
     pub(crate) staged: StagedSources,
     pub(crate) exports: Exports,
     form: MetadataForm,
@@ -209,13 +207,11 @@ impl Default for SessionState {
             plans: Plans::default(),
             plans_seen: (u64::MAX, u64::MAX),
             submission: None,
-            pending_review: None,
             review_serial: 0,
-            submitting: None,
+            submitting: Submission::Idle,
             audio_refusal: None,
             source_covers: SourceCovers::default(),
             keeping_locations: 0,
-            reserved: Vec::new(),
             staged: StagedSources::default(),
             exports: Exports::default(),
             form,

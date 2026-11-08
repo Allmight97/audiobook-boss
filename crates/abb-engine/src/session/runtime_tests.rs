@@ -250,7 +250,7 @@ impl Rig {
 
     fn lock_order(&self, locked: bool) {
         self.session
-            .transition(|state| state.working_set.set_order_locked(locked));
+            .transition(|state| state.hold_list_for_test(locked));
     }
 
     async fn send(&self, intent: SessionIntent) -> SessionOutcome {

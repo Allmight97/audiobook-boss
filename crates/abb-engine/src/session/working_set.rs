@@ -198,10 +198,6 @@ impl WorkingSet {
         self.touch();
     }
 
-    pub(crate) fn order_locked(&self) -> bool {
-        self.order_locked
-    }
-
     pub(crate) fn selected_files(&self) -> Vec<&AudioFile> {
         self.selected_indices
             .iter()
