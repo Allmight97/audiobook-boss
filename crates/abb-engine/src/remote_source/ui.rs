@@ -282,12 +282,12 @@ impl UiState {
             }
             RemoteUiIntent::AcquireSelected => return self.acquire_selected(),
             RemoteUiIntent::LoadConnection => {
-                if self.indexer.loaded || self.indexer.loading {
+                if self.indexer.load != ConnectionLoad::NotLoaded {
                     return Ok(UiAction::Done);
                 }
-                self.indexer.loading = true;
+                self.indexer.load = ConnectionLoad::Loading;
                 return Ok(UiAction::Load {
-                    request: self.indexer.save_request,
+                    request: self.indexer.connection_generation,
                 });
             }
             RemoteUiIntent::EditConnection {
@@ -533,7 +533,7 @@ use audible_lane::AudibleLane;
 
 #[path = "indexer_lane.rs"]
 mod indexer_lane;
-use indexer_lane::IndexerLane;
+use indexer_lane::{ConnectionLoad, IndexerLane};
 
 #[path = "lane_status.rs"]
 mod lane_status;

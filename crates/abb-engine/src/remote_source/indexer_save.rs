@@ -50,8 +50,7 @@ impl UiState {
 
     pub(super) fn save_connection(&mut self) -> Result<AcceptedSave> {
         self.ensure_draft_usable()?;
-        self.indexer
-            .refuse_while_busy(&self.snapshot.indexer, None)?;
+        self.refuse_while_indexer_busy(None)?;
         let mut connection = IndexerConnection {
             base_url: Some(self.snapshot.connection.base_url.clone()),
             category_ids: self.snapshot.connection.category_ids.clone(),
@@ -62,8 +61,7 @@ impl UiState {
                 "Configure Indexer URL before saving an API key.".into(),
             ));
         }
-        self.indexer.saving = true;
-        self.indexer.save_request += 1;
+        self.indexer.connection_generation += 1;
         self.indexer.edit_revision += 1;
         self.snapshot.indexer = IndexerWorkSnapshot::default();
         self.indexer.test_request += 1;
@@ -80,7 +78,7 @@ impl UiState {
     fn shows_saved(&mut self, saved: &IndexerConnection, api_key_configured: bool) {
         self.apply_connection(saved);
         self.snapshot.connection.api_key_configured = api_key_configured;
-        self.indexer.save_request += 1;
+        self.indexer.connection_generation += 1;
         self.indexer.test_request += 1;
     }
 }
@@ -121,9 +119,7 @@ impl RemoteSourceRuntime {
     pub(crate) fn reset_lease(&self) -> Result<ResetReservation> {
         let lease = self.indexer_write_lease("resetting settings")?;
         let mut state = self.ui();
-        state
-            .indexer
-            .refuse_while_busy(&state.snapshot.indexer, Some("resetting settings"))?;
+        state.refuse_while_indexer_busy(Some("resetting settings"))?;
         state.indexer.resetting = true;
         drop(state);
         Ok(ResetReservation {

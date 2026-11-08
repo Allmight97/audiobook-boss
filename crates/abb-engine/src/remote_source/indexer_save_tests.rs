@@ -248,7 +248,10 @@ async fn an_applied_reset_replaces_the_draft_and_clears_the_key_fact() {
         .expect("edit");
     let requests = {
         let state = runtime.ui();
-        (state.indexer.save_request, state.indexer.test_request)
+        (
+            state.indexer.connection_generation,
+            state.indexer.test_request,
+        )
     };
     let reply = runtime
         .inner
@@ -270,7 +273,10 @@ async fn an_applied_reset_replaces_the_draft_and_clears_the_key_fact() {
     assert!(!connection.api_key_entered);
     let state = runtime.ui();
     assert_eq!(
-        (state.indexer.save_request, state.indexer.test_request),
+        (
+            state.indexer.connection_generation,
+            state.indexer.test_request
+        ),
         (requests.0 + 1, requests.1 + 1)
     );
     assert_eq!(state.indexer.api_key, None);
@@ -632,7 +638,7 @@ async fn a_key_read_that_finishes_after_a_save_cannot_overwrite_the_saved_key_fa
         let root = TempDir::new().expect("temp root");
         let runtime = test_runtime(&root);
         let loading = runtime.ui_begin(RemoteUiIntent::LoadConnection);
-        let load_request = runtime.ui().indexer.save_request;
+        let load_request = runtime.ui().indexer.connection_generation;
         save(&runtime, "https://indexer.test", Some("typed-key"))
             .await
             .expect("saved while the key read waits");

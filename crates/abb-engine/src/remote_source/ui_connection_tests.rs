@@ -256,3 +256,74 @@ fn the_snapshot_says_whether_the_draft_url_is_plain_http() {
         assert_eq!(ui.snapshot().connection.uses_http, plain_http, "{url:?}");
     }
 }
+
+fn load_intent(ui: &mut UiState) -> UiAction {
+    ui.begin(RemoteUiIntent::LoadConnection)
+        .expect("load admitted")
+}
+
+#[test]
+fn the_connection_load_moves_from_not_loaded_to_loading_to_loaded_and_retries_after_a_failure() {
+    let mut ui = UiState::default();
+    let UiAction::Load { request } = load_intent(&mut ui) else {
+        panic!("the first load starts a read")
+    };
+    assert!(matches!(load_intent(&mut ui), UiAction::Done));
+
+    ui.loaded(request, &Err(AppError::General("keychain locked".into())));
+    assert!(matches!(
+        ui.snapshot.connection.save,
+        RemoteDraftStatus::Failed { .. }
+    ));
+    let UiAction::Load { request } = load_intent(&mut ui) else {
+        panic!("a failed load can be retried")
+    };
+
+    ui.loaded(request, &Ok(true));
+    assert!(ui.snapshot.connection.api_key_configured);
+    assert!(matches!(load_intent(&mut ui), UiAction::Done));
+}
+
+#[test]
+fn a_save_outdates_a_load_in_flight_and_refuses_indexer_work_until_it_ends() {
+    let mut ui = UiState::default();
+    ui.snapshot.lane = ProviderId::Indexer;
+    let UiAction::Load { request } = load_intent(&mut ui) else {
+        panic!("load starts")
+    };
+    ui.begin(RemoteUiIntent::EditConnection {
+        base_url: Some("https://indexer.test".into()),
+        category_ids: Some(vec![3030]),
+        api_key: Some("key".into()),
+    })
+    .expect("edit");
+    let save = ui.save_connection().expect("save accepted");
+    assert_eq!(ui.snapshot.connection.save, RemoteDraftStatus::Running);
+    let search = || RemoteUiIntent::SearchReleases {
+        author: "Author".into(),
+        title: String::new(),
+    };
+    assert!(ui.begin(search()).is_err());
+    ui.begin(RemoteUiIntent::EditConnection {
+        base_url: None,
+        category_ids: Some(vec![3000]),
+        api_key: None,
+    })
+    .expect("edit while saving");
+    assert_eq!(ui.snapshot.connection.save, RemoteDraftStatus::Running);
+
+    ui.loaded(request, &Ok(false));
+    assert!(!ui.snapshot.connection.api_key_configured);
+    assert!(matches!(load_intent(&mut ui), UiAction::Load { .. }));
+
+    ui.saved(
+        save.revision,
+        &IndexerConnection {
+            base_url: Some("https://indexer.test".into()),
+            category_ids: vec![3030],
+        },
+        &Ok(true),
+    );
+    assert!(ui.begin(search()).is_ok());
+    assert!(matches!(load_intent(&mut ui), UiAction::Done));
+}

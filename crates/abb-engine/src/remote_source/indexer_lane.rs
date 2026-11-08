@@ -10,20 +10,26 @@ use crate::app_settings::normalize_base_url;
 use crate::errors::{AppError, Result};
 use crate::remote_source::providers::indexer::validate_api_key;
 
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub(super) enum ConnectionLoad {
+    #[default]
+    NotLoaded,
+    Loading,
+    Loaded,
+}
+
 #[derive(Default)]
 pub(super) struct IndexerLane {
     pub(super) api_key: Option<String>,
     pub(super) url_refusal: Option<AppErrorEnvelope>,
     pub(super) key_refusal: Option<AppErrorEnvelope>,
     pub(super) edit_revision: u64,
-    pub(super) loading: bool,
-    pub(super) loaded: bool,
-    pub(super) saving: bool,
+    pub(super) load: ConnectionLoad,
     pub(super) grabbing: bool,
     pub(super) resetting: bool,
     pub(super) test_request: u64,
     pub(super) search_request: u64,
-    pub(super) save_request: u64,
+    pub(super) connection_generation: u64,
     pub(super) saved_category_ids: Vec<u32>,
 }
 
@@ -61,21 +67,21 @@ pub(super) fn uses_http(base_url: &str) -> bool {
         .is_some_and(|scheme| scheme.eq_ignore_ascii_case("http://"))
 }
 
-impl IndexerLane {
-    pub(super) fn is_changing(&self) -> bool {
-        self.saving || self.resetting
+impl UiState {
+    pub(super) fn indexer_saving(&self) -> bool {
+        self.snapshot.connection.save == RemoteDraftStatus::Running
     }
 
-    pub(super) fn is_busy(&self, work: &IndexerWorkSnapshot) -> bool {
-        work.searching || self.grabbing || self.is_changing()
+    fn indexer_changing(&self) -> bool {
+        self.indexer_saving() || self.indexer.resetting
     }
 
-    pub(super) fn refuse_while_busy(
-        &self,
-        work: &IndexerWorkSnapshot,
-        before: Option<&str>,
-    ) -> Result<()> {
-        if self.is_busy(work) {
+    pub(super) fn indexer_busy(&self) -> bool {
+        self.snapshot.indexer.searching || self.indexer.grabbing || self.indexer_changing()
+    }
+
+    pub(super) fn refuse_while_indexer_busy(&self, before: Option<&str>) -> Result<()> {
+        if self.indexer_busy() {
             return Err(busy_refusal(before));
         }
         Ok(())
@@ -151,7 +157,7 @@ impl UiState {
             self.snapshot.connection.category_ids = ids;
         }
         self.snapshot.connection.api_key_entered = self.indexer.api_key.is_some();
-        if !self.indexer.saving {
+        if !self.indexer_saving() {
             self.snapshot.connection.save = RemoteDraftStatus::Idle;
         }
         self.snapshot.connection.test = RemoteDraftStatus::Idle;
@@ -181,13 +187,15 @@ impl UiState {
     }
 
     pub(super) fn loaded(&mut self, request: u64, result: &Result<bool>) {
-        self.indexer.loading = false;
-        if request != self.indexer.save_request {
+        if self.indexer.load == ConnectionLoad::Loading {
+            self.indexer.load = ConnectionLoad::NotLoaded;
+        }
+        if request != self.indexer.connection_generation {
             return;
         }
         match result {
             Ok(configured) => {
-                self.indexer.loaded = true;
+                self.indexer.load = ConnectionLoad::Loaded;
                 self.snapshot.connection.api_key_configured = *configured;
             }
             Err(error) => {
@@ -205,10 +213,9 @@ impl UiState {
         connection: &IndexerConnection,
         result: &Result<bool>,
     ) {
-        self.indexer.saving = false;
         match result {
             Ok(configured) => {
-                self.indexer.loaded = true;
+                self.indexer.load = ConnectionLoad::Loaded;
                 self.indexer.saved_category_ids = connection.category_ids.clone();
                 self.snapshot.connection.api_key_configured = *configured;
                 if self.indexer.edit_revision == revision {
@@ -258,7 +265,7 @@ impl UiState {
         if self.snapshot.lane != ProviderId::Indexer {
             return Err(busy_refusal(None));
         }
-        self.indexer.refuse_while_busy(&self.snapshot.indexer, None)
+        self.refuse_while_indexer_busy(None)
     }
     pub(super) fn search(&mut self, author: String, title: String) -> Result<UiAction> {
         self.indexer_available()?;

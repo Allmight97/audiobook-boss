@@ -110,7 +110,7 @@ impl super::UiState {
         remote.account_status == RemoteDraftStatus::Running
             || match remote.lane {
                 ProviderId::Audible => self.audible.is_busy(self.acquisition.busy()),
-                ProviderId::Indexer => self.indexer.is_busy(&remote.indexer),
+                ProviderId::Indexer => self.indexer_busy(),
             }
     }
 

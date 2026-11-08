@@ -66,7 +66,7 @@ fn the_indexer_refuses_work_in_one_wording_whatever_it_is_busy_with() {
     let busy_states: [fn(&mut UiState); 4] = [
         |ui| ui.snapshot.indexer.searching = true,
         |ui| ui.indexer.grabbing = true,
-        |ui| ui.indexer.saving = true,
+        |ui| ui.snapshot.connection.save = RemoteDraftStatus::Running,
         |ui| ui.indexer.resetting = true,
     ];
     for make_busy in busy_states {
