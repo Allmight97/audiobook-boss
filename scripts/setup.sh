@@ -8,6 +8,7 @@ set -euo pipefail
 #   bash scripts/setup.sh rust            # bundled FFmpeg build deps and source, FFmpeg 9 CLI, .NET SDK, helper, uv, cargo fetch
 #   bash scripts/setup.sh supply-chain    # pinned cargo-audit and cargo-deny
 #   bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
+#                                         # (no mode checks frontend and rust, not supply-chain)
 #   bash scripts/setup.sh --print-env     # eval-able PATH and toolchain exports
 #
 # rust installs nasm and static libopus for the engine's bundled FFmpeg
@@ -467,7 +468,7 @@ if [[ "${check_only}" -eq 1 ]]; then
 	if want_rust; then
 		check_rust
 	fi
-	if want_supply_chain; then
+	if [[ "${mode}" == supply-chain ]]; then
 		check_supply_chain
 	fi
 	print_path_line

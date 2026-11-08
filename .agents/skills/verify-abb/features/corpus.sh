@@ -51,7 +51,7 @@ lost_tags() {
 }
 
 changed_tags() {
-	comm -23 "$1" "$2" | grep -Ev "${STAMPED_TAG_KEYS}" || true
+	LC_ALL=C comm -23 "$1" "$2" | grep -Ev "${STAMPED_TAG_KEYS}" || true
 }
 
 # 0.25 s allows 2112 AAC priming samples at 22.05 kHz (0.1 s) with margin, and
