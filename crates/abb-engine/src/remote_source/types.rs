@@ -48,13 +48,6 @@ impl std::fmt::Debug for RemoteAuthStartResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RemoteAuthCompletionRequest {
-    pub provider_id: ProviderId,
-    pub response_url_handoff_path: Option<PathBuf>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
 pub struct RemoteTitle {
     pub provider_id: ProviderId,
     pub title_id: String,

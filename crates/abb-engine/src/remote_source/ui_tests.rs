@@ -1,3 +1,4 @@
+use super::audible_lane::AudibleSignIn;
 use super::*;
 use crate::remote_source::test_support::{vault_gate, MemoryVault, Reply, StubServer};
 use crate::remote_source::types::{
@@ -586,7 +587,10 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
     let root = tempfile::TempDir::new().expect("temp dir");
     let runtime = super::super::tests::test_runtime(&root);
     let start = runtime.ui_begin(RemoteUiIntent::StartAuth);
-    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::Starting);
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::Starting
+    ));
     assert!(runtime
         .ui_begin(RemoteUiIntent::StartAuth)
         .finish()
@@ -614,7 +618,10 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
                 .into_owned(),
         ),
     });
-    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::Completing);
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::Completing
+    ));
     for intent in [
         RemoteUiIntent::StartAuth,
         RemoteUiIntent::Disconnect,
@@ -628,7 +635,10 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
     assert_eq!(runtime.ui_snapshot().selected_title_ids, ["selected"]);
     assert!(completion.finish().await.is_err());
     let snapshot = runtime.ui_snapshot();
-    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::AwaitingHandoff);
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::AwaitingHandoff(_)
+    ));
     assert!(matches!(
         snapshot.account_status,
         RemoteDraftStatus::Failed { .. }
@@ -642,13 +652,19 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
                 .into_owned(),
         ),
     });
-    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::Completing);
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::Completing
+    ));
     assert_eq!(
         runtime.ui_snapshot().account_status,
         RemoteDraftStatus::Idle
     );
     assert!(retry.finish().await.is_err());
-    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::AwaitingHandoff);
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::AwaitingHandoff(_)
+    ));
 }
 
 #[tokio::test]
@@ -719,7 +735,10 @@ async fn starting_auth_clears_previous_read_failures_and_supersedes_pending_libr
         RemoteUiResult::Superseded
     ));
     let snapshot = runtime.ui_snapshot();
-    assert_eq!(runtime.ui().audible.auth, RemoteAuthStatus::AwaitingHandoff);
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::AwaitingHandoff(_)
+    ));
     assert_eq!(snapshot.account_status, RemoteDraftStatus::Idle);
     assert_eq!(runtime.ui().audible.library_status, RemoteDraftStatus::Idle);
 }
@@ -739,7 +758,7 @@ async fn disconnect_is_refused_while_the_indexer_lane_is_shown() {
     let refused = runtime.ui_begin(RemoteUiIntent::Disconnect).finish().await;
 
     assert!(refused.is_err());
-    assert!(!runtime.ui().audible.disconnecting);
+    assert!(!runtime.ui().audible.disconnecting());
 }
 
 fn connected_audible() -> super::super::RemoteSourceAccountState {
@@ -790,7 +809,7 @@ fn a_refused_sign_in_needs_auth_keeps_the_library_and_survives_an_account_reread
 fn signing_in_again_or_disconnecting_clears_a_refused_sign_in() {
     let mut ui = UiState::default();
     refuse_library_sign_in(&mut ui);
-    ui.auth_completed(&Ok(connected_audible()), false);
+    ui.auth_completed(&Ok(connected_audible()), None);
     assert_eq!(
         reread_account(&mut ui).status,
         super::super::RemoteAccountStatus::Connected

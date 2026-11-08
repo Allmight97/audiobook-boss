@@ -2,6 +2,11 @@ use super::*;
 use crate::remote_source::tests::test_runtime;
 use tempfile::TempDir;
 
+pub(super) fn awaiting_handoff() -> audible_lane::AudibleSignIn {
+    let (_, pending) = crate::remote_source::AudibleProvider::start_auth().expect("auth url");
+    audible_lane::AudibleSignIn::AwaitingHandoff(pending)
+}
+
 fn refusal(result: Result<UiAction>) -> String {
     match result {
         Err(AppError::InvalidInput(message)) => message,
@@ -33,9 +38,12 @@ async fn the_indexer_lane_is_busy_while_a_reset_holds_its_reservation() {
 #[test]
 fn a_sign_in_in_progress_is_refused_by_every_account_action_in_one_wording() {
     let wording = "Wait for the current account change to finish.";
-    for auth in [RemoteAuthStatus::Starting, RemoteAuthStatus::Completing] {
+    for sign_in in [
+        audible_lane::AudibleSignIn::Starting,
+        audible_lane::AudibleSignIn::Completing,
+    ] {
         let mut ui = UiState::default();
-        ui.audible.auth = auth;
+        ui.audible.sign_in = sign_in;
         for intent in [
             RemoteUiIntent::SelectLane {
                 lane: ProviderId::Audible,

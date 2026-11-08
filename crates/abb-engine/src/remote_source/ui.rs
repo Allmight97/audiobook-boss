@@ -1,4 +1,6 @@
-use super::providers::audible::{AudibleRequestError, SIGN_IN_REJECTED_MESSAGE};
+use super::providers::audible::{
+    AudibleRequestError, PendingAudibleAuth, SIGN_IN_REJECTED_MESSAGE,
+};
 use super::{
     AcquisitionPlan, ProviderId, RemoteAcquisitionSnapshot, RemoteIndexerConnectionTestResult,
     RemoteIndexerConnectionUpdate, RemoteRelease, RemoteReleaseGrabRequest,
@@ -140,18 +142,6 @@ pub struct IndexerWorkSnapshot {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum RemoteAuthStatus {
-    #[default]
-    Idle,
-    Starting,
-    AwaitingHandoff,
-    Completing,
-    Failed {
-        error: AppErrorEnvelope,
-    },
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteLibrarySnapshot {
@@ -239,7 +229,7 @@ impl UiState {
     ) -> bool {
         if lane != self.snapshot.lane
             || request != self.account_request
-            || self.audible.disconnecting
+            || self.audible.disconnecting()
         {
             return false;
         }
@@ -359,7 +349,10 @@ impl UiState {
 enum UiAction {
     Done,
     StartAuth,
-    CompleteAuth(Option<String>),
+    CompleteAuth {
+        response_url_handoff_path: Option<String>,
+        pending: PendingAudibleAuth,
+    },
     Disconnect,
     Account {
         lane: ProviderId,
@@ -463,19 +456,17 @@ impl RemoteUiRun {
             UiAction::Account { lane, request } => runtime.refresh_ui_account(lane, request).await,
             UiAction::Library(request) => runtime.refresh_ui_library(request).await,
             UiAction::StartAuth => {
-                let result = runtime.start_auth(ProviderId::Audible);
-                let mut state = runtime.ui();
-                state.audible.auth = match &result {
-                    Ok(_) => RemoteAuthStatus::AwaitingHandoff,
-                    Err(error) => RemoteAuthStatus::Failed {
-                        error: error.into(),
-                    },
-                };
-                state.changed();
-                result.map(RemoteUiResult::AuthStarted)
+                let result = runtime.start_auth();
+                runtime
+                    .ui()
+                    .auth_started(result)
+                    .map(RemoteUiResult::AuthStarted)
             }
-            UiAction::CompleteAuth(path) => runtime
-                .complete_ui_auth(path)
+            UiAction::CompleteAuth {
+                response_url_handoff_path,
+                pending,
+            } => runtime
+                .complete_ui_auth(response_url_handoff_path, pending)
                 .await
                 .map(|_| RemoteUiResult::Applied),
             UiAction::Disconnect => runtime

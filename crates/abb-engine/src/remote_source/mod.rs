@@ -37,8 +37,8 @@ pub(crate) fn staging_session_root(cache_dir: &std::path::Path) -> PathBuf {
 }
 use types::{
     AcquisitionJob as RemoteAcquisitionJob, AcquisitionPlan as RemoteAcquisitionPlan,
-    ProviderId as RemoteProviderId, RemoteAuthCompletionRequest as RemoteAuthCompletion,
-    RemoteAuthStartResponse as RemoteAuthStart, RemoteSourceAccountState as RemoteAccountState,
+    ProviderId as RemoteProviderId, RemoteAuthStartResponse as RemoteAuthStart,
+    RemoteSourceAccountState as RemoteAccountState,
 };
 use vault::{KeyringSecretVault, SecretVault};
 
@@ -71,7 +71,6 @@ struct RemoteSourceRuntimeInner {
     settings: crate::app_settings::SettingsRuntime,
     vault: Box<dyn SecretVault>,
     lifecycle: RemoteAcquisitionLifecycle,
-    pending_audible_auth: Mutex<Option<PendingAudibleAuth>>,
     indexer_adapter: ReqwestProwlarrAdapter,
     tasks: crate::engine_tasks::EngineTasks,
     handoff: OnceLock<Handoff>,
@@ -102,7 +101,6 @@ impl RemoteSourceRuntime {
                     ui,
                     session_lifecycle::audible_acquire(),
                 ),
-                pending_audible_auth: Mutex::new(None),
                 indexer_adapter: ReqwestProwlarrAdapter::new(),
                 tasks: config.tasks,
                 handoff: OnceLock::new(),
@@ -153,74 +151,48 @@ impl RemoteSourceRuntime {
         }
     }
 
-    pub(crate) fn start_auth(&self, provider_id: RemoteProviderId) -> Result<RemoteAuthStart> {
-        match provider_id {
-            RemoteProviderId::Audible => {
-                let (authorization_url, pending) = AudibleProvider::start_auth()?;
-                *self.inner.pending_audible_auth.lock().map_err(|_| {
-                    AppError::General("Remote auth state lock failed".to_string())
-                })? = Some(pending);
-                Ok(RemoteAuthStart {
-                    provider_id,
-                    authorization_url,
-                })
-            }
-            RemoteProviderId::Indexer => Err(AppError::InvalidInput(
-                "Indexer uses Settings URL and API key configuration instead of browser auth."
-                    .to_string(),
-            )),
-        }
+    pub(in crate::remote_source) fn start_auth(
+        &self,
+    ) -> Result<(RemoteAuthStart, PendingAudibleAuth)> {
+        let (authorization_url, pending) = AudibleProvider::start_auth()?;
+        Ok((
+            RemoteAuthStart {
+                provider_id: RemoteProviderId::Audible,
+                authorization_url,
+            },
+            pending,
+        ))
     }
 
-    pub(crate) async fn complete_auth(
+    pub(in crate::remote_source) async fn complete_auth(
         &self,
-        request: RemoteAuthCompletion,
+        pending: PendingAudibleAuth,
+        response_url: &str,
     ) -> Result<RemoteAccountState> {
-        match request.provider_id {
-            RemoteProviderId::Audible => {
-                let response_url = read_handoff_url(request.response_url_handoff_path)?;
-                AudibleProvider::check_response_url(&response_url)?;
-                let pending = self
-                    .inner
-                    .pending_audible_auth
-                    .lock()
-                    .map_err(|_| AppError::General("Remote auth state lock failed".to_string()))?
-                    .take()
-                    .ok_or_else(|| {
-                        AppError::InvalidInput(
-                            "Start Audible auth before completing the handoff.".to_string(),
-                        )
-                    })?;
-                let registration = async {
-                    tokio::time::timeout(
-                        AUTH_REGISTRATION_TIMEOUT,
-                        AudibleProvider::register_auth(pending, &response_url),
-                    )
-                    .await
-                    .map_err(|_| {
-                        AppError::General(
-                            "Amazon did not finish the sign-in in time. Connect again.".into(),
-                        )
-                    })?
-                };
-                let auth = self.inner.tasks.until_closing(registration).await?;
-                let runtime = self.clone();
-                let write = self.inner.tasks.admit(|| {
-                    #[expect(clippy::disallowed_methods, reason = "joined by complete_auth")]
-                    let write = tokio::task::spawn_blocking(move || {
-                        AudibleProvider::persist_auth(runtime.inner.vault.as_ref(), &auth)
-                    });
-                    write
-                })?;
-                write.await.map_err(|_| {
-                    AppError::General("Audible credential persistence failed.".into())
-                })?
-            }
-            RemoteProviderId::Indexer => Err(AppError::InvalidInput(
-                "Indexer uses Settings URL and API key configuration instead of browser auth."
-                    .to_string(),
-            )),
-        }
+        let registration = async {
+            tokio::time::timeout(
+                AUTH_REGISTRATION_TIMEOUT,
+                AudibleProvider::register_auth(pending, response_url),
+            )
+            .await
+            .map_err(|_| {
+                AppError::General(
+                    "Amazon did not finish the sign-in in time. Connect again.".into(),
+                )
+            })?
+        };
+        let auth = self.inner.tasks.until_closing(registration).await?;
+        let runtime = self.clone();
+        let write = self.inner.tasks.admit(|| {
+            #[expect(clippy::disallowed_methods, reason = "joined by complete_auth")]
+            let write = tokio::task::spawn_blocking(move || {
+                AudibleProvider::persist_auth(runtime.inner.vault.as_ref(), &auth)
+            });
+            write
+        })?;
+        write
+            .await
+            .map_err(|_| AppError::General("Audible credential persistence failed.".into()))?
     }
 
     fn disconnect_credentials(&self) -> Result<RemoteAccountState> {
@@ -231,11 +203,6 @@ impl RemoteSourceRuntime {
             state.disconnected();
             state.account_disconnected(account.as_ref().ok().cloned());
         }
-        *self
-            .inner
-            .pending_audible_auth
-            .lock()
-            .map_err(|_| AppError::General("Remote auth state lock failed".into()))? = None;
         self.inner
             .lifecycle
             .cleanup_logout_sessions_without_handoff(RemoteProviderId::Audible)?;
@@ -374,6 +341,12 @@ impl RemoteSourceRuntime {
             .start_acquisition(self.clone(), plan)
             .await
     }
+}
+
+fn read_audible_response_url(path: Option<String>) -> Result<String> {
+    let response_url = read_handoff_url(path.map(PathBuf::from))?;
+    AudibleProvider::check_response_url(&response_url)?;
+    Ok(response_url)
 }
 
 fn read_handoff_url(path: Option<PathBuf>) -> Result<String> {

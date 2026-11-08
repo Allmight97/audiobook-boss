@@ -129,8 +129,8 @@ selection change.
 - `ui.rs` holds the intents, the wire snapshots, and `UiState`. Its intent match
   is routing; effect execution stays in `RemoteUiRun`. Each lane's private
   facts, predicates (`is_changing`, `is_busy`, `can_disconnect`), and refusal
-  wording live in one struct: `AudibleLane` (`audible_lane.rs`: sign-in,
-  library, title and PDF choices) and `IndexerLane` (`indexer_lane.rs`:
+  wording live in one struct: `AudibleLane` (`audible_lane.rs`: the
+  `AudibleSignIn` state, library, title and PDF choices) and `IndexerLane` (`indexer_lane.rs`:
   normalized connection drafts, search and grab, batch outcomes);
   `indexer_save.rs` owns the Indexer Save and Reset effects on the draft. The
   account read generation is shared: `begin_account_read` and `change_lane`
@@ -138,12 +138,12 @@ selection change.
   generation they must expire. Accepted runs execute on `EngineTasks`
   through the session, whether or not a host awaits the reply.
 - `lane_status.rs` words each lane's status line, called in `UiState::snapshot`
-  as `busy` is. `audibleMessage` is a pure ladder over auth, account, library,
+  as `busy` is. `audibleMessage` is a pure ladder over sign-in, account, library,
   and `settled_job_line`, the one ordering fact: a job's line stays until a
   library load, a sign-in, or a disconnect replaces it, and only the settle
   writes it. A running job's text stays on the acquisition part. On the Indexer
   lane the snapshot's `indexer.message` adds the account failure and connected
-  note to the stored last-event line. `auth`, `accountStatus`, and
+  note to the stored last-event line. `signIn`, `accountStatus`, and
   `libraryStatus` are engine inputs and never reach the wire.
 - SelectLane reads the selected account and, for connected Audible outside an
   acquisition/handoff, its library; repeated entry coalesces pending reads.
@@ -157,20 +157,26 @@ selection change.
 - `RemoteUiSnapshot.busy` says the shown lane refuses new work now; hosts
   disable that lane's actions from it. An acquisition `busy` change also
   moves the remote part, so the update that settles a job frees the lane.
-- Auth start reserves Starting before execution, returns authorization only in
-  its initiating reply, and retains AwaitingHandoff without the URL. Completion
+- `AudibleSignIn` (Idle, Starting, AwaitingHandoff, Completing, Failed,
+  Disconnecting) is the one account-change state; the pending sign-in lives
+  only inside AwaitingHandoff, so a new start, a disconnect, or a failed start
+  drops it. Auth start reserves Starting before execution, returns
+  authorization only in its initiating reply, and retains AwaitingHandoff
+  without the URL. Completion
   reserves credentials until registration and persistence settle. StartAuth,
   Disconnect, acquisition, and lane replacement are refused during completion.
   `AUTH_REGISTRATION_TIMEOUT` bounds registration, so a stalled Amazon
-  endpoint cannot hold the surface until quit. A handoff that cannot be read
-  or holds no auth code keeps the pending sign-in: auth returns to AwaitingHandoff with the
-  reason in `account_status`, so the user can fix the path without a new
-  browser round trip. A completion that took the pending sign-in ends Failed. Shutdown cancels registration before the credential
+  endpoint cannot hold the surface until quit. Accepting a completion moves the
+  pending sign-in out of the UI guard before any network call. A handoff that
+  cannot be read or holds no auth code hands it back: the state returns to
+  AwaitingHandoff with the reason in `account_status`, so the user can fix the
+  path without a new browser round trip. A completion that reached Amazon ends
+  Failed. Shutdown cancels registration before the credential
   commit is admitted and awaits an admitted blocking commit. Keychain reads for Indexer search, grab,
   and Test, the Audible library, and acquisition run on a blocking thread the
   caller awaits (`vault_blocking`, rustdoc). None starts once closing. An Indexer key read for Load is dropped at
   shutdown rather than awaited.
-- Accepted disconnect reserves the UI guard's disconnecting fact through vault
+- Accepted disconnect holds the Disconnecting state through vault
   work outside the guard; account_status Running exposes that pending work.
   Credential deletion failure preserves account/library choices and reports
   Failed. Successful deletion updates account truth before staging cleanup, so

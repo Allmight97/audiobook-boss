@@ -1,6 +1,6 @@
-use super::super::AcquisitionSelection;
+use super::super::{AcquisitionSelection, PendingAudibleAuth};
 use super::{
-    AcquisitionPlan, AppError, AudibleRequestError, ProviderId, RemoteAuthStatus,
+    AcquisitionPlan, AppError, AppErrorEnvelope, AudibleRequestError, ProviderId,
     RemoteDraftStatus, RemoteSourceRuntime, RemoteTitle, RemoteUiResult, Result, UiAction, UiState,
     SIGN_IN_REJECTED_MESSAGE,
 };
@@ -13,29 +13,45 @@ const REFRESH_WHILE_BUSY: &str = "Wait for the current Audible work before refre
 const ACQUIRE_DURING_ACQUISITION: &str = "Wait for the current Audible acquisition to finish.";
 const NOTHING_TO_ACQUIRE: &str = "Select Audible titles before acquiring.";
 
+/// Where the Audible account change stands. The pending sign-in lives only in
+/// `AwaitingHandoff`; leaving that state hands it out or drops it.
+#[derive(Default)]
+pub(super) enum AudibleSignIn {
+    #[default]
+    Idle,
+    Starting,
+    AwaitingHandoff(PendingAudibleAuth),
+    Completing,
+    Failed(AppErrorEnvelope),
+    Disconnecting,
+}
+
 /// Audible's sign-in, library read, and job-line facts, with the predicates
 /// that decide what the lane accepts. Account facts shared with the Indexer
 /// stay on the UI state.
 #[derive(Default)]
 pub(super) struct AudibleLane {
-    pub(super) auth: RemoteAuthStatus,
+    pub(super) sign_in: AudibleSignIn,
     pub(super) library_status: RemoteDraftStatus,
     pub(super) library_request: u64,
-    pub(super) disconnecting: bool,
     pub(super) sign_in_rejected: bool,
     pub(super) settled_job_line: Option<String>,
 }
 
 impl AudibleLane {
+    pub(super) fn disconnecting(&self) -> bool {
+        matches!(self.sign_in, AudibleSignIn::Disconnecting)
+    }
+
     fn signing_in(&self) -> bool {
         matches!(
-            self.auth,
-            RemoteAuthStatus::Starting | RemoteAuthStatus::Completing
+            self.sign_in,
+            AudibleSignIn::Starting | AudibleSignIn::Completing
         )
     }
 
     pub(super) fn is_changing(&self) -> bool {
-        self.disconnecting || self.signing_in()
+        self.disconnecting() || self.signing_in()
     }
 
     pub(super) fn is_busy(&self, acquisition_busy: bool) -> bool {
@@ -43,7 +59,7 @@ impl AudibleLane {
     }
 
     pub(super) fn refuse_while_disconnecting(&self) -> Result<()> {
-        if self.disconnecting {
+        if self.disconnecting() {
             return Err(AppError::InvalidInput(
                 "Wait for disconnect to finish.".into(),
             ));
@@ -99,9 +115,24 @@ impl UiState {
     pub(super) fn begin_auth_start(&mut self) -> Result<UiAction> {
         self.account_change_allowed()?;
         self.expire_reads();
-        self.audible.auth = RemoteAuthStatus::Starting;
+        self.audible.sign_in = AudibleSignIn::Starting;
         self.audible.settled_job_line = None;
         Ok(UiAction::StartAuth)
+    }
+
+    pub(super) fn auth_started(
+        &mut self,
+        result: Result<(super::super::RemoteAuthStartResponse, PendingAudibleAuth)>,
+    ) -> Result<super::super::RemoteAuthStartResponse> {
+        let result = result.map(|(start, pending)| {
+            self.audible.sign_in = AudibleSignIn::AwaitingHandoff(pending);
+            start
+        });
+        if let Err(error) = &result {
+            self.audible.sign_in = AudibleSignIn::Failed(error.into());
+        }
+        self.changed();
+        result
     }
 
     fn account_change_allowed(&self) -> Result<()> {
@@ -114,27 +145,27 @@ impl UiState {
     }
 
     /// Applies a finished sign-in; returns the library read it starts.
+    /// `unused_sign_in` is the pending sign-in a completion handed back
+    /// because it failed before it reached Amazon.
     pub(super) fn auth_completed(
         &mut self,
         result: &Result<super::super::RemoteSourceAccountState>,
-        pending_sign_in_held: bool,
+        unused_sign_in: Option<PendingAudibleAuth>,
     ) -> Option<u64> {
-        self.audible.auth = match result {
-            Ok(account) => {
+        self.audible.sign_in = match (result, unused_sign_in) {
+            (Ok(account), _) => {
                 self.audible.sign_in_rejected = false;
                 self.snapshot.account = Some(account.clone());
                 self.snapshot.account_status = RemoteDraftStatus::Succeeded;
-                RemoteAuthStatus::Idle
+                AudibleSignIn::Idle
             }
-            Err(error) if pending_sign_in_held => {
+            (Err(error), Some(pending)) => {
                 self.snapshot.account_status = RemoteDraftStatus::Failed {
                     error: error.into(),
                 };
-                RemoteAuthStatus::AwaitingHandoff
+                AudibleSignIn::AwaitingHandoff(pending)
             }
-            Err(error) => RemoteAuthStatus::Failed {
-                error: error.into(),
-            },
+            (Err(error), None) => AudibleSignIn::Failed(error.into()),
         };
         self.changed();
         result.is_ok().then(|| self.begin_library())
@@ -171,7 +202,7 @@ impl UiState {
     ) -> bool {
         if request != self.audible.library_request
             || self.snapshot.lane != ProviderId::Audible
-            || self.audible.disconnecting
+            || self.audible.disconnecting()
         {
             return false;
         }
@@ -182,8 +213,8 @@ impl UiState {
                     library.diagnostics.clone(),
                 );
                 self.audible.library_status = RemoteDraftStatus::Succeeded;
-                if matches!(self.audible.auth, RemoteAuthStatus::Failed { .. }) {
-                    self.audible.auth = RemoteAuthStatus::Idle;
+                if matches!(self.audible.sign_in, AudibleSignIn::Failed(_)) {
+                    self.audible.sign_in = AudibleSignIn::Idle;
                 }
                 if matches!(
                     self.snapshot.account_status,
@@ -229,7 +260,6 @@ impl UiState {
         self.audible.supersede_library_read();
         self.supersede_account_read();
         self.audible.sign_in_rejected = false;
-        self.audible.auth = RemoteAuthStatus::Idle;
         self.audible.settled_job_line = None;
         self.set_acquisition(|acquisition| acquisition.job = None);
         self.library_loaded(Vec::new());
@@ -278,15 +308,22 @@ impl UiState {
         response_url_handoff_path: Option<String>,
     ) -> Result<UiAction> {
         self.account_change_allowed()?;
-        if self.audible.auth != RemoteAuthStatus::AwaitingHandoff {
+        let AudibleSignIn::AwaitingHandoff(_) = self.audible.sign_in else {
             return Err(AppError::InvalidInput(
                 "Start Audible auth before completing the handoff.".into(),
             ));
-        }
+        };
         self.expire_reads();
-        self.audible.auth = RemoteAuthStatus::Completing;
+        let AudibleSignIn::AwaitingHandoff(pending) =
+            std::mem::replace(&mut self.audible.sign_in, AudibleSignIn::Completing)
+        else {
+            unreachable!("the sign-in was awaiting its handoff a moment ago")
+        };
         self.audible.settled_job_line = None;
-        Ok(UiAction::CompleteAuth(response_url_handoff_path))
+        Ok(UiAction::CompleteAuth {
+            response_url_handoff_path,
+            pending,
+        })
     }
 
     pub(super) fn refresh_library(&mut self) -> Result<UiAction> {
@@ -305,7 +342,7 @@ impl UiState {
             ));
         }
         self.audible.can_disconnect(self.acquisition.busy())?;
-        self.audible.disconnecting = true;
+        self.audible.sign_in = AudibleSignIn::Disconnecting;
         self.audible.supersede_library_read();
         self.begin_account_read();
         Ok(UiAction::Disconnect)
@@ -416,19 +453,16 @@ impl RemoteSourceRuntime {
             .map_err(AudibleRequestError::into_app_error)
     }
 
-    pub(super) async fn complete_ui_auth(&self, path: Option<String>) -> Result<()> {
-        let result = self
-            .complete_auth(super::super::RemoteAuthCompletionRequest {
-                provider_id: ProviderId::Audible,
-                response_url_handoff_path: path.map(std::path::PathBuf::from),
-            })
-            .await;
-        let pending_held = self
-            .inner
-            .pending_audible_auth
-            .lock()
-            .is_ok_and(|pending| pending.is_some());
-        let refresh = self.ui().auth_completed(&result, pending_held);
+    pub(super) async fn complete_ui_auth(
+        &self,
+        path: Option<String>,
+        pending: PendingAudibleAuth,
+    ) -> Result<()> {
+        let (result, unused_sign_in) = match super::super::read_audible_response_url(path) {
+            Ok(response_url) => (self.complete_auth(pending, &response_url).await, None),
+            Err(error) => (Err(error), Some(pending)),
+        };
+        let refresh = self.ui().auth_completed(&result, unused_sign_in);
         self.publish_ui();
         result?;
         if let Some(request) = refresh {
@@ -445,7 +479,7 @@ impl RemoteSourceRuntime {
             .map_err(|_| AppError::General("Account disconnect failed.".into()))
             .and_then(|result| result);
         let mut state = self.ui();
-        state.audible.disconnecting = false;
+        state.audible.sign_in = AudibleSignIn::Idle;
         match &result {
             Ok(account) => {
                 state.snapshot.account = Some(account.clone());

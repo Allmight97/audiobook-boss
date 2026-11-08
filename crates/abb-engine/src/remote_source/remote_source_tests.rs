@@ -90,7 +90,6 @@ fn build_runtime(
                 ui,
                 acquire.unwrap_or_else(session_lifecycle::audible_acquire),
             ),
-            pending_audible_auth: Mutex::new(None),
             indexer_adapter: ReqwestProwlarrAdapter::new(),
             tasks: crate::engine_tasks::EngineTasks::default(),
             handoff: OnceLock::new(),
