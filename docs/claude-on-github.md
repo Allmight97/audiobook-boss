@@ -5,6 +5,11 @@ review comment, a submitted review, or a new issue's title/body. The
 `Claude mentions` workflow handles the request. The triggering person must
 have write access; the action rejects bot actors and users without it.
 
+The Claude GitHub App stays installed on this repository. The workflows do
+not pass a GitHub token of their own, so comments are posted as
+`claude[bot]`. A review whose comments come from another account fails,
+and uninstalling the app is not caught by the token check below.
+
 Both Claude workflows use a subscription token stored as the repository secret
 `CLAUDE_CODE_OAUTH_TOKEN`. To replace a rejected or expired token, run these
 commands locally, then paste the token printed by the first command into the

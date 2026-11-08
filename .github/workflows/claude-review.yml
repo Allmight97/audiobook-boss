@@ -13,7 +13,10 @@ concurrency:
 jobs:
   review:
     name: Claude review
-    if: github.event.pull_request.draft != true && github.actor != 'dependabot[bot]'
+    if: >-
+      github.event.pull_request.draft != true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.type != 'Bot'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -35,7 +38,7 @@ jobs:
           persist-credentials: false
       - id: start
         run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-      - uses: anthropics/claude-code-action@cab360f6565aa35a51d6ce9e43f1f4287c0a32ea # v1.0.241
+      - uses: anthropics/claude-code-action@v1
         id: review
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -44,7 +47,11 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             Review this pull request by following REVIEW.md at the repository root.
-            Post findings as inline comments and finish with one summary comment.
+            Read REVIEW.md and the AGENTS.md chain from the checkout.
+            Use gh pr view and gh pr diff for the change.
+            Post each finding with mcp__github_inline_comment__create_inline_comment and confirmed: true.
+            Finish with one gh pr comment whose shape REVIEW.md specifies: verdict, Important findings, nit count.
+            The session result is not the review.
           # Pinned so reviews never fall back to the action's older default model.
           claude_args: |
             --model claude-opus-5-5 --effort high

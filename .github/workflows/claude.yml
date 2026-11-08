@@ -49,12 +49,12 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - name: Respond to mention or check authentication
-        uses: anthropics/claude-code-action@cab360f6565aa35a51d6ce9e43f1f4287c0a32ea # v1.0.241
+        uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           additional_permissions: "actions: read"
-          # Empty prompt selects interactive mention handling in the pinned action.
+          # An empty prompt selects interactive mention handling.
           prompt: ${{ github.event_name == 'workflow_dispatch' && 'Reply with exactly AUTH_OK. Do not use tools, post comments, or modify files.' || '' }}
           # Both branches pin the model, so the manual auth check also proves access to it.
-          # Inline empty value survives the pinned action's shell-argument parser.
+          # An inline empty value survives the action's shell-argument parser.
           claude_args: ${{ github.event_name == 'workflow_dispatch' && '--model claude-opus-5-5 --effort high --max-turns 1 --tools=' || '--model claude-opus-5-5 --effort high --append-system-prompt "Follow AGENTS.md at the repository root and the applicable nested AGENTS.md files. Review requests follow REVIEW.md."' }}

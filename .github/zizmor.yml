@@ -1,0 +1,6 @@
+# anthropics/claude-code-action tracks its v1 tag; every other action stays hash-pinned.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        anthropics/claude-code-action: ref-pin

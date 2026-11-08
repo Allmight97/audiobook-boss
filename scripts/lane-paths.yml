@@ -90,6 +90,7 @@ tooling:
   - vite.config.ts
   - vitest.config.ts
   - .github/workflows/**
+  - .github/zizmor.yml
   - .gitattributes
   - scripts/*.mjs
   - scripts/fixtures/**
