@@ -70,7 +70,7 @@ async fn a_download_with_an_unreadable_file_is_not_listed_at_all() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_failed_removal_waits_out_the_retry_delay_before_the_next_change_retries_it() {
+async fn a_change_before_the_retry_delay_has_passed_does_not_retry_a_failed_removal() {
     let rig = rig();
     rig.failing_removals
         .store(1, std::sync::atomic::Ordering::SeqCst);

@@ -21,7 +21,7 @@ fn a_dropped_writer_claim_reopens_the_writer_gate() {
 }
 
 #[test]
-fn a_dropped_kept_location_unlocks_the_list_and_restart_offers() {
+fn a_dropped_kept_location_stops_keeping_the_location() {
     let rig = rig();
     rig.session.lock().hold_keeping_location();
     assert!(rig.session.lock().keeping_location());
