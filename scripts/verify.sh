@@ -262,6 +262,8 @@ fi
 failed=0
 results=()
 
+bun scripts/clean.ts --auto
+
 mkdir -p "${repo_root}/.logs/verification"
 run_dir="$(mktemp -d "${repo_root}/.logs/verification/run-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")"
 

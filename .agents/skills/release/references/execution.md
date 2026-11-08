@@ -119,7 +119,7 @@ result, then stop before tagging or publishing.
    (`gh release verify-asset` needs release attestations, which ABB does not
    publish.)
 10. After the asset is verified and any requested local install is done, run
-   `bun run clean` to drop release build output; the DMG now lives on GitHub.
+   `bun run clean` to drop build output; the DMG now lives on GitHub.
 
 Check local/remote tag and branch SHA parity before reporting publication
 complete. If a push or publish result is uncertain, inspect remote state before
