@@ -353,3 +353,36 @@ fn a_swept_grouped_title_does_not_block_the_next_start_or_preview() {
             .finish_submission(&draft, SubmissionStatus::Cancelled);
     }
 }
+
+#[test]
+fn a_cancel_after_the_preview_returned_ends_it_cancelled_and_opens_nothing() {
+    use crate::processing::{ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state.output.set_directory("/library".to_string());
+    let draft = desk.state.begin_submission(true).expect("preview");
+    let id = draft.operation_id.clone();
+    desk.state.start_preview(&id);
+    let result = ProcessCommandResult::new(vec![ProcessResultEntry {
+        input_index: 0,
+        status: ProcessResultStatus::Success,
+        message: String::new(),
+        error: None,
+        output_path: Some("/library/alpha.preview.m4b".to_string()),
+        supplemental_warning: None,
+        warnings: Vec::new(),
+        job_id: None,
+    }]);
+
+    desk.state
+        .preview
+        .cancel(id.as_str(), None)
+        .expect("cancel the preview");
+    desk.state
+        .finish_submission(&draft, SubmissionStatus::PreviewFinished { result });
+
+    let preview = desk.state.output_snapshot(0).preview_run.expect("preview");
+    assert!(preview.operation.cancel_requested);
+    assert!(preview.operation.is_finished());
+    assert!(!preview.open_ready);
+    assert_eq!(desk.state.preview.take_output(id.as_str()), None);
+}

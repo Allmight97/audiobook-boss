@@ -150,3 +150,23 @@ fn the_snapshot_phase_follows_every_status_change_an_operation_goes_through() {
     assert_eq!(finished.phase, OperationPhase::Finished);
     assert!(finished.is_finished());
 }
+
+#[test]
+fn cancelling_an_accepted_operation_turns_active_unstarted_and_then_ends_cancelled() {
+    let (mut state, operation_id) = accepted_state();
+
+    let requested = state
+        .request_cancel(&operation_id, 100)
+        .expect("request cancel");
+    assert_eq!(requested.status, WorkOperationStatus::Cancelling);
+    assert_eq!(requested.phase, OperationPhase::Active);
+    assert!(requested.started_at_ms.is_none());
+
+    let cancelled = state
+        .cancel(&operation_id, "Cancelled.".to_string(), 200)
+        .expect("terminalize");
+    assert_eq!(cancelled.status, WorkOperationStatus::Cancelled);
+    assert_eq!(cancelled.phase, OperationPhase::Finished);
+    assert!(cancelled.cancel_requested);
+    assert_eq!(cancelled.finished_at_ms, Some(200));
+}
