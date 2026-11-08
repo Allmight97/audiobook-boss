@@ -28,6 +28,7 @@ export function createWorkOperationsOwner(deps: {
 	let cancelPendingByOperationId: Readonly<Partial<Record<string, boolean>>> = {};
 	let error: WorkOperationsError | null = null;
 	let disposed = false;
+	const latestCancel = new Map<OperationId, number>();
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 
 	function setError(next: WorkOperationsError | null): void {
@@ -73,8 +74,12 @@ export function createWorkOperationsOwner(deps: {
 				await sendCancel(operationId, childJobId);
 				return;
 			}
+			const request = (latestCancel.get(operationId) ?? 0) + 1;
+			latestCancel.set(operationId, request);
 			setCancelPending(operationId, true);
 			await sendCancel(operationId);
+			if (latestCancel.get(operationId) !== request) return;
+			latestCancel.delete(operationId);
 			setCancelPending(operationId, false);
 		},
 		async revealOutput(child) {

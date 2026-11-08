@@ -125,6 +125,15 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	let concurrencyError = '';
 	let writesInFlight = 0;
 	let retryDropped = false;
+	let latestConcurrencyRequest = 0;
+	const latestRequest: Record<DialogSetting, number> = {
+		reset: 0,
+		keepAwake: 0,
+		pressQuitTwice: 0,
+		aacDecoder: 0,
+		startup: 0,
+		lane: 0,
+	};
 
 	function changed(): void {
 		bump((n) => n + 1);
@@ -152,9 +161,15 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	}
 
 	async function runDialogAction(setting: DialogSetting, intent: SettingsIntent): Promise<boolean> {
+		const request = ++latestRequest[setting];
 		setStatus(setting, { state: 'saving', error: '' });
 		const error = failure(await send(intent));
-		setStatus(setting, error === null ? { state: 'saved', error: '' } : { state: 'error', error });
+		if (request === latestRequest[setting]) {
+			setStatus(
+				setting,
+				error === null ? { state: 'saved', error: '' } : { state: 'error', error },
+			);
+		}
 		return error === null;
 	}
 
@@ -219,9 +234,11 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			return { ...dialog, settings: link.settings().settings, quittingAvailable: runsOnMac() };
 		},
 		async setConcurrencySelection(value) {
+			const request = ++latestConcurrencyRequest;
 			const error = failure(
 				await send({ kind: 'setConcurrency', preference: preferenceFromSelection(value) }),
 			);
+			if (request !== latestConcurrencyRequest) return;
 			concurrencyError = error ?? '';
 			changed();
 		},

@@ -112,4 +112,26 @@ describe('work operations owner', () => {
 
 		expect(runtime.workOperations.view().error).toBeNull();
 	});
+
+	it('keeps an operation cancelling until its latest cancel replies', async () => {
+		const engine = createFakeEngine();
+		const { workOperations } = await attached(engine);
+		const replies: Array<() => void> = [];
+		engine.respondCancel = () =>
+			new Promise((resolve) => {
+				replies.push(resolve);
+			});
+
+		const first = workOperations.cancel('batch');
+		const second = workOperations.cancel('batch');
+		await vi.waitFor(() => expect(replies).toHaveLength(2));
+
+		replies[0]?.();
+		await first;
+		expect(workOperations.view().cancelPendingByOperationId).toEqual({ batch: true });
+
+		replies[1]?.();
+		await second;
+		expect(workOperations.view().cancelPendingByOperationId).toEqual({});
+	});
 });

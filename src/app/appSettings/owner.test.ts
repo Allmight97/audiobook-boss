@@ -6,6 +6,7 @@ import {
 } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 import { logFrontendFailure } from '../../lib/frontendLogBridge';
+import type { SettingsOutcome } from '../../lib/generated/tauri';
 
 vi.mock('../../lib/frontendLogBridge', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../../lib/frontendLogBridge')>()),
@@ -184,5 +185,49 @@ describe('settings owner', () => {
 		await app.settings.resetAllAppSettings();
 		expect(app.settings.dialog().status.reset.state).toBe('saved');
 		expect(app.settings.dialog().settings?.pinnedDefaults).toBeNull();
+	});
+
+	it('keeps a setting saving until its latest change replies, however earlier ones finish', async () => {
+		const app = await open();
+		const replies: Array<() => void> = [];
+		engine.respondSettings = () =>
+			new Promise((resolve) => {
+				replies.push(() => resolve(undefined));
+			});
+
+		const first = app.settings.setDefaultAcquisitionLane('indexer');
+		const second = app.settings.setDefaultAcquisitionLane('audible');
+		await vi.waitFor(() => expect(replies).toHaveLength(2));
+
+		replies[0]?.();
+		await first;
+		expect(app.settings.dialog().status.lane.state).toBe('saving');
+
+		replies[1]?.();
+		await second;
+		expect(app.settings.dialog().status.lane.state).toBe('saved');
+	});
+
+	it('shows only the latest change refusal when an earlier one is refused after it', async () => {
+		const app = await open();
+		const replies: Array<(outcome: SettingsOutcome) => void> = [];
+		engine.respondSettings = () =>
+			new Promise((resolve) => {
+				replies.push(resolve);
+			});
+
+		const first = app.settings.setDefaultAcquisitionLane('indexer');
+		const second = app.settings.setDefaultAcquisitionLane('audible');
+		await vi.waitFor(() => expect(replies).toHaveLength(2));
+
+		replies[1]?.({ kind: 'applied' });
+		await second;
+		replies[0]?.({
+			kind: 'rejected',
+			error: { code: 'io_error', category: 'io', message: 'Late refusal', detail: null },
+		});
+		await first;
+
+		expect(app.settings.dialog().status.lane).toEqual({ state: 'saved', error: '' });
 	});
 });
