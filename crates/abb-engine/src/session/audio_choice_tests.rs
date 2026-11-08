@@ -346,6 +346,46 @@ fn saved_defaults_are_fitted_to_the_capabilities() {
 }
 
 #[test]
+fn an_opus_title_keeps_its_bitrate_off_the_aac_choice_when_it_returns_to_m4b() {
+    let defaults = AudioChoice::default();
+    let aac_bitrate = defaults.aac_bitrate_kbps;
+    let opus = TitleAudioRequest {
+        output: OutputAudio::MkaOpus {
+            settings: EncoderSettings {
+                encoder_type: EncoderType::Opus,
+                bitrate_kbps: 12,
+                ..EncoderSettings::default()
+            },
+        },
+        intent: AudioIntent::Encode,
+        sample_rate: SampleRateConfig::Auto,
+    };
+
+    let mut title = defaults.for_title(&opus);
+
+    assert!(
+        aac_bitrate >= 16,
+        "AAC's minimum is above this Opus bitrate"
+    );
+    assert_eq!(title.opus_bitrate_kbps, 12);
+    assert_eq!(title.aac_bitrate_kbps, aac_bitrate);
+    assert_eq!(
+        title.edit(
+            AudioEdit::Format(AudiobookFormat::M4b),
+            None,
+            EditScope::Title,
+        ),
+        EditResult::Changed
+    );
+    let restored = title.request(None);
+    let settings = restored.output.encoder_settings();
+    assert_eq!(
+        (settings.encoder_type, settings.bitrate_kbps),
+        (EncoderType::NativeAac, aac_bitrate)
+    );
+}
+
+#[test]
 fn a_title_choice_is_the_defaults_with_its_own_request_on_top() {
     let caps = caps();
     let mut defaults = AudioChoice::default();

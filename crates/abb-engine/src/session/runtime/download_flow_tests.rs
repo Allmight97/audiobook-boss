@@ -14,6 +14,23 @@ impl Rig {
         .await
         .expect("a download is removed")
     }
+
+    /// Waits until `count` removal attempts have finished and the sweep has
+    /// parked, so a paused clock can advance without racing the spawn.
+    async fn settled_removal_attempts(&self, count: usize) {
+        let limit = crate::session::staged::RETRY_DELAY * 4;
+        tokio::time::timeout(limit, async {
+            loop {
+                let attempts = self.removed.lock().expect("removed").len();
+                if attempts >= count && !self.session.lock().sweeping.held() {
+                    return;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("timed out waiting for {count} removal attempts"))
+    }
 }
 
 #[tokio::test]
@@ -126,20 +143,21 @@ async fn each_failed_removal_waits_twice_as_long_before_the_next_retry() {
     let delay = crate::session::staged::RETRY_DELAY;
 
     rig.send(SessionIntent::ClearAll).await;
+    rig.settled_removal_attempts(1).await;
     assert_eq!(attempts(), 1);
 
-    tokio::time::sleep(delay + delay / 2).await;
-    crate::test_cases::support::poll::until_true("the first retry", || attempts() == 2).await;
+    tokio::time::sleep(delay / 2).await;
+    assert_eq!(attempts(), 1, "the first failure has not been retried yet");
+    rig.settled_removal_attempts(2).await;
 
-    tokio::time::sleep(delay + delay / 2).await;
+    tokio::time::sleep(delay).await;
     assert_eq!(
         attempts(),
         2,
         "the second failure waits longer than the first"
     );
-
-    tokio::time::sleep(delay / 2).await;
-    crate::test_cases::support::poll::until_true("the second retry", || attempts() == 3).await;
+    rig.settled_removal_attempts(3).await;
+    assert_eq!(attempts(), 3);
 }
 
 #[tokio::test]

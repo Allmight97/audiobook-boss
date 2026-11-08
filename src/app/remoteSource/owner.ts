@@ -117,6 +117,7 @@ export type RemoteSourceOwner = {
 export type RemoteSourceOwnerDeps = {
 	readonly link: EngineLink;
 	readonly openAuthorizationUrl?: (url: string) => Promise<void>;
+	readonly appliedReset: Accessor<number>;
 };
 
 export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSourceOwner {
@@ -126,7 +127,7 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		() => deps.link.remote(),
 		() => deps.link.remoteAcquisition(),
 	);
-	const indexerConnection = createIndexerConnectionSettings(deps.link);
+	const indexerConnection = createIndexerConnectionSettings(deps.link, deps.appliedReset);
 
 	const openAuthorizationUrl = deps.openAuthorizationUrl ?? tauriClient.openUrl;
 	let generation = 0;

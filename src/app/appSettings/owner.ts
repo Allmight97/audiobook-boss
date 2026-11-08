@@ -67,6 +67,7 @@ export type SettingsOwner = {
 	saveCurrentSettingsAsPinnedDefaults: () => Promise<void>;
 	setStartupBehavior: (behavior: StartupBehavior) => Promise<void>;
 	resetAllAppSettings: () => Promise<void>;
+	readonly appliedReset: Accessor<number>;
 };
 
 export type SettingsOwnerDeps = {
@@ -121,6 +122,7 @@ function preferenceFromSelection(value: string): ConcurrencyPreference {
 export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	const { link } = deps;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	const [appliedReset, setAppliedReset] = createSignal(0, { ownedWrite: true });
 	let dialog = idleDialog();
 	let concurrencyError = '';
 	let writesInFlight = 0;
@@ -274,7 +276,9 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		async resetAllAppSettings() {
 			if (!(await runDialogAction('reset', { kind: 'reset' }))) return;
 			concurrencyError = '';
+			setAppliedReset((count) => count + 1);
 			changed();
 		},
+		appliedReset,
 	};
 }
