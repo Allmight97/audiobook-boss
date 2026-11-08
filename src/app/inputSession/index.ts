@@ -4,3 +4,4 @@ export { formatFileDetails, formatAudioProperties } from './display';
 export { interpretFileListKeyDown } from './keyboardNavigation';
 export { nativeDropTargetAtPoint } from './nativeIngress';
 export { toInspectorViewFromInput } from './inspector';
+export { fileIdentityKey } from './types';

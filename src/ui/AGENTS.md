@@ -61,8 +61,10 @@ One bullet per view. A view without a bullet has no trap beyond its owner.
   engine's draft gate runs; only a file click awaits its outcome. Removal and
   selection pass the title's identity, never its position. The listbox owns
   keyboard handling; rows are not tab stops.
-  `pointerReorder.ts` serves the outer list and `TitleSources`, and removes its
-  listeners on dispose and on `pointercancel`. `AudioHandlingControl` renders
+  `pointerReorder.ts` serves the outer list and `TitleSources`. A drag holds the
+  pressed row's identity key, not its position, and finds positions again at
+  release, so an import or removal mid-drag cannot move another title. It
+  removes its listeners on dispose and on `pointercancel`. `AudioHandlingControl` renders
   in a portal that overlays the list without changing row height; hover or
   focus opens it, click pins it, and locking input closes it. A copied audio
   plan shows a check and an explicit copy label, not color alone.

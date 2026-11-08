@@ -66,6 +66,7 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 		inputSession,
 		[
 			'createInputOwner',
+			'fileIdentityKey',
 			'formatAudioProperties',
 			'formatFileDetails',
 			'interpretFileListKeyDown',

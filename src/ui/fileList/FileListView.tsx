@@ -1,4 +1,8 @@
-import { formatAudioProperties, interpretFileListKeyDown } from '../../app/inputSession';
+import {
+	fileIdentityKey,
+	formatAudioProperties,
+	interpretFileListKeyDown,
+} from '../../app/inputSession';
 import { useAppRuntime } from '../../app/runtime';
 import { coverSrc } from '../../lib/tauri/coverSrc';
 import { Button, CoverImage } from '../foundation';
@@ -33,8 +37,8 @@ export function FileListView(props: {
 	const restoreImportOrder = input.restoreImportOrder;
 	const clearAllFiles = input.clearAllFiles;
 	const [dragState, setDragState] = createSignal<FileListDragState>({
-		draggedIndex: null,
-		hoveredIndex: null,
+		draggedKey: null,
+		hoveredKey: null,
 		hoveredEdge: null,
 	});
 	let fileListContent: HTMLDivElement | null = null;
@@ -42,7 +46,7 @@ export function FileListView(props: {
 	const reorderHandlers = createFileListPointerReorder({
 		setDragState,
 		isBlocked: () => view().orderLocked,
-		fileCount: () => view().files.length,
+		rowKeys: () => view().files.map(fileIdentityKey),
 		onReorder: (fromIndex, toIndex) => reorderFiles({ fromIndex, toIndex }),
 	});
 
@@ -69,7 +73,10 @@ export function FileListView(props: {
 		if (event.shiftKey) window.getSelection()?.removeAllRanges();
 		void selectFile({
 			index,
-			modifiers: { multi: event.metaKey || event.ctrlKey, range: event.shiftKey },
+			modifiers: {
+				multi: event.metaKey || event.ctrlKey,
+				range: event.shiftKey,
+			},
 		});
 	}
 
@@ -85,7 +92,10 @@ export function FileListView(props: {
 			if (view().selectedIndices.length === 1 && view().selectedIndices[0] === command.index) {
 				return;
 			}
-			void selectFile({ index: command.index, modifiers: { multi: false, range: false } });
+			void selectFile({
+				index: command.index,
+				modifiers: { multi: false, range: false },
+			});
 			return;
 		}
 		if (command.type === 'selectAll') {
@@ -134,7 +144,9 @@ export function FileListView(props: {
 					</span>
 					<Button
 						id="restore-import-order-btn"
-						style={{ display: view().showRestoreImportOrder ? 'block' : 'none' }}
+						style={{
+							display: view().showRestoreImportOrder ? 'block' : 'none',
+						}}
 						onClick={() => restoreImportOrder()}
 					>
 						Restore import order
@@ -188,18 +200,21 @@ export function FileListView(props: {
 								// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the listbox owns the keyboard; rows are not tab stops.
 								<div
 									data-file-index={index()}
+									data-file-key={fileIdentityKey(file)}
 									class={[
 										'file-list-item',
 										{
 											valid: !failed(),
 											invalid: failed(),
 											selected: selected(),
-											dragging: drag().draggedIndex === index(),
-											'drag-over': drag().hoveredIndex === index(),
+											dragging: drag().draggedKey === fileIdentityKey(file),
+											'drag-over': drag().hoveredKey === fileIdentityKey(file),
 										},
 									]}
 									data-drop-edge={
-										drag().hoveredIndex === index() ? (drag().hoveredEdge ?? undefined) : undefined
+										drag().hoveredKey === fileIdentityKey(file)
+											? (drag().hoveredEdge ?? undefined)
+											: undefined
 									}
 									role="option"
 									data-state={file.status}
@@ -214,7 +229,9 @@ export function FileListView(props: {
 											class="file-reorder-grip"
 											tabindex={-1}
 											aria-label={`Reorder ${file.label}`}
-											onPointerDown={(event) => reorderHandlers.onGripPointerDown(index(), event)}
+											onPointerDown={(event) =>
+												reorderHandlers.onGripPointerDown(fileIdentityKey(file), event)
+											}
 											onClick={(event) => event.stopPropagation()}
 										>
 											⋮⋮
