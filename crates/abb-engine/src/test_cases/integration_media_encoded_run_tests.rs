@@ -12,11 +12,11 @@ use super::media_fixtures::{
 use super::support::encoders::{native_encoder_settings, stereo_native_encoder_settings};
 use super::support::wav::{write_sine_wav, write_stereo_sine_wav, SAMPLE_RATE};
 use crate::audio::{
-    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, ChannelConfig,
-    EncoderSettings, SampleRateConfig,
+    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, EncoderSettings,
+    SampleRateConfig,
 };
 #[cfg(target_os = "macos")]
-use crate::audio::{BitrateMode, EncoderType};
+use crate::audio::{BitrateMode, ChannelConfig, EncoderType};
 use crate::metadata::{read_metadata, AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::{
     AudioHandling, CancellationChecker, JobRegistry, OutputConfig, ProcessingContext,
