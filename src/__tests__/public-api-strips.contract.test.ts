@@ -94,6 +94,7 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 		'app/workOperations',
 		workOperations,
 		[
+			'childCancelling',
 			'childStatusLabel',
 			'createWorkOperationsOwner',
 			'operationKindLabel',

@@ -78,6 +78,34 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => expect(bitrate.value).toBe('193'));
 	});
 
+	it('keeps the Mixed bitrate blank after an edit the engine refuses', async () => {
+		engine = createFakeEngine();
+		engine.change((state) => {
+			state.audio.defaults.choice.intent = 'encode';
+			state.audio.selection = {
+				choice: state.audio.defaults.choice,
+				facts: { ...state.audio.defaults.facts, bitrateKbps: 193 },
+				mixed: ['bitrate'],
+				autoSampleRate: { outcome: { kind: 'unresolved' }, problem: null },
+				autoChannels: { outcome: { kind: 'unresolved' }, problem: null },
+			};
+		});
+		runtime = await createAppRuntime({ engine });
+		const files = [audioFile('/books/a.m4b', { status: 'ready' })];
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<EncoderView scope={{ kind: 'selection', files }} />
+			</AppRuntimeProvider>
+		));
+		const bitrate = await screen.findByTestId<HTMLInputElement>('bitrate-input');
+		expect(bitrate.value).toBe('');
+
+		bitrate.value = '0';
+		bitrate.dispatchEvent(new Event('change', { bubbles: true }));
+
+		expect(bitrate.value).toBe('');
+	});
+
 	it('shows the engine encoder after a pick the engine did not take', async () => {
 		await renderEncoder((defaults) => {
 			defaults.facts.encoderOptions = defaults.facts.encoderOptions.map((option) => ({

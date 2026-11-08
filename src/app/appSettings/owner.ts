@@ -146,7 +146,9 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 
 	async function send(intent: SettingsIntent): Promise<SettingsOutcome | { error: unknown }> {
 		try {
-			return await link.sendSettings(intent);
+			const outcome = await link.sendSettings(intent);
+			retryDropped = false;
+			return outcome;
 		} catch (error) {
 			return { error };
 		}

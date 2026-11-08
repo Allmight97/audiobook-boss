@@ -211,6 +211,36 @@ describe('engine preview adapter', () => {
 		expect(screen.getByText('Cancelling')).toBeVisible();
 	});
 
+	it('words each title from its own status after a whole-run cancel', async () => {
+		const engine = createFakeEngine();
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		const run = preview();
+		run.operation.status = 'cancelling';
+		run.operation.cancelRequested = true;
+		const [first] = run.operation.children;
+		first.status = 'completed';
+		first.cancelRequested = true;
+		first.message = 'Preview ready.';
+		run.operation.children.push({
+			...first,
+			childJobId: 'input-1',
+			label: 'Second.m4b',
+			status: 'running',
+			message: null,
+		});
+		engine.change((state) => {
+			state.output.previewRun = run;
+		});
+
+		await vi.waitFor(() =>
+			expect(app.processing.status().jobItems.map((item) => item.statusText)).toEqual([
+				'Preview ready.',
+				'Cancelling',
+			]),
+		);
+	});
+
 	it('leaves the engine line on a cancelled preview and reports no failure', async () => {
 		const engine = createFakeEngine();
 		const app = await createAppRuntime({ engine });

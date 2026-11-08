@@ -1,7 +1,7 @@
 import { formatEtaRemaining } from '../../lib/format/eta';
 import { coverSrc } from '../../lib/tauri/coverSrc';
 import type { OutputSnapshot } from '../../lib/generated/tauri';
-import { operationStatusLabel, stageStatusText } from '../workOperations';
+import { childCancelling, operationStatusLabel, stageStatusText } from '../workOperations';
 import type { JobListItem, StatusView } from './view';
 
 type PreviewRun = NonNullable<OutputSnapshot['previewRun']>;
@@ -14,17 +14,16 @@ function previewStatusText({ status, progress }: PreviewRun['operation']): strin
 		: text;
 }
 
-function previewJobItems({ children, phase }: PreviewRun['operation']): JobListItem[] {
+function previewJobItems({ children }: PreviewRun['operation']): JobListItem[] {
 	return children.map((child, index) => ({
 		childJobId: child.childJobId,
 		label: child.label,
 		status: child.status,
-		statusText:
-			child.cancelRequested && phase !== 'finished'
-				? operationStatusLabel('cancelling')
-				: child.status === 'queued'
-					? `Queued • #${index + 1} of ${children.length}`
-					: (child.message ?? child.progress.message),
+		statusText: childCancelling(child)
+			? operationStatusLabel('cancelling')
+			: child.status === 'queued'
+				? `Queued • #${index + 1} of ${children.length}`
+				: (child.message ?? child.progress.message),
 		stage: child.progress.stage,
 		percentage: child.progress.percentage,
 		canCancel: child.cancellable,

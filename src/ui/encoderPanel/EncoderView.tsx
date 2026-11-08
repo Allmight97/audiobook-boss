@@ -235,7 +235,7 @@ function EncoderPanel(props: {
 												onChange={(event) => {
 													const input = event.currentTarget;
 													form().choose('bitrate', input.value);
-													input.value = String(view().bitrate);
+													input.value = String(value('bitrate', view().bitrate));
 												}}
 											/>
 										</div>

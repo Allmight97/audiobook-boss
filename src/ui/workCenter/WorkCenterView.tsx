@@ -4,6 +4,7 @@ import type { JSX } from '@solidjs/web';
 import { formatEtaRemaining } from '../../lib/format/eta';
 import { useAppRuntime } from '../../app/runtime';
 import {
+	childCancelling,
 	childStatusLabel,
 	operationKindLabel,
 	operationStatusLabel,
@@ -31,8 +32,7 @@ function operationStatusText(operation: OperationSnapshot): string {
 
 function childStatusText(child: ChildJobSnapshot): string {
 	const { status } = child;
-	const cancelling = (status === 'queued' || status === 'running') && child.cancelRequested;
-	const label = cancelling
+	const label = childCancelling(child)
 		? operationStatusLabel('cancelling')
 		: status === 'completed'
 			? withDuration(childStatusLabel(status), child)

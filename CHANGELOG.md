@@ -6,6 +6,10 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- A title that already finished no longer reads "Cancelling" in the status panel after you
+  cancel a whole preview.
+- A bitrate the engine refuses for several selected titles leaves the field on "Mixed". It used
+  to fill in one title's number.
 - A download that finds no usable Audible sign-in now asks you to sign in again. It used to fail
   with a protocol error while the account kept showing Connected.
 - Settings keeps naming the copy of an unreadable settings file when the first save after it
@@ -52,7 +56,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   `Chapter 1 - Part 2`, `Book` comes before `Book1`, and `über 2` comes before `Über 10`.
 - Cancelling an export that waits for a free slot takes effect at once. It used to wait for the
   next periodic check.
-- A settings Retry that never reached ABB now says "Retry didn't reach ABB."
+- A settings Retry that never reached ABB now says "Retry didn't reach ABB." The note goes away once a later change reaches ABB.
 - Settings shows pinned defaults in the encoder panel's words: "VBR", "FAAC" and "Opus (libopus)".
   It used to show "VBR_TARGET", "faac" and "opus".
 - The audio plan popover shows the planned sample rate only. It used to show the source rate

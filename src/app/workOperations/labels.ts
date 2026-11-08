@@ -52,6 +52,14 @@ export function operationStatusLabel(status: WorkOperationStatus): string {
 	return OPERATION_STATUSES[status];
 }
 
+/** A cancel was asked and the title has not yet stopped: only a queued or running title can cancel. */
+export function childCancelling(child: {
+	readonly status: ChildJobStatus;
+	readonly cancelRequested: boolean;
+}): boolean {
+	return (child.status === 'queued' || child.status === 'running') && child.cancelRequested;
+}
+
 export function childStatusLabel(status: ChildJobStatus): string {
 	return CHILD_STATUSES[status];
 }

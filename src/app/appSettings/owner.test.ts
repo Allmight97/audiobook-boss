@@ -106,6 +106,27 @@ describe('settings owner', () => {
 		expect(app.settings.durability()).toEqual({ state: 'saved', message: '' });
 	});
 
+	it('stops saying a retry never arrived once a later send reaches the engine', async () => {
+		const app = await open();
+		engine.seedAppSettings(
+			{ encoderDefaults: { ...engine.settings().settings.encoderDefaults, intent: 'preserve' } },
+			unsaved('Disk full'),
+		);
+		engine.settingsDispatch = async () => {
+			throw new Error('channel closed');
+		};
+		await app.settings.retryPersistence();
+		expect(app.settings.durability().message).toBe("Retry didn't reach ABB. Disk full");
+
+		engine.settingsDispatch = async () => ({
+			outcome: { kind: 'applied' },
+			snapshot: engine.settings(),
+		});
+		await app.settings.setKeepAwakeWhileWorking(false);
+
+		expect(app.settings.durability()).toEqual({ state: 'error', message: 'Disk full' });
+	});
+
 	it('shows the default import source as saving until the engine replies', async () => {
 		const app = await open();
 		let release: () => void = () => {};
