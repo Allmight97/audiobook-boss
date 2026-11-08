@@ -58,13 +58,14 @@ impl Session {
             return;
         }
         let session = self.clone();
+        let claim = self.writer_claim();
         self.inner
             .deps
             .tasks
-            .spawn(async move { session.write_deferred_when_free().await });
+            .spawn(async move { session.write_deferred_when_free(claim).await });
     }
 
-    async fn write_deferred_when_free(&self) {
+    async fn write_deferred_when_free(&self, claim: super::in_flight::InFlight) {
         let mut changes = self.inner.deps.work.subscribe_changes();
         loop {
             changes.borrow_and_update();
@@ -72,7 +73,7 @@ impl Session {
                 let mut state = self.lock();
                 let in_use = self.inner.deps.work.sources_in_use();
                 if !state.has_waiting_writes() {
-                    state.deferred_writer.release();
+                    claim.end_in(&mut state);
                     return;
                 }
                 state.take_ready_deferred(&in_use)

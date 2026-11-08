@@ -72,7 +72,10 @@ one host attachment.
   flags live in `SessionState` (`Claim`) and are taken and cleared under the
   same lock; a transition that frees a download afterwards starts the next
   sweep. Waiting writes clear under the state lock, where Save adds them, so a
-  new write always finds a writer or starts one.
+  new write always finds a writer or starts one. A task holds each such claim
+  (and a kept location) as an `InFlight` guard: the task ends it inside the
+  transition that decides to stop, and a task that stops early ends it on drop.
+  A Save is running exactly while `WriteQueue` holds a file it writes.
 - A preview holds concurrency fixed. `Preview` owns its run (accepted, running,
   finished) and the cancel tokens: one parent, one child per title, created in
   the same turn that admits the run, so shutdown either sees it to cancel or the

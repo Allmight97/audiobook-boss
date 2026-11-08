@@ -133,6 +133,7 @@ enum Rest {
         title_id: String,
         revision: u64,
         link: Box<ExportLink>,
+        held: in_flight::InFlight,
     },
     CoverLoad {
         source: CoverSource,
@@ -203,9 +204,10 @@ impl Session {
                 title_id,
                 revision,
                 link,
+                held,
             } => {
                 session
-                    .keep_location_finished(title_id, revision, *link)
+                    .keep_location_finished(title_id, revision, *link, held)
                     .await
             }
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
@@ -591,6 +593,7 @@ mod cover_flow;
 mod defaults_flow;
 mod download_flow;
 mod import_flow;
+mod in_flight;
 mod lookup_flow;
 mod preview_flow;
 mod save_flow;

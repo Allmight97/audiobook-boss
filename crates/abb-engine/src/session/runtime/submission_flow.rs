@@ -203,6 +203,7 @@ impl Session {
                 title_id,
                 revision,
                 link: Box::new(link),
+                held: self.kept_location(),
             },
             None => Rest::Done(SessionOutcome::Superseded),
         }
@@ -213,9 +214,10 @@ impl Session {
         title_id: String,
         revision: u64,
         link: ExportLink,
+        held: super::in_flight::InFlight,
     ) -> SessionOutcome {
         let outcome = self.keep_location(title_id, revision, link).await;
-        self.transition(SessionState::finish_keep_location);
+        drop(held);
         outcome
     }
 

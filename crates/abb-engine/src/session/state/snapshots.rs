@@ -186,7 +186,7 @@ impl SessionState {
     }
 
     fn next_restart_prompt(&self) -> Option<RestartOffer> {
-        if self.submitting.is_some() || self.keeping_locations > 0 || self.writes.save_running() {
+        if self.submitting.is_some() || self.keeping_location() || self.writes.save_running() {
             return None;
         }
         self.exports.next_prompt(

@@ -142,3 +142,28 @@ async fn a_save_runs_while_every_export_slot_is_held_and_stays_a_tracked_job() {
         2
     );
 }
+
+#[tokio::test]
+async fn a_save_dropped_while_it_writes_stops_counting_as_active_work() {
+    let registry: crate::ManagedJobRegistry =
+        std::sync::Arc::new(crate::processing::JobRegistry::new(1));
+    let host = Host::new(
+        std::sync::Arc::new(crate::DiscardEvents),
+        crate::power::PowerManager::default(),
+    );
+    let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
+    let items = vec![MetadataSaveRequest {
+        file_path: "/definitely/missing.m4b".to_string(),
+        metadata_patch: title_patch("A"),
+    }];
+
+    let outcome = tokio::time::timeout(
+        std::time::Duration::ZERO,
+        save_metadata_batch(&host, &runtime, &registry, items),
+    )
+    .await;
+    drop(outcome);
+
+    assert_eq!(registry.active_jobs(), 0);
+    assert!(!registry.concurrency_locked());
+}

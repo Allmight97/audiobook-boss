@@ -228,12 +228,20 @@ impl SessionState {
             return None;
         };
         self.exports.acknowledge_prompt(title_id, revision);
-        self.keeping_locations += 1;
+        self.hold_keeping_location();
         Some(link)
+    }
+
+    pub(crate) fn hold_keeping_location(&mut self) {
+        self.keeping_locations += 1;
     }
 
     pub(crate) fn finish_keep_location(&mut self) {
         self.keeping_locations -= 1;
+    }
+
+    pub(crate) fn keeping_location(&self) -> bool {
+        self.keeping_locations > 0
     }
 
     pub(crate) fn await_review(&mut self, mut draft: Draft, outputs: Vec<PlannedOutput>) {

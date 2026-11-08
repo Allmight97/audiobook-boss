@@ -24,5 +24,5 @@ pub(crate) use crate::execution::{
     ProgressEmitter, ProgressEventListener, PREVIEW_SECONDS,
 };
 pub use crate::execution::{EventStage, ProgressEvent};
-pub(crate) use job_registry::JobRegistry;
+pub(crate) use job_registry::{JobRegistry, RegisteredJob};
 pub(crate) use title_output::TitleOutput;

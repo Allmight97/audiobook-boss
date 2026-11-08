@@ -704,6 +704,8 @@ mod download_flow;
 mod field_edit;
 #[path = "runtime/import_flow_tests.rs"]
 mod import_flow;
+#[path = "runtime/in_flight_tests.rs"]
+mod in_flight;
 #[path = "runtime/lookup_flow_tests.rs"]
 mod lookup_flow;
 #[path = "runtime/preview_flow_tests.rs"]

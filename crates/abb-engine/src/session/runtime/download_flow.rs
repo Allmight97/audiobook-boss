@@ -93,13 +93,16 @@ impl Session {
 
     pub(super) fn sweep_staged(&self) {
         let session = self.clone();
+        let mut claim = Some(self.sweep_claim());
         self.inner.deps.tasks.spawn(async move {
             loop {
                 let (jobs, retry_at) = session.transition(|state| {
                     let held = session.inner.deps.work.sources_held();
                     let jobs = state.begin_staged_removal(&held, now());
                     if jobs.is_empty() {
-                        state.sweeping.release();
+                        if let Some(claim) = claim.take() {
+                            claim.end_in(state);
+                        }
                     }
                     (jobs, state.staged.next_retry())
                 });

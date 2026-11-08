@@ -34,10 +34,32 @@ async fn registration_accepts_each_formats_own_extension() {
         )
         .await
         .expect("the format's own extension should be accepted");
-        registry.complete_job(registered.job_id);
+        registered.job.complete();
     }
     assert_eq!(
         std::fs::read(existing).expect("read untouched library file"),
         b"existing library file"
     );
+}
+
+#[tokio::test]
+async fn a_registered_job_that_is_dropped_leaves_the_registry() {
+    let temp_dir = TempDir::new().expect("temp output directory");
+    let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(1));
+    let registered = register_job_and_validate_output(
+        &registry,
+        &temp_dir.path().join("output.m4b"),
+        audio::AudiobookFormat::M4b,
+        None,
+        identity(),
+        OperationKind::ProcessingBatch,
+    )
+    .await
+    .expect("registered");
+    assert!(registry.concurrency_locked());
+
+    drop(registered);
+
+    assert_eq!(registry.active_jobs(), 0);
+    assert!(!registry.concurrency_locked());
 }

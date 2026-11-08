@@ -99,8 +99,9 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   wake-up never drops a running title.
 - Presence in the registry map is the job's only lifecycle state: tracked from
   the moment it registers (a permit job, while it waits for the permit);
-  `complete_job` and `fail_job` remove it on every terminal path; a failed, cancelled, or dropped admission removes
-  itself.
+  an admitted job is held as a `RegisteredJob`, which leaves the registry
+  through `complete` or `fail` and, if dropped unsettled, on its own; a failed,
+  cancelled, or dropped admission removes itself.
 - `update_max_concurrent` works only while the registry is idle: no job
   registered and no `ActiveRun` held. WorkRuntime holds one `ActiveRun` from an
   export's acceptance to its end, and the session for a preview, so the gap

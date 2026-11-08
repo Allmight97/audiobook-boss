@@ -173,9 +173,6 @@ impl SessionState {
                 }
             }
         }
-        if !paths.is_empty() {
-            self.writes.end_save();
-        }
         if current {
             self.status = Some(status);
         }

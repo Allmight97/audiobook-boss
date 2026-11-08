@@ -8,7 +8,7 @@ use crate::output_artifact::{
     commit_supplemental_output_assets_for_output, OutputKind, ResolvedOutputPlan,
     SupplementalOutputAssetsCommitRequest,
 };
-use crate::processing::job_registry::JobId;
+use crate::processing::job_registry::{JobId, RegisteredJob};
 use crate::processing::ProgressEventListener;
 use crate::processing::{
     AudioHandling, JobIdentity, OperationKind, OutputConfig, ProcessPayload, ProcessResultEntry,
@@ -50,7 +50,7 @@ pub(crate) async fn run_processing_job(
     request: ProcessingJobRequest,
 ) -> Result<ProcessResultEntry> {
     let RegisteredProcessingJob {
-        job_id,
+        job,
         identity,
         permit: _permit,
         cancellation_checker,
@@ -64,6 +64,7 @@ pub(crate) async fn run_processing_job(
         request.operation_kind,
     )
     .await?;
+    let job_id = job.id();
     log_audio_decision(&request, job_id);
     let _active_work = request.host.begin_active_work();
 
@@ -104,23 +105,16 @@ pub(crate) async fn run_processing_job(
     })
     .await;
 
-    settle_job(
-        &request.registry,
-        job_id,
-        request.identity.input_index,
-        &lifecycle_log,
-        result,
-    )
-    .await
+    settle_job(job, request.identity.input_index, &lifecycle_log, result).await
 }
 
 async fn settle_job(
-    registry: &crate::ManagedJobRegistry,
-    job_id: JobId,
+    job: RegisteredJob,
     input_index: usize,
     lifecycle_log: &ProcessingJobLifecycleLog,
     result: ProcessingJobTerminalOutcome,
 ) -> Result<ProcessResultEntry> {
+    let job_id = job.id();
     match result {
         ProcessingJobTerminalOutcome::Success {
             message,
@@ -128,7 +122,7 @@ async fn settle_job(
             supplemental_warning,
             warnings,
         } => {
-            registry.complete_job(job_id);
+            job.complete();
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Success);
             Ok(ProcessResultEntry {
                 input_index,
@@ -142,12 +136,12 @@ async fn settle_job(
             })
         }
         ProcessingJobTerminalOutcome::Cancelled(error) => {
-            registry.complete_job(job_id);
+            job.complete();
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Cancelled);
             Err(error)
         }
         ProcessingJobTerminalOutcome::Failed(envelope) => {
-            registry.fail_job(job_id, envelope.message.clone());
+            job.fail(envelope.message.clone());
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
             Ok(terminal_failure_result(
                 input_index,
@@ -266,7 +260,7 @@ pub(crate) async fn title_outcome(
 }
 
 pub(crate) struct RegisteredProcessingJob {
-    pub(crate) job_id: JobId,
+    pub(crate) job: RegisteredJob,
     pub(crate) identity: JobIdentity,
     pub(crate) permit: OwnedSemaphorePermit,
     pub(crate) cancellation_checker: CancellationChecker,
@@ -288,6 +282,7 @@ pub(crate) async fn register_job_and_validate_output(
     let (job_id, permit) = registry
         .register_job_with_external_cancel(title_cancel.clone())
         .await?;
+    let job = RegisteredJob::adopt(registry, job_id);
     let cancellation_checker = CancellationChecker::new(title_cancel);
     let identity = identity.registered(job_id);
     let lifecycle_log = ProcessingJobLifecycleLog::start(identity.clone(), operation_kind);
@@ -302,12 +297,12 @@ pub(crate) async fn register_job_and_validate_output(
     if let Err(error) = validation {
         let envelope = AppErrorEnvelope::from(&error);
         lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
-        registry.fail_job(job_id, error.to_string());
+        job.fail(error.to_string());
         return Err(error);
     }
 
     Ok(RegisteredProcessingJob {
-        job_id,
+        job,
         identity,
         permit,
         cancellation_checker,

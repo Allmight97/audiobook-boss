@@ -111,7 +111,7 @@ pub(crate) async fn save_metadata_batch(
     let file_paths: Vec<String> = items.iter().map(|item| item.file_path.clone()).collect();
     let (operation_id, cancel_token) = runtime.begin_metadata_save_operation(host, &file_paths)?;
 
-    let job_id = registry.register_job_without_permit();
+    let job = crate::processing::RegisteredJob::without_permit(registry);
     let _active_work = host.begin_active_work();
     let cancellation = CancellationChecker::new(Some(cancel_token));
 
@@ -125,8 +125,8 @@ pub(crate) async fn save_metadata_batch(
     .await;
 
     match &result {
-        Ok(_) => registry.complete_job(job_id),
-        Err(error) => registry.fail_job(job_id, error.to_string()),
+        Ok(_) => job.complete(),
+        Err(error) => job.fail(error.to_string()),
     }
 
     match result {

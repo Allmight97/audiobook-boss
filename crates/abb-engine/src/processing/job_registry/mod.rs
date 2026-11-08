@@ -1,4 +1,5 @@
 mod permit;
+mod registered;
 mod types;
 
 use crate::errors::{AppError, Result};
@@ -11,6 +12,7 @@ use tokio::task::{Id, JoinSet};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+pub(crate) use registered::RegisteredJob;
 pub use types::{JobId, MaxConcurrentJobsCapabilities};
 
 pub const MIN_CONCURRENT_JOBS: usize = 1;

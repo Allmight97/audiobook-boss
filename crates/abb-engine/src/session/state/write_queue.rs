@@ -52,19 +52,17 @@ pub(super) struct Routing {
 /// to.
 #[derive(Debug, Default)]
 pub(super) struct WriteQueue {
-    save_running: bool,
     writing: Vec<PathBuf>,
     deferred: Vec<DeferredWrite>,
 }
 
 impl WriteQueue {
     pub(super) fn save_running(&self) -> bool {
-        self.save_running
+        !self.writing.is_empty()
     }
 
     pub(super) fn is_writing(&self) -> bool {
-        self.save_running
-            || !self.writing.is_empty()
+        self.save_running()
             || self
                 .deferred
                 .iter()
@@ -97,7 +95,6 @@ impl WriteQueue {
                 routing.immediate.push(item);
             }
         }
-        self.save_running = !routing.immediate.is_empty();
         self.writing
             .extend(routing.immediate.iter().map(|item| item.path.clone()));
         routing
@@ -127,10 +124,6 @@ impl WriteQueue {
                 self.writing.swap_remove(index);
             }
         }
-    }
-
-    pub(super) fn end_save(&mut self) {
-        self.save_running = false;
     }
 
     pub(super) fn take_ready(&mut self, in_use: &HashSet<PathBuf>) -> Vec<SaveItem> {
@@ -214,3 +207,7 @@ impl WriteQueue {
         paths
     }
 }
+
+#[cfg(test)]
+#[path = "write_queue_tests.rs"]
+mod tests;
