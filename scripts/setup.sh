@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Agent and CI setup for ABB. Idempotent. Never edits shell profiles; sets
-# this repo's core.hooksPath so commits run .githooks/pre-commit.
+# this repo's core.hooksPath so commits run .githooks/pre-commit, unless a
+# Cursor wrapper already points .cursor-original-hooks-path at those hooks.
 #   bash scripts/setup.sh                 # frontend, rust, and supply-chain
 #   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck, uv, zizmor
 #   bash scripts/setup.sh rust            # bundled FFmpeg build deps and source, FFmpeg 9 CLI, .NET SDK, helper, uv, cargo fetch
@@ -292,6 +293,31 @@ check_supply_chain() {
 	done
 }
 
+# True when commits run this repo's .githooks. Cursor cloud wraps
+# core.hooksPath and records the original path in .cursor-original-hooks-path.
+git_hooks_installed() {
+	local root="${1:-${repo_root}}"
+	local hooks original
+	hooks="$(git -C "${root}" config --local --get core.hooksPath || true)" # allow-silence: an unset key exits 1 and means not installed
+	if [[ -z "${hooks}" ]]; then
+		return 1
+	fi
+	if [[ "${hooks}" != /* ]]; then
+		hooks="${root}/${hooks}"
+	fi
+	if [[ "${hooks}" == "${root}/.githooks" ]]; then
+		return 0
+	fi
+	if [[ ! -f "${hooks}/.cursor-original-hooks-path" ]]; then
+		return 1
+	fi
+	original="$(tr -d '[:space:]' <"${hooks}/.cursor-original-hooks-path")"
+	if [[ "${original}" != /* ]]; then
+		original="${root}/${original}"
+	fi
+	[[ "${original}" == "${root}/.githooks" ]]
+}
+
 check_frontend() {
 	local required_bun required_node bun_ver
 	required_bun="$(bash "${repo_root}/scripts/locked-bun-version.sh")"
@@ -318,7 +344,7 @@ check_frontend() {
 	else
 		need "node_modules (run: bash scripts/setup.sh frontend)"
 	fi
-	if [[ "$(git -C "${repo_root}" config --get core.hooksPath || true)" == .githooks ]]; then # allow-silence: an unset key exits 1 and means not installed
+	if git_hooks_installed "${repo_root}"; then
 		ok "git hooks"
 	else
 		need "git hooks (run: bash scripts/setup.sh frontend)"
@@ -880,7 +906,7 @@ ensure_ffmpeg_source() {
 }
 
 install_git_hooks() {
-	if [[ "$(git -C "${repo_root}" config --get core.hooksPath || true)" != .githooks ]]; then # allow-silence: an unset key exits 1 and means not installed
+	if ! git_hooks_installed "${repo_root}"; then
 		log "Installing git hooks (core.hooksPath .githooks)"
 		git -C "${repo_root}" config core.hooksPath .githooks
 	fi

@@ -172,6 +172,7 @@ impl AudioChoice {
             self.opus_bitrate_kbps = settings.bitrate_kbps;
         } else {
             self.encoder = settings.encoder_type;
+            self.aac_bitrate_kbps = settings.bitrate_kbps;
         }
         self.saved_mode = settings.bitrate_mode;
         self.faac_profile = settings.faac_profile;
@@ -185,7 +186,6 @@ impl AudioChoice {
             }
         }
         self.native_speed = settings.native_aac_speed;
-        self.aac_bitrate_kbps = settings.bitrate_kbps;
         self.channels = settings.channels;
     }
 

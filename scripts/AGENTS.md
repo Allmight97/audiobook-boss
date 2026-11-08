@@ -73,7 +73,9 @@ A lane that selects tests by a filter fails when the filter runs none,
 so a renamed module cannot pass by running nothing.
 
 `bash scripts/setup.sh` installs `.githooks/pre-commit`, a fast check of the
-staged index; it never changes the index.
+staged index; it never changes the index. A `core.hooksPath` that already
+runs those hooks is left alone, including Cursor's wrapper when its
+`.cursor-original-hooks-path` names `.githooks`.
 
 Traps:
 

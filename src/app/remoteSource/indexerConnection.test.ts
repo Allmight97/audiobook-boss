@@ -163,6 +163,51 @@ it('keeps a refused URL visible beside its reason', async () => {
 		}),
 	);
 });
+it('drops a refused key and its error when settings reset applies', async () => {
+	const owner = await open();
+	const reason = {
+		code: 'invalid_input',
+		category: 'validation',
+		message: 'The Indexer API key has a character that cannot be sent in a request.',
+		detail: null,
+	} as const;
+	engine.respond = () => ({ kind: 'rejected', error: reason });
+	owner.indexerConnection.patch({ apiKeyDraft: 'bad key' });
+	await vi.waitFor(() =>
+		expect(owner.indexerConnection.view()).toMatchObject({
+			apiKeyDraft: 'bad key',
+			saveState: 'error',
+			saveError: reason.message,
+		}),
+	);
+
+	await runtime!.settings.setKeepAwakeWhileWorking(false);
+	expect(owner.indexerConnection.view()).toMatchObject({
+		apiKeyDraft: 'bad key',
+		saveError: reason.message,
+	});
+
+	engine.respondSettings = () => ({
+		kind: 'rejected',
+		error: {
+			code: 'invalid_input',
+			category: 'validation',
+			message: "Settings can't be reset while exports are running.",
+			detail: null,
+		},
+	});
+	await runtime!.settings.resetAllAppSettings();
+	expect(runtime!.settings.dialog().status.reset.state).toBe('error');
+	expect(owner.indexerConnection.view().saveError).toBe(reason.message);
+
+	engine.respondSettings = () => ({ kind: 'applied' });
+	await runtime!.settings.resetAllAppSettings();
+	expect(owner.indexerConnection.view()).toMatchObject({
+		apiKeyDraft: '',
+		saveError: '',
+		saveState: 'idle',
+	});
+});
 it('shows the engine’s value once the engine has replied, even if it differs from what was typed', async () => {
 	const owner = await open();
 

@@ -30,7 +30,10 @@ export type IndexerConnectionSettings = {
 	reset(): void;
 };
 
-export function createIndexerConnectionSettings(link: EngineLink): IndexerConnectionSettings {
+export function createIndexerConnectionSettings(
+	link: EngineLink,
+	appliedReset: Accessor<number>,
+): IndexerConnectionSettings {
 	const [revision, bump] = createSignal(0, { ownedWrite: true });
 	let keyEcho = '';
 	let keyAccepted = false;
@@ -48,6 +51,19 @@ export function createIndexerConnectionSettings(link: EngineLink): IndexerConnec
 			}
 		},
 	);
+	let seenReset = appliedReset();
+	function discardLocalEdits(): void {
+		typed.clear();
+		keyEcho = '';
+		keyAccepted = false;
+		localError = '';
+		changed();
+	}
+	createEffect(appliedReset, (generation) => {
+		if (generation === seenReset) return;
+		seenReset = generation;
+		discardLocalEdits();
+	});
 	async function send(intent: RemoteUiIntent) {
 		localError = '';
 		changed();
@@ -130,11 +146,6 @@ export function createIndexerConnectionSettings(link: EngineLink): IndexerConnec
 		async testConnection() {
 			await send({ kind: 'testConnection' });
 		},
-		reset() {
-			typed.clear();
-			keyEcho = '';
-			localError = '';
-			changed();
-		},
+		reset: discardLocalEdits,
 	};
 }

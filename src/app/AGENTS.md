@@ -96,7 +96,8 @@ without a bullet has none. Engine paths name the owner of the truth.
   the status panel and the select's screen-reader text share), and holds
   dialog state. Settings intents go
   through `sendSettings` (their own numbered order); a dialog control's
-  failure shows beside that control (`runDialogAction`). The session records
+  failure shows beside that control (`runDialogAction`). `appliedReset`
+  advances when a Reset intent applies. The session records
   audio and output defaults and announces them with `settings-update`; views
   send Settings intents only. `quittingAvailable` is display-only, read through
   `src/lib/platform` (macOS only): the Quit shortcut is macOS-only, and bindings
@@ -166,7 +167,11 @@ without a bullet has none. Engine paths name the owner of the truth.
   write-only key, URL, and category intents; keys never come back from the
   engine, and only the URL's typing echo and the key's visual echo stay local.
   Once its reply arrives, the form shows the engine's draft URL, a refused URL
-  included (the engine keeps it as typed). Close leaves accepted work running.
+  included (the engine keeps it as typed). An applied settings Reset
+  (`appliedReset` from the settings owner, wired in `runtime/index.ts`) clears
+  that echo, a key the engine never accepted, and a refusal kept on the form.
+  Why: Reset replaces the draft, and neither local fact has a snapshot
+  transition that drops it. Close leaves accepted work running.
   Disposal invalidates pending authorization-browser replies. An authorization URL occurs only in the
   initiating intent outcome; snapshots never reopen a browser. The
   status line is a local refusal, else a running job's progress message, else
